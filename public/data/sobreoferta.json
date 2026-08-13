@@ -1,0 +1,1919 @@
+{
+  "generatedAt": "2026-08-11T23:42:37.588Z",
+  "meta": {
+    "medianAlumnosPorEdificio": 5.5,
+    "medianAlumnosPorEdificioDept": 5.5,
+    "medianVariacionNatalidad": -0.29156626506024097,
+    "zoneSemaforoCounts": {
+      "rojo": 14,
+      "amarillo": 21,
+      "verde": 24
+    },
+    "departmentSemaforoCounts": {
+      "rojo": 6,
+      "amarillo": 6,
+      "verde": 13
+    },
+    "multiDepartmentZones": [
+      "Zona 4",
+      "Zona 7",
+      "Zona 15",
+      "Zona 18",
+      "Zona 19",
+      "Zona 25",
+      "Zona 37"
+    ],
+    "colors": {
+      "rojo": {
+        "fill": "#E57373",
+        "stroke": "#C62828",
+        "label": "Sobreoferta clara"
+      },
+      "amarillo": {
+        "fill": "#FFF176",
+        "stroke": "#F9A825",
+        "label": "Sobreoferta futura probable"
+      },
+      "verde": {
+        "fill": "#81C784",
+        "stroke": "#2E7D32",
+        "label": "Demanda estable/suficiente"
+      }
+    },
+    "warnings": [
+      "Nacidos vivos = lugar de registro, no residencia: Capital concentra partos de otros deptos. Usar la variación como señal relativa.",
+      "Natalidad en caída = variación peor que la mediana departamental de Corrientes (no cualquier valor negativo).",
+      "7 zonas multi-departamento (Sobreoferta escolar): demanda futura repartida por share de establecimientos (Ruta A).",
+      "Tasa de asistencia 4 años: serie de escenarios (06a), no la observada (05b).",
+      "La caída 2014→2023 incluye efecto pandemia; no extrapolar mecánicamente.",
+      "Los CSV nacionales de PowerBI tienen homónimos (Capital, San Martín, etc.); este build usa el recorte Corrientes por CODDPTO/provincia en docs/powerbi_corrientes/."
+    ]
+  },
+  "zones": {
+    "Zona 1": {
+      "name": "Zona 1",
+      "establishments": 8,
+      "matricula2026": 44,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.1925925925925926,
+      "departments": [
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 8,
+          "establishmentsInDept": 22,
+          "share": 0.36363636363636365,
+          "variacionNatalidad": -0.1925925925925926
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 2": {
+      "name": "Zona 2",
+      "establishments": 7,
+      "matricula2026": 45,
+      "alumnosPorEdificio": 6.428571428571429,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 7,
+          "establishmentsInDept": 33,
+          "share": 0.21212121212121213,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 3": {
+      "name": "Zona 3",
+      "establishments": 6,
+      "matricula2026": 33,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.30927835051546393,
+      "departments": [
+        {
+          "key": "ESQUINA",
+          "name": "Esquina",
+          "establishmentsInZone": 6,
+          "establishmentsInDept": 22,
+          "share": 0.2727272727272727,
+          "variacionNatalidad": -0.30927835051546393
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 4": {
+      "name": "Zona 4",
+      "establishments": 6,
+      "matricula2026": 32,
+      "alumnosPorEdificio": 5.333333333333333,
+      "variacionNatalidad": -0.29493519652768324,
+      "departments": [
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 22,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.1925925925925926
+        },
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 20,
+          "share": 0.1,
+          "variacionNatalidad": -0.4810126582278481
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 5": {
+      "name": "Zona 5",
+      "establishments": 6,
+      "matricula2026": 28,
+      "alumnosPorEdificio": 4.666666666666667,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 6,
+          "establishmentsInDept": 33,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 6": {
+      "name": "Zona 6",
+      "establishments": 6,
+      "matricula2026": 33,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.36477987421383645,
+      "departments": [
+        {
+          "key": "SAUCE",
+          "name": "Sauce",
+          "establishmentsInZone": 6,
+          "establishmentsInDept": 11,
+          "share": 0.5454545454545454,
+          "variacionNatalidad": -0.36477987421383645
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 7": {
+      "name": "Zona 7",
+      "establishments": 6,
+      "matricula2026": 35,
+      "alumnosPorEdificio": 5.833333333333333,
+      "variacionNatalidad": -0.4360963658636178,
+      "departments": [
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 20,
+          "share": 0.15,
+          "variacionNatalidad": -0.4810126582278481
+        },
+        {
+          "key": "SAN COSME",
+          "name": "San Cosme",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 11,
+          "share": 0.2727272727272727,
+          "variacionNatalidad": -0.41139240506329117
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 8": {
+      "name": "Zona 8",
+      "establishments": 6,
+      "matricula2026": 40,
+      "alumnosPorEdificio": 6.666666666666667,
+      "variacionNatalidad": -0.41139240506329117,
+      "departments": [
+        {
+          "key": "SAN COSME",
+          "name": "San Cosme",
+          "establishmentsInZone": 6,
+          "establishmentsInDept": 11,
+          "share": 0.5454545454545454,
+          "variacionNatalidad": -0.41139240506329117
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 9": {
+      "name": "Zona 9",
+      "establishments": 5,
+      "matricula2026": 33,
+      "alumnosPorEdificio": 6.6,
+      "variacionNatalidad": -0.18099547511312217,
+      "departments": [
+        {
+          "key": "GENERAL PAZ",
+          "name": "General Paz",
+          "establishmentsInZone": 5,
+          "establishmentsInDept": 16,
+          "share": 0.3125,
+          "variacionNatalidad": -0.18099547511312217
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 10": {
+      "name": "Zona 10",
+      "establishments": 5,
+      "matricula2026": 21,
+      "alumnosPorEdificio": 4.2,
+      "variacionNatalidad": -0.34124629080118696,
+      "departments": [
+        {
+          "key": "MONTE CASEROS",
+          "name": "Monte Caseros",
+          "establishmentsInZone": 5,
+          "establishmentsInDept": 16,
+          "share": 0.3125,
+          "variacionNatalidad": -0.34124629080118696
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 11": {
+      "name": "Zona 11",
+      "establishments": 5,
+      "matricula2026": 31,
+      "alumnosPorEdificio": 6.2,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 5,
+          "establishmentsInDept": 33,
+          "share": 0.15151515151515152,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 12": {
+      "name": "Zona 12",
+      "establishments": 4,
+      "matricula2026": 22,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.18099547511312217,
+      "departments": [
+        {
+          "key": "GENERAL PAZ",
+          "name": "General Paz",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 16,
+          "share": 0.25,
+          "variacionNatalidad": -0.18099547511312217
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 13": {
+      "name": "Zona 13",
+      "establishments": 4,
+      "matricula2026": 17,
+      "alumnosPorEdificio": 4.25,
+      "variacionNatalidad": -0.30927835051546393,
+      "departments": [
+        {
+          "key": "ESQUINA",
+          "name": "Esquina",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 22,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.30927835051546393
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 14": {
+      "name": "Zona 14",
+      "establishments": 4,
+      "matricula2026": 26,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.34124629080118696,
+      "departments": [
+        {
+          "key": "MONTE CASEROS",
+          "name": "Monte Caseros",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 16,
+          "share": 0.25,
+          "variacionNatalidad": -0.34124629080118696
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 15": {
+      "name": "Zona 15",
+      "establishments": 4,
+      "matricula2026": 22,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.289086789788052,
+      "departments": [
+        {
+          "key": "CONCEPCION",
+          "name": "Concepción",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 15,
+          "share": 0.2,
+          "variacionNatalidad": -0.3409090909090909
+        },
+        {
+          "key": "LAVALLE",
+          "name": "Lavalle",
+          "establishmentsInZone": 1,
+          "establishmentsInDept": 8,
+          "share": 0.125,
+          "variacionNatalidad": -0.2061711079943899
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 16": {
+      "name": "Zona 16",
+      "establishments": 4,
+      "matricula2026": 15,
+      "alumnosPorEdificio": 3.75,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 33,
+          "share": 0.12121212121212122,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 17": {
+      "name": "Zona 17",
+      "establishments": 4,
+      "matricula2026": 31,
+      "alumnosPorEdificio": 7.75,
+      "variacionNatalidad": -0.2061711079943899,
+      "departments": [
+        {
+          "key": "LAVALLE",
+          "name": "Lavalle",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 8,
+          "share": 0.5,
+          "variacionNatalidad": -0.2061711079943899
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 18": {
+      "name": "Zona 18",
+      "establishments": 4,
+      "matricula2026": 26,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.21255427013877176,
+      "departments": [
+        {
+          "key": "BELLA VISTA",
+          "name": "Bella Vista",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 8,
+          "share": 0.375,
+          "variacionNatalidad": -0.29156626506024097
+        },
+        {
+          "key": "SAN ROQUE",
+          "name": "San Roque",
+          "establishmentsInZone": 1,
+          "establishmentsInDept": 5,
+          "share": 0.2,
+          "variacionNatalidad": -0.06440677966101695
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 19": {
+      "name": "Zona 19",
+      "establishments": 4,
+      "matricula2026": 28,
+      "alumnosPorEdificio": 7,
+      "variacionNatalidad": -0.24387287087258538,
+      "departments": [
+        {
+          "key": "MBURUCUYA",
+          "name": "Mburucuyá",
+          "establishmentsInZone": 1,
+          "establishmentsInDept": 6,
+          "share": 0.16666666666666666,
+          "variacionNatalidad": -0.3817204301075269
+        },
+        {
+          "key": "SALADAS",
+          "name": "Saladas",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 7,
+          "share": 0.42857142857142855,
+          "variacionNatalidad": -0.1902654867256637
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 20": {
+      "name": "Zona 20",
+      "establishments": 4,
+      "matricula2026": 16,
+      "alumnosPorEdificio": 4,
+      "variacionNatalidad": -0.30927835051546393,
+      "departments": [
+        {
+          "key": "ESQUINA",
+          "name": "Esquina",
+          "establishmentsInZone": 4,
+          "establishmentsInDept": 22,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.30927835051546393
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 21": {
+      "name": "Zona 21",
+      "establishments": 3,
+      "matricula2026": 11,
+      "alumnosPorEdificio": 3.6666666666666665,
+      "variacionNatalidad": -0.1506524317912218,
+      "departments": [
+        {
+          "key": "MERCEDES",
+          "name": "Mercedes",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 12,
+          "share": 0.25,
+          "variacionNatalidad": -0.1506524317912218
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 22": {
+      "name": "Zona 22",
+      "establishments": 3,
+      "matricula2026": 17,
+      "alumnosPorEdificio": 5.666666666666667,
+      "variacionNatalidad": -0.4810126582278481,
+      "departments": [
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 20,
+          "share": 0.15,
+          "variacionNatalidad": -0.4810126582278481
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 23": {
+      "name": "Zona 23",
+      "establishments": 3,
+      "matricula2026": 10,
+      "alumnosPorEdificio": 3.3333333333333335,
+      "variacionNatalidad": -0.2568493150684932,
+      "departments": [
+        {
+          "key": "SANTO TOME",
+          "name": "Santo Tomé",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 10,
+          "share": 0.3,
+          "variacionNatalidad": -0.2568493150684932
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 24": {
+      "name": "Zona 24",
+      "establishments": 3,
+      "matricula2026": 18,
+      "alumnosPorEdificio": 6,
+      "variacionNatalidad": -0.375,
+      "departments": [
+        {
+          "key": "SAN MARTIN",
+          "name": "San Martín",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 13,
+          "share": 0.23076923076923078,
+          "variacionNatalidad": -0.375
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 25": {
+      "name": "Zona 25",
+      "establishments": 3,
+      "matricula2026": 17,
+      "alumnosPorEdificio": 5.666666666666667,
+      "variacionNatalidad": -0.3779839597669055,
+      "departments": [
+        {
+          "key": "CAPITAL",
+          "name": "Capital",
+          "establishmentsInZone": 1,
+          "establishmentsInDept": 1,
+          "share": 1,
+          "variacionNatalidad": -0.39483772041911575
+        },
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 22,
+          "share": 0.09090909090909091,
+          "variacionNatalidad": -0.1925925925925926
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 26": {
+      "name": "Zona 26",
+      "establishments": 3,
+      "matricula2026": 22,
+      "alumnosPorEdificio": 7.333333333333333,
+      "variacionNatalidad": -0.4810126582278481,
+      "departments": [
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 20,
+          "share": 0.15,
+          "variacionNatalidad": -0.4810126582278481
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 27": {
+      "name": "Zona 27",
+      "establishments": 3,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 4.333333333333333,
+      "variacionNatalidad": -0.18099547511312217,
+      "departments": [
+        {
+          "key": "GENERAL PAZ",
+          "name": "General Paz",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 16,
+          "share": 0.1875,
+          "variacionNatalidad": -0.18099547511312217
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 28": {
+      "name": "Zona 28",
+      "establishments": 3,
+      "matricula2026": 9,
+      "alumnosPorEdificio": 3,
+      "variacionNatalidad": -0.1925925925925926,
+      "departments": [
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 22,
+          "share": 0.13636363636363635,
+          "variacionNatalidad": -0.1925925925925926
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 29": {
+      "name": "Zona 29",
+      "establishments": 3,
+      "matricula2026": 19,
+      "alumnosPorEdificio": 6.333333333333333,
+      "variacionNatalidad": -0.3817204301075269,
+      "departments": [
+        {
+          "key": "MBURUCUYA",
+          "name": "Mburucuyá",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 6,
+          "share": 0.5,
+          "variacionNatalidad": -0.3817204301075269
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 30": {
+      "name": "Zona 30",
+      "establishments": 3,
+      "matricula2026": 24,
+      "alumnosPorEdificio": 8,
+      "variacionNatalidad": -0.1902654867256637,
+      "departments": [
+        {
+          "key": "SALADAS",
+          "name": "Saladas",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 7,
+          "share": 0.42857142857142855,
+          "variacionNatalidad": -0.1902654867256637
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 31": {
+      "name": "Zona 31",
+      "establishments": 3,
+      "matricula2026": 14,
+      "alumnosPorEdificio": 4.666666666666667,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 33,
+          "share": 0.09090909090909091,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 32": {
+      "name": "Zona 32",
+      "establishments": 3,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 4.333333333333333,
+      "variacionNatalidad": -0.3409090909090909,
+      "departments": [
+        {
+          "key": "CONCEPCION",
+          "name": "Concepción",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 15,
+          "share": 0.2,
+          "variacionNatalidad": -0.3409090909090909
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 33": {
+      "name": "Zona 33",
+      "establishments": 3,
+      "matricula2026": 10,
+      "alumnosPorEdificio": 3.3333333333333335,
+      "variacionNatalidad": -0.3409090909090909,
+      "departments": [
+        {
+          "key": "CONCEPCION",
+          "name": "Concepción",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 15,
+          "share": 0.2,
+          "variacionNatalidad": -0.3409090909090909
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 34": {
+      "name": "Zona 34",
+      "establishments": 3,
+      "matricula2026": 15,
+      "alumnosPorEdificio": 5,
+      "variacionNatalidad": -0.11923509561304838,
+      "departments": [
+        {
+          "key": "PASO DE LOS LIBRES",
+          "name": "Paso de los Libres",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 8,
+          "share": 0.375,
+          "variacionNatalidad": -0.11923509561304838
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 35": {
+      "name": "Zona 35",
+      "establishments": 3,
+      "matricula2026": 23,
+      "alumnosPorEdificio": 7.666666666666667,
+      "variacionNatalidad": -0.17543859649122806,
+      "departments": [
+        {
+          "key": "GENERAL ALVEAR",
+          "name": "General Alvear",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 4,
+          "share": 0.75,
+          "variacionNatalidad": -0.17543859649122806
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 36": {
+      "name": "Zona 36",
+      "establishments": 3,
+      "matricula2026": 15,
+      "alumnosPorEdificio": 5,
+      "variacionNatalidad": -0.4810126582278481,
+      "departments": [
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 20,
+          "share": 0.15,
+          "variacionNatalidad": -0.4810126582278481
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 37": {
+      "name": "Zona 37",
+      "establishments": 3,
+      "matricula2026": 19,
+      "alumnosPorEdificio": 6.333333333333333,
+      "variacionNatalidad": -0.11849237142273694,
+      "departments": [
+        {
+          "key": "BELLA VISTA",
+          "name": "Bella Vista",
+          "establishmentsInZone": 1,
+          "establishmentsInDept": 8,
+          "share": 0.125,
+          "variacionNatalidad": -0.29156626506024097
+        },
+        {
+          "key": "SAN ROQUE",
+          "name": "San Roque",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 5,
+          "share": 0.4,
+          "variacionNatalidad": -0.06440677966101695
+        }
+      ],
+      "multiDepartment": true,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 38": {
+      "name": "Zona 38",
+      "establishments": 3,
+      "matricula2026": 19,
+      "alumnosPorEdificio": 6.333333333333333,
+      "variacionNatalidad": -0.30927835051546393,
+      "departments": [
+        {
+          "key": "ESQUINA",
+          "name": "Esquina",
+          "establishmentsInZone": 3,
+          "establishmentsInDept": 22,
+          "share": 0.13636363636363635,
+          "variacionNatalidad": -0.30927835051546393
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 39": {
+      "name": "Zona 39",
+      "establishments": 2,
+      "matricula2026": 9,
+      "alumnosPorEdificio": 4.5,
+      "variacionNatalidad": -0.2697516930022573,
+      "departments": [
+        {
+          "key": "CURUZU CUATIA",
+          "name": "Curuzú Cuatiá",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 24,
+          "share": 0.08333333333333333,
+          "variacionNatalidad": -0.2697516930022573
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 40": {
+      "name": "Zona 40",
+      "establishments": 2,
+      "matricula2026": 11,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.2697516930022573,
+      "departments": [
+        {
+          "key": "CURUZU CUATIA",
+          "name": "Curuzú Cuatiá",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 24,
+          "share": 0.08333333333333333,
+          "variacionNatalidad": -0.2697516930022573
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 41": {
+      "name": "Zona 41",
+      "establishments": 2,
+      "matricula2026": 12,
+      "alumnosPorEdificio": 6,
+      "variacionNatalidad": -0.2697516930022573,
+      "departments": [
+        {
+          "key": "CURUZU CUATIA",
+          "name": "Curuzú Cuatiá",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 24,
+          "share": 0.08333333333333333,
+          "variacionNatalidad": -0.2697516930022573
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 42": {
+      "name": "Zona 42",
+      "establishments": 2,
+      "matricula2026": 9,
+      "alumnosPorEdificio": 4.5,
+      "variacionNatalidad": -0.18099547511312217,
+      "departments": [
+        {
+          "key": "GENERAL PAZ",
+          "name": "General Paz",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 16,
+          "share": 0.125,
+          "variacionNatalidad": -0.18099547511312217
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 43": {
+      "name": "Zona 43",
+      "establishments": 2,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.41139240506329117,
+      "departments": [
+        {
+          "key": "SAN COSME",
+          "name": "San Cosme",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 11,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.41139240506329117
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 44": {
+      "name": "Zona 44",
+      "establishments": 2,
+      "matricula2026": 9,
+      "alumnosPorEdificio": 4.5,
+      "variacionNatalidad": -0.375,
+      "departments": [
+        {
+          "key": "SAN MARTIN",
+          "name": "San Martín",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 13,
+          "share": 0.15384615384615385,
+          "variacionNatalidad": -0.375
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 45": {
+      "name": "Zona 45",
+      "establishments": 2,
+      "matricula2026": 8,
+      "alumnosPorEdificio": 4,
+      "variacionNatalidad": -0.375,
+      "departments": [
+        {
+          "key": "SAN MARTIN",
+          "name": "San Martín",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 13,
+          "share": 0.15384615384615385,
+          "variacionNatalidad": -0.375
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 46": {
+      "name": "Zona 46",
+      "establishments": 2,
+      "matricula2026": 9,
+      "alumnosPorEdificio": 4.5,
+      "variacionNatalidad": -0.34124629080118696,
+      "departments": [
+        {
+          "key": "MONTE CASEROS",
+          "name": "Monte Caseros",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 16,
+          "share": 0.125,
+          "variacionNatalidad": -0.34124629080118696
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 47": {
+      "name": "Zona 47",
+      "establishments": 2,
+      "matricula2026": 14,
+      "alumnosPorEdificio": 7,
+      "variacionNatalidad": -0.34124629080118696,
+      "departments": [
+        {
+          "key": "MONTE CASEROS",
+          "name": "Monte Caseros",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 16,
+          "share": 0.125,
+          "variacionNatalidad": -0.34124629080118696
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 48": {
+      "name": "Zona 48",
+      "establishments": 2,
+      "matricula2026": 7,
+      "alumnosPorEdificio": 3.5,
+      "variacionNatalidad": -0.34124629080118696,
+      "departments": [
+        {
+          "key": "MONTE CASEROS",
+          "name": "Monte Caseros",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 16,
+          "share": 0.125,
+          "variacionNatalidad": -0.34124629080118696
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "Zona 49": {
+      "name": "Zona 49",
+      "establishments": 2,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.3409090909090909,
+      "departments": [
+        {
+          "key": "CONCEPCION",
+          "name": "Concepción",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 15,
+          "share": 0.13333333333333333,
+          "variacionNatalidad": -0.3409090909090909
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 50": {
+      "name": "Zona 50",
+      "establishments": 2,
+      "matricula2026": 11,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.4810126582278481,
+      "departments": [
+        {
+          "key": "SAN LUIS DEL PALMAR",
+          "name": "San Luis del Palmar",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 20,
+          "share": 0.1,
+          "variacionNatalidad": -0.4810126582278481
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 51": {
+      "name": "Zona 51",
+      "establishments": 2,
+      "matricula2026": 11,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.2568493150684932,
+      "departments": [
+        {
+          "key": "SANTO TOME",
+          "name": "Santo Tomé",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 10,
+          "share": 0.2,
+          "variacionNatalidad": -0.2568493150684932
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 52": {
+      "name": "Zona 52",
+      "establishments": 2,
+      "matricula2026": 6,
+      "alumnosPorEdificio": 3,
+      "variacionNatalidad": -0.1925925925925926,
+      "departments": [
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 22,
+          "share": 0.09090909090909091,
+          "variacionNatalidad": -0.1925925925925926
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 53": {
+      "name": "Zona 53",
+      "establishments": 2,
+      "matricula2026": 8,
+      "alumnosPorEdificio": 4,
+      "variacionNatalidad": -0.1925925925925926,
+      "departments": [
+        {
+          "key": "EMPEDRADO",
+          "name": "Empedrado",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 22,
+          "share": 0.09090909090909091,
+          "variacionNatalidad": -0.1925925925925926
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 54": {
+      "name": "Zona 54",
+      "establishments": 2,
+      "matricula2026": 11,
+      "alumnosPorEdificio": 5.5,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 33,
+          "share": 0.06060606060606061,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 55": {
+      "name": "Zona 55",
+      "establishments": 2,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 33,
+          "share": 0.06060606060606061,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 56": {
+      "name": "Zona 56",
+      "establishments": 2,
+      "matricula2026": 6,
+      "alumnosPorEdificio": 3,
+      "variacionNatalidad": -0.11923509561304838,
+      "departments": [
+        {
+          "key": "PASO DE LOS LIBRES",
+          "name": "Paso de los Libres",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 8,
+          "share": 0.25,
+          "variacionNatalidad": -0.11923509561304838
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "Zona 57": {
+      "name": "Zona 57",
+      "establishments": 2,
+      "matricula2026": 13,
+      "alumnosPorEdificio": 6.5,
+      "variacionNatalidad": -0.36477987421383645,
+      "departments": [
+        {
+          "key": "SAUCE",
+          "name": "Sauce",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 11,
+          "share": 0.18181818181818182,
+          "variacionNatalidad": -0.36477987421383645
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 58": {
+      "name": "Zona 58",
+      "establishments": 2,
+      "matricula2026": 15,
+      "alumnosPorEdificio": 7.5,
+      "variacionNatalidad": -0.36775956284153005,
+      "departments": [
+        {
+          "key": "GOYA",
+          "name": "Goya",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 33,
+          "share": 0.06060606060606061,
+          "variacionNatalidad": -0.36775956284153005
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "Zona 59": {
+      "name": "Zona 59",
+      "establishments": 2,
+      "matricula2026": 16,
+      "alumnosPorEdificio": 8,
+      "variacionNatalidad": -0.29156626506024097,
+      "departments": [
+        {
+          "key": "BELLA VISTA",
+          "name": "Bella Vista",
+          "establishmentsInZone": 2,
+          "establishmentsInDept": 8,
+          "share": 0.25,
+          "variacionNatalidad": -0.29156626506024097
+        }
+      ],
+      "multiDepartment": false,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    }
+  },
+  "departments": {
+    "BELLA VISTA": {
+      "key": "BELLA VISTA",
+      "name": "Bella Vista",
+      "codDpto": "18007",
+      "nacidos2014": 830,
+      "nacidos2023": 588,
+      "variacionNatalidad": -0.29156626506024097,
+      "tasaAsistencia4": 0.913595933926302,
+      "icseQuintil": 3,
+      "establishments": 8,
+      "matricula2026": 57,
+      "alumnosPorEdificio": 7.125,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "BERON DE ASTRADA": {
+      "key": "BERON DE ASTRADA",
+      "name": "Berón de Astrada",
+      "codDpto": "18014",
+      "nacidos2014": 33,
+      "nacidos2023": 17,
+      "variacionNatalidad": -0.48484848484848486,
+      "tasaAsistencia4": 0.916666666666666,
+      "icseQuintil": 4,
+      "establishments": 1,
+      "matricula2026": 3,
+      "alumnosPorEdificio": 3,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "CAPITAL": {
+      "key": "CAPITAL",
+      "name": "Capital",
+      "codDpto": "18021",
+      "nacidos2014": 7826,
+      "nacidos2023": 4736,
+      "variacionNatalidad": -0.39483772041911575,
+      "tasaAsistencia4": 0.900889843510279,
+      "icseQuintil": 1,
+      "establishments": 1,
+      "matricula2026": 5,
+      "alumnosPorEdificio": 5,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "CONCEPCION": {
+      "key": "CONCEPCION",
+      "name": "Concepción",
+      "codDpto": "18028",
+      "nacidos2014": 484,
+      "nacidos2023": 319,
+      "variacionNatalidad": -0.3409090909090909,
+      "tasaAsistencia4": 0.842857142857143,
+      "icseQuintil": 5,
+      "establishments": 15,
+      "matricula2026": 81,
+      "alumnosPorEdificio": 5.4,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "CURUZU CUATIA": {
+      "key": "CURUZU CUATIA",
+      "name": "Curuzú Cuatiá",
+      "codDpto": "18035",
+      "nacidos2014": 886,
+      "nacidos2023": 647,
+      "variacionNatalidad": -0.2697516930022573,
+      "tasaAsistencia4": 0.85,
+      "icseQuintil": 2,
+      "establishments": 24,
+      "matricula2026": 121,
+      "alumnosPorEdificio": 5.041666666666667,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "EMPEDRADO": {
+      "key": "EMPEDRADO",
+      "name": "Empedrado",
+      "codDpto": "18042",
+      "nacidos2014": 270,
+      "nacidos2023": 218,
+      "variacionNatalidad": -0.1925925925925926,
+      "tasaAsistencia4": 0.923344947735192,
+      "icseQuintil": 3,
+      "establishments": 22,
+      "matricula2026": 102,
+      "alumnosPorEdificio": 4.636363636363637,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "ESQUINA": {
+      "key": "ESQUINA",
+      "name": "Esquina",
+      "codDpto": "18049",
+      "nacidos2014": 679,
+      "nacidos2023": 469,
+      "variacionNatalidad": -0.30927835051546393,
+      "tasaAsistencia4": 0.88388969521045,
+      "icseQuintil": 5,
+      "establishments": 22,
+      "matricula2026": 104,
+      "alumnosPorEdificio": 4.7272727272727275,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "GENERAL ALVEAR": {
+      "key": "GENERAL ALVEAR",
+      "name": "General Alvear",
+      "codDpto": "18056",
+      "nacidos2014": 114,
+      "nacidos2023": 94,
+      "variacionNatalidad": -0.17543859649122806,
+      "tasaAsistencia4": 0.895424836601307,
+      "icseQuintil": 2,
+      "establishments": 4,
+      "matricula2026": 31,
+      "alumnosPorEdificio": 7.75,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "GENERAL PAZ": {
+      "key": "GENERAL PAZ",
+      "name": "General Paz",
+      "codDpto": "18063",
+      "nacidos2014": 221,
+      "nacidos2023": 181,
+      "variacionNatalidad": -0.18099547511312217,
+      "tasaAsistencia4": 0.871698113207547,
+      "icseQuintil": 3,
+      "establishments": 16,
+      "matricula2026": 87,
+      "alumnosPorEdificio": 5.4375,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "GOYA": {
+      "key": "GOYA",
+      "name": "Goya",
+      "codDpto": "18070",
+      "nacidos2014": 1830,
+      "nacidos2023": 1157,
+      "variacionNatalidad": -0.36775956284153005,
+      "tasaAsistencia4": 0.907464528069093,
+      "icseQuintil": 3,
+      "establishments": 33,
+      "matricula2026": 187,
+      "alumnosPorEdificio": 5.666666666666667,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "ITATI": {
+      "key": "ITATI",
+      "name": "Itatí",
+      "codDpto": "18077",
+      "nacidos2014": 179,
+      "nacidos2023": 137,
+      "variacionNatalidad": -0.2346368715083799,
+      "tasaAsistencia4": 0.938967136150235,
+      "icseQuintil": 2,
+      "establishments": 2,
+      "matricula2026": 17,
+      "alumnosPorEdificio": 8.5,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "ITUZAINGO": {
+      "key": "ITUZAINGO",
+      "name": "Ituzaingó",
+      "codDpto": "18084",
+      "nacidos2014": 685,
+      "nacidos2023": 483,
+      "variacionNatalidad": -0.2948905109489051,
+      "tasaAsistencia4": 0.899096385542169,
+      "icseQuintil": 2,
+      "establishments": 10,
+      "matricula2026": 55,
+      "alumnosPorEdificio": 5.5,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "LAVALLE": {
+      "key": "LAVALLE",
+      "name": "Lavalle",
+      "codDpto": "18091",
+      "nacidos2014": 713,
+      "nacidos2023": 566,
+      "variacionNatalidad": -0.2061711079943899,
+      "tasaAsistencia4": 0.886934673366834,
+      "icseQuintil": 5,
+      "establishments": 8,
+      "matricula2026": 56,
+      "alumnosPorEdificio": 7,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "MBURUCUYA": {
+      "key": "MBURUCUYA",
+      "name": "Mburucuyá",
+      "codDpto": "18098",
+      "nacidos2014": 186,
+      "nacidos2023": 115,
+      "variacionNatalidad": -0.3817204301075269,
+      "tasaAsistencia4": 0.858108108108108,
+      "icseQuintil": 5,
+      "establishments": 6,
+      "matricula2026": 38,
+      "alumnosPorEdificio": 6.333333333333333,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "MERCEDES": {
+      "key": "MERCEDES",
+      "name": "Mercedes",
+      "codDpto": "18105",
+      "nacidos2014": 843,
+      "nacidos2023": 716,
+      "variacionNatalidad": -0.1506524317912218,
+      "tasaAsistencia4": 0.91218441273326,
+      "icseQuintil": 1,
+      "establishments": 12,
+      "matricula2026": 59,
+      "alumnosPorEdificio": 4.916666666666667,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "MONTE CASEROS": {
+      "key": "MONTE CASEROS",
+      "name": "Monte Caseros",
+      "codDpto": "18112",
+      "nacidos2014": 674,
+      "nacidos2023": 444,
+      "variacionNatalidad": -0.34124629080118696,
+      "tasaAsistencia4": 0.864583333333334,
+      "icseQuintil": 1,
+      "establishments": 16,
+      "matricula2026": 85,
+      "alumnosPorEdificio": 5.3125,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "PASO DE LOS LIBRES": {
+      "key": "PASO DE LOS LIBRES",
+      "name": "Paso de los Libres",
+      "codDpto": "18119",
+      "nacidos2014": 889,
+      "nacidos2023": 783,
+      "variacionNatalidad": -0.11923509561304838,
+      "tasaAsistencia4": 0.874220374220374,
+      "icseQuintil": 2,
+      "establishments": 8,
+      "matricula2026": 28,
+      "alumnosPorEdificio": 3.5,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "SALADAS": {
+      "key": "SALADAS",
+      "name": "Saladas",
+      "codDpto": "18126",
+      "nacidos2014": 452,
+      "nacidos2023": 366,
+      "variacionNatalidad": -0.1902654867256637,
+      "tasaAsistencia4": 0.82183908045977,
+      "icseQuintil": 4,
+      "establishments": 7,
+      "matricula2026": 51,
+      "alumnosPorEdificio": 7.285714285714286,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "SAN COSME": {
+      "key": "SAN COSME",
+      "name": "San Cosme",
+      "codDpto": "18133",
+      "nacidos2014": 316,
+      "nacidos2023": 186,
+      "variacionNatalidad": -0.41139240506329117,
+      "tasaAsistencia4": 0.832786885245902,
+      "icseQuintil": 1,
+      "establishments": 11,
+      "matricula2026": 75,
+      "alumnosPorEdificio": 6.818181818181818,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "SAN LUIS DEL PALMAR": {
+      "key": "SAN LUIS DEL PALMAR",
+      "name": "San Luis del Palmar",
+      "codDpto": "18140",
+      "nacidos2014": 316,
+      "nacidos2023": 164,
+      "variacionNatalidad": -0.4810126582278481,
+      "tasaAsistencia4": 0.89119170984456,
+      "icseQuintil": 4,
+      "establishments": 20,
+      "matricula2026": 112,
+      "alumnosPorEdificio": 5.6,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    },
+    "SAN MARTIN": {
+      "key": "SAN MARTIN",
+      "name": "San Martín",
+      "codDpto": "18147",
+      "nacidos2014": 288,
+      "nacidos2023": 180,
+      "variacionNatalidad": -0.375,
+      "tasaAsistencia4": 0.895470383275261,
+      "icseQuintil": 3,
+      "establishments": 13,
+      "matricula2026": 60,
+      "alumnosPorEdificio": 4.615384615384615,
+      "bajoDemanda": true,
+      "natalidadEnCaida": true,
+      "semaforo": "rojo",
+      "fillColor": "#E57373",
+      "strokeColor": "#C62828"
+    },
+    "SAN MIGUEL": {
+      "key": "SAN MIGUEL",
+      "name": "San Miguel",
+      "codDpto": "18154",
+      "nacidos2014": 249,
+      "nacidos2023": 195,
+      "variacionNatalidad": -0.21686746987951808,
+      "tasaAsistencia4": 0.849802371541502,
+      "icseQuintil": 5,
+      "establishments": 3,
+      "matricula2026": 18,
+      "alumnosPorEdificio": 6,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "SAN ROQUE": {
+      "key": "SAN ROQUE",
+      "name": "San Roque",
+      "codDpto": "18161",
+      "nacidos2014": 295,
+      "nacidos2023": 276,
+      "variacionNatalidad": -0.06440677966101695,
+      "tasaAsistencia4": 0.893564356435644,
+      "icseQuintil": 4,
+      "establishments": 5,
+      "matricula2026": 30,
+      "alumnosPorEdificio": 6,
+      "bajoDemanda": false,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "SANTO TOME": {
+      "key": "SANTO TOME",
+      "name": "Santo Tomé",
+      "codDpto": "18168",
+      "nacidos2014": 1460,
+      "nacidos2023": 1085,
+      "variacionNatalidad": -0.2568493150684932,
+      "tasaAsistencia4": 0.809128630705394,
+      "icseQuintil": 1,
+      "establishments": 10,
+      "matricula2026": 46,
+      "alumnosPorEdificio": 4.6,
+      "bajoDemanda": true,
+      "natalidadEnCaida": false,
+      "semaforo": "verde",
+      "fillColor": "#81C784",
+      "strokeColor": "#2E7D32"
+    },
+    "SAUCE": {
+      "key": "SAUCE",
+      "name": "Sauce",
+      "codDpto": "18175",
+      "nacidos2014": 159,
+      "nacidos2023": 101,
+      "variacionNatalidad": -0.36477987421383645,
+      "tasaAsistencia4": 0.927374301675978,
+      "icseQuintil": 4,
+      "establishments": 11,
+      "matricula2026": 69,
+      "alumnosPorEdificio": 6.2727272727272725,
+      "bajoDemanda": false,
+      "natalidadEnCaida": true,
+      "semaforo": "amarillo",
+      "fillColor": "#FFF176",
+      "strokeColor": "#F9A825"
+    }
+  }
+}

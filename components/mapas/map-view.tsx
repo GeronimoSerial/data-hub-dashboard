@@ -25,6 +25,7 @@ import {
   type ZoneProperties,
 } from '@/lib/map-types'
 import type { MapData } from '@/lib/use-map-data'
+import { normalizeDept } from '@/lib/sobreoferta'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { FeaturePopup } from '@/components/mapas/feature-popup'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
@@ -62,6 +63,62 @@ export function MapView({
   mapRef,
 }: Props) {
   const styles = useOverlayStyles()
+
+  const sobreofertaOn = overlays.sobreoferta && data.sobreoferta != null
+
+  const zonesData = useMemo(() => {
+    if (!sobreofertaOn || !data.sobreoferta) return data.zones
+    return {
+      ...data.zones,
+      features: data.zones.features.map((f) => {
+        const name = f.properties?.name
+        const z = name ? data.sobreoferta!.zones[name] : undefined
+        if (!z) return f
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            fillColor: z.fillColor,
+            strokeColor: z.strokeColor,
+          },
+        }
+      }),
+    }
+  }, [data.zones, data.sobreoferta, sobreofertaOn])
+
+  const establishmentsData = useMemo(() => {
+    if (!sobreofertaOn || !data.sobreoferta) return data.establishments
+    return {
+      ...data.establishments,
+      features: data.establishments.features.map((f) => {
+        const key = normalizeDept(f.properties?.department)
+        const d = data.sobreoferta!.departments[key]
+        if (!d) return f
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            fillColor: d.fillColor,
+            strokeColor: d.strokeColor,
+          },
+        }
+      }),
+    }
+  }, [data.establishments, data.sobreoferta, sobreofertaOn])
+
+  function schoolCirclePaint(
+    trend: keyof typeof TREND_COLORS,
+  ): CircleLayerSpecification['paint'] {
+    const c = TREND_COLORS[trend]
+    if (!sobreofertaOn) return circlePaint(trend)
+    return {
+      'circle-radius': 7,
+      'circle-color': ['coalesce', ['get', 'fillColor'], c.fill],
+      'circle-stroke-color': ['coalesce', ['get', 'strokeColor'], c.stroke],
+      'circle-stroke-width': 1.5,
+      'circle-opacity': 0.95,
+    }
+  }
 
   const mapStyle = useMemo<StyleSpecification>(() => {
     const bm = BASEMAPS[basemap]
@@ -152,7 +209,7 @@ export function MapView({
         <NavigationControl position="top-left" />
 
         {overlays.zones && (
-          <Source id="zones-fill-src" type="geojson" data={data.zones}>
+          <Source id="zones-fill-src" type="geojson" data={zonesData}>
             <Layer
               id="zones-fill"
               type="fill"
@@ -164,13 +221,13 @@ export function MapView({
           </Source>
         )}
 
-        <Source id="establishments" type="geojson" data={data.establishments}>
+        <Source id="establishments" type="geojson" data={establishmentsData}>
           {overlays.down && (
             <Layer
               id="est-down"
               type="circle"
               filter={['==', ['get', 'trend'], 'down']}
-              paint={circlePaint('down')}
+              paint={schoolCirclePaint('down')}
             />
           )}
           {overlays.up && (
@@ -178,7 +235,7 @@ export function MapView({
               id="est-up"
               type="circle"
               filter={['==', ['get', 'trend'], 'up']}
-              paint={circlePaint('up')}
+              paint={schoolCirclePaint('up')}
             />
           )}
           {overlays.flat && (
@@ -186,7 +243,7 @@ export function MapView({
               id="est-flat"
               type="circle"
               filter={['==', ['get', 'trend'], 'flat']}
-              paint={circlePaint('flat')}
+              paint={schoolCirclePaint('flat')}
             />
           )}
           {overlays.partial && (
@@ -194,13 +251,13 @@ export function MapView({
               id="est-partial"
               type="circle"
               filter={['==', ['get', 'trend'], 'partial']}
-              paint={circlePaint('partial')}
+              paint={schoolCirclePaint('partial')}
             />
           )}
         </Source>
 
         {overlays.zones && (
-          <Source id="zones" type="geojson" data={data.zones}>
+          <Source id="zones" type="geojson" data={zonesData}>
             <Layer
               id="zones-outline"
               type="line"
@@ -257,7 +314,12 @@ export function MapView({
             closeOnClick={false}
             maxWidth="390px"
           >
-            <FeaturePopup feature={selected} />
+            <FeaturePopup
+              feature={selected}
+              api={data.apiEnrollment}
+              sobreoferta={data.sobreoferta}
+              sobreofertaOn={Boolean(overlays.sobreoferta)}
+            />
           </Popup>
         )}
       </Map>

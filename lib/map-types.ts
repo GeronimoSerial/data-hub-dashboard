@@ -61,6 +61,46 @@ export type Summary = {
 export type GeoJsonFeatureCollection<G extends Geometry = Geometry, P = null> =
   FeatureCollection<G, P>
 
+export type ApiOfferStats = {
+  inicio: number
+  fin: number
+}
+
+export type ApiTurnStats = ApiOfferStats
+
+export type ApiYearStats = {
+  inicio: number
+  fin: number | null
+  sobreedad: number
+  repitencia: number | null
+}
+
+export type ApiEnrollment = {
+  years: Record<string, ApiYearStats>
+  errors: Record<string, string>
+  byOffer: Record<string, ApiOfferStats>
+  byTurn: Record<string, ApiTurnStats>
+  ofertas: string[]
+}
+
+export type ApiYearMeta = {
+  ok: number
+  failed: number
+  pending: number
+  totalInicio: number
+  totalFin: number
+  withFin: number
+}
+
+export type ApiEnrollmentData = {
+  ciclos: number[]
+  generatedAt: string
+  meta: {
+    byYear: Record<string, ApiYearMeta>
+  }
+  byCue: Record<string, ApiEnrollment>
+}
+
 export type SelectedFeature =
   | {
       kind: 'establishment'
@@ -75,11 +115,14 @@ export type SelectedFeature =
 
 export type OverlayKey =
   | 'zones'
+  | 'sobreoferta'
   | 'down'
   | 'up'
   | 'flat'
   | 'partial'
   | 'localities'
+
+export type { SobreofertaData, Semaforo } from '@/lib/sobreoferta'
 
 export type BasemapId = 'osm' | 'voyager' | 'positron'
 
@@ -95,6 +138,7 @@ export const TREND_COLORS: Record<
 
 export const OVERLAY_LABELS: Record<OverlayKey, string> = {
   zones: 'Zonas 20 km - evolución',
+  sobreoferta: 'Sobreoferta escolar',
   down: 'Establecimientos con disminución',
   up: 'Establecimientos con aumento',
   flat: 'Establecimientos sin cambio',
