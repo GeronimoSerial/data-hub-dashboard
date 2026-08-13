@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
 
 FROM node:22-alpine AS base
-RUN corepack enable
+RUN apk add --no-cache libc6-compat \
+  && corepack enable
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --allow-build=sharp
 
 FROM base AS builder
 WORKDIR /app
