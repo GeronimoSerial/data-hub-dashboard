@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  Tech stack: Next.js 16 App Router, React 19, Fluent UI v9, pnpm, TypeScript strict
+  Architecture: thin app/ routes, client components/*-page.tsx, domain SSOT in lib/model.ts
+  Testing: none; verify with pnpm build and manual smoke
+  Style: Fluent makeStyles + tokens; Spanish UI; kebab-case files
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Document architecture decisions with rationale
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+  apply:
+    guidelines:
+      - Follow existing code patterns
+    tdd: false
+    test_command: ""
+  verify:
+    test_command: ""
+    build_command: "pnpm build"
+    coverage_threshold: 0
