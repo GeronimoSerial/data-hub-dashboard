@@ -80,6 +80,33 @@ export const useOverlayStyles = makeStyles({
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
   },
+  hint: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    lineHeight: tokens.lineHeightBase100,
+    marginTop: '2px',
+    marginBottom: '4px',
+  },
+  layerTip: {
+    color: tokens.colorNeutralForeground3,
+    fontSize: tokens.fontSizeBase100,
+    lineHeight: tokens.lineHeightBase100,
+    marginLeft: tokens.spacingHorizontalXXL,
+    marginBottom: tokens.spacingVerticalXS,
+  },
+  legendItemStack: {
+    marginTop: tokens.spacingVerticalXS,
+    marginBottom: tokens.spacingVerticalXS,
+  },
+  sectionTitle: {
+    ...typographyStyles.caption1Strong,
+    marginTop: tokens.spacingVerticalXS,
+    marginBottom: '2px',
+  },
+  emphasis: {
+    fontWeight: tokens.fontWeightSemibold,
+    color: tokens.colorNeutralForeground1,
+  },
   legendItem: {
     display: 'flex',
     alignItems: 'center',

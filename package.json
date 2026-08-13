@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "extract": "node scripts/extract-map-data.mjs"
+    "extract": "node scripts/extract-map-data.mjs",
+    "build:sobreoferta": "node scripts/build-sobreoferta.mjs"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.74.1",

@@ -3,18 +3,22 @@
 import { useEffect, useState } from 'react'
 import type { Point, Polygon } from 'geojson'
 import type {
+  ApiEnrollmentData,
   EstablishmentProperties,
   GeoJsonFeatureCollection,
   LocalityProperties,
   Summary,
   ZoneProperties,
 } from '@/lib/map-types'
+import type { SobreofertaData } from '@/lib/sobreoferta'
 
 export type MapData = {
   summary: Summary
   establishments: GeoJsonFeatureCollection<Point, EstablishmentProperties>
   zones: GeoJsonFeatureCollection<Polygon, ZoneProperties>
   localities: GeoJsonFeatureCollection<Point, LocalityProperties>
+  apiEnrollment: ApiEnrollmentData | null
+  sobreoferta: SobreofertaData | null
 }
 
 export function useMapData() {
@@ -27,7 +31,14 @@ export function useMapData() {
 
     async function load() {
       try {
-        const [summary, establishments, zones, localities] = await Promise.all([
+        const [
+          summary,
+          establishments,
+          zones,
+          localities,
+          apiEnrollment,
+          sobreoferta,
+        ] = await Promise.all([
           fetch('/data/summary.json').then((r) => {
             if (!r.ok) throw new Error('No se pudo cargar summary.json')
             return r.json() as Promise<Summary>
@@ -51,10 +62,23 @@ export function useMapData() {
               GeoJsonFeatureCollection<Point, LocalityProperties>
             >
           }),
+          fetch('/data/api-cantidad-alumnos.json')
+            .then((r) => (r.ok ? (r.json() as Promise<ApiEnrollmentData>) : null))
+            .catch(() => null),
+          fetch('/data/sobreoferta.json')
+            .then((r) => (r.ok ? (r.json() as Promise<SobreofertaData>) : null))
+            .catch(() => null),
         ])
 
         if (!cancelled) {
-          setData({ summary, establishments, zones, localities })
+          setData({
+            summary,
+            establishments,
+            zones,
+            localities,
+            apiEnrollment,
+            sobreoferta,
+          })
           setLoading(false)
         }
       } catch (err) {

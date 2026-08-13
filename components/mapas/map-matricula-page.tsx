@@ -19,6 +19,7 @@ ensureMapWorker()
 
 const DEFAULT_OVERLAYS: Record<OverlayKey, boolean> = {
   zones: true,
+  sobreoferta: false,
   down: true,
   up: true,
   flat: true,
@@ -60,7 +61,11 @@ export default function MapMatriculaPage() {
       />
 
       <TitlePanel summary={data.summary} />
-      <LegendPanel summary={data.summary} />
+      <LegendPanel
+        summary={data.summary}
+        sobreofertaOn={overlays.sobreoferta}
+        sobreoferta={data.sobreoferta}
+      />
 
       <div className={styles.controlsStack}>
         <SearchBox

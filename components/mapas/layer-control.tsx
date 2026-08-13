@@ -1,6 +1,7 @@
 'use client'
 
 import { Checkbox } from '@fluentui/react-components'
+import { COPY } from '@/lib/copy/didactica'
 import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 
@@ -11,6 +12,7 @@ type Props = {
 
 const ORDER: OverlayKey[] = [
   'zones',
+  'sobreoferta',
   'down',
   'up',
   'flat',
@@ -25,12 +27,16 @@ export function LayerControl({ overlays, onChange }: Props) {
     <div className={styles.controlCard}>
       <h2 className={styles.controlHeading}>Capas</h2>
       {ORDER.map((key) => (
-        <Checkbox
-          key={key}
-          label={OVERLAY_LABELS[key]}
-          checked={overlays[key]}
-          onChange={(_e, data) => onChange(key, Boolean(data.checked))}
-        />
+        <div key={key}>
+          <Checkbox
+            label={OVERLAY_LABELS[key]}
+            checked={overlays[key]}
+            onChange={(_e, data) => onChange(key, Boolean(data.checked))}
+          />
+          {key === 'sobreoferta' && overlays.sobreoferta && (
+            <div className={styles.layerTip}>{COPY.layers.sobreofertaTip}</div>
+          )}
+        </div>
       ))}
     </div>
   )
