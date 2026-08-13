@@ -25,7 +25,5 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "^5"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": ["sharp"]
-  }
+  "packageManager": "pnpm@11.21.0"
 }

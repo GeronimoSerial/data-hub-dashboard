@@ -6,8 +6,8 @@ RUN apk add --no-cache libc6-compat \
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --allow-build=sharp
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
