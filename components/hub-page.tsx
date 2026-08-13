@@ -4,6 +4,7 @@ import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
   makeStyles,
+  mergeClasses,
   tokens,
   typographyStyles,
   Badge,
@@ -170,7 +171,11 @@ export function HubPage() {
           return (
             <Card
               key={f}
-              className={`${styles.typeCard} ${topClass}${ready ? '' : ` ${styles.typeCardDisabled}`}`}
+              className={mergeClasses(
+                styles.typeCard,
+                topClass,
+                !ready && styles.typeCardDisabled,
+              )}
               onClick={ready ? () => router.push(FORMATO_ROUTE[f]) : undefined}
               role={ready ? 'link' : undefined}
               tabIndex={ready ? 0 : undefined}

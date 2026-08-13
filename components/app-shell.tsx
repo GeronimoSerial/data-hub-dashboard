@@ -11,6 +11,7 @@ import {
   Tooltip,
   Tab,
   TabList,
+  mergeClasses,
   type SelectTabData,
   type SelectTabEvent,
 } from '@fluentui/react-components'
@@ -164,7 +165,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={mapViewer ? `${styles.page} ${styles.pageViewer}` : styles.page}>
+    <div
+      className={mergeClasses(styles.page, mapViewer && styles.pageViewer)}
+    >
       <div className={styles.ribbon} />
       <header className={styles.masthead}>
         <div className={styles.brand}>

@@ -1,5 +1,6 @@
 'use client'
 
+import { mergeClasses } from '@fluentui/react-components'
 import { useRef, useState } from 'react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { BasemapControl } from '@/components/mapas/basemap-control'
@@ -41,7 +42,7 @@ export default function MapMatriculaPage() {
 
   if (error || !data) {
     return (
-      <div className={`${styles.status} ${styles.statusError}`}>
+      <div className={mergeClasses(styles.status, styles.statusError)}>
         {error ?? 'No hay datos. Ejecutá pnpm extract.'}
       </div>
     )

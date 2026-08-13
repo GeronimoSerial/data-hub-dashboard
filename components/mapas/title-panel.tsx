@@ -1,5 +1,6 @@
 'use client'
 
+import { mergeClasses } from '@fluentui/react-components'
 import type { Summary } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 
@@ -11,7 +12,7 @@ export function TitlePanel({ summary }: Props) {
   const styles = useOverlayStyles()
 
   return (
-    <div className={`${styles.panel} ${styles.titlePanel}`}>
+    <div className={mergeClasses(styles.panel, styles.titlePanel)}>
       <b>{summary.title}</b>
       <br />
       {summary.description}

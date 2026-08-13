@@ -1,5 +1,6 @@
 'use client'
 
+import { mergeClasses } from '@fluentui/react-components'
 import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 
@@ -17,7 +18,7 @@ export function LegendPanel({ summary }: Props) {
       : `${summary.pctChange > 0 ? '+' : ''}${summary.pctChange}%`
 
   return (
-    <div className={`${styles.panel} ${styles.legendPanel}`}>
+    <div className={mergeClasses(styles.panel, styles.legendPanel)}>
       <b>Evolución matrícula 2023-2026</b>
       <br />
       Panel comparable: <b>{summary.comparableEstablishments} establecimientos</b>
