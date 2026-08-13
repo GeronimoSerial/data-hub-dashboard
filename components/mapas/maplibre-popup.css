@@ -1,0 +1,12 @@
+.maplibregl-popup-content {
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.maplibregl-popup-close-button {
+  font-size: 18px;
+  z-index: 1;
+  color: inherit;
+}
