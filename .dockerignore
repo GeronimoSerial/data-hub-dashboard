@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.superpowers
+openspec
+*.md
+!docs/DEPLOY.md
+.env*
+!.env.example
+Dockerfile
+.dockerignore
+pnpm-debug.log*
+.DS_Store
