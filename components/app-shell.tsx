@@ -37,11 +37,13 @@ const NAV = [
 const useStyles = makeStyles({
   page: {
     minHeight: '100vh',
-    height: '100vh',
     display: 'flex',
     flexDirection: 'column',
     backgroundColor: tokens.colorNeutralBackground2,
     color: tokens.colorNeutralForeground1,
+  },
+  pageViewer: {
+    height: '100vh',
   },
   ribbon: {
     height: '4px',
@@ -162,7 +164,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className={styles.page}>
+    <div className={mapViewer ? `${styles.page} ${styles.pageViewer}` : styles.page}>
       <div className={styles.ribbon} />
       <header className={styles.masthead}>
         <div className={styles.brand}>
