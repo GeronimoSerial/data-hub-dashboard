@@ -95,7 +95,7 @@ export interface Recurso {
   ruta?: string
 }
 
-// ── Datos de ejemplo (Análisis Educativo · Corrientes) ─────────────────────
+// ── Catálogo publicado (solo recursos con archivo o visor) ─────────────────
 
 export const niveles: Nivel[] = [
   { id: 'inicial', nombre: 'Inicial', orden: 1 },
@@ -117,9 +117,6 @@ export const tipos: Tipo[] = [
 export const categorias: Categoria[] = [
   { id: 'matricula', nombre: 'Matrícula', color: 'brand' },
   { id: 'trayectorias', nombre: 'Trayectorias', color: 'informative' },
-  { id: 'asistencia', nombre: 'Asistencia', color: 'severe' },
-  { id: 'infraestructura', nombre: 'Infraestructura', color: 'warning' },
-  { id: 'rrhh', nombre: 'Recursos humanos', color: 'success' },
   { id: 'aprendizajes', nombre: 'Aprendizajes', color: 'important' },
 ]
 
@@ -128,9 +125,7 @@ export const tags: Tag[] = [
   { id: 'territorial', nombre: 'Territorial' },
   { id: 'alertas', nombre: 'Alertas' },
   { id: 'anual', nombre: 'Anual' },
-  { id: 'historico', nombre: 'Histórico' },
   { id: 'estrategico', nombre: 'Estratégico' },
-  { id: 'tiempo-real', nombre: 'Tiempo real' },
   { id: 'sobreedad', nombre: 'Sobreedad' },
 ]
 
@@ -179,130 +174,6 @@ export const recursos: Recurso[] = [
     actualizado: '2026-08-12',
     estado: 'publicado',
     ruta: '/mapa_interactivo',
-  },
-  {
-    id: 'r4',
-    titulo: 'Boletín de matrícula 2025',
-    descripcion:
-      'Síntesis estadística de la matrícula del nivel primario para el ciclo 2025.',
-    formato: 'reporte',
-    nivelId: 'primario',
-    tipoId: 'boletin',
-    categoriaId: 'matricula',
-    tagIds: ['anual'],
-    area: 'Dirección de Planeamiento',
-    actualizado: '2026-03-15',
-    estado: 'publicado',
-  },
-  {
-    id: 'r5',
-    titulo: 'Informe de trayectorias escolares',
-    descripcion:
-      'Análisis de continuidad, promoción y egreso en el nivel secundario.',
-    formato: 'reporte',
-    nivelId: 'secundario',
-    tipoId: 'informe',
-    categoriaId: 'trayectorias',
-    tagIds: ['estrategico', 'anual'],
-    area: 'Dirección de Gestión Escolar',
-    actualizado: '2026-06-20',
-    estado: 'publicado',
-  },
-  {
-    id: 'r6',
-    titulo: 'Indicadores de repitencia',
-    descripcion:
-      'Tasas de repitencia por departamento y modalidad en el nivel primario.',
-    formato: 'reporte',
-    nivelId: 'primario',
-    tipoId: 'indicador',
-    categoriaId: 'trayectorias',
-    tagIds: ['anual', 'territorial'],
-    area: 'Dirección de Planeamiento',
-    actualizado: '2026-05-10',
-    estado: 'publicado',
-  },
-  {
-    id: 'r7',
-    titulo: 'Serie histórica de matrícula',
-    descripcion: 'Evolución de la matrícula provincial en la última década.',
-    formato: 'reporte',
-    nivelId: 'transversal',
-    tipoId: 'serie',
-    categoriaId: 'matricula',
-    tagIds: ['historico'],
-    area: 'Dirección de Planeamiento',
-    actualizado: '2026-02-01',
-    estado: 'publicado',
-  },
-  {
-    id: 'r8',
-    titulo: 'Informe de infraestructura escolar',
-    descripcion:
-      'Estado edilicio y disponibilidad de servicios en los establecimientos.',
-    formato: 'reporte',
-    nivelId: 'transversal',
-    tipoId: 'informe',
-    categoriaId: 'infraestructura',
-    tagIds: ['territorial', 'estrategico'],
-    area: 'Dirección de Infraestructura',
-    actualizado: '2026-04-18',
-    estado: 'publicado',
-  },
-  {
-    id: 'r9',
-    titulo: 'Tablero de recursos humanos',
-    descripcion:
-      'Planta funcional, coberturas y suplencias del sistema educativo.',
-    formato: 'tablero',
-    nivelId: 'transversal',
-    tipoId: 'monitoreo',
-    categoriaId: 'rrhh',
-    tagIds: ['estrategico'],
-    area: 'Dirección de Recursos Humanos',
-    actualizado: '2026-08-08',
-    estado: 'publicado',
-  },
-  {
-    id: 'r10',
-    titulo: 'Boletín de nivel inicial',
-    descripcion: 'Cobertura y matrícula del nivel inicial por departamento.',
-    formato: 'reporte',
-    nivelId: 'inicial',
-    tipoId: 'boletin',
-    categoriaId: 'matricula',
-    tagIds: ['anual'],
-    area: 'Dirección de Planeamiento',
-    actualizado: '2026-03-22',
-    estado: 'publicado',
-  },
-  {
-    id: 'r11',
-    titulo: 'Informe de resultados de aprendizaje',
-    descripcion:
-      'Desempeños en evaluaciones estandarizadas del nivel superior.',
-    formato: 'reporte',
-    nivelId: 'superior',
-    tipoId: 'informe',
-    categoriaId: 'aprendizajes',
-    tagIds: ['estrategico'],
-    area: 'Dirección de Evaluación',
-    actualizado: '2026-07-01',
-    estado: 'borrador',
-  },
-  {
-    id: 'r12',
-    titulo: 'Tablero de matrícula territorial',
-    descripcion:
-      'Distribución de la matrícula por departamento con seguimiento mensual.',
-    formato: 'tablero',
-    nivelId: 'transversal',
-    tipoId: 'monitoreo',
-    categoriaId: 'matricula',
-    tagIds: ['territorial', 'tiempo-real'],
-    area: 'Dirección de Sistemas de Información',
-    actualizado: '2026-08-09',
-    estado: 'publicado',
   },
   {
     id: 'r13',
