@@ -145,8 +145,8 @@ export function ReportesPage() {
         <span className={styles.eyebrow}>DOCUMENTOS PARA LA GESTIÓN</span>
         <Title3 as="h1">{FORMATOS.reporte.plural}</Title3>
         <Body1 className={styles.intro}>
-          Informes, boletines, indicadores y series producidos por las áreas.
-          Filtre primero por <strong>nivel educativo</strong> y luego por{' '}
+          Informes producidos por las áreas. Filtre primero por{' '}
+          <strong>nivel educativo</strong> y luego por{' '}
           <strong>tipo de reporte</strong>.
         </Body1>
       </div>
