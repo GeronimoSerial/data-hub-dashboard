@@ -63,7 +63,10 @@ export function CatalogPage({ formato }: { formato: Formato }) {
   const { recursos, categorias } = useHubData()
 
   const items = React.useMemo(
-    () => recursos.filter((r) => r.formato === formato),
+    () =>
+      recursos.filter(
+        (r) => r.formato === formato && r.estado === 'publicado',
+      ),
     [recursos, formato],
   )
 

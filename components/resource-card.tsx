@@ -30,6 +30,7 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
+import { isStaticHref } from '@/lib/nav'
 
 const FORMATO_ICON = {
   reporte: <DocumentText24Regular />,
@@ -148,6 +149,13 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
   )
 
   if (recurso.ruta) {
+    if (isStaticHref(recurso.ruta)) {
+      return (
+        <a href={recurso.ruta} className={styles.link}>
+          {card}
+        </a>
+      )
+    }
     return (
       <Link href={recurso.ruta} className={styles.link}>
         {card}

@@ -83,7 +83,10 @@ export function ReportesPage() {
 
   // Solo reportes
   const reportes = React.useMemo(
-    () => recursos.filter((r) => r.formato === 'reporte'),
+    () =>
+      recursos.filter(
+        (r) => r.formato === 'reporte' && r.estado === 'publicado',
+      ),
     [recursos],
   )
 

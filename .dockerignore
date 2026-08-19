@@ -4,6 +4,7 @@ node_modules
 .github
 .superpowers
 openspec
+FILES
 *.md
 !docs/DEPLOY.md
 .env*
