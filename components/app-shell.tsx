@@ -28,7 +28,7 @@ import {
 import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
-import { isMapViewerPath, isReadyHref } from '@/lib/nav'
+import { isBleedViewerPath, isReadyHref } from '@/lib/nav'
 
 const NAV = [
   { value: '/', label: 'Inicio', icon: <Home24Regular /> },
@@ -165,7 +165,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const visibleNav = NAV.filter((n) =>
     n.value !== '/admin' ? isReadyHref(n.value) : isStaff(role),
   )
-  const mapViewer = isMapViewerPath(pathname)
+  const mapViewer = isBleedViewerPath(pathname)
 
   const selected =
     visibleNav

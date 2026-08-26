@@ -1,11 +1,17 @@
-import { count } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import {
   categorias as seedCategorias,
   niveles as seedNiveles,
   recursos as seedRecursos,
   tags as seedTags,
   tipos as seedTipos,
+  type Recurso,
 } from '@/lib/model'
+import {
+  SEED_PUBLIC_FILES,
+  copySeedPublicFile,
+  shouldReplaceWithSeedFile,
+} from '@/lib/seed-files'
 import { getDb } from './index'
 import {
   categorias,
@@ -154,13 +160,55 @@ export function ensureSeeded() {
   return seedPromise
 }
 
+function withSeedFile(r: Recurso): Recurso {
+  const spec = SEED_PUBLIC_FILES.find((s) => s.id === r.id)
+  if (!spec) return r
+  const copied = copySeedPublicFile(spec)
+  return {
+    ...r,
+    ruta: undefined,
+    storageKey: copied.storageKey,
+    mime: spec.mime,
+    nombreOriginal: spec.nombreOriginal,
+    size: copied.size,
+  }
+}
+
+async function convertExistingSeedFiles() {
+  const db = getDb()
+  const rows = await db
+    .select({
+      id: recursos.id,
+      ruta: recursos.ruta,
+      storageKey: recursos.storageKey,
+    })
+    .from(recursos)
+  for (const row of rows) {
+    if (!shouldReplaceWithSeedFile(row)) continue
+    const spec = SEED_PUBLIC_FILES.find((s) => s.id === row.id)
+    if (!spec) continue
+    const copied = copySeedPublicFile(spec)
+    await db
+      .update(recursos)
+      .set({
+        ruta: null,
+        storageKey: copied.storageKey,
+        mime: spec.mime,
+        nombreOriginal: spec.nombreOriginal,
+        size: copied.size,
+      })
+      .where(eq(recursos.id, row.id))
+  }
+}
+
 async function seedHub() {
   const db = getDb()
   await db.$client.executeMultiple(HUB_DDL)
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {
-    const tagJoins = seedRecursos.flatMap((r) =>
+    const seeded = seedRecursos.map(withSeedFile)
+    const tagJoins = seeded.flatMap((r) =>
       r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
     )
 
@@ -170,7 +218,7 @@ async function seedHub() {
       await tx.insert(categorias).values(seedCategorias)
       await tx.insert(tags).values(seedTags)
       await tx.insert(recursos).values(
-        seedRecursos.map(
+        seeded.map(
           ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
             row,
         ),
@@ -179,6 +227,8 @@ async function seedHub() {
         await tx.insert(recursoTags).values(tagJoins)
       }
     })
+  } else {
+    await convertExistingSeedFiles()
   }
 
   await seedFirstAdmin()
