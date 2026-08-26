@@ -29,6 +29,13 @@ const EXT_MIME: Record<string, string> = {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 }
 
+export function isAllowedServedMime(mime: string) {
+  return (
+    (VIEWER_MIMES as readonly string[]).includes(mime) ||
+    (DOWNLOAD_MIMES as readonly string[]).includes(mime)
+  )
+}
+
 export function isAllowedUpload(file: {
   type: string
   size: number
@@ -43,8 +50,7 @@ export function isAllowedUpload(file: {
   }
   const ext = lower.slice(lower.lastIndexOf('.'))
   const mime = file.type || EXT_MIME[ext] || ''
-  const allowed = new Set<string>([...VIEWER_MIMES, ...DOWNLOAD_MIMES])
-  if (!allowed.has(mime)) {
+  if (!isAllowedServedMime(mime)) {
     return { ok: false, error: 'Tipo de archivo no permitido' }
   }
   return { ok: true, mime }

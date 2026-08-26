@@ -2,6 +2,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   gateContentType,
+  gateLoginCallbackUrl,
   gateLookupRuta,
   publicAbsPath,
 } from './gate-static'
@@ -35,5 +36,21 @@ describe('gateContentType', () => {
       'text/html; charset=utf-8',
     )
     expect(gateContentType('reporte.pdf')).toBe('application/pdf')
+  })
+})
+
+describe('gateLoginCallbackUrl', () => {
+  it('keeps the request search so tablero deep-links survive login', () => {
+    expect(gateLoginCallbackUrl('/tablero', '?key=foo')).toBe(
+      '/tablero?key=foo',
+    )
+    expect(gateLoginCallbackUrl('/mapa_interactivo', '?capa=1&id=2')).toBe(
+      '/mapa_interactivo?capa=1&id=2',
+    )
+  })
+
+  it('stays a path-only callback when there is no query', () => {
+    expect(gateLoginCallbackUrl('/tablero', '')).toBe('/tablero')
+    expect(gateLoginCallbackUrl('/tablero', '?')).toBe('/tablero')
   })
 })

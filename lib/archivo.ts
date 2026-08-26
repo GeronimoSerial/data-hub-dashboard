@@ -2,7 +2,7 @@ import path from 'node:path'
 import { unlink } from 'node:fs/promises'
 import { puedeAbrir, type RecursoAccess, type SessionUser } from '@/lib/acl'
 import { getUploadsDir } from '@/lib/data-dir'
-import { DOWNLOAD_MIMES } from '@/lib/upload'
+import { DOWNLOAD_MIMES, isAllowedServedMime } from '@/lib/upload'
 
 export function archivoStorageKey(recursoId: string, fileId: string) {
   return `${recursoId}/${fileId}`
@@ -35,6 +35,10 @@ function safeFilename(name: string) {
   return trimmed.replace(/[\r\n"]/g, '_')
 }
 
+export function archivoCanServe(mime: string | null | undefined): mime is string {
+  return Boolean(mime && isAllowedServedMime(mime))
+}
+
 export function archivoResponseHeaders(opts: {
   mime: string
   nombreOriginal: string
@@ -44,10 +48,14 @@ export function archivoResponseHeaders(opts: {
     opts.download || (DOWNLOAD_MIMES as readonly string[]).includes(opts.mime)
   const disposition = attachment ? 'attachment' : 'inline'
   const filename = safeFilename(opts.nombreOriginal)
+  const csp =
+    opts.mime === 'text/html'
+      ? "frame-ancestors 'self'; sandbox allow-scripts allow-forms"
+      : "frame-ancestors 'self'"
   return {
     'X-Content-Type-Options': 'nosniff',
     'Cache-Control': 'private, no-store',
-    'Content-Security-Policy': "frame-ancestors 'self'",
+    'Content-Security-Policy': csp,
     'Content-Type': opts.mime,
     'Content-Disposition': `${disposition}; filename="${filename}"`,
   }

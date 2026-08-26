@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { isStaff, puedeAbrir, type RecursoAccess, type SessionUser } from './acl'
+import {
+  adminPageGate,
+  isStaff,
+  puedeAbrir,
+  type RecursoAccess,
+  type SessionUser,
+} from './acl'
 
 const pub: RecursoAccess = {
   estado: 'publicado',
@@ -82,5 +88,29 @@ describe('isStaff', () => {
     expect(isStaff('consulta')).toBe(false)
     expect(isStaff(null)).toBe(false)
     expect(isStaff(undefined)).toBe(false)
+  })
+})
+
+describe('adminPageGate', () => {
+  it('sends anonymous users to login', () => {
+    expect(adminPageGate(null)).toBe('login')
+  })
+
+  it('forbids banned staff even when role is admin or editor', () => {
+    expect(adminPageGate(consulta({ role: 'admin', banned: true }))).toBe(
+      'forbidden',
+    )
+    expect(adminPageGate(consulta({ role: 'editor', banned: true }))).toBe(
+      'forbidden',
+    )
+  })
+
+  it('forbids consulta', () => {
+    expect(adminPageGate(consulta())).toBe('forbidden')
+  })
+
+  it('allows active staff', () => {
+    expect(adminPageGate(consulta({ role: 'admin' }))).toBe('ok')
+    expect(adminPageGate(consulta({ role: 'editor' }))).toBe('ok')
   })
 })

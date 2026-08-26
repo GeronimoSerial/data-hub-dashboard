@@ -2,6 +2,7 @@ import { insertRecurso } from '@/lib/db/recursos'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   parseRecursoBody,
+  publicadoXorInvalid,
   rutaStorageKeyConflict,
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -30,6 +31,12 @@ export async function POST(request: Request) {
   if (rutaStorageKeyConflict(recurso.ruta, recurso.storageKey)) {
     return Response.json(
       { error: 'ruta y storageKey no pueden usarse juntos' },
+      { status: 400 },
+    )
+  }
+  if (publicadoXorInvalid(recurso.estado, recurso.ruta, recurso.storageKey)) {
+    return Response.json(
+      { error: 'Un recurso publicado necesita archivo o ruta' },
       { status: 400 },
     )
   }

@@ -32,3 +32,11 @@ export function puedeAbrir(
 export function isStaff(role: Role | null | undefined) {
   return role === 'admin' || role === 'editor'
 }
+
+export function adminPageGate(
+  user: SessionUser | null,
+): 'login' | 'forbidden' | 'ok' {
+  if (!user) return 'login'
+  if (user.banned || !isStaff(user.role)) return 'forbidden'
+  return 'ok'
+}

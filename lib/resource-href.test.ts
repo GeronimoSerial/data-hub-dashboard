@@ -21,6 +21,14 @@ describe('resourceCardTarget', () => {
   it('returns null when there is neither file nor ruta', () => {
     expect(resourceCardTarget({ id: 'x' })).toBeNull()
   })
+
+  it('does not use protocol-relative or off-app rutas as href', () => {
+    expect(resourceCardTarget({ id: 'r1', ruta: '//evil.example' })).toBeNull()
+    expect(
+      resourceCardTarget({ id: 'r1', ruta: 'https://evil.example' }),
+    ).toBeNull()
+    expect(resourceCardTarget({ id: 'r1', ruta: '/admin' })).toBeNull()
+  })
 })
 
 describe('resourceCardHref', () => {

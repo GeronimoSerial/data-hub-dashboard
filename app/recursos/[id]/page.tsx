@@ -7,6 +7,7 @@ import { getSessionUser } from '@/lib/session'
 import { puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccess } from '@/lib/db/recurso-access'
 import { RecursoViewer } from '@/components/recurso-viewer'
+import { isAllowedRuta } from '@/lib/recurso-write'
 
 export const runtime = 'nodejs'
 
@@ -23,6 +24,9 @@ export default async function RecursoPage({
   if (!user) redirect(`/login?callbackUrl=/recursos/${id}`)
   const access = await loadRecursoAccess(id)
   if (!access || !puedeAbrir(user, access)) redirect('/forbidden')
-  if (row.ruta && !row.storageKey) redirect(row.ruta)
+  if (row.ruta && !row.storageKey) {
+    if (!isAllowedRuta(row.ruta)) notFound()
+    redirect(row.ruta)
+  }
   return <RecursoViewer recurso={row} />
 }

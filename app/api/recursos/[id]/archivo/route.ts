@@ -5,6 +5,7 @@ import { Readable } from 'node:stream'
 import { eq } from 'drizzle-orm'
 import {
   archivoAbsPath,
+  archivoCanServe,
   archivoGate,
   archivoResponseHeaders,
   archivoStorageKey,
@@ -69,6 +70,10 @@ export async function GET(request: Request, ctx: Ctx) {
   if (status !== 200 || !loaded?.row.storageKey) {
     return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
   }
+  const mime = loaded.row.mime
+  if (!archivoCanServe(mime)) {
+    return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })
+  }
 
   const abs = archivoAbsPath(loaded.row.storageKey)
   if (!abs) {
@@ -82,7 +87,7 @@ export async function GET(request: Request, ctx: Ctx) {
   const url = new URL(request.url)
   const download = url.searchParams.get('download') === '1'
   const headers = archivoResponseHeaders({
-    mime: loaded.row.mime || 'application/octet-stream',
+    mime,
     nombreOriginal: loaded.row.nombreOriginal || 'archivo',
     download,
   })

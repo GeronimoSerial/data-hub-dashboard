@@ -6,6 +6,7 @@ import { recursos } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   parseRecursoBody,
+  publicadoXorInvalid,
   rutaStorageKeyConflict,
 } from '@/lib/recurso-write'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -42,12 +43,6 @@ export async function PUT(request: Request, ctx: Ctx) {
   if (!parsed) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
-  if (rutaStorageKeyConflict(parsed.ruta, parsed.storageKey)) {
-    return Response.json(
-      { error: 'ruta y storageKey no pueden usarse juntos' },
-      { status: 400 },
-    )
-  }
 
   const clearingFile = !parsed.storageKey?.trim()
   const previousKey = clearingFile ? await existingStorageKey(id) : null
@@ -61,6 +56,19 @@ export async function PUT(request: Request, ctx: Ctx) {
         size: undefined,
       }
     : { ...parsed, id }
+
+  if (rutaStorageKeyConflict(recurso.ruta, recurso.storageKey)) {
+    return Response.json(
+      { error: 'ruta y storageKey no pueden usarse juntos' },
+      { status: 400 },
+    )
+  }
+  if (publicadoXorInvalid(recurso.estado, recurso.ruta, recurso.storageKey)) {
+    return Response.json(
+      { error: 'Un recurso publicado necesita archivo o ruta' },
+      { status: 400 },
+    )
+  }
 
   try {
     const updated = await updateRecurso(recurso)

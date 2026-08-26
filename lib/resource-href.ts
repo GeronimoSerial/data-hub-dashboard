@@ -1,3 +1,5 @@
+import { isAllowedRuta } from '@/lib/recurso-write'
+
 export function resourceCardTarget(recurso: {
   id: string
   storageKey?: string | null
@@ -5,7 +7,8 @@ export function resourceCardTarget(recurso: {
 }): string | null {
   if (recurso.storageKey) return `/recursos/${recurso.id}`
   const ruta = recurso.ruta?.trim()
-  return ruta || null
+  if (!ruta || !isAllowedRuta(ruta)) return null
+  return ruta
 }
 
 export function resourceCardHref(

@@ -8,6 +8,7 @@ import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   gateContentType,
+  gateLoginCallbackUrl,
   gateLookupRuta,
   publicAbsPath,
 } from '@/lib/gate-static'
@@ -41,7 +42,10 @@ export async function GET(request: Request, ctx: Ctx) {
   const user = await getSessionUser()
   if (!user) {
     const login = new URL('/login', request.url)
-    login.searchParams.set('callbackUrl', ruta)
+    login.searchParams.set(
+      'callbackUrl',
+      gateLoginCallbackUrl(ruta, new URL(request.url).search),
+    )
     return NextResponse.redirect(login)
   }
   const found = await loadRecursoAccessByRuta(ruta)

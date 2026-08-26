@@ -24,3 +24,9 @@ export function gateContentType(filePath: string) {
   if (/\.pdf$/i.test(filePath)) return 'application/pdf'
   return 'application/octet-stream'
 }
+
+export function gateLoginCallbackUrl(ruta: string, search: string) {
+  const query = search.startsWith('?') ? search.slice(1) : search
+  if (!query) return ruta
+  return `${ruta}?${query}`
+}
