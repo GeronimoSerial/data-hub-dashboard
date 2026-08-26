@@ -7,6 +7,7 @@ import {
   tokens,
   typographyStyles,
   Caption1,
+  Button,
   ToggleButton,
   Tooltip,
   Tab,
@@ -25,6 +26,7 @@ import {
   Settings24Regular,
 } from '@fluentui/react-icons'
 import { useThemeMode } from '@/app/providers'
+import { authClient } from '@/lib/auth-client'
 import { isMapViewerPath, isReadyHref } from '@/lib/nav'
 
 const NAV = [
@@ -86,6 +88,11 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     textAlign: 'right',
     letterSpacing: '0.4px',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: tokens.spacingHorizontalM,
   },
   navBar: {
     display: 'flex',
@@ -149,6 +156,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { mode, setMode } = useThemeMode()
   const router = useRouter()
   const pathname = usePathname()
+  const session = authClient.useSession()
+  const sessionUser = session.data?.user
 
   // Match the deepest nav item (so /reportes/x still highlights Reportes).
   const visibleNav = NAV.filter((n) => isReadyHref(n.value))
@@ -196,24 +205,47 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Tab>
           ))}
         </TabList>
-        <Tooltip
-          content={mode === 'light' ? 'Tema oscuro' : 'Tema claro'}
-          relationship="label"
-        >
-          <ToggleButton
-            checked={mode === 'dark'}
-            onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
-            icon={
-              mode === 'light' ? (
-                <WeatherMoon24Regular />
-              ) : (
-                <WeatherSunny24Regular />
-              )
-            }
-            appearance="subtle"
-            aria-label="Cambiar tema"
-          />
-        </Tooltip>
+        <div className={styles.actions}>
+          {sessionUser ? (
+            <>
+              <Caption1>{sessionUser.name}</Caption1>
+              <Button
+                appearance="subtle"
+                onClick={async () => {
+                  await authClient.signOut()
+                  router.replace('/')
+                }}
+              >
+                Salir
+              </Button>
+            </>
+          ) : (
+            <Button
+              appearance="subtle"
+              onClick={() => router.push('/login')}
+            >
+              Iniciar sesión
+            </Button>
+          )}
+          <Tooltip
+            content={mode === 'light' ? 'Tema oscuro' : 'Tema claro'}
+            relationship="label"
+          >
+            <ToggleButton
+              checked={mode === 'dark'}
+              onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
+              icon={
+                mode === 'light' ? (
+                  <WeatherMoon24Regular />
+                ) : (
+                  <WeatherSunny24Regular />
+                )
+              }
+              appearance="subtle"
+              aria-label="Cambiar tema"
+            />
+          </Tooltip>
+        </div>
       </nav>
 
       <main className={mapViewer ? styles.contentBleed : styles.content}>
