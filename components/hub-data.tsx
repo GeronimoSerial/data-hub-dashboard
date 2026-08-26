@@ -23,7 +23,7 @@ interface HubData {
   categorias: Categoria[]
   tags: Tag[]
   writeError: string | null
-  upsertRecurso: (r: Recurso) => void
+  upsertRecurso: (r: Recurso, file?: File | null) => Promise<boolean>
   removeRecurso: (id: string) => void
   upsertNivel: (n: Nivel) => void
   removeNivel: (id: string) => void
@@ -107,24 +107,36 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
   }, [applyCatalog, catalogPath, pending])
 
   const upsertRecurso = React.useCallback(
-    (r: Recurso) => {
-      void (async () => {
-        setWriteError(null)
-        const exists = recursosRef.current.some((x) => x.id === r.id)
-        const res = await fetch(
-          exists ? `/api/recursos/${encodeURIComponent(r.id)}` : '/api/recursos',
-          {
-            method: exists ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(r),
-          },
+    async (r: Recurso, file?: File | null) => {
+      setWriteError(null)
+      const exists = recursosRef.current.some((x) => x.id === r.id)
+      const res = await fetch(
+        exists ? `/api/recursos/${encodeURIComponent(r.id)}` : '/api/recursos',
+        {
+          method: exists ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(r),
+        },
+      )
+      if (!res.ok) {
+        setWriteError(await readError(res))
+        return false
+      }
+      if (file) {
+        const body = new FormData()
+        body.append('file', file)
+        const up = await fetch(
+          `/api/recursos/${encodeURIComponent(r.id)}/archivo`,
+          { method: 'POST', body },
         )
-        if (!res.ok) {
-          setWriteError(await readError(res))
-          return
+        if (!up.ok) {
+          setWriteError(await readError(up))
+          await reload()
+          return false
         }
-        await reload()
-      })()
+      }
+      await reload()
+      return true
     },
     [reload],
   )

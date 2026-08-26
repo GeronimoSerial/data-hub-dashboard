@@ -25,6 +25,8 @@ import {
   MessageBarBody,
   MessageBarTitle,
   Option,
+  Radio,
+  RadioGroup,
   Tab,
   TabList,
   Table,
@@ -64,6 +66,7 @@ import {
 import { useHubData } from '@/components/hub-data'
 import { authClient } from '@/lib/auth-client'
 import type { Role } from '@/lib/acl'
+import { isAllowedUpload } from '@/lib/upload'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -75,6 +78,12 @@ const COLORS: BadgeColor[] = [
   'important',
   'subtle',
 ]
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
 
 function slugId(nombre: string) {
   const base = nombre
@@ -153,9 +162,17 @@ function RecursoDialog({
     estado: 'borrador',
   }
   const [draft, setDraft] = React.useState<Recurso>(empty)
+  const [destino, setDestino] = React.useState<'archivo' | 'ruta'>('archivo')
+  const [pendingFile, setPendingFile] = React.useState<File | null>(null)
+  const [fileError, setFileError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
     setDraft(editing ? { ...editing } : empty)
+    setDestino(editing?.ruta ? 'ruta' : 'archivo')
+    setPendingFile(null)
+    setFileError(null)
+    setSaving(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, open])
 
@@ -165,7 +182,19 @@ function RecursoDialog({
   const set = <K extends keyof Recurso>(k: K, v: Recurso[K]) =>
     setDraft((d) => ({ ...d, [k]: v }))
 
-  const save = () => {
+  const shownName = pendingFile?.name ?? draft.nombreOriginal
+  const shownSize = pendingFile?.size ?? draft.size
+  const fileMissing =
+    draft.estado === 'publicado' &&
+    destino === 'archivo' &&
+    !draft.storageKey &&
+    !pendingFile
+  const rutaMissing =
+    draft.estado === 'publicado' &&
+    destino === 'ruta' &&
+    !draft.ruta?.trim()
+
+  const save = async () => {
     const tipoOk = tiposValidos.some((t) => t.id === draft.tipoId)
     const toSave: Recurso = {
       ...draft,
@@ -173,12 +202,33 @@ function RecursoDialog({
       tipoId: tipoOk ? draft.tipoId : (tiposValidos[0]?.id ?? ''),
       actualizado: new Date().toISOString().slice(0, 10),
     }
-    upsertRecurso(toSave)
-    onClose()
+    if (destino === 'ruta') {
+      toSave.ruta = draft.ruta?.trim() || undefined
+      delete toSave.storageKey
+      delete toSave.mime
+      delete toSave.nombreOriginal
+      delete toSave.size
+    } else {
+      delete toSave.ruta
+    }
+    setSaving(true)
+    try {
+      const ok = await upsertRecurso(
+        toSave,
+        destino === 'archivo' ? pendingFile : null,
+      )
+      if (ok) onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const valido =
-    draft.titulo.trim().length > 0 && tiposValidos.length > 0 && draft.categoriaId
+    draft.titulo.trim().length > 0 &&
+    tiposValidos.length > 0 &&
+    draft.categoriaId &&
+    !fileMissing &&
+    !rutaMissing
 
   return (
     <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
@@ -324,13 +374,86 @@ function RecursoDialog({
                   />
                 </Field>
               </div>
+
+              <Field label="Origen">
+                <RadioGroup
+                  layout="horizontal"
+                  value={destino}
+                  onChange={(_e, d) =>
+                    setDestino(d.value === 'ruta' ? 'ruta' : 'archivo')
+                  }
+                >
+                  <Radio value="archivo" label="Archivo" />
+                  <Radio value="ruta" label="Ruta interna" />
+                </RadioGroup>
+              </Field>
+
+              {destino === 'archivo' ? (
+                <>
+                  <Field
+                    label="Archivo"
+                    required={!editing && draft.estado === 'publicado'}
+                    validationMessage={fileError ?? undefined}
+                    validationState={fileError ? 'error' : undefined}
+                  >
+                    <input
+                      type="file"
+                      accept=".pdf,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.xlsx,.docx,application/pdf,text/html,image/png,image/jpeg,image/webp,image/gif,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) {
+                          setPendingFile(null)
+                          setFileError(null)
+                          return
+                        }
+                        const allowed = isAllowedUpload({
+                          type: file.type,
+                          size: file.size,
+                          name: file.name,
+                        })
+                        if (!allowed.ok) {
+                          setPendingFile(null)
+                          setFileError(allowed.error)
+                          e.target.value = ''
+                          return
+                        }
+                        setFileError(null)
+                        setPendingFile(file)
+                      }}
+                    />
+                  </Field>
+                  {shownName ? (
+                    <Caption1>
+                      {shownName}
+                      {typeof shownSize === 'number'
+                        ? ` · ${formatBytes(shownSize)}`
+                        : ''}
+                    </Caption1>
+                  ) : null}
+                </>
+              ) : (
+                <Field
+                  label="Ruta interna"
+                  required={draft.estado === 'publicado'}
+                >
+                  <Input
+                    value={draft.ruta ?? ''}
+                    onChange={(_e, d) => set('ruta', d.value)}
+                    placeholder="/mapas/matricula"
+                  />
+                </Field>
+              )}
             </div>
           </DialogContent>
           <DialogActions>
             <Button appearance="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button appearance="primary" disabled={!valido} onClick={save}>
+            <Button
+              appearance="primary"
+              disabled={!valido || saving}
+              onClick={() => void save()}
+            >
               Guardar
             </Button>
           </DialogActions>

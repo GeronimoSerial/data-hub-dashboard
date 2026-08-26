@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm'
+import { unlinkStoredFile } from '@/lib/archivo'
+import { getDb } from '@/lib/db'
 import { deleteRecurso, updateRecurso } from '@/lib/db/recursos'
+import { recursos } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   parseRecursoBody,
@@ -10,6 +14,14 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Ctx = { params: Promise<{ id: string }> }
+
+async function existingStorageKey(id: string) {
+  const [row] = await getDb()
+    .select({ storageKey: recursos.storageKey })
+    .from(recursos)
+    .where(eq(recursos.id, id))
+  return row?.storageKey ?? null
+}
 
 export async function PUT(request: Request, ctx: Ctx) {
   await ensureSeeded()
@@ -30,13 +42,25 @@ export async function PUT(request: Request, ctx: Ctx) {
   if (!parsed) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
-  const recurso = { ...parsed, id }
-  if (rutaStorageKeyConflict(recurso.ruta, recurso.storageKey)) {
+  if (rutaStorageKeyConflict(parsed.ruta, parsed.storageKey)) {
     return Response.json(
       { error: 'ruta y storageKey no pueden usarse juntos' },
       { status: 400 },
     )
   }
+
+  const settingRuta = Boolean(parsed.ruta?.trim())
+  const previousKey = settingRuta ? await existingStorageKey(id) : null
+  const recurso = settingRuta
+    ? {
+        ...parsed,
+        id,
+        storageKey: undefined,
+        mime: undefined,
+        nombreOriginal: undefined,
+        size: undefined,
+      }
+    : { ...parsed, id }
 
   try {
     const updated = await updateRecurso(recurso)
@@ -46,6 +70,8 @@ export async function PUT(request: Request, ctx: Ctx) {
   } catch {
     return Response.json({ error: 'No se pudo guardar el recurso' }, { status: 400 })
   }
+
+  if (settingRuta) await unlinkStoredFile(previousKey)
   return Response.json({ ok: true, id })
 }
 
@@ -57,9 +83,11 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params
+  const previousKey = await existingStorageKey(id)
   const deleted = await deleteRecurso(id)
   if (!deleted) {
     return Response.json({ error: 'Recurso no encontrado' }, { status: 404 })
   }
+  await unlinkStoredFile(previousKey)
   return Response.json({ ok: true, id })
 }

@@ -67,3 +67,5 @@ docker run --rm -p 3000:3000 data-hub-dashboard:local
 ```
 
 El `HEALTHCHECK` del Dockerfile hace `GET /` en `localhost:3000`.
+
+El reverse proxy (Coolify/Traefik/Caddy) debe permitir cuerpos de **50 MB** en `POST /api/recursos/:id/archivo`.
