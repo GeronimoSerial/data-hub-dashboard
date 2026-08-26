@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseRecursoBody, rutaStorageKeyConflict } from './recurso-write'
+import {
+  deferPublishUntilFile,
+  parseRecursoBody,
+  rutaStorageKeyConflict,
+} from './recurso-write'
 
 describe('rutaStorageKeyConflict', () => {
   it('is true only when both ruta and storageKey are set', () => {
@@ -8,6 +12,19 @@ describe('rutaStorageKeyConflict', () => {
     expect(rutaStorageKeyConflict(undefined, 'uploads/a')).toBe(false)
     expect(rutaStorageKeyConflict('  ', 'uploads/a')).toBe(false)
     expect(rutaStorageKeyConflict(null, null)).toBe(false)
+  })
+})
+
+describe('deferPublishUntilFile', () => {
+  it('defers publish when creating a published recurso with a new file and no storageKey', () => {
+    expect(deferPublishUntilFile('publicado', undefined, true)).toBe(true)
+    expect(deferPublishUntilFile('publicado', '', true)).toBe(true)
+  })
+
+  it('does not defer when already a borrador, replacing an existing file, or not uploading', () => {
+    expect(deferPublishUntilFile('borrador', undefined, true)).toBe(false)
+    expect(deferPublishUntilFile('publicado', 'rec-1/file-a', true)).toBe(false)
+    expect(deferPublishUntilFile('publicado', undefined, false)).toBe(false)
   })
 })
 

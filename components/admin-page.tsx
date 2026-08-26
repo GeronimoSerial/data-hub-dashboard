@@ -146,7 +146,8 @@ function RecursoDialog({
   editing: Recurso | null
 }) {
   const styles = useStyles()
-  const { niveles, tipos, categorias, tags, upsertRecurso } = useHubData()
+  const { niveles, tipos, categorias, tags, upsertRecurso, writeError } =
+    useHubData()
 
   const empty: Recurso = {
     id: '',
@@ -196,9 +197,10 @@ function RecursoDialog({
 
   const save = async () => {
     const tipoOk = tiposValidos.some((t) => t.id === draft.tipoId)
+    const id = draft.id || slugId(draft.titulo)
     const toSave: Recurso = {
       ...draft,
-      id: draft.id || slugId(draft.titulo),
+      id,
       tipoId: tipoOk ? draft.tipoId : (tiposValidos[0]?.id ?? ''),
       actualizado: new Date().toISOString().slice(0, 10),
     }
@@ -211,6 +213,7 @@ function RecursoDialog({
     } else {
       delete toSave.ruta
     }
+    setDraft((d) => ({ ...d, id }))
     setSaving(true)
     try {
       const ok = await upsertRecurso(
@@ -239,6 +242,11 @@ function RecursoDialog({
           </DialogTitle>
           <DialogContent>
             <div className={styles.formGrid}>
+              {writeError ? (
+                <MessageBar intent="error">
+                  <MessageBarBody>{writeError}</MessageBarBody>
+                </MessageBar>
+              ) : null}
               <Field label="Título" required>
                 <Input
                   value={draft.titulo}

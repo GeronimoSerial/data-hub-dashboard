@@ -15,6 +15,7 @@ import {
 } from '@/lib/model'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
+import { deferPublishUntilFile } from '@/lib/recurso-write'
 
 interface HubData {
   recursos: Recurso[]
@@ -109,13 +110,33 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
   const upsertRecurso = React.useCallback(
     async (r: Recurso, file?: File | null) => {
       setWriteError(null)
-      const exists = recursosRef.current.some((x) => x.id === r.id)
+      const existing = recursosRef.current.find((x) => x.id === r.id)
+      const storageKey = r.storageKey || existing?.storageKey
+      const merged: Recurso = file
+        ? {
+            ...r,
+            storageKey: storageKey,
+            mime: r.mime || existing?.mime,
+            nombreOriginal: r.nombreOriginal || existing?.nombreOriginal,
+            size: r.size ?? existing?.size,
+          }
+        : r
+      const deferPublish = deferPublishUntilFile(
+        merged.estado,
+        merged.storageKey,
+        Boolean(file),
+      )
+      const jsonBody: Recurso = deferPublish
+        ? { ...merged, estado: 'borrador' }
+        : merged
       const res = await fetch(
-        exists ? `/api/recursos/${encodeURIComponent(r.id)}` : '/api/recursos',
+        existing
+          ? `/api/recursos/${encodeURIComponent(r.id)}`
+          : '/api/recursos',
         {
-          method: exists ? 'PUT' : 'POST',
+          method: existing ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(r),
+          body: JSON.stringify(jsonBody),
         },
       )
       if (!res.ok) {
@@ -133,6 +154,35 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
           setWriteError(await readError(up))
           await reload()
           return false
+        }
+        if (deferPublish) {
+          const uploaded = (await up.json().catch(() => null)) as {
+            storageKey?: string
+            mime?: string
+            nombreOriginal?: string
+            size?: number
+          } | null
+          const published: Recurso = {
+            ...merged,
+            estado: 'publicado',
+            storageKey: uploaded?.storageKey || merged.storageKey,
+            mime: uploaded?.mime || merged.mime,
+            nombreOriginal: uploaded?.nombreOriginal || merged.nombreOriginal,
+            size: uploaded?.size ?? merged.size,
+          }
+          const pub = await fetch(
+            `/api/recursos/${encodeURIComponent(r.id)}`,
+            {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(published),
+            },
+          )
+          if (!pub.ok) {
+            setWriteError(await readError(pub))
+            await reload()
+            return false
+          }
         }
       }
       await reload()

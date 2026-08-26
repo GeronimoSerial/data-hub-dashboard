@@ -63,3 +63,11 @@ export async function unlinkStoredFile(storageKey: string | null | undefined) {
     if (code !== 'ENOENT') throw err
   }
 }
+
+export function storedKeyToUnlink(
+  incomingStorageKey?: string | null,
+  existingStorageKey?: string | null,
+): string | null {
+  if (incomingStorageKey?.trim()) return null
+  return existingStorageKey?.trim() || null
+}

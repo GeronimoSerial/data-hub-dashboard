@@ -7,6 +7,14 @@ export function rutaStorageKeyConflict(
   return Boolean(ruta?.trim()) && Boolean(storageKey?.trim())
 }
 
+export function deferPublishUntilFile(
+  estado: Recurso['estado'],
+  storageKey?: string | null,
+  hasFile?: boolean,
+) {
+  return Boolean(hasFile) && estado === 'publicado' && !storageKey?.trim()
+}
+
 const FORMATOS: Formato[] = ['reporte', 'tablero', 'mapa']
 
 function asStringArray(value: unknown): string[] {

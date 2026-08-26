@@ -4,6 +4,7 @@ import {
   archivoGate,
   archivoResponseHeaders,
   archivoStorageKey,
+  storedKeyToUnlink,
 } from './archivo'
 
 const pub: RecursoAccess = {
@@ -38,6 +39,28 @@ describe('archivoGate', () => {
   it('returns 404 when the recurso is missing or has no blob', () => {
     expect(archivoGate(consulta(), null, true)).toBe(404)
     expect(archivoGate(consulta(), pub, false)).toBe(404)
+  })
+})
+
+describe('storedKeyToUnlink', () => {
+  it('unlinks the existing blob when the PUT clears storageKey', () => {
+    expect(storedKeyToUnlink(undefined, 'rec-1/file-a')).toBe('rec-1/file-a')
+    expect(storedKeyToUnlink('', 'rec-1/file-a')).toBe('rec-1/file-a')
+    expect(storedKeyToUnlink('  ', 'rec-1/file-a')).toBe('rec-1/file-a')
+  })
+
+  it('unlinks even when ruta is empty (borrador switching off Archivo)', () => {
+    expect(storedKeyToUnlink(undefined, 'rec-1/file-a')).toBe('rec-1/file-a')
+  })
+
+  it('does not unlink when the incoming storageKey is kept', () => {
+    expect(storedKeyToUnlink('rec-1/file-a', 'rec-1/file-a')).toBeNull()
+    expect(storedKeyToUnlink('rec-1/file-b', 'rec-1/file-a')).toBeNull()
+  })
+
+  it('is a no-op when there was no blob', () => {
+    expect(storedKeyToUnlink(undefined, null)).toBeNull()
+    expect(storedKeyToUnlink(undefined, undefined)).toBeNull()
   })
 })
 

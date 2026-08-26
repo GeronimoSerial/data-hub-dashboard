@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import { unlinkStoredFile } from '@/lib/archivo'
+import { unlinkStoredFile, storedKeyToUnlink } from '@/lib/archivo'
 import { getDb } from '@/lib/db'
 import { deleteRecurso, updateRecurso } from '@/lib/db/recursos'
 import { recursos } from '@/lib/db/schema'
@@ -49,9 +49,9 @@ export async function PUT(request: Request, ctx: Ctx) {
     )
   }
 
-  const settingRuta = Boolean(parsed.ruta?.trim())
-  const previousKey = settingRuta ? await existingStorageKey(id) : null
-  const recurso = settingRuta
+  const clearingFile = !parsed.storageKey?.trim()
+  const previousKey = clearingFile ? await existingStorageKey(id) : null
+  const recurso = clearingFile
     ? {
         ...parsed,
         id,
@@ -71,7 +71,8 @@ export async function PUT(request: Request, ctx: Ctx) {
     return Response.json({ error: 'No se pudo guardar el recurso' }, { status: 400 })
   }
 
-  if (settingRuta) await unlinkStoredFile(previousKey)
+  const toUnlink = storedKeyToUnlink(parsed.storageKey, previousKey)
+  if (toUnlink) await unlinkStoredFile(toUnlink)
   return Response.json({ ok: true, id })
 }
 
