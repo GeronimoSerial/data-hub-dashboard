@@ -30,7 +30,9 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
+import { authClient } from '@/lib/auth-client'
 import { isStaticHref } from '@/lib/nav'
+import { resourceCardHref, resourceCardTarget } from '@/lib/resource-href'
 
 const FORMATO_ICON = {
   reporte: <DocumentText24Regular />,
@@ -93,6 +95,7 @@ const useStyles = makeStyles({
 
 export function ResourceCard({ recurso }: { recurso: Recurso }) {
   const styles = useStyles()
+  const session = authClient.useSession()
   const { niveles, tipos, categorias, tags } = useHubData()
   const formato = FORMATOS[recurso.formato]
   const cat = findCategoria(categorias, recurso.categoriaId)
@@ -148,20 +151,24 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
     </Card>
   )
 
-  if (recurso.ruta) {
-    if (isStaticHref(recurso.ruta)) {
-      return (
-        <a href={recurso.ruta} className={styles.link}>
-          {card}
-        </a>
-      )
-    }
+  const target = resourceCardTarget(recurso)
+  const href = resourceCardHref(target, {
+    isPending: session.isPending,
+    hasUser: Boolean(session.data?.user),
+  })
+
+  if (!href) return card
+
+  if (isStaticHref(href)) {
     return (
-      <Link href={recurso.ruta} className={styles.link}>
+      <a href={href} className={styles.link}>
         {card}
-      </Link>
+      </a>
     )
   }
-
-  return card
+  return (
+    <Link href={href} className={styles.link}>
+      {card}
+    </Link>
+  )
 }

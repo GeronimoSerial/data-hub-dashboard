@@ -7,6 +7,22 @@ export const STATIC_HREFS = [
   '/mapa_notas',
 ] as const
 
+export const GATED_STATIC_PREFIXES = [
+  '/tablero',
+  '/mapa_interactivo',
+  '/mapa_sobreedad',
+  '/mapa_notas',
+] as const
+
+export function gatedStaticPath(pathname: string) {
+  const path = pathname.split(/[?#]/, 1)[0] || '/'
+  if (/\.(html|pdf)$/i.test(path) && path.startsWith('/recursos/')) return path
+  const hit = GATED_STATIC_PREFIXES.find(
+    (p) => path === p || path.startsWith(`${p}/`),
+  )
+  return hit ? path : null
+}
+
 export function isReadyHref(href: string) {
   return (READY_HREFS as readonly string[]).includes(href)
 }

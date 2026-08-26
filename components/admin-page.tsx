@@ -25,6 +25,9 @@ import {
   MessageBarBody,
   MessageBarTitle,
   Option,
+  Radio,
+  RadioGroup,
+  Switch,
   Tab,
   TabList,
   Table,
@@ -62,6 +65,9 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
+import { authClient } from '@/lib/auth-client'
+import type { Role } from '@/lib/acl'
+import { isAllowedUpload } from '@/lib/upload'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -73,6 +79,29 @@ const COLORS: BadgeColor[] = [
   'important',
   'subtle',
 ]
+
+type HubUserRow = {
+  id: string
+  name: string
+  email: string
+  role: Role
+  banned: boolean
+  nivelIds: string[]
+}
+
+const ROLES: Role[] = ['admin', 'editor', 'consulta']
+
+function rolLabel(role: Role) {
+  if (role === 'admin') return 'Admin'
+  if (role === 'editor') return 'Editor'
+  return 'Consulta'
+}
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
 
 function slugId(nombre: string) {
   const base = nombre
@@ -135,7 +164,8 @@ function RecursoDialog({
   editing: Recurso | null
 }) {
   const styles = useStyles()
-  const { niveles, tipos, categorias, tags, upsertRecurso } = useHubData()
+  const { niveles, tipos, categorias, tags, upsertRecurso, writeError } =
+    useHubData()
 
   const empty: Recurso = {
     id: '',
@@ -149,13 +179,46 @@ function RecursoDialog({
     area: '',
     actualizado: new Date().toISOString().slice(0, 10),
     estado: 'borrador',
+    audienciaNivelIds: [],
+    audienciaUserIds: [],
   }
   const [draft, setDraft] = React.useState<Recurso>(empty)
+  const [destino, setDestino] = React.useState<'archivo' | 'ruta'>('archivo')
+  const [pendingFile, setPendingFile] = React.useState<File | null>(null)
+  const [fileError, setFileError] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
+  const [pickerUsers, setPickerUsers] = React.useState<HubUserRow[]>([])
 
   React.useEffect(() => {
-    setDraft(editing ? { ...editing } : empty)
+    setDraft(
+      editing
+        ? {
+            ...editing,
+            audienciaNivelIds: editing.audienciaNivelIds ?? [],
+            audienciaUserIds: editing.audienciaUserIds ?? [],
+          }
+        : empty,
+    )
+    setDestino(editing?.ruta ? 'ruta' : 'archivo')
+    setPendingFile(null)
+    setFileError(null)
+    setSaving(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, open])
+
+  React.useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    fetch('/api/usuarios')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { usuarios?: HubUserRow[] } | null) => {
+        if (cancelled || !data?.usuarios) return
+        setPickerUsers(data.usuarios)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
 
   // Tipos válidos para el formato elegido (consistencia del modelo)
   const tiposValidos = tipos.filter((t) => t.aplicaA.includes(draft.formato))
@@ -163,20 +226,57 @@ function RecursoDialog({
   const set = <K extends keyof Recurso>(k: K, v: Recurso[K]) =>
     setDraft((d) => ({ ...d, [k]: v }))
 
-  const save = () => {
+  const shownName = pendingFile?.name ?? draft.nombreOriginal
+  const shownSize = pendingFile?.size ?? draft.size
+  const fileMissing =
+    draft.estado === 'publicado' &&
+    destino === 'archivo' &&
+    !draft.storageKey &&
+    !pendingFile
+  const rutaMissing =
+    draft.estado === 'publicado' &&
+    destino === 'ruta' &&
+    !draft.ruta?.trim()
+
+  const save = async () => {
     const tipoOk = tiposValidos.some((t) => t.id === draft.tipoId)
+    const id = draft.id || slugId(draft.titulo)
     const toSave: Recurso = {
       ...draft,
-      id: draft.id || slugId(draft.titulo),
+      id,
       tipoId: tipoOk ? draft.tipoId : (tiposValidos[0]?.id ?? ''),
       actualizado: new Date().toISOString().slice(0, 10),
+      audienciaNivelIds: draft.audienciaNivelIds ?? [],
+      audienciaUserIds: draft.audienciaUserIds ?? [],
     }
-    upsertRecurso(toSave)
-    onClose()
+    if (destino === 'ruta') {
+      toSave.ruta = draft.ruta?.trim() || undefined
+      delete toSave.storageKey
+      delete toSave.mime
+      delete toSave.nombreOriginal
+      delete toSave.size
+    } else {
+      delete toSave.ruta
+    }
+    setDraft((d) => ({ ...d, id }))
+    setSaving(true)
+    try {
+      const ok = await upsertRecurso(
+        toSave,
+        destino === 'archivo' ? pendingFile : null,
+      )
+      if (ok) onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   const valido =
-    draft.titulo.trim().length > 0 && tiposValidos.length > 0 && draft.categoriaId
+    draft.titulo.trim().length > 0 &&
+    tiposValidos.length > 0 &&
+    draft.categoriaId &&
+    !fileMissing &&
+    !rutaMissing
 
   return (
     <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
@@ -187,6 +287,11 @@ function RecursoDialog({
           </DialogTitle>
           <DialogContent>
             <div className={styles.formGrid}>
+              {writeError ? (
+                <MessageBar intent="error">
+                  <MessageBarBody>{writeError}</MessageBarBody>
+                </MessageBar>
+              ) : null}
               <Field label="Título" required>
                 <Input
                   value={draft.titulo}
@@ -322,13 +427,145 @@ function RecursoDialog({
                   />
                 </Field>
               </div>
+
+              <Field label="Origen">
+                <RadioGroup
+                  layout="horizontal"
+                  value={destino}
+                  onChange={(_e, d) =>
+                    setDestino(d.value === 'ruta' ? 'ruta' : 'archivo')
+                  }
+                >
+                  <Radio value="archivo" label="Archivo" />
+                  <Radio value="ruta" label="Ruta interna" />
+                </RadioGroup>
+              </Field>
+
+              {destino === 'archivo' ? (
+                <>
+                  <Field
+                    label="Archivo"
+                    required={!editing && draft.estado === 'publicado'}
+                    validationMessage={fileError ?? undefined}
+                    validationState={fileError ? 'error' : undefined}
+                  >
+                    <input
+                      type="file"
+                      accept=".pdf,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.xlsx,.docx,application/pdf,text/html,image/png,image/jpeg,image/webp,image/gif,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) {
+                          setPendingFile(null)
+                          setFileError(null)
+                          return
+                        }
+                        const allowed = isAllowedUpload({
+                          type: file.type,
+                          size: file.size,
+                          name: file.name,
+                        })
+                        if (!allowed.ok) {
+                          setPendingFile(null)
+                          setFileError(allowed.error)
+                          e.target.value = ''
+                          return
+                        }
+                        setFileError(null)
+                        setPendingFile(file)
+                      }}
+                    />
+                  </Field>
+                  {shownName ? (
+                    <Caption1>
+                      {shownName}
+                      {typeof shownSize === 'number'
+                        ? ` · ${formatBytes(shownSize)}`
+                        : ''}
+                    </Caption1>
+                  ) : null}
+                </>
+              ) : (
+                <Field
+                  label="Ruta interna"
+                  required={draft.estado === 'publicado'}
+                >
+                  <Input
+                    value={draft.ruta ?? ''}
+                    onChange={(_e, d) => set('ruta', d.value)}
+                    placeholder="/mapas/matricula"
+                  />
+                </Field>
+              )}
+
+              <Field
+                label="Audiencia — niveles"
+                hint="Si no elegís nadie ni niveles, cualquier usuario logueado puede abrir."
+              >
+                <Combobox
+                  multiselect
+                  placeholder="Seleccione niveles"
+                  selectedOptions={draft.audienciaNivelIds ?? []}
+                  value={(draft.audienciaNivelIds ?? [])
+                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
+                    .filter(Boolean)
+                    .join(', ')}
+                  onOptionSelect={(_e, d) =>
+                    set('audienciaNivelIds', d.selectedOptions)
+                  }
+                >
+                  {[...niveles]
+                    .sort((a, b) => a.orden - b.orden)
+                    .map((n) => (
+                      <Option key={n.id} value={n.id} text={n.nombre}>
+                        {n.nombre}
+                      </Option>
+                    ))}
+                </Combobox>
+              </Field>
+
+              <Field label="Audiencia — personas">
+                <Combobox
+                  multiselect
+                  placeholder="Seleccione personas"
+                  selectedOptions={draft.audienciaUserIds ?? []}
+                  value={(draft.audienciaUserIds ?? [])
+                    .map((id) => {
+                      const u = pickerUsers.find((p) => p.id === id)
+                      return u ? `${u.name} (${u.email})` : id
+                    })
+                    .join(', ')}
+                  onOptionSelect={(_e, d) =>
+                    set('audienciaUserIds', d.selectedOptions)
+                  }
+                >
+                  {pickerUsers
+                    .filter(
+                      (u) =>
+                        !u.banned ||
+                        (draft.audienciaUserIds ?? []).includes(u.id),
+                    )
+                    .map((u) => (
+                      <Option
+                        key={u.id}
+                        value={u.id}
+                        text={`${u.name} (${u.email})`}
+                      >
+                        {u.name} ({u.email})
+                      </Option>
+                    ))}
+                </Combobox>
+              </Field>
             </div>
           </DialogContent>
           <DialogActions>
             <Button appearance="secondary" onClick={onClose}>
               Cancelar
             </Button>
-            <Button appearance="primary" disabled={!valido} onClick={save}>
+            <Button
+              appearance="primary"
+              disabled={!valido || saving}
+              onClick={() => void save()}
+            >
               Guardar
             </Button>
           </DialogActions>
@@ -693,16 +930,355 @@ function TaxonomyAdmin<T extends { id: string }>({
   )
 }
 
+// ── Users (admin only) ─────────────────────────────────────────────────────
+
+function UserDialog({
+  open,
+  onClose,
+  editing,
+  niveles,
+  onSaved,
+}: {
+  open: boolean
+  onClose: () => void
+  editing: HubUserRow | null
+  niveles: Nivel[]
+  onSaved: () => Promise<void>
+}) {
+  const styles = useStyles()
+  const empty = {
+    name: '',
+    email: '',
+    password: '',
+    role: 'consulta' as Role,
+    banned: false,
+    nivelIds: [] as string[],
+  }
+  const [draft, setDraft] = React.useState(empty)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    setDraft(
+      editing
+        ? {
+            name: editing.name,
+            email: editing.email,
+            password: '',
+            role: editing.role,
+            banned: editing.banned,
+            nivelIds: editing.nivelIds,
+          }
+        : empty,
+    )
+    setSaving(false)
+    setError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, open])
+
+  const passwordOk =
+    draft.password.length === 0 || draft.password.length >= 8
+  const valido =
+    draft.name.trim().length > 0 &&
+    draft.email.trim().length > 0 &&
+    (editing ? passwordOk : draft.password.length >= 8)
+
+  const save = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = editing
+        ? await fetch(`/api/usuarios/${encodeURIComponent(editing.id)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: draft.name,
+              role: draft.role,
+              banned: draft.banned,
+              password: draft.password,
+              nivelIds: draft.nivelIds,
+            }),
+          })
+        : await fetch('/api/usuarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: draft.name,
+              email: draft.email,
+              password: draft.password,
+              role: draft.role,
+              nivelIds: draft.nivelIds,
+            }),
+          })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: unknown
+        } | null
+        setError(
+          typeof data?.error === 'string' ? data.error : 'No se pudo guardar',
+        )
+        return
+      }
+      await onSaved()
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
+      <DialogSurface>
+        <DialogBody>
+          <DialogTitle>
+            {editing ? 'Editar usuario' : 'Nuevo usuario'}
+          </DialogTitle>
+          <DialogContent>
+            <div className={styles.formGrid}>
+              {error ? (
+                <MessageBar intent="error">
+                  <MessageBarBody>{error}</MessageBarBody>
+                </MessageBar>
+              ) : null}
+              <Field label="Nombre" required>
+                <Input
+                  value={draft.name}
+                  onChange={(_e, d) =>
+                    setDraft((prev) => ({ ...prev, name: d.value }))
+                  }
+                />
+              </Field>
+              <Field label="Email" required>
+                <Input
+                  type="email"
+                  value={draft.email}
+                  disabled={Boolean(editing)}
+                  onChange={(_e, d) =>
+                    setDraft((prev) => ({ ...prev, email: d.value }))
+                  }
+                  placeholder="usuario@example.com"
+                />
+              </Field>
+              <Field
+                label={editing ? 'Nueva contraseña' : 'Contraseña'}
+                required={!editing}
+                hint={
+                  editing
+                    ? 'Dejar vacío para no cambiar'
+                    : 'Mínimo 8 caracteres'
+                }
+              >
+                <Input
+                  type="password"
+                  value={draft.password}
+                  onChange={(_e, d) =>
+                    setDraft((prev) => ({ ...prev, password: d.value }))
+                  }
+                />
+              </Field>
+              <Field label="Rol" required>
+                <Dropdown
+                  selectedOptions={[draft.role]}
+                  value={rolLabel(draft.role)}
+                  onOptionSelect={(_e, d) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      role: (d.optionValue as Role) ?? prev.role,
+                    }))
+                  }
+                >
+                  {ROLES.map((r) => (
+                    <Option key={r} value={r} text={rolLabel(r)}>
+                      {rolLabel(r)}
+                    </Option>
+                  ))}
+                </Dropdown>
+              </Field>
+              <Field label="Niveles">
+                <Combobox
+                  multiselect
+                  placeholder="Seleccione niveles"
+                  selectedOptions={draft.nivelIds}
+                  value={draft.nivelIds
+                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
+                    .filter(Boolean)
+                    .join(', ')}
+                  onOptionSelect={(_e, d) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      nivelIds: d.selectedOptions,
+                    }))
+                  }
+                >
+                  {[...niveles]
+                    .sort((a, b) => a.orden - b.orden)
+                    .map((n) => (
+                      <Option key={n.id} value={n.id} text={n.nombre}>
+                        {n.nombre}
+                      </Option>
+                    ))}
+                </Combobox>
+              </Field>
+              {editing ? (
+                <Field label="Estado">
+                  <Switch
+                    label="Desactivado"
+                    checked={draft.banned}
+                    onChange={(_e, d) =>
+                      setDraft((prev) => ({ ...prev, banned: Boolean(d.checked) }))
+                    }
+                  />
+                </Field>
+              ) : null}
+            </div>
+          </DialogContent>
+          <DialogActions>
+            <Button appearance="secondary" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              appearance="primary"
+              disabled={!valido || saving}
+              onClick={() => void save()}
+            >
+              Guardar
+            </Button>
+          </DialogActions>
+        </DialogBody>
+      </DialogSurface>
+    </Dialog>
+  )
+}
+
+function UsersAdmin() {
+  const styles = useStyles()
+  const { niveles } = useHubData()
+  const [usuarios, setUsuarios] = React.useState<HubUserRow[]>([])
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [open, setOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<HubUserRow | null>(null)
+
+  const reload = React.useCallback(async () => {
+    const res = await fetch('/api/usuarios')
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as {
+        error?: unknown
+      } | null
+      setLoadError(
+        typeof data?.error === 'string' ? data.error : 'No se pudo cargar',
+      )
+      return
+    }
+    const data = (await res.json()) as { usuarios: HubUserRow[] }
+    setUsuarios(data.usuarios)
+    setLoadError(null)
+  }, [])
+
+  React.useEffect(() => {
+    void reload()
+  }, [reload])
+
+  const nuevo = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const editar = (u: HubUserRow) => {
+    setEditing(u)
+    setOpen(true)
+  }
+
+  return (
+    <div>
+      <div className={styles.toolbar}>
+        <Caption1>
+          {usuarios.length} {usuarios.length === 1 ? 'usuario' : 'usuarios'}
+        </Caption1>
+        <Button appearance="primary" icon={<Add20Regular />} onClick={nuevo}>
+          Nuevo usuario
+        </Button>
+      </div>
+
+      {loadError ? (
+        <MessageBar intent="error">
+          <MessageBarBody>{loadError}</MessageBarBody>
+        </MessageBar>
+      ) : null}
+
+      <Table aria-label="Usuarios" size="small">
+        <TableHeader>
+          <TableRow>
+            <TableHeaderCell>Nombre</TableHeaderCell>
+            <TableHeaderCell>Email</TableHeaderCell>
+            <TableHeaderCell>Rol</TableHeaderCell>
+            <TableHeaderCell>Niveles</TableHeaderCell>
+            <TableHeaderCell>Estado</TableHeaderCell>
+            <TableHeaderCell>Acciones</TableHeaderCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {usuarios.map((u) => (
+            <TableRow key={u.id}>
+              <TableCell>
+                <TableCellLayout>{u.name}</TableCellLayout>
+              </TableCell>
+              <TableCell>{u.email}</TableCell>
+              <TableCell>{rolLabel(u.role)}</TableCell>
+              <TableCell>
+                {u.nivelIds
+                  .map((id) => niveles.find((n) => n.id === id)?.nombre)
+                  .filter(Boolean)
+                  .join(', ') || '—'}
+              </TableCell>
+              <TableCell>
+                <Badge
+                  appearance="outline"
+                  color={u.banned ? 'danger' : 'success'}
+                >
+                  {u.banned ? 'Desactivado' : 'Activo'}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className={styles.actions}>
+                  <Tooltip content="Editar" relationship="label">
+                    <Button
+                      appearance="subtle"
+                      icon={<Edit20Regular />}
+                      aria-label="Editar"
+                      onClick={() => editar(u)}
+                    />
+                  </Tooltip>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <UserDialog
+        open={open}
+        editing={editing}
+        niveles={niveles}
+        onClose={() => setOpen(false)}
+        onSaved={reload}
+      />
+    </div>
+  )
+}
+
 // ── Admin page ─────────────────────────────────────────────────────────────
 
 export function AdminPage() {
   const styles = useStyles()
+  const session = authClient.useSession()
+  const role = (session.data?.user as { role?: Role } | undefined)?.role
+  const isAdmin = role === 'admin'
   const {
     recursos,
     niveles,
     tipos,
     categorias,
     tags,
+    writeError,
     upsertNivel,
     removeNivel,
     upsertTipo,
@@ -716,6 +1292,10 @@ export function AdminPage() {
   const [tab, setTab] = React.useState('recursos')
   const onTab = (_e: SelectTabEvent, d: SelectTabData) =>
     setTab(d.value as string)
+
+  React.useEffect(() => {
+    if (!isAdmin && tab !== 'recursos') setTab('recursos')
+  }, [isAdmin, tab])
 
   const usoNivel = (id: string) =>
     recursos.filter((r) => r.nivelId === id).length
@@ -747,14 +1327,28 @@ export function AdminPage() {
         </MessageBarBody>
       </MessageBar>
 
+      {writeError ? (
+        <>
+          <div style={{ height: tokens.spacingVerticalM }} />
+          <MessageBar intent="error">
+            <MessageBarBody>{writeError}</MessageBarBody>
+          </MessageBar>
+        </>
+      ) : null}
+
       <div style={{ height: tokens.spacingVerticalL }} />
 
       <TabList selectedValue={tab} onTabSelect={onTab}>
         <Tab value="recursos">Recursos</Tab>
-        <Tab value="categorias">Categorías</Tab>
-        <Tab value="tags">Etiquetas</Tab>
-        <Tab value="niveles">Niveles</Tab>
-        <Tab value="tipos">Tipos</Tab>
+        {isAdmin ? (
+          <>
+            <Tab value="categorias">Categorías</Tab>
+            <Tab value="tags">Etiquetas</Tab>
+            <Tab value="niveles">Niveles</Tab>
+            <Tab value="tipos">Tipos</Tab>
+            <Tab value="usuarios">Usuarios</Tab>
+          </>
+        ) : null}
       </TabList>
 
       <Divider style={{ marginTop: tokens.spacingVerticalM }} />
@@ -762,7 +1356,7 @@ export function AdminPage() {
 
       {tab === 'recursos' && <RecursosAdmin />}
 
-      {tab === 'categorias' && (
+      {isAdmin && tab === 'categorias' && (
         <TaxonomyAdmin<Categoria>
           singular="categoría"
           items={categorias}
@@ -799,7 +1393,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'tags' && (
+      {isAdmin && tab === 'tags' && (
         <TaxonomyAdmin<TagModel>
           singular="etiqueta"
           items={tags}
@@ -828,7 +1422,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'niveles' && (
+      {isAdmin && tab === 'niveles' && (
         <TaxonomyAdmin<Nivel>
           singular="nivel"
           items={[...niveles].sort((a, b) => a.orden - b.orden)}
@@ -853,7 +1447,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'tipos' && (
+      {isAdmin && tab === 'tipos' && (
         <TaxonomyAdmin<Tipo>
           singular="tipo"
           items={tipos}
@@ -896,6 +1490,8 @@ export function AdminPage() {
           onDelete={removeTipo}
         />
       )}
+
+      {isAdmin && tab === 'usuarios' && <UsersAdmin />}
     </div>
   )
 }

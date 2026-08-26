@@ -23,6 +23,19 @@ Repositorio GitHub: **privado** `GeronimoSerial/data-hub-dashboard`. El paquete 
 - Los datos estáticos del mapa (`/data/*.geojson`, worker MapLibre) van empaquetados en `public/` dentro de la imagen.
 - **Reportes** y **Administración** siguen existiendo como rutas, pero **no aparecen en la barra de navegación** (`lib/nav.ts` solo expone Inicio y Mapas). Los reportes con Postgres del stack Fastify **no** están en esta imagen.
 
+## Datos persistentes
+
+Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploads viven ahí. Backup = copiar el volumen. Alcance: reportes y admin ahora persisten; no reintroducir Postgres.
+
+| Variable | Uso |
+|----------|-----|
+| `DATA_DIR` | `/data` en el contenedor |
+| `BETTER_AUTH_SECRET` | Obligatorio |
+| `BETTER_AUTH_URL` | URL pública del FQDN |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
+
+El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (`POST /api/recursos/:id/archivo`).
+
 ## Secrets de Actions (opcionales)
 
 | Secret | Uso |
@@ -42,7 +55,8 @@ Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
    - Anotar la imagen/tag Fastify actual antes de cambiar (`ghcr.io/geronimoserial/mapa-demografico`) para rollback.
 4. **Smoke test** en la URL de preview de Coolify (antes de tocar el dominio):
    - `GET /` → 200, catálogo del hub.
-   - `GET /mapas/matricula` → 200, mapa carga (tiles, capas, búsqueda).
+   - `GET /mapas/matricula` → anónimo redirige a login; con sesión permitida, 200 y el mapa carga.
+   - `GET /tablero` y `GET /recursos/reporte-sobreedad-inicial.pdf` → anónimo redirige a login (ya no son archivos públicos).
    - `GET /data/summary.json` → 200.
    - `GET /maplibre-gl-worker.js` → 200.
 5. **Cambiar el FQDN** `analisis.sistemas.mec.gob.ar` a la nueva app solo después de que el smoke en preview sea satisfactorio.
@@ -62,8 +76,8 @@ Si el cutover falla o hay regresión en producción:
 
 ```bash
 docker build -t data-hub-dashboard:local .
-docker run --rm -p 3000:3000 data-hub-dashboard:local
+docker run --rm -p 3000:3000 -v hub-data:/data data-hub-dashboard:local
 # curl -f http://localhost:3000/ && curl -f http://localhost:3000/mapas/matricula
 ```
 
-El `HEALTHCHECK` del Dockerfile hace `GET /` en `localhost:3000`.
+El `HEALTHCHECK` del Dockerfile hace `GET /` en `localhost:3000`. El volumen `/data` es el de **Datos persistentes**.

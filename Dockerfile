@@ -30,6 +30,10 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+ENV DATA_DIR=/data
+RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data
+VOLUME ["/data"]
+
 USER nextjs
 
 EXPOSE 3000

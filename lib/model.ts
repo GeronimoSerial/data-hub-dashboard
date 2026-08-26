@@ -91,8 +91,13 @@ export interface Recurso {
   area: string
   actualizado: string
   estado: 'publicado' | 'borrador'
-  /** In-app path. When set, catalog cards navigate here. */
   ruta?: string
+  storageKey?: string
+  mime?: string
+  nombreOriginal?: string
+  size?: number
+  audienciaNivelIds?: string[]
+  audienciaUserIds?: string[]
 }
 
 // ── Catálogo publicado (solo recursos con archivo o visor) ─────────────────

@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  serverExternalPackages: ['@libsql/client', 'libsql'],
   async rewrites() {
     const html = [
       '/tablero',
