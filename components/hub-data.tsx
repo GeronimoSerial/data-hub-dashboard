@@ -55,6 +55,31 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
   const [categorias, setCategorias] = React.useState<Categoria[]>(seedCategorias)
   const [tags, setTags] = React.useState<Tag[]>(seedTags)
 
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/hub')
+      .then((res) => res.json())
+      .then(
+        (data: {
+          recursos: Recurso[]
+          niveles: Nivel[]
+          tipos: Tipo[]
+          categorias: Categoria[]
+          tags: Tag[]
+        }) => {
+          if (cancelled) return
+          setRecursos(data.recursos)
+          setNiveles(data.niveles)
+          setTipos(data.tipos)
+          setCategorias(data.categorias)
+          setTags(data.tags)
+        },
+      )
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const value: HubData = {
     recursos,
     niveles,
