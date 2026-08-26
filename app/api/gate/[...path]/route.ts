@@ -11,6 +11,7 @@ import {
   gateLoginCallbackUrl,
   gateLookupRuta,
   publicAbsPath,
+  publicOrigin,
 } from '@/lib/gate-static'
 import { getSessionUser } from '@/lib/session'
 
@@ -20,7 +21,7 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ path: string[] }> }
 
 function absoluteRedirect(request: Request, pathname: string) {
-  return NextResponse.redirect(new URL(pathname, request.url))
+  return NextResponse.redirect(new URL(pathname, publicOrigin(request)))
 }
 
 async function resolveReadableFile(abs: string): Promise<string | null> {
@@ -41,7 +42,7 @@ export async function GET(request: Request, ctx: Ctx) {
   const ruta = gateLookupRuta(requestPath)
   const user = await getSessionUser()
   if (!user) {
-    const login = new URL('/login', request.url)
+    const login = new URL('/login', publicOrigin(request))
     login.searchParams.set(
       'callbackUrl',
       gateLoginCallbackUrl(ruta, new URL(request.url).search),

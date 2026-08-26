@@ -7,6 +7,7 @@ import * as schema from '@/lib/db/schema'
 import { ac, admin, editor, consulta } from '@/lib/auth-permissions'
 
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL,
   database: drizzleAdapter(getDb(), {
     provider: 'sqlite',
     schema,

@@ -5,6 +5,7 @@ import {
   gateLoginCallbackUrl,
   gateLookupRuta,
   publicAbsPath,
+  publicOrigin,
 } from './gate-static'
 
 describe('gateLookupRuta', () => {
@@ -52,5 +53,41 @@ describe('gateLoginCallbackUrl', () => {
   it('stays a path-only callback when there is no query', () => {
     expect(gateLoginCallbackUrl('/tablero', '')).toBe('/tablero')
     expect(gateLoginCallbackUrl('/tablero', '?')).toBe('/tablero')
+  })
+})
+
+describe('publicOrigin', () => {
+  const bindRequest = new Request('http://0.0.0.0:3000/tablero')
+
+  it('prefers BETTER_AUTH_URL over the container bind address', () => {
+    const prev = process.env.BETTER_AUTH_URL
+    process.env.BETTER_AUTH_URL = 'https://analisis.sistemas.mec.gob.ar'
+    try {
+      expect(publicOrigin(bindRequest)).toBe(
+        'https://analisis.sistemas.mec.gob.ar',
+      )
+    } finally {
+      if (prev === undefined) delete process.env.BETTER_AUTH_URL
+      else process.env.BETTER_AUTH_URL = prev
+    }
+  })
+
+  it('uses x-forwarded-host when BETTER_AUTH_URL is unset', () => {
+    const prev = process.env.BETTER_AUTH_URL
+    delete process.env.BETTER_AUTH_URL
+    try {
+      const request = new Request('http://0.0.0.0:3000/tablero', {
+        headers: {
+          'x-forwarded-host': 'data-hub-preview.sistemas.mec.gob.ar',
+          'x-forwarded-proto': 'https',
+        },
+      })
+      expect(publicOrigin(request)).toBe(
+        'https://data-hub-preview.sistemas.mec.gob.ar',
+      )
+    } finally {
+      if (prev === undefined) delete process.env.BETTER_AUTH_URL
+      else process.env.BETTER_AUTH_URL = prev
+    }
   })
 })
