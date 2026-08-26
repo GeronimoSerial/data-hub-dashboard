@@ -36,7 +36,7 @@ export default function ForbiddenPage() {
       <div className={styles.card}>
         <Title3>No tenés acceso a este recurso</Title3>
         <Body1 className={styles.intro}>
-          Esta sección es solo para administración.
+          Pedí acceso a quien administra el hub si necesitás verlo.
         </Body1>
         <Link href="/">Volver al inicio</Link>
       </div>
