@@ -62,6 +62,8 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
+import { authClient } from '@/lib/auth-client'
+import type { Role } from '@/lib/acl'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -697,12 +699,16 @@ function TaxonomyAdmin<T extends { id: string }>({
 
 export function AdminPage() {
   const styles = useStyles()
+  const session = authClient.useSession()
+  const role = (session.data?.user as { role?: Role } | undefined)?.role
+  const isAdmin = role === 'admin'
   const {
     recursos,
     niveles,
     tipos,
     categorias,
     tags,
+    writeError,
     upsertNivel,
     removeNivel,
     upsertTipo,
@@ -716,6 +722,10 @@ export function AdminPage() {
   const [tab, setTab] = React.useState('recursos')
   const onTab = (_e: SelectTabEvent, d: SelectTabData) =>
     setTab(d.value as string)
+
+  React.useEffect(() => {
+    if (!isAdmin && tab !== 'recursos') setTab('recursos')
+  }, [isAdmin, tab])
 
   const usoNivel = (id: string) =>
     recursos.filter((r) => r.nivelId === id).length
@@ -747,14 +757,27 @@ export function AdminPage() {
         </MessageBarBody>
       </MessageBar>
 
+      {writeError ? (
+        <>
+          <div style={{ height: tokens.spacingVerticalM }} />
+          <MessageBar intent="error">
+            <MessageBarBody>{writeError}</MessageBarBody>
+          </MessageBar>
+        </>
+      ) : null}
+
       <div style={{ height: tokens.spacingVerticalL }} />
 
       <TabList selectedValue={tab} onTabSelect={onTab}>
         <Tab value="recursos">Recursos</Tab>
-        <Tab value="categorias">Categorías</Tab>
-        <Tab value="tags">Etiquetas</Tab>
-        <Tab value="niveles">Niveles</Tab>
-        <Tab value="tipos">Tipos</Tab>
+        {isAdmin ? (
+          <>
+            <Tab value="categorias">Categorías</Tab>
+            <Tab value="tags">Etiquetas</Tab>
+            <Tab value="niveles">Niveles</Tab>
+            <Tab value="tipos">Tipos</Tab>
+          </>
+        ) : null}
       </TabList>
 
       <Divider style={{ marginTop: tokens.spacingVerticalM }} />
@@ -762,7 +785,7 @@ export function AdminPage() {
 
       {tab === 'recursos' && <RecursosAdmin />}
 
-      {tab === 'categorias' && (
+      {isAdmin && tab === 'categorias' && (
         <TaxonomyAdmin<Categoria>
           singular="categoría"
           items={categorias}
@@ -799,7 +822,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'tags' && (
+      {isAdmin && tab === 'tags' && (
         <TaxonomyAdmin<TagModel>
           singular="etiqueta"
           items={tags}
@@ -828,7 +851,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'niveles' && (
+      {isAdmin && tab === 'niveles' && (
         <TaxonomyAdmin<Nivel>
           singular="nivel"
           items={[...niveles].sort((a, b) => a.orden - b.orden)}
@@ -853,7 +876,7 @@ export function AdminPage() {
         />
       )}
 
-      {tab === 'tipos' && (
+      {isAdmin && tab === 'tipos' && (
         <TaxonomyAdmin<Tipo>
           singular="tipo"
           items={tipos}

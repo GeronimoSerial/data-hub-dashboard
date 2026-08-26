@@ -29,6 +29,6 @@ export function puedeAbrir(
   return user.nivelIds.some((id) => recurso.audienciaNivelIds.includes(id))
 }
 
-export function isStaff(role: Role) {
+export function isStaff(role: Role | null | undefined) {
   return role === 'admin' || role === 'editor'
 }

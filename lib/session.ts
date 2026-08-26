@@ -3,7 +3,14 @@ import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { userNiveles } from '@/lib/db/schema'
-import type { Role, SessionUser } from '@/lib/acl'
+import { isStaff, type Role, type SessionUser } from '@/lib/acl'
+
+export function staffGuard(user: SessionUser | null) {
+  if (!user) return { status: 401 as const, error: 'No autenticado' }
+  if (user.banned || !isStaff(user.role))
+    return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+  return null
+}
 
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth.api.getSession({ headers: await headers() })

@@ -27,6 +27,7 @@ import {
 } from '@fluentui/react-icons'
 import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
+import { isStaff, type Role } from '@/lib/acl'
 import { isMapViewerPath, isReadyHref } from '@/lib/nav'
 
 const NAV = [
@@ -158,9 +159,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const session = authClient.useSession()
   const sessionUser = session.data?.user
+  const role = (sessionUser as { role?: Role } | undefined)?.role
 
   // Match the deepest nav item (so /reportes/x still highlights Reportes).
-  const visibleNav = NAV.filter((n) => isReadyHref(n.value))
+  const visibleNav = NAV.filter((n) =>
+    n.value !== '/admin' ? isReadyHref(n.value) : isStaff(role),
+  )
   const mapViewer = isMapViewerPath(pathname)
 
   const selected =

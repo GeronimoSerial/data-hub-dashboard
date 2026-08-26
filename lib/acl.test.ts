@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { puedeAbrir, type RecursoAccess, type SessionUser } from './acl'
+import { isStaff, puedeAbrir, type RecursoAccess, type SessionUser } from './acl'
 
 const pub: RecursoAccess = {
   estado: 'publicado',
@@ -69,5 +69,18 @@ describe('puedeAbrir', () => {
 
   it('denies banned users', () => {
     expect(puedeAbrir(consulta({ banned: true }), pub)).toBe(false)
+  })
+})
+
+describe('isStaff', () => {
+  it('is true for admin and editor', () => {
+    expect(isStaff('admin')).toBe(true)
+    expect(isStaff('editor')).toBe(true)
+  })
+
+  it('is false for consulta, logged-out, and undefined', () => {
+    expect(isStaff('consulta')).toBe(false)
+    expect(isStaff(null)).toBe(false)
+    expect(isStaff(undefined)).toBe(false)
   })
 })
