@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import {
   makeStyles,
+  mergeClasses,
   tokens,
   Body1,
   Button,
@@ -20,11 +21,28 @@ const useStyles = makeStyles({
     flexDirection: 'column',
     gap: tokens.spacingVerticalL,
   },
-  frame: {
+  fill: {
+    flexGrow: 1,
+    minHeight: 0,
+    height: '100%',
+    gap: 0,
+  },
+  titleBar: {
+    flexShrink: 0,
+    paddingTop: tokens.spacingVerticalS,
+    paddingBottom: tokens.spacingVerticalS,
+    paddingLeft: tokens.spacingHorizontalL,
+    paddingRight: tokens.spacingHorizontalL,
+    backgroundColor: tokens.colorNeutralBackground1,
+    borderBottom: `${tokens.strokeWidthThin} solid ${tokens.colorNeutralStroke2}`,
+  },
+  frameFill: {
     width: '100%',
-    minHeight: '70vh',
-    border: `${tokens.strokeWidthThin} solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusMedium,
+    flexGrow: 1,
+    minHeight: 0,
+    height: '100%',
+    border: 'none',
+    borderRadius: 0,
     backgroundColor: tokens.colorNeutralBackground1,
   },
   image: {
@@ -54,12 +72,13 @@ export function RecursoViewer({
   const styles = useStyles()
   const kind = viewerKind(recurso.mime)
   const src = archivoSrc(recurso.id)
+  const fillFrame = kind === 'html' || kind === 'pdf'
 
   let body: ReactNode
   if (kind === 'html') {
     body = (
       <iframe
-        className={styles.frame}
+        className={styles.frameFill}
         sandbox={HTML_IFRAME_SANDBOX}
         src={src}
         title={recurso.titulo}
@@ -72,7 +91,11 @@ export function RecursoViewer({
     )
   } else if (kind === 'pdf') {
     body = (
-      <iframe className={styles.frame} src={src} title={recurso.titulo} />
+      <iframe
+        className={styles.frameFill}
+        src={src}
+        title={recurso.titulo}
+      />
     )
   } else {
     body = (
@@ -88,8 +111,10 @@ export function RecursoViewer({
   }
 
   return (
-    <div className={styles.wrap}>
-      <Title3 as="h1">{recurso.titulo}</Title3>
+    <div className={mergeClasses(styles.wrap, fillFrame && styles.fill)}>
+      <Title3 as="h1" className={fillFrame ? styles.titleBar : undefined}>
+        {recurso.titulo}
+      </Title3>
       {body}
     </div>
   )

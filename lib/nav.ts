@@ -38,3 +38,12 @@ export function isStaticHref(href: string) {
 export function isMapViewerPath(pathname: string) {
   return pathname.startsWith('/mapas/') && pathname !== '/mapas'
 }
+
+export function isBleedViewerPath(pathname: string) {
+  if (isMapViewerPath(pathname)) return true
+  if (!pathname.startsWith('/recursos/')) return false
+  const rest = pathname.slice('/recursos/'.length)
+  if (!rest || rest.includes('/')) return false
+  return !rest.includes('.')
+}
+

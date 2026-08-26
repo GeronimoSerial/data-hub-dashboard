@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gatedStaticPath } from './nav'
+import { gatedStaticPath, isBleedViewerPath } from './nav'
 
 describe('gatedStaticPath', () => {
   it('returns prefix roots and nested paths', () => {
@@ -36,5 +36,23 @@ describe('gatedStaticPath', () => {
     expect(gatedStaticPath('/mapas/matricula')).toBeNull()
     expect(gatedStaticPath('/api/gate/tablero')).toBeNull()
     expect(gatedStaticPath('/')).toBeNull()
+  })
+})
+
+describe('isBleedViewerPath', () => {
+  it('bleeds native maps and uploaded HTML/PDF viewers so maps fill the shell', () => {
+    expect(isBleedViewerPath('/mapas/matricula')).toBe(true)
+    expect(isBleedViewerPath('/recursos/r1')).toBe(true)
+    expect(isBleedViewerPath('/recursos/abc-def')).toBe(true)
+  })
+
+  it('keeps catalog and static files in the padded shell', () => {
+    expect(isBleedViewerPath('/mapas')).toBe(false)
+    expect(isBleedViewerPath('/recursos')).toBe(false)
+    expect(isBleedViewerPath('/recursos/reporte-sobreedad-inicial.pdf')).toBe(
+      false,
+    )
+    expect(isBleedViewerPath('/')).toBe(false)
+    expect(isBleedViewerPath('/admin')).toBe(false)
   })
 })

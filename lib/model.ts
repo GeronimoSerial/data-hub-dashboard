@@ -163,7 +163,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-12',
     estado: 'publicado',
-    ruta: '/tablero',
   },
   {
     id: 'r3',
@@ -178,7 +177,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-12',
     estado: 'publicado',
-    ruta: '/mapa_interactivo',
   },
   {
     id: 'r13',
@@ -193,7 +191,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-19',
     estado: 'publicado',
-    ruta: '/mapa_sobreedad',
   },
   {
     id: 'r14',
@@ -208,7 +205,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-19',
     estado: 'publicado',
-    ruta: '/mapa_notas',
   },
   {
     id: 'r15',
@@ -223,7 +219,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-19',
     estado: 'publicado',
-    ruta: '/recursos/reporte-sobreedad-inicial.pdf',
   },
   {
     id: 'r16',
@@ -238,7 +233,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-19',
     estado: 'publicado',
-    ruta: '/recursos/reporte-sobreedad-primario.pdf',
   },
   {
     id: 'r17',
@@ -253,7 +247,6 @@ export const recursos: Recurso[] = [
     area: 'Dirección de Gestión Escolar',
     actualizado: '2026-08-19',
     estado: 'publicado',
-    ruta: '/recursos/reporte-sobreedad-secundario.pdf',
   },
 ]
 
