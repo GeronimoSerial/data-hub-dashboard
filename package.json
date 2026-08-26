@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "extract": "node scripts/extract-map-data.mjs",
-    "build:sobreoferta": "node scripts/build-sobreoferta.mjs"
+    "build:sobreoferta": "node scripts/build-sobreoferta.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.74.1",
@@ -24,7 +25,8 @@
     "@types/node": "^22",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
   },
   "packageManager": "pnpm@11.21.0"
 }

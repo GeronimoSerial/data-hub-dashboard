@@ -16,3 +16,4 @@ node_modules
 .pnpm-store/
 tsconfig.tsbuildinfo
 .superpowers/
+.data/
