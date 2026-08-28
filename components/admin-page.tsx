@@ -1,55 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import {
-  makeStyles,
-  tokens,
-  typographyStyles,
-  Badge,
-  Body1,
-  Button,
-  Caption1,
-  Checkbox,
-  Combobox,
-  Dialog,
-  DialogActions,
-  DialogBody,
-  DialogContent,
-  DialogSurface,
-  DialogTitle,
-  Divider,
-  Dropdown,
-  Field,
-  Input,
-  MessageBar,
-  MessageBarBody,
-  MessageBarTitle,
-  Option,
-  Radio,
-  RadioGroup,
-  Switch,
-  Tab,
-  TabList,
-  Table,
-  TableBody,
-  TableCell,
-  TableCellLayout,
-  TableHeader,
-  TableHeaderCell,
-  TableRow,
-  Tag,
-  TagGroup,
-  Textarea,
-  Title3,
-  Tooltip,
-  type SelectTabData,
-  type SelectTabEvent,
-} from '@fluentui/react-components'
-import {
-  Add20Regular,
-  Delete20Regular,
-  Edit20Regular,
-} from '@fluentui/react-icons'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import {
   FORMATOS,
   type BadgeColor,
@@ -68,6 +20,18 @@ import { useHubData } from '@/components/hub-data'
 import { authClient } from '@/lib/auth-client'
 import type { Role } from '@/lib/acl'
 import { isAllowedUpload } from '@/lib/upload'
+import { Button } from '@/components/ui/button'
+import { ConfirmDelete } from '@/components/confirm-delete'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
+import { RadioGroup, RadioItem } from '@/components/ui/radio'
+import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { MultiSelect } from '@/components/ui/multi-select'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -113,44 +77,27 @@ function slugId(nombre: string) {
   return `${base || 'item'}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-const useStyles = makeStyles({
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalXS,
-    marginBottom: tokens.spacingVerticalL,
-  },
-  eyebrow: {
-    ...typographyStyles.caption1Strong,
-    letterSpacing: '1.2px',
-    color: tokens.colorBrandForeground1,
-  },
-  intro: { color: tokens.colorNeutralForeground2, maxWidth: '680px' },
-  toolbar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: tokens.spacingHorizontalM,
-    marginTop: tokens.spacingVerticalL,
-    marginBottom: tokens.spacingVerticalM,
-  },
-  actions: {
-    display: 'flex',
-    gap: tokens.spacingHorizontalXS,
-  },
-  formGrid: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-    minWidth: '320px',
-  },
-  twoCol: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-    gap: tokens.spacingHorizontalM,
-  },
-})
+type AdminFieldProps = {
+  label: string
+  hint?: string
+  error?: string | null
+  required?: boolean
+  children: React.ReactNode
+}
+
+function AdminField({ label, hint, error, required, children }: AdminFieldProps) {
+  const id = React.useId()
+  return (
+    <div className="ui-field">
+      <label className="ui-field__label" htmlFor={id}>
+        {label}
+        {required ? <span aria-hidden>*</span> : null}
+      </label>
+      <div className="ui-field__control">{children}</div>
+      {error ? <span className="ui-field__error" role="alert">{error}</span> : hint ? <span className="ui-field__description">{hint}</span> : null}
+    </div>
+  )
+}
 
 // ── Recurso editor ─────────────────────────────────────────────────────────
 
@@ -163,7 +110,22 @@ function RecursoDialog({
   onClose: () => void
   editing: Recurso | null
 }) {
-  const styles = useStyles()
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      {open ? (
+        <RecursoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function RecursoForm({
+  editing,
+  onClose,
+}: {
+  editing: Recurso | null
+  onClose: () => void
+}) {
   const { niveles, tipos, categorias, tags, upsertRecurso, writeError } =
     useHubData()
 
@@ -182,32 +144,24 @@ function RecursoDialog({
     audienciaNivelIds: [],
     audienciaUserIds: [],
   }
-  const [draft, setDraft] = React.useState<Recurso>(empty)
-  const [destino, setDestino] = React.useState<'archivo' | 'ruta'>('archivo')
+  const [draft, setDraft] = React.useState<Recurso>(() =>
+    editing
+      ? {
+          ...editing,
+          audienciaNivelIds: editing.audienciaNivelIds ?? [],
+          audienciaUserIds: editing.audienciaUserIds ?? [],
+        }
+      : empty,
+  )
+  const [destino, setDestino] = React.useState<'archivo' | 'ruta'>(
+    editing?.ruta ? 'ruta' : 'archivo',
+  )
   const [pendingFile, setPendingFile] = React.useState<File | null>(null)
   const [fileError, setFileError] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [pickerUsers, setPickerUsers] = React.useState<HubUserRow[]>([])
 
   React.useEffect(() => {
-    setDraft(
-      editing
-        ? {
-            ...editing,
-            audienciaNivelIds: editing.audienciaNivelIds ?? [],
-            audienciaUserIds: editing.audienciaUserIds ?? [],
-          }
-        : empty,
-    )
-    setDestino(editing?.ruta ? 'ruta' : 'archivo')
-    setPendingFile(null)
-    setFileError(null)
-    setSaving(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, open])
-
-  React.useEffect(() => {
-    if (!open) return
     let cancelled = false
     fetch('/api/usuarios')
       .then((res) => (res.ok ? res.json() : null))
@@ -218,7 +172,7 @@ function RecursoDialog({
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [])
 
   // Tipos válidos para el formato elegido (consistencia del modelo)
   const tiposValidos = tipos.filter((t) => t.aplicaA.includes(draft.formato))
@@ -279,306 +233,245 @@ function RecursoDialog({
     !rutaMissing
 
   return (
-    <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
-      <DialogSurface>
-        <DialogBody>
-          <DialogTitle>
-            {editing ? 'Editar recurso' : 'Nuevo recurso'}
-          </DialogTitle>
-          <DialogContent>
-            <div className={styles.formGrid}>
-              {writeError ? (
-                <MessageBar intent="error">
-                  <MessageBarBody>{writeError}</MessageBarBody>
-                </MessageBar>
-              ) : null}
-              <Field label="Título" required>
-                <Input
-                  value={draft.titulo}
-                  onChange={(_e, d) => set('titulo', d.value)}
-                  placeholder="Ej.: Boletín de matrícula 2026"
-                />
-              </Field>
-              <Field label="Descripción">
-                <Textarea
-                  value={draft.descripcion}
-                  onChange={(_e, d) => set('descripcion', d.value)}
-                  resize="vertical"
-                />
-              </Field>
+      <DialogContent>
+        <DialogTitle>
+          {editing ? 'Editar recurso' : 'Nuevo recurso'}
+        </DialogTitle>
+        <div className="ui-form-grid">
+          {writeError ? (
+            <div className="ui-messagebar ui-messagebar--error" role="alert">
+              {writeError}
+            </div>
+          ) : null}
+          <AdminField label="Título" required>
+            <Input
+              value={draft.titulo}
+              onChange={(event) => set('titulo', event.currentTarget.value)}
+              placeholder="Ej.: Boletín de matrícula 2026"
+            />
+          </AdminField>
+          <AdminField label="Descripción">
+            <Textarea
+              value={draft.descripcion}
+              onChange={(event) => set('descripcion', event.currentTarget.value)}
+            />
+          </AdminField>
 
-              <div className={styles.twoCol}>
-                <Field label="Tipo de contenido" required>
-                  <Dropdown
-                    selectedOptions={[draft.formato]}
-                    value={FORMATOS[draft.formato].label}
-                    onOptionSelect={(_e, d) => {
-                      const f = d.optionValue as Formato
-                      const nextTipo = tipos.find((t) =>
-                        t.aplicaA.includes(f),
-                      )
-                      setDraft((prev) => ({
-                        ...prev,
-                        formato: f,
-                        tipoId: nextTipo?.id ?? '',
-                      }))
-                    }}
-                  >
-                    {(Object.keys(FORMATOS) as Formato[]).map((f) => (
-                      <Option key={f} value={f} text={FORMATOS[f].label}>
-                        {FORMATOS[f].label}
-                      </Option>
-                    ))}
-                  </Dropdown>
-                </Field>
-
-                <Field label="Nivel" required>
-                  <Dropdown
-                    selectedOptions={[draft.nivelId]}
-                    value={nivelNombre(niveles, draft.nivelId)}
-                    onOptionSelect={(_e, d) =>
-                      set('nivelId', d.optionValue as string)
-                    }
-                  >
-                    {[...niveles]
-                      .sort((a, b) => a.orden - b.orden)
-                      .map((n) => (
-                        <Option key={n.id} value={n.id} text={n.nombre}>
-                          {n.nombre}
-                        </Option>
-                      ))}
-                  </Dropdown>
-                </Field>
-              </div>
-
-              <div className={styles.twoCol}>
-                <Field
-                  label="Tipo"
-                  required
-                  hint="Depende del tipo de contenido"
-                >
-                  <Dropdown
-                    selectedOptions={[draft.tipoId]}
-                    value={tipoNombre(tipos, draft.tipoId)}
-                    onOptionSelect={(_e, d) =>
-                      set('tipoId', d.optionValue as string)
-                    }
-                  >
-                    {tiposValidos.map((t) => (
-                      <Option key={t.id} value={t.id} text={t.nombre}>
-                        {t.nombre}
-                      </Option>
-                    ))}
-                  </Dropdown>
-                </Field>
-
-                <Field label="Categoría (TAG principal)" required>
-                  <Dropdown
-                    selectedOptions={[draft.categoriaId]}
-                    value={
-                      findCategoria(categorias, draft.categoriaId)?.nombre ?? ''
-                    }
-                    onOptionSelect={(_e, d) =>
-                      set('categoriaId', d.optionValue as string)
-                    }
-                  >
-                    {categorias.map((c) => (
-                      <Option key={c.id} value={c.id} text={c.nombre}>
-                        {c.nombre}
-                      </Option>
-                    ))}
-                  </Dropdown>
-                </Field>
-              </div>
-
-              <Field label="Etiquetas">
-                <Combobox
-                  multiselect
-                  placeholder="Seleccione etiquetas"
-                  selectedOptions={draft.tagIds}
-                  value={draft.tagIds
-                    .map((id) => tags.find((t) => t.id === id)?.nombre)
-                    .filter(Boolean)
-                    .join(', ')}
-                  onOptionSelect={(_e, d) => set('tagIds', d.selectedOptions)}
-                >
-                  {tags.map((t) => (
-                    <Option key={t.id} value={t.id} text={t.nombre}>
-                      {t.nombre}
-                    </Option>
-                  ))}
-                </Combobox>
-              </Field>
-
-              <div className={styles.twoCol}>
-                <Field label="Área responsable">
-                  <Input
-                    value={draft.area}
-                    onChange={(_e, d) => set('area', d.value)}
-                  />
-                </Field>
-                <Field label="Estado">
-                  <Checkbox
-                    label="Publicado"
-                    checked={draft.estado === 'publicado'}
-                    onChange={(_e, d) =>
-                      set('estado', d.checked ? 'publicado' : 'borrador')
-                    }
-                  />
-                </Field>
-              </div>
-
-              <Field label="Origen">
-                <RadioGroup
-                  layout="horizontal"
-                  value={destino}
-                  onChange={(_e, d) =>
-                    setDestino(d.value === 'ruta' ? 'ruta' : 'archivo')
-                  }
-                >
-                  <Radio value="archivo" label="Archivo" />
-                  <Radio value="ruta" label="Ruta interna" />
-                </RadioGroup>
-              </Field>
-
-              {destino === 'archivo' ? (
-                <>
-                  <Field
-                    label="Archivo"
-                    required={!editing && draft.estado === 'publicado'}
-                    validationMessage={fileError ?? undefined}
-                    validationState={fileError ? 'error' : undefined}
-                  >
-                    <input
-                      type="file"
-                      accept=".pdf,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.xlsx,.docx,application/pdf,text/html,image/png,image/jpeg,image/webp,image/gif,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (!file) {
-                          setPendingFile(null)
-                          setFileError(null)
-                          return
-                        }
-                        const allowed = isAllowedUpload({
-                          type: file.type,
-                          size: file.size,
-                          name: file.name,
-                        })
-                        if (!allowed.ok) {
-                          setPendingFile(null)
-                          setFileError(allowed.error)
-                          e.target.value = ''
-                          return
-                        }
-                        setFileError(null)
-                        setPendingFile(file)
-                      }}
-                    />
-                  </Field>
-                  {shownName ? (
-                    <Caption1>
-                      {shownName}
-                      {typeof shownSize === 'number'
-                        ? ` · ${formatBytes(shownSize)}`
-                        : ''}
-                    </Caption1>
-                  ) : null}
-                </>
-              ) : (
-                <Field
-                  label="Ruta interna"
-                  required={draft.estado === 'publicado'}
-                >
-                  <Input
-                    value={draft.ruta ?? ''}
-                    onChange={(_e, d) => set('ruta', d.value)}
-                    placeholder="/mapas/matricula"
-                  />
-                </Field>
-              )}
-
-              <Field
-                label="Audiencia — niveles"
-                hint="Si no elegís nadie ni niveles, cualquier usuario logueado puede abrir."
+          <div className="ui-two-col">
+            <AdminField label="Tipo de contenido" required>
+              <Select
+                value={draft.formato}
+                items={Object.fromEntries(
+                  (Object.keys(FORMATOS) as Formato[]).map((f) => [f, FORMATOS[f].label]),
+                )}
+                onValueChange={(value) => {
+                  const f = value as Formato
+                  const nextTipo = tipos.find((t) => t.aplicaA.includes(f))
+                  setDraft((prev) => ({
+                    ...prev,
+                    formato: f,
+                    tipoId: nextTipo?.id ?? '',
+                  }))
+                }}
               >
-                <Combobox
-                  multiselect
-                  placeholder="Seleccione niveles"
-                  selectedOptions={draft.audienciaNivelIds ?? []}
-                  value={(draft.audienciaNivelIds ?? [])
-                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
-                    .filter(Boolean)
-                    .join(', ')}
-                  onOptionSelect={(_e, d) =>
-                    set('audienciaNivelIds', d.selectedOptions)
-                  }
-                >
+                <SelectTrigger aria-label="Tipo de contenido" />
+                <SelectContent>
+                  {(Object.keys(FORMATOS) as Formato[]).map((f) => (
+                    <SelectItem key={f} value={f}>{FORMATOS[f].label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </AdminField>
+
+            <AdminField label="Nivel" required>
+              <Select
+                value={draft.nivelId}
+                items={Object.fromEntries([...niveles].sort((a, b) => a.orden - b.orden).map((n) => [n.id, n.nombre]))}
+                onValueChange={(value) => set('nivelId', value as string)}
+              >
+                <SelectTrigger aria-label="Nivel" />
+                <SelectContent>
                   {[...niveles]
                     .sort((a, b) => a.orden - b.orden)
                     .map((n) => (
-                      <Option key={n.id} value={n.id} text={n.nombre}>
-                        {n.nombre}
-                      </Option>
+                      <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
                     ))}
-                </Combobox>
-              </Field>
+                </SelectContent>
+              </Select>
+            </AdminField>
+          </div>
 
-              <Field label="Audiencia — personas">
-                <Combobox
-                  multiselect
-                  placeholder="Seleccione personas"
-                  selectedOptions={draft.audienciaUserIds ?? []}
-                  value={(draft.audienciaUserIds ?? [])
-                    .map((id) => {
-                      const u = pickerUsers.find((p) => p.id === id)
-                      return u ? `${u.name} (${u.email})` : id
+          <div className="ui-two-col">
+            <AdminField label="Tipo" hint="Depende del tipo de contenido" required>
+              <Select
+                value={draft.tipoId}
+                items={Object.fromEntries(tiposValidos.map((t) => [t.id, t.nombre]))}
+                onValueChange={(value) => set('tipoId', value as string)}
+              >
+                <SelectTrigger aria-label="Tipo" />
+                <SelectContent>
+                  {tiposValidos.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </AdminField>
+
+            <AdminField label="Categoría (TAG principal)" required>
+              <Select
+                value={draft.categoriaId}
+                items={Object.fromEntries(categorias.map((c) => [c.id, c.nombre]))}
+                onValueChange={(value) => set('categoriaId', value as string)}
+              >
+                <SelectTrigger aria-label="Categoría" />
+                <SelectContent>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </AdminField>
+          </div>
+
+          <AdminField label="Etiquetas">
+            <MultiSelect<string>
+              value={draft.tagIds}
+              onChange={(next) => set('tagIds', next)}
+              options={tags.map((t) => ({ value: t.id as string, label: t.nombre }))}
+              placeholder="Seleccione etiquetas"
+            />
+          </AdminField>
+
+          <div className="ui-two-col">
+            <AdminField label="Área responsable">
+              <Input
+                value={draft.area}
+                onChange={(event) => set('area', event.currentTarget.value)}
+              />
+            </AdminField>
+            <AdminField label="Estado">
+              <Checkbox
+                label="Publicado"
+                checked={draft.estado === 'publicado'}
+                onCheckedChange={(checked) =>
+                  set('estado', checked ? 'publicado' : 'borrador')
+                }
+              />
+            </AdminField>
+          </div>
+
+          <AdminField label="Origen">
+            <RadioGroup value={destino} onValueChange={(value) => setDestino(value === 'ruta' ? 'ruta' : 'archivo')}>
+              <RadioItem value="archivo" label="Archivo" />
+              <RadioItem value="ruta" label="Ruta interna" />
+            </RadioGroup>
+          </AdminField>
+
+          {destino === 'archivo' ? (
+            <>
+              <AdminField
+                label="Archivo"
+                required={!editing && draft.estado === 'publicado'}
+                error={fileError}
+              >
+                <Input
+                  type="file"
+                  className="ui-file"
+                  aria-label="Seleccionar archivo del recurso"
+                  accept=".pdf,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.xlsx,.docx,application/pdf,text/html,image/png,image/jpeg,image/webp,image/gif,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0]
+                    if (!file) {
+                      setPendingFile(null)
+                      setFileError(null)
+                      return
+                    }
+                    const allowed = isAllowedUpload({
+                      type: file.type,
+                      size: file.size,
+                      name: file.name,
                     })
-                    .join(', ')}
-                  onOptionSelect={(_e, d) =>
-                    set('audienciaUserIds', d.selectedOptions)
-                  }
-                >
-                  {pickerUsers
-                    .filter(
-                      (u) =>
-                        !u.banned ||
-                        (draft.audienciaUserIds ?? []).includes(u.id),
-                    )
-                    .map((u) => (
-                      <Option
-                        key={u.id}
-                        value={u.id}
-                        text={`${u.name} (${u.email})`}
-                      >
-                        {u.name} ({u.email})
-                      </Option>
-                    ))}
-                </Combobox>
-              </Field>
-            </div>
-          </DialogContent>
-          <DialogActions>
-            <Button appearance="secondary" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              appearance="primary"
-              disabled={!valido || saving}
-              onClick={() => void save()}
+                    if (!allowed.ok) {
+                      setPendingFile(null)
+                      setFileError(allowed.error)
+                      event.currentTarget.value = ''
+                      return
+                    }
+                    setFileError(null)
+                    setPendingFile(file)
+                  }}
+                />
+              </AdminField>
+              {shownName ? (
+                <span className="ui-hint">
+                  {shownName}
+                  {typeof shownSize === 'number'
+                    ? ` · ${formatBytes(shownSize)}`
+                    : ''}
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <AdminField
+              label="Ruta interna"
+              required={draft.estado === 'publicado'}
             >
-              Guardar
-            </Button>
-          </DialogActions>
-        </DialogBody>
-      </DialogSurface>
-    </Dialog>
-  )
-}
+              <Input
+                value={draft.ruta ?? ''}
+                onChange={(event) => set('ruta', event.currentTarget.value)}
+                placeholder="/mapas/matricula"
+              />
+            </AdminField>
+          )}
+
+          <AdminField
+            label="Audiencia — niveles"
+            hint="Si no elegís nadie ni niveles, cualquier usuario logueado puede abrir."
+          >
+            <MultiSelect<string>
+              value={draft.audienciaNivelIds ?? []}
+              onChange={(next) => set('audienciaNivelIds', next)}
+              options={[...niveles]
+                .sort((a, b) => a.orden - b.orden)
+                .map((n) => ({ value: n.id as string, label: n.nombre }))}
+              placeholder="Seleccione niveles"
+            />
+          </AdminField>
+
+          <AdminField label="Audiencia — personas">
+            <MultiSelect<string>
+              value={draft.audienciaUserIds ?? []}
+              onChange={(next) => set('audienciaUserIds', next)}
+              options={pickerUsers
+                .filter(
+                  (u) =>
+                    !u.banned ||
+                    (draft.audienciaUserIds ?? []).includes(u.id),
+                )
+                .map((u) => ({
+                  value: u.id as string,
+                  label: `${u.name} (${u.email})`,
+                }))}
+              placeholder="Seleccione personas"
+            />
+          </AdminField>
+        </div>
+        <div className="ui-dialog-actions">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={!valido || saving}
+            onClick={() => void save()}
+          >
+            Guardar
+          </Button>
+        </div>
+      </DialogContent>
+    )
+  }
 
 // ── Recursos table ─────────────────────────────────────────────────────────
 
 function RecursosAdmin() {
-  const styles = useStyles()
   const { recursos, niveles, tipos, categorias, removeRecurso } = useHubData()
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Recurso | null>(null)
@@ -594,84 +487,64 @@ function RecursosAdmin() {
 
   return (
     <div>
-      <div className={styles.toolbar}>
-        <Caption1>{recursos.length} recursos en el Hub</Caption1>
-        <Button appearance="primary" icon={<Add20Regular />} onClick={nuevo}>
-          Nuevo recurso
-        </Button>
+      <div className="ui-toolbar">
+        <span className="ui-hint">{recursos.length} recursos en el Hub</span>
+        <Button onClick={nuevo}><Plus size={16} /> Nuevo recurso</Button>
       </div>
 
-      <Table aria-label="Recursos" size="small">
-        <TableHeader>
-          <TableRow>
-            <TableHeaderCell>Recurso</TableHeaderCell>
-            <TableHeaderCell>Contenido</TableHeaderCell>
-            <TableHeaderCell>Nivel</TableHeaderCell>
-            <TableHeaderCell>Tipo</TableHeaderCell>
-            <TableHeaderCell>Categoría</TableHeaderCell>
-            <TableHeaderCell>Estado</TableHeaderCell>
-            <TableHeaderCell>Actualizado</TableHeaderCell>
-            <TableHeaderCell>Acciones</TableHeaderCell>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {recursos.map((r) => {
-            const cat = findCategoria(categorias, r.categoriaId)
-            return (
-              <TableRow key={r.id}>
-                <TableCell>
-                  <TableCellLayout>{r.titulo}</TableCellLayout>
-                </TableCell>
-                <TableCell>
-                  <Badge appearance="filled" color={FORMATOS[r.formato].color}>
-                    {FORMATOS[r.formato].label}
-                  </Badge>
-                </TableCell>
-                <TableCell>{nivelNombre(niveles, r.nivelId)}</TableCell>
-                <TableCell>{tipoNombre(tipos, r.tipoId)}</TableCell>
-                <TableCell>
-                  {cat ? (
-                    <Badge appearance="tint" color={cat.color}>
-                      {cat.nombre}
-                    </Badge>
-                  ) : (
-                    '—'
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    appearance="outline"
-                    color={r.estado === 'publicado' ? 'success' : 'warning'}
-                  >
-                    {r.estado === 'publicado' ? 'Publicado' : 'Borrador'}
-                  </Badge>
-                </TableCell>
-                <TableCell>{formatearFecha(r.actualizado)}</TableCell>
-                <TableCell>
-                  <div className={styles.actions}>
-                    <Tooltip content="Editar" relationship="label">
-                      <Button
-                        appearance="subtle"
-                        icon={<Edit20Regular />}
-                        aria-label="Editar"
-                        onClick={() => editar(r)}
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label="Recursos">
+          <thead>
+            <tr>
+              <th>Recurso</th>
+              <th>Contenido</th>
+              <th>Nivel</th>
+              <th>Tipo</th>
+              <th>Categoría</th>
+              <th>Estado</th>
+              <th>Actualizado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {recursos.map((r) => {
+              const cat = findCategoria(categorias, r.categoriaId)
+              return (
+                <tr key={r.id}>
+                  <td>{r.titulo}</td>
+                  <td><span className="badge">{FORMATOS[r.formato].label}</span></td>
+                  <td>{nivelNombre(niveles, r.nivelId)}</td>
+                  <td>{tipoNombre(tipos, r.tipoId)}</td>
+                  <td>{cat ? <span className="badge badge--neutral">{cat.nombre}</span> : '—'}</td>
+                  <td>
+                    <span className={r.estado === 'publicado' ? 'badge badge--success' : 'badge badge--warning'}>
+                      {r.estado === 'publicado' ? 'Publicado' : 'Borrador'}
+                    </span>
+                  </td>
+                  <td>{formatearFecha(r.actualizado)}</td>
+                  <td>
+                    <div className="ui-actions">
+                      <Tooltip>
+                        <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(r)} />}>
+                          <Pencil size={16} />
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+                      <ConfirmDelete
+                        title="¿Eliminar recurso?"
+                        description="El recurso y su archivo asociado se eliminarán. Esta acción no se puede deshacer."
+                        onConfirm={() => removeRecurso(r.id)}
+                        triggerLabel="Eliminar recurso"
+                        trigger={<Button variant="ghost" size="icon" aria-label="Eliminar recurso"><Trash2 size={16} /></Button>}
                       />
-                    </Tooltip>
-                    <Tooltip content="Eliminar" relationship="label">
-                      <Button
-                        appearance="subtle"
-                        icon={<Delete20Regular />}
-                        aria-label="Eliminar"
-                        onClick={() => removeRecurso(r.id)}
-                      />
-                    </Tooltip>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <RecursoDialog
         open={open}
@@ -706,13 +579,36 @@ function TaxonomyDialog({
   initial: Record<string, unknown>
   onSave: (values: Record<string, unknown>) => void
 }) {
-  const styles = useStyles()
-  const [values, setValues] = React.useState<Record<string, unknown>>(initial)
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      {open ? (
+        <TaxonomyForm
+          key={title}
+          title={title}
+          fields={fields}
+          initial={initial}
+          onSave={onSave}
+          onClose={onClose}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
 
-  React.useEffect(() => {
-    setValues(initial)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+function TaxonomyForm({
+  onClose,
+  title,
+  fields,
+  initial,
+  onSave,
+}: {
+  onClose: () => void
+  title: string
+  fields: TaxonomyField[]
+  initial: Record<string, unknown>
+  onSave: (values: Record<string, unknown>) => void
+}) {
+  const [values, setValues] = React.useState<Record<string, unknown>>(initial)
 
   const set = (k: string, v: unknown) =>
     setValues((prev) => ({ ...prev, [k]: v }))
@@ -721,94 +617,89 @@ function TaxonomyDialog({
     typeof values.nombre === 'string' && values.nombre.trim().length > 0
 
   return (
-    <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
-      <DialogSurface>
-        <DialogBody>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogContent>
-            <div className={styles.formGrid}>
-              {fields.map((f) => {
-                if (f.type === 'color') {
-                  const current = (values[f.key] as BadgeColor) ?? 'brand'
-                  return (
-                    <Field key={f.key} label={f.label} hint={f.hint}>
-                      <Dropdown
-                        selectedOptions={[current]}
-                        value={current}
-                        onOptionSelect={(_e, d) =>
-                          set(f.key, d.optionValue as string)
+    <DialogContent>
+      <DialogTitle>{title}</DialogTitle>
+        <div className="ui-form-grid">
+          {fields.map((f) => {
+            if (f.type === 'color') {
+              const current = (values[f.key] as BadgeColor) ?? 'brand'
+              return (
+                <AdminField key={f.key} label={f.label} hint={f.hint}>
+                  <Select
+                    value={current}
+                    items={Object.fromEntries(COLORS.map((c) => [c, c]))}
+                    onValueChange={(value) => set(f.key, value as string)}
+                  >
+                    <SelectTrigger aria-label={f.label} />
+                    <SelectContent>
+                      {COLORS.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </AdminField>
+              )
+            }
+            if (f.type === 'formatos') {
+              const current = (values[f.key] as Formato[]) ?? []
+              return (
+                <AdminField key={f.key} label={f.label} hint={f.hint}>
+                  <div className="ui-actions">
+                    {(Object.keys(FORMATOS) as Formato[]).map((fmt) => (
+                      <Checkbox
+                        key={fmt}
+                        label={FORMATOS[fmt].label}
+                        checked={current.includes(fmt)}
+                        onCheckedChange={(checked) =>
+                          set(
+                            f.key,
+                            checked
+                              ? [...current, fmt]
+                              : current.filter((x) => x !== fmt),
+                          )
                         }
-                      >
-                        {COLORS.map((c) => (
-                          <Option key={c} value={c} text={c}>
-                            {c}
-                          </Option>
-                        ))}
-                      </Dropdown>
-                    </Field>
-                  )
-                }
-                if (f.type === 'formatos') {
-                  const current = (values[f.key] as Formato[]) ?? []
-                  return (
-                    <Field key={f.key} label={f.label} hint={f.hint}>
-                      <div className={styles.actions}>
-                        {(Object.keys(FORMATOS) as Formato[]).map((fmt) => (
-                          <Checkbox
-                            key={fmt}
-                            label={FORMATOS[fmt].label}
-                            checked={current.includes(fmt)}
-                            onChange={(_e, d) =>
-                              set(
-                                f.key,
-                                d.checked
-                                  ? [...current, fmt]
-                                  : current.filter((x) => x !== fmt),
-                              )
-                            }
-                          />
-                        ))}
-                      </div>
-                    </Field>
-                  )
-                }
-                return (
-                  <Field key={f.key} label={f.label} hint={f.hint} required={f.key === 'nombre'}>
-                    <Input
-                      type={f.type === 'number' ? 'number' : 'text'}
-                      value={String(values[f.key] ?? '')}
-                      onChange={(_e, d) =>
-                        set(
-                          f.key,
-                          f.type === 'number' ? Number(d.value) : d.value,
-                        )
-                      }
-                    />
-                  </Field>
-                )
-              })}
-            </div>
-          </DialogContent>
-          <DialogActions>
-            <Button appearance="secondary" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              appearance="primary"
-              disabled={!nombreOk}
-              onClick={() => {
-                onSave(values)
-                onClose()
-              }}
-            >
-              Guardar
-            </Button>
-          </DialogActions>
-        </DialogBody>
-      </DialogSurface>
-    </Dialog>
-  )
-}
+                      />
+                    ))}
+                  </div>
+                </AdminField>
+              )
+            }
+            return (
+              <AdminField
+                key={f.key}
+                label={f.label}
+                hint={f.hint}
+                required={f.key === 'nombre'}
+              >
+                <Input
+                  type={f.type === 'number' ? 'number' : 'text'}
+                  value={String(values[f.key] ?? '')}
+                  onChange={(event) =>
+                    set(
+                      f.key,
+                      f.type === 'number' ? Number(event.currentTarget.value) : event.currentTarget.value,
+                    )
+                  }
+                />
+              </AdminField>
+            )
+          })}
+        </div>
+        <div className="ui-dialog-actions">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={!nombreOk}
+            onClick={() => {
+              onSave(values)
+              onClose()
+            }}
+          >
+            Guardar
+          </Button>
+        </div>
+</DialogContent>
+    )
+  }
 
 // ── Taxonomy table wrapper ─────────────────────────────────────────────────
 
@@ -831,7 +722,6 @@ function TaxonomyAdmin<T extends { id: string }>({
   singular: string
   inUse: (id: string) => number
 }) {
-  const styles = useStyles()
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<T | null>(null)
 
@@ -846,73 +736,71 @@ function TaxonomyAdmin<T extends { id: string }>({
 
   return (
     <div>
-      <div className={styles.toolbar}>
-        <Caption1>
+      <div className="ui-toolbar">
+        <span className="ui-hint">
           {items.length} {items.length === 1 ? singular : `${singular}s`}
-        </Caption1>
-        <Button appearance="primary" icon={<Add20Regular />} onClick={nuevo}>
-          Agregar {singular}
-        </Button>
+        </span>
+        <Button onClick={nuevo}><Plus size={16} /> Agregar {singular}</Button>
       </div>
 
-      <Table aria-label={`Administración de ${singular}`} size="small">
-        <TableHeader>
-          <TableRow>
-            {columns.map((c) => (
-              <TableHeaderCell key={c.header}>{c.header}</TableHeaderCell>
-            ))}
-            <TableHeaderCell>En uso</TableHeaderCell>
-            <TableHeaderCell>Acciones</TableHeaderCell>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {items.map((item) => {
-            const uses = inUse(item.id)
-            return (
-              <TableRow key={item.id}>
-                {columns.map((c) => (
-                  <TableCell key={c.header}>
-                    <TableCellLayout>{c.render(item)}</TableCellLayout>
-                  </TableCell>
-                ))}
-                <TableCell>
-                  <Badge appearance="ghost" color={uses ? 'brand' : 'subtle'}>
-                    {uses} {uses === 1 ? 'recurso' : 'recursos'}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className={styles.actions}>
-                    <Tooltip content="Editar" relationship="label">
-                      <Button
-                        appearance="subtle"
-                        icon={<Edit20Regular />}
-                        aria-label="Editar"
-                        onClick={() => editar(item)}
-                      />
-                    </Tooltip>
-                    <Tooltip
-                      content={
-                        uses
-                          ? 'No se puede eliminar: hay recursos asociados'
-                          : 'Eliminar'
-                      }
-                      relationship="label"
-                    >
-                      <Button
-                        appearance="subtle"
-                        icon={<Delete20Regular />}
-                        aria-label="Eliminar"
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label={`Administración de ${singular}`}>
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th key={c.header}>{c.header}</th>
+              ))}
+              <th>En uso</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => {
+              const uses = inUse(item.id)
+              return (
+                <tr key={item.id}>
+                  {columns.map((c) => (
+                    <td key={c.header}>{c.render(item)}</td>
+                  ))}
+                  <td>
+                    <span className={uses ? 'badge' : 'badge badge--neutral'}>
+                      {uses} {uses === 1 ? 'recurso' : 'recursos'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="ui-actions">
+                      <Tooltip>
+                        <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(item)} />}>
+                          <Pencil size={16} />
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                      </Tooltip>
+                      <ConfirmDelete
+                        title={`¿Eliminar ${singular}?`}
+                        description={
+                          uses
+                            ? `No se puede eliminar: hay ${uses} recurso${uses === 1 ? '' : 's'} asociados.`
+                            : `La ${singular} se eliminará de forma permanente.`
+                        }
+                        onConfirm={() => onDelete(item.id)}
+                        triggerLabel={`Eliminar ${singular}`}
                         disabled={uses > 0}
-                        onClick={() => onDelete(item.id)}
+                        trigger={
+                          uses > 0 ? (
+                            <Button variant="ghost" size="icon" aria-label={`Eliminar ${singular}`} disabled title="No se puede eliminar: hay recursos asociados">
+                              <Trash2 size={16} />
+                            </Button>
+                          ) : undefined
+                        }
                       />
-                    </Tooltip>
-                  </div>
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       <TaxonomyDialog
         open={open}
@@ -945,7 +833,32 @@ function UserDialog({
   niveles: Nivel[]
   onSaved: () => Promise<void>
 }) {
-  const styles = useStyles()
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      {open ? (
+        <UserForm
+          key={editing?.id ?? 'nuevo'}
+          editing={editing}
+          niveles={niveles}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function UserForm({
+  onClose,
+  editing,
+  niveles,
+  onSaved,
+}: {
+  onClose: () => void
+  editing: HubUserRow | null
+  niveles: Nivel[]
+  onSaved: () => Promise<void>
+}) {
   const empty = {
     name: '',
     email: '',
@@ -954,27 +867,20 @@ function UserDialog({
     banned: false,
     nivelIds: [] as string[],
   }
-  const [draft, setDraft] = React.useState(empty)
+  const [draft, setDraft] = React.useState(() =>
+    editing
+      ? {
+          name: editing.name,
+          email: editing.email,
+          password: '',
+          role: editing.role,
+          banned: editing.banned,
+          nivelIds: editing.nivelIds,
+        }
+      : empty,
+  )
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    setDraft(
-      editing
-        ? {
-            name: editing.name,
-            email: editing.email,
-            password: '',
-            role: editing.role,
-            banned: editing.banned,
-            nivelIds: editing.nivelIds,
-          }
-        : empty,
-    )
-    setSaving(false)
-    setError(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, open])
 
   const passwordOk =
     draft.password.length === 0 || draft.password.length >= 8
@@ -1027,156 +933,138 @@ function UserDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(_e, d) => !d.open && onClose()}>
-      <DialogSurface>
-        <DialogBody>
-          <DialogTitle>
-            {editing ? 'Editar usuario' : 'Nuevo usuario'}
-          </DialogTitle>
-          <DialogContent>
-            <div className={styles.formGrid}>
-              {error ? (
-                <MessageBar intent="error">
-                  <MessageBarBody>{error}</MessageBarBody>
-                </MessageBar>
-              ) : null}
-              <Field label="Nombre" required>
-                <Input
-                  value={draft.name}
-                  onChange={(_e, d) =>
-                    setDraft((prev) => ({ ...prev, name: d.value }))
-                  }
-                />
-              </Field>
-              <Field label="Email" required>
-                <Input
-                  type="email"
-                  value={draft.email}
-                  disabled={Boolean(editing)}
-                  onChange={(_e, d) =>
-                    setDraft((prev) => ({ ...prev, email: d.value }))
-                  }
-                  placeholder="usuario@example.com"
-                />
-              </Field>
-              <Field
-                label={editing ? 'Nueva contraseña' : 'Contraseña'}
-                required={!editing}
-                hint={
-                  editing
-                    ? 'Dejar vacío para no cambiar'
-                    : 'Mínimo 8 caracteres'
-                }
-              >
-                <Input
-                  type="password"
-                  value={draft.password}
-                  onChange={(_e, d) =>
-                    setDraft((prev) => ({ ...prev, password: d.value }))
-                  }
-                />
-              </Field>
-              <Field label="Rol" required>
-                <Dropdown
-                  selectedOptions={[draft.role]}
-                  value={rolLabel(draft.role)}
-                  onOptionSelect={(_e, d) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      role: (d.optionValue as Role) ?? prev.role,
-                    }))
-                  }
-                >
-                  {ROLES.map((r) => (
-                    <Option key={r} value={r} text={rolLabel(r)}>
-                      {rolLabel(r)}
-                    </Option>
-                  ))}
-                </Dropdown>
-              </Field>
-              <Field label="Niveles">
-                <Combobox
-                  multiselect
-                  placeholder="Seleccione niveles"
-                  selectedOptions={draft.nivelIds}
-                  value={draft.nivelIds
-                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
-                    .filter(Boolean)
-                    .join(', ')}
-                  onOptionSelect={(_e, d) =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      nivelIds: d.selectedOptions,
-                    }))
-                  }
-                >
-                  {[...niveles]
-                    .sort((a, b) => a.orden - b.orden)
-                    .map((n) => (
-                      <Option key={n.id} value={n.id} text={n.nombre}>
-                        {n.nombre}
-                      </Option>
-                    ))}
-                </Combobox>
-              </Field>
-              {editing ? (
-                <Field label="Estado">
-                  <Switch
-                    label="Desactivado"
-                    checked={draft.banned}
-                    onChange={(_e, d) =>
-                      setDraft((prev) => ({ ...prev, banned: Boolean(d.checked) }))
-                    }
-                  />
-                </Field>
-              ) : null}
+    <DialogContent>
+      <DialogTitle>
+          {editing ? 'Editar usuario' : 'Nuevo usuario'}
+        </DialogTitle>
+        <div className="ui-form-grid">
+          {error ? (
+            <div className="ui-messagebar ui-messagebar--error" role="alert">
+              {error}
             </div>
-          </DialogContent>
-          <DialogActions>
-            <Button appearance="secondary" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              appearance="primary"
-              disabled={!valido || saving}
-              onClick={() => void save()}
+          ) : null}
+          <AdminField label="Nombre" required>
+            <Input
+              value={draft.name}
+              onChange={(event) => setDraft((prev) => ({ ...prev, name: event.currentTarget.value }))}
+            />
+          </AdminField>
+          <AdminField label="Email" required>
+            <Input
+              type="email"
+              value={draft.email}
+              disabled={Boolean(editing)}
+              onChange={(event) => setDraft((prev) => ({ ...prev, email: event.currentTarget.value }))}
+              placeholder="usuario@example.com"
+            />
+          </AdminField>
+          <AdminField
+            label={editing ? 'Nueva contraseña' : 'Contraseña'}
+            required={!editing}
+            hint={
+              editing
+                ? 'Dejar vacío para no cambiar'
+                : 'Mínimo 8 caracteres'
+            }
+          >
+            <Input
+              type="password"
+              value={draft.password}
+              onChange={(event) => setDraft((prev) => ({ ...prev, password: event.currentTarget.value }))}
+            />
+          </AdminField>
+          <AdminField label="Rol" required>
+            <Select
+              value={draft.role}
+              items={Object.fromEntries(ROLES.map((r) => [r, rolLabel(r)]))}
+              onValueChange={(value) => setDraft((prev) => ({ ...prev, role: value as Role }))}
             >
-              Guardar
-            </Button>
-          </DialogActions>
-        </DialogBody>
-      </DialogSurface>
-    </Dialog>
-  )
-}
+              <SelectTrigger aria-label="Rol" />
+              <SelectContent>
+                {ROLES.map((r) => (
+                  <SelectItem key={r} value={r}>{rolLabel(r)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </AdminField>
+          <AdminField label="Niveles">
+            <MultiSelect<string>
+              value={draft.nivelIds}
+              onChange={(next) => setDraft((prev) => ({ ...prev, nivelIds: next }))}
+              options={[...niveles]
+                .sort((a, b) => a.orden - b.orden)
+                .map((n) => ({ value: n.id, label: n.nombre }))}
+              placeholder="Seleccione niveles"
+            />
+          </AdminField>
+          {editing ? (
+            <AdminField label="Estado">
+              <Switch
+                label="Desactivado"
+                checked={draft.banned}
+                onCheckedChange={(checked) => setDraft((prev) => ({ ...prev, banned: checked }))}
+              />
+            </AdminField>
+          ) : null}
+        </div>
+        <div className="ui-dialog-actions">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={!valido || saving}
+            onClick={() => void save()}
+          >
+            Guardar
+          </Button>
+        </div>
+      </DialogContent>
+    )
+  }
 
 function UsersAdmin() {
-  const styles = useStyles()
   const { niveles } = useHubData()
   const [usuarios, setUsuarios] = React.useState<HubUserRow[]>([])
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<HubUserRow | null>(null)
 
-  const reload = React.useCallback(async () => {
+  const requestUsers = React.useCallback(async () => {
     const res = await fetch('/api/usuarios')
+    const data = (await res.json().catch(() => null)) as {
+      usuarios?: HubUserRow[]
+      error?: unknown
+    } | null
     if (!res.ok) {
-      const data = (await res.json().catch(() => null)) as {
-        error?: unknown
-      } | null
-      setLoadError(
+      throw new Error(
         typeof data?.error === 'string' ? data.error : 'No se pudo cargar',
       )
-      return
     }
-    const data = (await res.json()) as { usuarios: HubUserRow[] }
-    setUsuarios(data.usuarios)
-    setLoadError(null)
+    return data?.usuarios ?? []
   }, [])
 
+  const reload = React.useCallback(async () => {
+    const usuarios = await requestUsers()
+    setUsuarios(usuarios)
+    setLoadError(null)
+  }, [requestUsers])
+
   React.useEffect(() => {
-    void reload()
-  }, [reload])
+    let cancelled = false
+    requestUsers().then(
+      (usuarios) => {
+        if (!cancelled) setUsuarios(usuarios)
+      },
+      (error) => {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error ? error.message : 'No se pudo cargar',
+          )
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [requestUsers])
 
   const nuevo = () => {
     setEditing(null)
@@ -1189,70 +1077,63 @@ function UsersAdmin() {
 
   return (
     <div>
-      <div className={styles.toolbar}>
-        <Caption1>
+      <div className="ui-toolbar">
+        <span className="ui-hint">
           {usuarios.length} {usuarios.length === 1 ? 'usuario' : 'usuarios'}
-        </Caption1>
-        <Button appearance="primary" icon={<Add20Regular />} onClick={nuevo}>
-          Nuevo usuario
-        </Button>
+        </span>
+        <Button onClick={nuevo}><Plus size={16} /> Nuevo usuario</Button>
       </div>
 
       {loadError ? (
-        <MessageBar intent="error">
-          <MessageBarBody>{loadError}</MessageBarBody>
-        </MessageBar>
+        <div className="ui-messagebar ui-messagebar--error" role="alert">
+          {loadError}
+        </div>
       ) : null}
 
-      <Table aria-label="Usuarios" size="small">
-        <TableHeader>
-          <TableRow>
-            <TableHeaderCell>Nombre</TableHeaderCell>
-            <TableHeaderCell>Email</TableHeaderCell>
-            <TableHeaderCell>Rol</TableHeaderCell>
-            <TableHeaderCell>Niveles</TableHeaderCell>
-            <TableHeaderCell>Estado</TableHeaderCell>
-            <TableHeaderCell>Acciones</TableHeaderCell>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {usuarios.map((u) => (
-            <TableRow key={u.id}>
-              <TableCell>
-                <TableCellLayout>{u.name}</TableCellLayout>
-              </TableCell>
-              <TableCell>{u.email}</TableCell>
-              <TableCell>{rolLabel(u.role)}</TableCell>
-              <TableCell>
-                {u.nivelIds
-                  .map((id) => niveles.find((n) => n.id === id)?.nombre)
-                  .filter(Boolean)
-                  .join(', ') || '—'}
-              </TableCell>
-              <TableCell>
-                <Badge
-                  appearance="outline"
-                  color={u.banned ? 'danger' : 'success'}
-                >
-                  {u.banned ? 'Desactivado' : 'Activo'}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <div className={styles.actions}>
-                  <Tooltip content="Editar" relationship="label">
-                    <Button
-                      appearance="subtle"
-                      icon={<Edit20Regular />}
-                      aria-label="Editar"
-                      onClick={() => editar(u)}
-                    />
-                  </Tooltip>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label="Usuarios">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Email</th>
+              <th>Rol</th>
+              <th>Niveles</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usuarios.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name}</td>
+                <td>{u.email}</td>
+                <td>{rolLabel(u.role)}</td>
+                <td>
+                  {u.nivelIds
+                    .map((id) => niveles.find((n) => n.id === id)?.nombre)
+                    .filter(Boolean)
+                    .join(', ') || '—'}
+                </td>
+                <td>
+                  <span className={u.banned ? 'badge badge--warning' : 'badge badge--success'}>
+                    {u.banned ? 'Desactivado' : 'Activo'}
+                  </span>
+                </td>
+                <td>
+                  <div className="ui-actions">
+                    <Tooltip>
+                      <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(u)} />}>
+                        <Pencil size={16} />
+                      </TooltipTrigger>
+                      <TooltipContent>Editar</TooltipContent>
+                    </Tooltip>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       <UserDialog
         open={open}
@@ -1268,7 +1149,6 @@ function UsersAdmin() {
 // ── Admin page ─────────────────────────────────────────────────────────────
 
 export function AdminPage() {
-  const styles = useStyles()
   const session = authClient.useSession()
   const role = (session.data?.user as { role?: Role } | undefined)?.role
   const isAdmin = role === 'admin'
@@ -1290,12 +1170,21 @@ export function AdminPage() {
   } = useHubData()
 
   const [tab, setTab] = React.useState('recursos')
-  const onTab = (_e: SelectTabEvent, d: SelectTabData) =>
-    setTab(d.value as string)
+  const onTab = (value: string) => setTab(value)
 
   React.useEffect(() => {
-    if (!isAdmin && tab !== 'recursos') setTab('recursos')
-  }, [isAdmin, tab])
+    const syncHash = () => {
+      const hash = window.location.hash.slice(1)
+      if (hash) setTab(hash)
+    }
+    syncHash()
+    window.addEventListener('hashchange', syncHash)
+    return () => window.removeEventListener('hashchange', syncHash)
+  }, [])
+
+  // Editorial users (non-admin) only see the resources section: adjust the
+  // tab during render when the role loses admin access.
+  if (!isAdmin && tab !== 'recursos') setTab('recursos')
 
   const usoNivel = (id: string) =>
     recursos.filter((r) => r.nivelId === id).length
@@ -1307,191 +1196,181 @@ export function AdminPage() {
 
   return (
     <div>
-      <div className={styles.header}>
-        <span className={styles.eyebrow}>GESTIÓN DEL HUB</span>
-        <Title3 as="h1">Administración</Title3>
-        <Body1 className={styles.intro}>
-          Gestione los recursos y las taxonomías del Hub. La administración
-          respeta el mismo modelo de información que las vistas públicas: los
-          recursos referencian niveles, tipos, categorías y etiquetas, sin
-          duplicar estructuras.
-        </Body1>
-      </div>
+      <div className="page-stack">
+        <div>
+          <span className="eyebrow">GESTIÓN DEL HUB</span>
+          <h1 className="page-title page-title--sm">Administración</h1>
+          <p className="page-intro">
+            Gestione los recursos y las taxonomías del Hub. La administración
+            respeta el mismo modelo de información que las vistas públicas: los
+            recursos referencian niveles, tipos, categorías y etiquetas, sin
+            duplicar estructuras.
+          </p>
+        </div>
 
-      <MessageBar intent="info">
-        <MessageBarBody>
-          <MessageBarTitle>Modelo único</MessageBarTitle>
-          Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
-          referencia una sola vez cada taxonomía. Las taxonomías en uso no
-          pueden eliminarse para preservar la integridad.
-        </MessageBarBody>
-      </MessageBar>
+        <div className="ui-messagebar ui-messagebar--info">
+          <span>
+            <strong className="ui-messagebar__title">Modelo único</strong>
+            Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
+            referencia una sola vez cada taxonomía. Las taxonomías en uso no
+            pueden eliminarse para preservar la integridad.
+          </span>
+        </div>
 
-      {writeError ? (
-        <>
-          <div style={{ height: tokens.spacingVerticalM }} />
-          <MessageBar intent="error">
-            <MessageBarBody>{writeError}</MessageBarBody>
-          </MessageBar>
-        </>
-      ) : null}
-
-      <div style={{ height: tokens.spacingVerticalL }} />
-
-      <TabList selectedValue={tab} onTabSelect={onTab}>
-        <Tab value="recursos">Recursos</Tab>
-        {isAdmin ? (
-          <>
-            <Tab value="categorias">Categorías</Tab>
-            <Tab value="tags">Etiquetas</Tab>
-            <Tab value="niveles">Niveles</Tab>
-            <Tab value="tipos">Tipos</Tab>
-            <Tab value="usuarios">Usuarios</Tab>
-          </>
+        {writeError ? (
+          <div className="ui-messagebar ui-messagebar--error" role="alert">
+            {writeError}
+          </div>
         ) : null}
-      </TabList>
 
-      <Divider style={{ marginTop: tokens.spacingVerticalM }} />
-      <div style={{ height: tokens.spacingVerticalM }} />
+        <Tabs value={tab} onValueChange={onTab}>
+          <TabsList>
+            <TabsTab value="recursos">Recursos</TabsTab>
+            {isAdmin ? (
+              <>
+                <TabsTab value="categorias">Categorías</TabsTab>
+                <TabsTab value="tags">Etiquetas</TabsTab>
+                <TabsTab value="niveles">Niveles</TabsTab>
+                <TabsTab value="tipos">Tipos</TabsTab>
+                <TabsTab value="usuarios">Usuarios</TabsTab>
+              </>
+            ) : null}
+          </TabsList>
+        </Tabs>
 
-      {tab === 'recursos' && <RecursosAdmin />}
+        {tab === 'recursos' && <RecursosAdmin />}
 
-      {isAdmin && tab === 'categorias' && (
-        <TaxonomyAdmin<Categoria>
-          singular="categoría"
-          items={categorias}
-          inUse={usoCategoria}
-          columns={[
-            {
-              header: 'Categoría',
-              render: (c) => (
-                <Badge appearance="tint" color={c.color}>
-                  {c.nombre}
-                </Badge>
-              ),
-            },
-            { header: 'Color', render: (c) => c.color },
-          ]}
-          fields={[
-            { key: 'nombre', label: 'Nombre', type: 'text' },
-            {
-              key: 'color',
-              label: 'Color del TAG',
-              type: 'color',
-              hint: 'Se usa en el badge visible del recurso',
-            },
-          ]}
-          emptyValues={{ nombre: '', color: 'brand' }}
-          onSave={(v, editing) =>
-            upsertCategoria({
-              id: editing?.id ?? slugId(String(v.nombre)),
-              nombre: String(v.nombre),
-              color: (v.color as BadgeColor) ?? 'brand',
-            })
-          }
-          onDelete={removeCategoria}
-        />
-      )}
+        {isAdmin && tab === 'categorias' && (
+          <TaxonomyAdmin<Categoria>
+            singular="categoría"
+            items={categorias}
+            inUse={usoCategoria}
+            columns={[
+              {
+                header: 'Categoría',
+                render: (c) => (
+                  <span className="badge badge--neutral">{c.nombre}</span>
+                ),
+              },
+              { header: 'Color', render: (c) => c.color },
+            ]}
+            fields={[
+              { key: 'nombre', label: 'Nombre', type: 'text' },
+              {
+                key: 'color',
+                label: 'Color del TAG',
+                type: 'color',
+                hint: 'Se usa en el badge visible del recurso',
+              },
+            ]}
+            emptyValues={{ nombre: '', color: 'brand' }}
+            onSave={(v, editing) =>
+              upsertCategoria({
+                id: editing?.id ?? slugId(String(v.nombre)),
+                nombre: String(v.nombre),
+                color: (v.color as BadgeColor) ?? 'brand',
+              })
+            }
+            onDelete={removeCategoria}
+          />
+        )}
 
-      {isAdmin && tab === 'tags' && (
-        <TaxonomyAdmin<TagModel>
-          singular="etiqueta"
-          items={tags}
-          inUse={usoTag}
-          columns={[
-            {
-              header: 'Etiqueta',
-              render: (t) => (
-                <TagGroup aria-label="etiqueta">
-                  <Tag size="small" appearance="outline">
-                    {t.nombre}
-                  </Tag>
-                </TagGroup>
-              ),
-            },
-          ]}
-          fields={[{ key: 'nombre', label: 'Nombre', type: 'text' }]}
-          emptyValues={{ nombre: '' }}
-          onSave={(v, editing) =>
-            upsertTag({
-              id: editing?.id ?? slugId(String(v.nombre)),
-              nombre: String(v.nombre),
-            })
-          }
-          onDelete={removeTag}
-        />
-      )}
+        {isAdmin && tab === 'tags' && (
+          <TaxonomyAdmin<TagModel>
+            singular="etiqueta"
+            items={tags}
+            inUse={usoTag}
+            columns={[
+              {
+                header: 'Etiqueta',
+                render: (t) => (
+                  <span className="badge badge--neutral">{t.nombre}</span>
+                ),
+              },
+            ]}
+            fields={[{ key: 'nombre', label: 'Nombre', type: 'text' }]}
+            emptyValues={{ nombre: '' }}
+            onSave={(v, editing) =>
+              upsertTag({
+                id: editing?.id ?? slugId(String(v.nombre)),
+                nombre: String(v.nombre),
+              })
+            }
+            onDelete={removeTag}
+          />
+        )}
 
-      {isAdmin && tab === 'niveles' && (
-        <TaxonomyAdmin<Nivel>
-          singular="nivel"
-          items={[...niveles].sort((a, b) => a.orden - b.orden)}
-          inUse={usoNivel}
-          columns={[
-            { header: 'Nivel', render: (n) => n.nombre },
-            { header: 'Orden', render: (n) => n.orden },
-          ]}
-          fields={[
-            { key: 'nombre', label: 'Nombre', type: 'text' },
-            { key: 'orden', label: 'Orden', type: 'number' },
-          ]}
-          emptyValues={{ nombre: '', orden: niveles.length + 1 }}
-          onSave={(v, editing) =>
-            upsertNivel({
-              id: editing?.id ?? slugId(String(v.nombre)),
-              nombre: String(v.nombre),
-              orden: Number(v.orden) || niveles.length + 1,
-            })
-          }
-          onDelete={removeNivel}
-        />
-      )}
+        {isAdmin && tab === 'niveles' && (
+          <TaxonomyAdmin<Nivel>
+            singular="nivel"
+            items={[...niveles].sort((a, b) => a.orden - b.orden)}
+            inUse={usoNivel}
+            columns={[
+              { header: 'Nivel', render: (n) => n.nombre },
+              { header: 'Orden', render: (n) => n.orden },
+            ]}
+            fields={[
+              { key: 'nombre', label: 'Nombre', type: 'text' },
+              { key: 'orden', label: 'Orden', type: 'number' },
+            ]}
+            emptyValues={{ nombre: '', orden: niveles.length + 1 }}
+            onSave={(v, editing) =>
+              upsertNivel({
+                id: editing?.id ?? slugId(String(v.nombre)),
+                nombre: String(v.nombre),
+                orden: Number(v.orden) || niveles.length + 1,
+              })
+            }
+            onDelete={removeNivel}
+          />
+        )}
 
-      {isAdmin && tab === 'tipos' && (
-        <TaxonomyAdmin<Tipo>
-          singular="tipo"
-          items={tipos}
-          inUse={usoTipo}
-          columns={[
-            { header: 'Tipo', render: (t) => t.nombre },
-            {
-              header: 'Aplica a',
-              render: (t) => (
-                <div className={styles.actions}>
-                  {t.aplicaA.map((f) => (
-                    <Badge key={f} appearance="tint" color={FORMATOS[f].color}>
-                      {FORMATOS[f].label}
-                    </Badge>
-                  ))}
-                </div>
-              ),
-            },
-          ]}
-          fields={[
-            { key: 'nombre', label: 'Nombre', type: 'text' },
-            {
-              key: 'aplicaA',
-              label: 'Aplica a',
-              type: 'formatos',
-              hint: 'Tipos de contenido que pueden usar este tipo',
-            },
-          ]}
-          emptyValues={{ nombre: '', aplicaA: ['reporte'] }}
-          onSave={(v, editing) =>
-            upsertTipo({
-              id: editing?.id ?? slugId(String(v.nombre)),
-              nombre: String(v.nombre),
-              aplicaA:
-                (v.aplicaA as Formato[])?.length > 0
-                  ? (v.aplicaA as Formato[])
-                  : ['reporte'],
-            })
-          }
-          onDelete={removeTipo}
-        />
-      )}
+        {isAdmin && tab === 'tipos' && (
+          <TaxonomyAdmin<Tipo>
+            singular="tipo"
+            items={tipos}
+            inUse={usoTipo}
+            columns={[
+              { header: 'Tipo', render: (t) => t.nombre },
+              {
+                header: 'Aplica a',
+                render: (t) => (
+                  <div className="ui-actions">
+                    {t.aplicaA.map((f) => (
+                      <span key={f} className="badge badge--neutral">
+                        {FORMATOS[f].label}
+                      </span>
+                    ))}
+                  </div>
+                ),
+              },
+            ]}
+            fields={[
+              { key: 'nombre', label: 'Nombre', type: 'text' },
+              {
+                key: 'aplicaA',
+                label: 'Aplica a',
+                type: 'formatos',
+                hint: 'Tipos de contenido que pueden usar este tipo',
+              },
+            ]}
+            emptyValues={{ nombre: '', aplicaA: ['reporte'] }}
+            onSave={(v, editing) =>
+              upsertTipo({
+                id: editing?.id ?? slugId(String(v.nombre)),
+                nombre: String(v.nombre),
+                aplicaA:
+                  (v.aplicaA as Formato[])?.length > 0
+                    ? (v.aplicaA as Formato[])
+                    : ['reporte'],
+              })
+            }
+            onDelete={removeTipo}
+          />
+        )}
 
-      {isAdmin && tab === 'usuarios' && <UsersAdmin />}
+        {isAdmin && tab === 'usuarios' && <UsersAdmin />}
+      </div>
     </div>
   )
 }

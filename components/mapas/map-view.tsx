@@ -39,6 +39,8 @@ type Props = {
   selected: SelectedFeature | null
   onSelect: (feature: SelectedFeature | null) => void
   mapRef: RefObject<MapRef | null>
+  initialViewState?: Partial<{ longitude: number; latitude: number; zoom: number }>
+  onMove?: (state: { longitude: number; latitude: number; zoom: number }) => void
 }
 
 function circlePaint(
@@ -61,6 +63,8 @@ export function MapView({
   selected,
   onSelect,
   mapRef,
+  initialViewState,
+  onMove,
 }: Props) {
   const styles = useOverlayStyles()
 
@@ -194,6 +198,7 @@ export function MapView({
           longitude: MAP_CENTER[0],
           latitude: MAP_CENTER[1],
           zoom: MAP_ZOOM,
+          ...initialViewState,
         }}
         style={{ width: '100%', height: '100%' }}
         interactiveLayerIds={[
@@ -204,6 +209,7 @@ export function MapView({
           ...(overlays.zones ? (['zones-fill'] as const) : []),
         ]}
         onClick={handleClick}
+        onMove={onMove ? (event) => onMove(event.viewState) : undefined}
         cursor="pointer"
       >
         <NavigationControl position="top-left" />

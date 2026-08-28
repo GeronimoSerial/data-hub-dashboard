@@ -1,225 +1,181 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import {
-  makeStyles,
-  mergeClasses,
-  tokens,
-  typographyStyles,
-  Badge,
-  Body1,
-  Caption1,
-  Card,
-  Divider,
-  LargeTitle,
-  Subtitle1,
-  Subtitle2,
-  Title3,
-} from '@fluentui/react-components'
-import {
-  ArrowRight20Regular,
-  DataArea32Regular,
-  DocumentText32Regular,
-  Globe32Regular,
-} from '@fluentui/react-icons'
-import { FORMATOS, type Formato } from '@/lib/model'
+import { ArrowRight, BarChart3, FileText, Map, Search } from 'lucide-react'
 import { useHubData } from '@/components/hub-data'
 import { ResourceCard } from '@/components/resource-card'
-import { isReadyHref } from '@/lib/nav'
+import { FORMATOS, type Formato } from '@/lib/model'
+import { exploreHref } from '@/lib/explore-filters'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
-const FORMATO_ICON: Record<Formato, React.ReactNode> = {
-  reporte: <DocumentText32Regular />,
-  tablero: <DataArea32Regular />,
-  mapa: <Globe32Regular />,
-}
+const FORMAT_ICON = { reporte: FileText, tablero: BarChart3, mapa: Map }
+const FORMAT_TONE = { reporte: 'blue', tablero: 'amber', mapa: 'coral' } as const
 
-const FORMATO_ROUTE: Record<Formato, string> = {
-  reporte: '/reportes',
-  tablero: '/tableros',
-  mapa: '/mapas',
-}
-
-const useStyles = makeStyles({
-  hero: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-    maxWidth: '720px',
-  },
-  eyebrow: {
-    ...typographyStyles.caption1Strong,
-    letterSpacing: '1.2px',
-    color: tokens.colorBrandForeground1,
-  },
-  intro: {
-    color: tokens.colorNeutralForeground2,
-  },
-  sectionHead: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalXXS,
-    marginTop: tokens.spacingVerticalXXL,
-    marginBottom: tokens.spacingVerticalL,
-  },
-  typeGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-    gap: tokens.spacingHorizontalL,
-  },
-  typeCard: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-    paddingLeft: tokens.spacingHorizontalL,
-    paddingRight: tokens.spacingHorizontalL,
-    paddingTop: tokens.spacingVerticalL,
-    paddingBottom: tokens.spacingVerticalL,
-    cursor: 'pointer',
-    borderTopWidth: tokens.strokeWidthThicker,
-    borderTopStyle: 'solid',
-    transitionDuration: tokens.durationNormal,
-    transitionProperty: 'transform, box-shadow',
-    ':hover': {
-      transform: 'translateY(-3px)',
-      boxShadow: tokens.shadow16,
-    },
-  },
-  typeCardDisabled: {
-    cursor: 'default',
-    ':hover': {
-      transform: 'none',
-      boxShadow: 'none',
-    },
-  },
-  reporteTop: { borderTopColor: tokens.colorBrandBackground },
-  tableroTop: { borderTopColor: tokens.colorPaletteGreenBackground3 },
-  mapaTop: { borderTopColor: tokens.colorPaletteMarigoldBackground3 },
-  typeIcon: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '52px',
-    height: '52px',
-    borderRadius: tokens.borderRadiusMedium,
-    backgroundColor: tokens.colorNeutralBackground3,
-    color: tokens.colorNeutralForeground1,
-  },
-  typeMeta: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: tokens.spacingHorizontalS,
-    color: tokens.colorBrandForeground1,
-    marginTop: 'auto',
-  },
-  typeDesc: {
-    color: tokens.colorNeutralForeground2,
-    minHeight: '60px',
-  },
-  recentGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-    gap: tokens.spacingHorizontalL,
-  },
-})
-
-const TOP_CLASS: Record<Formato, keyof ReturnType<typeof useStyles>> = {
-  reporte: 'reporteTop',
-  tablero: 'tableroTop',
-  mapa: 'mapaTop',
+function BrowseCard({
+  href,
+  name,
+  note,
+  count,
+  icon: Icon,
+  tone,
+}: {
+  href: string
+  name: string
+  note: string
+  count: number
+  icon?: React.ComponentType<{ size?: number }>
+  tone?: 'blue' | 'amber' | 'coral'
+}) {
+  return (
+    <Link className="browse-card" href={href}>
+      {Icon ? (
+        <span className="browse-card__icon" data-tone={tone ?? 'blue'}>
+          <Icon size={18} />
+        </span>
+      ) : null}
+      <span className="browse-card__name">{name}</span>
+      <span className="browse-card__note">{note}</span>
+      <span className="browse-card__count">
+        {count} {count === 1 ? 'recurso' : 'recursos'}
+      </span>
+    </Link>
+  )
 }
 
 export function HubPage() {
-  const styles = useStyles()
   const router = useRouter()
-  const { recursos } = useHubData()
-
-  const conteo = (f: Formato) =>
-    recursos.filter((r) => r.formato === f && r.estado === 'publicado').length
-
-  const recientes = [...recursos]
-    .filter((r) => r.estado === 'publicado')
-    .sort((a, b) => b.actualizado.localeCompare(a.actualizado))
-    .slice(0, 3)
+  const { recursos, categorias, niveles } = useHubData()
+  const [query, setQuery] = React.useState('')
+  const published = recursos.filter((item) => item.estado === 'publicado')
+  const recent = [...published].sort((a, b) => b.actualizado.localeCompare(a.actualizado)).slice(0, 3)
+  const byCategory = categorias
+    .map((item) => ({ ...item, count: published.filter((r) => r.categoriaId === item.id).length }))
+    .filter((item) => item.count > 0)
+  const byLevel = niveles
+    .map((item) => ({ ...item, count: published.filter((r) => r.nivelId === item.id).length }))
+    .filter((item) => item.count > 0)
+  const byFormat = (Object.keys(FORMATOS) as Formato[])
+    .map((key) => ({ key, count: published.filter((r) => r.formato === key).length }))
+    .filter((item) => item.count > 0)
 
   return (
-    <div>
-      <section className={styles.hero}>
-        <span className={styles.eyebrow}>INFORMACIÓN PARA DECIDIR</span>
-        <LargeTitle as="h1">Hub de Datos</LargeTitle>
-        <Body1 className={styles.intro}>
-          Un único espacio que reúne los recursos analíticos del sistema
-          educativo provincial. La información se organiza en tres tipos de
-          contenido claramente diferenciados, para orientar prioridades y
-          sostener decisiones con evidencia.
-        </Body1>
+    <div className="page-stack">
+      <header className="hero">
+        <div className="hero__lead">
+          <span className="eyebrow">Hub de Datos · Corrientes</span>
+          <h1 className="page-title">Hub de datos - Version en desarrollo</h1>
+          <p className="page-intro">
+            Reportes, tableros y mapas del sistema educativo provincial, reunidos en un solo lugar.
+            No hace falta saber de antemano en qué formato está lo que buscás.
+          </p>
+          <form
+            className="hero-search"
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault()
+              router.push(exploreHref({ q: query.trim() || undefined }))
+            }}
+          >
+            <label className="hero-search__label" htmlFor="home-search">
+              ¿Qué información estás buscando?
+            </label>
+            <div className="hero-search__line">
+              <Input
+                id="home-search"
+                className="text-input"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+                placeholder="Matrícula, trayectorias, nivel secundario…"
+              />
+              <Button type="submit">
+                <Search size={17} /> Buscar
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        <div className="stat-block">
+          <div className="stat-block__row">
+            <span className="stat-block__label">Recursos publicados</span>
+            <span className="stat-block__value">{published.length}</span>
+          </div>
+          <div className="stat-block__row">
+            <span className="stat-block__label">Temas</span>
+            <span className="stat-block__value">{byCategory.length}</span>
+          </div>
+          <div className="stat-block__row">
+            <span className="stat-block__label">Niveles educativos</span>
+            <span className="stat-block__value">{byLevel.length}</span>
+          </div>
+        </div>
+      </header>
+
+      <section className="section">
+        <div className="section-head">
+          <h2>Actualizaciones recientes</h2>
+          <Link className="section-link" href="/explorar">
+            Ver el catálogo <ArrowRight size={15} />
+          </Link>
+        </div>
+        <div className="card-grid">
+          {recent.map((resource) => (
+            <ResourceCard key={resource.id} recurso={resource} />
+          ))}
+        </div>
       </section>
 
-      <div className={styles.sectionHead}>
-        <Title3 as="h2">Tipos de contenido</Title3>
-        <Caption1>
-          Cada recurso pertenece a un único tipo de contenido. Seleccione uno
-          para explorar el catálogo.
-        </Caption1>
-      </div>
+      <section className="section">
+        <div className="section-head">
+          <h2>Explorá por tema</h2>
+        </div>
+        <div className="card-grid card-grid--wide">
+          {byCategory.map((item) => (
+            <BrowseCard
+              key={item.id}
+              href={exploreHref({ tema: item.id })}
+              name={item.nombre}
+              note="Ver los recursos publicados sobre este tema."
+              count={item.count}
+            />
+          ))}
+        </div>
+      </section>
 
-      <div className={styles.typeGrid}>
-        {(Object.keys(FORMATOS) as Formato[]).map((f) => {
-          const meta = FORMATOS[f]
-          const topClass = styles[TOP_CLASS[f]] as string
-          const ready = isReadyHref(FORMATO_ROUTE[f])
-          return (
-            <Card
-              key={f}
-              className={mergeClasses(
-                styles.typeCard,
-                topClass,
-                !ready && styles.typeCardDisabled,
-              )}
-              onClick={ready ? () => router.push(FORMATO_ROUTE[f]) : undefined}
-              role={ready ? 'link' : undefined}
-              tabIndex={ready ? 0 : undefined}
-              onKeyDown={
-                ready
-                  ? (e) => {
-                      if (e.key === 'Enter') router.push(FORMATO_ROUTE[f])
-                    }
-                  : undefined
-              }
-            >
-              <div className={styles.typeIcon}>{FORMATO_ICON[f]}</div>
-              <div>
-                <Subtitle1>{meta.plural}</Subtitle1>{' '}
-                <Badge appearance="tint" color={meta.color}>
-                  {conteo(f)}
-                </Badge>
-              </div>
-              <Body1 className={styles.typeDesc}>{meta.descripcion}</Body1>
-              <span className={styles.typeMeta}>
-                <Caption1>
-                  {ready
-                    ? `Explorar ${meta.plural.toLowerCase()}`
-                    : 'Próximamente'}
-                </Caption1>
-                {ready ? <ArrowRight20Regular /> : null}
-              </span>
-            </Card>
-          )
-        })}
-      </div>
+      <section className="section">
+        <div className="section-head">
+          <h2>Explorá por formato</h2>
+        </div>
+        <div className="card-grid card-grid--wide">
+          {byFormat.map(({ key, count }) => (
+            <BrowseCard
+              key={key}
+              href={exploreHref({ formato: key })}
+              name={FORMATOS[key].plural}
+              note={FORMATOS[key].descripcion}
+              count={count}
+              icon={FORMAT_ICON[key]}
+              tone={FORMAT_TONE[key]}
+            />
+          ))}
+        </div>
+      </section>
 
-      <Divider style={{ marginTop: tokens.spacingVerticalXXXL }} />
-
-      <div className={styles.sectionHead}>
-        <Subtitle2 as="h2">Actualizaciones recientes</Subtitle2>
-        <Caption1>Los últimos recursos publicados en el Hub.</Caption1>
-      </div>
-
-      <div className={styles.recentGrid}>
-        {recientes.map((r) => (
-          <ResourceCard key={r.id} recurso={r} />
-        ))}
-      </div>
+      <section className="section">
+        <div className="section-head">
+          <h2>Explorá por nivel educativo</h2>
+        </div>
+        <div className="chip-grid">
+          {byLevel.map((item) => (
+            <Link className="chip" href={exploreHref({ nivel: item.id })} key={item.id}>
+              {item.nombre}
+              <span className="chip__count">{item.count}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

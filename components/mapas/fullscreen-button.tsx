@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, type RefObject } from 'react'
-import { Button } from '@fluentui/react-components'
+import { Button } from '@/components/ui/button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 
 type Props = {
@@ -32,8 +32,9 @@ export function FullscreenButton({ targetRef }: Props) {
 
   return (
     <Button
-      appearance="outline"
-      className={styles.fullscreenBtn}
+      variant="secondary"
+      size="sm"
+      className={`${styles.fullscreenBtn} ${active ? 'ui-button--active' : ''}`}
       onClick={() => void toggle()}
     >
       {active ? 'Salir de pantalla completa' : 'Pantalla completa'}

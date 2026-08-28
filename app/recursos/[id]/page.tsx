@@ -6,7 +6,8 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import { puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccess } from '@/lib/db/recurso-access'
-import { RecursoViewer } from '@/components/recurso-viewer'
+import { loadHubCatalog } from '@/lib/db/hub'
+import { ResourceExperience } from '@/components/resource-experience'
 import { isAllowedRuta } from '@/lib/recurso-write'
 
 export const runtime = 'nodejs'
@@ -28,5 +29,16 @@ export default async function RecursoPage({
     if (!isAllowedRuta(row.ruta)) notFound()
     redirect(row.ruta)
   }
-  return <RecursoViewer recurso={row} />
+  const catalog = await loadHubCatalog({ publishedOnly: false })
+  const recurso = catalog.recursos.find((item) => item.id === id)
+  if (!recurso) notFound()
+  return (
+    <ResourceExperience
+      recurso={recurso}
+      categorias={catalog.categorias}
+      niveles={catalog.niveles}
+      tipos={catalog.tipos}
+      related={catalog.recursos}
+    />
+  )
 }

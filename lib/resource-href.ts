@@ -5,7 +5,7 @@ export function resourceCardTarget(recurso: {
   storageKey?: string | null
   ruta?: string | null
 }): string | null {
-  if (recurso.storageKey) return `/recursos/${recurso.id}`
+  if (recurso.storageKey) return `/recursos/${encodeURIComponent(recurso.id)}`
   const ruta = recurso.ruta?.trim()
   if (!ruta || !isAllowedRuta(ruta)) return null
   return ruta

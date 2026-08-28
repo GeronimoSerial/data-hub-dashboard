@@ -75,9 +75,13 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
   const [writeError, setWriteError] = React.useState<string | null>(null)
 
   const recursosRef = React.useRef(recursos)
-  recursosRef.current = recursos
   const catalogPathRef = React.useRef(catalogPath)
-  catalogPathRef.current = catalogPath
+
+  React.useEffect(() => {
+    // Keep the refs in sync with latest values for callbacks (not render-safe writes).
+    recursosRef.current = recursos
+    catalogPathRef.current = catalogPath
+  })
 
   const applyCatalog = React.useCallback((data: Catalog) => {
     setRecursos(data.recursos)

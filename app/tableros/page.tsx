@@ -1,5 +1,3 @@
-import { CatalogPage } from '@/components/catalog-page'
+import { redirect } from 'next/navigation'
 
-export default function Tableros() {
-  return <CatalogPage formato="tablero" />
-}
+export default function Tableros() { redirect('/explorar?formato=tablero') }

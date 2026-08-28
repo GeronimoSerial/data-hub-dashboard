@@ -1,6 +1,5 @@
 'use client'
 
-import { mergeClasses } from '@fluentui/react-components'
 import { COPY, semaforoGlosa } from '@/lib/copy/didactica'
 import { SEMAFORO_ORDER, type SobreofertaData } from '@/lib/sobreoferta'
 import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
@@ -26,7 +25,7 @@ export function LegendPanel({
       : `${summary.pctChange > 0 ? '+' : ''}${summary.pctChange}%`
 
   return (
-    <div className={mergeClasses(styles.panel, styles.legendPanel)}>
+    <div className={`${styles.panel} ${styles.legendPanel}`}>
       <b>{COPY.legend.evolutionTitle}</b>
       <div className={styles.hint}>{COPY.legend.evolutionHint}</div>
       {COPY.legend.comparableLabel}: <b>{summary.comparableEstablishments}</b>

@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     exclude: [...configDefaults.exclude, '.next/**'],
+    setupFiles: ['./vitest.setup.ts'],
   },
   resolve: { alias: { '@': path.resolve(__dirname, '.') } },
 })

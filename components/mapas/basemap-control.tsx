@@ -1,8 +1,8 @@
 'use client'
 
-import { Radio, RadioGroup } from '@fluentui/react-components'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { RadioGroup, RadioItem } from '@/components/ui/radio'
 
 type Props = {
   value: BasemapId
@@ -15,12 +15,9 @@ export function BasemapControl({ value, onChange }: Props) {
   return (
     <div className={styles.controlCard}>
       <h2 className={styles.controlHeading}>Mapa base</h2>
-      <RadioGroup
-        value={value}
-        onChange={(_e, data) => onChange(data.value as BasemapId)}
-      >
+      <RadioGroup value={value} onValueChange={(next) => onChange(next as BasemapId)}>
         {(Object.keys(BASEMAPS) as BasemapId[]).map((id) => (
-          <Radio key={id} value={id} label={BASEMAPS[id].label} />
+          <RadioItem key={id} value={id} label={BASEMAPS[id].label} />
         ))}
       </RadioGroup>
     </div>
