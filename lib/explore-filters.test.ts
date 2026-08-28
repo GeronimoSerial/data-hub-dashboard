@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   canonicalizeExploreSearch,
   exploreHref,
+  normalizeExploreText,
   parseExploreFilters,
 } from './explore-filters'
 
@@ -22,6 +23,10 @@ describe('explore filters', () => {
 
   it('serializes a stable canonical URL', () => {
     expect(exploreHref({ q: 'goya', tema: 'matricula', formato: 'mapa' })).toBe('/explorar?q=goya&tema=matricula&formato=mapa')
+  })
+
+  it('normalizes accents for search matching', () => {
+    expect(normalizeExploreText('Matrícula · Gestión')).toBe('matricula · gestion')
   })
 })
 
@@ -48,5 +53,13 @@ describe('canonicalizeExploreSearch', () => {
     const again = canonicalizeExploreSearch(new URLSearchParams(result.canonical), allowed)
     expect(again.changed).toBe(false)
     expect(again.canonical).toBe(result.canonical)
+  })
+
+  it('does not repeatedly canonicalize an encoded accented query', () => {
+    const input = new URLSearchParams('q=matr%C3%ADcula')
+    expect(canonicalizeExploreSearch(input, allowed)).toEqual({
+      canonical: 'q=matr%C3%ADcula',
+      changed: false,
+    })
   })
 })

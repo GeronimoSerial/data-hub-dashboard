@@ -8,6 +8,7 @@ import { ResourceCard } from '@/components/resource-card'
 import { FORMATOS, type Formato } from '@/lib/model'
 import {
   canonicalizeExploreSearch,
+  normalizeExploreText,
   parseExploreFilters,
   serializeExploreFilters,
   type ExploreFilters,
@@ -42,18 +43,9 @@ export function ExplorePage() {
 
   const filters = React.useMemo(() => parseExploreFilters(searchParams, allowed), [searchParams, allowed])
   const urlQuery = filters.q ?? ''
-  const [query, setQuery] = React.useState(urlQuery)
-  const [syncedQuery, setSyncedQuery] = React.useState(urlQuery)
   const [filtersOpen, setFiltersOpen] = React.useState(
     () => Boolean(filters.tema || filters.nivel || filters.formato),
   )
-
-  // Adjust the input state when the URL query changes (navigation/back-forward)
-  // without performing a cascading render through an effect.
-  if (urlQuery !== syncedQuery) {
-    setSyncedQuery(urlQuery)
-    setQuery(urlQuery)
-  }
 
   function update(next: Partial<ExploreFilters>) {
     const params = serializeExploreFilters({ ...filters, ...next })
@@ -66,8 +58,8 @@ export function ExplorePage() {
     if (filters.nivel && resource.nivelId !== filters.nivel) return false
     if (filters.formato && resource.formato !== filters.formato) return false
     if (filters.q) {
-      const haystack = `${resource.titulo} ${resource.descripcion} ${resource.area}`.toLocaleLowerCase('es')
-      if (!haystack.includes(filters.q)) return false
+      const haystack = normalizeExploreText(`${resource.titulo} ${resource.descripcion} ${resource.area}`)
+      if (!haystack.includes(normalizeExploreText(filters.q))) return false
     }
     return true
   })
@@ -92,9 +84,13 @@ export function ExplorePage() {
 
       <div className="explore-controls">
         <div className="explore-bar">
-          <form className="explore-search" onSubmit={(event) => { event.preventDefault(); update({ q: query.trim() || undefined }) }} role="search">
+          <form className="explore-search" onSubmit={(event) => {
+            event.preventDefault()
+            const value = String(new FormData(event.currentTarget).get('q') ?? '').trim()
+            update({ q: value || undefined })
+          }} role="search">
             <div className="hero-search__line">
-              <Input id="resource-search" className="text-input" aria-label="Buscar en el catálogo" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Matrícula, trayectorias, Goya…" />
+              <Input key={urlQuery} id="resource-search" name="q" className="text-input" aria-label="Buscar en el catálogo" defaultValue={urlQuery} placeholder="Matrícula, trayectorias, Goya…" />
               <Button type="submit" aria-label="Buscar"><Search size={17} /><span className="explore-search__label">Buscar</span></Button>
             </div>
           </form>

@@ -8,6 +8,13 @@ export type ExploreFilters = {
   formato?: Formato
 }
 
+export function normalizeExploreText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es')
+}
+
 const formatoSchema = z.enum(['reporte', 'tablero', 'mapa'])
 
 function clean(value: string | null | undefined, allowed?: ReadonlySet<string>) {
@@ -63,7 +70,7 @@ export function canonicalizeExploreSearch(
   const filters = parseExploreFilters(input, allowed)
   const canonical = serializeExploreFilters(filters).toString()
 
-  const parts: string[] = []
+  const current = new URLSearchParams()
   const seen = new Set<string>()
   let changed = false
   if (input instanceof URLSearchParams) {
@@ -77,7 +84,7 @@ export function canonicalizeExploreSearch(
         continue
       }
       seen.add(key)
-      parts.push(`${key}=${value}`)
+      current.append(key, value)
     }
   } else {
     for (const [key, raw] of Object.entries(input)) {
@@ -87,9 +94,9 @@ export function canonicalizeExploreSearch(
         changed = true
         continue
       }
-      parts.push(`${key}=${value}`)
+      current.append(key, value)
     }
   }
 
-  return { canonical, changed: changed || parts.join('&') !== canonical }
+  return { canonical, changed: changed || current.toString() !== canonical }
 }
