@@ -20,13 +20,13 @@
 
   /* Roles */
   --page: #ffffff;
-  --card: var(--white);
+  --card: var(--grey);
   --ink: #2a0c0a;
   --ink-soft: #7a5b59;
   --ink-faint: #a08d8b;
   --line: #dfdcdc;
   --line-soft: #e8e5e5;
-  --fill: #f5f3f3;
+  --fill: #f7f7f7;
 
   --brand: #3f6ea8;
   --brand-hover: #33598a;
@@ -189,7 +189,7 @@ h1, h2, h3, h4 {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: color-mix(in srgb, var(--card) 92%, transparent);
+  background: color-mix(in srgb, var(--page) 94%, transparent);
   backdrop-filter: blur(14px) saturate(1.4);
   border-bottom: 1px solid var(--line);
 }
