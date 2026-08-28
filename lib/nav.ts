@@ -47,3 +47,8 @@ export function isBleedViewerPath(pathname: string) {
   return !rest.includes('.')
 }
 
+export function normalizeLoginCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/'
+  return raw
+}
+

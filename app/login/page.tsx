@@ -4,14 +4,10 @@ import * as React from 'react'
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { authClient } from '@/lib/auth-client'
+import { normalizeLoginCallbackUrl } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
-
-function callbackUrlFromSearch(raw: string | null) {
-  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/'
-  return raw
-}
 
 function LoginForm() {
   const router = useRouter()
@@ -34,7 +30,7 @@ function LoginForm() {
       setError('No se pudo iniciar sesión')
       return
     }
-    router.replace(callbackUrlFromSearch(searchParams.get('callbackUrl')))
+    router.replace(normalizeLoginCallbackUrl(searchParams.get('callbackUrl')))
   }
 
   return (
