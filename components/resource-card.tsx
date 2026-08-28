@@ -28,19 +28,28 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
   const content = (
     <>
       <div className="resource-card__top">
-        <span className="badge"><Icon size={14} /> {FORMATOS[recurso.formato].label}</span>
+        <span className="badge"><Icon size={13} /> {FORMATOS[recurso.formato].label}</span>
         {category ? <span className="badge badge--neutral">{category.nombre}</span> : null}
-        {accessState === 'restricted' ? (
-          <span className="badge badge--locked"><LockKeyhole size={13} /> Acceso restringido</span>
-        ) : (
-          <span className="badge badge--neutral">{accessState === 'public' ? 'Público' : 'Ingresar para consultar'}</span>
-        )}
       </div>
       <h3>{recurso.titulo}</h3>
       <p>{recurso.descripcion}</p>
-      <div className="resource-card__meta"><span>{nivelNombre(niveles, recurso.nivelId)}</span></div>
-      <div className="resource-card__footer"><span>{recurso.area}</span><span>Actualizado {formatearFecha(recurso.actualizado)}</span></div>
+      <div className="resource-card__footer">
+        <span>{nivelNombre(niveles, recurso.nivelId)} · {recurso.area}</span>
+        <span>
+          {formatearFecha(recurso.actualizado)}
+          {accessState !== 'public' ? (
+            <span className="resource-card__access">
+              <LockKeyhole size={11} />
+              {accessState === 'restricted' ? 'Restringido' : 'Requiere ingreso'}
+            </span>
+          ) : null}
+        </span>
+      </div>
     </>
   )
-  return href ? <Link className="resource-card" href={href}>{content}</Link> : <article className="resource-card">{content}</article>
+  return href ? (
+    <Link className="resource-card" data-formato={recurso.formato} href={href}>{content}</Link>
+  ) : (
+    <article className="resource-card" data-formato={recurso.formato}>{content}</article>
+  )
 }

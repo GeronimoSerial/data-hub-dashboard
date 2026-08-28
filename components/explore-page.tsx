@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { Search, X } from 'lucide-react'
+import { ChevronDown, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useHubData } from '@/components/hub-data'
 import { ResourceCard } from '@/components/resource-card'
 import { FORMATOS, type Formato } from '@/lib/model'
@@ -44,6 +44,9 @@ export function ExplorePage() {
   const urlQuery = filters.q ?? ''
   const [query, setQuery] = React.useState(urlQuery)
   const [syncedQuery, setSyncedQuery] = React.useState(urlQuery)
+  const [filtersOpen, setFiltersOpen] = React.useState(
+    () => Boolean(filters.tema || filters.nivel || filters.formato),
+  )
 
   // Adjust the input state when the URL query changes (navigation/back-forward)
   // without performing a cascading render through an effect.
@@ -78,40 +81,59 @@ export function ExplorePage() {
   }
 
   return (
-    <div className="page-stack">
-      <header className="page-header">
-        <span className="eyebrow">Catálogo público</span>
-        <h1 className="page-title">Explorá información educativa</h1>
-        <p className="page-intro">Buscá por tema, nivel o formato. Los filtros quedan en la URL para que puedas volver o compartir esta vista.</p>
+    <div className="page-stack page-stack--tight">
+      <header className="explore-head">
+        <div className="explore-head__title">
+          <span className="eyebrow">Catálogo público</span>
+          <h1 className="page-title page-title--sm">Explorá información educativa</h1>
+        </div>
+        <p className="explore-head__note">Buscá por tema, nivel o formato. Los filtros quedan en la URL para volver o compartir esta vista.</p>
       </header>
 
-      <form className="hero-search" onSubmit={(event) => { event.preventDefault(); update({ q: query.trim() || undefined }) }} role="search">
-        <label htmlFor="resource-search" className="filter-field" style={{ flex: 1 }}>
-          <span>Buscar</span>
-          <Input id="resource-search" className="text-input" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Ejemplo: matrícula, trayectorias, Goya…" />
-        </label>
-        <Button type="submit"><Search size={18} /> Buscar</Button>
-      </form>
+      <div className="explore-controls">
+        <div className="explore-bar">
+          <form className="explore-search" onSubmit={(event) => { event.preventDefault(); update({ q: query.trim() || undefined }) }} role="search">
+            <div className="hero-search__line">
+              <Input id="resource-search" className="text-input" aria-label="Buscar en el catálogo" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="Matrícula, trayectorias, Goya…" />
+              <Button type="submit" aria-label="Buscar"><Search size={17} /><span className="explore-search__label">Buscar</span></Button>
+            </div>
+          </form>
 
-      <div className="filters filters-desktop" aria-label="Filtros del catálogo">
-        <Filter label="Tema" value={filters.tema ?? ALL} onValueChange={(value) => update({ tema: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los temas' }, ...filterOptions.temas]} />
-        <Filter label="Nivel" value={filters.nivel ?? ALL} onValueChange={(value) => update({ nivel: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los niveles' }, ...filterOptions.niveles]} />
-        <Filter label="Formato" value={filters.formato ?? ALL} onValueChange={(value) => update({ formato: value === ALL ? undefined : value as Formato })} options={[{ value: ALL, label: 'Todos los formatos' }, ...filterOptions.formatos]} />
-      </div>
+          <Button
+            className="filters-toggle filters-desktop"
+            variant="secondary"
+            aria-expanded={filtersOpen}
+            aria-controls="explore-filters"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal size={16} />
+            Filtros{active.length ? ` (${active.length})` : ''}
+            <ChevronDown className="filters-toggle__chevron" size={15} aria-hidden />
+          </Button>
 
-      <MobileFilters
-        filters={filters}
-        options={filterOptions}
-        activeCount={active.length}
-        onApply={(next) => update(next)}
-      />
-
-      {active.length ? (
-        <div className="active-filters" aria-label="Filtros activos">
-          {active.map((label) => <span className="badge" key={label}>{label}</span>)}
-          <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}><X size={15} /> Limpiar</Button>
+          <MobileFilters
+            filters={filters}
+            options={filterOptions}
+            activeCount={active.length}
+            onApply={(next) => update(next)}
+          />
         </div>
-      ) : null}
+
+        {filtersOpen ? (
+          <div id="explore-filters" className="filters filters-desktop" aria-label="Filtros del catálogo">
+            <Filter label="Tema" value={filters.tema ?? ALL} onValueChange={(value) => update({ tema: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los temas' }, ...filterOptions.temas]} />
+            <Filter label="Nivel" value={filters.nivel ?? ALL} onValueChange={(value) => update({ nivel: value === ALL ? undefined : value })} options={[{ value: ALL, label: 'Todos los niveles' }, ...filterOptions.niveles]} />
+            <Filter label="Formato" value={filters.formato ?? ALL} onValueChange={(value) => update({ formato: value === ALL ? undefined : value as Formato })} options={[{ value: ALL, label: 'Todos los formatos' }, ...filterOptions.formatos]} />
+          </div>
+        ) : null}
+
+        {active.length ? (
+          <div className="active-filters" aria-label="Filtros activos">
+            {active.map((label) => <span className="badge" key={label}>{label}</span>)}
+            <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}><X size={15} /> Limpiar</Button>
+          </div>
+        ) : null}
+      </div>
 
       <section className="section" aria-live="polite">
         <div className="section-head"><h2>Resultados</h2><span className="badge badge--neutral">{results.length} {results.length === 1 ? 'recurso' : 'recursos'}</span></div>

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu as MenuIcon, Moon, Search, Sun, UserRound } from 'lucide-react'
+import { ChevronDown, Menu as MenuIcon, Moon, Search, Sun, UserRound } from 'lucide-react'
 import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
@@ -16,6 +16,15 @@ const NAV = [
   { href: '/explorar', label: 'Explorar' },
 ]
 
+const ResourceDetailsContext = React.createContext({
+  expanded: false,
+  setExpanded: (_expanded: boolean) => {},
+})
+
+export function useResourceDetails() {
+  return React.useContext(ResourceDetailsContext)
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { mode, setMode } = useThemeMode()
   const router = useRouter()
@@ -24,6 +33,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sessionUser = session.data?.user
   const role = (sessionUser as { role?: Role } | undefined)?.role
   const mapViewer = isBleedViewerPath(pathname)
+  const resourceViewer = pathname.startsWith('/recursos/')
+  const [resourceDetailsExpanded, setResourceDetailsExpanded] = React.useState(false)
   const isCurrent = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
 
   async function signOut() {
@@ -95,11 +106,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem>
               </MenuContent>
             </Menu>
+
+            {resourceViewer ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="resource-details-toggle"
+                aria-label={resourceDetailsExpanded ? 'Ocultar detalles del recurso' : 'Mostrar detalles del recurso'}
+                aria-expanded={resourceDetailsExpanded}
+                aria-controls="resource-details"
+                onClick={() => setResourceDetailsExpanded((expanded) => !expanded)}
+              >
+                <ChevronDown size={20} aria-hidden />
+              </Button>
+            ) : null}
           </div>
         </div>
       </header>
 
-      <main className={mapViewer ? 'app-content--bleed' : 'app-content'}>{children}</main>
+      <ResourceDetailsContext.Provider value={{ expanded: resourceDetailsExpanded, setExpanded: setResourceDetailsExpanded }}>
+        <main className={mapViewer ? 'app-content--bleed' : 'app-content'}>{children}</main>
+      </ResourceDetailsContext.Provider>
 
       {mapViewer ? null : (
         <footer className="app-footer">

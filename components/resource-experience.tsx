@@ -1,11 +1,10 @@
 'use client'
 
-import Link from 'next/link'
 import type { Recurso } from '@/lib/model'
 import { presentResource, relatedResources } from '@/lib/resource-presentation'
 import { authClient } from '@/lib/auth-client'
+import { useResourceDetails } from '@/components/app-shell'
 import { Breadcrumbs } from '@/components/ui/breadcrumb'
-import { Button } from '@/components/ui/button'
 import { ResourceCard } from '@/components/resource-card'
 import { RecursoViewer } from '@/components/recurso-viewer'
 import { ExplainResource } from '@/components/explain-resource'
@@ -25,36 +24,43 @@ export function ResourceExperience({
   related: Recurso[]
 }) {
   const session = authClient.useSession()
+  const { expanded } = useResourceDetails()
   const view = presentResource(
     recurso,
     { categorias, niveles, tipos },
     { isPending: session.isPending, hasUser: Boolean(session.data?.user) },
   )
   const recommendations = relatedResources(recurso, related)
-  const target = view.target
   return (
-    <div className="page-stack resource-experience">
-      <Breadcrumbs items={view.breadcrumbs} />
-      <header className="resource-header">
-        <div className="resource-card__top">
-          <span className="badge">{view.formatLabel}</span>
-          <span className="badge badge--neutral">{view.topicLabel}</span>
-          <span className={view.accessState === 'restricted' ? 'badge badge--locked' : 'badge badge--neutral'}>{view.accessLabel}</span>
-        </div>
-        <h1 className="page-title">{view.title}</h1>
-        <p className="page-intro">{view.description}</p>
-        <div className="metadata" aria-label="Información del recurso">
-          <span>Nivel: {view.levelLabel}</span>
-          <span>Tipo: {view.typeLabel}</span>
-          <span>Actualizado: {view.updatedLabel}</span>
-          <span>Área: {recurso.area}</span>
-        </div>
-        <div className="resource-actions">
-          {target && target !== `/recursos/${recurso.id}` ? <Button render={<Link href={target} />}>{view.primaryAction}</Button> : <Button render={<a href="#resource-content" />}>{view.primaryAction}</Button>}
-          <ExplainResource resourceId={recurso.id} />
-          <ShareView />
-        </div>
-      </header>
+    <div className="resource-experience">
+      {expanded ? (
+        <section id="resource-details" className="resource-details-panel" aria-label="Detalles del recurso">
+          <Breadcrumbs items={view.breadcrumbs} />
+          <div className="resource-details-panel__heading">
+            <div>
+              <div className="resource-card__top">
+                <span className="badge">{view.formatLabel}</span>
+                <span className="badge badge--neutral">{view.topicLabel}</span>
+                <span className={view.accessState === 'restricted' ? 'badge badge--locked' : 'badge badge--neutral'}>{view.accessLabel}</span>
+              </div>
+              <h1 className="page-title page-title--sm">{view.title}</h1>
+            </div>
+            <div className="resource-actions">
+              <ExplainResource resourceId={recurso.id} />
+              <ShareView />
+            </div>
+          </div>
+          <div className="resource-details-panel__body">
+            <p className="page-intro">{view.description}</p>
+            <dl className="metadata" aria-label="Información del recurso">
+              <div><dt>Nivel</dt><dd>{view.levelLabel}</dd></div>
+              <div><dt>Tipo</dt><dd>{view.typeLabel}</dd></div>
+              <div><dt>Actualizado</dt><dd>{view.updatedLabel}</dd></div>
+              <div><dt>Área</dt><dd>{recurso.area}</dd></div>
+            </dl>
+          </div>
+        </section>
+      ) : null}
       <section id="resource-content" aria-label="Contenido del recurso" className="resource-viewer-section">
         <RecursoViewer recurso={recurso} />
       </section>
