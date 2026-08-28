@@ -1,7 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Button, Input } from '@fluentui/react-components'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import type { EstablishmentProperties } from '@/lib/map-types'
 import type { MapData } from '@/lib/use-map-data'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
@@ -53,7 +54,7 @@ export function SearchBox({ data, onSelect }: Props) {
         type="search"
         placeholder="Nombre o CUE…"
         value={query}
-        onChange={(_e, d) => setQuery(d.value)}
+        onChange={(event) => setQuery(event.currentTarget.value)}
         aria-label="Buscar establecimiento"
       />
       {results.length > 0 && (
@@ -61,7 +62,8 @@ export function SearchBox({ data, onSelect }: Props) {
           {results.map((hit) => (
             <li key={hit.cue}>
               <Button
-                appearance="subtle"
+                variant="ghost"
+                size="sm"
                 className={styles.searchHit}
                 onClick={() => {
                   onSelect(hit)

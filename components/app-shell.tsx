@@ -1,267 +1,110 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  makeStyles,
-  tokens,
-  typographyStyles,
-  Caption1,
-  Button,
-  ToggleButton,
-  Tooltip,
-  Tab,
-  TabList,
-  mergeClasses,
-  type SelectTabData,
-  type SelectTabEvent,
-} from '@fluentui/react-components'
-import {
-  WeatherMoon24Regular,
-  WeatherSunny24Regular,
-  Home24Regular,
-  DataArea24Regular,
-  Map24Regular,
-  DocumentText24Regular,
-  Settings24Regular,
-} from '@fluentui/react-icons'
+import { Menu as MenuIcon, Moon, Search, Sun, UserRound } from 'lucide-react'
 import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
-import { isBleedViewerPath, isReadyHref } from '@/lib/nav'
+import { isBleedViewerPath } from '@/lib/nav'
+import { Button } from '@/components/ui/button'
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
 
 const NAV = [
-  { value: '/', label: 'Inicio', icon: <Home24Regular /> },
-  { value: '/reportes', label: 'Reportes', icon: <DocumentText24Regular /> },
-  { value: '/tableros', label: 'Tableros', icon: <DataArea24Regular /> },
-  { value: '/mapas', label: 'Mapas', icon: <Map24Regular /> },
-  { value: '/admin', label: 'Administración', icon: <Settings24Regular /> },
+  { href: '/', label: 'Inicio' },
+  { href: '/explorar', label: 'Explorar' },
 ]
 
-const useStyles = makeStyles({
-  page: {
-    minHeight: '100vh',
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: tokens.colorNeutralBackground2,
-    color: tokens.colorNeutralForeground1,
-  },
-  pageViewer: {
-    height: '100vh',
-  },
-  ribbon: {
-    height: '4px',
-    background: `linear-gradient(90deg, ${tokens.colorPaletteRedBackground3} 0 20%, ${tokens.colorPaletteMarigoldBackground3} 20% 40%, ${tokens.colorBrandBackground} 40% 65%, ${tokens.colorPaletteYellowBackground3} 65% 100%)`,
-  },
-  masthead: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: tokens.spacingHorizontalM,
-    paddingLeft: tokens.spacingHorizontalXXL,
-    paddingRight: tokens.spacingHorizontalXXL,
-    paddingTop: tokens.spacingVerticalM,
-    paddingBottom: tokens.spacingVerticalM,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `${tokens.strokeWidthThin} solid ${tokens.colorNeutralStroke2}`,
-  },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: tokens.spacingHorizontalM,
-  },
-  seal: {
-    width: '36px',
-    height: '36px',
-    borderRadius: tokens.borderRadiusCircular,
-    background: `radial-gradient(circle at center, ${tokens.colorPaletteYellowBackground3} 0 30%, ${tokens.colorPaletteGreenBackground3} 31% 55%, ${tokens.colorPaletteRedBackground3} 56% 75%, ${tokens.colorBrandBackground} 76%)`,
-    flexShrink: 0,
-  },
-  brandText: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  brandTitle: {
-    ...typographyStyles.subtitle2,
-  },
-  division: {
-    color: tokens.colorNeutralForeground3,
-    textAlign: 'right',
-    letterSpacing: '0.4px',
-  },
-  actions: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: tokens.spacingHorizontalM,
-  },
-  navBar: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: tokens.spacingHorizontalM,
-    paddingLeft: tokens.spacingHorizontalXXL,
-    paddingRight: tokens.spacingHorizontalXXL,
-    backgroundColor: tokens.colorNeutralBackground1,
-    borderBottom: `${tokens.strokeWidthThin} solid ${tokens.colorNeutralStroke2}`,
-    position: 'sticky',
-    top: 0,
-    zIndex: 10,
-  },
-  content: {
-    flexGrow: 1,
-    width: '100%',
-    maxWidth: '1180px',
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    paddingLeft: tokens.spacingHorizontalXXL,
-    paddingRight: tokens.spacingHorizontalXXL,
-    paddingTop: tokens.spacingVerticalXXL,
-    paddingBottom: tokens.spacingVerticalXXXL,
-    minHeight: 0,
-  },
-  contentBleed: {
-    flexGrow: 1,
-    width: '100%',
-    maxWidth: 'none',
-    marginLeft: 0,
-    marginRight: 0,
-    paddingLeft: 0,
-    paddingRight: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
-    minHeight: 0,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  footer: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: tokens.spacingHorizontalM,
-    paddingLeft: tokens.spacingHorizontalXXL,
-    paddingRight: tokens.spacingHorizontalXXL,
-    paddingTop: tokens.spacingVerticalL,
-    paddingBottom: tokens.spacingVerticalL,
-    borderTop: `${tokens.strokeWidthThick} solid ${tokens.colorPaletteYellowBackground3}`,
-    backgroundColor: tokens.colorNeutralBackground1,
-    color: tokens.colorNeutralForeground3,
-  },
-})
-
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const styles = useStyles()
   const { mode, setMode } = useThemeMode()
   const router = useRouter()
   const pathname = usePathname()
   const session = authClient.useSession()
   const sessionUser = session.data?.user
   const role = (sessionUser as { role?: Role } | undefined)?.role
-
-  // Match the deepest nav item (so /reportes/x still highlights Reportes).
-  const visibleNav = NAV.filter((n) =>
-    n.value !== '/admin' ? isReadyHref(n.value) : isStaff(role),
-  )
   const mapViewer = isBleedViewerPath(pathname)
+  const isCurrent = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
 
-  const selected =
-    visibleNav
-      .filter((n) => n.value !== '/')
-      .sort((a, b) => b.value.length - a.value.length)
-      .find((n) => pathname.startsWith(n.value))?.value ?? '/'
-
-  const onTabSelect = (_e: SelectTabEvent, data: SelectTabData) => {
-    router.push(data.value as string)
+  async function signOut() {
+    await authClient.signOut()
+    router.replace('/')
   }
 
   return (
-    <div
-      className={mergeClasses(styles.page, mapViewer && styles.pageViewer)}
-    >
-      <div className={styles.ribbon} />
-      <header className={styles.masthead}>
-        <div className={styles.brand}>
-          <span className={styles.seal} aria-hidden />
-          <span className={styles.brandText}>
-            <span className={styles.brandTitle}>Análisis Educativo</span>
-            <Caption1>Ministerio de Educación · Corrientes</Caption1>
-          </span>
+    <div className={`app-page${mapViewer ? ' app-page--viewer' : ''}`}>
+      <div className="app-ribbon" />
+      <header className="app-header">
+        <div className="app-header__inner">
+          <Link href="/" className="app-brand" aria-label="Hub de Datos, inicio">
+            <span className="app-brand__seal" aria-hidden />
+            <span className="app-brand__text">
+              <strong>Análisis Educativo</strong>
+              <small>Ministerio de Educación · Corrientes</small>
+            </span>
+          </Link>
+
+          <nav className="app-nav" aria-label="Navegación principal">
+            {NAV.map((item) => (
+              <Link key={item.href} href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="app-actions">
+            <Link href="/explorar" className="ui-button ui-button--ghost ui-button--icon" aria-label="Buscar recursos">
+              <Search size={19} />
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
+              aria-label={mode === 'light' ? 'Usar tema oscuro' : 'Usar tema claro'}
+            >
+              {mode === 'light' ? <Moon size={19} /> : <Sun size={19} />}
+            </Button>
+
+            <Menu>
+              <MenuTrigger render={<Button variant="ghost" aria-label="Menú de cuenta" />}>
+                <UserRound size={19} />
+                <span className="app-actions__name">{sessionUser?.name ?? 'Cuenta'}</span>
+              </MenuTrigger>
+              <MenuContent>
+                {sessionUser ? (
+                  <>
+                    {isStaff(role) ? (
+                      <MenuItem onClick={() => router.push('/admin')}>Administración</MenuItem>
+                    ) : null}
+                    <MenuItem onClick={signOut}>Cerrar sesión</MenuItem>
+                  </>
+                ) : (
+                  <MenuItem onClick={() => router.push('/login')}>Iniciar sesión</MenuItem>
+                )}
+              </MenuContent>
+            </Menu>
+
+            <Menu>
+              <MenuTrigger render={<Button className="app-mobile" variant="ghost" size="icon" aria-label="Abrir navegación" />}>
+                <MenuIcon size={20} />
+              </MenuTrigger>
+              <MenuContent>
+                {NAV.map((item) => (
+                  <MenuItem key={item.href} onClick={() => router.push(item.href)}>{item.label}</MenuItem>
+                ))}
+                <MenuItem onClick={() => router.push('/explorar')}>Buscar</MenuItem>
+              </MenuContent>
+            </Menu>
+          </div>
         </div>
-        <Caption1 className={styles.division}>
-          DIRECCIÓN DE GESTIÓN ESCOLAR
-          <br />
-          DIRECCIÓN DE SISTEMAS DE INFORMACIÓN
-        </Caption1>
       </header>
 
-      <nav className={styles.navBar} aria-label="Navegación principal">
-        <TabList
-          selectedValue={selected}
-          onTabSelect={onTabSelect}
-          size="large"
-        >
-          {visibleNav.map((n) => (
-            <Tab key={n.value} value={n.value} icon={n.icon}>
-              {n.label}
-            </Tab>
-          ))}
-        </TabList>
-        <div className={styles.actions}>
-          {sessionUser ? (
-            <>
-              <Caption1>{sessionUser.name}</Caption1>
-              <Button
-                appearance="subtle"
-                onClick={async () => {
-                  await authClient.signOut()
-                  router.replace('/')
-                }}
-              >
-                Salir
-              </Button>
-            </>
-          ) : (
-            <Button
-              appearance="subtle"
-              onClick={() => router.push('/login')}
-            >
-              Iniciar sesión
-            </Button>
-          )}
-          <Tooltip
-            content={mode === 'light' ? 'Tema oscuro' : 'Tema claro'}
-            relationship="label"
-          >
-            <ToggleButton
-              checked={mode === 'dark'}
-              onClick={() => setMode(mode === 'light' ? 'dark' : 'light')}
-              icon={
-                mode === 'light' ? (
-                  <WeatherMoon24Regular />
-                ) : (
-                  <WeatherSunny24Regular />
-                )
-              }
-              appearance="subtle"
-              aria-label="Cambiar tema"
-            />
-          </Tooltip>
-        </div>
-      </nav>
-
-      <main className={mapViewer ? styles.contentBleed : styles.content}>
-        {children}
-      </main>
+      <main className={mapViewer ? 'app-content--bleed' : 'app-content'}>{children}</main>
 
       {mapViewer ? null : (
-        <footer className={styles.footer}>
-          <Caption1>
-            Ministerio de Educación de Corrientes · Gobierno de la Provincia
-          </Caption1>
-          <Caption1>Hub de Datos · Información para decidir</Caption1>
+        <footer className="app-footer">
+          <span>Ministerio de Educación de Corrientes</span>
+          <span>Hub de Datos · Información para decidir</span>
         </footer>
       )}
     </div>

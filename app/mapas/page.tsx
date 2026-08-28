@@ -1,5 +1,3 @@
-import { CatalogPage } from '@/components/catalog-page'
+import { redirect } from 'next/navigation'
 
-export default function Mapas() {
-  return <CatalogPage formato="mapa" />
-}
+export default function Mapas() { redirect('/explorar?formato=mapa') }

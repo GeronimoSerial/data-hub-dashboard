@@ -3,53 +3,10 @@
 import * as React from 'react'
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import {
-  makeStyles,
-  tokens,
-  typographyStyles,
-  Button,
-  Caption1,
-  Field,
-  Input,
-  MessageBar,
-  MessageBarBody,
-  Title3,
-} from '@fluentui/react-components'
 import { authClient } from '@/lib/auth-client'
-
-const useStyles = makeStyles({
-  wrap: {
-    display: 'flex',
-    justifyContent: 'center',
-  },
-  card: {
-    width: '100%',
-    maxWidth: '420px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalL,
-    padding: tokens.spacingHorizontalXXL,
-    backgroundColor: tokens.colorNeutralBackground1,
-    border: `${tokens.strokeWidthThin} solid ${tokens.colorNeutralStroke2}`,
-    borderRadius: tokens.borderRadiusXLarge,
-  },
-  header: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalXS,
-  },
-  intro: {
-    color: tokens.colorNeutralForeground2,
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalM,
-  },
-  title: {
-    ...typographyStyles.subtitle1,
-  },
-})
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 
 function callbackUrlFromSearch(raw: string | null) {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/'
@@ -57,17 +14,16 @@ function callbackUrlFromSearch(raw: string | null) {
 }
 
 function LoginForm() {
-  const styles = useStyles()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
-  const [error, setError] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(false)
+    setError(null)
     setPending(true)
     const { error: signInError } = await authClient.signIn.email({
       email,
@@ -75,46 +31,50 @@ function LoginForm() {
     })
     setPending(false)
     if (signInError) {
-      setError(true)
+      setError('No se pudo iniciar sesión')
       return
     }
     router.replace(callbackUrlFromSearch(searchParams.get('callbackUrl')))
   }
 
   return (
-    <div className={styles.wrap}>
-      <div className={styles.card}>
-        <div className={styles.header}>
-          <Title3 className={styles.title}>Iniciar sesión</Title3>
-          <Caption1 className={styles.intro}>
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-header">
+          <h1 className="page-title page-title--sm">Iniciar sesión</h1>
+          <p className="auth-intro">
             Ingrese con la cuenta asignada por administración.
-          </Caption1>
+          </p>
         </div>
         {error ? (
-          <MessageBar intent="error">
-            <MessageBarBody>No se pudo iniciar sesión</MessageBarBody>
-          </MessageBar>
+          <p role="alert" className="ui-messagebar ui-messagebar--error">
+            {error}
+          </p>
         ) : null}
-        <form className={styles.form} onSubmit={onSubmit}>
-          <Field label="Correo" required>
+        <form className="auth-form" onSubmit={onSubmit}>
+          <Field name="email">
+            <FieldLabel>Correo</FieldLabel>
             <Input
               type="email"
               name="email"
               autoComplete="username"
               value={email}
-              onChange={(_, data) => setEmail(data.value)}
+              onChange={(event) => setEmail(event.currentTarget.value)}
             />
+            <FieldError />
           </Field>
-          <Field label="Contraseña" required>
+          <Field name="password">
+            <FieldLabel>Contraseña</FieldLabel>
             <Input
               type="password"
               name="password"
               autoComplete="current-password"
               value={password}
-              onChange={(_, data) => setPassword(data.value)}
+              onChange={(event) => setPassword(event.currentTarget.value)}
             />
+            <FieldError />
           </Field>
-          <Button type="submit" appearance="primary" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             Iniciar sesión
           </Button>
         </form>

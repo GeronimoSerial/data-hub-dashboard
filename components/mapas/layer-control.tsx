@@ -1,9 +1,9 @@
 'use client'
 
-import { Checkbox } from '@fluentui/react-components'
 import { COPY } from '@/lib/copy/didactica'
 import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { Checkbox } from '@/components/ui/checkbox'
 
 type Props = {
   overlays: Record<OverlayKey, boolean>
@@ -31,7 +31,7 @@ export function LayerControl({ overlays, onChange }: Props) {
           <Checkbox
             label={OVERLAY_LABELS[key]}
             checked={overlays[key]}
-            onChange={(_e, data) => onChange(key, Boolean(data.checked))}
+            onCheckedChange={(checked) => onChange(key, checked)}
           />
           {key === 'sobreoferta' && overlays.sobreoferta && (
             <div className={styles.layerTip}>{COPY.layers.sobreofertaTip}</div>

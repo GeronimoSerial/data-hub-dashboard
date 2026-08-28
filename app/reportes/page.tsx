@@ -1,5 +1,3 @@
-import { ReportesPage } from '@/components/reportes-page'
+import { redirect } from 'next/navigation'
 
-export default function Reportes() {
-  return <ReportesPage />
-}
+export default function Reportes() { redirect('/explorar?formato=reporte') }
