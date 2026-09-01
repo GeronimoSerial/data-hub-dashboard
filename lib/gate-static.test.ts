@@ -50,6 +50,17 @@ describe('publicAbsPath', () => {
     expect(abs).not.toBeNull()
     expect(abs!).toContain('tablero')
   })
+
+  it('resolves the pilot document and its inline assets under public/', () => {
+    const root = publicAbsPath('/tablero')
+    expect(root).not.toBeNull()
+    const index = path.join(root!, 'index.html')
+    expect(existsSync(index)).toBe(true)
+    const html = readFileSync(index, 'utf8')
+    expect(html).toContain('<script>')
+    expect(html).toContain('href="/mapa_interactivo/')
+    expect(html).toContain('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js')
+  })
 })
 
 describe('gateContentType', () => {
@@ -132,3 +143,4 @@ describe('publicOrigin', () => {
     }
   })
 })
+import { existsSync, readFileSync } from 'node:fs'

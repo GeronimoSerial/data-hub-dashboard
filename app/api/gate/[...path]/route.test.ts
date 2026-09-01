@@ -102,6 +102,21 @@ describe('GET /api/gate/[...path]', () => {
     expect(body.startsWith('%PDF')).toBe(true)
   })
 
+  it('streams the tablero pilot document and its inline capabilities', async () => {
+    vi.mocked(getSessionUser).mockResolvedValueOnce(consulta)
+    vi.mocked(loadRecursoAccessByRuta).mockResolvedValueOnce({
+      id: 'r2',
+      access: OPEN,
+    })
+    const res = await GET(request('/tablero'), ctx(['tablero']))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('text/html; charset=utf-8')
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    const body = await res.text()
+    expect(body).toContain('<title>Tablero Nominal de Alertas de Trayectorias')
+    expect(body).toContain('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js')
+  })
+
   it('never serves a path that escapes public/ (404 instead)', async () => {
     vi.mocked(getSessionUser).mockResolvedValueOnce(admin)
     vi.mocked(loadRecursoAccessByRuta).mockResolvedValueOnce({

@@ -34,7 +34,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const role = (sessionUser as { role?: Role } | undefined)?.role
   const mapViewer = isBleedViewerPath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
-  const [resourceDetailsExpanded, setResourceDetailsExpanded] = React.useState(false)
+  const [resourceDetails, setResourceDetails] = React.useState({ pathname, expanded: false })
+  const resourceDetailsExpanded = resourceDetails.pathname === pathname && resourceDetails.expanded
+  const setResourceDetailsExpanded = React.useCallback((next: boolean | ((value: boolean) => boolean)) => {
+    setResourceDetails((current) => {
+      const expanded = current.pathname === pathname ? current.expanded : false
+      return {
+        pathname,
+        expanded: typeof next === 'function' ? next(expanded) : next,
+      }
+    })
+  }, [pathname])
   const isCurrent = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
 
   async function signOut() {

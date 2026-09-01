@@ -43,6 +43,8 @@ export function archivoResponseHeaders(opts: {
   mime: string
   nombreOriginal: string
   download: boolean
+  /** Enables CSV downloads for the isolated tablero seed only. */
+  allowDownloads?: boolean
 }): Record<string, string> {
   const attachment =
     opts.download || (DOWNLOAD_MIMES as readonly string[]).includes(opts.mime)
@@ -50,7 +52,7 @@ export function archivoResponseHeaders(opts: {
   const filename = safeFilename(opts.nombreOriginal)
   const csp =
     opts.mime === 'text/html'
-      ? "frame-ancestors 'self'; sandbox allow-scripts allow-forms"
+      ? `frame-ancestors 'self'; sandbox allow-scripts allow-forms${opts.allowDownloads ? ' allow-downloads' : ''}`
       : "frame-ancestors 'self'"
   return {
     'X-Content-Type-Options': 'nosniff',

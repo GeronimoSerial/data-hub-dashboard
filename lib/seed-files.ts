@@ -1,10 +1,13 @@
 import { copyFileSync, mkdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { archivoAbsPath, archivoStorageKey } from '@/lib/archivo'
+export { isTableroSeed } from '@/lib/resource-pilot'
 
 export type SeedPublicFile = {
   id: string
   publicRel: string
+  /** Historical URL retained for the gated direct-document route. */
+  legacyRuta?: string
   mime: string
   nombreOriginal: string
 }
@@ -14,24 +17,28 @@ export const SEED_PUBLIC_FILES: SeedPublicFile[] = [
   {
     id: 'r2',
     publicRel: 'tablero/index.html',
+    legacyRuta: '/tablero',
     mime: 'text/html',
     nombreOriginal: 'tablero.html',
   },
   {
     id: 'r3',
     publicRel: 'mapa_interactivo/index.html',
+    legacyRuta: '/mapa_interactivo',
     mime: 'text/html',
     nombreOriginal: 'mapa_interactivo.html',
   },
   {
     id: 'r13',
     publicRel: 'mapa_sobreedad/index.html',
+    legacyRuta: '/mapa_sobreedad',
     mime: 'text/html',
     nombreOriginal: 'mapa_sobreedad.html',
   },
   {
     id: 'r14',
     publicRel: 'mapa_notas/index.html',
+    legacyRuta: '/mapa_notas',
     mime: 'text/html',
     nombreOriginal: 'mapa_notas.html',
   },
@@ -57,6 +64,10 @@ export const SEED_PUBLIC_FILES: SeedPublicFile[] = [
 
 export function seedStorageKey(id: string) {
   return archivoStorageKey(id, 'seed')
+}
+
+export function seedResourceIdForRuta(ruta: string) {
+  return SEED_PUBLIC_FILES.find((spec) => spec.legacyRuta === ruta)?.id ?? null
 }
 
 export function shouldReplaceWithSeedFile(row: {

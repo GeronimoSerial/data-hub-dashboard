@@ -98,16 +98,27 @@ export function MobileFilters({
 }) {
   const [open, setOpen] = React.useState(false)
   const [draft, setDraft] = React.useState<ExploreFilters>(filters)
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const restoreFocusRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (open || !restoreFocusRef.current) return
+    restoreFocusRef.current = false
+    triggerRef.current?.focus()
+  }, [open])
 
   const onOpenChange = (next: boolean) => {
     if (next) setDraft(filters)
+    else restoreFocusRef.current = true
     setOpen(next)
   }
 
   const apply = () => {
     onApply(draft)
-    setOpen(false)
+    onOpenChange(false)
   }
+
+  const cancel = () => onOpenChange(false)
 
   const setDraftField = (key: keyof ExploreFilters, value: string) => {
     setDraft((prev) => ({
@@ -118,7 +129,7 @@ export function MobileFilters({
 
   return (
     <SheetRoot open={open} onOpenChange={onOpenChange}>
-      <SheetTrigger render={<Button className="mobile-filters-toggle" variant="secondary" />}>
+      <SheetTrigger ref={triggerRef} render={<Button className="mobile-filters-toggle" variant="secondary" />}>
         <SlidersHorizontal size={16} />Filtros{activeCount ? ` (${activeCount})` : ''}
       </SheetTrigger>
       <SheetContent side="bottom">
@@ -150,7 +161,7 @@ export function MobileFilters({
           </Button>
         </div>
         <div className="filters-sheet-actions">
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button variant="ghost" onClick={cancel}>Cancelar</Button>
           <Button onClick={apply}>Aplicar filtros</Button>
         </div>
       </SheetContent>
