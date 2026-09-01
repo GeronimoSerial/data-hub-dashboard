@@ -25,15 +25,15 @@ interface HubData {
   tags: Tag[]
   writeError: string | null
   upsertRecurso: (r: Recurso, file?: File | null) => Promise<boolean>
-  removeRecurso: (id: string) => void
-  upsertNivel: (n: Nivel) => void
-  removeNivel: (id: string) => void
-  upsertTipo: (t: Tipo) => void
-  removeTipo: (id: string) => void
-  upsertCategoria: (c: Categoria) => void
-  removeCategoria: (id: string) => void
-  upsertTag: (t: Tag) => void
-  removeTag: (id: string) => void
+  removeRecurso: (id: string) => Promise<boolean>
+  upsertNivel: (n: Nivel) => Promise<boolean>
+  removeNivel: (id: string) => Promise<boolean>
+  upsertTipo: (t: Tipo) => Promise<boolean>
+  removeTipo: (id: string) => Promise<boolean>
+  upsertCategoria: (c: Categoria) => Promise<boolean>
+  removeCategoria: (id: string) => Promise<boolean>
+  upsertTag: (t: Tag) => Promise<boolean>
+  removeTag: (id: string) => Promise<boolean>
 }
 
 const HubDataContext = React.createContext<HubData | null>(null)
@@ -196,63 +196,52 @@ export function HubDataProvider({ children }: { children: React.ReactNode }) {
   )
 
   const removeRecurso = React.useCallback(
-    (id: string) => {
-      void (async () => {
-        setWriteError(null)
-        const res = await fetch(`/api/recursos/${encodeURIComponent(id)}`, {
-          method: 'DELETE',
-        })
-        if (!res.ok) {
-          setWriteError(await readError(res))
-          return
-        }
-        await reload()
-      })()
+    async (id: string) => {
+      setWriteError(null)
+      const res = await fetch(`/api/recursos/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        setWriteError(await readError(res))
+        return false
+      }
+      await reload()
+      return true
     },
     [reload],
   )
 
   const writeTaxonomia = React.useCallback(
-    (kind: string, item: unknown) => {
-      void (async () => {
-        setWriteError(null)
-        const res = await fetch(`/api/taxonomia/${kind}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(item),
-        })
-        if (res.status === 403) {
-          setWriteError(await readError(res))
-          return
-        }
-        if (!res.ok) {
-          setWriteError(await readError(res))
-          return
-        }
-        await reload()
-      })()
+    async (kind: string, item: unknown) => {
+      setWriteError(null)
+      const res = await fetch(`/api/taxonomia/${kind}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      })
+      if (!res.ok) {
+        setWriteError(await readError(res))
+        return false
+      }
+      await reload()
+      return true
     },
     [reload],
   )
 
   const removeTaxonomia = React.useCallback(
-    (kind: string, id: string) => {
-      void (async () => {
-        setWriteError(null)
-        const res = await fetch(
-          `/api/taxonomia/${kind}?id=${encodeURIComponent(id)}`,
-          { method: 'DELETE' },
-        )
-        if (res.status === 403) {
-          setWriteError(await readError(res))
-          return
-        }
-        if (!res.ok) {
-          setWriteError(await readError(res))
-          return
-        }
-        await reload()
-      })()
+    async (kind: string, id: string) => {
+      setWriteError(null)
+      const res = await fetch(
+        `/api/taxonomia/${kind}?id=${encodeURIComponent(id)}`,
+        { method: 'DELETE' },
+      )
+      if (!res.ok) {
+        setWriteError(await readError(res))
+        return false
+      }
+      await reload()
+      return true
     },
     [reload],
   )
