@@ -54,7 +54,7 @@ export async function GET(request: Request, ctx: Ctx) {
     return new NextResponse(null, { status: 404 })
   }
   if (!puedeAbrir(user, found.access)) {
-    return absoluteRedirect(request, '/forbidden')
+    return absoluteRedirect(request, `/forbidden?next=${encodeURIComponent(requestPath)}`)
   }
 
   const abs = publicAbsPath(requestPath)

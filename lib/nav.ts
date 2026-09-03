@@ -47,3 +47,15 @@ export function isBleedViewerPath(pathname: string) {
   return !rest.includes('.')
 }
 
+export function normalizeLoginCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return '/'
+  return raw
+}
+
+// Forbidden keeps the intended destination as a validated internal path so the
+// user can return without the page trusting or leaking arbitrary input.
+export function normalizeForbiddenNext(raw: string | null | undefined): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
+  return raw
+}
+

@@ -51,7 +51,7 @@ export function resourceAccessState(
 export function resourcePrimaryAction(recurso: Pick<Recurso, 'formato' | 'storageKey' | 'ruta'>) {
   if (recurso.formato === 'mapa') return 'Abrir mapa'
   if (recurso.formato === 'tablero') return 'Abrir tablero'
-  return recurso.storageKey ? 'Ver reporte' : 'Abrir recurso'
+  return 'Ver reporte'
 }
 
 export function presentResource(

@@ -3,6 +3,7 @@ import {
   canonicalizeExploreSearch,
   exploreHref,
   normalizeExploreText,
+  normalizeExploreQuery,
   parseExploreFilters,
 } from './explore-filters'
 
@@ -27,6 +28,11 @@ describe('explore filters', () => {
 
   it('normalizes accents for search matching', () => {
     expect(normalizeExploreText('Matrícula · Gestión')).toBe('matricula · gestion')
+  })
+
+  it('normalizes submitted queries exactly once for URL serialization', () => {
+    expect(normalizeExploreQuery('  Goya  ')).toBe('goya')
+    expect(normalizeExploreQuery('MATRÍCULA')).toBe('matrícula')
   })
 })
 
@@ -61,5 +67,18 @@ describe('canonicalizeExploreSearch', () => {
       canonical: 'q=matr%C3%ADcula',
       changed: false,
     })
+  })
+
+  it('restores all four filters from each Back/Forward URL state', () => {
+    const back = parseExploreFilters(
+      new URLSearchParams('q=goya&tema=matricula&nivel=primario&formato=mapa'),
+      { temas: new Set(['matricula']), niveles: new Set(['primario', 'secundario']) },
+    )
+    const forward = parseExploreFilters(
+      new URLSearchParams('q=trayectorias&tema=matricula&nivel=secundario&formato=reporte'),
+      { temas: new Set(['matricula']), niveles: new Set(['primario', 'secundario']) },
+    )
+    expect(back).toEqual({ q: 'goya', tema: 'matricula', nivel: 'primario', formato: 'mapa' })
+    expect(forward).toEqual({ q: 'trayectorias', tema: 'matricula', nivel: 'secundario', formato: 'reporte' })
   })
 })

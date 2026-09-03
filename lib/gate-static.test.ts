@@ -13,8 +13,17 @@ describe('gateLookupRuta', () => {
     expect(gateLookupRuta('/tablero')).toBe('/tablero')
     expect(gateLookupRuta('/tablero/')).toBe('/tablero')
     expect(gateLookupRuta('/tablero/index.html')).toBe('/tablero')
+    expect(gateLookupRuta('/mapa_interactivo/index.html')).toBe(
+      '/mapa_interactivo',
+    )
     expect(gateLookupRuta('/recursos/reporte-sobreedad-inicial.pdf')).toBe(
       '/recursos/reporte-sobreedad-inicial.pdf',
+    )
+  })
+
+  it('only maps the root index.html, nested html stays as a full path', () => {
+    expect(gateLookupRuta('/mapa_interactivo/sub/index.html')).toBe(
+      '/mapa_interactivo/sub/index.html',
     )
   })
 })
@@ -29,6 +38,29 @@ describe('publicAbsPath', () => {
     expect(publicAbsPath('/tablero/../.env')).toBeNull()
     expect(publicAbsPath('/tablero/../../etc/passwd')).toBeNull()
   })
+
+  it('rejects backslash traversal and null bytes', () => {
+    expect(publicAbsPath('/tablero/..\\..\\etc\\passwd')).toBeNull()
+    expect(publicAbsPath('/tablero\\..\\secret')).toBeNull()
+    expect(publicAbsPath('/tablero/\0secret')).toBeNull()
+  })
+
+  it('does not decode percent-encoded dot segments (resolved inside public/)', () => {
+    const abs = publicAbsPath('/tablero/%2e%2e/secret')
+    expect(abs).not.toBeNull()
+    expect(abs!).toContain('tablero')
+  })
+
+  it('resolves the pilot document and its inline assets under public/', () => {
+    const root = publicAbsPath('/tablero')
+    expect(root).not.toBeNull()
+    const index = path.join(root!, 'index.html')
+    expect(existsSync(index)).toBe(true)
+    const html = readFileSync(index, 'utf8')
+    expect(html).toContain('<script>')
+    expect(html).toContain('href="/mapa_interactivo/')
+    expect(html).toContain('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js')
+  })
 })
 
 describe('gateContentType', () => {
@@ -37,6 +69,17 @@ describe('gateContentType', () => {
       'text/html; charset=utf-8',
     )
     expect(gateContentType('reporte.pdf')).toBe('application/pdf')
+  })
+
+  it('is case-insensitive and maps .htm to html', () => {
+    expect(gateContentType('/x.HTML')).toBe('text/html; charset=utf-8')
+    expect(gateContentType('/x.PDF')).toBe('application/pdf')
+    expect(gateContentType('/x.htm')).toBe('text/html; charset=utf-8')
+  })
+
+  it('defaults unknown files to octet-stream', () => {
+    expect(gateContentType('/x.json')).toBe('application/octet-stream')
+    expect(gateContentType('/x')).toBe('application/octet-stream')
   })
 })
 
@@ -53,6 +96,15 @@ describe('gateLoginCallbackUrl', () => {
   it('stays a path-only callback when there is no query', () => {
     expect(gateLoginCallbackUrl('/tablero', '')).toBe('/tablero')
     expect(gateLoginCallbackUrl('/tablero', '?')).toBe('/tablero')
+  })
+
+  it('preserves hash fragments and multi-value query strings', () => {
+    expect(gateLoginCallbackUrl('/tablero', '?capa=1#sel=2')).toBe(
+      '/tablero?capa=1#sel=2',
+    )
+    expect(gateLoginCallbackUrl('/recursos/r1', '?a=1&a=2&b=x')).toBe(
+      '/recursos/r1?a=1&a=2&b=x',
+    )
   })
 })
 
@@ -91,3 +143,4 @@ describe('publicOrigin', () => {
     }
   })
 })
+import { existsSync, readFileSync } from 'node:fs'

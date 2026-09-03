@@ -9,6 +9,12 @@ import { ResourceCard } from '@/components/resource-card'
 import { RecursoViewer } from '@/components/recurso-viewer'
 import { ExplainResource } from '@/components/explain-resource'
 import { ShareView } from '@/components/share-view'
+import Link from 'next/link'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { normalizeResourceReturnTo, resourceLegacyTarget } from '@/lib/resource-href'
+import { resourceContent } from '@/lib/resource-content'
+import { LegacyViewer } from '@/components/legacy-viewer'
 
 export function ResourceExperience({
   recurso,
@@ -16,12 +22,14 @@ export function ResourceExperience({
   niveles,
   tipos,
   related,
+  returnTo,
 }: {
   recurso: Recurso
   categorias: { id: string; nombre: string }[]
   niveles: { id: string; nombre: string }[]
   tipos: { id: string; nombre: string }[]
   related: Recurso[]
+  returnTo?: string | null
 }) {
   const session = authClient.useSession()
   const { expanded } = useResourceDetails()
@@ -31,11 +39,17 @@ export function ResourceExperience({
     { isPending: session.isPending, hasUser: Boolean(session.data?.user) },
   )
   const recommendations = relatedResources(recurso, related)
+  const backHref = normalizeResourceReturnTo(returnTo)
+  const legacyTarget = resourceLegacyTarget(recurso)
+  const content = resourceContent(recurso)
   return (
     <div className="resource-experience">
+      <div className="resource-navigation">
+        <Link className="resource-back" href={backHref}><ArrowLeft size={16} /> Volver a resultados</Link>
+        <Breadcrumbs items={view.breadcrumbs} />
+      </div>
       {expanded ? (
         <section id="resource-details" className="resource-details-panel" aria-label="Detalles del recurso">
-          <Breadcrumbs items={view.breadcrumbs} />
           <div className="resource-details-panel__heading">
             <div>
               <div className="resource-card__top">
@@ -61,9 +75,18 @@ export function ResourceExperience({
           </div>
         </section>
       ) : null}
-      <section id="resource-content" aria-label="Contenido del recurso" className="resource-viewer-section">
-        <RecursoViewer recurso={recurso} />
-      </section>
+      {content.kind === 'legacy-pilot' ? (
+        <LegacyViewer src={content.src} fallbackHref={content.fallbackHref} title={view.title} />
+      ) : content.kind === 'stored' ? (
+        <section id="resource-content" aria-label="Contenido del recurso" className="resource-viewer-section">
+          <RecursoViewer recurso={recurso} />
+        </section>
+      ) : (
+        <section className="resource-launch" aria-label="Abrir contenido del recurso">
+          <p>Este recurso se abre en su visor original.</p>
+          {legacyTarget ? <Button render={<a href={legacyTarget} />}>{view.primaryAction} <ExternalLink size={16} /></Button> : null}
+        </section>
+      )}
       {recommendations.length ? (
         <section className="section">
           <div className="section-head"><h2>También puede interesarte</h2></div>

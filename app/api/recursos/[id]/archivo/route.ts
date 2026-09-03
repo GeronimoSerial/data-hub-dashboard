@@ -22,6 +22,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { isAllowedUpload } from '@/lib/upload'
 import type { RecursoAccess } from '@/lib/acl'
+import { isTableroSeed } from '@/lib/resource-pilot'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -90,6 +91,7 @@ export async function GET(request: Request, ctx: Ctx) {
     mime,
     nombreOriginal: loaded.row.nombreOriginal || 'archivo',
     download,
+    allowDownloads: isTableroSeed(loaded.row.id, loaded.row.storageKey, mime),
   })
 
   const stream = Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>

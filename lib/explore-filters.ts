@@ -15,10 +15,15 @@ export function normalizeExploreText(value: string) {
     .toLocaleLowerCase('es')
 }
 
+/** Normalizes a query for URL serialization without removing search accents. */
+export function normalizeExploreQuery(value: string) {
+  return value.trim().toLocaleLowerCase('es').slice(0, 80)
+}
+
 const formatoSchema = z.enum(['reporte', 'tablero', 'mapa'])
 
 function clean(value: string | null | undefined, allowed?: ReadonlySet<string>) {
-  const normalized = value?.trim().toLocaleLowerCase('es').slice(0, 80)
+  const normalized = value == null ? undefined : normalizeExploreQuery(value)
   if (!normalized || (allowed && !allowed.has(normalized))) return undefined
   return normalized
 }
