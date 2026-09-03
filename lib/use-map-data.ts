@@ -21,64 +21,48 @@ export type MapData = {
   sobreoferta: SobreofertaData | null
 }
 
+let cachedData: MapData | null = null
+let pendingLoad: Promise<MapData> | null = null
+
+async function fetchMapData(): Promise<MapData> {
+  if (cachedData) return cachedData
+  if (pendingLoad) return pendingLoad
+  pendingLoad = Promise.all([
+    fetch('/data/summary.json').then((r) => { if (!r.ok) throw new Error('No se pudo cargar el resumen del mapa'); return r.json() as Promise<Summary> }),
+    fetch('/data/establishments.geojson').then((r) => { if (!r.ok) throw new Error('No se pudo cargar el dataset de establecimientos'); return r.json() as Promise<GeoJsonFeatureCollection<Point, EstablishmentProperties>> }),
+    fetch('/data/zones.geojson').then((r) => { if (!r.ok) throw new Error('No se pudo cargar el dataset de zonas'); return r.json() as Promise<GeoJsonFeatureCollection<Polygon, ZoneProperties>> }),
+    fetch('/data/localities.geojson').then((r) => { if (!r.ok) throw new Error('No se pudo cargar el dataset de localidades'); return r.json() as Promise<GeoJsonFeatureCollection<Point, LocalityProperties>> }),
+    fetch('/data/api-cantidad-alumnos.json').then((r) => r.ok ? r.json() as Promise<ApiEnrollmentData> : null).catch(() => null),
+    fetch('/data/sobreoferta.json').then((r) => r.ok ? r.json() as Promise<SobreofertaData> : null).catch(() => null),
+  ]).then(([summary, establishments, zones, localities, apiEnrollment, sobreoferta]) => {
+    cachedData = { summary, establishments, zones, localities, apiEnrollment, sobreoferta }
+    return cachedData
+  }).finally(() => { pendingLoad = null })
+  return pendingLoad
+}
+
+export function clearMapDataCache() {
+  cachedData = null
+  pendingLoad = null
+}
+
 export function useMapData() {
-  const [data, setData] = useState<MapData | null>(null)
+  const [data, setData] = useState<MapData | null>(cachedData)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!cachedData)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let cancelled = false
 
     async function load() {
       try {
-        const [
-          summary,
-          establishments,
-          zones,
-          localities,
-          apiEnrollment,
-          sobreoferta,
-        ] = await Promise.all([
-          fetch('/data/summary.json').then((r) => {
-            if (!r.ok) throw new Error('No se pudo cargar summary.json')
-            return r.json() as Promise<Summary>
-          }),
-          fetch('/data/establishments.geojson').then((r) => {
-            if (!r.ok)
-              throw new Error('No se pudo cargar establishments.geojson')
-            return r.json() as Promise<
-              GeoJsonFeatureCollection<Point, EstablishmentProperties>
-            >
-          }),
-          fetch('/data/zones.geojson').then((r) => {
-            if (!r.ok) throw new Error('No se pudo cargar zones.geojson')
-            return r.json() as Promise<
-              GeoJsonFeatureCollection<Polygon, ZoneProperties>
-            >
-          }),
-          fetch('/data/localities.geojson').then((r) => {
-            if (!r.ok) throw new Error('No se pudo cargar localities.geojson')
-            return r.json() as Promise<
-              GeoJsonFeatureCollection<Point, LocalityProperties>
-            >
-          }),
-          fetch('/data/api-cantidad-alumnos.json')
-            .then((r) => (r.ok ? (r.json() as Promise<ApiEnrollmentData>) : null))
-            .catch(() => null),
-          fetch('/data/sobreoferta.json')
-            .then((r) => (r.ok ? (r.json() as Promise<SobreofertaData>) : null))
-            .catch(() => null),
-        ])
+        setLoading(true)
+        setError(null)
+        const next = await fetchMapData()
 
         if (!cancelled) {
-          setData({
-            summary,
-            establishments,
-            zones,
-            localities,
-            apiEnrollment,
-            sobreoferta,
-          })
+          setData(next)
           setLoading(false)
         }
       } catch (err) {
@@ -95,7 +79,7 @@ export function useMapData() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [attempt])
 
-  return { data, error, loading }
+  return { data, error, loading, retry: () => { clearMapDataCache(); setAttempt((value) => value + 1) } }
 }
