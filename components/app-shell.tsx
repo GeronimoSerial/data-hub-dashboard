@@ -46,6 +46,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     })
   }, [pathname])
   const isCurrent = (href: string) => href === '/' ? pathname === '/' : pathname.startsWith(href)
+  const mainRef = React.useRef<HTMLElement>(null)
+  const previousPathname = React.useRef(pathname)
+
+  // After a real route change the focus moves to the main content so keyboard
+  // and screen-reader users land on the new page instead of staying on a
+  // leftover control. Full-bleed viewers skip this because focusing their
+  // controls or canvas would be wrong.
+  React.useEffect(() => {
+    if (previousPathname.current === pathname) return
+    previousPathname.current = pathname
+    if (!mapViewer) mainRef.current?.focus({ preventScroll: true })
+  }, [pathname, mapViewer])
 
   async function signOut() {
     await authClient.signOut()
@@ -135,7 +147,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <ResourceDetailsContext.Provider value={{ expanded: resourceDetailsExpanded, setExpanded: setResourceDetailsExpanded }}>
-        <main className={mapViewer ? 'app-content--bleed' : 'app-content'}>{children}</main>
+        <main id="contenido-principal" ref={mainRef} tabIndex={-1} className={mapViewer ? 'app-content--bleed' : 'app-content'}>{children}</main>
       </ResourceDetailsContext.Provider>
 
       {mapViewer ? null : (

@@ -75,6 +75,7 @@ describe('GET /api/gate/[...path]', () => {
     const res = await GET(request('/tablero'), ctx(['tablero']))
     expect(res.status).toBe(307)
     expect(location(res).pathname).toBe('/forbidden')
+    expect(location(res).searchParams.get('next')).toBe('/tablero')
   })
 
   it('returns 404 for a gated ruta with no catalog resource', async () => {

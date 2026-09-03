@@ -5,6 +5,7 @@ import {
   isMapViewerPath,
   isReadyHref,
   isStaticHref,
+  normalizeForbiddenNext,
   normalizeLoginCallbackUrl,
 } from './nav'
 
@@ -166,5 +167,24 @@ describe('normalizeLoginCallbackUrl', () => {
     expect(normalizeLoginCallbackUrl('https://evil.example')).toBe('/')
     expect(normalizeLoginCallbackUrl('//evil.example')).toBe('/')
     expect(normalizeLoginCallbackUrl('tablero')).toBe('/')
+  })
+})
+
+describe('normalizeForbiddenNext', () => {
+  it('keeps safe app-relative destinations', () => {
+    expect(normalizeForbiddenNext('/recursos/abc')).toBe('/recursos/abc')
+    expect(normalizeForbiddenNext('/admin')).toBe('/admin')
+    expect(normalizeForbiddenNext('/recursos/r1?from=explorar')).toBe(
+      '/recursos/r1?from=explorar',
+    )
+  })
+
+  it('rejects missing, external and protocol-relative input', () => {
+    expect(normalizeForbiddenNext(null)).toBeNull()
+    expect(normalizeForbiddenNext(undefined)).toBeNull()
+    expect(normalizeForbiddenNext('')).toBeNull()
+    expect(normalizeForbiddenNext('https://evil.example')).toBeNull()
+    expect(normalizeForbiddenNext('//evil.example')).toBeNull()
+    expect(normalizeForbiddenNext('recursos/r1')).toBeNull()
   })
 })

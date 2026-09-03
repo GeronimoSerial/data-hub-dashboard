@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import Link from 'next/link'
 import { Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { authClient } from '@/lib/auth-client'
@@ -17,20 +18,27 @@ function LoginForm() {
   const [error, setError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
 
+  const rawCallback = searchParams.get('callbackUrl')
+  const callbackUrl = normalizeLoginCallbackUrl(rawCallback)
+  // A safe internal destination lets the user cancel without losing the deep
+  // link; otherwise cancellation returns home.
+  const cancelHref = rawCallback ? callbackUrl : '/'
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (pending) return
     setError(null)
     setPending(true)
     const { error: signInError } = await authClient.signIn.email({
       email,
       password,
     })
-    setPending(false)
     if (signInError) {
       setError('No se pudo iniciar sesión')
+      setPending(false)
       return
     }
-    router.replace(normalizeLoginCallbackUrl(searchParams.get('callbackUrl')))
+    router.replace(callbackUrl)
   }
 
   return (
@@ -43,17 +51,18 @@ function LoginForm() {
           </p>
         </div>
         {error ? (
-          <p role="alert" className="ui-messagebar ui-messagebar--error">
+          <p role="alert" aria-live="assertive" className="ui-messagebar ui-messagebar--error">
             {error}
           </p>
         ) : null}
-        <form className="auth-form" onSubmit={onSubmit}>
+        <form className="auth-form" onSubmit={onSubmit} aria-busy={pending}>
           <Field name="email">
             <FieldLabel>Correo</FieldLabel>
             <Input
               type="email"
               name="email"
               autoComplete="username"
+              required
               value={email}
               onChange={(event) => setEmail(event.currentTarget.value)}
             />
@@ -65,14 +74,25 @@ function LoginForm() {
               type="password"
               name="password"
               autoComplete="current-password"
+              required
               value={password}
               onChange={(event) => setPassword(event.currentTarget.value)}
             />
             <FieldError />
           </Field>
-          <Button type="submit" disabled={pending}>
-            Iniciar sesión
-          </Button>
+          <div className="auth-form__actions">
+            <Button type="submit" disabled={pending} aria-live="polite">
+              {pending ? 'Ingresando…' : 'Iniciar sesión'}
+            </Button>
+            <Link
+              className="ui-button ui-button--ghost"
+              href={cancelHref}
+              tabIndex={pending ? -1 : 0}
+              aria-disabled={pending}
+            >
+              Cancelar y volver
+            </Link>
+          </div>
         </form>
       </div>
     </div>

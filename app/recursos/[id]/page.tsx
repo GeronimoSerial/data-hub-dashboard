@@ -37,7 +37,9 @@ export default async function RecursoPage({
     redirect(`/login?callbackUrl=${encodeURIComponent(callback)}`)
   }
   const access = await loadRecursoAccess(id)
-  if (!access || !puedeAbrir(user, access)) redirect('/forbidden')
+  if (!access || !puedeAbrir(user, access)) {
+    redirect(`/forbidden?next=${encodeURIComponent(fichaHref)}`)
+  }
   const catalog = await loadHubCatalog({ publishedOnly: false })
   const recurso = catalog.recursos.find((item) => item.id === id)
   if (!recurso) notFound()

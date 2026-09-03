@@ -137,6 +137,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-radius: 3px;
 }
 
+/* Route change moves focus to the main landmark; keep a visible ring so
+   keyboard and screen-reader users always know where focus landed. */
+.app-content:focus {
+  outline: 2px solid var(--brand);
+  outline-offset: -3px;
+  border-radius: var(--r-lg);
+}
+
 h1, h2, h3, h4 {
   font-family: var(--font-title);
   font-weight: 700;
@@ -1284,8 +1292,9 @@ h1, h2, h3, h4 {
 }
 .auth-header { display: grid; gap: var(--s-2); }
 .auth-intro { margin: 0; color: var(--ink-soft); line-height: 1.6; }
-.auth-form { display: grid; gap: var(--s-5); }
+.auth-form { display: grid; gap: var(--s-4); }
 .auth-form .ui-button { width: 100%; }
+.auth-form__actions { display: grid; gap: var(--s-2); }
 
 /* ── Admin ─────────────────────────────────────────────────────────────── */
 

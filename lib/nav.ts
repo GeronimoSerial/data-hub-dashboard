@@ -52,3 +52,10 @@ export function normalizeLoginCallbackUrl(raw: string | null): string {
   return raw
 }
 
+// Forbidden keeps the intended destination as a validated internal path so the
+// user can return without the page trusting or leaking arbitrary input.
+export function normalizeForbiddenNext(raw: string | null | undefined): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) return null
+  return raw
+}
+

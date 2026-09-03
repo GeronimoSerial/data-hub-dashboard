@@ -151,7 +151,9 @@ describe('RecursoPage navigation contract', () => {
 
   it('preserves the server ACL redirect for users without access', async () => {
     state.canOpen = false
-    await expect(renderPage()).rejects.toThrow('REDIRECT:/forbidden')
+    await expect(renderPage()).rejects.toThrow(
+      'REDIRECT:/forbidden?next=%2Frecursos%2Flegacy-1',
+    )
     expect(state.resourceExperience).not.toHaveBeenCalled()
   })
 
