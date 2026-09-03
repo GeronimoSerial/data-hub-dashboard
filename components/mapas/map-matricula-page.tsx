@@ -134,11 +134,13 @@ export default function MapMatriculaPage() {
         }} />
         <LayerControl
           overlays={overlays}
-          onChange={(key, value) => setOverlays((prev) => {
-            const next = { ...prev, [key]: value }
+          onChange={(key, value) => {
+            // Compute the next state outside the updater so the URL/history
+            // side effect never runs during a render phase.
+            const next = { ...overlays, [key]: value }
+            setOverlays(next)
             updateStableState(basemap, next)
-            return next
-          })}
+          }}
         />
       </div>
 

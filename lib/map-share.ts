@@ -140,8 +140,10 @@ export function replaceMapShareParams(state: Partial<MapShareState>) {
   const url = new URL(window.location.href)
   const next = mapShareParamsFor(state)
   for (const key of ['lng', 'lat', 'zoom', 'base', 'layers']) {
+    // `layers=` (empty) is meaningful: it encodes "all overlays off". Only a
+    // missing param should delete the key, so treat empty string as present.
     const value = next.get(key)
-    if (value) url.searchParams.set(key, value)
+    if (value != null) url.searchParams.set(key, value)
     else url.searchParams.delete(key)
   }
   // Only replace history when the search actually differs, avoiding duplicate
