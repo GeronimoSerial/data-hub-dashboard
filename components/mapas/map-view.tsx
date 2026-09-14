@@ -9,7 +9,7 @@ import Map, {
   type MapLayerMouseEvent,
   type MapRef,
 } from 'react-map-gl/maplibre'
-import type { CircleLayerSpecification, StyleSpecification } from 'maplibre-gl'
+import type { CircleLayerSpecification } from 'maplibre-gl'
 import type { Point } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
@@ -124,29 +124,7 @@ export function MapView({
     }
   }
 
-  const mapStyle = useMemo<StyleSpecification>(() => {
-    const bm = BASEMAPS[basemap]
-    return {
-      version: 8,
-      glyphs:
-        'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
-      sources: {
-        basemap: {
-          type: 'raster',
-          tiles: bm.tiles,
-          tileSize: 256,
-          attribution: bm.attribution,
-        },
-      },
-      layers: [
-        {
-          id: 'basemap',
-          type: 'raster',
-          source: 'basemap',
-        },
-      ],
-    }
-  }, [basemap])
+  const mapStyle = BASEMAPS[basemap].styleUrl
 
   const handleClick = (event: MapLayerMouseEvent) => {
     const features = event.features ?? []

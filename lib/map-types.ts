@@ -148,37 +148,19 @@ export const OVERLAY_LABELS: Record<OverlayKey, string> = {
 
 export const BASEMAPS: Record<
   BasemapId,
-  { label: string; tiles: string[]; attribution: string; tileSize?: number }
+  { label: string; styleUrl: string }
 > = {
   osm: {
     label: 'Rutas y caminos',
-    tiles: [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    ],
-    attribution:
-      'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom',
+    styleUrl: 'https://tiles.openfreemap.org/styles/liberty',
   },
   voyager: {
     label: 'Mapa vial alternativo',
-    tiles: [
-      'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-      'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    ],
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    styleUrl: 'https://tiles.openfreemap.org/styles/bright',
   },
   positron: {
     label: 'Mapa claro',
-    tiles: [
-      'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-      'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-    ],
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    styleUrl: 'https://tiles.openfreemap.org/styles/positron',
   },
 }
 

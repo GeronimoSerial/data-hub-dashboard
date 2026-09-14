@@ -30,10 +30,10 @@ function loadScript(src){return new Promise((res,rej)=>{const e=document.createE
 async function initMap(){
  if(map)return true;
  $('map').innerHTML='<div class="loading"><b>Cargando cartografía…</b><div class="note">El mapa base requiere conexión a Internet.</div></div>';
- const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
- try{await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');await loadScript('https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js')}
+ const css=document.createElement('link');css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);const glCss=document.createElement('link');glCss.rel='stylesheet';glCss.href='https://unpkg.com/maplibre-gl@5.10.0/dist/maplibre-gl.css';document.head.appendChild(glCss);
+ try{await loadScript('https://unpkg.com/leaflet@1.9.4/dist/leaflet.js');await loadScript('https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js');await loadScript('https://unpkg.com/maplibre-gl@5.10.0/dist/maplibre-gl.js');await loadScript('https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.1/leaflet-maplibre-gl.js')}
  catch(e){$('map').innerHTML='<div class="loading"><b>No se pudo cargar la cartografía.</b><div class="note">Verifique la conexión a Internet y vuelva a abrir el archivo. Los datos del informe están contenidos dentro del HTML; únicamente la cartografía base y la librería del mapa se cargan desde Internet.</div></div>';return false}
- $('map').innerHTML='';map=L.map('map',{preferCanvas:true}).setView([-28.75,-58.2],7);L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',{subdomains:'abcd',maxZoom:20,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'}).addTo(map);
+ $('map').innerHTML='';map=L.map('map',{preferCanvas:true,minZoom:1}).setView([-28.75,-58.2],7);L.maplibreGL({style:'https://tiles.openfreemap.org/styles/liberty'}).addTo(map);
  map.createPane('heatPane');map.getPane('heatPane').style.zIndex=350;map.getPane('heatPane').style.pointerEvents='none';
  map.createPane('pointPane');map.getPane('pointPane').style.zIndex=650;map.getPane('pointPane').style.pointerEvents='auto';
  map.createPane('labelPane');map.getPane('labelPane').style.zIndex=700;map.getPane('labelPane').style.pointerEvents='none';
