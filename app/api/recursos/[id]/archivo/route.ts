@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable } from 'node:stream'
 import { eq } from 'drizzle-orm'
@@ -21,6 +21,7 @@ import {
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { isAllowedUpload } from '@/lib/upload'
+import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
 import type { RecursoAccess } from '@/lib/acl'
 
 export const runtime = 'nodejs'
@@ -92,6 +93,11 @@ export async function GET(request: Request, ctx: Ctx) {
     download,
   })
 
+  if (mime === 'text/html') {
+    const html = await readFile(abs, 'utf8')
+    return new Response(normalizeUploadedMapHtml(html), { headers })
+  }
+
   const stream = Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>
   return new Response(stream, { headers })
 }
@@ -137,9 +143,15 @@ export async function POST(request: Request, ctx: Ctx) {
   const storageKey = archivoStorageKey(id, fileId)
   const destDir = path.join(getUploadsDir(), id)
   const destPath = path.join(destDir, fileId)
+  let storedBytes: Buffer
   try {
+    const uploadedBytes = Buffer.from(await file.arrayBuffer())
+    storedBytes =
+      allowed.mime === 'text/html'
+        ? Buffer.from(normalizeUploadedMapHtml(uploadedBytes.toString('utf8')))
+        : uploadedBytes
     await mkdir(destDir, { recursive: true })
-    await writeFile(destPath, Buffer.from(await file.arrayBuffer()))
+    await writeFile(destPath, storedBytes)
   } catch {
     await unlinkStoredFile(storageKey)
     return Response.json({ error: 'No se pudo guardar el archivo' }, { status: 500 })
@@ -152,7 +164,7 @@ export async function POST(request: Request, ctx: Ctx) {
       storageKey,
       mime: allowed.mime,
       nombreOriginal: file.name,
-      size: file.size,
+      size: storedBytes.length,
       ruta: null,
     })
     .where(eq(recursos.id, id))
@@ -166,6 +178,6 @@ export async function POST(request: Request, ctx: Ctx) {
     storageKey,
     mime: allowed.mime,
     nombreOriginal: file.name,
-    size: file.size,
+    size: storedBytes.length,
   })
 }
