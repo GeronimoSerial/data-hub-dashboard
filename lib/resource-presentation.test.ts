@@ -23,6 +23,11 @@ describe('resource presentation', () => {
     expect(view.breadcrumbs.map((item) => item.label)).toEqual(['Explorar', 'Matrícula', 'Mapa'])
   })
 
+  it('uses Ver reporte for both uploaded and legacy reports', () => {
+    expect(presentResource({ ...base, formato: 'reporte', ruta: '/recursos/informe.pdf' }, taxonomies).primaryAction).toBe('Ver reporte')
+    expect(presentResource({ ...base, formato: 'reporte', ruta: undefined, storageKey: 'informe.pdf' }, taxonomies).primaryAction).toBe('Ver reporte')
+  })
+
   it('ranks related published resources deterministically', () => {
     const same: Recurso = { ...base, id: 'same', titulo: 'Relacionado' }
     const draft: Recurso = { ...same, id: 'draft', estado: 'borrador' }

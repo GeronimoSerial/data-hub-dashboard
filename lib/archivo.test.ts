@@ -108,7 +108,7 @@ describe('archivoResponseHeaders', () => {
     expect(h['Content-Type']).toBe('application/pdf')
   })
 
-  it('sandboxes HTML without allow-same-origin so top-level open is not hub-origin', () => {
+  it('keeps the previous CSP for HTML that is not the tablero seed', () => {
     const h = archivoResponseHeaders({
       mime: 'text/html',
       nombreOriginal: 'nota.html',
@@ -118,8 +118,20 @@ describe('archivoResponseHeaders', () => {
     expect(h['Content-Disposition']).toMatch(/^inline;/)
     const csp = h['Content-Security-Policy']
     expect(csp).toContain("frame-ancestors 'self'")
-    expect(csp).toMatch(/\bsandbox allow-scripts allow-forms\b/)
+    expect(csp).toBe("frame-ancestors 'self'; sandbox allow-scripts allow-forms")
     expect(csp).not.toContain('allow-same-origin')
+  })
+
+  it('opts the tablero seed into downloads explicitly', () => {
+    const h = archivoResponseHeaders({
+      mime: 'text/html',
+      nombreOriginal: 'tablero.html',
+      download: false,
+      allowDownloads: true,
+    })
+    expect(h['Content-Security-Policy']).toBe(
+      "frame-ancestors 'self'; sandbox allow-scripts allow-forms allow-downloads",
+    )
   })
 
   it('uses inline disposition for viewer mimes without download=1', () => {

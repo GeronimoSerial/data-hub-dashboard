@@ -12,6 +12,8 @@ export default async function MatriculaMapRoute() {
   const user = await getSessionUser()
   if (!user) redirect('/login?callbackUrl=/mapas/matricula')
   const found = await loadRecursoAccessByRuta('/mapas/matricula')
-  if (!found || !puedeAbrir(user, found.access)) redirect('/forbidden')
+  if (!found || !puedeAbrir(user, found.access)) {
+    redirect('/forbidden?next=/mapas/matricula')
+  }
   return <MatriculaMapClient />
 }

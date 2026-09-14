@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import {
   createMapStateSettler,
+  DEFAULT_MAP_OVERLAYS,
+  parseMapShareState,
   parseMapViewState,
   serializeMapViewState,
 } from './map-share'
@@ -11,6 +13,14 @@ describe('map share state', () => {
   it('clamps valid values and ignores malformed input', () => {
     expect(parseMapViewState('lng=200&lat=-90&zoom=30&foo=bar')).toEqual({ longitude: 180, latitude: -85, zoom: 24 })
     expect(parseMapViewState('lng=nope&zoom=')).toEqual({})
+  })
+
+  it('restores supported basemap and overlays and ignores unknown values', () => {
+    expect(parseMapShareState('base=positron&layers=zones,up,nope')).toEqual({
+      basemap: 'positron',
+      overlays: { ...DEFAULT_MAP_OVERLAYS, sobreoferta: false, down: false, flat: false, partial: false, localities: false },
+    })
+    expect(parseMapShareState('base=unknown')).toEqual({})
   })
 
   it('serializes a stable compact URL state', () => {

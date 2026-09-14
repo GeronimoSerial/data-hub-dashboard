@@ -8,26 +8,37 @@ import { puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccess } from '@/lib/db/recurso-access'
 import { loadHubCatalog } from '@/lib/db/hub'
 import { ResourceExperience } from '@/components/resource-experience'
-import { isAllowedRuta } from '@/lib/recurso-write'
+import { normalizeResourceReturnTo } from '@/lib/resource-href'
 
 export const runtime = 'nodejs'
 
 export default async function RecursoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ returnTo?: string | string[] }>
 }) {
   await ensureSeeded()
   const { id } = await params
+  const resolvedSearchParams = await searchParams
+  const rawReturnTo = resolvedSearchParams.returnTo
+  const returnTo = normalizeResourceReturnTo(
+    Array.isArray(rawReturnTo) ? rawReturnTo[0] : rawReturnTo,
+  )
+  const fichaHref = `/recursos/${encodeURIComponent(id)}`
   const [row] = await getDb().select().from(recursos).where(eq(recursos.id, id))
   if (!row) notFound()
   const user = await getSessionUser()
-  if (!user) redirect(`/login?callbackUrl=/recursos/${id}`)
+  if (!user) {
+    const callback = rawReturnTo === undefined
+      ? fichaHref
+      : `${fichaHref}?returnTo=${encodeURIComponent(returnTo)}`
+    redirect(`/login?callbackUrl=${encodeURIComponent(callback)}`)
+  }
   const access = await loadRecursoAccess(id)
-  if (!access || !puedeAbrir(user, access)) redirect('/forbidden')
-  if (row.ruta && !row.storageKey) {
-    if (!isAllowedRuta(row.ruta)) notFound()
-    redirect(row.ruta)
+  if (!access || !puedeAbrir(user, access)) {
+    redirect(`/forbidden?next=${encodeURIComponent(fichaHref)}`)
   }
   const catalog = await loadHubCatalog({ publishedOnly: false })
   const recurso = catalog.recursos.find((item) => item.id === id)
@@ -39,6 +50,7 @@ export default async function RecursoPage({
       niveles={catalog.niveles}
       tipos={catalog.tipos}
       related={catalog.recursos}
+      returnTo={returnTo}
     />
   )
 }

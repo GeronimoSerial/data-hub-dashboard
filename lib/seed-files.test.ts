@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import {
   SEED_PUBLIC_FILES,
   copySeedPublicFile,
+  isTableroSeed,
+  seedResourceIdForRuta,
   seedStorageKey,
   shouldReplaceWithSeedFile,
 } from './seed-files'
@@ -16,6 +18,9 @@ describe('SEED_PUBLIC_FILES', () => {
     expect(SEED_PUBLIC_FILES.every((s) => s.publicRel && s.mime && s.nombreOriginal)).toBe(
       true,
     )
+    expect(seedResourceIdForRuta('/tablero')).toBe('r2')
+    expect(seedResourceIdForRuta('/mapa_interactivo')).toBe('r3')
+    expect(seedResourceIdForRuta('/missing')).toBeNull()
   })
 })
 
@@ -49,6 +54,10 @@ describe('shouldReplaceWithSeedFile', () => {
 
   it('uses a stable seed storage key', () => {
     expect(seedStorageKey('r2')).toBe('r2/seed')
+    expect(isTableroSeed('r2', 'r2/seed', 'text/html')).toBe(true)
+    expect(isTableroSeed('r2', 'r2/uploaded', 'text/html')).toBe(false)
+    expect(isTableroSeed('r2', 'r2/seed', 'application/pdf')).toBe(false)
+    expect(isTableroSeed('r3', 'r2/seed', 'text/html')).toBe(false)
   })
 })
 

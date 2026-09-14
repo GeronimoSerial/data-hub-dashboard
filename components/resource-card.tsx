@@ -11,14 +11,22 @@ import { resourceCardHref, resourceCardTarget } from '@/lib/resource-href'
 
 const ICON = { reporte: FileText, tablero: BarChart3, mapa: Map }
 
-export function ResourceCard({ recurso }: { recurso: Recurso }) {
+export function ResourceCard({
+  recurso,
+  returnTo,
+  onNavigate,
+}: {
+  recurso: Recurso
+  returnTo?: string
+  onNavigate?: () => void
+}) {
   const { niveles, categorias } = useHubData()
   const session = authClient.useSession()
   const target = resourceCardTarget(recurso)
   const href = resourceCardHref(target, {
     isPending: session.isPending,
     hasUser: Boolean(session.data?.user),
-  })
+  }, returnTo)
   const Icon = ICON[recurso.formato]
   const category = findCategoria(categorias, recurso.categoriaId)
   const accessState = resourceAccessState(recurso, {
@@ -48,8 +56,8 @@ export function ResourceCard({ recurso }: { recurso: Recurso }) {
     </>
   )
   return href ? (
-    <Link className="resource-card" data-formato={recurso.formato} href={href}>{content}</Link>
+    <Link className="resource-card" data-formato={recurso.formato} data-resource-id={recurso.id} href={href} onClick={onNavigate}>{content}</Link>
   ) : (
-    <article className="resource-card" data-formato={recurso.formato}>{content}</article>
+    <article className="resource-card" data-formato={recurso.formato} data-resource-id={recurso.id}>{content}</article>
   )
 }

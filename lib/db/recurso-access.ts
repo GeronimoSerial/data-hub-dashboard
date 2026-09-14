@@ -6,6 +6,7 @@ import {
   recursoAudienciaUsuarios,
 } from '@/lib/db/schema'
 import type { RecursoAccess } from '@/lib/acl'
+import { seedResourceIdForRuta } from '@/lib/seed-files'
 
 export async function loadRecursoAccess(
   id: string,
@@ -32,7 +33,10 @@ export async function loadRecursoAccessByRuta(
   ruta: string,
 ): Promise<{ id: string; access: RecursoAccess } | null> {
   const db = getDb()
-  const [row] = await db.select().from(recursos).where(eq(recursos.ruta, ruta))
+  const seedId = seedResourceIdForRuta(ruta)
+  const [row] = seedId
+    ? await db.select().from(recursos).where(eq(recursos.id, seedId))
+    : await db.select().from(recursos).where(eq(recursos.ruta, ruta))
   if (!row) return null
   const access = await loadRecursoAccess(row.id)
   if (!access) return null

@@ -8,6 +8,6 @@ export default async function Admin() {
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin')
-  if (gate === 'forbidden') redirect('/forbidden')
+  if (gate === 'forbidden') redirect('/forbidden?next=/admin')
   return <AdminShell role={user!.role}><AdminPage /></AdminShell>
 }

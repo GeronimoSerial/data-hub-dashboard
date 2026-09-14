@@ -32,6 +32,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useAdminSection } from '@/components/admin-shell'
+import { adminSectionsForRole, type AdminSectionId } from '@/lib/admin-navigation'
+import { useDirtyGuard } from '@/lib/dirty-guard'
+import { useAdminDialogFocus } from '@/lib/admin-dialog-focus'
+import { useAdminPendingAction } from '@/lib/admin-pending'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -85,6 +90,27 @@ type AdminFieldProps = {
   children: React.ReactNode
 }
 
+export function AdminPageTabs({
+  tab,
+  onTab,
+  role,
+}: {
+  tab: AdminSectionId
+  onTab: (section: AdminSectionId) => void
+  role: Role | undefined
+}) {
+  const sections = adminSectionsForRole(role ?? 'editor')
+  return (
+    <Tabs value={tab} onValueChange={(value) => onTab(value as AdminSectionId)}>
+      <TabsList>
+        {sections.map(({ id, label }) => (
+          <TabsTab key={id} value={id}>{label}</TabsTab>
+        ))}
+      </TabsList>
+    </Tabs>
+  )
+}
+
 function AdminField({ label, hint, error, required, children }: AdminFieldProps) {
   const id = React.useId()
   return (
@@ -110,10 +136,19 @@ function RecursoDialog({
   onClose: () => void
   editing: Recurso | null
 }) {
+  const closeRequest = React.useRef<() => void>(onClose)
+  const registerClose = React.useCallback((request: () => void) => {
+    closeRequest.current = request
+  }, [])
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && closeRequest.current()}>
       {open ? (
-        <RecursoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} />
+        <RecursoForm
+          key={editing?.id ?? 'nuevo'}
+          editing={editing}
+          onClose={onClose}
+          onRegisterClose={registerClose}
+        />
       ) : null}
     </Dialog>
   )
@@ -122,9 +157,11 @@ function RecursoDialog({
 function RecursoForm({
   editing,
   onClose,
+  onRegisterClose,
 }: {
   editing: Recurso | null
   onClose: () => void
+  onRegisterClose: (request: () => void) => void
 }) {
   const { niveles, tipos, categorias, tags, upsertRecurso, writeError } =
     useHubData()
@@ -144,7 +181,7 @@ function RecursoForm({
     audienciaNivelIds: [],
     audienciaUserIds: [],
   }
-  const [draft, setDraft] = React.useState<Recurso>(() =>
+  const [initialDraft] = React.useState<Recurso>(() =>
     editing
       ? {
           ...editing,
@@ -153,13 +190,21 @@ function RecursoForm({
         }
       : empty,
   )
+  const [draft, setDraft] = React.useState<Recurso>(initialDraft)
   const [destino, setDestino] = React.useState<'archivo' | 'ruta'>(
     editing?.ruta ? 'ruta' : 'archivo',
   )
   const [pendingFile, setPendingFile] = React.useState<File | null>(null)
   const [fileError, setFileError] = React.useState<string | null>(null)
-  const [saving, setSaving] = React.useState(false)
+  const { pending: saving, run: runPending } = useAdminPendingAction()
   const [pickerUsers, setPickerUsers] = React.useState<HubUserRow[]>([])
+  const initialDestino = editing?.ruta ? 'ruta' : 'archivo'
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft) || destino !== initialDestino || pendingFile !== null
+  const requestClose = useDirtyGuard(dirty, onClose)
+
+  React.useEffect(() => {
+    onRegisterClose(requestClose)
+  }, [onRegisterClose, requestClose])
 
   React.useEffect(() => {
     let cancelled = false
@@ -213,16 +258,13 @@ function RecursoForm({
       delete toSave.ruta
     }
     setDraft((d) => ({ ...d, id }))
-    setSaving(true)
-    try {
+    await runPending(async () => {
       const ok = await upsertRecurso(
         toSave,
         destino === 'archivo' ? pendingFile : null,
       )
       if (ok) onClose()
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
   const valido =
@@ -457,7 +499,7 @@ function RecursoForm({
           </AdminField>
         </div>
         <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="secondary" onClick={requestClose}>Cancelar</Button>
           <Button
             disabled={!valido || saving}
             onClick={() => void save()}
@@ -472,17 +514,31 @@ function RecursoForm({
 // ── Recursos table ─────────────────────────────────────────────────────────
 
 function RecursosAdmin() {
-  const { recursos, niveles, tipos, categorias, removeRecurso } = useHubData()
+  const { recursos, niveles, tipos, categorias, removeRecurso, writeError } = useHubData()
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Recurso | null>(null)
+  const [deleting, setDeleting] = React.useState<string | null>(null)
+  const { run: runPending } = useAdminPendingAction()
+  const rememberTrigger = useAdminDialogFocus(open)
 
   const nuevo = () => {
+    rememberTrigger()
     setEditing(null)
     setOpen(true)
   }
   const editar = (r: Recurso) => {
+    rememberTrigger()
     setEditing(r)
     setOpen(true)
+  }
+  const eliminar = async (id: string) => {
+    if (deleting) return
+    setDeleting(id)
+    try {
+      await runPending(() => removeRecurso(id))
+    } finally {
+      setDeleting(null)
+    }
   }
 
   return (
@@ -491,6 +547,7 @@ function RecursosAdmin() {
         <span className="ui-hint">{recursos.length} recursos en el Hub</span>
         <Button onClick={nuevo}><Plus size={16} /> Nuevo recurso</Button>
       </div>
+      {writeError ? <div className="ui-messagebar ui-messagebar--error" role="alert">{writeError}</div> : null}
 
       <div className="ui-table-wrap">
         <table className="ui-table" aria-label="Recursos">
@@ -510,7 +567,7 @@ function RecursosAdmin() {
             {recursos.map((r) => {
               const cat = findCategoria(categorias, r.categoriaId)
               return (
-                <tr key={r.id}>
+                <tr key={r.id} aria-busy={deleting === r.id}>
                   <td>{r.titulo}</td>
                   <td><span className="badge">{FORMATOS[r.formato].label}</span></td>
                   <td>{nivelNombre(niveles, r.nivelId)}</td>
@@ -533,9 +590,9 @@ function RecursosAdmin() {
                       <ConfirmDelete
                         title="¿Eliminar recurso?"
                         description="El recurso y su archivo asociado se eliminarán. Esta acción no se puede deshacer."
-                        onConfirm={() => removeRecurso(r.id)}
+                        onConfirm={() => void eliminar(r.id)}
                         triggerLabel="Eliminar recurso"
-                        trigger={<Button variant="ghost" size="icon" aria-label="Eliminar recurso"><Trash2 size={16} /></Button>}
+                        trigger={<Button variant="ghost" size="icon" aria-label="Eliminar recurso" disabled={deleting === r.id}><Trash2 size={16} /></Button>}
                       />
                     </div>
                   </td>
@@ -577,10 +634,14 @@ function TaxonomyDialog({
   title: string
   fields: TaxonomyField[]
   initial: Record<string, unknown>
-  onSave: (values: Record<string, unknown>) => void
+  onSave: (values: Record<string, unknown>) => void | Promise<boolean>
 }) {
+  const closeRequest = React.useRef<() => void>(onClose)
+  const registerClose = React.useCallback((request: () => void) => {
+    closeRequest.current = request
+  }, [])
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && closeRequest.current()}>
       {open ? (
         <TaxonomyForm
           key={title}
@@ -589,26 +650,37 @@ function TaxonomyDialog({
           initial={initial}
           onSave={onSave}
           onClose={onClose}
+          onRegisterClose={registerClose}
         />
       ) : null}
     </Dialog>
   )
 }
 
-function TaxonomyForm({
+export function TaxonomyForm({
   onClose,
   title,
   fields,
   initial,
   onSave,
+  onRegisterClose,
 }: {
   onClose: () => void
   title: string
   fields: TaxonomyField[]
   initial: Record<string, unknown>
-  onSave: (values: Record<string, unknown>) => void
+  onSave: (values: Record<string, unknown>) => void | Promise<boolean>
+  onRegisterClose: (request: () => void) => void
 }) {
-  const [values, setValues] = React.useState<Record<string, unknown>>(initial)
+  const [initialValues] = React.useState(initial)
+  const [values, setValues] = React.useState<Record<string, unknown>>(initialValues)
+  const { pending: saving, run: runPending } = useAdminPendingAction()
+  const dirty = JSON.stringify(values) !== JSON.stringify(initialValues)
+  const requestClose = useDirtyGuard(dirty, onClose)
+
+  React.useEffect(() => {
+    onRegisterClose(requestClose)
+  }, [onRegisterClose, requestClose])
 
   const set = (k: string, v: unknown) =>
     setValues((prev) => ({ ...prev, [k]: v }))
@@ -686,13 +758,13 @@ function TaxonomyForm({
           })}
         </div>
         <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="secondary" onClick={requestClose}>Cancelar</Button>
           <Button
-            disabled={!nombreOk}
-            onClick={() => {
-              onSave(values)
-              onClose()
-            }}
+            disabled={!nombreOk || saving}
+            onClick={() => void runPending(async () => {
+                const result = await onSave(values)
+                if (result !== false) onClose()
+            })}
           >
             Guardar
           </Button>
@@ -703,11 +775,12 @@ function TaxonomyForm({
 
 // ── Taxonomy table wrapper ─────────────────────────────────────────────────
 
-function TaxonomyAdmin<T extends { id: string }>({
+export function TaxonomyAdmin<T extends { id: string }>({
   items,
   columns,
   fields,
   emptyValues,
+  error,
   onSave,
   onDelete,
   singular,
@@ -717,21 +790,38 @@ function TaxonomyAdmin<T extends { id: string }>({
   columns: { header: string; render: (item: T) => React.ReactNode }[]
   fields: TaxonomyField[]
   emptyValues: Record<string, unknown>
-  onSave: (values: Record<string, unknown>, editing: T | null) => void
-  onDelete: (id: string) => void
+  onSave: (values: Record<string, unknown>, editing: T | null) => void | Promise<boolean>
+  onDelete: (id: string) => void | Promise<boolean>
   singular: string
   inUse: (id: string) => number
+  error?: string | null
 }) {
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<T | null>(null)
+  const [deleting, setDeleting] = React.useState<string | null>(null)
+  const { run: runPending } = useAdminPendingAction()
+  const rememberTrigger = useAdminDialogFocus(open)
 
   const nuevo = () => {
+    rememberTrigger()
     setEditing(null)
     setOpen(true)
   }
   const editar = (item: T) => {
+    rememberTrigger()
     setEditing(item)
     setOpen(true)
+  }
+  const eliminar = async (id: string) => {
+    if (deleting) return
+    setDeleting(id)
+    try {
+      await runPending(async () => {
+        await onDelete(id)
+      })
+    } finally {
+      setDeleting(null)
+    }
   }
 
   return (
@@ -742,6 +832,7 @@ function TaxonomyAdmin<T extends { id: string }>({
         </span>
         <Button onClick={nuevo}><Plus size={16} /> Agregar {singular}</Button>
       </div>
+      {error ? <div className="ui-messagebar ui-messagebar--error" role="alert">{error}</div> : null}
 
       <div className="ui-table-wrap">
         <table className="ui-table" aria-label={`Administración de ${singular}`}>
@@ -758,7 +849,7 @@ function TaxonomyAdmin<T extends { id: string }>({
             {items.map((item) => {
               const uses = inUse(item.id)
               return (
-                <tr key={item.id}>
+                <tr key={item.id} aria-busy={deleting === item.id}>
                   {columns.map((c) => (
                     <td key={c.header}>{c.render(item)}</td>
                   ))}
@@ -782,12 +873,12 @@ function TaxonomyAdmin<T extends { id: string }>({
                             ? `No se puede eliminar: hay ${uses} recurso${uses === 1 ? '' : 's'} asociados.`
                             : `La ${singular} se eliminará de forma permanente.`
                         }
-                        onConfirm={() => onDelete(item.id)}
+                        onConfirm={() => void eliminar(item.id)}
                         triggerLabel={`Eliminar ${singular}`}
-                        disabled={uses > 0}
+                        disabled={uses > 0 || deleting === item.id}
                         trigger={
                           uses > 0 ? (
-                            <Button variant="ghost" size="icon" aria-label={`Eliminar ${singular}`} disabled title="No se puede eliminar: hay recursos asociados">
+                            <Button variant="ghost" size="icon" aria-label={`Eliminar ${singular}`} disabled={uses > 0 || deleting === item.id} title="No se puede eliminar: hay recursos asociados">
                               <Trash2 size={16} />
                             </Button>
                           ) : undefined
@@ -833,8 +924,12 @@ function UserDialog({
   niveles: Nivel[]
   onSaved: () => Promise<void>
 }) {
+  const closeRequest = React.useRef<() => void>(onClose)
+  const registerClose = React.useCallback((request: () => void) => {
+    closeRequest.current = request
+  }, [])
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open} onOpenChange={(next) => !next && closeRequest.current()}>
       {open ? (
         <UserForm
           key={editing?.id ?? 'nuevo'}
@@ -842,6 +937,7 @@ function UserDialog({
           niveles={niveles}
           onClose={onClose}
           onSaved={onSaved}
+          onRegisterClose={registerClose}
         />
       ) : null}
     </Dialog>
@@ -853,11 +949,13 @@ function UserForm({
   editing,
   niveles,
   onSaved,
+  onRegisterClose,
 }: {
   onClose: () => void
   editing: HubUserRow | null
   niveles: Nivel[]
   onSaved: () => Promise<void>
+  onRegisterClose: (request: () => void) => void
 }) {
   const empty = {
     name: '',
@@ -867,7 +965,7 @@ function UserForm({
     banned: false,
     nivelIds: [] as string[],
   }
-  const [draft, setDraft] = React.useState(() =>
+  const [initialDraft] = React.useState(
     editing
       ? {
           name: editing.name,
@@ -879,8 +977,15 @@ function UserForm({
         }
       : empty,
   )
-  const [saving, setSaving] = React.useState(false)
+  const [draft, setDraft] = React.useState(initialDraft)
+  const { pending: saving, run: runPending } = useAdminPendingAction()
   const [error, setError] = React.useState<string | null>(null)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initialDraft)
+  const requestClose = useDirtyGuard(dirty, onClose)
+
+  React.useEffect(() => {
+    onRegisterClose(requestClose)
+  }, [onRegisterClose, requestClose])
 
   const passwordOk =
     draft.password.length === 0 || draft.password.length >= 8
@@ -890,9 +995,8 @@ function UserForm({
     (editing ? passwordOk : draft.password.length >= 8)
 
   const save = async () => {
-    setSaving(true)
-    setError(null)
-    try {
+    await runPending(async () => {
+      setError(null)
       const res = editing
         ? await fetch(`/api/usuarios/${encodeURIComponent(editing.id)}`, {
             method: 'PATCH',
@@ -927,9 +1031,7 @@ function UserForm({
       }
       await onSaved()
       onClose()
-    } finally {
-      setSaving(false)
-    }
+    })
   }
 
   return (
@@ -1008,7 +1110,7 @@ function UserForm({
           ) : null}
         </div>
         <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button variant="secondary" onClick={requestClose}>Cancelar</Button>
           <Button
             disabled={!valido || saving}
             onClick={() => void save()}
@@ -1026,6 +1128,7 @@ function UsersAdmin() {
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<HubUserRow | null>(null)
+  const rememberTrigger = useAdminDialogFocus(open)
 
   const requestUsers = React.useCallback(async () => {
     const res = await fetch('/api/usuarios')
@@ -1067,10 +1170,12 @@ function UsersAdmin() {
   }, [requestUsers])
 
   const nuevo = () => {
+    rememberTrigger()
     setEditing(null)
     setOpen(true)
   }
   const editar = (u: HubUserRow) => {
+    rememberTrigger()
     setEditing(u)
     setOpen(true)
   }
@@ -1151,7 +1256,8 @@ function UsersAdmin() {
 export function AdminPage() {
   const session = authClient.useSession()
   const role = (session.data?.user as { role?: Role } | undefined)?.role
-  const isAdmin = role === 'admin'
+  const canView = (id: AdminSectionId) => adminSectionsForRole(role ?? 'editor').some((item) => item.id === id)
+  const { section: tab, navigate: onTab } = useAdminSection()
   const {
     recursos,
     niveles,
@@ -1168,23 +1274,6 @@ export function AdminPage() {
     upsertTag,
     removeTag,
   } = useHubData()
-
-  const [tab, setTab] = React.useState('recursos')
-  const onTab = (value: string) => setTab(value)
-
-  React.useEffect(() => {
-    const syncHash = () => {
-      const hash = window.location.hash.slice(1)
-      if (hash) setTab(hash)
-    }
-    syncHash()
-    window.addEventListener('hashchange', syncHash)
-    return () => window.removeEventListener('hashchange', syncHash)
-  }, [])
-
-  // Editorial users (non-admin) only see the resources section: adjust the
-  // tab during render when the role loses admin access.
-  if (!isAdmin && tab !== 'recursos') setTab('recursos')
 
   const usoNivel = (id: string) =>
     recursos.filter((r) => r.nivelId === id).length
@@ -1217,30 +1306,11 @@ export function AdminPage() {
           </span>
         </div>
 
-        {writeError ? (
-          <div className="ui-messagebar ui-messagebar--error" role="alert">
-            {writeError}
-          </div>
-        ) : null}
-
-        <Tabs value={tab} onValueChange={onTab}>
-          <TabsList>
-            <TabsTab value="recursos">Recursos</TabsTab>
-            {isAdmin ? (
-              <>
-                <TabsTab value="categorias">Categorías</TabsTab>
-                <TabsTab value="tags">Etiquetas</TabsTab>
-                <TabsTab value="niveles">Niveles</TabsTab>
-                <TabsTab value="tipos">Tipos</TabsTab>
-                <TabsTab value="usuarios">Usuarios</TabsTab>
-              </>
-            ) : null}
-          </TabsList>
-        </Tabs>
+        <AdminPageTabs tab={tab} onTab={onTab} role={role} />
 
         {tab === 'recursos' && <RecursosAdmin />}
 
-        {isAdmin && tab === 'categorias' && (
+        {canView('categorias') && tab === 'categorias' && (
           <TaxonomyAdmin<Categoria>
             singular="categoría"
             items={categorias}
@@ -1264,6 +1334,7 @@ export function AdminPage() {
               },
             ]}
             emptyValues={{ nombre: '', color: 'brand' }}
+            error={writeError}
             onSave={(v, editing) =>
               upsertCategoria({
                 id: editing?.id ?? slugId(String(v.nombre)),
@@ -1275,7 +1346,7 @@ export function AdminPage() {
           />
         )}
 
-        {isAdmin && tab === 'tags' && (
+        {canView('tags') && tab === 'tags' && (
           <TaxonomyAdmin<TagModel>
             singular="etiqueta"
             items={tags}
@@ -1290,6 +1361,7 @@ export function AdminPage() {
             ]}
             fields={[{ key: 'nombre', label: 'Nombre', type: 'text' }]}
             emptyValues={{ nombre: '' }}
+            error={writeError}
             onSave={(v, editing) =>
               upsertTag({
                 id: editing?.id ?? slugId(String(v.nombre)),
@@ -1300,7 +1372,7 @@ export function AdminPage() {
           />
         )}
 
-        {isAdmin && tab === 'niveles' && (
+        {canView('niveles') && tab === 'niveles' && (
           <TaxonomyAdmin<Nivel>
             singular="nivel"
             items={[...niveles].sort((a, b) => a.orden - b.orden)}
@@ -1314,6 +1386,7 @@ export function AdminPage() {
               { key: 'orden', label: 'Orden', type: 'number' },
             ]}
             emptyValues={{ nombre: '', orden: niveles.length + 1 }}
+            error={writeError}
             onSave={(v, editing) =>
               upsertNivel({
                 id: editing?.id ?? slugId(String(v.nombre)),
@@ -1325,7 +1398,7 @@ export function AdminPage() {
           />
         )}
 
-        {isAdmin && tab === 'tipos' && (
+        {canView('tipos') && tab === 'tipos' && (
           <TaxonomyAdmin<Tipo>
             singular="tipo"
             items={tipos}
@@ -1355,6 +1428,7 @@ export function AdminPage() {
               },
             ]}
             emptyValues={{ nombre: '', aplicaA: ['reporte'] }}
+            error={writeError}
             onSave={(v, editing) =>
               upsertTipo({
                 id: editing?.id ?? slugId(String(v.nombre)),
@@ -1369,7 +1443,7 @@ export function AdminPage() {
           />
         )}
 
-        {isAdmin && tab === 'usuarios' && <UsersAdmin />}
+        {canView('usuarios') && tab === 'usuarios' && <UsersAdmin />}
       </div>
     </div>
   )

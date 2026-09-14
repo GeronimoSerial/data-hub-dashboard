@@ -45,6 +45,7 @@ describe('MobileFilters (explore Sheet)', () => {
     await user.click(screen.getByRole('button', { name: /aplicar filtros/i }))
     expect(onApply).toHaveBeenCalledTimes(1)
     expect(onApply).toHaveBeenCalledWith({ tema: 'matricula' })
+    expect(screen.getByRole('button', { name: /filtros/i })).toHaveFocus()
   })
 
   it('cancelling discards the staged draft and never applies it', async () => {
@@ -56,6 +57,7 @@ describe('MobileFilters (explore Sheet)', () => {
 
     await user.click(screen.getByRole('button', { name: /^cancelar$/i }))
     expect(onApply).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: /filtros/i })).toHaveFocus()
 
     // Reopening resets the draft to the URL filters (nothing picked). The
     // closed Formato trigger resolves its label from the items contract.

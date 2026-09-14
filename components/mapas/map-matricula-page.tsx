@@ -16,45 +16,42 @@ import { ensureMapWorker } from '@/lib/map-worker'
 import { useMapData } from '@/lib/use-map-data'
 import {
   createMapStateSettler,
-  parseMapViewState,
-  replaceMapViewParams,
+  DEFAULT_MAP_BASEMAP,
+  DEFAULT_MAP_OVERLAYS,
+  parseMapShareState,
+  replaceMapShareParams,
   type MapViewStateSettler,
 } from '@/lib/map-share'
 
 ensureMapWorker()
 
-const DEFAULT_OVERLAYS: Record<OverlayKey, boolean> = {
-  zones: true,
-  sobreoferta: false,
-  down: true,
-  up: true,
-  flat: true,
-  partial: true,
-  localities: true,
-}
-
 export default function MapMatriculaPage() {
   const styles = useOverlayStyles()
   const searchParams = useSearchParams()
-  const { data, error, loading } = useMapData()
+  const { data, error, loading, retry } = useMapData()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
-  const [basemap, setBasemap] = useState<BasemapId>('voyager')
+  const [initialView] = useState(() => parseMapShareState(searchParams))
+  const [basemap, setBasemap] = useState<BasemapId>(initialView.basemap ?? DEFAULT_MAP_BASEMAP)
   const [overlays, setOverlays] =
-    useState<Record<OverlayKey, boolean>>(DEFAULT_OVERLAYS)
+    useState<Record<OverlayKey, boolean>>(initialView.overlays ?? DEFAULT_MAP_OVERLAYS)
+  const stableStateRef = useRef({ basemap, overlays })
   const [selected, setSelected] = useState<SelectedFeature | null>(null)
   const settlerRef = useRef<MapViewStateSettler | null>(null)
-  if (settlerRef.current == null) {
-    settlerRef.current = createMapStateSettler(replaceMapViewParams)
-  }
 
   useEffect(() => {
+    settlerRef.current = createMapStateSettler((view) => replaceMapShareParams({ ...view, ...stableStateRef.current }))
     const settler = settlerRef.current
     if (!settler) return
     const onPopState = () => {
       // Restore the view from the URL after back/forward navigation.
       settler.cancel()
-      const restored = parseMapViewState(new URLSearchParams(window.location.search))
+      const restored = parseMapShareState(new URLSearchParams(window.location.search))
+      const restoredBasemap = restored.basemap ?? DEFAULT_MAP_BASEMAP
+      const restoredOverlays = restored.overlays ?? DEFAULT_MAP_OVERLAYS
+      stableStateRef.current = { basemap: restoredBasemap, overlays: restoredOverlays }
+      setBasemap(restoredBasemap)
+      setOverlays(restoredOverlays)
       if (restored.longitude != null && restored.latitude != null && restored.zoom != null) {
         mapRef.current?.flyTo({
           center: [restored.longitude, restored.latitude],
@@ -66,11 +63,21 @@ export default function MapMatriculaPage() {
     window.addEventListener('popstate', onPopState)
     return () => {
       window.removeEventListener('popstate', onPopState)
-      settler.flush()
+      settler.cancel()
     }
   }, [])
 
-  const initialView = parseMapViewState(searchParams)
+  const updateStableState = (nextBasemap: BasemapId, nextOverlays: Record<OverlayKey, boolean>) => {
+    stableStateRef.current = { basemap: nextBasemap, overlays: nextOverlays }
+    const center = mapRef.current?.getCenter()
+    replaceMapShareParams({
+      longitude: center?.lng,
+      latitude: center?.lat,
+      zoom: mapRef.current?.getZoom(),
+      basemap: nextBasemap,
+      overlays: nextOverlays,
+    })
+  }
 
   if (loading) {
     return <div className={styles.status}>Cargando mapa…</div>
@@ -78,8 +85,9 @@ export default function MapMatriculaPage() {
 
   if (error || !data) {
     return (
-      <div className={`${styles.status} ${styles.statusError}`}>
-        {error ?? 'No hay datos. Ejecutá pnpm extract.'}
+      <div className={`${styles.status} ${styles.statusError}`} role="alert">
+        <p>{error ?? 'No hay datos disponibles para este mapa.'}</p>
+        <button className="ui-button ui-button--secondary" type="button" onClick={retry}>Reintentar</button>
       </div>
     )
   }
@@ -120,12 +128,19 @@ export default function MapMatriculaPage() {
             })
           }}
         />
-        <BasemapControl value={basemap} onChange={setBasemap} />
+        <BasemapControl value={basemap} onChange={(next) => {
+          setBasemap(next)
+          updateStableState(next, overlays)
+        }} />
         <LayerControl
           overlays={overlays}
-          onChange={(key, value) =>
-            setOverlays((prev) => ({ ...prev, [key]: value }))
-          }
+          onChange={(key, value) => {
+            // Compute the next state outside the updater so the URL/history
+            // side effect never runs during a render phase.
+            const next = { ...overlays, [key]: value }
+            setOverlays(next)
+            updateStableState(basemap, next)
+          }}
         />
       </div>
 
