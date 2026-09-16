@@ -22,6 +22,7 @@ import {
   tipos,
   user,
 } from './schema'
+import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
 
 const HUB_DDL = `
 PRAGMA foreign_keys = ON;
@@ -249,6 +250,10 @@ async function seedHub() {
   } else {
     await convertExistingSeedFiles()
   }
+
+  // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
+  // toca la audiencia configurada del recurso (ver recurso-seed.ts).
+  await upsertRecursoInfraestructura()
 
   await seedFirstAdmin()
 }

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '@/lib/db'
-import { recursoAudienciaNiveles, recursos } from '@/lib/db/schema'
+import { recursoAudienciaNiveles } from '@/lib/db/schema'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
 
@@ -41,25 +41,12 @@ beforeAll(async () => {
     ge.close()
   }
 
-  // ensureSeeded() (llamado por el route handler) crea el catálogo base, pero
-  // el recurso '/mapas/infraestructura' lo da de alta B6. Este test lo inserta
-  // a mano para poder ejercitar puedeAbrir() con audiencias distintas.
+  // ensureSeeded() (llamado por el route handler) da de alta el recurso
+  // 'recurso-infraestructura' en '/mapas/infraestructura' (B6, ver
+  // lib/infraestructura/recurso-seed.ts). Alcanza con sembrar acá para poder
+  // ejercitar puedeAbrir() con audiencias distintas sobre ese mismo recurso.
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
-  const db = getDb()
-  await db.insert(recursos).values({
-    id: 'recurso-infraestructura',
-    titulo: 'Infraestructura',
-    descripcion: 'Alertas de infraestructura',
-    formato: 'mapa',
-    nivelId: 'transversal',
-    tipoId: 'georref',
-    categoriaId: 'matricula',
-    area: 'Infraestructura',
-    actualizado: '2025-01-01',
-    estado: 'publicado',
-    ruta: '/mapas/infraestructura',
-  })
 })
 
 afterAll(() => {

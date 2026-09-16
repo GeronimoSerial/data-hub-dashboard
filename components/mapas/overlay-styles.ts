@@ -24,6 +24,10 @@ const styles = {
   fullscreenBtn: 'map-fullscreen-btn',
   status: 'map-status',
   statusError: 'map-status-error',
+  filtrosGrid: 'map-filtros-grid',
+  alertasList: 'map-alertas-list',
+  alertaRow: 'map-alerta-row',
+  alertaRowActive: 'map-alerta-row-active',
 } as const
 
 export const useOverlayStyles = () => styles

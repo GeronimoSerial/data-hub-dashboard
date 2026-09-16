@@ -1424,6 +1424,36 @@ h1, h2, h3, h4 {
   text-align: center;
 }
 .map-status-error { color: var(--danger); }
+.map-filtros-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+.map-alertas-list {
+  list-style: none;
+  margin: var(--s-1) 0 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+.map-alerta-row {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-2);
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+.map-alerta-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.map-alerta-row-active {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
+}
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 
