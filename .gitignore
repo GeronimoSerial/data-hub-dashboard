@@ -21,3 +21,5 @@ node_modules
 tsconfig.tsbuildinfo
 .superpowers/
 .data/
+# Borrador superado por docs/alertas-infraestructura-batches.md
+plan.md
