@@ -3,6 +3,11 @@ import { normalizeCue } from './cue'
 import { getCorteVigente } from './ge-db'
 
 export interface SeccionContexto {
+  // Clave estable de la sección (= establecimientoCursoDivisionId de GE). NO es dato
+  // personal: es el identificador institucional con el que el formulario informa qué
+  // secciones selecciona, y el que POST /api/problematicas valida contra ge_seccion.
+  // Lo prohibido en este payload es ge_person_id y cualquier identidad de alumno.
+  geSectionId: number
   curso: string
   division: string
   nivel: string
@@ -119,6 +124,7 @@ export async function resolverContextoPorCue(
       args: [corte.id, row.geSectionId],
     })
     secciones.push({
+      geSectionId: Number(row.geSectionId),
       curso: String(row.curso),
       division: String(row.division),
       nivel: String(row.nivel),

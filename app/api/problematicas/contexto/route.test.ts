@@ -48,7 +48,7 @@ describe('GET /api/problematicas/contexto', () => {
     const body = await res.json()
     expect(body.escuela.nombre).toBe('Escuela 4')
     expect(body.turnos).toEqual([
-      { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1 }] }] },
+      { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 10, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1 }] }] },
     ])
   })
 

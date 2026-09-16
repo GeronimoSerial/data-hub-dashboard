@@ -61,8 +61,8 @@ describe('resolverContextoPorCue', () => {
             {
               turno: 'Mañana',
               niveles: [
-                { nivel: 'Inicial', secciones: [{ curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2 }] },
-                { nivel: 'Primario', secciones: [{ curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1 }] },
+                { nivel: 'Inicial', secciones: [{ geSectionId: 10, curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2 }] },
+                { nivel: 'Primario', secciones: [{ geSectionId: 11, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1 }] },
               ],
             },
           ],
@@ -97,7 +97,7 @@ describe('resolverContextoPorCue', () => {
       if (base.ok) {
         expect(base.contexto.escuela.nombre).toBe('Escuela Base')
         expect(base.contexto.turnos).toEqual([
-          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0 }] }] },
+          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 20, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0 }] }] },
         ])
       }
 
@@ -105,7 +105,7 @@ describe('resolverContextoPorCue', () => {
       if (anexo.ok) {
         expect(anexo.contexto.escuela.nombre).toBe('Escuela Anexo 01')
         expect(anexo.contexto.turnos).toEqual([
-          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0 }] }] },
+          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 21, curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0 }] }] },
         ])
       }
     } finally {
@@ -176,7 +176,11 @@ describe('resolverContextoPorCue', () => {
       expect(serializado).not.toContain('gePersonId')
       expect(serializado).not.toContain('ge_person_id')
       expect(serializado).not.toContain('555444')
-      expect(serializado).not.toContain('geSectionId')
+      // geSectionId SÍ viaja: es la clave institucional de la sección, no un dato personal.
+      // El formulario la necesita para informar qué secciones selecciona y POST
+      // /api/problematicas la valida contra ge_seccion. Lo prohibido es la identidad del alumno.
+      expect(resultado).toMatchObject({ ok: true })
+      expect(serializado).toContain('geSectionId')
     } finally {
       client.close()
     }
