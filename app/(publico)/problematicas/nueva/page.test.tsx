@@ -20,6 +20,7 @@ afterEach(() => {
   if (prevDataDir === undefined) delete process.env.DATA_DIR
   else process.env.DATA_DIR = prevDataDir
   rmSync(dir, { recursive: true, force: true })
+  document.body.innerHTML = ''
 })
 
 async function seedEscuelaConSeccion() {
