@@ -190,3 +190,26 @@ export const userNiveles = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.nivelId] })],
 )
+
+export const infraProblematica = sqliteTable('infra_problematica', {
+  id: text('id').primaryKey(),
+  cueAnexo: text('cue_anexo').notNull(),
+  motivo: text('motivo').notNull(),
+  severidad: text('severidad').notNull(),
+  descripcion: text('descripcion'),
+  corteId: integer('corte_id').notNull(),
+  creadaEn: text('creada_en').notNull(),
+  idempotencyKey: text('idempotency_key').notNull().unique(),
+  origen: text('origen').notNull(),
+})
+
+export const infraProblematicaSeccion = sqliteTable(
+  'infra_problematica_seccion',
+  {
+    problematicaId: text('problematica_id')
+      .notNull()
+      .references(() => infraProblematica.id, { onDelete: 'cascade' }),
+    geSectionId: integer('ge_section_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.problematicaId, t.geSectionId] })],
+)

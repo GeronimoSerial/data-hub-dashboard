@@ -146,6 +146,25 @@ CREATE TABLE IF NOT EXISTS \`user_niveles\` (
   PRIMARY KEY(\`user_id\`, \`nivel_id\`),
   FOREIGN KEY (\`nivel_id\`) REFERENCES \`niveles\`(\`id\`)
 );
+CREATE TABLE IF NOT EXISTS \`infra_problematica\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`motivo\` text NOT NULL,
+  \`severidad\` text NOT NULL,
+  \`descripcion\` text,
+  \`corte_id\` integer NOT NULL,
+  \`creada_en\` text NOT NULL,
+  \`idempotency_key\` text NOT NULL,
+  \`origen\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_problematica_idempotency_key_unique\` ON \`infra_problematica\` (\`idempotency_key\`);
+CREATE INDEX IF NOT EXISTS \`infra_problematica_cue_anexo_idx\` ON \`infra_problematica\` (\`cue_anexo\`);
+CREATE TABLE IF NOT EXISTS \`infra_problematica_seccion\` (
+  \`problematica_id\` text NOT NULL,
+  \`ge_section_id\` integer NOT NULL,
+  PRIMARY KEY(\`problematica_id\`, \`ge_section_id\`),
+  FOREIGN KEY (\`problematica_id\`) REFERENCES \`infra_problematica\`(\`id\`) ON DELETE CASCADE
+);
 `
 
 let seedPromise: Promise<void> | null = null
