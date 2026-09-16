@@ -1,5 +1,6 @@
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { FormularioProblematica } from '@/components/infraestructura/formulario-problematica'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,35 +44,18 @@ export default async function NuevaProblematicaPage({
     <div className="p-6">
       <h1 className="text-xl font-semibold">Reportar una problemática</h1>
       <section className="mt-2">
-        <p className="font-medium">{escuela.nombre}</p>
         <p className="text-sm text-muted-foreground">
           {escuela.localidad}, {escuela.departamento}
         </p>
       </section>
 
-      <section className="mt-4 space-y-4">
-        {turnos.map((turno) => (
-          <div key={turno.turno}>
-            <h2 className="text-sm font-semibold">{turno.turno}</h2>
-            {turno.niveles.map((nivel) => (
-              <div key={nivel.nivel} className="mt-1">
-                <h3 className="text-xs font-medium text-muted-foreground">{nivel.nivel}</h3>
-                <ul className="mt-1 space-y-1">
-                  {nivel.secciones.map((seccion) => (
-                    <li key={`${seccion.curso}-${seccion.division}`} className="text-sm">
-                      {seccion.curso} &quot;{seccion.division}&quot; — {seccion.matricula} alumnos
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        ))}
+      <section className="mt-4">
+        <FormularioProblematica
+          cue={escuela.cueAnexo}
+          escuelaNombre={escuela.nombre}
+          turnos={turnos}
+        />
       </section>
-
-      <p className="mt-6 text-sm text-muted-foreground">
-        El formulario para reportar la problemática estará disponible próximamente.
-      </p>
     </div>
   )
 }

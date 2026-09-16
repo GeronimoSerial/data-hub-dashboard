@@ -1500,3 +1500,98 @@ h1, h2, h3, h4 {
 
   .resource-details-toggle svg { animation: none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Infraestructura — formulario de problemática
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --severidad-baja: #90b4e1;
+  --severidad-media: #facd05;
+  --severidad-alta: #e58a2b;
+  --severidad-critica: #f4492e;
+}
+
+.formulario-problematica {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 640px;
+}
+
+.formulario-problematica__escuela {
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--fill);
+  border: 1px solid var(--line);
+}
+
+.formulario-problematica__escuela p:first-child { font-weight: 600; color: var(--ink); }
+.formulario-problematica__escuela p:last-child { font-size: var(--t-small); color: var(--ink-soft); }
+
+.formulario-problematica__campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.formulario-problematica__impacto-preliminar {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--brand-tint);
+  border: 1px solid var(--blue-light);
+}
+
+.formulario-problematica__impacto-preliminar p { font-size: var(--t-small); color: var(--ink); margin: 0; }
+.formulario-problematica__impacto-preliminar p:last-child { color: var(--ink-soft); font-size: var(--t-micro); }
+
+.formulario-problematica__error {
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.formulario-problematica__confirmacion {
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--ok-tint);
+  color: var(--ok);
+  font-weight: 500;
+}
+
+.secciones-selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.secciones-selector__turno {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.secciones-selector__turno > h3 {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.secciones-selector__nivel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding-left: var(--s-3);
+}
+
+.secciones-selector__nivel > h4 {
+  font-size: var(--t-micro);
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 480px) {
+  .formulario-problematica { max-width: none; }
+}
