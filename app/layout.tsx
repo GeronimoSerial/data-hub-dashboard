@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Barlow, Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
-import { HubDataProvider } from '@/components/hub-data'
-import { AppShell } from '@/components/app-shell'
 
 const barlow = Barlow({
   subsets: ['latin'],
@@ -39,11 +37,7 @@ export default function RootLayout({
       className={`${barlow.variable} ${inter.variable}`}
     >
       <body>
-        <Providers>
-          <HubDataProvider>
-            <AppShell>{children}</AppShell>
-          </HubDataProvider>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
