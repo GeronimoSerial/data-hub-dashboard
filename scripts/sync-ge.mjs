@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Sincroniza localizaciones (ge_localizacion) desde index.html + establishments.geojson
- * y arma un corte sintético de prueba (fixture) en ge.sqlite.
+ * Sincroniza localizaciones (ge_localizacion) desde public/data/localizaciones.json +
+ * establishments.geojson y arma un corte sintético de prueba (fixture) en ge.sqlite.
  * Usage: node scripts/sync-ge.mjs --fixture
  */
 import { existsSync, readFileSync } from 'node:fs'
@@ -43,17 +43,21 @@ const { openGeDb, ensureGeSchema, activarCorte } = await import(
   '../lib/infraestructura/ge-db.ts'
 )
 
-export function parseIndexHtmlLocalizaciones(html) {
-  const re = /const DATA=(\[.*?\]);/s
-  const match = html.match(re)
-  if (!match) return { registros: [], descartados: [] }
+export function parseLocalizacionesJson(jsonText) {
+  let data
+  try {
+    data = JSON.parse(jsonText)
+  } catch {
+    return { registros: [], descartados: [] }
+  }
+  if (!Array.isArray(data)) return { registros: [], descartados: [] }
 
   const descartados = []
   const registros = []
-  for (const obj of JSON.parse(match[1])) {
-    const parsed = normalizeCue(obj.cue)
+  for (const obj of data) {
+    const parsed = normalizeCue(obj.cueAnexo)
     if (parsed === null || parsed.kind !== 'anexo') {
-      descartados.push(obj.cue)
+      descartados.push(obj.cueAnexo)
       continue
     }
     registros.push({
@@ -64,7 +68,7 @@ export function parseIndexHtmlLocalizaciones(html) {
       localidad: obj.localidad,
       lat: typeof obj.lat === 'number' ? obj.lat : null,
       lon: typeof obj.lon === 'number' ? obj.lon : null,
-      geoCalidad: typeof obj.geo_calidad === 'string' ? obj.geo_calidad : null,
+      geoCalidad: typeof obj.geoCalidad === 'string' ? obj.geoCalidad : null,
     })
   }
   return { registros, descartados }
@@ -189,12 +193,12 @@ async function runFixture() {
   try {
     await ensureGeSchema(client)
 
-    const indexHtmlPath = join(root, 'index.html')
-    let indexHtmlResult = { registros: [], descartados: [] }
-    if (existsSync(indexHtmlPath)) {
-      indexHtmlResult = parseIndexHtmlLocalizaciones(readFileSync(indexHtmlPath, 'utf8'))
+    const localizacionesJsonPath = join(root, 'public', 'data', 'localizaciones.json')
+    let localizacionesResult = { registros: [], descartados: [] }
+    if (existsSync(localizacionesJsonPath)) {
+      localizacionesResult = parseLocalizacionesJson(readFileSync(localizacionesJsonPath, 'utf8'))
     } else {
-      console.warn('index.html no encontrado, localizaciones del fixture seran minimas')
+      console.warn('localizaciones.json no encontrado, localizaciones del fixture seran minimas')
     }
 
     const geojsonPath = join(root, 'public', 'data', 'establishments.geojson')
@@ -205,7 +209,7 @@ async function runFixture() {
       console.warn('establishments.geojson no encontrado, localizaciones del fixture seran minimas')
     }
 
-    const { registros, descartados } = reconciliarLocalizaciones(indexHtmlResult, geojsonResult)
+    const { registros, descartados } = reconciliarLocalizaciones(localizacionesResult, geojsonResult)
     await upsertLocalizaciones(client, registros)
 
     const cuesDisponibles = registros.map((r) => r.cueAnexo)
