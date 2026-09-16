@@ -267,9 +267,10 @@ ni alumnos que contar.
    secciones con `ge_section_id`, membresías `(corte_id, ge_section_id, ge_person_id)`, y al menos
    un caso de alumno en dos secciones (para probar la unión) y un CUE con dos niveles.
 5. Extracción de `ge_localizacion` desde las fuentes que ya están en el repo: `index.html` (el array
-   `DATA`, ~2005 registros con CUE, nombre, depto, localidad, lat, lon) y
-   `public/data/establishments.geojson` (~288). **Conciliación por `cue_anexo`, nunca por posición
-   de fila ni por nombre.** Coordenadas y CUI faltantes quedan `NULL`, no cero ni cadena vacía.
+   `DATA`, **2005 registros medidos**, con CUE, nombre, depto, localidad, lat, lon y `geo_calidad`) y
+   `public/data/establishments.geojson` (288 features). **Conciliación por `cue_anexo`, nunca por
+   posición de fila ni por nombre.** Coordenadas faltantes quedan `NULL`, no cero ni cadena vacía.
+   Persistir también `geo_calidad`, disponible en `index.html`.
 6. Activación transaccional del corte: se escribe con `estado='importando'`, se verifican invariantes
    (toda sección tiene CUE existente; toda membresía apunta a una sección del mismo corte), y recién
    entonces pasa a `'vigente'` degradando el anterior a `'historico'`.
@@ -287,8 +288,11 @@ ni alumnos que contar.
   vigente devuelve el anterior.
 - El `ATTACH` permite un `JOIN` entre `hub.sqlite` y `ge.` en una sola consulta, con test que lo
   demuestra.
-- `ge_localizacion` carga los ~2005 registros; los ~47 sin coordenada y los 56 sin CUI quedan `NULL`
-  y **siguen presentes en la tabla**.
+- `ge_localizacion` carga los **2005** registros; los **4** sin coordenada quedan `NULL` y **siguen
+  presentes en la tabla**.
+- `cui` queda `NULL` en los 2005 registros y la columna se conserva en el esquema. **No es un dato
+  faltante: es una dependencia de datos declarada pendiente** (ver más abajo). El importador lo
+  documenta en el código y el reporte del batch lo declara pendiente, nunca completado.
 - El DDL corre dos veces seguidas sin error y sin duplicar datos.
 - `index.html` ya no existe en el repositorio.
 
@@ -302,6 +306,14 @@ ni alumnos que contar.
   `ge_` a `hub.sqlite` con prefijo, lo que cambia B0 y nada más.
 - *La conciliación por nombre tienta cuando falta el CUE* — media. Está explícitamente prohibida.
   Un registro sin CUE se descarta y se reporta, no se adivina.
+- *El CUI no tiene fuente en el repositorio* — **confirmado el 16/09/2026, no es un riesgo: es un
+  hecho**. Ni `index.html` (39 campos, ninguno `cui`) ni `establishments.geojson` (12 propiedades)
+  lo traen, y no hay planilla `.xlsx`/`.csv` en el repo. Los números `2049 / 56 sin CUI / 47 sin
+  coordenadas` que este documento arrastraba venían de «la planilla de localizaciones» que listaba
+  `plan.md` y que **nunca entró al repositorio**; la v2.0 quitó la planilla de las fuentes pero
+  conservó sus cifras. Consecuencia para los batches siguientes: donde B5 exige distinguir CUE,
+  localizaciones e **inmuebles**, el recuento de inmuebles **no está disponible** y se informa como
+  tal — nunca como cero. La fuente real llega con B8.
 
 ---
 
