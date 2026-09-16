@@ -1645,7 +1645,10 @@ h1, h2, h3, h4 {
 }
 
 .publico-header__inner {
-  max-width: var(--measure);
+  /* Mismo ancho que .publico-content para que el título institucional comparta
+     borde izquierdo con el formulario. Con var(--measure) (1320px) el título
+     quedaba flotando a la izquierda del contenido en pantallas anchas. */
+  max-width: 640px;
   margin: 0 auto;
   padding: var(--s-4) clamp(1rem, 3vw, 2.5rem);
 }
