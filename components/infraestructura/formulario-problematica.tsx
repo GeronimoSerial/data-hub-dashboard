@@ -146,6 +146,14 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         <p>CUE {cue}</p>
       </div>
 
+      {/*
+        Motivo/Severidad usan <select> nativo a propósito, no el componente Select
+        compartido: este formulario lo llena un director desde el celular, sin
+        cuenta y a veces con mala conexión. El nativo abre el picker del sistema
+        operativo, funciona con lectores de pantalla sin configuración adicional,
+        no tiene bugs de touch/scroll y opera 100% por teclado. Un combobox
+        custom acá es un riesgo de accesibilidad, no una mejora visual.
+      */}
       <div className="formulario-problematica__campo">
         <Label htmlFor="motivo">Motivo</Label>
         <select

@@ -1,10 +1,14 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useMemo, type JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { AlertaActiva } from '@/lib/infraestructura/consulta'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { MOTIVOS, SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+
+const TODOS = 'todos'
+const TODAS = 'todas'
 
 type FiltrosForm = {
   territorio: string
@@ -26,12 +30,22 @@ export function ListaAlertas(props: {
 }): JSX.Element {
   const styles = useOverlayStyles()
 
+  const itemsMotivo = useMemo(
+    () => ({ [TODOS]: 'Todos', ...Object.fromEntries(MOTIVOS.map((m) => [m, m])) }),
+    [],
+  )
+  const itemsSeveridad = useMemo(
+    () => ({ [TODAS]: 'Todas', ...Object.fromEntries(SEVERIDADES.map((s) => [s, s])) }),
+    [],
+  )
+
   return (
     <div className={`${styles.panel} ${styles.legendPanel}`}>
       <div className={styles.filtrosGrid}>
-        <label>
-          Territorio
+        <label className="map-filtro-campo">
+          <span className="map-filtro-label">Territorio</span>
           <input
+            className="ui-input map-filtro-input"
             type="text"
             placeholder="Departamento o localidad"
             value={props.filtros.territorio}
@@ -41,9 +55,10 @@ export function ListaAlertas(props: {
           />
         </label>
 
-        <label>
-          Nivel
+        <label className="map-filtro-campo">
+          <span className="map-filtro-label">Nivel</span>
           <input
+            className="ui-input map-filtro-input"
             type="text"
             placeholder="Nivel (ej. PRIMARIA)"
             value={props.filtros.nivel}
@@ -53,9 +68,10 @@ export function ListaAlertas(props: {
           />
         </label>
 
-        <label>
-          Establecimiento
+        <label className="map-filtro-campo">
+          <span className="map-filtro-label">Establecimiento</span>
           <input
+            className="ui-input map-filtro-input"
             type="text"
             placeholder="CUE-Anexo"
             value={props.filtros.establecimiento}
@@ -65,39 +81,47 @@ export function ListaAlertas(props: {
           />
         </label>
 
-        <label>
-          Motivo
-          <select
-            value={props.filtros.motivo}
-            onChange={(event) =>
-              props.onFiltroChange('motivo', event.target.value)
+        <div className="map-filtro-campo">
+          <span className="map-filtro-label">Motivo</span>
+          <Select
+            value={props.filtros.motivo || TODOS}
+            items={itemsMotivo}
+            onValueChange={(value) =>
+              props.onFiltroChange('motivo', value === TODOS ? '' : String(value))
             }
           >
-            <option value="">Todos</option>
-            {MOTIVOS.map((motivo) => (
-              <option key={motivo} value={motivo}>
-                {motivo}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger aria-label="Motivo" className="map-filtro-input" />
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos</SelectItem>
+              {MOTIVOS.map((motivo) => (
+                <SelectItem key={motivo} value={motivo}>
+                  {motivo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label>
-          Severidad
-          <select
-            value={props.filtros.severidad}
-            onChange={(event) =>
-              props.onFiltroChange('severidad', event.target.value)
+        <div className="map-filtro-campo">
+          <span className="map-filtro-label">Severidad</span>
+          <Select
+            value={props.filtros.severidad || TODAS}
+            items={itemsSeveridad}
+            onValueChange={(value) =>
+              props.onFiltroChange('severidad', value === TODAS ? '' : String(value))
             }
           >
-            <option value="">Todas</option>
-            {SEVERIDADES.map((severidad) => (
-              <option key={severidad} value={severidad}>
-                {severidad}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger aria-label="Severidad" className="map-filtro-input" />
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas</SelectItem>
+              {SEVERIDADES.map((severidad) => (
+                <SelectItem key={severidad} value={severidad}>
+                  {severidad}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {props.alertas.length === 0 ? (

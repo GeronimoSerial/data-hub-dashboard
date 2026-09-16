@@ -31,9 +31,11 @@ export default async function NuevaProblematicaPage({
 
   if (!resultado.ok) {
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-semibold">Reportar una problemática</h1>
-        <p className="text-sm text-destructive">{MENSAJES_ERROR[resultado.error.kind]}</p>
+      <div className="publico-content">
+        <h1 className="publico-content__title">Reportar una problemática</h1>
+        <p className="formulario-problematica__error" role="alert">
+          {MENSAJES_ERROR[resultado.error.kind]}
+        </p>
       </div>
     )
   }
@@ -41,21 +43,17 @@ export default async function NuevaProblematicaPage({
   const { escuela, turnos } = resultado.contexto
 
   return (
-    <div className="p-6">
-      <h1 className="text-xl font-semibold">Reportar una problemática</h1>
-      <section className="mt-2">
-        <p className="text-sm text-muted-foreground">
-          {escuela.localidad}, {escuela.departamento}
-        </p>
-      </section>
+    <div className="publico-content">
+      <h1 className="publico-content__title">Reportar una problemática</h1>
+      <p className="publico-content__intro">
+        {escuela.localidad}, {escuela.departamento}
+      </p>
 
-      <section className="mt-4">
-        <FormularioProblematica
-          cue={escuela.cueAnexo}
-          escuelaNombre={escuela.nombre}
-          turnos={turnos}
-        />
-      </section>
+      <FormularioProblematica
+        cue={escuela.cueAnexo}
+        escuelaNombre={escuela.nombre}
+        turnos={turnos}
+      />
     </div>
   )
 }

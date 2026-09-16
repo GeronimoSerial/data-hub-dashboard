@@ -1430,6 +1430,20 @@ h1, h2, h3, h4 {
   gap: var(--s-2);
   margin-bottom: var(--s-2);
 }
+.map-filtro-campo { display: flex; flex-direction: column; gap: 3px; }
+.map-filtro-label {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.map-filtro-input.ui-input,
+.map-filtro-input.ui-select-trigger {
+  min-height: 36px;
+  padding: 0.4rem 0.6rem;
+  font-size: var(--t-micro);
+  background: var(--page);
+}
 .map-alertas-list {
   list-style: none;
   margin: var(--s-1) 0 0;
@@ -1592,6 +1606,82 @@ h1, h2, h3, h4 {
   color: var(--ink-soft);
 }
 
+.secciones-selector .ui-checkbox {
+  padding: 0.3rem 0;
+  min-height: 44px;
+}
+
+/* Native <select> kept for form controls covered by Testing Library's
+   userEvent.selectOptions (native-only API) — styled to match ui-select-trigger. */
+.formulario-problematica select.ui-input {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 1.3rem) 55%, calc(100% - 0.95rem) 55%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
 @media (max-width: 480px) {
   .formulario-problematica { max-width: none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Zona pública — formulario del director, sin AppShell ni sesión
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.publico-layout {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+}
+
+.publico-header {
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+}
+
+.publico-header__inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: var(--s-4) clamp(1rem, 3vw, 2.5rem);
+}
+
+.publico-header__title {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+
+.publico-main {
+  flex: 1;
+  width: 100%;
+}
+
+.publico-content {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 4rem;
+  display: grid;
+  gap: var(--s-2);
+}
+
+.publico-content__title {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  letter-spacing: -0.025em;
+  margin-bottom: var(--s-2);
+}
+
+.publico-content__intro {
+  margin: 0 0 var(--s-4);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+@media (max-width: 480px) {
+  .publico-content { padding-left: 1rem; padding-right: 1rem; }
 }
