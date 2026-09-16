@@ -30,6 +30,13 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Herramientas de operación del espejo de datos (ge.sqlite). El servidor no las
+# usa: se ejecutan con `docker exec` para poblar /data en una instalación nueva.
+# Sin esto, scripts/ y lib/ no existen en la imagen y el espejo no se puede cargar.
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+
 ENV DATA_DIR=/data
 RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data
 VOLUME ["/data"]

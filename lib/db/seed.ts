@@ -23,6 +23,7 @@ import {
   user,
 } from './schema'
 import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
+import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 
 // Exportado únicamente para el test de regresión de lib/db/seed.test.ts, que
 // lo aplica sobre una base ya poblada y verifica que no pierde filas ni
@@ -274,6 +275,10 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
+
+  // Siembra ge_localizacion desde el JSON versionado si esta vacia: ge.sqlite
+  // vive en el volumen y una instalacion nueva arrancaria sin escuelas.
+  await ensureLocalizacionesSeeded()
 
   await seedFirstAdmin()
 }
