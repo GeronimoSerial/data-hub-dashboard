@@ -1,6 +1,7 @@
 'use client'
 
 import type { JSX } from 'react'
+import Link from 'next/link'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { AlertaActiva } from '@/lib/infraestructura/consulta'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -10,7 +11,10 @@ function fechaLegible(iso: string): string {
   return Number.isNaN(fecha.getTime()) ? iso : fecha.toLocaleDateString('es-AR')
 }
 
-export function FichaAlerta(props: { alertas: AlertaActiva[] }): JSX.Element {
+export function FichaAlerta(props: {
+  alertas: AlertaActiva[]
+  mostrarEnlaceNominal: boolean
+}): JSX.Element {
   const styles = useOverlayStyles()
 
   if (props.alertas.length === 0) {
@@ -42,6 +46,12 @@ export function FichaAlerta(props: { alertas: AlertaActiva[] }): JSX.Element {
           <div className={styles.popupMuted}>{fechaLegible(alerta.creadaEn)}</div>
         </div>
       ))}
+      {props.mostrarEnlaceNominal && (
+        <>
+          <hr className={styles.popupRule} />
+          <Link href={`/infraestructura/afectados/${primera.id}`}>Ver alumnos alcanzados</Link>
+        </>
+      )}
     </div>
   )
 }

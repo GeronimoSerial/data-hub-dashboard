@@ -1,0 +1,81 @@
+import { and, desc, eq, gt, isNull } from 'drizzle-orm'
+import { getDb } from '@/lib/db'
+import { infraPermisoNominal } from '@/lib/db/schema'
+import type { SessionUser } from '@/lib/acl'
+
+export interface PermisoNominal {
+  id: string
+  userId: string
+  otorgadoPor: string
+  otorgadoEn: string
+  venceEn: string
+  revocadoEn: string | null
+}
+
+// Deliberadamente NO consulta user.role. lib/acl.ts:22 hace que puedeAbrir()
+// devuelva true incondicional para 'admin' y 'editor'; si esta función
+// mirara el rol, todo admin y editor vería nombres de alumnos y el permiso
+// administrado en infra_permiso_nominal dejaría de tener ningún efecto. Ser
+// 'admin' da la capacidad de otorgar este permiso (ver otorgarPermisoNominal
+// más abajo), nunca la de verlo. No "mejores" esto agregando
+// `user.role === 'admin'` como atajo: sería el fin del control. Ver B7 en
+// docs/alertas-infraestructura-batches.md.
+export async function puedeVerNominal(
+  user: SessionUser | null,
+  ahora: Date,
+): Promise<boolean> {
+  if (!user || user.banned) return false
+
+  const db = getDb()
+  const [grant] = await db
+    .select({ id: infraPermisoNominal.id })
+    .from(infraPermisoNominal)
+    .where(
+      and(
+        eq(infraPermisoNominal.userId, user.id),
+        isNull(infraPermisoNominal.revocadoEn),
+        gt(infraPermisoNominal.venceEn, ahora.toISOString()),
+      ),
+    )
+    .limit(1)
+
+  return Boolean(grant)
+}
+
+// Sólo se llama desde una ruta ya protegida con adminPageGate/staffGuard +
+// role === 'admin'. `venceEn` es obligatorio: no existen grants permanentes.
+// Un admin puede otorgárselo a sí mismo; queda registrado igual en
+// otorgado_por, que nunca es opcional.
+export async function otorgarPermisoNominal(params: {
+  userId: string
+  otorgadoPor: string
+  venceEn: Date
+}): Promise<PermisoNominal> {
+  const db = getDb()
+  const row: PermisoNominal = {
+    id: crypto.randomUUID(),
+    userId: params.userId,
+    otorgadoPor: params.otorgadoPor,
+    otorgadoEn: new Date().toISOString(),
+    venceEn: params.venceEn.toISOString(),
+    revocadoEn: null,
+  }
+  await db.insert(infraPermisoNominal).values(row)
+  return row
+}
+
+export async function revocarPermisoNominal(id: string): Promise<void> {
+  const db = getDb()
+  await db
+    .update(infraPermisoNominal)
+    .set({ revocadoEn: new Date().toISOString() })
+    .where(eq(infraPermisoNominal.id, id))
+}
+
+export async function listarPermisosNominales(): Promise<PermisoNominal[]> {
+  const db = getDb()
+  return db
+    .select()
+    .from(infraPermisoNominal)
+    .orderBy(desc(infraPermisoNominal.otorgadoEn))
+}

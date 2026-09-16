@@ -7,6 +7,6 @@ const MapInfraestructuraPage = dynamic(
   { ssr: false, loading: () => <p>Cargando mapa…</p> },
 )
 
-export function InfraestructuraMapClient() {
-  return <MapInfraestructuraPage />
+export function InfraestructuraMapClient(props: { mostrarEnlaceNominal: boolean }) {
+  return <MapInfraestructuraPage mostrarEnlaceNominal={props.mostrarEnlaceNominal} />
 }

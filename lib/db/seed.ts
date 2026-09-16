@@ -24,7 +24,11 @@ import {
 } from './schema'
 import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
 
-const HUB_DDL = `
+// Exportado únicamente para el test de regresión de lib/db/seed.test.ts, que
+// lo aplica sobre una base ya poblada y verifica que no pierde filas ni
+// duplica nada al correr dos veces. No es un punto de extensión: seguí
+// agregando tablas acá mismo, nunca en un segundo bloque de DDL.
+export const HUB_DDL = `
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS \`niveles\` (
   \`id\` text PRIMARY KEY NOT NULL,
@@ -165,6 +169,22 @@ CREATE TABLE IF NOT EXISTS \`infra_problematica_seccion\` (
   \`ge_section_id\` integer NOT NULL,
   PRIMARY KEY(\`problematica_id\`, \`ge_section_id\`),
   FOREIGN KEY (\`problematica_id\`) REFERENCES \`infra_problematica\`(\`id\`) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS \`infra_permiso_nominal\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`user_id\` text NOT NULL,
+  \`otorgado_por\` text NOT NULL,
+  \`otorgado_en\` text NOT NULL,
+  \`vence_en\` text NOT NULL,
+  \`revocado_en\` text
+);
+CREATE INDEX IF NOT EXISTS \`infra_permiso_nominal_user_id_idx\` ON \`infra_permiso_nominal\` (\`user_id\`);
+CREATE TABLE IF NOT EXISTS \`infra_acceso_nominal_log\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`user_id\` text NOT NULL,
+  \`problematica_id\` text NOT NULL,
+  \`cantidad\` integer NOT NULL,
+  \`consultado_en\` text NOT NULL
 );
 `
 

@@ -2,7 +2,9 @@ import type { Client } from '@libsql/client'
 import { getDb } from '../db'
 import { infraProblematica, infraProblematicaSeccion } from '../db/schema'
 import { eq } from 'drizzle-orm'
-import { attachGe } from './ge-db'
+import { attachGe, type EjecutorSql } from './ge-db'
+
+export type { EjecutorSql }
 
 export interface ImpactoResultado {
   alumnos: number
@@ -27,7 +29,7 @@ const seccionesVacias: ImpactoResultado = {
 // ge.sqlite se adjunta una sola vez por conexión: un segundo ATTACH sobre el
 // mismo Client falla. Esta función es el único punto de entrada seguro para
 // garantizarlo antes de correr las consultas de impacto.
-export async function asegurarGeAdjuntada(client: Client): Promise<void> {
+export async function asegurarGeAdjuntada(client: EjecutorSql): Promise<void> {
   try {
     await attachGe(client)
   } catch (err) {
@@ -93,13 +95,12 @@ export async function calcularImpactoSecciones(
   }
 }
 
-// Resuelve el corte_id y las secciones ya persistidas de una problemática y
-// delega en calcularImpactoSecciones: es el mismo camino de cálculo que el
-// preliminar, nunca una consulta paralela.
-export async function calcularImpactoProblematica(
-  client: Client,
+// Resuelve el corte_id y las secciones ya persistidas de una problemática.
+// Único punto de lectura de esta relación: tanto el motor de impacto como el
+// alcance nominal (identidad.ts) parten de acá para no duplicar el join.
+export async function obtenerCorteYSeccionesDeProblematica(
   problematicaId: string,
-): Promise<ImpactoResultado | null> {
+): Promise<{ corteId: number; geSectionIds: number[] } | null> {
   const db = getDb()
   const [problematica] = await db
     .select({ corteId: infraProblematica.corteId })
@@ -113,10 +114,23 @@ export async function calcularImpactoProblematica(
     .from(infraProblematicaSeccion)
     .where(eq(infraProblematicaSeccion.problematicaId, problematicaId))
 
-  return calcularImpactoSecciones(client, {
+  return {
     corteId: problematica.corteId,
     geSectionIds: secciones.map((s) => s.geSectionId),
-  })
+  }
+}
+
+// Resuelve el corte_id y las secciones ya persistidas de una problemática y
+// delega en calcularImpactoSecciones: es el mismo camino de cálculo que el
+// preliminar, nunca una consulta paralela.
+export async function calcularImpactoProblematica(
+  client: Client,
+  problematicaId: string,
+): Promise<ImpactoResultado | null> {
+  const referencia = await obtenerCorteYSeccionesDeProblematica(problematicaId)
+  if (!referencia) return null
+
+  return calcularImpactoSecciones(client, referencia)
 }
 
 // Impacto consolidado por CUE a través de TODAS sus alertas. El JOIN vive acá

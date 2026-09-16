@@ -110,6 +110,11 @@ describe('isAllowedRuta', () => {
     expect(isAllowedRuta('/recursos/')).toBe(false)
     expect(isAllowedRuta('/tableroevil')).toBe(false)
   })
+
+  it('rechaza el alcance nominal: no cuelga de /mapas/ y no puede entrar al catálogo', () => {
+    expect(isAllowedRuta('/infraestructura/afectados/p1')).toBe(false)
+    expect(isAllowedRuta('/infraestructura/afectados')).toBe(false)
+  })
 })
 
 describe('publicadoXorInvalid', () => {

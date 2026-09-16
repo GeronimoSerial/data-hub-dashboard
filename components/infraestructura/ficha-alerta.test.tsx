@@ -27,7 +27,7 @@ describe('FichaAlerta', () => {
       base,
       { ...base, id: 'a2', motivo: 'Sin energía o agua', severidad: 'Media' },
     ]
-    render(<FichaAlerta alertas={alertas} />)
+    render(<FichaAlerta alertas={alertas} mostrarEnlaceNominal={false} />)
 
     expect(screen.getByText(/2 alertas activas/i)).toBeInTheDocument()
     expect(screen.getByText(/Alta · Inundación/)).toBeInTheDocument()
@@ -35,13 +35,24 @@ describe('FichaAlerta', () => {
   })
 
   it('no incluye ninguna acción de gestión', () => {
-    render(<FichaAlerta alertas={[base]} />)
+    render(<FichaAlerta alertas={[base]} mostrarEnlaceNominal={false} />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('no revienta con una lista vacía', () => {
-    const { container } = render(<FichaAlerta alertas={[]} />)
+    const { container } = render(<FichaAlerta alertas={[]} mostrarEnlaceNominal={false} />)
     expect(container).toBeTruthy()
+  })
+
+  it('no muestra el enlace nominal sin puedeVerNominal, aunque haya alertas', () => {
+    render(<FichaAlerta alertas={[base]} mostrarEnlaceNominal={false} />)
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('muestra el enlace al alcance nominal sólo cuando mostrarEnlaceNominal es true', () => {
+    render(<FichaAlerta alertas={[base]} mostrarEnlaceNominal={true} />)
+    const link = screen.getByRole('link', { name: /alumnos alcanzados/i })
+    expect(link).toHaveAttribute('href', '/infraestructura/afectados/a1')
   })
 })

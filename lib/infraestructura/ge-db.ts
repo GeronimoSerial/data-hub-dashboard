@@ -3,6 +3,13 @@ import path from 'node:path'
 import { getDataDir } from '../data-dir'
 import type { GeCorte } from './types'
 
+// Subconjunto de Client que también satisface una Transaction de libsql:
+// permite que attachGe y las consultas de impacto.ts / identidad.ts corran
+// tanto sobre una conexión suelta como dentro de una transacción explícita
+// (ver app/api/infraestructura/nominal/route.ts, que loguea el acceso en la
+// misma transacción que sirve la respuesta).
+export type EjecutorSql = Pick<Client, 'execute'>
+
 export function getGeSqlitePath(): string {
   return path.join(getDataDir(), 'ge.sqlite')
 }
@@ -60,7 +67,7 @@ export async function ensureGeSchema(client: Client): Promise<void> {
 
 // Monta ge.sqlite como base adjunta 'ge' de solo-lectura sobre una conexión existente (p.ej. la del Hub).
 // NUNCA hardcodees la ruta: siempre getGeSqlitePath(). Escapá comillas simples en la ruta duplicándolas.
-export async function attachGe(hostClient: Client): Promise<void> {
+export async function attachGe(hostClient: EjecutorSql): Promise<void> {
   const gePath = getGeSqlitePath().replace(/'/g, "''")
   await hostClient.execute(`ATTACH DATABASE 'file:${gePath}?mode=ro' AS ge`)
 }

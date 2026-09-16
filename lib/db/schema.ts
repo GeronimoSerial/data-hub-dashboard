@@ -213,3 +213,26 @@ export const infraProblematicaSeccion = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.problematicaId, t.geSectionId] })],
 )
+
+// Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
+// obligatorio: no existen grants permanentes. `otorgado_por` deja registrado
+// quién lo concedió, incluso cuando un admin se lo otorga a sí mismo.
+export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  otorgadoPor: text('otorgado_por').notNull(),
+  otorgadoEn: text('otorgado_en').notNull(),
+  venceEn: text('vence_en').notNull(),
+  revocadoEn: text('revocado_en'),
+})
+
+// Auditoría de cada consulta al alcance nominal: quién, qué problemática y
+// cuántos alumnos vio. Se escribe en la misma transacción que sirve la
+// respuesta del endpoint (ver app/api/infraestructura/nominal/route.ts).
+export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  problematicaId: text('problematica_id').notNull(),
+  cantidad: integer('cantidad').notNull(),
+  consultadoEn: text('consultado_en').notNull(),
+})

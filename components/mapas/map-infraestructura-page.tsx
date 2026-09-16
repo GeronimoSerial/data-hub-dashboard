@@ -72,7 +72,7 @@ function peorAlerta(alertas: AlertaActiva[]): AlertaActiva {
   }, alertas[0])
 }
 
-export default function MapInfraestructuraPage() {
+export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: boolean }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
@@ -195,7 +195,10 @@ export default function MapInfraestructuraPage() {
               closeOnClick={false}
               maxWidth="390px"
             >
-              <FichaAlerta alertas={seleccionAlertas} />
+              <FichaAlerta
+                alertas={seleccionAlertas}
+                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+              />
             </Popup>
           )}
         </MapGL>
