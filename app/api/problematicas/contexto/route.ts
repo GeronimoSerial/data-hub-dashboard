@@ -1,5 +1,6 @@
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,11 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const cue = url.searchParams.get('cue')
+
+  // Esta ruta no llama ensureSeeded() a proposito: es publica y no debe disparar
+  // el seed completo del Hub. Pero si necesita ge_localizacion, que se siembra
+  // sola desde el JSON versionado en una instalacion nueva.
+  await ensureLocalizacionesSeeded()
 
   const client = openGeDb()
   try {
