@@ -7,7 +7,7 @@ import {
   buildFixtureSecciones,
   insertFixtureCorte,
   parseGeojsonLocalizaciones,
-  parseIndexHtmlLocalizaciones,
+  parseLocalizacionesJson,
   reconciliarLocalizaciones,
   upsertLocalizaciones,
 } from './sync-ge.mjs'
@@ -27,11 +27,22 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-describe('parseIndexHtmlLocalizaciones', () => {
+describe('parseLocalizacionesJson', () => {
   it('extrae registros validos y descarta cues invalidos', () => {
-    const html = `<script>const DATA=[{"cue":"1801605-04","nombre":"Escuela 415","departamento":"GENERAL PAZ","localidad":"ITA IBATE","lat":-27.42,"lon":-57.33,"geo_calidad":"excelente"},{"cue":"SINCUE","nombre":"Sin CUE"}];</script>`
+    const json = JSON.stringify([
+      {
+        cueAnexo: '1801605-04',
+        nombre: 'Escuela 415',
+        departamento: 'GENERAL PAZ',
+        localidad: 'ITA IBATE',
+        lat: -27.42,
+        lon: -57.33,
+        geoCalidad: 'excelente',
+      },
+      { cueAnexo: 'SINCUE', nombre: 'Sin CUE' },
+    ])
 
-    const { registros, descartados } = parseIndexHtmlLocalizaciones(html)
+    const { registros, descartados } = parseLocalizacionesJson(json)
 
     expect(registros).toHaveLength(1)
     expect(registros[0]).toEqual({
@@ -48,9 +59,11 @@ describe('parseIndexHtmlLocalizaciones', () => {
   })
 
   it('un registro sin lat/lon queda con lat:null y lon:null', () => {
-    const html = `<script>const DATA=[{"cue":"1801605-04","nombre":"Escuela","departamento":"D","localidad":"L"}];</script>`
+    const json = JSON.stringify([
+      { cueAnexo: '1801605-04', nombre: 'Escuela', departamento: 'D', localidad: 'L' },
+    ])
 
-    const { registros } = parseIndexHtmlLocalizaciones(html)
+    const { registros } = parseLocalizacionesJson(json)
 
     expect(registros).toHaveLength(1)
     expect(registros[0].lat).toBeNull()
@@ -59,17 +72,26 @@ describe('parseIndexHtmlLocalizaciones', () => {
   })
 
   it('descarta un CUE base sin anexo', () => {
-    const html = `<script>const DATA=[{"cue":"1801605","nombre":"CUE base","departamento":"D","localidad":"L"},{"cue":"1801605-04","nombre":"CUE anexo","departamento":"D","localidad":"L"}];</script>`
+    const json = JSON.stringify([
+      { cueAnexo: '1801605', nombre: 'CUE base', departamento: 'D', localidad: 'L' },
+      { cueAnexo: '1801605-04', nombre: 'CUE anexo', departamento: 'D', localidad: 'L' },
+    ])
 
-    const { registros, descartados } = parseIndexHtmlLocalizaciones(html)
+    const { registros, descartados } = parseLocalizacionesJson(json)
 
     expect(registros).toHaveLength(1)
     expect(registros[0].cueAnexo).toBe('1801605-04')
     expect(descartados).toEqual(['1801605'])
   })
 
-  it('sin const DATA devuelve arreglos vacios sin tirar error', () => {
-    const { registros, descartados } = parseIndexHtmlLocalizaciones('<html></html>')
+  it('JSON malformado devuelve arreglos vacios sin tirar error', () => {
+    const { registros, descartados } = parseLocalizacionesJson('{not valid')
+    expect(registros).toEqual([])
+    expect(descartados).toEqual([])
+  })
+
+  it('JSON que parsea pero no es un array devuelve arreglos vacios', () => {
+    const { registros, descartados } = parseLocalizacionesJson('{"foo":"bar"}')
     expect(registros).toEqual([])
     expect(descartados).toEqual([])
   })
