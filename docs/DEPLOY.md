@@ -33,6 +33,27 @@ Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploa
 | `BETTER_AUTH_SECRET` | Obligatorio |
 | `BETTER_AUTH_URL` | URL pública del FQDN |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
+| `NOMINAL_ENCRYPTION_KEY` | **Obligatorio.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos (AES-256-GCM). Sin ella el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
+
+### Alertas de infraestructura: el espejo de datos NO viaja en la imagen
+
+`ge.sqlite` vive en el volumen `/data`, igual que `hub.sqlite`, y **no se construye solo**. Una
+instalación nueva arranca sin localizaciones, sin secciones y sin padrón: el formulario por CUE
+no resuelve ninguna escuela y el mapa sale vacío. Después del primer despliegue hay que cargarlo
+dentro del contenedor, en este orden:
+
+```bash
+# 1. Localizaciones (2005 registros). La fuente SÍ está versionada.
+node scripts/sync-ge.mjs --fixture
+
+# 2. Padrón nominal real. La fuente NO está versionada: es un archivo con datos
+#    personales de menores que se copia al contenedor a mano y se borra después.
+node scripts/import-padron.mjs /ruta/al/tablero-nominal.html
+```
+
+El HTML del padrón **nunca** se commitea ni se hornea en la imagen. Si el volumen se pierde,
+se rehacen los dos pasos; las alertas cargadas por directores no, ésas solo están en el backup
+del volumen.
 
 El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (`POST /api/recursos/:id/archivo`).
 
