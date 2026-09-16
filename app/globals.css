@@ -1405,7 +1405,22 @@ h1, h2, h3, h4 {
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 .map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; max-height: 11rem; overflow-y: auto; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
-.map-popup { font-size: var(--t-small); min-width: 17rem; max-width: 22rem; line-height: 1.5; }
+/* El contenedor de MapLibre (.maplibregl-popup-content) se deja transparente y sin
+   padding en maplibre-popup.css a propósito, para que la superficie la ponga el
+   contenido. Esta clase ES ese contenido: sin fondo propio el popup se ve
+   translúcido sobre el mapa. Aplica a los dos mapas (matrícula e infraestructura). */
+.map-popup {
+  font-size: var(--t-small);
+  min-width: 17rem;
+  max-width: 22rem;
+  line-height: 1.5;
+  background: var(--card);
+  color: var(--ink);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
 .map-popup-title { font-family: var(--font-title); font-weight: 700; font-size: 1rem; margin: 0 0 var(--s-1); }
 .map-popup-row { margin: 2px 0; }
 .map-popup-muted { color: var(--ink-soft); }
