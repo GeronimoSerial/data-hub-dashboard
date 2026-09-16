@@ -119,8 +119,24 @@ Rol Director, selector de CUE, SSO, alta de usuarios, asignación de responsable
 previa, predicciones, notificaciones, exportación de datos nominales, adjuntos, operación sin
 conexión, actualización o finalización de una problemática.
 
-## 8. Cambios de código de este batch
+## 8. Hallazgo de seguridad durante la verificación — `.gitignore` no cubría `.env` plano
 
-Ninguno. B9 es verificación: no se encontraron defectos introducidos por B0–B7 que ameritaran una
-corrección. El único hallazgo (`alumnos: []` bajo fixture) es consecuencia esperada de B8 no
-ejecutado, no un bug de este batch.
+Al armar el `.env` real para correr el recorrido de este batch, el coordinador detectó que el
+`.gitignore` del worktree solo tenía `.env*.local`, que **no** matchea un `.env` plano. Un
+`git add -A` o `git add .` en ese estado habría subido al repositorio `BETTER_AUTH_SECRET`,
+`ADMIN_PASSWORD` y, el más grave, `NOMINAL_ENCRYPTION_KEY` — la clave que cifra la identidad de
+los alumnos y sostiene la garantía de B7.
+
+Verificado con `git log --all -- .env`: el archivo nunca se comiteó en este worktree. El
+coordinador corrigió el `.gitignore` en `feat/alerts` (commit `ea59568`) agregando `.env` y
+`.env.*` con excepción explícita de `.env.example`. Se trajo ese fix con
+`git merge --no-edit feat/alerts` y se confirmó con `git check-ignore -v .env` que ahora sí se
+ignora. Es la regla transversal de Secretos (§8) puesta a prueba en la práctica: exactamente el
+tipo de hallazgo que justifica que este batch de verificación exista.
+
+## 9. Cambios de código de este batch
+
+Ninguno más allá del `.gitignore` traído por el merge de corrección anterior. B9 es verificación:
+no se encontraron defectos de negocio introducidos por B0–B7 que ameritaran una corrección. El
+único hallazgo funcional (`alumnos: []` bajo fixture) es consecuencia esperada de B8 no ejecutado,
+no un bug de este batch.
