@@ -1,10 +1,11 @@
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
-import { infraProblematica, infraProblematicaSeccion } from '@/lib/db/schema'
+import { infraProblematica, infraProblematicaAlumno, infraProblematicaSeccion } from '@/lib/db/schema'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
-import { asegurarGeAdjuntada, calcularImpactoSecciones } from '@/lib/infraestructura/impacto'
+import { asegurarGeAdjuntada, calcularImpactoSecciones, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import {
   CUE_MAX_ALERTAS_ACTIVAS,
   contarAlertasActivasPorCue,
@@ -31,7 +32,8 @@ async function seccionesDelCue(
 function mismoContenido(
   existente: { cueAnexo: string; motivo: string; severidad: string; descripcion: string | null },
   seccionesExistentes: number[],
-  input: { cue: string; motivo: string; severidad: string; descripcion?: string; secciones: number[] },
+  alumnosExistentes: number[],
+  input: { cue: string; motivo: string; severidad: string; descripcion?: string; secciones: number[]; alumnos?: number[] },
 ): boolean {
   const cueInput = normalizeCue(input.cue)
   if (!cueInput) return false
@@ -40,13 +42,22 @@ function mismoContenido(
   if (existente.severidad !== input.severidad) return false
   if ((existente.descripcion ?? '') !== (input.descripcion ?? '')) return false
 
-  const a = [...seccionesExistentes].sort((x, y) => x - y)
-  const b = [...input.secciones].sort((x, y) => x - y)
-  if (a.length !== b.length) return false
-  return a.every((v, i) => v === b[i])
+  const mismosIds = (a: number[], b: number[]) => {
+    const x = [...a].sort((p, q) => p - q)
+    const y = [...b].sort((p, q) => p - q)
+    if (x.length !== y.length) return false
+    return x.every((v, i) => v === y[i])
+  }
+
+  if (!mismosIds(seccionesExistentes, input.secciones)) return false
+  return mismosIds(alumnosExistentes, input.alumnos ?? [])
 }
 
 export async function POST(request: Request) {
+  if (!tieneAccesoPublico(request)) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   await ensureSeeded()
 
   const ip = getClientIp(request)
@@ -90,6 +101,26 @@ export async function POST(request: Request) {
     )
   }
 
+  // Mismo criterio que la validación de secciones: cada alumno seleccionado
+  // tiene que pertenecer a alguna de las secciones elegidas, en el corte
+  // vigente. Si no, 400 — nunca se persiste un alumno que no está donde el
+  // formulario dice que está.
+  const alumnosInput = input.alumnos ?? []
+  if (alumnosInput.length > 0) {
+    const membresia = await obtenerMembresiaSecciones(client, { corteId: corte.id, geSectionIds: input.secciones })
+    const todosLosAlumnosDeLasSecciones = new Set<number>()
+    for (const personIds of membresia.values()) {
+      for (const id of personIds) todosLosAlumnosDeLasSecciones.add(id)
+    }
+    const alumnosInvalidos = alumnosInput.filter((id) => !todosLosAlumnosDeLasSecciones.has(id))
+    if (alumnosInvalidos.length > 0) {
+      return Response.json(
+        { error: 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas' },
+        { status: 400 },
+      )
+    }
+  }
+
   const existente = await db
     .select()
     .from(infraProblematica)
@@ -102,8 +133,19 @@ export async function POST(request: Request) {
       .select({ geSectionId: infraProblematicaSeccion.geSectionId })
       .from(infraProblematicaSeccion)
       .where(eq(infraProblematicaSeccion.problematicaId, row.id))
+    const alumnosExistentes = await db
+      .select({ gePersonId: infraProblematicaAlumno.gePersonId })
+      .from(infraProblematicaAlumno)
+      .where(eq(infraProblematicaAlumno.problematicaId, row.id))
 
-    if (!mismoContenido(row, seccionesExistentes.map((s) => s.geSectionId), input)) {
+    if (
+      !mismoContenido(
+        row,
+        seccionesExistentes.map((s) => s.geSectionId),
+        alumnosExistentes.map((a) => a.gePersonId),
+        input,
+      )
+    ) {
       return Response.json(
         { error: 'idempotencyKey ya utilizada con un contenido distinto' },
         { status: 409 },
@@ -113,6 +155,7 @@ export async function POST(request: Request) {
     const impacto = await calcularImpactoSecciones(client, {
       corteId: row.corteId,
       geSectionIds: seccionesExistentes.map((s) => s.geSectionId),
+      alumnoIds: alumnosExistentes.map((a) => a.gePersonId),
     })
     return Response.json({ ok: true, id: row.id, impacto }, { status: 200 })
   }
@@ -144,6 +187,11 @@ export async function POST(request: Request) {
       await tx.insert(infraProblematicaSeccion).values(
         input.secciones.map((geSectionId) => ({ problematicaId: id, geSectionId })),
       )
+      if (alumnosInput.length > 0) {
+        await tx.insert(infraProblematicaAlumno).values(
+          alumnosInput.map((gePersonId) => ({ problematicaId: id, gePersonId })),
+        )
+      }
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -159,10 +207,22 @@ export async function POST(request: Request) {
           .select({ geSectionId: infraProblematicaSeccion.geSectionId })
           .from(infraProblematicaSeccion)
           .where(eq(infraProblematicaSeccion.problematicaId, row.id))
-        if (mismoContenido(row, seccionesExistentes.map((s) => s.geSectionId), input)) {
+        const alumnosExistentes = await db
+          .select({ gePersonId: infraProblematicaAlumno.gePersonId })
+          .from(infraProblematicaAlumno)
+          .where(eq(infraProblematicaAlumno.problematicaId, row.id))
+        if (
+          mismoContenido(
+            row,
+            seccionesExistentes.map((s) => s.geSectionId),
+            alumnosExistentes.map((a) => a.gePersonId),
+            input,
+          )
+        ) {
           const impacto = await calcularImpactoSecciones(client, {
             corteId: row.corteId,
             geSectionIds: seccionesExistentes.map((s) => s.geSectionId),
+            alumnoIds: alumnosExistentes.map((a) => a.gePersonId),
           })
           return Response.json({ ok: true, id: row.id, impacto }, { status: 200 })
         }
@@ -178,6 +238,7 @@ export async function POST(request: Request) {
   const impacto = await calcularImpactoSecciones(client, {
     corteId: corte.id,
     geSectionIds: input.secciones,
+    alumnoIds: alumnosInput,
   })
 
   return Response.json({ ok: true, id, impacto }, { status: 201 })

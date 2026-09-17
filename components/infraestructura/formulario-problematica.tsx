@@ -34,6 +34,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
   const [motivo, setMotivo] = useState('')
   const [severidad, setSeveridad] = useState('')
   const [seccionesSeleccionadas, setSeccionesSeleccionadas] = useState<number[]>([])
+  const [alumnosSeleccionados, setAlumnosSeleccionados] = useState<number[]>([])
   const [descripcion, setDescripcion] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +59,11 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         const respuesta = await fetch('/api/problematicas/impacto', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cue, secciones: seccionesSeleccionadas }),
+          body: JSON.stringify({
+            cue,
+            secciones: seccionesSeleccionadas,
+            alumnos: alumnosSeleccionados.length > 0 ? alumnosSeleccionados : undefined,
+          }),
           signal: controlador.signal,
         })
         if (!activo) return
@@ -79,7 +84,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
       activo = false
       controlador.abort()
     }
-  }, [cue, seccionesSeleccionadas])
+  }, [cue, seccionesSeleccionadas, alumnosSeleccionados])
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -101,6 +106,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
           severidad,
           descripcion: descripcion.trim() || undefined,
           secciones: seccionesSeleccionadas,
+          alumnos: alumnosSeleccionados.length > 0 ? alumnosSeleccionados : undefined,
           idempotencyKey,
         }),
       })
@@ -199,7 +205,11 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         <SeccionesSelector
           turnos={turnos}
           seleccionadas={seccionesSeleccionadas}
-          onCambiar={setSeccionesSeleccionadas}
+          alumnosSeleccionados={alumnosSeleccionados}
+          onCambiar={(secciones, alumnos) => {
+            setSeccionesSeleccionadas(secciones)
+            setAlumnosSeleccionados(alumnos)
+          }}
           disabled={enviando}
         />
       </div>

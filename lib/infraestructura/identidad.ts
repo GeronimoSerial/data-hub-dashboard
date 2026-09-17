@@ -32,11 +32,15 @@ export interface AfectadosNominal {
 }
 
 // NO exportada fuera de este módulo. Es la única función que descifra el
-// payload nominal, y su único llamador autorizado es
-// listarIdentidadesPorPersonas de más abajo, que a su vez sólo puede
-// invocarse después de que el caller haya verificado puedeVerNominal(). No
-// agregues un segundo export que la reexponga: el permiso deja de tener
-// sentido si el descifrado queda accesible por otro camino.
+// payload nominal, y sus únicos llamadores autorizados son
+// listarIdentidadesPorPersonas (requiere puedeVerNominal() ya verificado por
+// el caller) y listarIdentidadesPorPersonasDesdeGeDb (usada por el formulario
+// público de problemáticas, donde el gate es la contraseña temporal de
+// lib/infraestructura/acceso-publico.ts en vez de puedeVerNominal — ver el
+// comentario en contexto.ts sobre por qué ese payload dejó de prohibir
+// identidad de alumnos). No agregues un segundo export que la reexponga: el
+// permiso deja de tener sentido si el descifrado queda accesible por otro
+// camino que no pase por uno de estos dos gates.
 function descifrarIdentidad(
   payloadCifrado: string,
   clave: Buffer = obtenerClave(),
@@ -83,6 +87,27 @@ export async function listarIdentidadesPorPersonas(
   const placeholders = gePersonIds.map(() => '?').join(',')
   const res = await hostClient.execute({
     sql: `SELECT ge_person_id, payload_cifrado FROM ge.ge_alumno_identidad WHERE ge_person_id IN (${placeholders})`,
+    args: gePersonIds,
+  })
+  return res.rows.map((r) => {
+    const { nombre, apellido } = descifrarIdentidad(String(r.payload_cifrado))
+    return { gePersonId: Number(r.ge_person_id), nombre, apellido }
+  })
+}
+
+// Variante de listarIdentidadesPorPersonas para llamadores que ya tienen una
+// conexión directa a ge.sqlite (openGeDb()), como
+// lib/infraestructura/contexto.ts para el formulario público: no hace ATTACH
+// ni antepone el esquema "ge.", lee ge_alumno_identidad directo porque ya es
+// la base en la que corre.
+export async function listarIdentidadesPorPersonasDesdeGeDb(
+  client: Client,
+  gePersonIds: number[],
+): Promise<Array<{ gePersonId: number; nombre: string; apellido: string }>> {
+  if (gePersonIds.length === 0) return []
+  const placeholders = gePersonIds.map(() => '?').join(',')
+  const res = await client.execute({
+    sql: `SELECT ge_person_id, payload_cifrado FROM ge_alumno_identidad WHERE ge_person_id IN (${placeholders})`,
     args: gePersonIds,
   })
   return res.rows.map((r) => {

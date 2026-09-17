@@ -10,8 +10,8 @@ function jsonResponse(body: unknown, status = 200) {
 
 const turnos = [
   { turno: 'Mañana', niveles: [ { nivel: 'Primario', secciones: [
-    { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28 },
-    { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25 },
+    { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
+    { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
   ] } ] },
 ]
 

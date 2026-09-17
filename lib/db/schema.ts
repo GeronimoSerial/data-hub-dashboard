@@ -214,6 +214,22 @@ export const infraProblematicaSeccion = sqliteTable(
   (t) => [primaryKey({ columns: [t.problematicaId, t.geSectionId] })],
 )
 
+// Alumnos seleccionados individualmente dentro de una sección (selección
+// parcial). Una sección presente en infraProblematicaSeccion sin ninguna fila
+// acá se interpreta como "sección completa": la ausencia de filas es la
+// semántica, no un estado transitorio. Mismo estilo que
+// infraProblematicaSeccion, misma clave compuesta y el mismo cascade.
+export const infraProblematicaAlumno = sqliteTable(
+  'infra_problematica_alumno',
+  {
+    problematicaId: text('problematica_id')
+      .notNull()
+      .references(() => infraProblematica.id, { onDelete: 'cascade' }),
+    gePersonId: integer('ge_person_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.problematicaId, t.gePersonId] })],
+)
+
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
 // obligatorio: no existen grants permanentes. `otorgado_por` deja registrado
 // quién lo concedió, incluso cuando un admin se lo otorga a sí mismo.

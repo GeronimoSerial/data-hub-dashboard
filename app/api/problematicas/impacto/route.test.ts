@@ -3,17 +3,24 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { POST } from './route'
+import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+
+const CLAVE = claveDePrueba()
 
 let dir: string
 let prevDataDir: string | undefined
+let prevPassword: string | undefined
 
 const CUE = '1801605-04'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'impacto-preliminar-route-'))
   prevDataDir = process.env.DATA_DIR
+  prevPassword = process.env.PROBLEMATICAS_ACCESO_PASSWORD
   process.env.DATA_DIR = dir
+  process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
 
   const ge = openGeDb()
   try {
@@ -53,13 +60,16 @@ beforeAll(async () => {
 afterAll(() => {
   if (prevDataDir === undefined) delete process.env.DATA_DIR
   else process.env.DATA_DIR = prevDataDir
+  if (prevPassword === undefined) delete process.env.PROBLEMATICAS_ACCESO_PASSWORD
+  else process.env.PROBLEMATICAS_ACCESO_PASSWORD = prevPassword
   rmSync(dir, { recursive: true, force: true })
 })
 
 function req(body: unknown) {
+  const { token } = crearTokenSesion()
   return new Request('http://localhost/api/problematicas/impacto', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', cookie: `${NOMBRE_COOKIE}=${token}` },
     body: JSON.stringify(body),
   })
 }
@@ -80,5 +90,32 @@ describe('POST /api/problematicas/impacto', () => {
   it('rechaza un cuerpo sin secciones', async () => {
     const res = await POST(req({ cue: CUE, secciones: [] }))
     expect(res.status).toBe(400)
+  })
+
+  it('responde 401 sin cookie de acceso', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/problematicas/impacto', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ cue: CUE, secciones: [10] }),
+      }),
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('con alumnos seleccionados, cuenta sólo esos alumnos en la sección parcial', async () => {
+    // Sección 10 tiene 25 alumnos (ids 0..24, ver beforeAll). Seleccionar 3
+    // puntuales tiene que devolver 3, no los 25 completos de la sección.
+    const res = await POST(req({ cue: CUE, secciones: [10], alumnos: [1, 2, 3] }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.impacto.alumnos).toBe(3)
+  })
+
+  it('sin alumnos explícitos para una sección seleccionada, la cuenta completa', async () => {
+    const res = await POST(req({ cue: CUE, secciones: [10] }))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.impacto.alumnos).toBe(25)
   })
 })

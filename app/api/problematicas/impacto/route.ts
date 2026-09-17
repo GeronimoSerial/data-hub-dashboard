@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db'
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, calcularImpactoSecciones } from '@/lib/infraestructura/impacto'
@@ -23,6 +24,10 @@ async function seccionesDelCue(
 // calcularImpactoSecciones con (corteId, geSectionIds). El navegador nunca
 // recibe ni calcula membresías, solo el resultado de esta única función.
 export async function POST(request: Request) {
+  if (!tieneAccesoPublico(request)) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -62,6 +67,7 @@ export async function POST(request: Request) {
   const impacto = await calcularImpactoSecciones(client, {
     corteId: corte.id,
     geSectionIds: input.secciones,
+    alumnoIds: input.alumnos,
   })
 
   return Response.json({ ok: true, impacto }, { status: 200 })

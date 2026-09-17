@@ -35,6 +35,13 @@ export const problematicaInputSchema = z.object({
   secciones: z
     .array(z.number().int().positive())
     .min(1, 'Debe incluir al menos una sección'),
+  // Alumnos seleccionados individualmente (ge_person_id), opcional. Semántica:
+  // una sección de `secciones` sin ninguno de sus alumnos presente acá cuenta
+  // completa (todos sus alumnos matriculados). Si al menos uno de sus
+  // alumnos SÍ aparece acá, esa sección pasa a contar sólo esos alumnos. La
+  // pertenencia real (que cada id pertenezca a alguna sección elegida en el
+  // corte vigente) la valida el POST, no este schema.
+  alumnos: z.array(z.number().int().positive()).optional(),
   idempotencyKey: z.string().trim().min(1).max(200),
 })
 
@@ -61,6 +68,9 @@ export const impactoPreliminarInputSchema = z.object({
   secciones: z
     .array(z.number().int().positive())
     .min(1, 'Debe incluir al menos una sección'),
+  // Misma semántica que en problematicaInputSchema: opcional, sección sin
+  // alumnos acá = sección completa.
+  alumnos: z.array(z.number().int().positive()).optional(),
 })
 
 export type ImpactoPreliminarInput = z.infer<typeof impactoPreliminarInputSchema>
