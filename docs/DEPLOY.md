@@ -8,7 +8,8 @@ Guía de cutover del hub Next.js que reemplaza el runtime Fastify del mapa demog
 | --- | --- |
 | Propietario GitHub | `GeronimoSerial` |
 | FQDN | `analisis.sistemas.mec.gob.ar` |
-| App Coolify (UUID) | `pts681lz0kazhs1dph8wjaxt` |
+| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt` — nombre heredado `mapa-demografico`, **ya sirve la imagen de este repo** |
+| App Coolify preview (UUID) | `tfujz5e1jve0vt3bi4e9fzl6` — `data-hub-preview.sistemas.mec.gob.ar`, es la que dispara CI |
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
 | Imagen de rollback (Fastify) | `ghcr.io/geronimoserial/mapa-demografico` |
 
@@ -34,26 +35,80 @@ Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploa
 | `BETTER_AUTH_URL` | URL pública del FQDN |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
 | `NOMINAL_ENCRYPTION_KEY` | **Obligatorio.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos (AES-256-GCM). Sin ella el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
+| `PADRON_PG_URL` | Conexión a la base Postgres de Gestión Educativa, de donde sale el padrón. Formato `postgres://usuario:clave@host:5432/asistencias`. Solo la usan los scripts de mantenimiento: **el servidor nunca la lee**. Si falta, el tablero sigue sirviendo el último corte ya materializado en `ge.sqlite`. |
 
 ### Alertas de infraestructura: el espejo de datos NO viaja en la imagen
 
-`ge.sqlite` vive en el volumen `/data`, igual que `hub.sqlite`, y **no se construye solo**. Una
-instalación nueva arranca sin localizaciones, sin secciones y sin padrón: el formulario por CUE
-no resuelve ninguna escuela y el mapa sale vacío. Después del primer despliegue hay que cargarlo
-dentro del contenedor, en este orden:
+`ge.sqlite` vive en el volumen `/data`, igual que `hub.sqlite`, y no viaja en la imagen.
+
+Las **localizaciones** se siembran solas: `ensureSeeded` carga `ge_localizacion` desde
+`public/data/localizaciones.json` cuando la tabla está vacía (ver `lib/infraestructura/localizaciones-seed.ts`).
+Son dato público y están versionadas, así que una instalación nueva ya resuelve el formulario por CUE.
+
+Ojo con el momento: `ensureSeeded` corre en la **primera request a una ruta de API**, no al
+levantar el proceso. Un `GET /` devuelve 200 sin sembrar nada. Si vas a importar el padrón
+inmediatamente después de desplegar, tocá antes una ruta de API para que la siembra ocurra:
 
 ```bash
-# 1. Localizaciones (2005 registros). La fuente SÍ está versionada.
-node scripts/sync-ge.mjs --fixture
-
-# 2. Padrón nominal real. La fuente NO está versionada: es un archivo con datos
-#    personales de menores que se copia al contenedor a mano y se borra después.
-node scripts/import-padron.mjs /ruta/al/tablero-nominal.html
+wget -q -O- http://127.0.0.1:3000/api/hub > /dev/null
 ```
 
-El HTML del padrón **nunca** se commitea ni se hornea en la imagen. Si el volumen se pierde,
-se rehacen los dos pasos; las alertas cargadas por directores no, ésas solo están en el backup
-del volumen.
+De lo contrario el import aborta con `ge_localizacion está vacía` y no descarta nada a ciegas.
+
+El **padrón nominal** no: son datos personales de menores, no están en el repositorio y hay que
+cargarlos a mano una vez por corte, dentro del contenedor:
+
+```bash
+node --experimental-strip-types scripts/import-padron.mjs --ge --ciclo 2026
+```
+
+Necesita `PADRON_PG_URL` y `NOMINAL_ENCRYPTION_KEY` en el entorno. Tarda entre 40 y 90 segundos
+sobre ~272.000 filas. Los scripts viven en `/app/scripts` dentro de la imagen y se ejecutan con
+`docker exec`. El flag `--experimental-strip-types` está porque importan módulos `.ts` de `lib/`;
+en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
+
+Al terminar, el script **releé el corte desde la base** y lo reporta:
+
+```
+Corte 20 verificado: estado=vigente, secciones=15763, membresías=266775
+```
+
+Si esa línea no aparece, el import no sirvió, sin importar lo que diga el resto de la salida.
+
+> **Por qué esto no corre en GitHub Actions.** El corte se escribe en `ge.sqlite`, que vive en el
+> volumen `/data` del contenedor: un runner de Actions no tiene acceso a ese volumen, y la única
+> forma de que lo tuviera sería hornear el padrón en la imagen, que es justamente lo que no se
+> hace con datos personales de menores. Además obligaría a poner las credenciales de la base de
+> Gestión Educativa como secret de un runner alojado fuera de la red del ministerio. El lugar
+> correcto es un **post-deployment command de Coolify**, que corre dentro del contenedor, con el
+> volumen montado y sin sacar credenciales de la red.
+
+#### Modelo de datos: Postgres es la fuente, `ge.sqlite` es la proyección
+
+El padrón real vive en la base Postgres de Gestión Educativa. `ge.sqlite` es una **proyección
+local de solo lectura** que se materializa como un corte (`ge_corte`) y que el tablero consulta
+adjunta en modo `?mode=ro`. Las consecuencias importantes:
+
+- Volver a correr el paso 2 crea un corte nuevo y lo activa; el anterior pasa a `historico`.
+  Es idempotente y no destruye nada.
+- Si se revoca el acceso a Postgres, **el tablero no se cae**: sigue sirviendo el último corte
+  materializado. Solo deja de poder actualizarse.
+- Las alertas cargadas por directores viven en `hub.sqlite` y **no** dependen de Postgres.
+  Si el volumen se pierde, el padrón se rehace corriendo el import de nuevo; las alertas no,
+  ésas solo están en el backup del volumen.
+
+El importador reconcilia contra `ge_localizacion`: los CUE del padrón que no tengan localización
+se descartan y se reportan al final. Como las localizaciones se siembran al arrancar, para cuando
+se corre el import ya están.
+
+#### Importar desde un tablero HTML (camino heredado)
+
+```bash
+node --experimental-strip-types scripts/import-padron.mjs /ruta/al/tablero-nominal.html
+```
+
+Sigue funcionando para cortes históricos. El HTML **nunca** se commitea ni se hornea en la
+imagen: es un archivo con datos personales de menores que se copia a mano y se borra después.
 
 El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (`POST /api/recursos/:id/archivo`).
 
@@ -62,7 +117,7 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 | Secret | Uso |
 | --- | --- |
 | `COOLIFY_TOKEN` | Token de API Coolify. Copiar desde el repo `mapa-demografico` **solo** si el UUID es una app de preview. |
-| `COOLIFY_APP_UUID` | UUID de la app Coolify a redesplegar. **No** usar `pts681lz0kazhs1dph8wjaxt` hasta que el smoke de esta imagen esté OK: ese UUID es el Fastify en producción. |
+| `COOLIFY_APP_UUID` | UUID de la app Coolify a redesplegar. Hoy apunta a `tfujz5e1jve0vt3bi4e9fzl6` (**preview**): un merge a `main` redespliega preview, nunca producción. |
 
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
 
@@ -71,6 +126,16 @@ Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
 1. El repo y el primer push a `main` ya disparan GHCR.
 2. Esperar el workflow **Publish GHCR image** (Actions) hasta `success`.
 3. **En Coolify** (app de preview, o `pts681lz0kazhs1dph8wjaxt` solo después del smoke):
+
+   > **Estado al 2026-09-16.** El cutover ya ocurrió: `pts681lz0kazhs1dph8wjaxt` sirve
+   > `ghcr.io/geronimoserial/data-hub-dashboard:latest` en `analisis.sistemas.mec.gob.ar`, no el
+   > Fastify. Lo que queda pendiente es otra cosa: **producción está retrasada respecto de `main`**,
+   > porque CI solo redespliega preview. Se nota en que `GET /mapas/infraestructura` devuelve 404 en
+   > producción y 307 en preview. Para actualizarla hay que redesplegarla a mano desde el panel.
+   >
+   > Producción tampoco tiene `NOMINAL_ENCRYPTION_KEY` cargada, así que el alcance nominal no
+   > funciona ahí. Arrastra además variables muertas del runtime Fastify (`ADMIN_USER`,
+   > `ADMIN_PASS`, `DATABASE_URL`, `SESSION_SECRET`) que esta imagen no lee.
    - Cambiar el origen a la imagen `ghcr.io/geronimoserial/data-hub-dashboard:latest`.
    - Puerto del contenedor: **3000**.
    - Anotar la imagen/tag Fastify actual antes de cambiar (`ghcr.io/geronimoserial/mapa-demografico`) para rollback.

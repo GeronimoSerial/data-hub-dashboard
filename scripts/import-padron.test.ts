@@ -7,6 +7,8 @@ import {
   derivarEnteroEstable,
   derivarIds,
   extraerB64DeHtml,
+  normalizarFilaHtml,
+  reconciliarFilas,
 } from './import-padron.mjs'
 
 function htmlConPadron(payload: unknown): string {
@@ -178,5 +180,39 @@ describe('deduplicarMembresias', () => {
       { geSectionId: 1, gePersonId: 2 },
     ])
     expect(r).toHaveLength(2)
+  })
+})
+
+describe('normalizarFilaHtml / reconciliarFilas', () => {
+  const cuesConocidos = new Set(['1800001-00'])
+
+  it('la fila posicional del HTML y la fila de Gestión Educativa convergen', () => {
+    // El lector de Postgres (scripts/padron-ge.mjs) entrega exactamente esta
+    // forma; si los dos orígenes divergen, el resto del pipeline se rompe.
+    const desdeHtml = normalizarFilaHtml(fila())
+    expect(desdeHtml).toEqual({
+      dni: '1',
+      apellido: 'PEREZ',
+      nombre: 'ANA',
+      nivel: 'Primario',
+      cueAnexo: '1800001-00',
+      curso: '1',
+      division: 'A',
+      turno: 'Mañana',
+    })
+  })
+
+  it('reconcilia filas ya normalizadas sin pasar por el HTML', () => {
+    const r = reconciliarFilas([normalizarFilaHtml(fila())], cuesConocidos)
+    expect(r.aceptadas).toHaveLength(1)
+    expect(r.cuesConciliados.has('1800001-00')).toBe(true)
+  })
+
+  it('normaliza el CUE antes de reconciliar', () => {
+    const r = reconciliarFilas(
+      [{ ...normalizarFilaHtml(fila()), cueAnexo: ' 1800001-00 ' }],
+      cuesConocidos,
+    )
+    expect(r.aceptadas[0]?.cueAnexo).toBe('1800001-00')
   })
 })

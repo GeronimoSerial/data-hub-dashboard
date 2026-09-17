@@ -15,6 +15,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
 
+# El driver de Postgres lo usan solo los scripts de mantenimiento, nunca el
+# servidor, así que el trace de Next no lo incluye en .next/standalone. Se
+# instala aparte, plano, para poder fusionarlo con el node_modules del runner.
+FROM base AS pgdriver
+WORKDIR /tools
+RUN npm init -y > /dev/null \
+  && npm install --omit=dev --no-audit --no-fund pg@8.23.0
+
 FROM base AS runner
 WORKDIR /app
 
@@ -36,6 +44,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+# El driver de Postgres va aparte: como ningún código de servidor lo importa,
+# el trace de Next no lo deja en .next/standalone y el importador del padrón no
+# arranca sin él.
+COPY --from=pgdriver --chown=nextjs:nodejs /tools/node_modules/. ./node_modules/
 
 ENV DATA_DIR=/data
 RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data

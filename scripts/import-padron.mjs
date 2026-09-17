@@ -49,7 +49,9 @@ registerHooks({
 const { openGeDb, ensureGeSchema, activarCorte } = await import(
   '../lib/infraestructura/ge-db.ts'
 )
-const { cifrarIdentidad } = await import('../lib/infraestructura/identidad.ts')
+// Importa el módulo de cifrado aislado, no identidad.ts: ese arrastra el ORM,
+// que no es resoluble dentro del bundle standalone de producción.
+const { cifrarIdentidad } = await import('../lib/infraestructura/identidad-cripto.ts')
 
 const STUDENTS_GZ_B64_RE = /const\s+STUDENTS_GZ_B64\s*=\s*"([^"]*)"/
 
@@ -89,10 +91,26 @@ export function derivarEnteroEstable(clave) {
   return valor
 }
 
-// Separa las filas del padrón en aceptadas y descartadas según CUE válido
+// Pasa una fila posicional del HTML a la forma común del pipeline. El HTML es
+// un array por columna; Postgres entrega el mismo objeto ya normalizado (ver
+// scripts/padron-ge.mjs), y de ahí en adelante ambos orígenes son idénticos.
+export function normalizarFilaHtml(fila) {
+  return {
+    dni: String(fila[0] ?? ''),
+    apellido: String(fila[1] ?? ''),
+    nombre: String(fila[2] ?? ''),
+    nivel: String(fila[3] ?? ''),
+    cueAnexo: String(fila[7] ?? ''),
+    curso: String(fila[9] ?? ''),
+    division: String(fila[10] ?? ''),
+    turno: String(fila[11] ?? ''),
+  }
+}
+
+// Separa las filas normalizadas en aceptadas y descartadas según CUE válido
 // (anexo) y reconciliación contra ge_localizacion, con sus contadores y los
-// conjuntos de CUE para el resumen.
-export function clasificarFilas(filas, cuesConocidos) {
+// conjuntos de CUE para el resumen. Es común a los dos orígenes.
+export function reconciliarFilas(filas, cuesConocidos) {
   const aceptadas = []
   const cuesEnPadron = new Set()
   const cuesConciliados = new Set()
@@ -101,8 +119,7 @@ export function clasificarFilas(filas, cuesConocidos) {
   let descartadosPorLocalizacion = 0
 
   for (const fila of filas) {
-    if (!Array.isArray(fila)) continue
-    const cue = normalizeCue(String(fila[7] ?? ''))
+    const cue = normalizeCue(fila.cueAnexo)
     if (cue === null || cue.kind !== 'anexo') {
       descartadosPorCue++
       continue
@@ -114,16 +131,7 @@ export function clasificarFilas(filas, cuesConocidos) {
       continue
     }
     cuesConciliados.add(cue.value)
-    aceptadas.push({
-      dni: String(fila[0] ?? ''),
-      apellido: String(fila[1] ?? ''),
-      nombre: String(fila[2] ?? ''),
-      nivel: String(fila[3] ?? ''),
-      cueAnexo: cue.value,
-      curso: String(fila[9] ?? ''),
-      division: String(fila[10] ?? ''),
-      turno: String(fila[11] ?? ''),
-    })
+    aceptadas.push({ ...fila, cueAnexo: cue.value })
   }
 
   return {
@@ -134,6 +142,14 @@ export function clasificarFilas(filas, cuesConocidos) {
     cuesConciliados,
     cuesDescartados,
   }
+}
+
+// Camino del HTML: normaliza y reconcilia en un paso.
+export function clasificarFilas(filas, cuesConocidos) {
+  return reconciliarFilas(
+    filas.filter((fila) => Array.isArray(fila)).map(normalizarFilaHtml),
+    cuesConocidos,
+  )
 }
 
 // Deriva geSectionId por (cueAnexo, curso, division, turno, nivel) y gePersonId
@@ -268,19 +284,87 @@ async function insertarIdentidades(client, personas) {
   return pendientes.length
 }
 
-async function main() {
-  const rutaHtml = process.argv[2]
-  if (!rutaHtml) {
-    console.error('Falta el argumento: node scripts/import-padron.mjs <ruta-al-html>')
-    process.exit(1)
+const USO = `Uso:
+  node scripts/import-padron.mjs --ge [--ciclo <año>]   # padrón desde Gestión Educativa (Postgres)
+  node scripts/import-padron.mjs <ruta-al-html>         # padrón desde un tablero HTML local`
+
+// Resuelve el origen del padrón y devuelve las filas ya normalizadas más el
+// ciclo lectivo con el que se va a registrar el corte.
+async function leerOrigen(argv) {
+  if (argv[0] === '--ge') {
+    const indiceCiclo = argv.indexOf('--ciclo')
+    const ciclo =
+      indiceCiclo === -1 ? String(new Date().getFullYear()) : argv[indiceCiclo + 1]
+    if (!ciclo) throw new Error('--ciclo necesita un año')
+
+    const { leerPadronDesdeGe } = await import('./padron-ge.mjs')
+    const { filas, sinDocumento, cicloLectivo } = await leerPadronDesdeGe({
+      cicloLectivo: ciclo,
+    })
+    if (filas.length === 0) {
+      throw new Error(`Gestión Educativa no devolvió alumnos activos para el ciclo ${cicloLectivo}`)
+    }
+    console.log(`Origen: Gestión Educativa (Postgres), ciclo ${cicloLectivo}`)
+    if (sinDocumento > 0) {
+      console.log(`Filas descartadas por documento vacío: ${sinDocumento}`)
+    }
+    return { filas, cicloLectivo, leidas: filas.length + sinDocumento }
   }
 
+  const rutaHtml = argv[0]
+  if (!rutaHtml) throw new Error(USO)
+
+  const padron = decodificarPadron(readFileSync(rutaHtml, 'utf8'))
+  console.log(`Origen: HTML ${rutaHtml}`)
+  return {
+    filas: padron.r.filter((fila) => Array.isArray(fila)).map(normalizarFilaHtml),
+    cicloLectivo: String(new Date().getFullYear()),
+    leidas: padron.r.length,
+  }
+}
+
+// Relee el corte recién cargado y falla si no quedó vigente o quedó vacío.
+export async function verificarCorte(client, corteId) {
+  const corte = await client.execute({
+    sql: 'SELECT estado FROM ge_corte WHERE id = ?',
+    args: [corteId],
+  })
+  const estado = corte.rows[0]?.estado
+  if (estado !== 'vigente') {
+    throw new Error(`El corte ${corteId} quedó en estado '${estado ?? 'inexistente'}', no 'vigente'`)
+  }
+
+  const secciones = await client.execute({
+    sql: 'SELECT COUNT(*) AS n FROM ge_seccion WHERE corte_id = ?',
+    args: [corteId],
+  })
+  const membresias = await client.execute({
+    sql: 'SELECT COUNT(*) AS n FROM ge_alumno_seccion WHERE corte_id = ?',
+    args: [corteId],
+  })
+
+  const resultado = {
+    estado,
+    secciones: Number(secciones.rows[0]?.n ?? 0),
+    membresias: Number(membresias.rows[0]?.n ?? 0),
+  }
+  if (resultado.secciones === 0 || resultado.membresias === 0) {
+    throw new Error(`El corte ${corteId} quedó vacío: ${JSON.stringify(resultado)}`)
+  }
+  return resultado
+}
+
+async function main() {
   console.time('importar-padron')
   const inicio = Date.now()
 
-  const html = readFileSync(rutaHtml, 'utf8')
-  const padron = decodificarPadron(html)
-  const filas = padron.r
+  let origen
+  try {
+    origen = await leerOrigen(process.argv.slice(2))
+  } catch (err) {
+    console.error(err.message)
+    process.exit(1)
+  }
 
   const client = openGeDb()
   try {
@@ -288,15 +372,21 @@ async function main() {
 
     const locRes = await client.execute('SELECT cue_anexo FROM ge_localizacion')
     const cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
+    if (cuesConocidos.size === 0) {
+      console.error(
+        'ge_localizacion está vacía: corré primero `node scripts/sync-ge.mjs --fixture`',
+      )
+      process.exit(1)
+    }
 
-    const clasificacion = clasificarFilas(filas, cuesConocidos)
+    const clasificacion = reconciliarFilas(origen.filas, cuesConocidos)
     const { secciones, personas, asignaciones, cuesDistintos } = derivarIds(
       clasificacion.aceptadas,
     )
 
     const corteRes = await client.execute({
       sql: "INSERT INTO ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (?, ?, 'importando')",
-      args: [new Date().getFullYear(), new Date().toISOString()],
+      args: [Number(origen.cicloLectivo), new Date().toISOString()],
     })
     const corteId = Number(corteRes.lastInsertRowid)
 
@@ -314,7 +404,7 @@ async function main() {
     }
 
     const cuesDescartados = clasificacion.cuesDescartados
-    console.log(`Filas leídas: ${filas.length}`)
+    console.log(`Filas leídas: ${origen.leidas}`)
     console.log(`Alumnos únicos cargados (gePersonId): ${personas.size}`)
     console.log(`Secciones únicas cargadas: ${secciones.size}`)
     console.log(`CUE distintos en el padrón: ${clasificacion.cuesEnPadron.size}`)
@@ -331,9 +421,24 @@ async function main() {
       `Filas descartadas por localización inexistente: ${clasificacion.descartadosPorLocalizacion}`,
     )
     console.log(`Identidades cifradas insertadas: ${identidadesInsertadas}`)
-    console.log(`Corte id activado: ${corteId}`)
+
+    // Releemos el corte desde la base en vez de confiar en que las escrituras
+    // de arriba hayan quedado: es la única prueba de que el import sirvió.
+    const verificacion = await verificarCorte(client, corteId)
+    console.log(
+      `Corte ${corteId} verificado: estado=${verificacion.estado}, ` +
+        `secciones=${verificacion.secciones}, membresías=${verificacion.membresias}`,
+    )
     console.log(`Tiempo total: ${Date.now() - inicio} ms`)
     console.timeEnd('importar-padron')
+
+    // Salida explícita. Cerrar el cliente de libsql después de una carga
+    // grande, con el driver de Postgres también cargado en el proceso, hace
+    // segfault de forma intermitente al destruir los módulos nativos (exit
+    // 139) aunque el corte haya quedado íntegro. Como recién verificamos el
+    // estado contra la base, cortamos acá y el código de salida vuelve a
+    // significar lo que dice.
+    process.exit(0)
   } finally {
     client.close()
   }
