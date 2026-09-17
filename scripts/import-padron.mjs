@@ -57,6 +57,16 @@ const STUDENTS_GZ_B64_RE = /const\s+STUDENTS_GZ_B64\s*=\s*"([^"]*)"/
 
 const TAMANO_LOTE = 1000
 
+// Cada cuántos lotes se recicla la conexión de libsql. El módulo nativo no
+// devuelve memoria mientras la conexión vive: sobre 266.000 inserciones el
+// proceso llegaba a ~2 GB de RSS y el contenedor de producción se quedaba sin
+// aire, dejando la app sin responder. Cerrar y reabrir libera esa memoria.
+const LOTES_POR_CONEXION = 8
+
+// Pausa entre lotes. El import corre en el mismo contenedor que sirve el sitio:
+// ceder el control evita monopolizar CPU y disco mientras escribe.
+const PAUSA_ENTRE_LOTES_MS = 15
+
 export function extraerB64DeHtml(htmlText) {
   const match = STUDENTS_GZ_B64_RE.exec(htmlText)
   if (!match) throw new Error('No se encontró "const STUDENTS_GZ_B64=" en el HTML')
@@ -294,10 +304,22 @@ function leerClaveIdentidad() {
   return clave
 }
 
-async function ejecutarEnLotes(client, items, fn) {
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * Ejecuta `fn` sobre `items` en transacciones de TAMANO_LOTE, reciclando la
+ * conexión cada LOTES_POR_CONEXION y cediendo el control entre lotes.
+ *
+ * `conexion` es un contenedor mutable { client } y no un Client suelto: al
+ * reciclar se reemplaza la referencia adentro, así el llamador sigue viendo la
+ * conexión viva sin tener que enterarse.
+ */
+async function ejecutarEnLotes(conexion, items, fn) {
+  let lotesDesdeReciclado = 0
+
   for (let i = 0; i < items.length; i += TAMANO_LOTE) {
     const lote = items.slice(i, i + TAMANO_LOTE)
-    const tx = await client.transaction('write')
+    const tx = await conexion.client.transaction('write')
     try {
       for (const item of lote) await fn(tx, item)
       await tx.commit()
@@ -309,11 +331,19 @@ async function ejecutarEnLotes(client, items, fn) {
       }
       throw err
     }
+
+    lotesDesdeReciclado++
+    if (lotesDesdeReciclado >= LOTES_POR_CONEXION && i + TAMANO_LOTE < items.length) {
+      conexion.client.close()
+      conexion.client = openGeDb()
+      lotesDesdeReciclado = 0
+    }
+    if (PAUSA_ENTRE_LOTES_MS > 0) await dormir(PAUSA_ENTRE_LOTES_MS)
   }
 }
 
-async function insertarSecciones(client, corteId, secciones) {
-  await ejecutarEnLotes(client, [...secciones.entries()], async (tx, [geSectionId, sec]) => {
+async function insertarSecciones(conexion, corteId, secciones) {
+  await ejecutarEnLotes(conexion, [...secciones.entries()], async (tx, [geSectionId, sec]) => {
     await tx.execute({
       sql: 'INSERT OR IGNORE INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
       args: [corteId, geSectionId, sec.cueAnexo, sec.curso, sec.division, sec.nivel, sec.turno],
@@ -321,8 +351,8 @@ async function insertarSecciones(client, corteId, secciones) {
   })
 }
 
-async function insertarMembresias(client, corteId, membresias) {
-  await ejecutarEnLotes(client, membresias, async (tx, m) => {
+async function insertarMembresias(conexion, corteId, membresias) {
+  await ejecutarEnLotes(conexion, membresias, async (tx, m) => {
     await tx.execute({
       sql: 'INSERT OR IGNORE INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
       args: [corteId, m.geSectionId, m.gePersonId],
@@ -330,13 +360,13 @@ async function insertarMembresias(client, corteId, membresias) {
   })
 }
 
-async function insertarIdentidades(client, personas) {
-  const existentesRes = await client.execute('SELECT ge_person_id FROM ge_alumno_identidad')
+async function insertarIdentidades(conexion, personas) {
+  const existentesRes = await conexion.client.execute('SELECT ge_person_id FROM ge_alumno_identidad')
   const existentes = new Set(existentesRes.rows.map((r) => Number(r.ge_person_id)))
   const pendientes = [...personas.entries()].filter(([gePersonId]) => !existentes.has(gePersonId))
 
   const clave = leerClaveIdentidad()
-  await ejecutarEnLotes(client, pendientes, async (tx, [gePersonId, p]) => {
+  await ejecutarEnLotes(conexion, pendientes, async (tx, [gePersonId, p]) => {
     const payload = cifrarIdentidad(p.nombre, p.apellido, clave)
     await tx.execute({
       sql: 'INSERT OR IGNORE INTO ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?,?)',
@@ -449,11 +479,13 @@ async function main() {
   console.time('importar-padron')
   const inicio = Date.now()
 
-  const client = openGeDb()
+  // Contenedor mutable: ejecutarEnLotes recicla la conexión adentro para que el
+  // módulo nativo de libsql libere memoria durante la carga.
+  const conexion = { client: openGeDb() }
   try {
-    await ensureGeSchema(client)
+    await ensureGeSchema(conexion.client)
 
-    const locRes = await client.execute('SELECT cue_anexo FROM ge_localizacion')
+    const locRes = await conexion.client.execute('SELECT cue_anexo FROM ge_localizacion')
     const cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
     if (cuesConocidos.size === 0) {
       console.error(
@@ -476,18 +508,18 @@ async function main() {
 
     const { secciones, personas, membresias } = acumulador
 
-    const corteRes = await client.execute({
+    const corteRes = await conexion.client.execute({
       sql: "INSERT INTO ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (?, ?, 'importando')",
       args: [Number(cicloLectivo), new Date().toISOString()],
     })
     const corteId = Number(corteRes.lastInsertRowid)
 
-    await insertarSecciones(client, corteId, secciones)
-    await insertarMembresias(client, corteId, membresias)
-    const identidadesInsertadas = await insertarIdentidades(client, personas)
+    await insertarSecciones(conexion, corteId, secciones)
+    await insertarMembresias(conexion, corteId, membresias)
+    const identidadesInsertadas = await insertarIdentidades(conexion, personas)
 
     try {
-      await activarCorte(client, corteId)
+      await activarCorte(conexion.client, corteId)
     } catch (err) {
       console.error(
         `No se pudo activar el corte ${corteId}; queda en estado 'importando'. ${err.message}`,
@@ -516,7 +548,7 @@ async function main() {
 
     // Releemos el corte desde la base en vez de confiar en que las escrituras
     // de arriba hayan quedado: es la única prueba de que el import sirvió.
-    const verificacion = await verificarCorte(client, corteId)
+    const verificacion = await verificarCorte(conexion.client, corteId)
     console.log(
       `Corte ${corteId} verificado: estado=${verificacion.estado}, ` +
         `secciones=${verificacion.secciones}, membresías=${verificacion.membresias}`,
@@ -532,7 +564,7 @@ async function main() {
     // significar lo que dice.
     process.exit(0)
   } finally {
-    client.close()
+    conexion.client.close()
   }
 }
 
