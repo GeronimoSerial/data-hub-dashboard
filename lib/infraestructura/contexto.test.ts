@@ -1,22 +1,29 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { resolverContextoPorCue } from './contexto'
 import { ensureGeSchema, openGeDb } from './ge-db'
+import { importarIdentidad } from './identidad'
 
 let dir: string
 let prevDataDir: string | undefined
+let prevKey: string | undefined
 
 beforeEach(() => {
   dir = mkdtempSync(path.join(tmpdir(), 'contexto-'))
   prevDataDir = process.env.DATA_DIR
+  prevKey = process.env.NOMINAL_ENCRYPTION_KEY
   process.env.DATA_DIR = dir
+  process.env.NOMINAL_ENCRYPTION_KEY = randomBytes(32).toString('base64')
 })
 
 afterEach(() => {
   if (prevDataDir === undefined) delete process.env.DATA_DIR
   else process.env.DATA_DIR = prevDataDir
+  if (prevKey === undefined) delete process.env.NOMINAL_ENCRYPTION_KEY
+  else process.env.NOMINAL_ENCRYPTION_KEY = prevKey
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -61,8 +68,8 @@ describe('resolverContextoPorCue', () => {
             {
               turno: 'Mañana',
               niveles: [
-                { nivel: 'Inicial', secciones: [{ geSectionId: 10, curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2 }] },
-                { nivel: 'Primario', secciones: [{ geSectionId: 11, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1 }] },
+                { nivel: 'Inicial', secciones: [{ geSectionId: 10, curso: 'Sala 5', division: 'A', nivel: 'Inicial', turno: 'Mañana', matricula: 2, alumnos: [] }] },
+                { nivel: 'Primario', secciones: [{ geSectionId: 11, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 1, alumnos: [] }] },
               ],
             },
           ],
@@ -97,7 +104,7 @@ describe('resolverContextoPorCue', () => {
       if (base.ok) {
         expect(base.contexto.escuela.nombre).toBe('Escuela Base')
         expect(base.contexto.turnos).toEqual([
-          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 20, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0 }] }] },
+          { turno: 'Mañana', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 20, curso: '1', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 0, alumnos: [] }] }] },
         ])
       }
 
@@ -105,7 +112,7 @@ describe('resolverContextoPorCue', () => {
       if (anexo.ok) {
         expect(anexo.contexto.escuela.nombre).toBe('Escuela Anexo 01')
         expect(anexo.contexto.turnos).toEqual([
-          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 21, curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0 }] }] },
+          { turno: 'Tarde', niveles: [{ nivel: 'Primario', secciones: [{ geSectionId: 21, curso: '2', division: 'B', nivel: 'Primario', turno: 'Tarde', matricula: 0, alumnos: [] }] }] },
         ])
       }
     } finally {
@@ -187,7 +194,37 @@ describe('resolverContextoPorCue', () => {
     }
   })
 
-  it('el resultado nunca contiene ge_person_id ni claves de identidad de alumnos', async () => {
+  // Invariante anterior (documentado acá hasta este cambio): el payload nunca
+  // llevaba ge_person_id ni identidad de alumnos. El titular del dato pidió
+  // habilitar la selección de alumnos individuales en el formulario público,
+  // amparado en la contraseña temporal de acceso (ver acceso-publico.ts): a
+  // partir de acá SÍ viaja identidad de alumnos, ya descifrada, por sección.
+  it('incluye por sección los alumnos con nombre y apellido descifrados', async () => {
+    const client = openGeDb()
+    try {
+      await seedCorteVigente(client)
+      await client.execute(
+        "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-04', NULL, 'Escuela 4', 'Entre Rios', 'Parana')",
+      )
+      await client.execute(
+        "INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '1801605-04', '1', 'A', 'Primario', 'Mañana')",
+      )
+      await client.execute('INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 555444)')
+      await importarIdentidad(client, 555444, 'Ana', 'Pérez')
+
+      const resultado = await resolverContextoPorCue(client, '1801605-04')
+
+      expect(resultado.ok).toBe(true)
+      if (!resultado.ok) return
+      expect(resultado.contexto.turnos[0].niveles[0].secciones[0].alumnos).toEqual([
+        { gePersonId: 555444, nombre: 'Ana', apellido: 'Pérez' },
+      ])
+    } finally {
+      client.close()
+    }
+  })
+
+  it('no incluye alumnos sin identidad importada, aunque estén matriculados', async () => {
     const client = openGeDb()
     try {
       await seedCorteVigente(client)
@@ -200,16 +237,11 @@ describe('resolverContextoPorCue', () => {
       await client.execute('INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 555444)')
 
       const resultado = await resolverContextoPorCue(client, '1801605-04')
-      const serializado = JSON.stringify(resultado)
 
-      expect(serializado).not.toContain('gePersonId')
-      expect(serializado).not.toContain('ge_person_id')
-      expect(serializado).not.toContain('555444')
-      // geSectionId SÍ viaja: es la clave institucional de la sección, no un dato personal.
-      // El formulario la necesita para informar qué secciones selecciona y POST
-      // /api/problematicas la valida contra ge_seccion. Lo prohibido es la identidad del alumno.
-      expect(resultado).toMatchObject({ ok: true })
-      expect(serializado).toContain('geSectionId')
+      expect(resultado.ok).toBe(true)
+      if (!resultado.ok) return
+      expect(resultado.contexto.turnos[0].niveles[0].secciones[0].matricula).toBe(1)
+      expect(resultado.contexto.turnos[0].niveles[0].secciones[0].alumnos).toEqual([])
     } finally {
       client.close()
     }

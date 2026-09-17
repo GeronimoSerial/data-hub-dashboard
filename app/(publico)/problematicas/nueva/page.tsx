@@ -1,6 +1,9 @@
+import { cookies } from 'next/headers'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { FormularioProblematica } from '@/components/infraestructura/formulario-problematica'
+import { AccesoForm } from '@/components/infraestructura/acceso-form'
+import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,6 +22,16 @@ export default async function NuevaProblematicaPage({
   searchParams: Promise<{ cue?: string }>
 }) {
   const { cue } = await searchParams
+
+  const cookieStore = await cookies()
+  if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
+    return (
+      <div className="publico-content">
+        <h1 className="publico-content__title">Reportar una problemática</h1>
+        <AccesoForm />
+      </div>
+    )
+  }
 
   const client = openGeDb()
   let resultado

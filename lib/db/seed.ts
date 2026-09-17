@@ -171,6 +171,12 @@ CREATE TABLE IF NOT EXISTS \`infra_problematica_seccion\` (
   PRIMARY KEY(\`problematica_id\`, \`ge_section_id\`),
   FOREIGN KEY (\`problematica_id\`) REFERENCES \`infra_problematica\`(\`id\`) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS \`infra_problematica_alumno\` (
+  \`problematica_id\` text NOT NULL,
+  \`ge_person_id\` integer NOT NULL,
+  PRIMARY KEY(\`problematica_id\`, \`ge_person_id\`),
+  FOREIGN KEY (\`problematica_id\`) REFERENCES \`infra_problematica\`(\`id\`) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS \`infra_permiso_nominal\` (
   \`id\` text PRIMARY KEY NOT NULL,
   \`user_id\` text NOT NULL,

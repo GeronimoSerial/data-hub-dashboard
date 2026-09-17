@@ -38,14 +38,51 @@ export async function asegurarGeAdjuntada(client: EjecutorSql): Promise<void> {
   }
 }
 
-// Único camino de cálculo: preliminar y confirmado llaman esta función con
-// los mismos (corteId, geSectionIds). No pueden discrepar porque ejecutan el
-// mismo SQL sobre los mismos parámetros.
-export async function calcularImpactoSecciones(
+// Devuelve, para cada sección del corte indicado, el conjunto de
+// ge_person_id matriculados. Único punto de lectura de esta membresía:
+// calcularImpactoSecciones lo usa para contar alumnos y
+// POST /api/problematicas lo reusa para validar que un alumno seleccionado
+// pertenezca realmente a alguna de las secciones elegidas (mismo criterio
+// que ya se aplica para validar secciones contra el CUE).
+export async function obtenerMembresiaSecciones(
   client: Client,
   params: { corteId: number; geSectionIds: number[] },
-): Promise<ImpactoResultado> {
+): Promise<Map<number, Set<number>>> {
   const { corteId, geSectionIds } = params
+  const membresiaPorSeccion = new Map<number, Set<number>>()
+  if (geSectionIds.length === 0) return membresiaPorSeccion
+
+  await asegurarGeAdjuntada(client)
+  const placeholders = geSectionIds.map(() => '?').join(',')
+  const membresiaRes = await client.execute({
+    sql: `SELECT ge_section_id, ge_person_id FROM ge.ge_alumno_seccion
+          WHERE corte_id = ? AND ge_section_id IN (${placeholders})`,
+    args: [corteId, ...geSectionIds],
+  })
+  for (const row of membresiaRes.rows) {
+    const seccionId = Number(row.ge_section_id)
+    const personId = Number(row.ge_person_id)
+    const set = membresiaPorSeccion.get(seccionId) ?? new Set<number>()
+    set.add(personId)
+    membresiaPorSeccion.set(seccionId, set)
+  }
+  return membresiaPorSeccion
+}
+
+// Único camino de cálculo: preliminar y confirmado llaman esta función con
+// los mismos (corteId, geSectionIds, alumnoIds). No pueden discrepar porque
+// ejecutan el mismo SQL sobre los mismos parámetros.
+//
+// alumnoIds es opcional y global (no viene agrupado por sección): para cada
+// sección, si alguno de sus alumnos matriculados aparece en alumnoIds, esa
+// sección pasa a contar SOLO la intersección; si ninguno aparece, cuenta
+// completa. Esa es la semántica de "sección sin alumnos explícitos = sección
+// completa" documentada en validacion.ts.
+export async function calcularImpactoSecciones(
+  client: Client,
+  params: { corteId: number; geSectionIds: number[]; alumnoIds?: number[] },
+): Promise<ImpactoResultado> {
+  const { corteId, geSectionIds, alumnoIds } = params
   if (geSectionIds.length === 0) return { ...seccionesVacias }
 
   await asegurarGeAdjuntada(client)
@@ -59,12 +96,14 @@ export async function calcularImpactoSecciones(
   const resueltasSet = new Set(resueltasRes.rows.map((r) => Number(r.ge_section_id)))
   const seccionesIrresolubles = geSectionIds.filter((id) => !resueltasSet.has(id)).length
 
-  const alumnosRes = await client.execute({
-    sql: `SELECT COUNT(DISTINCT s.ge_person_id) AS n
-          FROM ge.ge_alumno_seccion s
-          WHERE s.corte_id = ? AND s.ge_section_id IN (${placeholders})`,
-    args: [corteId, ...geSectionIds],
-  })
+  const membresiaPorSeccion = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
+  const alumnoIdsSet = new Set(alumnoIds ?? [])
+  const alumnosContados = new Set<number>()
+  for (const [, personIds] of membresiaPorSeccion) {
+    const interseccion = alumnoIdsSet.size > 0 ? [...personIds].filter((id) => alumnoIdsSet.has(id)) : []
+    const seleccion = interseccion.length > 0 ? interseccion : [...personIds]
+    for (const id of seleccion) alumnosContados.add(id)
+  }
 
   const cuesRes = await client.execute({
     sql: `SELECT COUNT(DISTINCT cue_anexo) AS n FROM ge.ge_seccion WHERE corte_id = ? AND ge_section_id IN (${placeholders})`,
@@ -85,7 +124,7 @@ export async function calcularImpactoSecciones(
     : null
 
   return {
-    alumnos: Number(alumnosRes.rows[0]?.n ?? 0),
+    alumnos: alumnosContados.size,
     secciones: resueltasSet.size,
     seccionesIrresolubles,
     calculoIncompleto: seccionesIrresolubles > 0,

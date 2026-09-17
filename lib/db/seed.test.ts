@@ -81,4 +81,23 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     expect(permisos.rows).toHaveLength(1)
     expect(logs.rows).toHaveLength(1)
   })
+
+  it('preserva filas de infra_problematica_alumno (selección de alumnos) al reaplicarse', async () => {
+    const { HUB_DDL } = await import('./seed')
+    const db = getDb()
+
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('probAlumno1', '1801605-04', 'Inundación', 'Alta', 1, '2026-01-01T00:00:00Z', 'k-alumno-1', 'enlace-cue')`,
+    })
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica_alumno (problematica_id, ge_person_id) VALUES ('probAlumno1', 12345)`,
+    })
+
+    await db.$client.executeMultiple(HUB_DDL)
+
+    const alumnos = await db.$client.execute('SELECT * FROM infra_problematica_alumno')
+    expect(alumnos.rows).toHaveLength(1)
+  })
 })

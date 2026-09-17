@@ -3,11 +3,16 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { POST } from './route'
+import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+
+const CLAVE = claveDePrueba()
 
 let dir: string
 let prevDataDir: string | undefined
+let prevPassword: string | undefined
 
 // Cada escenario usa su propio CUE (y sus propias secciones) para no
 // contaminar el límite de alertas activas por CUE de otro escenario: ese
@@ -21,6 +26,7 @@ const CUE_IP_A = '1801605-08'
 const CUE_IP_B = '1801605-09'
 const CUE_IP_C = '1801605-10'
 const CUE_ROLLBACK = '1801605-11'
+const CUE_ALUMNOS = '1801605-12'
 
 async function seedCue(
   ge: Awaited<ReturnType<typeof openGeDb>>,
@@ -49,7 +55,9 @@ async function seedCue(
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'problematicas-route-'))
   prevDataDir = process.env.DATA_DIR
+  prevPassword = process.env.PROBLEMATICAS_ACCESO_PASSWORD
   process.env.DATA_DIR = dir
+  process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
 
   const ge = openGeDb()
   try {
@@ -66,6 +74,7 @@ beforeAll(async () => {
     await seedCue(ge, CUE_IP_B, [71])
     await seedCue(ge, CUE_IP_C, [72])
     await seedCue(ge, CUE_ROLLBACK, [80])
+    await seedCue(ge, CUE_ALUMNOS, [90])
   } finally {
     ge.close()
   }
@@ -74,6 +83,8 @@ beforeAll(async () => {
 afterAll(() => {
   if (prevDataDir === undefined) delete process.env.DATA_DIR
   else process.env.DATA_DIR = prevDataDir
+  if (prevPassword === undefined) delete process.env.PROBLEMATICAS_ACCESO_PASSWORD
+  else process.env.PROBLEMATICAS_ACCESO_PASSWORD = prevPassword
   rmSync(dir, { recursive: true, force: true })
 })
 
@@ -82,9 +93,14 @@ beforeEach(() => {
 })
 
 function req(body: unknown, ip = '10.0.0.1') {
+  const { token } = crearTokenSesion()
   return new Request('http://localhost/api/problematicas', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
+    headers: {
+      'content-type': 'application/json',
+      'x-forwarded-for': ip,
+      cookie: `${NOMBRE_COOKIE}=${token}`,
+    },
     body: JSON.stringify(body),
   })
 }
@@ -246,5 +262,53 @@ describe('POST /api/problematicas', () => {
       }),
     )
     expect(reintento.status).toBe(201)
+  })
+
+  it('responde 401 sin cookie de acceso', async () => {
+    const res = await POST(
+      new Request('http://localhost/api/problematicas', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          cue: CUE_BASE,
+          motivo: 'Inundación',
+          severidad: 'Alta',
+          secciones: [10],
+          idempotencyKey: 'sin-cookie',
+        }),
+      }),
+    )
+    expect(res.status).toBe(401)
+  })
+
+  it('persiste alumnos seleccionados y el impacto refleja sólo esa selección', async () => {
+    // La sección 90 tiene 25 alumnos: 90000..90024 (ver seedCue).
+    const res = await POST(
+      req({
+        cue: CUE_ALUMNOS,
+        motivo: 'Inundación',
+        severidad: 'Alta',
+        secciones: [90],
+        alumnos: [90000, 90001, 90002],
+        idempotencyKey: 'con-alumnos-1',
+      }),
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.impacto.alumnos).toBe(3)
+  })
+
+  it('rechaza un alumno que no pertenece a ninguna de las secciones elegidas', async () => {
+    const res = await POST(
+      req({
+        cue: CUE_ALUMNOS,
+        motivo: 'Inundación',
+        severidad: 'Alta',
+        secciones: [90],
+        alumnos: [999999],
+        idempotencyKey: 'con-alumnos-invalido',
+      }),
+    )
+    expect(res.status).toBe(400)
   })
 })

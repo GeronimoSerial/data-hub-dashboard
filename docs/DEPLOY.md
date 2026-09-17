@@ -36,6 +36,7 @@ Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploa
 | `BETTER_AUTH_URL` | URL pública del FQDN |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
 | `NOMINAL_ENCRYPTION_KEY` | **Obligatorio.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos (AES-256-GCM). Sin ella el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
+| `PROBLEMATICAS_ACCESO_PASSWORD` | Contraseña temporal del formulario público de problemáticas (`lib/infraestructura/acceso-publico.ts`). Provisoria: reemplaza a una autenticación por token que viene después. Sin ella, el formulario y sus rutas quedan cerrados. |
 | `PADRON_PG_URL` | Conexión a la base Postgres de Gestión Educativa, de donde sale el padrón. Formato `postgres://usuario:clave@host:5432/asistencias`. Solo la usan los scripts de mantenimiento: **el servidor nunca la lee**. Si falta, el tablero sigue sirviendo el último corte ya materializado en `ge.sqlite`. |
 
 ### Alertas de infraestructura: el espejo de datos NO viaja en la imagen

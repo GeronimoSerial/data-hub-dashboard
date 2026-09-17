@@ -1,3 +1,4 @@
+import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -21,9 +22,17 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
   sin_secciones: 404,
 }
 
-// Sin guarda de sesión: esta ruta es pública a propósito, para que el director
-// acceda al contexto de su escuela desde un enlace con CUE sin autenticarse.
+// Antes esta ruta no tenía ninguna guarda a propósito: el director accedía
+// al contexto de su escuela desde un enlace con CUE sin autenticarse. El
+// titular del dato pidió cerrarla con la contraseña temporal de
+// lib/infraestructura/acceso-publico.ts (reemplazo provisorio de la
+// autenticación por token que viene después) porque ahora el contexto puede
+// incluir identidad de alumnos (ver lib/infraestructura/contexto.ts).
 export async function GET(request: Request) {
+  if (!tieneAccesoPublico(request)) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   const url = new URL(request.url)
   const cue = url.searchParams.get('cue')
 
