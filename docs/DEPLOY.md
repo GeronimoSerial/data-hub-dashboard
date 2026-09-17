@@ -34,6 +34,7 @@ Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploa
 | `BETTER_AUTH_URL` | URL pública del FQDN |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
 | `NOMINAL_ENCRYPTION_KEY` | **Obligatorio.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos (AES-256-GCM). Sin ella el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
+| `PADRON_PG_URL` | Conexión a la base Postgres de Gestión Educativa, de donde sale el padrón. Formato `postgres://usuario:clave@host:5432/asistencias`. Solo la usan los scripts de mantenimiento: **el servidor nunca la lee**. Si falta, el tablero sigue sirviendo el último corte ya materializado en `ge.sqlite`. |
 
 ### Alertas de infraestructura: el espejo de datos NO viaja en la imagen
 
@@ -44,16 +45,41 @@ dentro del contenedor, en este orden:
 
 ```bash
 # 1. Localizaciones (2005 registros). La fuente SÍ está versionada.
-node scripts/sync-ge.mjs --fixture
+node --experimental-strip-types scripts/sync-ge.mjs --fixture
 
-# 2. Padrón nominal real. La fuente NO está versionada: es un archivo con datos
-#    personales de menores que se copia al contenedor a mano y se borra después.
-node scripts/import-padron.mjs /ruta/al/tablero-nominal.html
+# 2. Padrón nominal desde Gestión Educativa. Necesita PADRON_PG_URL.
+node --experimental-strip-types scripts/import-padron.mjs --ge --ciclo 2026
 ```
 
-El HTML del padrón **nunca** se commitea ni se hornea en la imagen. Si el volumen se pierde,
-se rehacen los dos pasos; las alertas cargadas por directores no, ésas solo están en el backup
-del volumen.
+Los scripts viven en `/app/scripts` dentro de la imagen y se ejecutan con un shell en el
+contenedor. El flag `--experimental-strip-types` es necesario porque importan módulos `.ts`
+de `lib/`; en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
+
+#### Modelo de datos: Postgres es la fuente, `ge.sqlite` es la proyección
+
+El padrón real vive en la base Postgres de Gestión Educativa. `ge.sqlite` es una **proyección
+local de solo lectura** que se materializa como un corte (`ge_corte`) y que el tablero consulta
+adjunta en modo `?mode=ro`. Las consecuencias importantes:
+
+- Volver a correr el paso 2 crea un corte nuevo y lo activa; el anterior pasa a `historico`.
+  Es idempotente y no destruye nada.
+- Si se revoca el acceso a Postgres, **el tablero no se cae**: sigue sirviendo el último corte
+  materializado. Solo deja de poder actualizarse.
+- Las alertas cargadas por directores viven en `hub.sqlite` y **no** dependen de Postgres.
+  Si el volumen se pierde, el padrón se rehace con los dos pasos de arriba; las alertas no,
+  ésas solo están en el backup del volumen.
+
+El importador reconcilia contra `ge_localizacion`: los CUE del padrón que no tengan localización
+se descartan y se reportan al final. Por eso el paso 1 va siempre antes del paso 2.
+
+#### Importar desde un tablero HTML (camino heredado)
+
+```bash
+node --experimental-strip-types scripts/import-padron.mjs /ruta/al/tablero-nominal.html
+```
+
+Sigue funcionando para cortes históricos. El HTML **nunca** se commitea ni se hornea en la
+imagen: es un archivo con datos personales de menores que se copia a mano y se borra después.
 
 El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (`POST /api/recursos/:id/archivo`).
 
