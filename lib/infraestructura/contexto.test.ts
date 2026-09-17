@@ -145,14 +145,43 @@ describe('resolverContextoPorCue', () => {
     }
   })
 
-  it('devuelve error sin_secciones cuando la escuela existe pero no tiene secciones en el corte vigente', async () => {
+  it('devuelve la escuela con turnos vacios cuando no tiene secciones en el corte vigente', async () => {
     const client = openGeDb()
     try {
       await seedCorteVigente(client)
       await client.execute(
         "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605', NULL, 'Escuela Sin Secciones', 'Entre Rios', 'Parana')",
       )
-      expect(await resolverContextoPorCue(client, '1801605')).toEqual({ ok: false, error: { kind: 'sin_secciones' } })
+      const r = await resolverContextoPorCue(client, '1801605')
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.contexto.escuela.nombre).toBe('Escuela Sin Secciones')
+      expect(r.contexto.turnos).toEqual([])
+    } finally {
+      client.close()
+    }
+  })
+
+  // El formulario publico solo necesita nombre y CUE para abrirse. Que el padron
+  // nominal todavia no este importado no puede dejar sin canal de reporte a las
+  // 2005 escuelas, cuya identidad ya vive en ge_localizacion.
+  it('resuelve la escuela aunque no haya ningun corte vigente', async () => {
+    const client = openGeDb()
+    try {
+      await ensureGeSchema(client)
+      await client.execute(
+        "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801777', NULL, 'Escuela Sin Corte', 'Corrientes', 'Goya')",
+      )
+      const r = await resolverContextoPorCue(client, '1801777')
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.contexto.escuela).toEqual({
+        cueAnexo: '1801777',
+        nombre: 'Escuela Sin Corte',
+        departamento: 'Corrientes',
+        localidad: 'Goya',
+      })
+      expect(r.contexto.turnos).toEqual([])
     } finally {
       client.close()
     }

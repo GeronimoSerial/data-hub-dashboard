@@ -56,6 +56,7 @@ interface SeccionRow {
   nivel: string
   turno: string
   geSectionId: number
+  matricula: number
 }
 
 function agruparPorTurnoYNivel(secciones: SeccionContexto[]): TurnoContexto[] {
@@ -91,11 +92,11 @@ export async function resolverContextoPorCue(
     return { ok: false, error: { kind: 'cue_invalido' } }
   }
 
-  const corte = await getCorteVigente(client)
-  if (!corte) {
-    return { ok: false, error: { kind: 'sin_corte_vigente' } }
-  }
-
+  // La identidad de la escuela sale de ge_localizacion, que se siembra desde el
+  // JSON versionado y no depende del padrón. Se resuelve ANTES que el corte: el
+  // formulario público sólo necesita nombre y CUE para abrirse, y no tiene por
+  // qué caerse entero porque el padrón nominal todavía no se importó. El corte
+  // hace falta únicamente para ofrecer las secciones.
   const locRes = await client.execute({
     sql: 'SELECT cue_anexo as cueAnexo, nombre, departamento, localidad FROM ge_localizacion WHERE cue_anexo = ?',
     args: [identifier.value],
@@ -105,33 +106,34 @@ export async function resolverContextoPorCue(
   }
   const localizacion = locRes.rows[0]
 
-  const seccionesRes = await client.execute({
-    sql: `SELECT ge_section_id as geSectionId, curso, division, nivel, turno
-          FROM ge_seccion
-          WHERE corte_id = ? AND cue_anexo = ?
-          ORDER BY turno, nivel, curso, division`,
-    args: [corte.id, identifier.value],
-  })
-  if (seccionesRes.rows.length === 0) {
-    return { ok: false, error: { kind: 'sin_secciones' } }
-  }
-  const seccionesRows = seccionesRes.rows as unknown as SeccionRow[]
+  const corte = await getCorteVigente(client)
 
-  const secciones: SeccionContexto[] = []
-  for (const row of seccionesRows) {
-    const matriculaRes = await client.execute({
-      sql: 'SELECT COUNT(DISTINCT ge_person_id) as n FROM ge_alumno_seccion WHERE corte_id = ? AND ge_section_id = ?',
-      args: [corte.id, row.geSectionId],
-    })
-    secciones.push({
-      geSectionId: Number(row.geSectionId),
-      curso: String(row.curso),
-      division: String(row.division),
-      nivel: String(row.nivel),
-      turno: String(row.turno),
-      matricula: Number(matriculaRes.rows[0].n),
-    })
-  }
+  // Una sola consulta con la matrícula ya agregada. Antes se hacía un COUNT por
+  // sección: una escuela con cien secciones disparaba cien consultas.
+  const seccionesRows = corte
+    ? ((
+        await client.execute({
+          sql: `SELECT s.ge_section_id as geSectionId, s.curso, s.division, s.nivel, s.turno,
+                       COUNT(DISTINCT a.ge_person_id) as matricula
+                FROM ge_seccion s
+                LEFT JOIN ge_alumno_seccion a
+                  ON a.corte_id = s.corte_id AND a.ge_section_id = s.ge_section_id
+                WHERE s.corte_id = ? AND s.cue_anexo = ?
+                GROUP BY s.ge_section_id, s.curso, s.division, s.nivel, s.turno
+                ORDER BY s.turno, s.nivel, s.curso, s.division`,
+          args: [corte.id, identifier.value],
+        })
+      ).rows as unknown as SeccionRow[])
+    : []
+
+  const secciones: SeccionContexto[] = seccionesRows.map((row) => ({
+    geSectionId: Number(row.geSectionId),
+    curso: String(row.curso),
+    division: String(row.division),
+    nivel: String(row.nivel),
+    turno: String(row.turno),
+    matricula: Number(row.matricula ?? 0),
+  }))
 
   return {
     ok: true,

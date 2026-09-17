@@ -91,7 +91,7 @@ describe('GET /api/problematicas/contexto', () => {
     expect(body).not.toHaveProperty('alternativas')
   })
 
-  it('responde 404 cuando el CUE existe pero no tiene secciones en el corte vigente', async () => {
+  it('responde 200 con la escuela aunque no tenga secciones en el corte vigente', async () => {
     const client = openGeDb()
     try {
       await ensureGeSchema(client)
@@ -106,6 +106,9 @@ describe('GET /api/problematicas/contexto', () => {
     }
 
     const res = await GET(new Request('http://localhost/api/problematicas/contexto?cue=1801605'))
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.escuela.nombre).toBe('Escuela Sin Secciones')
+    expect(body.turnos).toEqual([])
   })
 })
