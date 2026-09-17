@@ -44,6 +44,16 @@ Las **localizaciones** se siembran solas: `ensureSeeded` carga `ge_localizacion`
 `public/data/localizaciones.json` cuando la tabla está vacía (ver `lib/infraestructura/localizaciones-seed.ts`).
 Son dato público y están versionadas, así que una instalación nueva ya resuelve el formulario por CUE.
 
+Ojo con el momento: `ensureSeeded` corre en la **primera request a una ruta de API**, no al
+levantar el proceso. Un `GET /` devuelve 200 sin sembrar nada. Si vas a importar el padrón
+inmediatamente después de desplegar, tocá antes una ruta de API para que la siembra ocurra:
+
+```bash
+wget -q -O- http://127.0.0.1:3000/api/hub > /dev/null
+```
+
+De lo contrario el import aborta con `ge_localizacion está vacía` y no descarta nada a ciegas.
+
 El **padrón nominal** no: son datos personales de menores, no están en el repositorio y hay que
 cargarlos a mano una vez por corte, dentro del contenedor:
 
