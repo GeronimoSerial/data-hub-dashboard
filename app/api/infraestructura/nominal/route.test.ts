@@ -114,11 +114,34 @@ describe('GET /api/infraestructura/nominal', () => {
     expect(res.status).toBe(403)
   })
 
-  it('rechaza a admin sin grant con 403: el rol nunca alcanza', async () => {
+  // El admin entra sin grant, pero no entra sin dejar rastro: la fila en
+  // infra_acceso_nominal_log es lo que sostiene el control ahora que el rol
+  // abre la puerta por sí solo.
+  it('admite a admin sin grant y registra igual el acceso en el log', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'admin-sin-grant',
       role: 'admin',
       banned: false,
+      nivelIds: [],
+    })
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+
+    const db = getDb()
+    const logs = await db.$client.execute({
+      sql: 'SELECT problematica_id, cantidad FROM infra_acceso_nominal_log WHERE user_id = ?',
+      args: ['admin-sin-grant'],
+    })
+    expect(logs.rows).toHaveLength(1)
+    expect(logs.rows[0].problematica_id).toBe(PROBLEMATICA_ID)
+  })
+
+  it('rechaza a un admin baneado con 403 pese al rol', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'admin-baneado',
+      role: 'admin',
+      banned: true,
       nivelIds: [],
     })
     const { GET } = await import('./route')
