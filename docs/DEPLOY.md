@@ -8,7 +8,8 @@ Guía de cutover del hub Next.js que reemplaza el runtime Fastify del mapa demog
 | --- | --- |
 | Propietario GitHub | `GeronimoSerial` |
 | FQDN | `analisis.sistemas.mec.gob.ar` |
-| App Coolify (UUID) | `pts681lz0kazhs1dph8wjaxt` |
+| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt` — nombre heredado `mapa-demografico`, **ya sirve la imagen de este repo** |
+| App Coolify preview (UUID) | `tfujz5e1jve0vt3bi4e9fzl6` — `data-hub-preview.sistemas.mec.gob.ar`, es la que dispara CI |
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
 | Imagen de rollback (Fastify) | `ghcr.io/geronimoserial/mapa-demografico` |
 
@@ -116,7 +117,7 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 | Secret | Uso |
 | --- | --- |
 | `COOLIFY_TOKEN` | Token de API Coolify. Copiar desde el repo `mapa-demografico` **solo** si el UUID es una app de preview. |
-| `COOLIFY_APP_UUID` | UUID de la app Coolify a redesplegar. **No** usar `pts681lz0kazhs1dph8wjaxt` hasta que el smoke de esta imagen esté OK: ese UUID es el Fastify en producción. |
+| `COOLIFY_APP_UUID` | UUID de la app Coolify a redesplegar. Hoy apunta a `tfujz5e1jve0vt3bi4e9fzl6` (**preview**): un merge a `main` redespliega preview, nunca producción. |
 
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
 
@@ -125,6 +126,16 @@ Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
 1. El repo y el primer push a `main` ya disparan GHCR.
 2. Esperar el workflow **Publish GHCR image** (Actions) hasta `success`.
 3. **En Coolify** (app de preview, o `pts681lz0kazhs1dph8wjaxt` solo después del smoke):
+
+   > **Estado al 2026-09-16.** El cutover ya ocurrió: `pts681lz0kazhs1dph8wjaxt` sirve
+   > `ghcr.io/geronimoserial/data-hub-dashboard:latest` en `analisis.sistemas.mec.gob.ar`, no el
+   > Fastify. Lo que queda pendiente es otra cosa: **producción está retrasada respecto de `main`**,
+   > porque CI solo redespliega preview. Se nota en que `GET /mapas/infraestructura` devuelve 404 en
+   > producción y 307 en preview. Para actualizarla hay que redesplegarla a mano desde el panel.
+   >
+   > Producción tampoco tiene `NOMINAL_ENCRYPTION_KEY` cargada, así que el alcance nominal no
+   > funciona ahí. Arrastra además variables muertas del runtime Fastify (`ADMIN_USER`,
+   > `ADMIN_PASS`, `DATABASE_URL`, `SESSION_SECRET`) que esta imagen no lee.
    - Cambiar el origen a la imagen `ghcr.io/geronimoserial/data-hub-dashboard:latest`.
    - Puerto del contenedor: **3000**.
    - Anotar la imagen/tag Fastify actual antes de cambiar (`ghcr.io/geronimoserial/mapa-demografico`) para rollback.
