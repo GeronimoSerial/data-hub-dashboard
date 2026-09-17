@@ -38,10 +38,18 @@ describe('puedeVerNominal', () => {
     expect(await puedeVerNominal(null, new Date())).toBe(false)
   })
 
-  it('un admin sin grant NO tiene acceso: el rol nunca es suficiente', async () => {
+  it('un admin sin grant tiene acceso: el rol alcanza por sí solo', async () => {
     const { puedeVerNominal } = await import('./permiso-nominal')
     const id = idUnico('admin')
-    expect(await puedeVerNominal(user({ id, role: 'admin' }), new Date())).toBe(false)
+    expect(await puedeVerNominal(user({ id, role: 'admin' }), new Date())).toBe(true)
+  })
+
+  it('un admin baneado no tiene acceso pese al rol', async () => {
+    const { puedeVerNominal } = await import('./permiso-nominal')
+    const id = idUnico('admin-baneado')
+    expect(
+      await puedeVerNominal(user({ id, role: 'admin', banned: true }), new Date()),
+    ).toBe(false)
   })
 
   it('un editor sin grant tampoco tiene acceso', async () => {
@@ -90,20 +98,17 @@ describe('puedeVerNominal', () => {
     expect(await puedeVerNominal(user({ id }), new Date('2026-06-01T00:00:00Z'))).toBe(false)
   })
 
-  it('un admin puede otorgarse el permiso a sí mismo, y queda registrado en otorgado_por', async () => {
-    const { puedeVerNominal, otorgarPermisoNominal, listarPermisosNominales } = await import(
-      './permiso-nominal'
-    )
+  // El auto-otorgamiento sigue existiendo y sigue registrando otorgado_por,
+  // aunque para un admin ya no sea el camino por el que obtiene acceso: el
+  // grant es lo que habilita a los demás roles, y su trazabilidad no cambia.
+  it('un admin puede otorgar el permiso a sí mismo, y queda registrado en otorgado_por', async () => {
+    const { otorgarPermisoNominal, listarPermisosNominales } = await import('./permiso-nominal')
     const id = idUnico('admin-self')
     await otorgarPermisoNominal({
       userId: id,
       otorgadoPor: id,
       venceEn: new Date('2026-12-31T00:00:00Z'),
     })
-
-    expect(
-      await puedeVerNominal(user({ id, role: 'admin' }), new Date('2026-06-01T00:00:00Z')),
-    ).toBe(true)
 
     const permisos = await listarPermisosNominales()
     const propio = permisos.find((p) => p.userId === id)

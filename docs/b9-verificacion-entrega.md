@@ -16,7 +16,8 @@ CUE de prueba: `1801605-04` (J.I.N. Nº 31 - ESCUELA N° 415, fixture de localiz
 | Persistencia | `POST /api/problematicas` con `cue`, `motivo`, `severidad`, `secciones:[1,2]`, `idempotencyKey` | `201`, `impacto: {alumnos:2, secciones:2, cuis:null, cuiDisponible:false}` |
 | Cálculo preliminar vs. confirmado | `POST /api/problematicas/impacto` con las mismas secciones, antes y después de persistir | Mismo resultado exacto — un solo camino de cálculo, confirmado en runtime, no solo por test |
 | Mapa protegido | `GET /api/mapas/infraestructura` (con sesión) | `200`, payload sin datos nominales; `inmuebles: null, inmueblesDisponible: false` |
-| Alcance nominal sin grant | `GET /api/infraestructura/nominal?problematica=...` (admin sin grant) | `403 No tenés acceso a este recurso` — confirma que `puedeVerNominal` no mira `user.role` |
+| Alcance nominal sin grant, rol admin | `GET /api/infraestructura/nominal?problematica=...` (admin sin grant) | `200` con los nombres y fila nueva en `infra_acceso_nominal_log` — el rol `admin` accede sin grant, pero nunca sin quedar registrado |
+| Alcance nominal sin grant, otros roles | `GET /api/infraestructura/nominal?problematica=...` (editor sin grant) | `403 No tenés acceso a este recurso` — fuera de `admin`, el grant sigue siendo la única puerta |
 | Otorgar grant | `POST /api/infraestructura/nominal/permisos` | `201` |
 | Alcance nominal con grant | `GET /api/infraestructura/nominal?problematica=...` | `200`, `cantidad: 2`; fila nueva en `infra_acceso_nominal_log` verificada por consulta directa a `hub.sqlite` |
 

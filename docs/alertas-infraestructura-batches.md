@@ -608,8 +608,9 @@ alcanzados por una alerta, con el dato cifrado en reposo y cada acceso registrad
 2. `lib/infraestructura/identidad.ts` — cifrado al importar y descifrado; la función que descifra es
    la única que toca el payload y no se exporta fuera del módulo.
 3. Tablas `infra_permiso_nominal` e `infra_acceso_nominal_log` en schema **y** `HUB_DDL`.
-4. `lib/infraestructura/permiso-nominal.ts` — `puedeVerNominal(user, ahora)`. **No consulta
-   `user.role`.** Verifica grant vigente y no vencido.
+4. `lib/infraestructura/permiso-nominal.ts` — `puedeVerNominal(user, ahora)`. El rol `admin`
+   **accede sin grant**; para cualquier otro rol verifica grant vigente y no vencido. Ver la
+   revisión al pie de este batch.
 5. Administración del permiso: otorgar, revocar y listar, con `vence_en` obligatorio y `otorgado_por`
    registrado. Accesible solo a `admin`.
 6. `app/api/infraestructura/nominal/route.ts` — `GET ?problematica=`. Verificación propia, no
@@ -625,8 +626,9 @@ auditoría). Tareas 7–8 dependen de ambas. Dos implementadores, luego uno.
 
 **Criterios de aceptación.**
 
-- Un usuario `admin` **sin** grant vigente recibe `403` en el endpoint y no ve el enlace. Test
-  explícito.
+- Un usuario `admin` **sin** grant vigente recibe `200`, ve el enlace y **queda igual una fila** en
+  `infra_acceso_nominal_log`. Test explícito.
+- Un usuario `admin` baneado recibe `403` pese al rol.
 - Un usuario `editor` sin grant recibe `403`.
 - Un grant vencido no da acceso.
 - Un usuario con grant vigente obtiene los nombres y **queda una fila** en
@@ -646,8 +648,24 @@ claro.
   test de B5 tarea 6 se mantiene vigente como red.
 - *Pérdida de la clave* — impacto alto: los nombres quedan irrecuperables y hay que re-sincronizar
   desde GE. La documentación de la tarea 9 debe decirlo con estas palabras.
-- *`puedeVerNominal` "mejorado" para incluir admin* — sería el fin del control. Se documenta en el
-  propio código por qué no consulta el rol.
+- *El permiso se extiende a `editor`* — sería el fin del control: `lib/acl.ts` ya le da `true`
+  incondicional en `puedeAbrir()`, así que `infra_permiso_nominal` quedaría sin efecto para el
+  grueso del staff. El código documenta por qué el atajo llega hasta `admin` y no más.
+
+#### Revisión: `admin` accede sin grant
+
+El criterio original era que el rol nunca alcanzara y que **todo** acceso nominal exigiera un grant
+en `infra_permiso_nominal`. Se revisó a pedido del titular del dato, por dos razones:
+
+1. `otorgarPermisoNominal` nunca impidió el auto-otorgamiento: un `admin` podía darse el permiso a
+   sí mismo en cualquier momento. Para ese rol el grant no era una barrera, era un trámite previo.
+2. Lo que de verdad sostiene el control es la **auditoría**, no la puerta:
+   `consultarYRegistrarAfectados` escribe en `infra_acceso_nominal_log` en la misma transacción que
+   devuelve los nombres. Un admin que mira queda registrado, con grant o sin él.
+
+Lo que **no** cambió: `editor` y `consulta` siguen necesitando grant vigente y no vencido, los
+grants siguen sin poder ser permanentes (`vence_en` obligatorio), y un usuario baneado no entra por
+ningún camino.
 
 ---
 
