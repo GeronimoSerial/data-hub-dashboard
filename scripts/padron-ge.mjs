@@ -32,7 +32,15 @@ const SQL_PADRON = `
   JOIN secciones s ON s.id = a.seccion_id
   WHERE a.ciclo_lectivo = $1
     AND a.status::text = 'activo'
+  ORDER BY a.id
+  LIMIT $2 OFFSET $3
 `
+
+// Se pagina a propósito. El padrón son ~272.000 filas: traerlas todas de una y
+// quedarse además con los arrays intermedios llevaba el proceso a ~1 GB de RSS y
+// lo mataba dentro del contenedor de producción, donde la RAM se comparte con
+// el resto de las apps. Por lote el pico queda en decenas de MB.
+export const TAMANO_PAGINA = 25000
 
 /**
  * Acepta tanto una URL `postgres://...` como el formato de par clave/valor que
@@ -109,30 +117,67 @@ export function normalizarFilaGe(row) {
 }
 
 /**
- * Trae el padrón completo del ciclo. Descarta filas sin DNI porque sin él no se
- * puede derivar un gePersonId estable.
+ * Recorre el padrón del ciclo por lotes y entrega cada uno a `onLote`. Nunca
+ * mantiene más de una página en memoria: el llamador acumula lo que necesita y
+ * el lote se descarta.
+ *
+ * Devuelve los totales, no las filas, justamente para que no haya forma de
+ * retener el padrón entero sin querer.
  */
-export async function leerPadronDesdeGe({
+export async function recorrerPadronDesdeGe({
   conexion,
   cicloLectivo = CICLO_LECTIVO_POR_DEFECTO,
   Client = pg.Client,
+  tamanoPagina = TAMANO_PAGINA,
+  onLote,
 } = {}) {
+  if (typeof onLote !== 'function') throw new Error('recorrerPadronDesdeGe necesita onLote')
+
   const client = new Client(conexion ?? conexionDesdeEntorno())
   await client.connect()
   try {
-    const res = await client.query(SQL_PADRON, [String(cicloLectivo)])
-    const filas = []
+    let offset = 0
+    let leidas = 0
     let sinDocumento = 0
-    for (const row of res.rows) {
-      const fila = normalizarFilaGe(row)
-      if (fila.dni === '') {
-        sinDocumento++
-        continue
+
+    for (;;) {
+      const res = await client.query(SQL_PADRON, [String(cicloLectivo), tamanoPagina, offset])
+      if (res.rows.length === 0) break
+
+      const filas = []
+      for (const row of res.rows) {
+        leidas++
+        const fila = normalizarFilaGe(row)
+        if (fila.dni === '') {
+          sinDocumento++
+          continue
+        }
+        filas.push(fila)
       }
-      filas.push(fila)
+
+      await onLote(filas)
+
+      if (res.rows.length < tamanoPagina) break
+      offset += tamanoPagina
     }
-    return { filas, sinDocumento, cicloLectivo: String(cicloLectivo) }
+
+    return { leidas, sinDocumento, cicloLectivo: String(cicloLectivo) }
   } finally {
     await client.end()
   }
+}
+
+/**
+ * Trae el padrón completo en memoria. Sirve para pruebas y para volúmenes
+ * chicos; el importador usa recorrerPadronDesdeGe.
+ */
+export async function leerPadronDesdeGe(opciones = {}) {
+  const filas = []
+  const { leidas, sinDocumento, cicloLectivo } = await recorrerPadronDesdeGe({
+    ...opciones,
+    onLote: (lote) => {
+      for (const f of lote) filas.push(f)
+    },
+  })
+  return { filas, leidas, sinDocumento, cicloLectivo }
 }

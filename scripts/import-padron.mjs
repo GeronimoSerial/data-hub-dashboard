@@ -207,6 +207,69 @@ export function derivarIds(filasAceptadas) {
   return { secciones, personas, asignaciones, cuesDistintos }
 }
 
+// Acumulador incremental: misma derivación que derivarIds pero alimentado por
+// lotes, para que el padrón completo no tenga que estar en memoria a la vez.
+// Las membresías se deduplican al vuelo contra un Set en lugar de construir un
+// segundo array del tamaño del padrón.
+export function crearAcumulador() {
+  const seccionIdPorClave = new Map()
+  const clavePorSeccionId = new Map()
+  const personIdPorDni = new Map()
+  const dniPorPersonId = new Map()
+
+  const secciones = new Map()
+  const personas = new Map()
+  const membresias = []
+  const vistas = new Set()
+
+  return {
+    secciones,
+    personas,
+    membresias,
+    agregar(filas) {
+      for (const fila of filas) {
+        const claveSeccion = `${fila.cueAnexo}|${fila.curso}|${fila.division}|${fila.turno}|${fila.nivel}`
+        let geSectionId = seccionIdPorClave.get(claveSeccion)
+        if (geSectionId === undefined) {
+          geSectionId = derivarEnteroEstable(claveSeccion)
+          const existente = clavePorSeccionId.get(geSectionId)
+          if (existente !== undefined) {
+            throw new Error(
+              `Colisión de geSectionId entre secciones: "${existente}" y "${claveSeccion}"`,
+            )
+          }
+          seccionIdPorClave.set(claveSeccion, geSectionId)
+          clavePorSeccionId.set(geSectionId, claveSeccion)
+          secciones.set(geSectionId, {
+            cueAnexo: fila.cueAnexo,
+            curso: fila.curso,
+            division: fila.division,
+            nivel: fila.nivel,
+            turno: fila.turno,
+          })
+        }
+
+        let gePersonId = personIdPorDni.get(fila.dni)
+        if (gePersonId === undefined) {
+          gePersonId = derivarEnteroEstable(fila.dni)
+          const existente = dniPorPersonId.get(gePersonId)
+          if (existente !== undefined) {
+            throw new Error(`Colisión de gePersonId entre DNIs: "${existente}" y "${fila.dni}"`)
+          }
+          personIdPorDni.set(fila.dni, gePersonId)
+          dniPorPersonId.set(gePersonId, fila.dni)
+          personas.set(gePersonId, { nombre: fila.nombre, apellido: fila.apellido })
+        }
+
+        const clave = `${geSectionId}:${gePersonId}`
+        if (vistas.has(clave)) continue
+        vistas.add(clave)
+        membresias.push({ geSectionId, gePersonId })
+      }
+    },
+  }
+}
+
 export function deduplicarMembresias(asignaciones) {
   const vistos = new Set()
   const unicas = []
@@ -288,27 +351,57 @@ const USO = `Uso:
   node scripts/import-padron.mjs --ge [--ciclo <año>]   # padrón desde Gestión Educativa (Postgres)
   node scripts/import-padron.mjs <ruta-al-html>         # padrón desde un tablero HTML local`
 
-// Resuelve el origen del padrón y devuelve las filas ya normalizadas más el
-// ciclo lectivo con el que se va a registrar el corte.
-async function leerOrigen(argv) {
+// Alimenta el acumulador desde el origen elegido, reconciliando cada lote
+// contra ge_localizacion. No devuelve filas: el padrón nunca está entero en
+// memoria, sólo las estructuras derivadas.
+async function consumirOrigen(argv, cuesConocidos, acumulador) {
+  const resumen = {
+    leidas: 0,
+    sinDocumento: 0,
+    descartadosPorCue: 0,
+    descartadosPorLocalizacion: 0,
+    cuesEnPadron: new Set(),
+    cuesConciliados: new Set(),
+    cuesDescartados: new Set(),
+  }
+
+  const consumirLote = (filas) => {
+    const c = reconciliarFilas(filas, cuesConocidos)
+    acumulador.agregar(c.aceptadas)
+    resumen.descartadosPorCue += c.descartadosPorCue
+    resumen.descartadosPorLocalizacion += c.descartadosPorLocalizacion
+    for (const v of c.cuesEnPadron) resumen.cuesEnPadron.add(v)
+    for (const v of c.cuesConciliados) resumen.cuesConciliados.add(v)
+    for (const v of c.cuesDescartados) resumen.cuesDescartados.add(v)
+  }
+
   if (argv[0] === '--ge') {
     const indiceCiclo = argv.indexOf('--ciclo')
-    const ciclo =
-      indiceCiclo === -1 ? String(new Date().getFullYear()) : argv[indiceCiclo + 1]
+    const ciclo = indiceCiclo === -1 ? String(new Date().getFullYear()) : argv[indiceCiclo + 1]
     if (!ciclo) throw new Error('--ciclo necesita un año')
 
-    const { leerPadronDesdeGe } = await import('./padron-ge.mjs')
-    const { filas, sinDocumento, cicloLectivo } = await leerPadronDesdeGe({
+    const { recorrerPadronDesdeGe } = await import('./padron-ge.mjs')
+    console.log(`Origen: Gestión Educativa (Postgres), ciclo ${ciclo}`)
+
+    const totales = await recorrerPadronDesdeGe({
       cicloLectivo: ciclo,
+      onLote: (filas) => {
+        consumirLote(filas)
+        const rss = Math.round(process.memoryUsage().rss / 1048576)
+        console.log(`  lote: ${resumen.leidas + filas.length} filas acumuladas, RSS ${rss} MB`)
+        resumen.leidas += filas.length
+      },
     })
-    if (filas.length === 0) {
-      throw new Error(`Gestión Educativa no devolvió alumnos activos para el ciclo ${cicloLectivo}`)
+
+    resumen.leidas = totales.leidas
+    resumen.sinDocumento = totales.sinDocumento
+    if (acumulador.membresias.length === 0) {
+      throw new Error(`Gestión Educativa no devolvió alumnos activos para el ciclo ${ciclo}`)
     }
-    console.log(`Origen: Gestión Educativa (Postgres), ciclo ${cicloLectivo}`)
-    if (sinDocumento > 0) {
-      console.log(`Filas descartadas por documento vacío: ${sinDocumento}`)
+    if (totales.sinDocumento > 0) {
+      console.log(`Filas descartadas por documento vacío: ${totales.sinDocumento}`)
     }
-    return { filas, cicloLectivo, leidas: filas.length + sinDocumento }
+    return { resumen, cicloLectivo: totales.cicloLectivo }
   }
 
   const rutaHtml = argv[0]
@@ -316,11 +409,9 @@ async function leerOrigen(argv) {
 
   const padron = decodificarPadron(readFileSync(rutaHtml, 'utf8'))
   console.log(`Origen: HTML ${rutaHtml}`)
-  return {
-    filas: padron.r.filter((fila) => Array.isArray(fila)).map(normalizarFilaHtml),
-    cicloLectivo: String(new Date().getFullYear()),
-    leidas: padron.r.length,
-  }
+  resumen.leidas = padron.r.length
+  consumirLote(padron.r.filter((fila) => Array.isArray(fila)).map(normalizarFilaHtml))
+  return { resumen, cicloLectivo: String(new Date().getFullYear()) }
 }
 
 // Relee el corte recién cargado y falla si no quedó vigente o quedó vacío.
@@ -358,14 +449,6 @@ async function main() {
   console.time('importar-padron')
   const inicio = Date.now()
 
-  let origen
-  try {
-    origen = await leerOrigen(process.argv.slice(2))
-  } catch (err) {
-    console.error(err.message)
-    process.exit(1)
-  }
-
   const client = openGeDb()
   try {
     await ensureGeSchema(client)
@@ -379,19 +462,28 @@ async function main() {
       process.exit(1)
     }
 
-    const clasificacion = reconciliarFilas(origen.filas, cuesConocidos)
-    const { secciones, personas, asignaciones, cuesDistintos } = derivarIds(
-      clasificacion.aceptadas,
-    )
+    const acumulador = crearAcumulador()
+    let clasificacion
+    let cicloLectivo
+    try {
+      const r = await consumirOrigen(process.argv.slice(2), cuesConocidos, acumulador)
+      clasificacion = r.resumen
+      cicloLectivo = r.cicloLectivo
+    } catch (err) {
+      console.error(err.message)
+      process.exit(1)
+    }
+
+    const { secciones, personas, membresias } = acumulador
 
     const corteRes = await client.execute({
       sql: "INSERT INTO ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (?, ?, 'importando')",
-      args: [Number(origen.cicloLectivo), new Date().toISOString()],
+      args: [Number(cicloLectivo), new Date().toISOString()],
     })
     const corteId = Number(corteRes.lastInsertRowid)
 
     await insertarSecciones(client, corteId, secciones)
-    await insertarMembresias(client, corteId, deduplicarMembresias(asignaciones))
+    await insertarMembresias(client, corteId, membresias)
     const identidadesInsertadas = await insertarIdentidades(client, personas)
 
     try {
@@ -404,7 +496,7 @@ async function main() {
     }
 
     const cuesDescartados = clasificacion.cuesDescartados
-    console.log(`Filas leídas: ${origen.leidas}`)
+    console.log(`Filas leídas: ${clasificacion.leidas}`)
     console.log(`Alumnos únicos cargados (gePersonId): ${personas.size}`)
     console.log(`Secciones únicas cargadas: ${secciones.size}`)
     console.log(`CUE distintos en el padrón: ${clasificacion.cuesEnPadron.size}`)

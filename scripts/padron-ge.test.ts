@@ -137,7 +137,7 @@ describe('leerPadronDesdeGe', () => {
     expect(r.filas).toHaveLength(1)
     expect(r.filas[0].cueAnexo).toBe('1800001-00')
     expect(r.cicloLectivo).toBe('2026')
-    expect(llamadas[0].args).toEqual(['2026'])
+    expect(llamadas[0].args[0]).toBe('2026')
   })
 
   it('descarta las filas sin documento y las cuenta', async () => {
@@ -163,6 +163,35 @@ describe('leerPadronDesdeGe', () => {
       leerPadronDesdeGe({ conexion: {}, cicloLectivo: '2026', Client: Rota }),
     ).rejects.toThrow('caída')
     expect(terminado).toBe(true)
+  })
+
+  it('pagina hasta agotar el padrón y no retiene todo en memoria', async () => {
+    // Dos páginas completas y una parcial: la tercera corta el recorrido.
+    const paginas = [Array.from({ length: 2 }, () => fila()), Array.from({ length: 2 }, () => fila({ dni: '2' })), [fila({ dni: '3' })]]
+    let i = 0
+    const llamadas: unknown[][] = []
+    class Paginado {
+      async connect() {}
+      async query(_sql: string, args: unknown[]) {
+        llamadas.push(args)
+        return { rows: paginas[i++] ?? [] }
+      }
+      async end() {}
+    }
+
+    const { recorrerPadronDesdeGe } = await import('./padron-ge.mjs')
+    const lotes: number[] = []
+    const r = await recorrerPadronDesdeGe({
+      conexion: {},
+      cicloLectivo: '2026',
+      Client: Paginado,
+      tamanoPagina: 2,
+      onLote: (filas: unknown[]) => { lotes.push(filas.length) },
+    })
+
+    expect(lotes).toEqual([2, 2, 1])
+    expect(r.leidas).toBe(5)
+    expect(llamadas.map((a) => a[2])).toEqual([0, 2, 4])
   })
 
   it('solo pide alumnos activos', async () => {
