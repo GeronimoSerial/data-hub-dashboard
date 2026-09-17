@@ -1,6 +1,7 @@
 # Despliegue en producción (Coolify + GHCR)
 
-Guía de cutover del hub Next.js que reemplaza el runtime Fastify del mapa demográfico en el FQDN de producción.
+Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **No hay entorno de
+preview: `main` es producción.**
 
 ## Referencia
 
@@ -9,9 +10,9 @@ Guía de cutover del hub Next.js que reemplaza el runtime Fastify del mapa demog
 | Propietario GitHub | `GeronimoSerial` |
 | FQDN | `analisis.sistemas.mec.gob.ar` |
 | App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt` — nombre heredado `mapa-demografico`, **ya sirve la imagen de este repo** |
-| App Coolify preview (UUID) | `tfujz5e1jve0vt3bi4e9fzl6` — `data-hub-preview.sistemas.mec.gob.ar`, es la que dispara CI |
+| Límites por contenedor | `limits_memory=1536m`, `limits_memory_swap=1536m` (swap cero a propósito), `limits_memory_reservation=256m` |
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
-| Imagen de rollback (Fastify) | `ghcr.io/geronimoserial/mapa-demografico` |
+| Imagen de rollback | el tag `<sha>` anterior de `ghcr.io/geronimoserial/data-hub-dashboard` |
 
 La imagen GHCR se publica automáticamente al hacer push a `main` o `master` (workflow `.github/workflows/ghcr.yml`). El nombre se fuerza a minúsculas: `ghcr.io/geronimoserial/data-hub-dashboard`.
 
@@ -56,16 +57,18 @@ wget -q -O- http://127.0.0.1:3000/api/hub > /dev/null
 De lo contrario el import aborta con `ge_localizacion está vacía` y no descarta nada a ciegas.
 
 El **padrón nominal** no: son datos personales de menores, no están en el repositorio y hay que
-cargarlos a mano una vez por corte, dentro del contenedor:
+cargarlos una vez por corte:
 
 ```bash
 node --experimental-strip-types scripts/import-padron.mjs --ge --ciclo 2026
 ```
 
 Necesita `PADRON_PG_URL` y `NOMINAL_ENCRYPTION_KEY` en el entorno. Tarda entre 40 y 90 segundos
-sobre ~272.000 filas. Los scripts viven en `/app/scripts` dentro de la imagen y se ejecutan con
-`docker exec`. El flag `--experimental-strip-types` está porque importan módulos `.ts` de `lib/`;
-en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
+sobre ~272.000 filas. El flag `--experimental-strip-types` está porque importa módulos `.ts` de
+`lib/`; en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
+
+**Dónde correrlo: no en el contenedor de producción.** Ver *Nunca correr el import del padrón
+dentro del contenedor*, más abajo — se intentó dos veces y las dos tumbó el host completo.
 
 Al terminar, el script **releé el corte desde la base** y lo reporta:
 
@@ -79,9 +82,10 @@ Si esa línea no aparece, el import no sirvió, sin importar lo que diga el rest
 > volumen `/data` del contenedor: un runner de Actions no tiene acceso a ese volumen, y la única
 > forma de que lo tuviera sería hornear el padrón en la imagen, que es justamente lo que no se
 > hace con datos personales de menores. Además obligaría a poner las credenciales de la base de
-> Gestión Educativa como secret de un runner alojado fuera de la red del ministerio. El lugar
-> correcto es un **post-deployment command de Coolify**, que corre dentro del contenedor, con el
-> volumen montado y sin sacar credenciales de la red.
+> Gestión Educativa como secret de un runner alojado fuera de la red del ministerio.
+>
+> Y tampoco va como `post_deployment_command`, que fue el primer intento: corre dentro del
+> contenedor y por eso mismo tumbó el host. Queda como tarea de operador con acceso al host.
 
 #### Modelo de datos: Postgres es la fuente, `ge.sqlite` es la proyección
 
@@ -116,47 +120,56 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 
 | Secret | Uso |
 | --- | --- |
-| `COOLIFY_TOKEN` | Token de API Coolify. Copiar desde el repo `mapa-demografico` **solo** si el UUID es una app de preview. |
-| `COOLIFY_APP_UUID` | UUID de la app Coolify a redesplegar. Hoy apunta a `tfujz5e1jve0vt3bi4e9fzl6` (**preview**): un merge a `main` redespliega preview, nunca producción. |
+| `COOLIFY_TOKEN` | Token de API Coolify con permiso de deploy. |
+| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción**. Un merge a `main` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar` directamente. |
 
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
 
-## Cutover (operador)
+## Despliegue
 
-1. El repo y el primer push a `main` ya disparan GHCR.
-2. Esperar el workflow **Publish GHCR image** (Actions) hasta `success`.
-3. **En Coolify** (app de preview, o `pts681lz0kazhs1dph8wjaxt` solo después del smoke):
+Este hub **no tiene entorno de preview**. `main` es producción: un merge publica la imagen en GHCR
+y el workflow redespliega `analisis.sistemas.mec.gob.ar`. No hay escalón intermedio, así que lo que
+entra a `main` es lo que ven los directores.
 
-   > **Estado al 2026-09-16.** El cutover ya ocurrió: `pts681lz0kazhs1dph8wjaxt` sirve
-   > `ghcr.io/geronimoserial/data-hub-dashboard:latest` en `analisis.sistemas.mec.gob.ar`, no el
-   > Fastify. Lo que queda pendiente es otra cosa: **producción está retrasada respecto de `main`**,
-   > porque CI solo redespliega preview. Se nota en que `GET /mapas/infraestructura` devuelve 404 en
-   > producción y 307 en preview. Para actualizarla hay que redesplegarla a mano desde el panel.
-   >
-   > Producción tampoco tiene `NOMINAL_ENCRYPTION_KEY` cargada, así que el alcance nominal no
-   > funciona ahí. Arrastra además variables muertas del runtime Fastify (`ADMIN_USER`,
-   > `ADMIN_PASS`, `DATABASE_URL`, `SESSION_SECRET`) que esta imagen no lee.
-   - Cambiar el origen a la imagen `ghcr.io/geronimoserial/data-hub-dashboard:latest`.
-   - Puerto del contenedor: **3000**.
-   - Anotar la imagen/tag Fastify actual antes de cambiar (`ghcr.io/geronimoserial/mapa-demografico`) para rollback.
-4. **Smoke test** en la URL de preview de Coolify (antes de tocar el dominio):
+1. Merge a `main`.
+2. Esperar el workflow **Publish GHCR image** hasta `success`. Si falla, no se despliega nada.
+3. El paso *Trigger Coolify deploy* redespliega producción solo.
+4. **Smoke test contra el FQDN de producción:**
    - `GET /` → 200, catálogo del hub.
-   - `GET /mapas/matricula` → anónimo redirige a login; con sesión permitida, 200 y el mapa carga.
-   - `GET /tablero` y `GET /recursos/reporte-sobreedad-inicial.pdf` → anónimo redirige a login (ya no son archivos públicos).
-   - `GET /data/summary.json` → 200.
-   - `GET /maplibre-gl-worker.js` → 200.
-5. **Cambiar el FQDN** `analisis.sistemas.mec.gob.ar` a la nueva app solo después de que el smoke en preview sea satisfactorio.
-6. Repetir smoke en el FQDN de producción.
+   - `GET /api/hub` → 200. Es además la request que dispara `ensureSeeded` (ver más arriba).
+   - `GET /mapas/matricula` y `GET /mapas/infraestructura` → anónimo redirige a login (307).
+   - `GET /tablero` → 307 anónimo.
+   - `GET /data/summary.json` y `GET /maplibre-gl-worker.js` → 200.
+   - `GET /problematicas/nueva?cue=1800554-00` → 200 con el nombre de la escuela en pantalla.
 
-> **No ejecutar DNS ni Coolify desde CI.** Esta guía documenta pasos manuales; el operador confirma en el panel de Coolify.
+### Nunca correr el import del padrón dentro del contenedor
+
+Se intentó dos veces con `post_deployment_command` y las dos veces **tumbó el host entero de
+Coolify**, no sólo esta app: se cayeron también PlanCope, asistencias-cge y el propio panel, durante
+unos quince minutos, con la API de Coolify inalcanzable para poder revertirlo.
+
+El síntoma es reconocible: el puerto 443 sigue aceptando conexiones pero ninguna request HTTP
+completa. Eso es memoria agotada con swap thrashing, no CPU. El import es Node de un solo hilo, así
+que más vCPU no cambia nada.
+
+Por eso los contenedores ahora tienen `limits_memory` con `limits_memory_swap` **igual** al límite:
+swap cero, para que un proceso desbocado reciba un OOM-kill limpio en vez de convertir el host en
+piedra. Docker toma esos límites al recrear el contenedor, no en caliente.
+
+Si `post_deployment_command` aparece con el import cargado, **sacalo**: cualquier deploy o restart
+lo vuelve a disparar.
 
 ## Rollback
 
 Si el cutover falla o hay regresión en producción:
 
-1. En Coolify, restaurar la imagen **`ghcr.io/geronimoserial/mapa-demografico`** (runtime Fastify anterior) con el tag que se anotó antes del cambio.
-2. Redesplegar y verificar `analisis.sistemas.mec.gob.ar`.
-3. **No eliminar** este repositorio (`data-hub-dashboard`); el rollback es solo de imagen/runtime en Coolify.
+Sin preview, el rollback es la única red: hacelo por tag de imagen en Coolify.
+
+1. En Coolify, cambiar el tag de `ghcr.io/geronimoserial/data-hub-dashboard:latest` al SHA corto
+   del commit anterior (el workflow publica `latest` y `<sha>` en cada build, así que el anterior
+   siempre está disponible en GHCR).
+2. Redesplegar y repetir el smoke del FQDN.
+3. El volumen `/data` no se toca en un rollback de imagen: las alertas y el corte del padrón quedan.
 
 ## Build local (opcional)
 
