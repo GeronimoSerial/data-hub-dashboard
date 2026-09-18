@@ -12,7 +12,12 @@ import {
   getClientIp,
   ipExcedeLimite,
 } from '@/lib/infraestructura/limites'
-import { parseProblematicaInput } from '@/lib/infraestructura/validacion'
+import { listarMotivos } from '@/lib/infraestructura/motivos'
+import {
+  parseProblematicaInput,
+  resolverCategoria,
+  validarAlumnosPermitidos,
+} from '@/lib/infraestructura/validacion'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -81,6 +86,22 @@ export async function POST(request: Request) {
   const cue = normalizeCue(input.cue)
   if (!cue) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
+  }
+
+  // La categoría la resuelve el servidor a partir del motivo: cualquier
+  // `categoria` que haya llegado en el body ya fue descartada por el schema
+  // (no es un campo que reconozca), y acá se ignora también cualquier intento
+  // de mandarla por fuera de ese schema.
+  const motivos = await listarMotivos()
+  const categoriaResuelta = resolverCategoria(input.motivo, motivos)
+  if (!categoriaResuelta.ok) {
+    return Response.json({ error: categoriaResuelta.error }, { status: 400 })
+  }
+  const categoria = categoriaResuelta.categoria
+
+  const alumnosPermitidos = validarAlumnosPermitidos(categoria, input.alumnos)
+  if (!alumnosPermitidos.ok) {
+    return Response.json({ error: alumnosPermitidos.error }, { status: 400 })
   }
 
   const db = getDb()
@@ -177,6 +198,7 @@ export async function POST(request: Request) {
         id,
         cueAnexo: cue.value,
         motivo: input.motivo,
+        categoria,
         severidad: input.severidad,
         descripcion: input.descripcion ?? null,
         corteId: corte.id,

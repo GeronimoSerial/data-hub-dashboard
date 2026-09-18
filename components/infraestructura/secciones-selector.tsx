@@ -11,6 +11,11 @@ export interface SeccionesSelectorProps {
   alumnosSeleccionados: number[]
   onCambiar: (geSectionIds: number[], alumnosSeleccionados: number[]) => void
   disabled?: boolean
+  // Por defecto true para no romper a los llamadores existentes. En false
+  // (categoría 'establecimiento', ver CATEGORIA_META): no se ofrece "Elegir
+  // alumnos" ni el panel de alumnos, y tildar/destildar una sección nunca
+  // pasa por aplicarEfectivo — siempre emite alumnosSeleccionados vacío.
+  permiteAlumnos?: boolean
 }
 
 function aplanarGeSectionIds(turnos: TurnoContexto[]): number[] {
@@ -91,6 +96,7 @@ export function SeccionesSelector({
   alumnosSeleccionados,
   onCambiar,
   disabled,
+  permiteAlumnos = true,
 }: SeccionesSelectorProps) {
   const [expandidas, setExpandidas] = useState<Set<number>>(() =>
     seccionesAbiertasAlMontar(turnos, alumnosSeleccionados),
@@ -115,6 +121,16 @@ export function SeccionesSelector({
   const algunaSeleccionada = seleccionadas.length > 0 || alumnosSeleccionados.length > 0
 
   function alternarSeccion(seccion: SeccionContexto, marcar: boolean) {
+    // Categoría sin selección nominal (permiteAlumnos: false): la sección es
+    // todo o nada, nunca pasa por aplicarEfectivo ni por la lista de alumnos
+    // explícitos. Se comporta como el checkbox simple de siempre.
+    if (!permiteAlumnos) {
+      onCambiar(
+        marcar ? [...seleccionadas, seccion.geSectionId] : seleccionadas.filter((id) => id !== seccion.geSectionId),
+        [],
+      )
+      return
+    }
     // Sin identidades de alumnos cargadas (padrón nominal no importado
     // todavía, o sección sin matrícula): se comporta como el checkbox simple
     // de siempre, sin tocar alumnosSeleccionados.
@@ -161,7 +177,11 @@ export function SeccionesSelector({
                 const efectivo = efectivoDeSeccion(seccion, seleccionadas, alumnosSeleccionados)
                 const seccionSeleccionada = seleccionadas.includes(seccion.geSectionId)
                 const esParcial =
-                  seccionSeleccionada && seccion.alumnos.length > 0 && efectivo.size < seccion.alumnos.length
+                  permiteAlumnos &&
+                  seccionSeleccionada &&
+                  seccion.alumnos.length > 0 &&
+                  efectivo.size < seccion.alumnos.length
+                const ofreceAlumnos = permiteAlumnos && seccion.alumnos.length > 0
 
                 const expandida = expandidas.has(seccion.geSectionId)
                 const panelId = `secciones-selector-alumnos-${seccion.geSectionId}`
@@ -177,7 +197,7 @@ export function SeccionesSelector({
                         disabled={disabled}
                       />
 
-                      {seccion.alumnos.length > 0 && (
+                      {ofreceAlumnos && (
                         <button
                           type="button"
                           className="secciones-selector__toggle"
@@ -191,7 +211,7 @@ export function SeccionesSelector({
                       )}
                     </div>
 
-                    {seccion.alumnos.length > 0 && (
+                    {ofreceAlumnos && (
                       <div className="secciones-selector__alumnos" id={panelId} hidden={!expandida}>
                         {seccion.alumnos.map((alumno) => (
                           <Checkbox

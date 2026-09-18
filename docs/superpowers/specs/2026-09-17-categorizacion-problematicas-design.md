@@ -73,8 +73,21 @@ export const infraMotivo = sqliteTable('infra_motivo', {
 })
 ```
 
-Semilla inicial (reparto acordado; `Otro` existe en ambas categorías con ids
-distintos porque es el comodín de cada una):
+**Invariante: el nombre de un motivo es único en toda la tabla**, sin importar
+la categoría, y un índice único lo impone a nivel de base.
+
+Esto se corrigió después de la primera implementación. La versión original de
+esta spec pedía dos comodines llamados `Otro`, uno por categoría, y al mismo
+tiempo que `infra_problematica.motivo` guardara el **nombre**. Las dos cosas no
+pueden ser verdad a la vez: si el nombre es la clave con la que se deduce la
+categoría, dos motivos homónimos hacen esa deducción ambigua. El síntoma real
+era un `400` inexplicable cuando un director elegía el comodín de
+"Inaccesibilidad de alumnos" y marcaba alumnos individuales.
+
+Por eso los comodines llevan nombres distintos, que además se leen mejor en el
+formulario.
+
+Semilla inicial (reparto acordado):
 
 | id | nombre | categoria | orden |
 |---|---|---|---|
@@ -82,10 +95,19 @@ distintos porque es el comodín de cada una):
 | `tormenta-severa` | Tormenta severa | establecimiento | 20 |
 | `sin-energia-o-agua` | Sin energía o agua | establecimiento | 30 |
 | `evacuacion-preventiva` | Evacuación preventiva | establecimiento | 40 |
-| `otro-establecimiento` | Otro | establecimiento | 90 |
+| `otro-establecimiento` | Otro problema en el establecimiento | establecimiento | 90 |
 | `anegamiento` | Anegamiento | alumnos | 10 |
 | `acceso-interrumpido` | Acceso interrumpido | alumnos | 20 |
-| `otro-alumnos` | Otro | alumnos | 90 |
+| `otro-alumnos` | Otro problema de acceso | alumnos | 90 |
+
+`ensureMotivoNombreUnico()` (en `lib/infraestructura/motivos.ts`) renombra los
+comodines de una base sembrada con la versión anterior y recién después crea el
+índice único — en ese orden, porque el índice no puede crearse mientras existan
+las filas duplicadas. Corre desde `seedHub()` justo después de `sembrarMotivos()`.
+
+`resolverCategoria()` falla explícitamente si encuentra más de una coincidencia,
+en vez de elegir una: una categoría arbitraria significaría guardar la
+problemática mal clasificada.
 
 `infra_problematica.motivo` sigue guardando el **nombre** (texto libre
 histórico, no FK) para no romper las filas existentes ni la consulta por

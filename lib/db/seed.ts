@@ -24,6 +24,12 @@ import {
 } from './schema'
 import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
+import {
+  MOTIVOS_SEED,
+  ensureMotivoNombreUnico,
+  sembrarMotivos,
+} from '@/lib/infraestructura/motivos'
+import { CATEGORIAS } from '@/lib/infraestructura/categorias'
 
 // Exportado únicamente para el test de regresión de lib/db/seed.test.ts, que
 // lo aplica sobre una base ya poblada y verifica que no pierde filas ni
@@ -193,6 +199,12 @@ CREATE TABLE IF NOT EXISTS \`infra_acceso_nominal_log\` (
   \`cantidad\` integer NOT NULL,
   \`consultado_en\` text NOT NULL
 );
+CREATE TABLE IF NOT EXISTS \`infra_motivo\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`nombre\` text NOT NULL,
+  \`categoria\` text NOT NULL,
+  \`orden\` integer DEFAULT 0 NOT NULL
+);
 `
 
 let seedPromise: Promise<void> | null = null
@@ -248,9 +260,56 @@ async function convertExistingSeedFiles() {
   }
 }
 
+// `infra_problematica.categoria` no existía antes de la categorización de
+// problemáticas. `ALTER TABLE ADD COLUMN` no es idempotente (falla si la
+// columna ya existe), así que este helper consulta PRAGMA table_info primero
+// y sólo agrega la columna si falta. Se agrega sin NOT NULL: SQLite no
+// permite agregar una columna NOT NULL sin default a una tabla con filas.
+// Exportado únicamente para el test de regresión de seed.test.ts.
+export async function ensureCategoriaColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
+  const tieneColumna = info.rows.some((r) => String(r.name) === 'categoria')
+  if (!tieneColumna) {
+    await db.$client.execute('ALTER TABLE infra_problematica ADD COLUMN categoria text')
+  }
+}
+
+// Completa `categoria` en filas preexistentes (creadas antes de que la
+// columna existiera) a partir del mapeo nombre→categoría de la semilla de
+// motivos. Corre siempre, no sólo tras el ALTER: es idempotente (sólo toca
+// filas con categoria NULL) y cubre tanto la migración inicial como
+// cualquier fila que quedara sin categoría por otro motivo. Cualquier motivo
+// desconocido (no está en la semilla) cae a 'establecimiento', el caso
+// conservador que nunca expone identidades de alumnos.
+export async function backfillCategoriaProblematicas(): Promise<void> {
+  const db = getDb()
+  const nombresPorCategoria = new Map<string, string[]>()
+  for (const motivo of MOTIVOS_SEED) {
+    const lista = nombresPorCategoria.get(motivo.categoria) ?? []
+    lista.push(motivo.nombre)
+    nombresPorCategoria.set(motivo.categoria, lista)
+  }
+
+  for (const categoria of CATEGORIAS) {
+    const nombres = nombresPorCategoria.get(categoria) ?? []
+    if (nombres.length === 0) continue
+    const placeholders = nombres.map(() => '?').join(',')
+    await db.$client.execute({
+      sql: `UPDATE infra_problematica SET categoria = ? WHERE categoria IS NULL AND motivo IN (${placeholders})`,
+      args: [categoria, ...nombres],
+    })
+  }
+
+  await db.$client.execute(
+    "UPDATE infra_problematica SET categoria = 'establecimiento' WHERE categoria IS NULL",
+  )
+}
+
 async function seedHub() {
   const db = getDb()
   await db.$client.executeMultiple(HUB_DDL)
+  await ensureCategoriaColumn()
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {
@@ -281,6 +340,17 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
+
+  // Motivos de infra_problematica: siembra idempotente (onConflictDoNothing,
+  // ver sembrarMotivos) y backfill de categoria en filas preexistentes.
+  // Corren siempre, no sólo en la siembra inicial, para cubrir instalaciones
+  // ya pobladas que suman esta migración.
+  await sembrarMotivos()
+  // Debe correr después de sembrar: renombra los comodines heredados y recién
+  // ahí crea el índice único sobre `nombre`, que es lo que hace que
+  // resolverCategoria pueda deducir la categoría sin ambigüedad.
+  await ensureMotivoNombreUnico()
+  await backfillCategoriaProblematicas()
 
   // Siembra ge_localizacion desde el JSON versionado si esta vacia: ge.sqlite
   // vive en el volumen y una instalacion nueva arrancaria sin escuelas.

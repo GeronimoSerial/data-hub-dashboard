@@ -100,4 +100,116 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     const alumnos = await db.$client.execute('SELECT * FROM infra_problematica_alumno')
     expect(alumnos.rows).toHaveLength(1)
   })
+
+  it('preserva las filas de infra_motivo (semilla y agregados por un admin) al reaplicarse', async () => {
+    const { HUB_DDL } = await import('./seed')
+    const db = getDb()
+
+    await db.$client.execute({
+      sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden) VALUES ('propio-admin', 'Corte de ruta', 'establecimiento', 50)`,
+    })
+
+    await db.$client.executeMultiple(HUB_DDL)
+    await db.$client.executeMultiple(HUB_DDL)
+
+    const motivos = await db.$client.execute('SELECT * FROM infra_motivo')
+    expect(motivos.rows.some((r) => r.id === 'propio-admin')).toBe(true)
+  })
+})
+
+describe('ensureCategoriaColumn', () => {
+  it('agrega la columna categoria si falta, y no falla si ya existe', async () => {
+    const { ensureCategoriaColumn } = await import('./seed')
+
+    await ensureCategoriaColumn()
+    await ensureCategoriaColumn()
+
+    const db = getDb()
+    const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas.filter((c) => c === 'categoria')).toHaveLength(1)
+  })
+})
+
+describe('backfillCategoriaProblematicas', () => {
+  it('completa categoria según el motivo de filas preexistentes, y cae a establecimiento si el motivo es desconocido', async () => {
+    const db = getDb()
+    const { ensureCategoriaColumn, backfillCategoriaProblematicas } = await import('./seed')
+    await ensureCategoriaColumn()
+
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('backfill-establecimiento', '1801605-04', 'Inundación', 'Alta', 1, '2026-01-01T00:00:00Z', 'k-backfill-1', 'enlace-cue')`,
+    })
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('backfill-alumnos', '1801605-04', 'Anegamiento', 'Media', 1, '2026-01-01T00:00:00Z', 'k-backfill-2', 'enlace-cue')`,
+    })
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('backfill-desconocido', '1801605-04', 'Motivo que no está en la semilla', 'Baja', 1, '2026-01-01T00:00:00Z', 'k-backfill-3', 'enlace-cue')`,
+    })
+
+    await backfillCategoriaProblematicas()
+    // Idempotente: correrlo de nuevo no debería tocar filas ya categorizadas.
+    await backfillCategoriaProblematicas()
+
+    const filas = await db.$client.execute(
+      "SELECT id, categoria FROM infra_problematica WHERE id IN ('backfill-establecimiento', 'backfill-alumnos', 'backfill-desconocido')",
+    )
+    const porId = new Map(filas.rows.map((r) => [String(r.id), String(r.categoria)]))
+    expect(porId.get('backfill-establecimiento')).toBe('establecimiento')
+    expect(porId.get('backfill-alumnos')).toBe('alumnos')
+    expect(porId.get('backfill-desconocido')).toBe('establecimiento')
+  })
+})
+
+describe('ensureMotivoNombreUnico', () => {
+  // Una base sembrada con la versión anterior tiene los dos comodines
+  // llamados "Otro". Eso rompe resolverCategoria y además impide crear el
+  // índice único, así que el renombre tiene que correr antes.
+  it('renombra los comodines heredados y luego impone el nombre único', async () => {
+    const db = getDb()
+    const { ensureMotivoNombreUnico, MOTIVOS_SEED } = await import(
+      '@/lib/infraestructura/motivos'
+    )
+
+    await db.$client.execute('DROP INDEX IF EXISTS `infra_motivo_nombre_unico`')
+    for (const id of ['otro-establecimiento', 'otro-alumnos']) {
+      await db.$client.execute({
+        sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden)
+              VALUES (?, 'Otro', 'establecimiento', 90)
+              ON CONFLICT(id) DO UPDATE SET nombre = 'Otro'`,
+        args: [id],
+      })
+    }
+
+    await ensureMotivoNombreUnico()
+    await ensureMotivoNombreUnico()
+
+    const filas = await db.$client.execute(
+      "SELECT id, nombre FROM infra_motivo WHERE id IN ('otro-establecimiento', 'otro-alumnos')",
+    )
+    const porId = new Map(filas.rows.map((r) => [String(r.id), String(r.nombre)]))
+    const esperado = new Map(MOTIVOS_SEED.map((m) => [m.id, m.nombre]))
+    expect(porId.get('otro-establecimiento')).toBe(esperado.get('otro-establecimiento'))
+    expect(porId.get('otro-alumnos')).toBe(esperado.get('otro-alumnos'))
+    expect(porId.get('otro-establecimiento')).not.toBe(porId.get('otro-alumnos'))
+  })
+
+  it('la base rechaza dos motivos con el mismo nombre', async () => {
+    const db = getDb()
+    const { ensureMotivoNombreUnico } = await import('@/lib/infraestructura/motivos')
+    await ensureMotivoNombreUnico()
+
+    await expect(
+      db.$client.execute({
+        sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden)
+              VALUES ('duplicado', 'Anegamiento', 'establecimiento', 99)`,
+      }),
+    ).rejects.toThrow()
+  })
 })

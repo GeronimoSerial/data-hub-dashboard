@@ -191,10 +191,29 @@ export const userNiveles = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.nivelId] })],
 )
 
+// Motivos de problemática: dato con ABM (ver app/api/infraestructura/motivos),
+// no un enum en código. `categoria` referencia el catálogo fijo de
+// lib/infraestructura/categorias.ts (no hay FK porque ese catálogo no es una
+// tabla). `id` es un slug estable usado sólo en el ABM y en el formulario; lo
+// que persiste infra_problematica.motivo es el nombre, no este id.
+export const infraMotivo = sqliteTable('infra_motivo', {
+  id: text('id').primaryKey(),
+  nombre: text('nombre').notNull(),
+  categoria: text('categoria').notNull(),
+  orden: integer('orden').notNull().default(0),
+})
+
 export const infraProblematica = sqliteTable('infra_problematica', {
   id: text('id').primaryKey(),
   cueAnexo: text('cue_anexo').notNull(),
   motivo: text('motivo').notNull(),
+  // Resuelta por el servidor a partir de infra_motivo en el momento del alta
+  // (ver resolverCategoria en lib/infraestructura/validacion.ts); nunca la
+  // decide el cliente. Columna agregada con ALTER a las bases existentes
+  // (ver ensureCategoriaColumn en lib/db/seed.ts) porque SQLite no permite
+  // agregarla NOT NULL con filas ya presentes: acá se declara notNull porque
+  // el backfill la completa antes de que cualquier lectura la use.
+  categoria: text('categoria').notNull(),
   severidad: text('severidad').notNull(),
   descripcion: text('descripcion'),
   corteId: integer('corte_id').notNull(),

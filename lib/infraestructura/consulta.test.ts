@@ -26,10 +26,15 @@ function openHub(): Client {
 }
 
 async function createInfraTables(client: Client) {
+  // `categoria` con DEFAULT sólo en este helper de test: simplifica los
+  // INSERT existentes que no la especifican. La tabla real (HUB_DDL) no tiene
+  // default; acá no hace falta reproducir ese detalle de migración porque
+  // este archivo no ejercita el seed, sólo listarAlertasActivas.
   await client.execute(`CREATE TABLE IF NOT EXISTS infra_problematica (
     id text PRIMARY KEY NOT NULL,
     cue_anexo text NOT NULL,
     motivo text NOT NULL,
+    categoria text NOT NULL DEFAULT 'establecimiento',
     severidad text NOT NULL,
     descripcion text,
     corte_id integer NOT NULL,
@@ -297,6 +302,7 @@ describe('listarAlertasActivas', () => {
       for (const alerta of resultado.alertas) {
         expect(Object.keys(alerta).sort()).toEqual(
           [
+            'categoria',
             'creadaEn',
             'cueAnexo',
             'departamento',
@@ -310,6 +316,25 @@ describe('listarAlertasActivas', () => {
           ].sort(),
         )
       }
+    } finally {
+      hub.close()
+    }
+  })
+
+  it('propaga la categoria persistida de cada alerta', async () => {
+    await seedGe()
+    const hub = openHub()
+    try {
+      await createInfraTables(hub)
+      await hub.execute(
+        "INSERT INTO infra_problematica (id, cue_anexo, motivo, categoria, severidad, corte_id, creada_en, idempotency_key, origen) VALUES ('p1', '1801605-04', 'Anegamiento', 'alumnos', 'Media', 1, '2025-01-01T00:00:00Z', 'k1', 'enlace-cue')",
+      )
+      await hub.execute(
+        "INSERT INTO infra_problematica_seccion (problematica_id, ge_section_id) VALUES ('p1', 10)",
+      )
+
+      const resultado = await listarAlertasActivas(hub, {})
+      expect(resultado.alertas[0].categoria).toBe('alumnos')
     } finally {
       hub.close()
     }

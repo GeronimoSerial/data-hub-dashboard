@@ -180,7 +180,7 @@ describe('POST /api/problematicas', () => {
       const res = await POST(
         req({
           cue: CUE_LIMITE,
-          motivo: 'Otro',
+          motivo: 'Otro problema en el establecimiento',
           severidad: 'Baja',
           secciones: [60],
           idempotencyKey: `limite-cue-${i}`,
@@ -192,7 +192,7 @@ describe('POST /api/problematicas', () => {
     const sexta = await POST(
       req({
         cue: CUE_LIMITE,
-        motivo: 'Otro',
+        motivo: 'Otro problema en el establecimiento',
         severidad: 'Baja',
         secciones: [60],
         idempotencyKey: 'limite-cue-6',
@@ -209,7 +209,7 @@ describe('POST /api/problematicas', () => {
     for (let i = 0; i < 5; i++) {
       const res = await POST(
         req(
-          { cue: CUE_IP_A, motivo: 'Otro', severidad: 'Baja', secciones: [70], idempotencyKey: `limite-ip-a-${i}` },
+          { cue: CUE_IP_A, motivo: 'Otro problema en el establecimiento', severidad: 'Baja', secciones: [70], idempotencyKey: `limite-ip-a-${i}` },
           ip,
         ),
       )
@@ -218,7 +218,7 @@ describe('POST /api/problematicas', () => {
     for (let i = 0; i < 5; i++) {
       const res = await POST(
         req(
-          { cue: CUE_IP_B, motivo: 'Otro', severidad: 'Baja', secciones: [71], idempotencyKey: `limite-ip-b-${i}` },
+          { cue: CUE_IP_B, motivo: 'Otro problema en el establecimiento', severidad: 'Baja', secciones: [71], idempotencyKey: `limite-ip-b-${i}` },
           ip,
         ),
       )
@@ -227,7 +227,7 @@ describe('POST /api/problematicas', () => {
 
     const excedida = await POST(
       req(
-        { cue: CUE_IP_C, motivo: 'Otro', severidad: 'Baja', secciones: [72], idempotencyKey: 'limite-ip-c-0' },
+        { cue: CUE_IP_C, motivo: 'Otro problema en el establecimiento', severidad: 'Baja', secciones: [72], idempotencyKey: 'limite-ip-c-0' },
         ip,
       ),
     )
@@ -282,11 +282,14 @@ describe('POST /api/problematicas', () => {
   })
 
   it('persiste alumnos seleccionados y el impacto refleja sólo esa selección', async () => {
-    // La sección 90 tiene 25 alumnos: 90000..90024 (ver seedCue).
+    // La sección 90 tiene 25 alumnos: 90000..90024 (ver seedCue). 'Anegamiento'
+    // resuelve a la categoría 'alumnos' (permite selección nominal); 'Inundación'
+    // resuelve a 'establecimiento' y rechazaría este body con 400 (ver test de
+    // abajo).
     const res = await POST(
       req({
         cue: CUE_ALUMNOS,
-        motivo: 'Inundación',
+        motivo: 'Anegamiento',
         severidad: 'Alta',
         secciones: [90],
         alumnos: [90000, 90001, 90002],
@@ -302,7 +305,7 @@ describe('POST /api/problematicas', () => {
     const res = await POST(
       req({
         cue: CUE_ALUMNOS,
-        motivo: 'Inundación',
+        motivo: 'Anegamiento',
         severidad: 'Alta',
         secciones: [90],
         alumnos: [999999],
@@ -310,5 +313,45 @@ describe('POST /api/problematicas', () => {
       }),
     )
     expect(res.status).toBe(400)
+  })
+
+  it('rechaza alumnos no vacíos en una categoría que no los admite (establecimiento)', async () => {
+    const res = await POST(
+      req({
+        cue: CUE_ALUMNOS,
+        motivo: 'Inundación',
+        severidad: 'Alta',
+        secciones: [90],
+        alumnos: [90000],
+        idempotencyKey: 'con-alumnos-no-permitidos',
+      }),
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('persiste la categoría resuelta del motivo, ignorando cualquier categoria del body', async () => {
+    const res = await POST(
+      req({
+        cue: CUE_ALUMNOS,
+        motivo: 'Inundación',
+        // El servidor ignora este campo por completo: no forma parte del
+        // schema, así que ni siquiera llega a resolverCategoria.
+        categoria: 'alumnos',
+        severidad: 'Alta',
+        secciones: [90],
+        idempotencyKey: 'categoria-ignorada-1',
+      }),
+    )
+    expect(res.status).toBe(201)
+    const body = await res.json()
+
+    const { getDb } = await import('@/lib/db')
+    const { infraProblematica } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [row] = await getDb()
+      .select()
+      .from(infraProblematica)
+      .where(eq(infraProblematica.id, body.id))
+    expect(row.categoria).toBe('establecimiento')
   })
 })

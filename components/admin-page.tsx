@@ -33,7 +33,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { ContextoCue } from '@/lib/infraestructura/contexto'
-import { MOTIVOS, SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -1188,12 +1190,38 @@ function ProblematicaForm({
   const [contexto, setContexto] = React.useState<ContextoCue | null>(null)
   const [buscando, setBuscando] = React.useState(false)
   const [contextoError, setContextoError] = React.useState<string | null>(null)
+  const [tipo, setTipo] = React.useState<CategoriaProblematica | ''>('')
+  const [motivos, setMotivos] = React.useState<MotivoRow[]>([])
   const [motivo, setMotivo] = React.useState<string>('')
   const [severidad, setSeveridad] = React.useState<string>('')
   const [seccionesSeleccionadas, setSeccionesSeleccionadas] = React.useState<string[]>([])
   const [descripcion, setDescripcion] = React.useState('')
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    let cancelled = false
+    fetch('/api/infraestructura/motivos')
+      .then((res) => res.json())
+      .then((data: { motivos?: MotivoRow[] }) => {
+        if (!cancelled) setMotivos(data.motivos ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setMotivos([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const motivosDelTipo = tipo ? motivos.filter((m) => m.categoria === tipo) : []
+
+  // Al cambiar el tipo se limpia el motivo: el catálogo filtrado depende de
+  // él y un motivo de otra categoría no tendría sentido seleccionado.
+  const cambiarTipo = (nuevoTipo: CategoriaProblematica) => {
+    setTipo(nuevoTipo)
+    setMotivo('')
+  }
 
   const seccionesOptions = (contexto?.turnos ?? []).flatMap((turno) =>
     turno.niveles.flatMap((nivel) =>
@@ -1232,7 +1260,11 @@ function ProblematicaForm({
   }
 
   const valido =
-    Boolean(contexto) && Boolean(motivo) && Boolean(severidad) && seccionesSeleccionadas.length > 0
+    Boolean(contexto) &&
+    Boolean(tipo) &&
+    Boolean(motivo) &&
+    Boolean(severidad) &&
+    seccionesSeleccionadas.length > 0
 
   const guardar = async () => {
     if (!contexto) return
@@ -1298,17 +1330,34 @@ function ProblematicaForm({
             <p className="ui-hint">
               {contexto.escuela.nombre} · {contexto.escuela.departamento}, {contexto.escuela.localidad}
             </p>
+            <AdminField label="Tipo de problemática" required>
+              <Select
+                value={tipo}
+                items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
+                onValueChange={(value) => cambiarTipo(value as CategoriaProblematica)}
+              >
+                <SelectTrigger aria-label="Tipo de problemática" />
+                <SelectContent>
+                  {CATEGORIAS.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {CATEGORIA_META[c].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </AdminField>
             <AdminField label="Motivo" required>
               <Select
                 value={motivo}
-                items={Object.fromEntries(MOTIVOS.map((m) => [m, m]))}
+                items={Object.fromEntries(motivosDelTipo.map((m) => [m.nombre, m.nombre]))}
                 onValueChange={(value) => setMotivo(value as string)}
+                disabled={!tipo}
               >
                 <SelectTrigger aria-label="Motivo" />
                 <SelectContent>
-                  {MOTIVOS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
+                  {motivosDelTipo.map((m) => (
+                    <SelectItem key={m.id} value={m.nombre}>
+                      {m.nombre}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1453,6 +1502,247 @@ function ProblematicasAdmin() {
   )
 }
 
+// ── Motivos de infraestructura (ABM) ───────────────────────────────────────
+//
+// No reutiliza TaxonomyAdmin: esa tabla cuenta "en uso" contra `recursos`
+// (ver taxonomyInUseCount), mientras que un motivo está en uso cuando hay
+// filas en infra_problematica — dominios distintos, API propia
+// (/api/infraestructura/motivos, ver spec de diseño §3).
+function MotivoDialog({
+  open,
+  onClose,
+  editing,
+  onSaved,
+}: {
+  open: boolean
+  onClose: () => void
+  editing: MotivoRow | null
+  onSaved: () => Promise<void>
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      {open ? (
+        <MotivoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} onSaved={onSaved} />
+      ) : null}
+    </Dialog>
+  )
+}
+
+function MotivoForm({
+  onClose,
+  editing,
+  onSaved,
+}: {
+  onClose: () => void
+  editing: MotivoRow | null
+  onSaved: () => Promise<void>
+}) {
+  const [nombre, setNombre] = React.useState(editing?.nombre ?? '')
+  const [categoria, setCategoria] = React.useState<CategoriaProblematica>(
+    editing?.categoria ?? CATEGORIAS[0],
+  )
+  const [orden, setOrden] = React.useState(editing?.orden ?? 0)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const valido = nombre.trim().length > 0
+
+  const guardar = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/infraestructura/motivos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editing?.id ?? slugId(nombre),
+          nombre,
+          categoria,
+          orden,
+        }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: unknown } | null
+        setError(typeof data?.error === 'string' ? data.error : 'No se pudo guardar')
+        return
+      }
+      await onSaved()
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <DialogContent>
+      <DialogTitle>{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
+      <div className="ui-form-grid">
+        {error ? (
+          <div className="ui-messagebar ui-messagebar--error" role="alert">
+            {error}
+          </div>
+        ) : null}
+        <AdminField label="Nombre" required>
+          <Input value={nombre} onChange={(event) => setNombre(event.currentTarget.value)} />
+        </AdminField>
+        <AdminField label="Categoría" required>
+          <Select
+            value={categoria}
+            items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
+            onValueChange={(value) => setCategoria(value as CategoriaProblematica)}
+          >
+            <SelectTrigger aria-label="Categoría" />
+            <SelectContent>
+              {CATEGORIAS.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {CATEGORIA_META[c].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </AdminField>
+        <AdminField label="Orden" hint="Define el orden dentro de su categoría">
+          <Input
+            type="number"
+            value={String(orden)}
+            onChange={(event) => setOrden(Number(event.currentTarget.value) || 0)}
+          />
+        </AdminField>
+      </div>
+      <div className="ui-dialog-actions">
+        <Button variant="secondary" onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button disabled={!valido || saving} onClick={() => void guardar()}>
+          Guardar
+        </Button>
+      </div>
+    </DialogContent>
+  )
+}
+
+function MotivosAdmin() {
+  const [motivos, setMotivos] = React.useState<MotivoRow[]>([])
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [open, setOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<MotivoRow | null>(null)
+
+  const requestMotivos = React.useCallback(async () => {
+    const res = await fetch('/api/infraestructura/motivos')
+    const data = (await res.json().catch(() => null)) as {
+      motivos?: MotivoRow[]
+      error?: unknown
+    } | null
+    if (!res.ok) {
+      throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo cargar')
+    }
+    return data?.motivos ?? []
+  }, [])
+
+  const reload = React.useCallback(async () => {
+    const rows = await requestMotivos()
+    setMotivos(rows)
+    setLoadError(null)
+  }, [requestMotivos])
+
+  React.useEffect(() => {
+    let cancelled = false
+    requestMotivos().then(
+      (rows) => {
+        if (!cancelled) setMotivos(rows)
+      },
+      (error) => {
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : 'No se pudo cargar')
+        }
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [requestMotivos])
+
+  const nuevo = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const editar = (m: MotivoRow) => {
+    setEditing(m)
+    setOpen(true)
+  }
+
+  const eliminar = async (id: string) => {
+    const res = await fetch(`/api/infraestructura/motivos?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: unknown } | null
+      setLoadError(typeof data?.error === 'string' ? data.error : 'No se pudo eliminar')
+      return
+    }
+    await reload()
+  }
+
+  return (
+    <div>
+      <div className="ui-toolbar">
+        <span className="ui-hint">
+          {motivos.length} {motivos.length === 1 ? 'motivo' : 'motivos'}
+        </span>
+        <Button onClick={nuevo}>
+          <Plus size={16} /> Agregar motivo
+        </Button>
+      </div>
+
+      {loadError ? (
+        <div className="ui-messagebar ui-messagebar--error" role="alert">
+          {loadError}
+        </div>
+      ) : null}
+
+      <div className="ui-table-wrap">
+        <table className="ui-table" aria-label="Administración de motivos">
+          <thead>
+            <tr>
+              <th>Motivo</th>
+              <th>Categoría</th>
+              <th>Orden</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {motivos.map((m) => (
+              <tr key={m.id}>
+                <td>{m.nombre}</td>
+                <td>{CATEGORIA_META[m.categoria]?.label ?? m.categoria}</td>
+                <td>{m.orden}</td>
+                <td>
+                  <div className="ui-actions">
+                    <Tooltip>
+                      <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(m)} />}>
+                        <Pencil size={16} />
+                      </TooltipTrigger>
+                      <TooltipContent>Editar</TooltipContent>
+                    </Tooltip>
+                    <ConfirmDelete
+                      title="¿Eliminar motivo?"
+                      description="El motivo se eliminará de forma permanente. Si hay problemáticas asociadas, no se podrá eliminar."
+                      onConfirm={() => void eliminar(m.id)}
+                      triggerLabel="Eliminar motivo"
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <MotivoDialog open={open} onClose={() => setOpen(false)} editing={editing} onSaved={reload} />
+    </div>
+  )
+}
+
 // ── Admin page ─────────────────────────────────────────────────────────────
 
 export function AdminPage() {
@@ -1541,6 +1831,7 @@ export function AdminPage() {
                 <TabsTab value="tipos">Tipos</TabsTab>
                 <TabsTab value="usuarios">Usuarios</TabsTab>
                 <TabsTab value="problematicas">Problemáticas</TabsTab>
+                <TabsTab value="motivos">Motivos</TabsTab>
               </>
             ) : null}
           </TabsList>
@@ -1680,6 +1971,8 @@ export function AdminPage() {
         {isAdmin && tab === 'usuarios' && <UsersAdmin />}
 
         {isAdmin && tab === 'problematicas' && <ProblematicasAdmin />}
+
+        {isAdmin && tab === 'motivos' && <MotivosAdmin />}
       </div>
     </div>
   )

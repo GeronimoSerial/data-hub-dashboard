@@ -54,6 +54,7 @@ beforeAll(async () => {
     id: PROBLEMATICA_ID,
     cueAnexo: CUE,
     motivo: 'Inundación',
+    categoria: 'establecimiento',
     severidad: 'Alta',
     corteId: 1,
     creadaEn: '2026-01-01T00:00:00Z',

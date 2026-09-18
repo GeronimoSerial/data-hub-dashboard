@@ -4,6 +4,8 @@ import { COPY, semaforoGlosa } from '@/lib/copy/didactica'
 import { SEMAFORO_ORDER, type SobreofertaData } from '@/lib/sobreoferta'
 import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { colorSeveridad } from '@/lib/infraestructura/severidad'
 
 type Props = {
   summary: Summary
@@ -88,6 +90,44 @@ export function LegendPanel({
           <span className={styles.hint}>{COPY.legend.noSobreofertaData}</span>
         </>
       )}
+    </div>
+  )
+}
+
+// ── Leyenda del mapa de infraestructura ─────────────────────────────────────
+//
+// Dominio distinto del resto de este archivo (evolución de matrícula): el
+// símbolo codifica la categoría (● relleno = establecimiento, ○ anillo =
+// alumnos) y el color codifica la severidad, no la tendencia. Componente
+// propio en vez de reutilizar LegendPanel de arriba, que está armado
+// enteramente alrededor de Summary/Trend.
+export function InfraLegendPanel() {
+  const styles = useOverlayStyles()
+
+  return (
+    <div className={`${styles.panel} ${styles.legendPanel}`}>
+      <b>Referencias</b>
+      <div className={styles.hint}>
+        El símbolo indica la categoría de la problemática; el color, su severidad.
+      </div>
+      <div className={styles.legendItem}>
+        <span className={styles.swatch} style={{ background: '#777', borderRadius: '50%' }} />
+        Afecta al establecimiento
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '2px solid #777', borderRadius: '50%' }}
+        />
+        Inaccesibilidad de alumnos
+      </div>
+      <br />
+      {SEVERIDADES.map((severidad) => (
+        <div key={severidad} className={styles.legendItem}>
+          <span className={styles.swatch} style={{ background: colorSeveridad(severidad) }} />
+          {severidad}
+        </div>
+      ))}
     </div>
   )
 }
