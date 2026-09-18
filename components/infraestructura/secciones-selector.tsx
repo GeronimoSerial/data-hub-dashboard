@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import type { SeccionContexto, TurnoContexto } from '@/lib/infraestructura/contexto'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -15,6 +17,27 @@ function aplanarGeSectionIds(turnos: TurnoContexto[]): number[] {
   return turnos.flatMap((turno) =>
     turno.niveles.flatMap((nivel) => nivel.secciones.map((seccion) => seccion.geSectionId)),
   )
+}
+
+function aplanarSecciones(turnos: TurnoContexto[]): SeccionContexto[] {
+  return turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
+}
+
+// Una escuela real trae decenas de secciones por cientos de alumnos: con todo
+// desplegado el formulario es un muro de checkboxes. Arrancan plegadas, salvo
+// las que ya traen alumnos elegidos explícitamente, porque esa selección vive
+// adentro del panel y plegarla la escondería.
+function seccionesAbiertasAlMontar(
+  turnos: TurnoContexto[],
+  alumnosSeleccionados: number[],
+): Set<number> {
+  const abiertas = new Set<number>()
+  for (const seccion of aplanarSecciones(turnos)) {
+    if (seccion.alumnos.some((alumno) => alumnosSeleccionados.includes(alumno.gePersonId))) {
+      abiertas.add(seccion.geSectionId)
+    }
+  }
+  return abiertas
 }
 
 // Alumnos explícitamente seleccionados que pertenecen a esta sección, según
@@ -69,6 +92,19 @@ export function SeccionesSelector({
   onCambiar,
   disabled,
 }: SeccionesSelectorProps) {
+  const [expandidas, setExpandidas] = useState<Set<number>>(() =>
+    seccionesAbiertasAlMontar(turnos, alumnosSeleccionados),
+  )
+
+  function alternarExpansion(geSectionId: number) {
+    setExpandidas((actuales) => {
+      const siguiente = new Set(actuales)
+      if (siguiente.has(geSectionId)) siguiente.delete(geSectionId)
+      else siguiente.add(geSectionId)
+      return siguiente
+    })
+  }
+
   const todosLosIds = aplanarGeSectionIds(turnos)
   const setSeleccionadas = new Set(seleccionadas)
   const todasSeleccionadas =
@@ -127,18 +163,36 @@ export function SeccionesSelector({
                 const esParcial =
                   seccionSeleccionada && seccion.alumnos.length > 0 && efectivo.size < seccion.alumnos.length
 
+                const expandida = expandidas.has(seccion.geSectionId)
+                const panelId = `secciones-selector-alumnos-${seccion.geSectionId}`
+
                 return (
                   <div className="secciones-selector__seccion" key={seccion.geSectionId}>
-                    <Checkbox
-                      label={`${seccion.curso} "${seccion.division}" — ${seccion.matricula} alumnos`}
-                      checked={seccionSeleccionada && !esParcial}
-                      indeterminate={esParcial}
-                      onCheckedChange={(checked: boolean) => alternarSeccion(seccion, checked)}
-                      disabled={disabled}
-                    />
+                    <div className="secciones-selector__fila">
+                      <Checkbox
+                        label={`${seccion.curso} "${seccion.division}" — ${seccion.matricula} alumnos`}
+                        checked={seccionSeleccionada && !esParcial}
+                        indeterminate={esParcial}
+                        onCheckedChange={(checked: boolean) => alternarSeccion(seccion, checked)}
+                        disabled={disabled}
+                      />
+
+                      {seccion.alumnos.length > 0 && (
+                        <button
+                          type="button"
+                          className="secciones-selector__toggle"
+                          aria-expanded={expandida}
+                          aria-controls={panelId}
+                          onClick={() => alternarExpansion(seccion.geSectionId)}
+                        >
+                          {expandida ? 'Ocultar alumnos' : 'Elegir alumnos'}
+                          <ChevronDown size={14} aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
 
                     {seccion.alumnos.length > 0 && (
-                      <div className="secciones-selector__alumnos">
+                      <div className="secciones-selector__alumnos" id={panelId} hidden={!expandida}>
                         {seccion.alumnos.map((alumno) => (
                           <Checkbox
                             key={alumno.gePersonId}
