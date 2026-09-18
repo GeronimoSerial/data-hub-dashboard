@@ -267,3 +267,31 @@ Report the real number.
 No adversarial fresh-context review has been run on the batch 0-2 diff — it was paused for
 time. Do it before taking PR #24 out of draft, focused on `movimiento-diff.ts` and
 `calcularEstadoServicioGeneral`: if those two lie, all four remaining screens display false data.
+
+### Batches 3 a 7 — LANDED. El mapa de batches esta completo.
+
+| Batch | Commit | Que dejo |
+|---|---|---|
+| 3 | `362cfef` | Route handlers del parte y del historial, `parte-consulta.ts`, `secciones-cue.ts`. `corteId` se fija desde `getCorteVigente` al crear el parte: la heuristica del backfill ya no se usa para partes nuevos. Agrega `infra_movimiento.idempotency_key` via `ensureXColumn`. |
+| 4 | `26ca101` | Pantalla de estado actual (`estado-actual-*`, `app/problematicas/parte/page.tsx`). |
+| 7 | `0dd6b78` | Historial (`historial-*`, `app/problematicas/parte/historial/`). |
+| 5 | `80fb40d` | Reporte inicial y gestion de afectaciones (`reporte-inicial-form`, `afectacion-borrador`, `app/problematicas/parte/nuevo/`). |
+| 6 | `76f5f7b` | Actualizacion, resumen de cambios y antiduplicado (`actualizacion-form`, `actualizacion-parte.ts`, `app/problematicas/parte/actualizar/`). |
+
+### La revision adversarial pendiente — HECHA, y encontro cosas. Commit `11c745c`.
+
+Era el punto que este documento dejaba abierto antes de sacar el PR #24 de draft. Tres hallazgos confirmados, los tres con test que fallaba:
+
+1. **`diffParte` daba diff vacio ante cambios reales.** Para una afectacion existente solo comparaba severidad y alcance: motivo, categoria, descripcion y `seccionCompleta` pasaban sin ser vistos. Como un diff vacio deshabilita el guardado (§17), el director perdia la edicion en silencio. Se agrego la variante `datosCambiados`, aditiva: los `infra_movimiento.resumen` ya persistidos se siguen leyendo, con guarda `?? []` en `movimiento-descripcion.ts`.
+2. **`calcularEstadoServicioGeneral` era no-determinista.** Ante empate exacto de `rigeDesde`, ganaba la ultima fila del array. La misma base podia mostrar `normal` o `suspendido` segun como volviera la consulta.
+3. **`resolverAlcanceVigente` tenia el mismo patron.** Mismo arreglo en los dos: desempate estable por `creadaEn` y luego por `id`. Esta comentado en el codigo: no lo quiten "simplificando".
+
+Los tests adversariales quedan en el repo (`*.adversarial.test.ts`) como cobertura permanente.
+
+### Auditorias UX — HECHAS para las pantallas que se habian saltado. Commit `c90d964`.
+
+`docs/auditoria-ux-estado-actual.md` y `docs/auditoria-ux-historial.md`. Tres hallazgos de severidad 3 corregidos; los de severidad 1 y 2 quedan documentados sin corregir. El mas relevante: `historial-formato.ts` formateaba con la hora del dispositivo mientras `estado-actual-textos.ts` usaba el huso de la provincia, asi que dos pantallas del mismo parte podian mostrar horas distintas del mismo movimiento.
+
+### Baseline actual — protegerla
+
+`pnpm test` → **678 pasando en 84 archivos**. Cualquier batch que deje menos rompio algo. Reporta el numero real.
