@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { FormularioProblematica } from './formulario-problematica'
+import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 function jsonResponse(body: unknown, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
@@ -15,10 +16,22 @@ const turnos = [
   ] } ] },
 ]
 
+const motivos: MotivoRow[] = [
+  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
+  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
+]
+
 const props = {
   cue: '12345678',
   escuelaNombre: 'Escuela N° 45',
   turnos,
+  motivos,
+}
+
+// El motivo depende del tipo (radio) elegido primero: los tests que llenan
+// el formulario completo empiezan por acá.
+async function elegirTipoEstablecimiento(usuario: ReturnType<typeof userEvent.setup>) {
+  await usuario.click(screen.getByRole('radio', { name: /afecta al establecimiento/i }))
 }
 
 function impacto(overrides: Record<string, unknown> = {}) {
@@ -47,7 +60,12 @@ afterEach(() => {
 
 function renderFormulario() {
   return render(
-    <FormularioProblematica cue={props.cue} escuelaNombre={props.escuelaNombre} turnos={props.turnos} />,
+    <FormularioProblematica
+      cue={props.cue}
+      escuelaNombre={props.escuelaNombre}
+      turnos={props.turnos}
+      motivos={props.motivos}
+    />,
   )
 }
 
@@ -114,6 +132,7 @@ describe('FormularioProblematica', () => {
 
     renderFormulario()
 
+    await elegirTipoEstablecimiento(usuario)
     await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
     await usuario.selectOptions(screen.getByLabelText(/severidad/i), 'Alta')
     await usuario.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
@@ -157,6 +176,7 @@ describe('FormularioProblematica', () => {
 
     renderFormulario()
 
+    await elegirTipoEstablecimiento(usuario)
     await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
     await usuario.selectOptions(screen.getByLabelText(/severidad/i), 'Alta')
     await usuario.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
@@ -192,6 +212,7 @@ describe('FormularioProblematica', () => {
 
     renderFormulario()
 
+    await elegirTipoEstablecimiento(usuario)
     await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
     await usuario.selectOptions(screen.getByLabelText(/severidad/i), 'Alta')
     await usuario.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
@@ -199,5 +220,33 @@ describe('FormularioProblematica', () => {
 
     expect(await screen.findByText(/no se pudo guardar/i)).toBeInTheDocument()
     expect((screen.getByLabelText(/motivo/i) as HTMLSelectElement).value).toBe('Inundación')
+  })
+
+  it('el motivo está deshabilitado hasta elegir un tipo, y sólo ofrece los motivos de ese tipo', async () => {
+    const usuario = userEvent.setup()
+    renderFormulario()
+
+    expect(screen.getByLabelText(/motivo/i)).toBeDisabled()
+
+    await elegirTipoEstablecimiento(usuario)
+
+    expect(screen.getByLabelText(/motivo/i)).toBeEnabled()
+    expect(screen.getByRole('option', { name: 'Inundación' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Anegamiento' })).not.toBeInTheDocument()
+  })
+
+  it('cambiar el tipo limpia el motivo elegido', async () => {
+    const usuario = userEvent.setup()
+    renderFormulario()
+
+    await elegirTipoEstablecimiento(usuario)
+    await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
+    expect((screen.getByLabelText(/motivo/i) as HTMLSelectElement).value).toBe('Inundación')
+
+    await usuario.click(screen.getByRole('radio', { name: /inaccesibilidad de alumnos/i }))
+
+    expect((screen.getByLabelText(/motivo/i) as HTMLSelectElement).value).toBe('')
+    expect(screen.getByRole('option', { name: 'Anegamiento' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Inundación' })).not.toBeInTheDocument()
   })
 })

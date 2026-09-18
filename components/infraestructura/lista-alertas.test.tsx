@@ -17,6 +17,7 @@ const alerta: AlertaActiva = {
   lat: -31.7,
   lon: -60.5,
   motivo: 'Inundación',
+  categoria: 'establecimiento',
   severidad: 'Alta',
   creadaEn: '2026-08-01T00:00:00Z',
 }

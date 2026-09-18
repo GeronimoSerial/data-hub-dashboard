@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
@@ -116,5 +117,33 @@ describe('NuevaProblematicaPage', () => {
     render(jsx)
 
     expect(screen.getByText(/no se encontró una escuela/i)).toBeInTheDocument()
+  })
+
+  it('ofrece los motivos sembrados filtrados por el tipo elegido, y cambiar de tipo limpia motivo y alumnos', async () => {
+    await seedEscuelaConSeccion()
+    conAcceso()
+
+    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
+    render(jsx)
+
+    const usuario = userEvent.setup()
+
+    // Sin tipo elegido, el motivo está deshabilitado y no ofrece opciones.
+    expect(screen.getByLabelText(/motivo/i)).toBeDisabled()
+
+    await usuario.click(screen.getByRole('radio', { name: /afecta al establecimiento/i }))
+    expect(screen.getByRole('option', { name: 'Inundación' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Anegamiento' })).not.toBeInTheDocument()
+
+    await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
+    await usuario.click(screen.getByRole('checkbox', { name: /1 "A"/ }))
+
+    await usuario.click(screen.getByRole('radio', { name: /inaccesibilidad de alumnos/i }))
+
+    // El tipo 'alumnos' ofrece sus propios motivos, y el cambio limpió el
+    // motivo elegido bajo el tipo anterior.
+    expect((screen.getByLabelText(/motivo/i) as HTMLSelectElement).value).toBe('')
+    expect(screen.getByRole('option', { name: 'Anegamiento' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Inundación' })).not.toBeInTheDocument()
   })
 })

@@ -5,6 +5,8 @@ import { infraProblematica, infraProblematicaSeccion } from '@/lib/db/schema'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, calcularImpactoSecciones } from '@/lib/infraestructura/impacto'
+import { listarMotivos } from '@/lib/infraestructura/motivos'
+import { resolverCategoria } from '@/lib/infraestructura/validacion'
 import { parseProblematicaAdminInput } from '@/lib/infraestructura/validacion-admin'
 import { getSessionUser } from '@/lib/session'
 
@@ -89,6 +91,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
   }
 
+  // Misma integridad que el alta pública: la categoría la resuelve el
+  // servidor a partir del motivo, nunca la decide el body (que acá ni
+  // siquiera tiene ese campo).
+  const motivos = await listarMotivos()
+  const categoriaResuelta = resolverCategoria(input.motivo, motivos)
+  if (!categoriaResuelta.ok) {
+    return Response.json({ error: categoriaResuelta.error }, { status: 400 })
+  }
+  const categoria = categoriaResuelta.categoria
+
   const db = getDb()
   const client = db.$client
   await asegurarGeAdjuntada(client)
@@ -115,6 +127,7 @@ export async function POST(request: Request) {
       id,
       cueAnexo: cue.value,
       motivo: input.motivo,
+      categoria,
       severidad: input.severidad,
       descripcion: input.descripcion ?? null,
       corteId: corte.id,

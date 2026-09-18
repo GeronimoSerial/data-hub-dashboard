@@ -7,12 +7,15 @@ import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { MOTIVOS, SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 export interface FormularioProblematicaProps {
   cue: string
   escuelaNombre: string
   turnos: TurnoContexto[]
+  motivos: MotivoRow[]
 }
 
 interface ImpactoResultado {
@@ -30,7 +33,8 @@ interface ResultadoConfirmado {
   impacto: ImpactoResultado
 }
 
-export function FormularioProblematica({ cue, escuelaNombre, turnos }: FormularioProblematicaProps) {
+export function FormularioProblematica({ cue, escuelaNombre, turnos, motivos }: FormularioProblematicaProps) {
+  const [tipo, setTipo] = useState<CategoriaProblematica | ''>('')
   const [motivo, setMotivo] = useState('')
   const [severidad, setSeveridad] = useState('')
   const [seccionesSeleccionadas, setSeccionesSeleccionadas] = useState<number[]>([])
@@ -86,11 +90,23 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
     }
   }, [cue, seccionesSeleccionadas, alumnosSeleccionados])
 
+  // Al cambiar el tipo se limpian motivo y alumnosSeleccionados: el motivo
+  // porque el catálogo depende del tipo, los alumnos porque una categoría sin
+  // permiteAlumnos nunca puede llevarlos. seccionesSeleccionadas se conserva:
+  // las secciones elegidas siguen siendo válidas para cualquier tipo.
+  function cambiarTipo(nuevoTipo: CategoriaProblematica) {
+    setTipo(nuevoTipo)
+    setMotivo('')
+    setAlumnosSeleccionados([])
+  }
+
+  const motivosDelTipo = tipo ? motivos.filter((m) => m.categoria === tipo) : []
+
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
     if (enviando || enviandoRef.current) return
-    if (!motivo || !severidad || seccionesSeleccionadas.length === 0) {
-      setError('Complete motivo, severidad y al menos una sección para registrar.')
+    if (!tipo || !motivo || !severidad || seccionesSeleccionadas.length === 0) {
+      setError('Complete tipo, motivo, severidad y al menos una sección para registrar.')
       return
     }
     enviandoRef.current = true
@@ -152,6 +168,23 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         <p>CUE {cue}</p>
       </div>
 
+      <div className="formulario-problematica__campo" role="radiogroup" aria-labelledby="tipo-label">
+        <Label id="tipo-label">Tipo de problemática</Label>
+        {CATEGORIAS.map((c) => (
+          <label key={c} className="formulario-problematica__radio">
+            <input
+              type="radio"
+              name="tipo"
+              value={c}
+              checked={tipo === c}
+              onChange={() => cambiarTipo(c)}
+              disabled={enviando}
+            />
+            {CATEGORIA_META[c].label}
+          </label>
+        ))}
+      </div>
+
       {/*
         Motivo/Severidad usan <select> nativo a propósito, no el componente Select
         compartido: este formulario lo llena un director desde el celular, sin
@@ -159,6 +192,10 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         operativo, funciona con lectores de pantalla sin configuración adicional,
         no tiene bugs de touch/scroll y opera 100% por teclado. Un combobox
         custom acá es un riesgo de accesibilidad, no una mejora visual.
+
+        Revisado al sumar las categorías: el motivo pasó a ser dato (con ABM
+        en el admin) y ahora depende del tipo elegido arriba, pero la decisión
+        de usar <select> nativo se mantiene sin cambios por las mismas razones.
       */}
       <div className="formulario-problematica__campo">
         <Label htmlFor="motivo">Motivo</Label>
@@ -167,14 +204,14 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
           className="ui-input"
           value={motivo}
           onChange={(evento) => setMotivo(evento.target.value)}
-          disabled={enviando}
+          disabled={enviando || !tipo}
         >
           <option value="" disabled>
             Seleccione un motivo
           </option>
-          {MOTIVOS.map((m) => (
-            <option key={m} value={m}>
-              {m}
+          {motivosDelTipo.map((m) => (
+            <option key={m.id} value={m.nombre}>
+              {m.nombre}
             </option>
           ))}
         </select>
@@ -211,6 +248,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
             setAlumnosSeleccionados(alumnos)
           }}
           disabled={enviando}
+          permiteAlumnos={tipo ? CATEGORIA_META[tipo].permiteAlumnos : true}
         />
       </div>
 

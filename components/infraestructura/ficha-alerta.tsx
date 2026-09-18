@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { AlertaActiva } from '@/lib/infraestructura/consulta'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
 
 function fechaLegible(iso: string): string {
   const fecha = new Date(iso)
@@ -43,7 +44,9 @@ export function FichaAlerta(props: {
             style={{ backgroundColor: colorSeveridad(alerta.severidad) }}
           />
           {alerta.severidad} · {alerta.motivo}
-          <div className={styles.popupMuted}>{fechaLegible(alerta.creadaEn)}</div>
+          <div className={styles.popupMuted}>
+            {CATEGORIA_META[alerta.categoria].label} · {fechaLegible(alerta.creadaEn)}
+          </div>
         </div>
       ))}
       {props.mostrarEnlaceNominal && (

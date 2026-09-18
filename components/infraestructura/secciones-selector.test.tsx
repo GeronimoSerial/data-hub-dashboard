@@ -320,4 +320,73 @@ describe('SeccionesSelector', () => {
       expect(onCambiar).toHaveBeenCalledWith([10], [1])
     })
   })
+
+  describe('con permiteAlumnos en false (categoría establecimiento)', () => {
+    it('no ofrece "Elegir alumnos" aunque la sección tenga identidades cargadas', () => {
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[]}
+          alumnosSeleccionados={[]}
+          onCambiar={vi.fn()}
+          permiteAlumnos={false}
+        />,
+      )
+
+      expect(screen.queryByRole('button', { name: /elegir alumnos/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
+    })
+
+    it('tildar la sección nunca emite alumnos, incluso con identidades cargadas', async () => {
+      const onCambiar = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[]}
+          alumnosSeleccionados={[]}
+          onCambiar={onCambiar}
+          permiteAlumnos={false}
+        />,
+      )
+
+      await user.click(screen.getByRole('checkbox', { name: /1°/ }))
+
+      expect(onCambiar).toHaveBeenCalledWith([10], [])
+    })
+
+    it('destildar la sección la saca de la selección sin tocar alumnos', async () => {
+      const onCambiar = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[10]}
+          alumnosSeleccionados={[]}
+          onCambiar={onCambiar}
+          permiteAlumnos={false}
+        />,
+      )
+
+      await user.click(screen.getByRole('checkbox', { name: /1°/ }))
+
+      expect(onCambiar).toHaveBeenCalledWith([], [])
+    })
+
+    it('el checkbox de sección nunca queda indeterminado', () => {
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[10]}
+          alumnosSeleccionados={[]}
+          onCambiar={vi.fn()}
+          permiteAlumnos={false}
+        />,
+      )
+
+      const checkboxSeccion = screen.getByRole('checkbox', { name: /1°/ })
+      expect(checkboxSeccion).not.toHaveAttribute('data-indeterminate')
+      expect(checkboxSeccion).toHaveAttribute('data-checked')
+    })
+  })
 })

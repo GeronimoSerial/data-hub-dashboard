@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { normalizeCue } from './cue'
-import { MOTIVOS, SEVERIDADES } from './validacion'
+import { SEVERIDADES } from './validacion'
 
 // Esquema propio del alta administrativa: no hay idempotencyKey porque acá no
 // existe el escenario que la motiva (un director reintentando el envío desde
@@ -14,7 +14,9 @@ export const problematicaAdminInputSchema = z.object({
     .trim()
     .min(1)
     .refine((v) => normalizeCue(v) !== null, 'CUE inválido'),
-  motivo: z.enum(MOTIVOS),
+  // Ver el comentario equivalente en problematicaInputSchema (validacion.ts):
+  // el catálogo real vive en infra_motivo, este schema no valida contra la DB.
+  motivo: z.string().trim().min(1, 'Motivo requerido'),
   severidad: z.enum(SEVERIDADES),
   descripcion: z
     .string()

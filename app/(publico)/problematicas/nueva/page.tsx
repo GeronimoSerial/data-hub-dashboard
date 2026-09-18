@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureSeeded } from '@/lib/db/seed'
+import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { FormularioProblematica } from '@/components/infraestructura/formulario-problematica'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
@@ -55,6 +57,9 @@ export default async function NuevaProblematicaPage({
 
   const { escuela, turnos } = resultado.contexto
 
+  await ensureSeeded()
+  const motivos = await listarMotivos()
+
   return (
     <div className="publico-content">
       <h1 className="publico-content__title">Reportar una problemática</h1>
@@ -66,6 +71,7 @@ export default async function NuevaProblematicaPage({
         cue={escuela.cueAnexo}
         escuelaNombre={escuela.nombre}
         turnos={turnos}
+        motivos={motivos}
       />
     </div>
   )

@@ -4,7 +4,7 @@ import { useMemo, type JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { AlertaActiva } from '@/lib/infraestructura/consulta'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { MOTIVOS, SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 
 const TODOS = 'todos'
@@ -30,9 +30,17 @@ export function ListaAlertas(props: {
 }): JSX.Element {
   const styles = useOverlayStyles()
 
+  // El motivo ya no es un catálogo fijo en código (tiene ABM, ver
+  // lib/infraestructura/motivos.ts): el filtro ofrece los motivos que
+  // efectivamente aparecen en las alertas activas, no un catálogo completo
+  // que requeriría otra llamada a la API sólo para poblar un <select>.
+  const motivosPresentes = useMemo(
+    () => Array.from(new Set(props.alertas.map((a) => a.motivo))).sort((a, b) => a.localeCompare(b)),
+    [props.alertas],
+  )
   const itemsMotivo = useMemo(
-    () => ({ [TODOS]: 'Todos', ...Object.fromEntries(MOTIVOS.map((m) => [m, m])) }),
-    [],
+    () => ({ [TODOS]: 'Todos', ...Object.fromEntries(motivosPresentes.map((m) => [m, m])) }),
+    [motivosPresentes],
   )
   const itemsSeveridad = useMemo(
     () => ({ [TODAS]: 'Todas', ...Object.fromEntries(SEVERIDADES.map((s) => [s, s])) }),
@@ -93,7 +101,7 @@ export function ListaAlertas(props: {
             <SelectTrigger aria-label="Motivo" className="map-filtro-input" />
             <SelectContent>
               <SelectItem value={TODOS}>Todos</SelectItem>
-              {MOTIVOS.map((motivo) => (
+              {motivosPresentes.map((motivo) => (
                 <SelectItem key={motivo} value={motivo}>
                   {motivo}
                 </SelectItem>

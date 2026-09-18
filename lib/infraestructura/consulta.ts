@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client'
 import { asegurarGeAdjuntada } from './impacto'
 import { getCorteVigente } from './ge-db'
+import { esCategoria, type CategoriaProblematica } from './categorias'
 
 export interface FiltrosAlertas {
   territorio?: string
@@ -19,6 +20,7 @@ export interface AlertaActiva {
   lat: number | null
   lon: number | null
   motivo: string
+  categoria: CategoriaProblematica
   severidad: string
   creadaEn: string
 }
@@ -160,7 +162,7 @@ export async function listarAlertasActivas(
   const whereAlertas = clausulasAlertas.length > 0 ? `WHERE ${clausulasAlertas.join('\n  AND ')}` : ''
 
   const res = await client.execute({
-    sql: `SELECT p.id, p.cue_anexo, l.nombre, l.departamento, l.localidad, l.lat, l.lon, l.cui, p.motivo, p.severidad, p.creada_en
+    sql: `SELECT p.id, p.cue_anexo, l.nombre, l.departamento, l.localidad, l.lat, l.lon, l.cui, p.motivo, p.categoria, p.severidad, p.creada_en
           FROM infra_problematica p
           JOIN ge.ge_localizacion l ON l.cue_anexo = p.cue_anexo
           ${whereAlertas}
@@ -175,6 +177,7 @@ export async function listarAlertasActivas(
 
   for (const r of res.rows) {
     const cueAnexo = stringValor(r.cue_anexo)
+    const categoriaValor = stringValor(r.categoria)
     alertas.push({
       id: stringValor(r.id),
       cueAnexo,
@@ -184,6 +187,9 @@ export async function listarAlertasActivas(
       lat: coordenada(r.lat),
       lon: coordenada(r.lon),
       motivo: stringValor(r.motivo),
+      // Conservador: una fila con categoria inesperada (no debería ocurrir,
+      // ver backfill en seed.ts) nunca se trata como 'alumnos'.
+      categoria: esCategoria(categoriaValor) ? categoriaValor : 'establecimiento',
       severidad: stringValor(r.severidad),
       creadaEn: stringValor(r.creada_en),
     })

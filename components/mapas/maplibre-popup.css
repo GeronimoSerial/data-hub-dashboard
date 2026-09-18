@@ -10,3 +10,28 @@
   z-index: 1;
   color: inherit;
 }
+
+/*
+  Tooltip del departamento bajo el cursor. pointer-events: none es obligatorio,
+  no cosmético: el popup sigue al mouse, y si capturara eventos se interpondría
+  entre el cursor y el mapa, cortando el propio hover que lo hizo aparecer.
+*/
+.mapa-tooltip-departamento {
+  pointer-events: none;
+}
+
+.mapa-tooltip-departamento .maplibregl-popup-content {
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-1);
+  padding: 0.25rem 0.5rem;
+  font-size: var(--t-small);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mapa-tooltip-departamento .maplibregl-popup-tip {
+  display: none;
+}
