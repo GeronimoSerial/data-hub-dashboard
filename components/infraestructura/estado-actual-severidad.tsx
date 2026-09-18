@@ -14,7 +14,21 @@ const FORMA_POR_SEVERIDAD: Record<Severidad, string> = {
   Crítica: 'rombo',
 }
 
-export function EstadoActualSeveridad({ severidad }: { severidad: Severidad }): JSX.Element {
+export interface EstadoActualSeveridadProps {
+  severidad: Severidad
+  /**
+   * Antepone la palabra "Severidad". Va en false cuando el contexto ya la
+   * dice — por ejemplo dentro del grupo "¿Qué tan grave es?", donde
+   * "Severidad Alta" repite la pregunta y alarga el nombre accesible de la
+   * opción sin agregar nada.
+   */
+  prefijo?: boolean
+}
+
+export function EstadoActualSeveridad({
+  severidad,
+  prefijo = true,
+}: EstadoActualSeveridadProps): JSX.Element {
   const forma = FORMA_POR_SEVERIDAD[severidad] ?? 'circulo'
   return (
     <span className="estado-actual-severidad">
@@ -23,7 +37,9 @@ export function EstadoActualSeveridad({ severidad }: { severidad: Severidad }): 
         style={{ backgroundColor: colorSeveridad(severidad) }}
         aria-hidden
       />
-      <span className="estado-actual-severidad__texto">Severidad {severidad}</span>
+      <span className="estado-actual-severidad__texto">
+        {prefijo ? `Severidad ${severidad}` : severidad}
+      </span>
     </span>
   )
 }

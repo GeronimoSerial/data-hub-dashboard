@@ -2726,15 +2726,18 @@ time {
   min-height: 44px;
   padding: var(--s-3);
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-xs);
+  transition-property: border-color, background-color;
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
   background: var(--card);
   cursor: pointer;
   color: var(--ink);
 }
 
 .opcion-radio:has(input:checked) {
-  border-color: var(--ink);
-  background: var(--fill);
+  border-color: var(--accent);
+  background: var(--accent-tint);
 }
 
 .opcion-radio:has(input:disabled) {
@@ -2799,15 +2802,20 @@ time {
   gap: var(--s-2);
 }
 
-/* Severidad son cuatro valores cortos: en fila entran de un vistazo y se
-   leen como una escala, que es lo que son. */
+/* Severidad son cuatro valores y forman una escala. En flex envolvían 3+1,
+   que se lee como "tres cosas y otra aparte" en vez de como una progresión.
+   La grilla las mantiene parejas: 2x2 en pantalla angosta, una fila de
+   cuatro cuando entra. */
 .afectacion-campos__opciones--fila {
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
 }
 
-.afectacion-campos__opciones--fila .opcion-radio {
-  flex: 1 1 8rem;
+@media (min-width: 560px) {
+  .afectacion-campos__opciones--fila {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .afectacion-campos__anidado {
@@ -2860,7 +2868,7 @@ time {
 
 .asistente__paso--hecho,
 .asistente__paso--actual {
-  background: var(--ink);
+  background: var(--accent);
 }
 
 .asistente__paso-texto {
@@ -2945,7 +2953,7 @@ time {
 }
 
 .campo-vigente--abierto {
-  border-color: var(--ink);
+  border-color: var(--accent);
 }
 
 .campo-vigente__cabecera {
@@ -3048,7 +3056,7 @@ time {
 }
 
 .situacion--editando {
-  border-color: var(--ink);
+  border-color: var(--accent);
 }
 
 .situacion--resuelta {
@@ -3084,9 +3092,22 @@ time {
 }
 
 .situacion__detalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
   margin: 0;
   font-size: var(--t-small);
   color: var(--ink-soft);
+}
+
+.situacion__alcance {
+  color: var(--ink-faint);
+}
+
+.situacion__alcance::before {
+  content: '·';
+  margin-right: var(--s-2);
 }
 
 /* El estado va escrito, no codificado sólo en color: en una pantalla que se
@@ -3094,10 +3115,10 @@ time {
 .situacion__estado {
   flex: none;
   padding: 2px var(--s-2);
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--card);
-  color: var(--ink-soft);
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-faint);
   font-size: var(--t-micro);
   font-weight: 600;
   text-transform: uppercase;
@@ -3107,15 +3128,13 @@ time {
 
 .situacion__estado--nueva,
 .situacion__estado--corregida {
-  border-color: transparent;
-  background: var(--info-tint, var(--fill));
-  color: var(--ink);
+  background: var(--info-tint);
+  color: var(--info);
 }
 
 .situacion__estado--resuelta {
-  border-color: transparent;
-  background: var(--ok-tint, var(--fill));
-  color: var(--ok, var(--ink));
+  background: var(--ok-tint);
+  color: var(--ok);
 }
 
 .situacion__campos {

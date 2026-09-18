@@ -6,6 +6,7 @@ import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/in
 import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -195,7 +196,12 @@ export function CamposQuePaso({
                 disabled={disabled}
               />
               <span className="opcion-radio__texto">
-                <span className="opcion-radio__titulo">{s}</span>
+                {/* Con la marca al lado, elegir severidad deja de ser leer
+                    cuatro palabras sueltas y pasa a ser ubicarse en una
+                    escala — la misma que después ve en el parte. */}
+                <span className="opcion-radio__titulo">
+                  <EstadoActualSeveridad severidad={s} prefijo={false} />
+                </span>
               </span>
             </label>
           ))}

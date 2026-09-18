@@ -4,6 +4,7 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import {
   CamposAQuienAfecta,
@@ -80,12 +81,10 @@ export function AfectacionBorradorCard({
 
   const completa = esAfectacionLista(borrador)
   const titulo = completa && borrador.motivo ? borrador.motivo : `Situación ${index + 1}`
-  const detalle = completa
-    ? `${borrador.severidad} · ${resumirAlcance({
-        secciones: borrador.secciones.length,
-        alumnos: totalAlumnosDe(borrador, turnos),
-      })}`
-    : 'Falta completarla'
+  const alcance = resumirAlcance({
+    secciones: borrador.secciones.length,
+    alumnos: totalAlumnosDe(borrador, turnos),
+  })
 
   const estado = resuelta
     ? { clave: 'resuelta', texto: 'Se resolvió' }
@@ -119,7 +118,19 @@ export function AfectacionBorradorCard({
       <div className="situacion__encabezado">
         <div className="situacion__identidad">
           <h3 className="situacion__titulo">{titulo}</h3>
-          <p className="situacion__detalle">{detalle}</p>
+          {/* La severidad es el dato que ordena la lista de un vistazo, así
+              que se muestra con la misma marca de forma + color que la
+              pantalla de estado actual, en vez de quedar como texto suelto.
+              El componente ya garantiza que el color nunca sea el único
+              canal: lleva la palabra y una forma distinta por nivel. */}
+          {completa ? (
+            <p className="situacion__detalle">
+              <EstadoActualSeveridad severidad={borrador.severidad} />
+              <span className="situacion__alcance">{alcance}</span>
+            </p>
+          ) : (
+            <p className="situacion__detalle">Falta completarla</p>
+          )}
         </div>
         <span className={`situacion__estado situacion__estado--${estado.clave}`}>{estado.texto}</span>
       </div>
