@@ -2537,3 +2537,161 @@ time {
   .estado-actual-acciones { flex-direction: column; align-items: stretch; }
   .estado-actual-bloque__accion { width: 100%; }
 }
+
+/* ── Borrador de afectación (batch 5) ─────────────────────────────────── */
+
+.afectacion-borrador {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.afectacion-borrador__encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.afectacion-borrador__encabezado h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Blanco táctil obligatorio: lo toca un director desde el celular. */
+.afectacion-borrador__quitar {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--ink);
+  font-size: var(--t-small);
+  cursor: pointer;
+}
+
+.afectacion-borrador__quitar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.afectacion-borrador__campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.afectacion-borrador__resumen {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.afectacion-borrador__duplicado {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--info-tint);
+  color: var(--ink);
+  font-size: var(--t-small);
+}
+
+/* ── Reporte inicial (batch 5) ─────────────────────────────────────────── */
+
+.reporte-inicial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 640px;
+}
+
+/* Bloque de referencia de la escuela: texto de solo lectura, mismo patrón
+   que .formulario-problematica__escuela. */
+.reporte-inicial__escuela {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--fill);
+}
+
+.reporte-inicial__escuela p { margin: 0; }
+.reporte-inicial__escuela p:first-child {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.reporte-inicial__escuela p:last-child {
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cada sección del parte se separa con una hairline, como los bloques del
+   estado actual: la pantalla lee como una pila de registros, no de tarjetas. */
+.reporte-inicial__seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.reporte-inicial__seccion h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  letter-spacing: 0;
+}
+
+.reporte-inicial__campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Filas de radio nativo. El target táctil sigue la regla de 44px mínimos del
+   resto del formulario del director. */
+.reporte-inicial__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.reporte-inicial__error {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.reporte-inicial__confirmacion {
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--ok-tint);
+  color: var(--ok);
+  font-weight: 500;
+}
+
+@media (max-width: 480px) {
+  .reporte-inicial { max-width: none; }
+}
