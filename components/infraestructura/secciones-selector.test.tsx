@@ -139,7 +139,8 @@ describe('SeccionesSelector', () => {
   })
 
   describe('con alumnos por sección', () => {
-    it('muestra un checkbox por alumno debajo de la sección', () => {
+    it('muestra un checkbox por alumno al desplegar la sección', async () => {
+      const user = userEvent.setup()
       render(
         <SeccionesSelector
           turnos={turnosConAlumnos}
@@ -149,8 +150,72 @@ describe('SeccionesSelector', () => {
         />,
       )
 
+      await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
+
       expect(screen.getByRole('checkbox', { name: /Gómez, Ana/ })).toBeInTheDocument()
       expect(screen.getByRole('checkbox', { name: /Pérez, Luis/ })).toBeInTheDocument()
+    })
+
+    it('arranca con la lista nominal plegada', () => {
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[]}
+          alumnosSeleccionados={[]}
+          onCambiar={vi.fn()}
+        />,
+      )
+
+      expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /elegir alumnos/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+    })
+
+    it('arranca desplegada si la sección ya trae alumnos elegidos explícitamente', () => {
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[10]}
+          alumnosSeleccionados={[2]}
+          onCambiar={vi.fn()}
+        />,
+      )
+
+      expect(screen.getByRole('checkbox', { name: /Pérez, Luis/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /ocultar alumnos/i })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      )
+    })
+
+    it('vuelve a plegar la lista nominal sin tocar la selección', async () => {
+      const onCambiar = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <SeccionesSelector
+          turnos={turnosConAlumnos}
+          seleccionadas={[10]}
+          alumnosSeleccionados={[2]}
+          onCambiar={onCambiar}
+        />,
+      )
+
+      await user.click(screen.getByRole('button', { name: /ocultar alumnos/i }))
+
+      expect(screen.queryByRole('checkbox', { name: /Pérez, Luis/ })).not.toBeInTheDocument()
+      expect(onCambiar).not.toHaveBeenCalled()
+      // Plegar no puede esconder que la sección quedó parcial.
+      expect(screen.getByRole('checkbox', { name: /1°/ })).toHaveAttribute('data-indeterminate')
+    })
+
+    it('no ofrece desplegar cuando la sección no tiene identidades cargadas', () => {
+      render(
+        <SeccionesSelector turnos={turnos} seleccionadas={[]} alumnosSeleccionados={[]} onCambiar={vi.fn()} />,
+      )
+
+      expect(screen.queryByRole('button', { name: /alumnos/i })).not.toBeInTheDocument()
     })
 
     it('tildar la sección marca a todos sus alumnos y no deja lista explícita', async () => {
@@ -182,6 +247,7 @@ describe('SeccionesSelector', () => {
         />,
       )
 
+      await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
       await user.click(screen.getByRole('checkbox', { name: /Gómez, Ana/ }))
 
       expect(onCambiar).toHaveBeenCalledWith([10], [2])
@@ -248,6 +314,7 @@ describe('SeccionesSelector', () => {
         />,
       )
 
+      await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
       await user.click(screen.getByRole('checkbox', { name: /Gómez, Ana/ }))
 
       expect(onCambiar).toHaveBeenCalledWith([10], [1])

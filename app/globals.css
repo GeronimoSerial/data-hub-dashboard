@@ -1612,14 +1612,29 @@ h1, h2, h3, h4 {
 }
 
 .formulario-problematica__escuela {
+  display: grid;
+  gap: 2px;
   padding: var(--s-4);
   border-radius: var(--r-md);
   background: var(--fill);
-  border: 1px solid var(--line);
 }
 
-.formulario-problematica__escuela p:first-child { font-weight: 600; color: var(--ink); }
-.formulario-problematica__escuela p:last-child { font-size: var(--t-small); color: var(--ink-soft); }
+.formulario-problematica__escuela p { margin: 0; }
+.formulario-problematica__escuela p:first-child {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.formulario-problematica__escuela p:last-child {
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
 
 .formulario-problematica__campo {
   display: flex;
@@ -1656,59 +1671,110 @@ h1, h2, h3, h4 {
 .secciones-selector {
   display: flex;
   flex-direction: column;
-  gap: var(--s-4);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
 }
 
-.secciones-selector__turno {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
+/* Master toggle: it governs everything below, so it sits above the list on
+   its own tinted row rather than inline with the sections it controls. */
+.secciones-selector > .ui-checkbox {
+  min-height: 48px;
+  padding: var(--s-3) var(--s-4);
+  background: var(--fill);
+  border-bottom: 1px solid var(--line);
 }
+.secciones-selector > .ui-checkbox .ui-checkbox__label { font-weight: 600; }
+
+.secciones-selector__turno { display: flex; flex-direction: column; }
 
 .secciones-selector__turno > h3 {
-  font-size: var(--t-small);
+  font-family: var(--font-title);
+  font-size: var(--t-micro);
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
   color: var(--ink);
+  padding: var(--s-4) var(--s-4) var(--s-2);
+  border-top: 1px solid var(--line-soft);
 }
+.secciones-selector__turno:first-of-type > h3 { border-top: 0; }
 
-.secciones-selector__nivel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-1);
-  padding-left: var(--s-3);
-}
+.secciones-selector__nivel { display: flex; flex-direction: column; }
 
 .secciones-selector__nivel > h4 {
-  font-size: var(--t-micro);
-  font-weight: 500;
-  color: var(--ink-soft);
+  font-family: var(--font-title);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  padding: var(--s-2) var(--s-4) 2px;
 }
 
-.secciones-selector .ui-checkbox {
-  padding: 0.3rem 0;
-  min-height: 44px;
-}
+.secciones-selector__seccion { display: flex; flex-direction: column; }
 
-.secciones-selector__seccion {
+/* Each section is a row, not a floating checkbox: full-bleed hit area and a
+   hover tint so the list scans like a list. */
+.secciones-selector__fila {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  transition: background-color 140ms ease;
 }
+.secciones-selector__fila:hover { background: var(--fill); }
+.secciones-selector__fila > .ui-checkbox { flex: 1; min-width: 0; gap: var(--s-3); }
+.secciones-selector__fila .ui-checkbox__label { font-weight: 600; }
 
+/* Disclosure for the nominal list. The section checkbox keeps showing its
+   indeterminate state while collapsed, so a partial pick is never hidden by
+   folding the panel away. */
+.secciones-selector__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 32px;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--brand);
+  font-family: var(--font-title);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition-property: background-color, color;
+  transition-duration: 140ms;
+}
+.secciones-selector__toggle:hover { background: var(--brand-tint); color: var(--brand-hover); }
+.secciones-selector__toggle svg { transition: rotate 200ms ease; }
+.secciones-selector__toggle[aria-expanded='true'] svg { rotate: 180deg; }
+
+/* Students hang off their section on a hairline, aligned to the section
+   label rather than to the container edge. */
 .secciones-selector__alumnos {
   display: flex;
   flex-direction: column;
-  padding-left: var(--s-5);
+  margin: 0 var(--s-4) var(--s-3) calc(var(--s-4) + 10px);
+  padding-left: var(--s-4);
   border-left: 1px solid var(--line);
-  margin-left: 0.6rem;
 }
+.secciones-selector__alumnos[hidden] { display: none; }
 
 .secciones-selector__alumnos .ui-checkbox {
-  min-height: 36px;
-  padding: 0.15rem 0;
+  min-height: 34px;
+  padding: 2px 0;
 }
 
 .secciones-selector__alumnos .ui-checkbox__label {
-  font-size: var(--t-micro);
+  font-size: var(--t-small);
+  color: var(--ink);
 }
 
 /* Native <select> kept for form controls covered by Testing Library's
