@@ -18,15 +18,16 @@
   --coral: #f4492e;
   --maroon: #6f0603;
 
-  /* Roles */
-  --page: #ffffff;
-  --card: var(--grey);
+  /* Roles — the canvas recedes so white cards can lift off it. Anything
+     nested inside a card steps *down* to --fill, never up. */
+  --page: #f2f1f1;
+  --card: #ffffff;
   --ink: #2a0c0a;
   --ink-soft: #7a5b59;
   --ink-faint: #a08d8b;
-  --line: #dfdcdc;
-  --line-soft: #e8e5e5;
-  --fill: #f7f7f7;
+  --line: #e4e1e1;
+  --line-soft: #edeaea;
+  --fill: #f5f4f4;
 
   --brand: #3f6ea8;
   --brand-hover: #33598a;
@@ -40,16 +41,18 @@
   --ok-tint: #e7f1ea;
 
   /* Geometry */
-  --r-xs: 6px;
-  --r-sm: 9px;
-  --r-md: 12px;
-  --r-lg: 16px;
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 26px;
   --r-pill: 999px;
 
   /* Elevation */
-  --e-1: 0 1px 2px rgb(42 12 10 / 0.05);
-  --e-2: 0 1px 2px rgb(42 12 10 / 0.05), 0 8px 20px rgb(42 12 10 / 0.06);
-  --e-3: 0 4px 10px rgb(42 12 10 / 0.08), 0 18px 44px rgb(42 12 10 / 0.12);
+  --e-1: 0 1px 2px rgb(42 12 10 / 0.04), 0 2px 8px rgb(42 12 10 / 0.05);
+  --e-2: 0 4px 6px -1px rgb(42 12 10 / 0.08), 0 2px 4px -2px rgb(42 12 10 / 0.07),
+         0 14px 32px rgb(42 12 10 / 0.07);
+  --e-3: 0 4px 10px rgb(42 12 10 / 0.08), 0 24px 56px rgb(42 12 10 / 0.16);
 
   /* Spacing scale */
   --s-1: 0.25rem;
@@ -107,9 +110,10 @@
   --ok: #8fc7a5;
   --ok-tint: #17301f;
 
-  --e-1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --e-2: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px rgb(0 0 0 / 0.35);
-  --e-3: 0 4px 10px rgb(0 0 0 / 0.45), 0 18px 44px rgb(0 0 0 / 0.5);
+  --e-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.3);
+  --e-2: 0 4px 6px -1px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.4),
+         0 14px 32px rgb(0 0 0 / 0.4);
+  --e-3: 0 4px 10px rgb(0 0 0 / 0.45), 0 24px 56px rgb(0 0 0 / 0.55);
 }
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
@@ -189,8 +193,8 @@ h1, h2, h3, h4 {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: color-mix(in srgb, var(--page) 94%, transparent);
-  backdrop-filter: blur(14px) saturate(1.4);
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  backdrop-filter: blur(16px) saturate(1.6);
   border-bottom: 1px solid var(--line);
 }
 
@@ -278,7 +282,7 @@ h1, h2, h3, h4 {
   gap: var(--s-4);
   flex-wrap: wrap;
   border-top: 1px solid var(--line);
-  background: var(--card);
+  background: transparent;
   color: var(--ink-soft);
   padding: var(--s-5) max(clamp(1rem, 3vw, 2.5rem), calc((100% - var(--measure)) / 2));
   font-size: var(--t-micro);
@@ -288,8 +292,19 @@ h1, h2, h3, h4 {
 
 /* ── Page rhythm ───────────────────────────────────────────────────────── */
 
-.page-stack { display: grid; gap: clamp(2.5rem, 4vw, 3.5rem); }
+.page-stack { display: grid; gap: clamp(3.5rem, 5vw, 5rem); }
 .page-stack--tight { gap: var(--s-5); }
+
+@keyframes band-rise {
+  from { opacity: 0; translate: 0 10px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.page-stack > * { animation: band-rise 420ms cubic-bezier(0.2, 0, 0, 1) both; }
+.page-stack > *:nth-child(2) { animation-delay: 70ms; }
+.page-stack > *:nth-child(3) { animation-delay: 140ms; }
+.page-stack > *:nth-child(4) { animation-delay: 210ms; }
+.page-stack > *:nth-child(n + 5) { animation-delay: 280ms; }
 
 .page-header { display: grid; gap: var(--s-4); max-width: 52rem; }
 
@@ -421,7 +436,7 @@ h1, h2, h3, h4 {
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(19rem, 100%), 1fr));
-  gap: var(--s-4);
+  gap: var(--s-5);
 }
 .card-grid--wide {
   grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
@@ -614,7 +629,7 @@ h1, h2, h3, h4 {
 
 .ui-button {
   border: 0;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   min-height: 44px;
   padding: 0.6rem 1.1rem;
   display: inline-flex;
@@ -630,7 +645,7 @@ h1, h2, h3, h4 {
   transition-property: background-color, color, box-shadow, scale;
   transition-duration: 150ms;
 }
-.ui-button:active { scale: 0.97; }
+.ui-button:active { scale: 0.96; }
 .ui-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ui-button--default { background: var(--brand); color: #fff; }
@@ -649,7 +664,7 @@ h1, h2, h3, h4 {
 .ui-button--destructive { background: var(--danger); color: #fff; }
 .ui-button--destructive:hover { background: var(--maroon); }
 
-.ui-button--sm { min-height: 34px; padding: 0.35rem 0.7rem; font-size: var(--t-micro); }
+.ui-button--sm { min-height: 34px; padding: 0.35rem 0.7rem; font-size: var(--t-micro); border-radius: var(--r-sm); }
 .ui-button--icon { width: 44px; padding: 0; }
 .ui-button--sm.ui-button--icon { width: 34px; }
 
@@ -665,7 +680,7 @@ h1, h2, h3, h4 {
   width: 100%;
   min-height: 44px;
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: var(--card);
   color: var(--ink);
   padding: 0.6rem 0.8rem;
@@ -728,7 +743,7 @@ h1, h2, h3, h4 {
   height: 18px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: var(--e-1);
+  box-shadow: 0 1px 2px rgb(42 12 10 / 0.2);
   transition-property: translate;
   transition-duration: 160ms;
 }
@@ -762,7 +777,7 @@ h1, h2, h3, h4 {
   display: grid;
   gap: var(--s-3);
   background: var(--card);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   box-shadow: var(--e-1);
   padding: var(--s-3);
 }
@@ -805,7 +820,7 @@ h1, h2, h3, h4 {
   background: var(--card);
   color: var(--ink);
   border: 1px solid var(--line);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   padding: 0.6rem 0.8rem;
   font-size: var(--t-small);
   cursor: pointer;
@@ -845,7 +860,7 @@ h1, h2, h3, h4 {
   max-height: min(45rem, calc(100vh - 2rem));
   overflow: auto;
   background: var(--card);
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   box-shadow: var(--e-3);
   padding: clamp(1.5rem, 4vw, 2rem);
 }
@@ -884,7 +899,7 @@ h1, h2, h3, h4 {
   gap: var(--s-2);
   min-height: 38px;
   padding: 0.5rem 0.6rem;
-  border-radius: var(--r-xs);
+  border-radius: var(--r-sm);
   font-size: var(--t-small);
   cursor: default;
   outline: none;
@@ -923,7 +938,7 @@ h1, h2, h3, h4 {
   right: 0;
   max-height: 80vh;
   margin-top: auto;
-  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
 }
 .ui-sheet h2 { padding: var(--s-5) var(--s-5) 0; font-size: 1.25rem; }
 .ui-sheet-close {
@@ -1131,7 +1146,11 @@ h1, h2, h3, h4 {
   max-width: 100%;
   height: auto;
   margin: 0 auto;
+  border-radius: var(--r-md);
+  outline: 1px solid oklch(0 0 0 / 0.1);
+  outline-offset: -1px;
 }
+[data-theme='dark'] .resource-image { outline-color: oklch(1 0 0 / 0.1); }
 .resource-download {
   display: grid;
   justify-items: center;
@@ -1205,6 +1224,8 @@ h1, h2, h3, h4 {
   padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2.5rem) 5rem;
   flex: 1;
 }
+.admin-layout .page-stack { gap: var(--s-6); }
+
 .admin-sidebar {
   align-self: start;
   position: sticky;
@@ -1309,9 +1330,11 @@ h1, h2, h3, h4 {
 
 .admin-layout .ui-table th:last-child,
 .admin-layout .ui-table td:last-child {
-  width: 6rem;
-  min-width: 6rem;
+  width: 7.5rem;
+  min-width: 7.5rem;
 }
+
+.admin-layout .ui-table td:last-child .ui-actions { flex-wrap: nowrap; }
 
 .ui-actions { display: flex; gap: var(--s-1); align-items: center; flex-wrap: wrap; }
 .ui-form-grid { display: grid; gap: var(--s-4); min-width: min(20rem, 100%); }
@@ -1489,8 +1512,34 @@ h1, h2, h3, h4 {
 
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; }
-  .stat-block { display: flex; flex-wrap: wrap; padding: 0 var(--s-5); }
-  .stat-block__row { flex: 1 1 8rem; flex-direction: column; align-items: flex-start; gap: var(--s-1); border-bottom: 0; }
+  /* Fixed columns, not a flex basis: the longest label ("RECURSOS
+     PUBLICADOS") overflowed an 8rem basis and collided with its neighbour. */
+  .stat-block {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--s-4);
+    padding: var(--s-5);
+  }
+  .stat-block__row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-1);
+    border-bottom: 0;
+    padding: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Too narrow for three columns — back to labelled rows, which read at any
+     width. */
+  .stat-block { grid-template-columns: 1fr; gap: 0; padding: var(--s-2) var(--s-5); }
+  .stat-block__row {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: var(--s-4) 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .stat-block__row:last-child { border-bottom: 0; }
 }
 
 @media (max-width: 760px) {
@@ -1526,6 +1575,7 @@ h1, h2, h3, h4 {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
   }
 
   .resource-details-toggle svg { animation: none; }
@@ -1717,10 +1767,13 @@ h1, h2, h3, h4 {
 
 .publico-content {
   max-width: 640px;
-  margin: 0 auto;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem) 4rem;
+  margin: clamp(1.5rem, 4vw, 3rem) auto clamp(3rem, 6vw, 5rem);
+  padding: clamp(1.75rem, 4vw, 2.5rem);
   display: grid;
   gap: var(--s-2);
+  background: var(--card);
+  border-radius: var(--r-xl);
+  box-shadow: var(--e-1);
 }
 
 .publico-content__title {
@@ -1735,6 +1788,14 @@ h1, h2, h3, h4 {
   font-size: var(--t-small);
 }
 
-@media (max-width: 480px) {
-  .publico-content { padding-left: 1rem; padding-right: 1rem; }
+@media (max-width: 600px) {
+  /* Below the column width the card frame stops earning its keep — drop it
+     and let the form use the full gutter. */
+  .publico-content {
+    margin: 0 auto;
+    padding: var(--s-5) var(--s-4) var(--s-7);
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
