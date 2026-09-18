@@ -84,7 +84,7 @@ export function useMapData() {
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof Error ? err.message : 'Error cargando datos',
+            err instanceof Error ? err.message : 'No se pudieron cargar los datos del mapa.',
           )
           setLoading(false)
         }

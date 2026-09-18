@@ -58,7 +58,7 @@ type HubUserRow = {
 const ROLES: Role[] = ['admin', 'editor', 'consulta']
 
 function rolLabel(role: Role) {
-  if (role === 'admin') return 'Admin'
+  if (role === 'admin') return 'Administrador'
   if (role === 'editor') return 'Editor'
   return 'Consulta'
 }
@@ -428,7 +428,7 @@ function RecursoForm({
 
           <AdminField
             label="Audiencia — niveles"
-            hint="Si no elegís nadie ni niveles, cualquier usuario logueado puede abrir."
+            hint="Si no se selecciona ninguna persona ni nivel, puede abrirlo cualquier usuario con sesión iniciada."
           >
             <MultiSelect<string>
               value={draft.audienciaNivelIds ?? []}
@@ -923,7 +923,9 @@ function UserForm({
           error?: unknown
         } | null
         setError(
-          typeof data?.error === 'string' ? data.error : 'No se pudo guardar',
+          typeof data?.error === 'string'
+            ? data.error
+            : 'No se pudo guardar el usuario. Intente nuevamente.',
         )
         return
       }
@@ -951,7 +953,7 @@ function UserForm({
               onChange={(event) => setDraft((prev) => ({ ...prev, name: event.currentTarget.value }))}
             />
           </AdminField>
-          <AdminField label="Email" required>
+          <AdminField label="Correo" required>
             <Input
               type="email"
               value={draft.email}
@@ -1037,7 +1039,9 @@ function UsersAdmin() {
     } | null
     if (!res.ok) {
       throw new Error(
-        typeof data?.error === 'string' ? data.error : 'No se pudo cargar',
+        typeof data?.error === 'string'
+          ? data.error
+          : 'No se pudieron cargar los usuarios.',
       )
     }
     return data?.usuarios ?? []
@@ -1058,7 +1062,9 @@ function UsersAdmin() {
       (error) => {
         if (!cancelled) {
           setLoadError(
-            error instanceof Error ? error.message : 'No se pudo cargar',
+            error instanceof Error
+              ? error.message
+              : 'No se pudieron cargar los usuarios.',
           )
         }
       },
@@ -1097,7 +1103,7 @@ function UsersAdmin() {
           <thead>
             <tr>
               <th>Nombre</th>
-              <th>Email</th>
+              <th>Correo</th>
               <th>Rol</th>
               <th>Niveles</th>
               <th>Estado</th>
@@ -1221,7 +1227,7 @@ function ProblematicaForm({
         setContextoError(
           data && typeof (data as { error?: unknown }).error === 'string'
             ? (data as { error: string }).error
-            : 'No se pudo resolver la escuela',
+            : 'No se pudo resolver la escuela. Verifique el CUE ingresado.',
         )
         return
       }
@@ -1252,7 +1258,11 @@ function ProblematicaForm({
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: unknown } | null
-        setError(typeof data?.error === 'string' ? data.error : 'No se pudo guardar')
+        setError(
+          typeof data?.error === 'string'
+            ? data.error
+            : 'No se pudo guardar la problemática. Intente nuevamente.',
+        )
         return
       }
       await onSaved()
@@ -1373,7 +1383,11 @@ function ProblematicasAdmin() {
       error?: unknown
     } | null
     if (!res.ok) {
-      throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo cargar')
+      throw new Error(
+        typeof data?.error === 'string'
+          ? data.error
+          : 'No se pudieron cargar las problemáticas.',
+      )
     }
     return data?.problematicas ?? []
   }, [])
@@ -1392,7 +1406,11 @@ function ProblematicasAdmin() {
       },
       (error) => {
         if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : 'No se pudo cargar')
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : 'No se pudieron cargar las problemáticas.',
+          )
         }
       },
     )
@@ -1505,7 +1523,7 @@ export function AdminPage() {
     <div>
       <div className="page-stack">
         <div>
-          <span className="eyebrow">GESTIÓN DEL HUB</span>
+          <span className="eyebrow">Gestión del Hub</span>
           <h1 className="page-title page-title--sm">Administración</h1>
           <p className="page-intro">
             Gestione los recursos y las taxonomías del Hub. La administración

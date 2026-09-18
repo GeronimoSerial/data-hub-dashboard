@@ -3,37 +3,33 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, BarChart3, FileText, Map, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useHubData } from '@/components/hub-data'
 import { ResourceCard } from '@/components/resource-card'
 import { FORMATOS, type Formato } from '@/lib/model'
 import { exploreHref } from '@/lib/explore-filters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-const FORMAT_ICON = { reporte: FileText, tablero: BarChart3, mapa: Map }
-const FORMAT_TONE = { reporte: 'blue', tablero: 'amber', mapa: 'coral' } as const
+import { MARCA_FORMATO, MARCA_TEMA, MarcaTemaGenerica } from '@/components/marcas-tematicas'
 
 function BrowseCard({
   href,
   name,
   note,
   count,
-  icon: Icon,
-  tone,
+  marca: Marca,
 }: {
   href: string
   name: string
   note: string
   count: number
-  icon?: React.ComponentType<{ size?: number }>
-  tone?: 'blue' | 'amber' | 'coral'
+  marca?: (props: { className?: string }) => React.JSX.Element
 }) {
   return (
     <Link className="browse-card" href={href}>
-      {Icon ? (
-        <span className="browse-card__icon" data-tone={tone ?? 'blue'}>
-          <Icon size={18} />
+      {Marca ? (
+        <span className="browse-card__marca">
+          <Marca />
         </span>
       ) : null}
       <span className="browse-card__name">{name}</span>
@@ -65,11 +61,10 @@ export function HubPage() {
     <div className="page-stack">
       <header className="hero">
         <div className="hero__lead">
-          <span className="eyebrow">Hub de Datos · Corrientes</span>
-          <h1 className="page-title">Hub de datos - Version en desarrollo</h1>
+          <h1 className="page-title">Análisis educativo</h1>
           <p className="page-intro">
-            Reportes, tableros y mapas del sistema educativo provincial, reunidos en un solo lugar.
-            No hace falta saber de antemano en qué formato está lo que buscás.
+            Reportes, tableros y mapas publicados por las direcciones del
+            Ministerio. Algunos requieren ingresar con cuenta.
           </p>
           <form
             className="hero-search"
@@ -80,7 +75,7 @@ export function HubPage() {
             }}
           >
             <label className="hero-search__label" htmlFor="home-search">
-              ¿Qué información estás buscando?
+              Buscar información
             </label>
             <div className="hero-search__line">
               <Input
@@ -117,7 +112,7 @@ export function HubPage() {
         <div className="section-head">
           <h2>Actualizaciones recientes</h2>
           <Link className="section-link" href="/explorar">
-            Ver el catálogo <ArrowRight size={15} />
+            Ver el catálogo
           </Link>
         </div>
         <div className="card-grid">
@@ -129,7 +124,7 @@ export function HubPage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Explorá por tema</h2>
+          <h2>Explorar por tema</h2>
         </div>
         <div className="card-grid card-grid--wide">
           {byCategory.map((item) => (
@@ -139,6 +134,7 @@ export function HubPage() {
               name={item.nombre}
               note="Ver los recursos publicados sobre este tema."
               count={item.count}
+              marca={MARCA_TEMA[item.id] ?? MarcaTemaGenerica}
             />
           ))}
         </div>
@@ -146,7 +142,7 @@ export function HubPage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Explorá por formato</h2>
+          <h2>Explorar por formato</h2>
         </div>
         <div className="card-grid card-grid--wide">
           {byFormat.map(({ key, count }) => (
@@ -156,8 +152,7 @@ export function HubPage() {
               name={FORMATOS[key].plural}
               note={FORMATOS[key].descripcion}
               count={count}
-              icon={FORMAT_ICON[key]}
-              tone={FORMAT_TONE[key]}
+              marca={MARCA_FORMATO[key]}
             />
           ))}
         </div>
@@ -165,7 +160,7 @@ export function HubPage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Explorá por nivel educativo</h2>
+          <h2>Explorar por nivel educativo</h2>
         </div>
         <div className="chip-grid">
           {byLevel.map((item) => (

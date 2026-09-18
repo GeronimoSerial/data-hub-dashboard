@@ -31,7 +31,7 @@ function LoginForm() {
     })
     setPending(false)
     if (signInError) {
-      setError('No se pudo iniciar sesión')
+      setError('No se pudo iniciar sesión. Verifique el correo y la contraseña e intente nuevamente.')
       return
     }
     router.replace(callbackUrlFromSearch(searchParams.get('callbackUrl')))

@@ -66,7 +66,7 @@ export function ResourceExperience({
       </section>
       {recommendations.length ? (
         <section className="section">
-          <div className="section-head"><h2>También puede interesarte</h2></div>
+          <div className="section-head"><h2>Recursos relacionados</h2></div>
           <div className="card-grid">{recommendations.map((item) => <ResourceCard key={item.id} recurso={item} />)}</div>
         </section>
       ) : null}

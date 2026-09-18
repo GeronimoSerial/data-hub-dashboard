@@ -10,7 +10,7 @@ const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
   cue_ausente: 'Falta indicar el CUE de la escuela.',
   cue_invalido: 'El CUE ingresado no es válido.',
   sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento.',
-  cue_inexistente: 'No encontramos una escuela con ese CUE.',
+  cue_inexistente: 'No se encontró una escuela con ese CUE.',
   sin_secciones: 'La escuela no tiene secciones cargadas en el corte vigente.',
 }
 

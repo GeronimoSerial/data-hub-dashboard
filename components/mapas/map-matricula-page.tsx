@@ -79,7 +79,7 @@ export default function MapMatriculaPage() {
   if (error || !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>
-        {error ?? 'No hay datos. Ejecutá pnpm extract.'}
+        {error ?? 'No hay datos disponibles. Ejecute pnpm extract para generarlos.'}
       </div>
     )
   }

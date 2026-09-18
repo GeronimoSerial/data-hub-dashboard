@@ -3,7 +3,7 @@ import { ExplorePage } from '@/components/explore-page'
 
 export const metadata = {
   title: 'Explorar · Hub de Datos',
-  description: 'Buscá información educativa por tema, nivel y formato.',
+  description: 'Buscar información educativa por tema, nivel y formato.',
 }
 
 export default function Explorar() {

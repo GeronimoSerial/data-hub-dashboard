@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const acceso = await verificarAccesoLectura()
   if (!acceso.ok) {
     const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tenés acceso a este recurso'
+      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
     return Response.json({ error }, { status: acceso.status })
   }
 

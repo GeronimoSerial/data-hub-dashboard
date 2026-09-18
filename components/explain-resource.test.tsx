@@ -29,12 +29,12 @@ describe('ExplainResource UI', () => {
       ),
     ))
     render(<ExplainResource resourceId="r1" />)
-    fireEvent.click(screen.getByRole('button', { name: /explícame este recurso/i }))
+    fireEvent.click(screen.getByRole('button', { name: /explicar este recurso/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/no está configurado/i)
     })
     // It never renders a fabricated explanation.
-    expect(screen.queryByText('Te puede servir para')).not.toBeInTheDocument()
+    expect(screen.queryByText('Puede servir para')).not.toBeInTheDocument()
   })
 
   it('renders a validated explanation on success', async () => {
@@ -52,17 +52,17 @@ describe('ExplainResource UI', () => {
       ),
     ))
     render(<ExplainResource resourceId="r1" />)
-    fireEvent.click(screen.getByRole('button', { name: /explícame este recurso/i }))
+    fireEvent.click(screen.getByRole('button', { name: /explicar este recurso/i }))
     await waitFor(() => {
       expect(screen.getByText('Resumen confiable.')).toBeInTheDocument()
     })
-    expect(screen.getByText('Te puede servir para')).toBeInTheDocument()
+    expect(screen.getByText('Puede servir para')).toBeInTheDocument()
   })
 
   it('shows a generic recoverable error and the resource remains usable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({}, 500)))
     render(<ExplainResource resourceId="r1" />)
-    fireEvent.click(screen.getByRole('button', { name: /explícame este recurso/i }))
+    fireEvent.click(screen.getByRole('button', { name: /explicar este recurso/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo generar/i)
     })
@@ -84,19 +84,19 @@ describe('ExplainResource UI', () => {
       ),
     ))
     render(<ExplainResource resourceId="r1" />)
-    fireEvent.click(screen.getByRole('button', { name: /explícame este recurso/i }))
+    fireEvent.click(screen.getByRole('button', { name: /explicar este recurso/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/no hay suficiente contexto/i)
     })
     // The refusal must never be presented as a model-generated success result.
-    expect(screen.queryByText('Te puede servir para')).not.toBeInTheDocument()
+    expect(screen.queryByText('Puede servir para')).not.toBeInTheDocument()
     expect(screen.queryByText('Qué mirar primero')).not.toBeInTheDocument()
   })
 
   it('treats a missing status/explanation as an error, never faking success', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ cached: true }, 200)))
     render(<ExplainResource resourceId="r1" />)
-    fireEvent.click(screen.getByRole('button', { name: /explícame este recurso/i }))
+    fireEvent.click(screen.getByRole('button', { name: /explicar este recurso/i }))
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent(/no se pudo generar/i)
     })

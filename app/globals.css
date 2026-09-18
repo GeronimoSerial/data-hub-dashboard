@@ -1,60 +1,97 @@
 /* ══════════════════════════════════════════════════════════════════════════
-   Hub de Datos — visual system
-   Grey page, white cards, one clear rhythm. Colour carries meaning:
-   blue = structure, amber = highlight, coral = alert, maroon = ink.
+   Hub de Datos — Ministerio de Educación de Corrientes
+   Visual system derived from Manual de Marca Gobierno de Corrientes V1.1
+   and Guía de Estilo Ministerio de Educación (Marzo 2026).
+
+   Three rules the manual imposes on every surface here:
+     1. Flat. Solid fills, hairline borders. No gradients, no glass, no
+        decorative shadows. Elevation exists only where something floats.
+     2. Official colour only. Every value below comes from the printed
+        palette. Neutral steps between them are marked as adaptations.
+     3. Barlow throughout. Semi Condensed ExtraBold uppercase for titles,
+        Barlow SemiBold for subheads, Barlow Regular for reading.
+
+   Emphasis is carried by block and scale, never by effect.
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
   color-scheme: light;
 
-  /* Palette */
+  /* ── Official palette ── Manual §3.1. Values are fixed; never tune them. */
   --white: #ffffff;
   --grey: #ededed;
-  --blue: #769fd3;
-  --blue-light: #90b4e1;
   --yellow: #facd05;
-  --amber: #faae05;
-  --red: #ea2f09;
-  --coral: #f4492e;
-  --maroon: #6f0603;
+  --yellow-dark: #faae05;
+  --red: #f4492e;
+  --red-dark: #ea2f09;
+  --burgundy: #6f0603;
+  --sky: #90b4e1;
+  --sky-dark: #769fd3;
+  --green: #719c29;
+  --green-dark: #356f23;
+  --black: #2e2d2c;
 
-  /* Roles — the canvas recedes so white cards can lift off it. Anything
-     nested inside a card steps *down* to --fill, never up. */
-  --page: #f2f1f1;
-  --card: #ffffff;
-  --ink: #2a0c0a;
-  --ink-soft: #7a5b59;
-  --ink-faint: #a08d8b;
-  --line: #e4e1e1;
-  --line-soft: #edeaea;
-  --fill: #f5f4f4;
+  /* Extended palette — Manual §3.2. Data visualisation and mapping only. */
+  --orange: #f68e13;
+  --orange-dark: #f36d21;
+  --ochre: #b45f04;
+  --pink: #fa8072;
+  --teal: #58a89a;
+  --teal-dark: #008275;
+  --blue: #1f5d9b;
+  --violet: #8e7cc3;
+  --violet-dark: #6b5cb7;
 
-  --brand: #3f6ea8;
-  --brand-hover: #33598a;
-  --brand-tint: #e8f0fa;
+  /* ── Neutral steps ── Digital adaptation. The manual ships one grey
+     (#EDEDED) and one black (#2E2D2C); interfaces need the rungs between
+     them. All are untinted so they never fight the palette. */
+  --ink: var(--black);
+  --ink-soft: #5f5e5c;
+  --ink-faint: #8a8886;
+  --line: #e0dfde;
+  --line-soft: var(--grey);
+  --fill: #f5f5f4;
 
-  --warn: #8a5c02;
-  --warn-tint: #fdf3d6;
-  --danger: #c0250b;
+  /* ── Surfaces ── White is the primary ground (Manual §2.1). Sections
+     separate by band colour, not by floating cards. */
+  --page: var(--white);
+  --card: var(--white);
+  --band: var(--grey);
+  --band-ink: var(--black);
+
+  /* ── Roles ── One interactive accent, one marker. Contrast noted against
+     the surface each is used on. */
+  --accent: var(--burgundy);        /* links, interactive text — 12.3:1 on white */
+  --accent-hover: #4d0402;
+  --accent-tint: #f6e9e8;
+  --action: var(--black);           /* primary button fill — 13.7:1 with white */
+  --action-hover: #191817;
+  --marker: var(--yellow);          /* active nav, selected row, highlight block */
+
+  --warn: var(--ochre);             /* 4.9:1 on white */
+  --warn-tint: #fdf4e0;
+  --danger: var(--burgundy);        /* filled destructive — 12.3:1 with white */
+  --danger-ink: var(--burgundy);
+  --danger-mark: var(--red-dark);   /* indicator bars and icons only — 4.3:1 */
   --danger-tint: #fdeae6;
-  --ok: #2f6b46;
-  --ok-tint: #e7f1ea;
+  --ok: var(--green-dark);          /* 6.1:1 on white */
+  --ok-tint: #eaf1e5;
+  --info: var(--blue);              /* 5.9:1 on white */
+  --info-tint: #e8f0f8;
 
-  /* Geometry */
-  --r-xs: 7px;
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 20px;
-  --r-xl: 26px;
+  /* ── Geometry ── Manual §11: institutional character breaks above ~12px. */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
   --r-pill: 999px;
 
-  /* Elevation */
-  --e-1: 0 1px 2px rgb(42 12 10 / 0.04), 0 2px 8px rgb(42 12 10 / 0.05);
-  --e-2: 0 4px 6px -1px rgb(42 12 10 / 0.08), 0 2px 4px -2px rgb(42 12 10 / 0.07),
-         0 14px 32px rgb(42 12 10 / 0.07);
-  --e-3: 0 4px 10px rgb(42 12 10 / 0.08), 0 24px 56px rgb(42 12 10 / 0.16);
+  /* ── Elevation ── Only for surfaces that genuinely float above the page:
+     dialogs, menus, tooltips, map panels. Never on cards or buttons. */
+  --e-float: 0 1px 2px rgb(46 45 44 / 0.08), 0 8px 24px rgb(46 45 44 / 0.12);
+  --e-modal: 0 2px 4px rgb(46 45 44 / 0.1), 0 24px 48px rgb(46 45 44 / 0.22);
 
-  /* Spacing scale */
+  /* ── Spacing ── Multiples of 4 (Manual §10). */
   --s-1: 0.25rem;
   --s-2: 0.5rem;
   --s-3: 0.75rem;
@@ -64,208 +101,339 @@
   --s-7: 3rem;
   --s-8: 4rem;
 
-  /* Type */
-  --font-title: var(--font-barlow), 'Helvetica Neue', Arial, sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  /* ── Type ── Manual §4. */
+  --font-display: var(--font-barlow-condensed), 'Barlow Semi Condensed', sans-serif;
+  --font-body: var(--font-barlow), 'Barlow', system-ui, sans-serif;
+  --font-title: var(--font-body);
+  --font-ministry: var(--font-montserrat), 'Montserrat', sans-serif;
 
-  --t-micro: 0.75rem;
-  --t-small: 0.875rem;
+  --t-micro: 0.8125rem;
+  --t-small: 0.9375rem;
   --t-body: 1rem;
 
-  --measure: 1320px;
+  /* Layout — Manual §10. */
+  --header-h: 153px;   /* ribbon 8 + signature band 85 + product band 60 */
+  --measure: 1440px;   /* Wider than the 1280px in design.md §10, which is a
+                          digital adaptation rather than a manual rule. */
+  --gutter: clamp(1.25rem, 4vw, 3rem);
 
-  /* Legacy aliases */
-  --background: var(--page);
-  --surface: var(--card);
-  --surface-muted: var(--fill);
-  --foreground: var(--ink);
-  --muted: var(--ink-soft);
-  --border: var(--line);
-  --brand-strong: var(--brand-hover);
-  --brand-soft: var(--brand-tint);
-  --radius: var(--r-md);
-  --shadow: var(--e-3);
+  /* Stacking order, so no selector has to invent a z-index. */
+  --z-header: 30;
+  --z-panel: 40;
+  --z-overlay: 70;
+  --z-modal: 80;
+  --z-popup: 90;
+  --z-tooltip: 95;
+
 }
 
+/* Dark surfaces use the official Negro as ground and step up from it. The
+   accent flips to Amarillo, the only palette colour with AA contrast here
+   (9.0:1); Bordó is unreadable on black. */
 [data-theme='dark'] {
   color-scheme: dark;
 
-  --page: #170908;
-  --card: #241110;
-  --ink: #f4ecec;
-  --ink-soft: #bfa5a3;
-  --ink-faint: #8f7674;
-  --line: #3a1e1c;
-  --line-soft: #2f1817;
-  --fill: #2e1615;
+  --page: var(--black);
+  --card: #383634;
+  --band: #232221;
+  --band-ink: var(--white);
+  --ink: var(--white);
+  --ink-soft: #c9c6c3;
+  --ink-faint: #9b9895;
+  --line: #4d4b49;
+  --line-soft: #423f3d;
+  --fill: #423f3d;
 
-  --brand: #90b4e1;
-  --brand-hover: #adc9ec;
-  --brand-tint: #1e2c3c;
+  --accent: var(--yellow);
+  --accent-hover: #ffdb3d;
+  --accent-tint: #3d3411;
+  --action: var(--yellow);
+  --action-hover: #ffdb3d;
 
-  --warn: #facd05;
-  --warn-tint: #382c08;
-  --danger: #f4492e;
-  --danger-tint: #3d1610;
-  --ok: #8fc7a5;
-  --ok-tint: #17301f;
+  --warn: var(--yellow-dark);
+  --warn-tint: #3a2f0b;
+  --danger: var(--red-dark);
+  --danger-ink: #ff9e8c;
+  --danger-mark: var(--red);
+  --danger-tint: #3f1710;
+  --ok: #9ec973;
+  --ok-tint: #23300f;
+  --info: var(--sky);
+  --info-tint: #1c2c3d;
 
-  --e-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.3);
-  --e-2: 0 4px 6px -1px rgb(0 0 0 / 0.45), 0 2px 4px -2px rgb(0 0 0 / 0.4),
-         0 14px 32px rgb(0 0 0 / 0.4);
-  --e-3: 0 4px 10px rgb(0 0 0 / 0.45), 0 24px 56px rgb(0 0 0 / 0.55);
+  --e-float: 0 1px 2px rgb(0 0 0 / 0.5), 0 8px 24px rgb(0 0 0 / 0.45);
+  --e-modal: 0 2px 4px rgb(0 0 0 / 0.5), 0 24px 48px rgb(0 0 0 / 0.6);
 }
+
+/* Primary action inverts on dark: Amarillo fill needs Negro text. */
+[data-theme='dark'] .ui-button--default { color: var(--black); }
+[data-theme='dark'] .ui-button--destructive { color: var(--white); }
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; min-height: 100%; }
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--page);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--t-body);
-  line-height: 1.6;
+  font-weight: 400;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
 
-::selection { background: var(--blue-light); color: #12293f; }
+::selection { background: var(--marker); color: var(--black); }
 
+/* Focus is a two-tone ring so it survives on any palette colour — the
+   manual requires focus not to depend on colour alone (§12). */
 :focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
-  border-radius: 3px;
+  border-radius: var(--r-xs);
+}
+[data-theme='dark'] :focus-visible { outline-color: var(--marker); }
+
+/* Titles: Barlow Semi Condensed ExtraBold, caja alta, tracking 0,
+   line-height compacto (Manual §4.1). */
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  line-height: 0.96;
+  margin: 0;
+  text-wrap: balance;
 }
 
-h1, h2, h3, h4 {
-  font-family: var(--font-title);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+/* h4 and below are subheads, not titles: Barlow SemiBold, sentence case. */
+h4, h5, h6 {
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.25;
   margin: 0;
 }
 
-/* Uppercase micro-labels use the title face — it sets cleaner caps. */
-.eyebrow,
-.app-nav a,
-.app-brand__text small,
-.app-footer,
-.badge,
-.breadcrumb__list,
-.breadcrumbs ol,
+/* Data must line up in columns wherever it is read. */
+.ui-table,
+.stat-block__value,
+.chip__count,
+.browse-card__count,
 .metadata,
-.filter-field label,
-.section-link,
-.stat-block__label,
-.card-tag,
-.resource-card__footer,
-.hero-search__label,
-.ui-table th,
-.ui-tabs-tab,
-.admin-sidebar__back {
-  font-family: var(--font-title);
-  font-weight: 600;
+time {
   font-variant-numeric: tabular-nums;
 }
 
+/* Small structural labels take the body face at SemiBold. Uppercase is
+   reserved for titles and badges, per the manual — it is not applied to
+   every label. */
+.stat-block__label,
+.filter-field label,
+.ui-table th,
+.ui-tabs-tab,
+.hero-search__label,
+.resource-card__footer,
+.card-tag,
+.admin-sidebar__back {
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Skip link — keyboard users land here first. */
+.skip-link {
+  position: absolute;
+  left: var(--s-4);
+  top: var(--s-2);
+  z-index: 100;
+  translate: 0 -200%;
+  padding: 0.6rem 1rem;
+  background: var(--action);
+  color: var(--white);
+  font-weight: 600;
+  font-size: var(--t-small);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+}
+.skip-link:focus-visible { translate: 0 0; }
+[data-theme='dark'] .skip-link { color: var(--black); }
+
 /* ── Frame ─────────────────────────────────────────────────────────────── */
 
-.app-page { min-height: 100vh; display: flex; flex-direction: column; }
-.app-page--viewer { height: 100vh; }
+.app-page { min-height: 100dvh; display: flex; flex-direction: column; }
+.app-page--viewer { height: 100dvh; }
 
-.app-ribbon {
-  height: 4px;
-  background: linear-gradient(
-    90deg,
-    var(--maroon) 0 14%,
-    var(--red) 14% 32%,
-    var(--amber) 32% 52%,
-    var(--yellow) 52% 68%,
-    var(--blue) 68%
-  );
-}
+/* Institutional strip: five solid segments, one colour each. Not a
+   gradient — the manual forbids ramps built from the palette (§3.4). */
+.app-ribbon { display: flex; height: 8px; }
+.app-ribbon > span { flex: 1; }
+.app-ribbon > span:nth-child(1) { background: var(--burgundy); }
+.app-ribbon > span:nth-child(2) { background: var(--red-dark); }
+.app-ribbon > span:nth-child(3) { background: var(--yellow-dark); }
+.app-ribbon > span:nth-child(4) { background: var(--yellow); }
+.app-ribbon > span:nth-child(5) { background: var(--sky-dark); }
 
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: color-mix(in srgb, var(--card) 86%, transparent);
-  backdrop-filter: blur(16px) saturate(1.6);
+/* The header is two solid bands. The upper one is the institutional
+   signature at its required size with its exclusion zone intact; the lower
+   one belongs to the product and carries navigation. Nothing is
+   translucent — the manual rules out glass surfaces (§11). */
+.app-header { position: sticky; top: 0; z-index: var(--z-header); }
+
+.app-signature {
+  background: var(--white);
   border-bottom: 1px solid var(--line);
 }
-
-.app-header__inner {
-  min-height: 68px;
+.app-signature__inner {
   max-width: var(--measure);
   margin: auto;
-  padding: var(--s-3) clamp(1rem, 3vw, 2.5rem);
+  padding: var(--s-3) var(--gutter);
   display: flex;
   align-items: center;
   gap: var(--s-5);
 }
 
+/* 60px is the minimum height for the horizontal signature (Manual §2.3).
+   Padding above never drops below the exclusion zone baked into the file. */
+.app-signature__mark { display: block; height: 60px; width: auto; }
+.app-signature__mark--inv { display: none; }
+/* Scoped with :not() so the pair swaps wherever the signature appears, not
+   only inside .app-signature. */
+[data-theme='dark'] .app-signature__mark:not(.app-signature__mark--inv) { display: none; }
+[data-theme='dark'] .app-signature__mark--inv { display: block; }
+[data-theme='dark'] .app-signature { background: var(--black); border-bottom-color: var(--line); }
+
+/* Compact signature: escudo at its 40px minimum beside the ministry
+   denomination in Montserrat Bold — the pairing the manual specifies when a
+   ministry name sits with the Gobierno mark (§4.4). Hidden above 760px,
+   where the full horizontal signature fits at its required size. */
+.app-signature__compact { display: none; align-items: center; gap: var(--s-3); }
+.app-signature__shield { display: block; height: 40px; width: auto; }
+.app-signature__denomination {
+  font-family: var(--font-ministry);
+  font-weight: 700;
+  font-size: 0.9375rem;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+/* Reparticiones emisoras. Manual §4.4 sets Montserrat Bold for a ministry
+   or repartición denomination sitting beside the Gobierno de Corrientes
+   mark, which is the construction Aplicación 2 uses — its own file ships a
+   single outlined placeholder, so the two real names are typeset here
+   instead. The keyline stands in for AP2's separator. */
+.app-signature__reparticiones {
+  display: grid;
+  gap: 1px;
+  padding-left: var(--s-5);
+  border-left: 1px solid var(--line);
+  font-family: var(--font-ministry);
+  font-weight: 700;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+.app-signature__aside {
+  margin-left: auto;
+  font-size: var(--t-micro);
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-align: right;
+  line-height: 1.3;
+}
+
+.app-header__inner {
+  min-height: 60px;
+  max-width: var(--measure);
+  margin: auto;
+  padding: 0 var(--gutter);
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-5);
+}
+.app-header__band {
+  background: var(--black);
+  border-bottom: 1px solid var(--black);
+}
+[data-theme='dark'] .app-header__band {
+  background: var(--band);
+  border-bottom-color: var(--line);
+}
+
+/* Product name, set in the title face. This is our name, not the
+   institutional signature, so it may be typeset (§2.1 only protects the
+   signature itself). */
 .app-brand {
   display: flex;
   align-items: center;
-  gap: var(--s-3);
   text-decoration: none;
-  margin-right: auto;
+  color: var(--white);
+  margin-right: var(--s-4);
+  padding-right: var(--s-5);
+  border-right: 1px solid rgb(255 255 255 / 0.18);
 }
-
-/* Three bars, longest to shortest — an index glyph in the brand colours. */
-.app-brand__seal {
-  width: 22px;
-  height: 24px;
-  flex-shrink: 0;
-  background:
-    linear-gradient(var(--blue) 0 0) 0 3px / 22px 4px no-repeat,
-    linear-gradient(var(--amber) 0 0) 0 10px / 14px 4px no-repeat,
-    linear-gradient(var(--coral) 0 0) 0 17px / 18px 4px no-repeat;
-  border-radius: 1px;
-}
-
-.app-brand__text { display: grid; gap: 1px; line-height: 1.15; }
-.app-brand__text strong {
-  font-family: var(--font-title);
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-}
-.app-brand__text small {
-  font-size: 0.6875rem;
+.app-brand__text {
+  font-family: var(--font-display);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--ink-soft);
+  letter-spacing: 0.01em;
+  font-size: 1.375rem;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.app-nav { display: flex; align-items: center; gap: var(--s-1); }
+/* Active section is marked by a solid Amarillo block, not by a tint. */
+.app-nav { display: flex; align-items: stretch; }
 .app-nav a {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-4);
   text-decoration: none;
-  padding: 0.5rem 0.85rem;
-  border-radius: var(--r-pill);
   font-size: var(--t-small);
   font-weight: 600;
-  letter-spacing: 0.01em;
-  color: var(--ink-soft);
-  transition: background-color 160ms ease, color 160ms ease;
+  color: rgb(255 255 255 / 0.82);
+  border-bottom: 3px solid transparent;
+  transition: color 160ms ease, background-color 160ms ease;
 }
-.app-nav a:hover { color: var(--ink); background: var(--fill); }
-.app-nav a[aria-current='page'] { color: var(--brand-hover); background: var(--brand-tint); }
+.app-nav a:hover { color: var(--white); background: rgb(255 255 255 / 0.08); }
+.app-nav a[aria-current='page'] {
+  color: var(--white);
+  border-bottom-color: var(--marker);
+}
+.app-nav a:focus-visible { outline-color: var(--marker); outline-offset: -3px; }
 
-.app-actions { display: flex; align-items: center; gap: var(--s-1); }
+.app-actions { display: flex; align-items: center; gap: var(--s-1); margin-left: auto; }
 .app-actions__name { font-size: var(--t-small); font-weight: 500; }
 .app-mobile { display: none; }
+
+/* Header buttons sit on the dark band and must read against it. */
+.app-actions .ui-button--ghost,
+.app-actions .ui-button {
+  color: rgb(255 255 255 / 0.9);
+  background: transparent;
+}
+.app-actions .ui-button--ghost:hover,
+.app-actions .ui-button:hover {
+  background: rgb(255 255 255 / 0.12);
+  color: var(--white);
+}
+.app-actions .ui-button:focus-visible { outline-color: var(--marker); }
 
 .app-content {
   flex: 1;
   width: 100%;
   max-width: var(--measure);
   margin: auto;
-  padding: clamp(2rem, 4vw, 3.25rem) clamp(1rem, 3vw, 2.5rem) 5rem;
+  padding: var(--s-7) var(--gutter) var(--s-8);
 }
 .app-content--bleed {
   flex: 1;
@@ -276,74 +444,86 @@ h1, h2, h3, h4 {
   flex-direction: column;
 }
 
+/* Footer is a solid Negro band — it closes the page the way the signature
+   opens it. */
 .app-footer {
   display: flex;
   justify-content: space-between;
   gap: var(--s-4);
   flex-wrap: wrap;
-  border-top: 1px solid var(--line);
-  background: transparent;
-  color: var(--ink-soft);
-  padding: var(--s-5) max(clamp(1rem, 3vw, 2.5rem), calc((100% - var(--measure)) / 2));
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  background: var(--black);
+  color: rgb(255 255 255 / 0.78);
+  padding: var(--s-6) max(var(--gutter), calc((100% - var(--measure)) / 2));
+  font-size: var(--t-small);
+  line-height: 1.5;
 }
+.app-footer a { color: var(--white); text-decoration: underline; text-underline-offset: 2px; }
+.app-footer__links { display: flex; gap: var(--s-4); flex-wrap: wrap; }
 
 /* ── Page rhythm ───────────────────────────────────────────────────────── */
 
-.page-stack { display: grid; gap: clamp(3.5rem, 5vw, 5rem); }
+/* Sections are separated by space alone. No entrance animation: arriving at
+   a page is a routine act, and the manual keeps motion functional (§16). */
+.page-stack { display: grid; gap: var(--s-8); }
 .page-stack--tight { gap: var(--s-5); }
 
-@keyframes band-rise {
-  from { opacity: 0; translate: 0 10px; }
-  to { opacity: 1; translate: 0 0; }
+/* The title block is the one loud element on the page. A solid Amarillo
+   rule anchors it to the left grid line; everything below stays quiet. */
+.page-header,
+.hero__lead,
+.explore-head__title {
+  padding-top: var(--s-4);
+  border-top: 6px solid var(--marker);
+}
+.page-header {
+  display: grid;
+  gap: var(--s-4);
+  max-width: 46rem;
 }
 
-.page-stack > * { animation: band-rise 420ms cubic-bezier(0.2, 0, 0, 1) both; }
-.page-stack > *:nth-child(2) { animation-delay: 70ms; }
-.page-stack > *:nth-child(3) { animation-delay: 140ms; }
-.page-stack > *:nth-child(4) { animation-delay: 210ms; }
-.page-stack > *:nth-child(n + 5) { animation-delay: 280ms; }
-
-.page-header { display: grid; gap: var(--s-4); max-width: 52rem; }
-
+/* Held for compatibility. Uppercase labels above every heading are template
+   chrome, so this renders as plain emphasis rather than a tracked-out cap
+   line — the caps belong to the title itself. */
 .eyebrow {
-  font-size: var(--t-micro);
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--brand);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
 }
 
 .page-title {
-  font-size: clamp(2.15rem, 4.2vw, 3.4rem);
-  line-height: 1.04;
-  letter-spacing: -0.032em;
-  text-wrap: balance;
+  font-size: clamp(2.5rem, 6vw, 4.25rem);
+  line-height: 0.94;
+  letter-spacing: 0;
 }
-.page-title--sm { font-size: clamp(1.6rem, 3vw, 2.1rem); line-height: 1.1; }
+.page-title--sm { font-size: clamp(1.75rem, 3.5vw, 2.5rem); line-height: 1; }
 
 .page-intro {
   margin: 0;
   color: var(--ink-soft);
   font-size: 1.0625rem;
-  line-height: 1.65;
-  max-width: 58ch;
+  line-height: 1.5;
+  max-width: 66ch;
+  text-wrap: pretty;
 }
 
 /* Hero: title left, live counts right — the width earns its keep. */
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(17rem, 0.85fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
+  gap: var(--s-7);
   align-items: start;
 }
 .hero__lead { display: grid; gap: var(--s-4); align-content: start; }
+.hero .stat-block { margin-top: calc(var(--s-4) + 6px); }
 
+/* Counts read as a ledger: flush labels, right-aligned figures on a shared
+   decimal column, ruled rows. It is a solid band, not a floating card. */
 .stat-block {
-  background: var(--card);
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
+  background: var(--band);
+  color: var(--band-ink);
+  border-radius: 0;
   padding: var(--s-2) var(--s-5);
   display: grid;
 }
@@ -353,30 +533,29 @@ h1, h2, h3, h4 {
   justify-content: space-between;
   gap: var(--s-4);
   padding: var(--s-4) 0;
-  border-bottom: 1px solid var(--line-soft);
+  border-bottom: 1px solid rgb(46 45 44 / 0.14);
 }
+[data-theme='dark'] .stat-block__row { border-bottom-color: rgb(255 255 255 / 0.14); }
 .stat-block__row:last-child { border-bottom: 0; }
 .stat-block__label {
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
+  font-size: var(--t-small);
   color: var(--ink-soft);
 }
+[data-theme='dark'] .stat-block__label { color: rgb(255 255 255 / 0.72); }
 .stat-block__value {
-  font-family: var(--font-title);
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1;
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 0.96;
   font-variant-numeric: tabular-nums;
 }
 
 /* Search: one solid field group, not a bare line. */
 .hero-search { display: grid; gap: var(--s-2); }
 .hero-search__label {
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  font-size: var(--t-small);
+  font-weight: 600;
   color: var(--ink-soft);
 }
 .hero-search__line {
@@ -384,15 +563,14 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: var(--s-2);
   background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
   padding: var(--s-2);
-  box-shadow: var(--e-1);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 .hero-search__line:focus-within {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--brand-tint);
+  border-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--marker);
 }
 .hero-search__line .ui-input,
 .hero-search__line .text-input {
@@ -409,25 +587,41 @@ h1, h2, h3, h4 {
 
 .section { display: grid; gap: var(--s-5); }
 
+/* Section titles carry a hairline that runs the full width, so the page
+   reads as a stack of ruled registers rather than a pile of cards. */
 .section-head {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--s-4);
+  padding-bottom: var(--s-3);
+  border-bottom: 2px solid var(--ink);
 }
-.section-head h2 { font-size: clamp(1.35rem, 2vw, 1.7rem); letter-spacing: -0.028em; }
+.section-head h2 {
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  letter-spacing: 0;
+}
+
+/* A result count is a number, not a pastilla — pastillas carry status. */
+.section-head__count {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 
 .section-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1);
-  text-decoration: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
   font-size: var(--t-small);
-  color: var(--brand);
+  font-weight: 600;
+  color: var(--accent);
   white-space: nowrap;
-  transition: color 160ms ease, gap 180ms ease;
+  transition: color 160ms ease, text-decoration-thickness 160ms ease;
 }
-.section-link:hover { color: var(--brand-hover); gap: 0.6rem; }
+.section-link:hover { color: var(--accent-hover); text-decoration-thickness: 2px; }
 
 .muted { color: var(--ink-soft); }
 
@@ -439,10 +633,12 @@ h1, h2, h3, h4 {
   gap: var(--s-5);
 }
 .card-grid--wide {
-  grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr));
 }
 
-/* Resource entry */
+/* Resource entry. Borders give the structure; nothing lifts off the page.
+   Hover darkens the frame and thickens the format block — a change you can
+   see without motion. */
 .resource-card {
   position: relative;
   height: 100%;
@@ -450,41 +646,47 @@ h1, h2, h3, h4 {
   flex-direction: column;
   gap: var(--s-3);
   padding: var(--s-5);
+  padding-top: calc(var(--s-5) + 4px);
   background: var(--card);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   text-decoration: none;
   overflow: hidden;
-  transition-property: translate, box-shadow;
-  transition-duration: 200ms;
-  transition-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
+  transition-property: border-color, background-color;
+  transition-duration: 160ms;
+  transition-timing-function: ease;
 }
-/* Format is the card's colour key: blue report, amber board, coral map. */
+/* Format is the card's colour key: sky for reports, Amarillo for boards,
+   Verde for maps. The alert reds are never spent on a content type. */
 .resource-card::before {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
   height: 4px;
-  background: var(--blue);
+  background: var(--sky-dark);
+  transition: height 160ms ease;
 }
-.resource-card[data-formato='tablero']::before { background: var(--amber); }
-.resource-card[data-formato='mapa']::before { background: var(--coral); }
-.resource-card:hover { translate: 0 -3px; box-shadow: var(--e-2); }
-.resource-card:hover h3 { color: var(--brand-hover); }
+.resource-card[data-formato='tablero']::before { background: var(--yellow); }
+.resource-card[data-formato='mapa']::before { background: var(--green); }
+.resource-card:hover { border-color: var(--ink); background: var(--fill); }
+.resource-card:hover::before { height: 6px; }
+.resource-card:hover h3 { text-decoration: underline; text-underline-offset: 3px; }
 
 .resource-card h3 {
-  font-size: 1.15rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-transform: none;
+  font-size: 1.125rem;
   line-height: 1.25;
-  letter-spacing: -0.022em;
+  letter-spacing: 0;
   text-wrap: balance;
-  transition: color 160ms ease;
 }
 .resource-card p {
   margin: 0;
   color: var(--ink-soft);
   font-size: var(--t-small);
-  line-height: 1.6;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 
 .resource-card__top,
@@ -505,9 +707,9 @@ h1, h2, h3, h4 {
   align-items: flex-start;
   gap: 3px;
   font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ink-faint);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-soft);
 }
 .resource-card__footer > span:last-child {
   display: inline-flex;
@@ -522,7 +724,8 @@ h1, h2, h3, h4 {
 }
 .resource-card__access svg { color: var(--warn); }
 
-/* Browse card: topic, level, format */
+/* Browse card: topic, level, format. The icon block is a solid square of
+   palette colour — the manual's own device — not a tinted rounded chip. */
 .browse-card {
   height: 100%;
   display: flex;
@@ -530,143 +733,195 @@ h1, h2, h3, h4 {
   gap: var(--s-2);
   padding: var(--s-5);
   background: var(--card);
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
-  text-decoration: none;
-  transition-property: translate, box-shadow;
-  transition-duration: 200ms;
-  transition-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
-}
-.browse-card:hover { translate: 0 -3px; box-shadow: var(--e-2); }
-.browse-card__icon {
-  width: 38px;
-  height: 38px;
-  display: grid;
-  place-items: center;
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: var(--brand-tint);
-  color: var(--brand-hover);
-  margin-bottom: var(--s-2);
+  text-decoration: none;
+  transition-property: border-color, background-color;
+  transition-duration: 160ms;
+  transition-timing-function: ease;
 }
-.browse-card__icon[data-tone='amber'] { background: var(--warn-tint); color: var(--warn); }
-.browse-card__icon[data-tone='coral'] { background: var(--danger-tint); color: var(--danger); }
+.browse-card:hover { border-color: var(--ink); background: var(--fill); }
+.browse-card:hover .browse-card__name { text-decoration: underline; text-underline-offset: 3px; }
+/* The illustration sits on the card itself rather than inside a tinted
+   chip: the drawing is the identifier, so it does not need a container. */
+.browse-card__marca {
+  display: block;
+  margin-bottom: var(--s-3);
+  color: var(--ink);
+}
+.marca-tematica { display: block; width: 64px; height: 64px; }
+
+/* The trajectory draws itself once, then stays. Hovering the card replays
+   it — that is a deliberate action, not ambient motion. */
+.marca-tematica__trazo {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: trazo-dibujo 900ms cubic-bezier(0.2, 0, 0, 1) 200ms forwards;
+}
+.browse-card:hover .marca-tematica__trazo {
+  animation: trazo-redibujo 900ms cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+@keyframes trazo-dibujo {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes trazo-redibujo {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marca-tematica__trazo,
+  .browse-card:hover .marca-tematica__trazo {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
 .browse-card__name {
-  font-family: var(--font-title);
+  font-family: var(--font-body);
   font-size: 1.0625rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.25;
 }
 .browse-card__note {
   flex: 1;
   font-size: var(--t-small);
   color: var(--ink-soft);
-  line-height: 1.55;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 .browse-card__count {
   margin-top: auto;
   padding-top: var(--s-4);
   border-top: 1px solid var(--line-soft);
-  font-family: var(--font-title);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
-.browse-card:hover .browse-card__count { color: var(--brand); }
 
-/* Compact pill list — levels and other short taxonomies */
+/* Compact taxonomy list. Square, not pill — the manual's geometry is
+   rectangular, and pills are reserved for the badge component. */
 .chip-grid { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .chip {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
-  padding: 0.6rem 1rem;
+  padding: 0.55rem 0.875rem;
   background: var(--card);
-  border-radius: var(--r-pill);
-  box-shadow: var(--e-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   text-decoration: none;
   font-size: var(--t-small);
   font-weight: 600;
-  transition: box-shadow 180ms ease, color 160ms ease;
+  transition: border-color 160ms ease, background-color 160ms ease;
 }
-.chip:hover { color: var(--brand-hover); box-shadow: var(--e-2); }
+.chip:hover { border-color: var(--ink); background: var(--fill); }
 .chip__count {
-  font-family: var(--font-title);
+  font-family: var(--font-body);
   font-size: var(--t-micro);
   font-weight: 600;
-  color: var(--ink-faint);
-  background: var(--fill);
-  border-radius: var(--r-pill);
-  padding: 0.1rem 0.45rem;
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 
 /* ── Badges ────────────────────────────────────────────────────────────── */
 
+/* Pastillas — Manual §7. One line, short, an icon alongside where the
+   meaning needs one. Rectangular and solid; the tinted surface carries a
+   left keyline so the state is never colour alone (§15). */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  border-radius: var(--r-pill);
-  background: var(--brand-tint);
-  color: var(--brand-hover);
-  padding: 0.28rem 0.6rem;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+  border-radius: var(--r-xs);
+  background: var(--info-tint);
+  color: var(--info);
+  border-left: 3px solid currentColor;
+  padding: 0.125rem 0.5rem;
+  font-family: var(--font-body);
+  font-weight: 700;
   font-size: var(--t-micro);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
   white-space: nowrap;
 }
+.badge svg { flex-shrink: 0; }
 .badge--neutral { background: var(--fill); color: var(--ink-soft); }
 .badge--locked { background: var(--warn-tint); color: var(--warn); }
 .badge--success { background: var(--ok-tint); color: var(--ok); }
 .badge--warning { background: var(--warn-tint); color: var(--warn); }
-.badge--danger { background: var(--danger-tint); color: var(--danger); }
+.badge--danger { background: var(--danger-tint); color: var(--danger-ink); }
+
+/* The institutional pastilla at the size the manual specifies, for
+   composed pieces rather than dense tables. */
+.badge--lg {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.875rem;
+  font-size: var(--t-small);
+}
 
 /* ── Buttons ───────────────────────────────────────────────────────────── */
 
+/* Manual §12: flat, direct, high contrast. 44px minimum target, no
+   gradient, no decorative shadow. Primary is Negro institucional. */
 .ui-button {
-  border: 0;
-  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
   min-height: 44px;
-  padding: 0.6rem 1.1rem;
+  padding: 0.6rem 1.125rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.5rem;
   cursor: pointer;
   font-family: var(--font-body);
   font-size: var(--t-small);
   font-weight: 600;
   text-decoration: none;
   white-space: nowrap;
-  transition-property: background-color, color, box-shadow, scale;
+  transition-property: background-color, border-color, color, scale;
   transition-duration: 150ms;
+  transition-timing-function: ease;
 }
 .ui-button:active { scale: 0.96; }
-.ui-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.ui-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.ui-button--default { background: var(--brand); color: #fff; }
-.ui-button--default:hover { background: var(--brand-hover); }
+.ui-button--default { background: var(--action); border-color: var(--action); color: var(--white); }
+.ui-button--default:hover { background: var(--action-hover); border-color: var(--action-hover); }
 
 .ui-button--secondary {
   background: var(--card);
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-color: var(--ink);
 }
-.ui-button--secondary:hover { box-shadow: inset 0 0 0 1px var(--blue); color: var(--brand-hover); }
+.ui-button--secondary:hover { background: var(--fill); }
 
 .ui-button--ghost { background: transparent; color: var(--ink-soft); }
 .ui-button--ghost:hover { background: var(--fill); color: var(--ink); }
 
-.ui-button--destructive { background: var(--danger); color: #fff; }
-.ui-button--destructive:hover { background: var(--maroon); }
+.ui-button--destructive { background: var(--burgundy); border-color: var(--burgundy); color: var(--white); }
+.ui-button--destructive:hover { background: #4d0402; border-color: #4d0402; }
 
-.ui-button--sm { min-height: 34px; padding: 0.35rem 0.7rem; font-size: var(--t-micro); border-radius: var(--r-sm); }
+.ui-button--sm { min-height: 36px; padding: 0.35rem 0.7rem; font-size: var(--t-micro); }
 .ui-button--icon { width: 44px; padding: 0; }
-.ui-button--sm.ui-button--icon { width: 34px; }
+.ui-button--sm.ui-button--icon { width: 36px; }
+
+/* Icons beside a 600-weight label carry the label's optical weight
+   (Manual §6 sets the 24px grid and a 1.7 stroke). */
+.ui-button svg,
+.section-link svg,
+.app-nav svg {
+  stroke-width: 1.7;
+  flex-shrink: 0;
+}
 
 /* ── Fields ────────────────────────────────────────────────────────────── */
 
@@ -674,23 +929,23 @@ h1, h2, h3, h4 {
 .ui-field { display: flex; flex-direction: column; gap: var(--s-2); }
 .ui-field__control { min-width: 0; }
 .ui-field__description { font-size: var(--t-small); color: var(--ink-soft); }
-.ui-field__error { font-size: var(--t-small); color: var(--danger); }
+.ui-field__error { font-size: var(--t-small); font-weight: 600; color: var(--danger-ink); }
 
 .ui-input, .text-input {
   width: 100%;
   min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--r-sm);
   background: var(--card);
   color: var(--ink);
   padding: 0.6rem 0.8rem;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
-.ui-input:hover, .text-input:hover { border-color: var(--blue-light); }
+.ui-input:hover, .text-input:hover { border-color: var(--ink); }
 .ui-input:focus, .text-input:focus {
   outline: none;
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--brand-tint);
+  border-color: var(--ink);
+  box-shadow: inset 0 -3px 0 var(--marker);
 }
 .ui-input::placeholder { color: var(--ink-faint); }
 .ui-textarea { min-height: 108px; resize: vertical; }
@@ -710,14 +965,14 @@ h1, h2, h3, h4 {
   display: inline-grid;
   place-items: center;
   background: var(--card);
-  border: 1px solid var(--line);
+  border: 1px solid var(--ink-faint);
   border-radius: var(--r-xs);
-  color: #fff;
+  color: var(--white);
 }
 .ui-radio__control { border-radius: 50%; }
 .ui-checkbox__control[data-checked],
 .ui-checkbox__control[data-indeterminate],
-.ui-radio__control[data-checked] { background: var(--brand); border-color: var(--brand); }
+.ui-radio__control[data-checked] { background: var(--action); border-color: var(--action); }
 .ui-checkbox__indicator, .ui-radio__indicator { display: none; }
 .ui-checkbox__indicator[data-checked],
 .ui-checkbox__indicator[data-indeterminate],
@@ -734,7 +989,7 @@ h1, h2, h3, h4 {
   flex-shrink: 0;
   transition: background-color 160ms ease;
 }
-.ui-switch__root[data-checked] { background: var(--brand); border-color: var(--brand); }
+.ui-switch__root[data-checked] { background: var(--action); border-color: var(--action); }
 .ui-switch__thumb {
   position: absolute;
   top: 2px;
@@ -743,7 +998,7 @@ h1, h2, h3, h4 {
   height: 18px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 1px 2px rgb(42 12 10 / 0.2);
+  box-shadow: 0 1px 2px rgb(46 45 44 / 0.25);
   transition-property: translate;
   transition-duration: 160ms;
 }
@@ -769,16 +1024,15 @@ h1, h2, h3, h4 {
   color: var(--ink-soft);
   font-size: var(--t-small);
   line-height: 1.5;
-  max-width: 36ch;
-  text-align: right;
+  max-width: 44ch;
+  text-align: left;
 }
 
 .explore-controls {
   display: grid;
   gap: var(--s-3);
-  background: var(--card);
-  border-radius: var(--r-xl);
-  box-shadow: var(--e-1);
+  background: var(--band);
+  border-radius: var(--r-sm);
   padding: var(--s-3);
 }
 .explore-bar { display: flex; align-items: center; gap: var(--s-2); }
@@ -804,10 +1058,10 @@ h1, h2, h3, h4 {
 .filters { display: flex; gap: var(--s-4); flex-wrap: wrap; align-items: end; }
 .filter-field { display: grid; gap: var(--s-2); min-width: 11rem; flex: 1 1 11rem; }
 .filter-field label {
-  font-size: var(--t-micro);
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+  font-size: var(--t-small);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
 }
 
 .ui-select-trigger {
@@ -819,14 +1073,14 @@ h1, h2, h3, h4 {
   gap: var(--s-3);
   background: var(--card);
   color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--r-sm);
   padding: 0.6rem 0.8rem;
   font-size: var(--t-small);
   cursor: pointer;
   transition: border-color 160ms ease;
 }
-.ui-select-trigger:hover { border-color: var(--blue-light); }
+.ui-select-trigger:hover { border-color: var(--ink); }
 
 .active-filters {
   display: flex;
@@ -842,14 +1096,13 @@ h1, h2, h3, h4 {
 .ui-dialog-backdrop {
   position: fixed;
   inset: 0;
-  background: rgb(42 12 10 / 0.45);
-  backdrop-filter: blur(2px);
+  background: rgb(46 45 44 / 0.55);
   transition: opacity 180ms ease-out;
 }
 .ui-dialog-viewport {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: var(--s-4);
@@ -860,8 +1113,8 @@ h1, h2, h3, h4 {
   max-height: min(45rem, calc(100vh - 2rem));
   overflow: auto;
   background: var(--card);
-  border-radius: var(--r-xl);
-  box-shadow: var(--e-3);
+  border-radius: var(--r-lg);
+  box-shadow: var(--e-modal);
   padding: clamp(1.5rem, 4vw, 2rem);
 }
 .ui-dialog-popup h2 { font-size: 1.4rem; }
@@ -884,13 +1137,13 @@ h1, h2, h3, h4 {
 .ui-alert-dialog-popup { max-width: 28rem; }
 .ui-alert-dialog__action { cursor: pointer; }
 
-.ui-menu-positioner, .ui-select-positioner { z-index: 90; }
+.ui-menu-positioner, .ui-select-positioner { z-index: var(--z-popup); }
 .ui-menu-popup, .ui-select-popup {
   min-width: 12rem;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  box-shadow: var(--e-3);
+  box-shadow: var(--e-modal);
   padding: var(--s-1);
 }
 .ui-menu-item, .ui-select-item {
@@ -905,11 +1158,11 @@ h1, h2, h3, h4 {
   outline: none;
 }
 .ui-menu-item[data-highlighted], .ui-select-item[data-highlighted] {
-  background: var(--brand-tint);
-  color: var(--brand-hover);
+  background: var(--ink);
+  color: var(--page);
 }
 
-.ui-tooltip-positioner { z-index: 95; }
+.ui-tooltip-positioner { z-index: var(--z-tooltip); }
 .ui-tooltip-popup {
   max-width: 16rem;
   background: var(--ink);
@@ -919,12 +1172,12 @@ h1, h2, h3, h4 {
   font-size: var(--t-micro);
 }
 
-.ui-sheet-backdrop { position: fixed; inset: 0; background: rgb(42 12 10 / 0.45); z-index: 70; }
-.ui-sheet-viewport { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
+.ui-sheet-backdrop { position: fixed; inset: 0; background: rgb(46 45 44 / 0.55); z-index: var(--z-overlay); }
+.ui-sheet-viewport { position: fixed; inset: 0; z-index: calc(var(--z-overlay) + 5); pointer-events: none; }
 .ui-sheet {
   position: absolute;
   background: var(--card);
-  box-shadow: var(--e-3);
+  box-shadow: var(--e-modal);
   display: flex;
   flex-direction: column;
   pointer-events: auto;
@@ -938,7 +1191,7 @@ h1, h2, h3, h4 {
   right: 0;
   max-height: 80vh;
   margin-top: auto;
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
 .ui-sheet h2 { padding: var(--s-5) var(--s-5) 0; font-size: 1.25rem; }
 .ui-sheet-close {
@@ -983,7 +1236,7 @@ h1, h2, h3, h4 {
 .breadcrumbs li:not(:last-child)::after { content: '/'; margin-left: var(--s-1); color: var(--ink-faint); }
 .breadcrumb__item { display: inline-flex; align-items: center; }
 .breadcrumb__link { text-decoration: none; color: var(--ink-soft); }
-.breadcrumb__link:hover { color: var(--brand); }
+.breadcrumb__link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .breadcrumb__page { color: var(--ink); }
 .breadcrumb__separator { display: inline-flex; align-items: center; color: var(--ink-faint); }
 
@@ -1182,10 +1435,9 @@ h1, h2, h3, h4 {
 .empty-state {
   padding: clamp(2.5rem, 6vw, 4rem) var(--s-4);
   text-align: center;
-  background: var(--card);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
+  background: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   display: grid;
   justify-items: center;
   gap: var(--s-3);
@@ -1195,20 +1447,22 @@ h1, h2, h3, h4 {
 
 /* ── Auth ──────────────────────────────────────────────────────────────── */
 
-.auth-wrap { display: flex; justify-content: center; padding: clamp(1rem, 4vw, 2.5rem) 0 4rem; }
+.auth-wrap { display: flex; justify-content: center; padding: var(--s-7) 0 var(--s-8); }
+/* Bordered, with an Amarillo bar on top. The card does not float: the page
+   is not a stack of planes (Manual §11). */
 .auth-card {
   width: 100%;
   max-width: 26rem;
   display: grid;
   gap: var(--s-5);
   background: var(--card);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-2);
+  border: 1px solid var(--line);
+  border-top: 6px solid var(--marker);
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
   padding: clamp(1.75rem, 4vw, 2.5rem);
 }
 .auth-header { display: grid; gap: var(--s-2); }
-.auth-intro { margin: 0; color: var(--ink-soft); line-height: 1.6; }
+.auth-intro { margin: 0; color: var(--ink-soft); line-height: 1.5; }
 .auth-form { display: grid; gap: var(--s-5); }
 .auth-form .ui-button { width: 100%; }
 
@@ -1229,20 +1483,20 @@ h1, h2, h3, h4 {
 .admin-sidebar {
   align-self: start;
   position: sticky;
-  top: 92px;
+  top: calc(var(--header-h) + var(--s-4));
   display: grid;
   gap: var(--s-5);
   background: var(--card);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
   padding: var(--s-5);
 }
 .admin-sidebar__title {
-  font-family: var(--font-title);
-  font-weight: 700;
-  font-size: 1.15rem;
-  letter-spacing: -0.025em;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.25rem;
+  letter-spacing: 0;
 }
 .admin-sidebar__section { display: grid; gap: 2px; }
 .admin-sidebar__section .eyebrow { font-size: 0.6875rem; margin-bottom: var(--s-2); color: var(--ink-faint); }
@@ -1280,15 +1534,14 @@ h1, h2, h3, h4 {
   line-height: 1.5;
 }
 .ui-messagebar--error { background: var(--danger-tint); color: var(--danger); }
-.ui-messagebar--info { background: var(--brand-tint); color: var(--brand-hover); }
+.ui-messagebar--info { background: var(--info-tint); color: var(--info); }
 .ui-messagebar__title { font-weight: 700; display: block; }
 
 .ui-table-wrap {
   overflow: auto;
   background: var(--card);
-  border: 0;
-  border-radius: var(--r-lg);
-  box-shadow: var(--e-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
 }
 .ui-table { width: 100%; border-collapse: collapse; font-size: var(--t-small); background: none; }
 .ui-table th, .ui-table td {
@@ -1352,23 +1605,23 @@ h1, h2, h3, h4 {
   display: inline-flex;
   flex-wrap: wrap;
   gap: var(--s-1);
-  background: var(--card);
-  border-radius: var(--r-pill);
-  box-shadow: var(--e-1);
-  padding: var(--s-1);
+  border-bottom: 2px solid var(--line);
+  gap: 0;
+  padding: 0;
 }
 .ui-tabs-tab {
   border: 0;
   background: transparent;
   color: var(--ink-soft);
   font-size: var(--t-small);
-  padding: 0.5rem 1rem;
-  border-radius: var(--r-pill);
+  padding: 0.6rem 1rem;
+  margin-bottom: -2px;
+  border-bottom: 3px solid transparent;
   cursor: pointer;
-  transition: background-color 160ms ease, color 160ms ease;
+  transition: color 160ms ease, border-color 160ms ease;
 }
 .ui-tabs-tab:hover { color: var(--ink); }
-.ui-tabs-tab[data-selected] { background: var(--brand); color: #fff; box-shadow: none; }
+.ui-tabs-tab[data-selected] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
 .ui-tabs-panel { min-width: 0; padding-top: var(--s-5); }
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
@@ -1378,12 +1631,11 @@ h1, h2, h3, h4 {
 .map-panel {
   position: absolute;
   z-index: 2;
-  background: color-mix(in srgb, var(--card) 95%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--card);
   color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--e-2);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
   padding: 0.7rem 0.95rem;
   font-size: var(--t-small);
   line-height: 1.5;
@@ -1402,12 +1654,11 @@ h1, h2, h3, h4 {
   width: min(17.5rem, calc(100vw - 24px));
 }
 .map-control-card {
-  background: color-mix(in srgb, var(--card) 95%, transparent);
-  backdrop-filter: blur(10px);
+  background: var(--card);
   color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--e-2);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
   padding: 0.7rem 0.95rem;
   font-size: var(--t-small);
 }
@@ -1442,10 +1693,17 @@ h1, h2, h3, h4 {
   color: var(--ink);
   padding: var(--s-3);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
 }
-.map-popup-title { font-family: var(--font-title); font-weight: 700; font-size: 1rem; margin: 0 0 var(--s-1); }
+.map-popup-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.0625rem;
+  line-height: 1;
+  margin: 0 0 var(--s-2);
+}
 .map-popup-row { margin: 2px 0; }
 .map-popup-muted { color: var(--ink-soft); }
 .map-popup-rule { margin: var(--s-2) 0; border: 0; border-top: 1px solid var(--line-soft); }
@@ -1504,8 +1762,9 @@ h1, h2, h3, h4 {
 }
 .map-alerta-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .map-alerta-row-active {
-  border-color: var(--brand);
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  border-color: var(--ink);
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 var(--marker);
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
@@ -1543,7 +1802,14 @@ h1, h2, h3, h4 {
 }
 
 @media (max-width: 760px) {
-  .app-brand__text small,
+  :root { --header-h: 133px; }
+  .app-signature .app-signature__mark { display: none; }
+  [data-theme='dark'] .app-signature .app-signature__mark--inv { display: none; }
+  .app-signature .app-signature__compact { display: flex; }
+  .app-signature__reparticiones { display: none; }
+  .app-signature__aside { display: none; }
+  .app-brand { border-right: 0; padding-right: 0; }
+  .app-brand__text { font-size: 1.125rem; }
   .app-nav,
   .app-actions__name { display: none; }
   .app-mobile { display: inline-flex; }
@@ -1586,10 +1852,10 @@ h1, h2, h3, h4 {
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --severidad-baja: #90b4e1;
-  --severidad-media: #facd05;
-  --severidad-alta: #e58a2b;
-  --severidad-critica: #f4492e;
+  --severidad-baja: var(--sky);
+  --severidad-media: var(--yellow);
+  --severidad-alta: var(--orange);
+  --severidad-critica: var(--red);
 }
 
 .formulario-problematica {
@@ -1624,7 +1890,7 @@ h1, h2, h3, h4 {
   font-family: var(--font-title);
   font-weight: 700;
   font-size: 1.0625rem;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   line-height: 1.25;
   color: var(--ink);
 }
@@ -1645,8 +1911,8 @@ h1, h2, h3, h4 {
 .formulario-problematica__impacto-preliminar {
   padding: var(--s-3) var(--s-4);
   border-radius: var(--r-sm);
-  background: var(--brand-tint);
-  border: 1px solid var(--blue-light);
+  background: var(--info-tint);
+  border-left: 4px solid var(--info);
 }
 
 .formulario-problematica__impacto-preliminar p { font-size: var(--t-small); color: var(--ink); margin: 0; }
@@ -1740,10 +2006,10 @@ h1, h2, h3, h4 {
   min-height: 32px;
   padding: 0 0.6rem;
   border: 0;
-  border-radius: var(--r-pill);
+  border-radius: var(--r-sm);
   background: transparent;
-  color: var(--brand);
-  font-family: var(--font-title);
+  color: var(--accent);
+  font-family: var(--font-body);
   font-size: var(--t-micro);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -1752,7 +2018,7 @@ h1, h2, h3, h4 {
   transition-property: background-color, color;
   transition-duration: 140ms;
 }
-.secciones-selector__toggle:hover { background: var(--brand-tint); color: var(--brand-hover); }
+.secciones-selector__toggle:hover { background: var(--fill); color: var(--accent-hover); }
 .secciones-selector__toggle svg { transition: rotate 200ms ease; }
 .secciones-selector__toggle[aria-expanded='true'] svg { rotate: 180deg; }
 
@@ -1806,24 +2072,60 @@ h1, h2, h3, h4 {
 }
 
 .publico-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
   border-bottom: 1px solid var(--line);
   background: var(--card);
 }
 
 .publico-header__inner {
-  /* Mismo ancho que .publico-content para que el título institucional comparta
-     borde izquierdo con el formulario. Con var(--measure) (1320px) el título
-     quedaba flotando a la izquierda del contenido en pantallas anchas. */
-  max-width: 640px;
+  /* Same width as .publico-content so the signature shares its left edge
+     with the form. var(--measure) left it stranded on wide screens. */
+  /* The padding is added to the width so the signature's left edge lands on
+     the form's border, not 24px inside it. */
+  max-width: calc(640px + 2 * clamp(1rem, 3vw, 2.5rem));
   margin: 0 auto;
-  padding: var(--s-4) clamp(1rem, 3vw, 2.5rem);
+  padding: var(--s-3) clamp(1rem, 3vw, 2.5rem);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
 }
 
 .publico-header__title {
-  font-family: var(--font-title);
-  font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: -0.02em;
+  margin-left: auto;
+  padding-left: var(--s-4);
+  border-left: 1px solid var(--line);
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 1.125rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.publico-footer {
+  border-top: 1px solid var(--line);
+  padding: var(--s-5) clamp(1rem, 3vw, 2.5rem);
+  text-align: center;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+@media (max-width: 560px) {
+  .publico-header__inner { gap: var(--s-3); }
+  .publico-header__title { display: none; }
+}
+
+/* The horizontal signature needs ~303px at its 60px minimum. Below that it
+   is replaced by the isotipo at its own 40px minimum, never scaled down
+   past either figure (Manual §2.3). */
+@media (max-width: 420px) {
+  .publico-header .app-signature__mark { display: none; }
+  [data-theme='dark'] .publico-header .app-signature__mark--inv { display: none; }
+  .publico-header .app-signature__compact { display: flex; }
 }
 
 .publico-main {
@@ -1838,13 +2140,13 @@ h1, h2, h3, h4 {
   display: grid;
   gap: var(--s-2);
   background: var(--card);
-  border-radius: var(--r-xl);
-  box-shadow: var(--e-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
 }
 
 .publico-content__title {
-  font-size: clamp(1.4rem, 3vw, 1.8rem);
-  letter-spacing: -0.025em;
+  font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+  letter-spacing: 0;
   margin-bottom: var(--s-2);
 }
 

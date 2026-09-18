@@ -4,7 +4,7 @@ import type { Semaforo } from '@/lib/sobreoferta'
 export const COPY = {
   title: {
     description:
-      'Establecimientos y zonas de ~20 km. Clic para ver la matrícula; en Capas podés activar Sobreoferta escolar (demanda vs edificios).',
+      'Establecimientos y zonas de ~20 km. Hacer clic muestra la matrícula; en Capas se puede activar Sobreoferta escolar (demanda vs edificios).',
   },
 
   legend: {

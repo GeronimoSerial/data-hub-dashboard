@@ -90,7 +90,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
     evento.preventDefault()
     if (enviando || enviandoRef.current) return
     if (!motivo || !severidad || seccionesSeleccionadas.length === 0) {
-      setError('Completá motivo, severidad y al menos una sección para registrar.')
+      setError('Complete motivo, severidad y al menos una sección para registrar.')
       return
     }
     enviandoRef.current = true
@@ -111,7 +111,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
         }),
       })
       if (!respuesta.ok) {
-        let mensaje = 'No se pudo guardar. Los datos ingresados se mantuvieron, podés reintentar.'
+        let mensaje = 'No se pudo guardar el registro. Los datos ingresados se mantuvieron; puede reintentar.'
         const cuerpo = await respuesta.json().catch(() => null)
         if (cuerpo?.error) mensaje = cuerpo.error
         enviandoRef.current = false
@@ -126,11 +126,11 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
       }
       enviandoRef.current = false
       setEnviando(false)
-      setError('No se pudo guardar. Los datos ingresados se mantuvieron, podés reintentar.')
+      setError('No se pudo guardar el registro. Los datos ingresados se mantuvieron; puede reintentar.')
     } catch {
       enviandoRef.current = false
       setEnviando(false)
-      setError('No se pudo guardar. Los datos ingresados se mantuvieron, podés reintentar.')
+      setError('No se pudo guardar el registro. Los datos ingresados se mantuvieron; puede reintentar.')
     }
   }
 
@@ -170,7 +170,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
           disabled={enviando}
         >
           <option value="" disabled>
-            Seleccioná un motivo
+            Seleccione un motivo
           </option>
           {MOTIVOS.map((m) => (
             <option key={m} value={m}>
@@ -190,7 +190,7 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos }: Formulari
           disabled={enviando}
         >
           <option value="" disabled>
-            Seleccioná una severidad
+            Seleccione una severidad
           </option>
           {SEVERIDADES.map((s) => (
             <option key={s} value={s}>
