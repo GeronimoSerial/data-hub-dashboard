@@ -2222,3 +2222,215 @@ time {
     box-shadow: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Estado actual del parte — pantalla inicial del director (spec §6, §17)
+
+   Tres reglas de contexto mandan sobre la estética acá: se lee desde un
+   teléfono, a veces durante una inundación, y quien lee no es una persona
+   técnica. De ahí los bloques grandes separados por una línea, el dato en
+   tamaño de titular y un solo botón oscuro por pantalla.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.estado-actual {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+
+/* Aviso de carga, de error y de acceso vencido. Bloque propio para que el
+   mensaje no se confunda con un dato del parte. */
+.estado-actual-aviso {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-4);
+  margin: var(--s-5) 0 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.estado-actual-aviso__texto {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+}
+
+/* ── Bloques del §6: servicio educativo, establecimiento, situación ─────── */
+
+.estado-actual-bloque {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.estado-actual-bloque__titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* El dato que el director vino a reconocer. Escala de titular, no de
+   párrafo: tiene que leerse de un vistazo y con el teléfono en la mano. */
+.estado-actual-bloque__valor {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.estado-actual-bloque__vigencia {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-bloque__vacio {
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--ink);
+  max-width: 46ch;
+}
+
+.estado-actual-bloque__accion {
+  margin-top: var(--s-1);
+}
+
+/* ── Afectaciones vigentes ─────────────────────────────────────────────── */
+
+.estado-actual-afectaciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  gap: var(--s-4);
+}
+
+.estado-actual-afectacion {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.estado-actual-afectacion__encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.estado-actual-afectacion__motivo {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Síntesis permanente de alcance (spec §9): "3 secciones · 74 alumnos". */
+.estado-actual-afectacion__alcance {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-afectacion__descripcion {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.estado-actual-afectacion__alumnos-resumen {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.estado-actual-afectacion__alumnos-lista {
+  margin: 0 0 var(--s-2);
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+/* ── Severidad ─────────────────────────────────────────────────────────────
+   Nunca sólo color: el nivel viaja escrito y además con una forma propia,
+   para que se distinga en escala de grises y para quien no discrimina
+   colores. El color es el tercer refuerzo, no el canal. */
+
+.estado-actual-severidad {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  white-space: nowrap;
+}
+
+.estado-actual-severidad__marca {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid rgb(128 128 128 / 0.55);
+}
+
+.estado-actual-severidad__marca--circulo { border-radius: var(--r-pill); }
+.estado-actual-severidad__marca--cuadrado { border-radius: 0; }
+.estado-actual-severidad__marca--rombo { border-radius: 0; rotate: 45deg; }
+.estado-actual-severidad__marca--triangulo {
+  border: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.estado-actual-severidad__texto {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Pie: última actualización y acciones ──────────────────────────────── */
+
+.estado-actual-pie {
+  display: grid;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.estado-actual-pie__actualizacion {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+/* Un solo botón oscuro por pantalla (§5.3). En el teléfono ocupa el ancho
+   completo para que sea imposible errarle. */
+.estado-actual-acciones__principal {
+  flex: 1 1 14rem;
+}
+
+@media (max-width: 480px) {
+  .estado-actual-acciones { flex-direction: column; align-items: stretch; }
+  .estado-actual-bloque__accion { width: 100%; }
+}
