@@ -23,3 +23,7 @@ tsconfig.tsbuildinfo
 .data/
 # Borrador superado por docs/alertas-infraestructura-batches.md
 plan.md
+
+# Paquete de marca original del Ministerio (22 MB). Los archivos que el
+# producto realmente usa viven versionados en public/marca/.
+Ministerio de Educación.zip

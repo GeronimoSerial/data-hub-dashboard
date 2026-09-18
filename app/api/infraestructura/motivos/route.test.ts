@@ -13,7 +13,7 @@ vi.mock('@/lib/session', () => ({
   staffGuard: (user: { banned: boolean; role: string } | null) => {
     if (!user) return { status: 401 as const, error: 'No autenticado' }
     if (user.banned || (user.role !== 'admin' && user.role !== 'editor')) {
-      return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+      return { status: 403 as const, error: 'No tiene acceso a este recurso' }
     }
     return null
   },

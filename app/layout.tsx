@@ -1,29 +1,61 @@
 import type { Metadata, Viewport } from 'next'
-import { Barlow, Inter } from 'next/font/google'
+import { Barlow, Barlow_Semi_Condensed, Montserrat } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 
+// Manual de Marca §4: Barlow is the system family. Regular and SemiBold for
+// reading and subheads, Bold for pastillas.
 const barlow = Barlow({
   subsets: ['latin'],
   variable: '--font-barlow',
   display: 'swap',
-  weight: ['500', '600', '700'],
+  weight: ['400', '500', '600', '700'],
 })
 
-const inter = Inter({
+// §4.1: titles are Barlow Semi Condensed ExtraBold, uppercase, tracking 0.
+const barlowSemiCondensed = Barlow_Semi_Condensed({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-barlow-condensed',
   display: 'swap',
+  weight: ['700', '800'],
+})
+
+// §4.4: Montserrat Bold carries a ministry denomination when it sits beside
+// the Gobierno de Corrientes mark — used only in the compact signature.
+const montserrat = Montserrat({
+  subsets: ['latin'],
+  variable: '--font-montserrat',
+  display: 'swap',
+  weight: ['700'],
 })
 
 export const metadata: Metadata = {
-  title: 'Hub de Datos · Análisis Educativo',
+  title: {
+    default: 'Hub de Datos · Ministerio de Educación de Corrientes',
+    template: '%s · Hub de Datos',
+  },
   description:
-    'Hub de Datos del sistema educativo de Corrientes: reportes, tableros y mapas para decidir con evidencia.',
+    'Reportes, tableros y mapas del sistema educativo de la Provincia de Corrientes, publicados por el Ministerio de Educación para el análisis y la toma de decisiones.',
+  applicationName: 'Hub de Datos',
+  icons: {
+    icon: '/marca/escudo.svg',
+    apple: '/marca/escudo.png',
+  },
+  openGraph: {
+    title: 'Hub de Datos · Ministerio de Educación de Corrientes',
+    description:
+      'Reportes, tableros y mapas del sistema educativo de la Provincia de Corrientes.',
+    locale: 'es_AR',
+    type: 'website',
+    siteName: 'Hub de Datos',
+  },
 }
 
 export const viewport: Viewport = {
-  themeColor: '#769fd3',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)', color: '#2e2d2c' },
+  ],
 }
 
 export default function RootLayout({
@@ -34,7 +66,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${barlow.variable} ${inter.variable}`}
+      className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable}`}
     >
       <body>
         <Providers>{children}</Providers>

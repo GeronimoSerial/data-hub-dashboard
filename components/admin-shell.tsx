@@ -8,7 +8,7 @@ const sections = [
   { label: 'Contenido', items: [{ label: 'Recursos', href: '/admin#recursos', icon: FolderKanban }] },
   { label: 'Organización', items: [
     { label: 'Categorías', href: '/admin#categorias', icon: Tags },
-    { label: 'Tags', href: '/admin#tags', icon: ListTree },
+    { label: 'Etiquetas', href: '/admin#tags', icon: ListTree },
     { label: 'Niveles', href: '/admin#niveles', icon: Layers3 },
     { label: 'Tipos', href: '/admin#tipos', icon: ListTree },
   ] },

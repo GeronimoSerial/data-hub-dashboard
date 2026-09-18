@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 function adminGuard(user: Awaited<ReturnType<typeof getSessionUser>>) {
   if (!user) return { status: 401 as const, error: 'No autenticado' }
   if (user.banned || user.role !== 'admin')
-    return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+    return { status: 403 as const, error: 'No tiene acceso a este recurso' }
   return null
 }
 

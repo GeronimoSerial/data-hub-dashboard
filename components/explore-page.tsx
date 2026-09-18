@@ -77,9 +77,9 @@ export function ExplorePage() {
       <header className="explore-head">
         <div className="explore-head__title">
           <span className="eyebrow">Catálogo público</span>
-          <h1 className="page-title page-title--sm">Explorá información educativa</h1>
+          <h1 className="page-title page-title--sm">Recursos educativos</h1>
         </div>
-        <p className="explore-head__note">Buscá por tema, nivel o formato. Los filtros quedan en la URL para volver o compartir esta vista.</p>
+        <p className="explore-head__note">Todo lo publicado, filtrable por tema, nivel o formato.</p>
       </header>
 
       <div className="explore-controls">
@@ -132,8 +132,8 @@ export function ExplorePage() {
       </div>
 
       <section className="section" aria-live="polite">
-        <div className="section-head"><h2>Resultados</h2><span className="badge badge--neutral">{results.length} {results.length === 1 ? 'recurso' : 'recursos'}</span></div>
-        {results.length ? <div className="card-grid">{results.map((resource) => <ResourceCard key={resource.id} recurso={resource} />)}</div> : <div className="empty-state"><h2>No encontramos resultados</h2><p className="muted">Probá con menos filtros o una búsqueda más general.</p><Button variant="secondary" onClick={() => router.push(pathname)}>Limpiar filtros</Button></div>}
+        <div className="section-head"><h2>Resultados</h2><span className="section-head__count">{results.length} {results.length === 1 ? 'recurso' : 'recursos'}</span></div>
+        {results.length ? <div className="card-grid">{results.map((resource) => <ResourceCard key={resource.id} recurso={resource} />)}</div> : <div className="empty-state"><h2>Sin resultados</h2><p className="muted">Probar con menos filtros o una búsqueda más general.</p><Button variant="secondary" onClick={() => router.push(pathname)}>Limpiar filtros</Button></div>}
       </section>
     </div>
   )

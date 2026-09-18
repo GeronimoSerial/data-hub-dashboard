@@ -36,14 +36,14 @@ export type PatchUserBody = {
 export function listUsuariosDenied(user: SessionUser | null) {
   if (!user) return { status: 401 as const, error: 'No autenticado' }
   if (user.banned || user.role === 'consulta')
-    return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+    return { status: 403 as const, error: 'No tiene acceso a este recurso' }
   return null
 }
 
 export function mutateUsuariosDenied(user: SessionUser | null) {
   if (!user) return { status: 401 as const, error: 'No autenticado' }
   if (user.banned || user.role !== 'admin')
-    return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+    return { status: 403 as const, error: 'No tiene acceso a este recurso' }
   return null
 }
 
@@ -153,9 +153,9 @@ export function authApiError(err: unknown): { status: number; error: string } {
     const fromBody =
       typeof e.body?.message === 'string' ? e.body.message : undefined
     const fromMessage = typeof e.message === 'string' ? e.message : undefined
-    return { status, error: fromBody || fromMessage || 'No se pudo guardar' }
+    return { status, error: fromBody || fromMessage || 'No se pudo guardar el usuario' }
   }
-  return { status: 400, error: 'No se pudo guardar' }
+  return { status: 400, error: 'No se pudo guardar el usuario' }
 }
 
 export async function listHubUsers(): Promise<HubUser[]> {

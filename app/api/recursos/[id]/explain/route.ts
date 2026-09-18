@@ -63,7 +63,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     }
     if (error instanceof ExplainTimeoutError) {
       return Response.json(
-        { error: { code: 'ai_timeout', message: 'El proveedor tardó demasiado. Volvé a intentar en un momento.' } },
+        { error: { code: 'ai_timeout', message: 'El proveedor tardó demasiado. Intente nuevamente en un momento.' } },
         { status: 502 },
       )
     }

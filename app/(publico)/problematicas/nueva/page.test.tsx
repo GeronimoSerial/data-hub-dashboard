@@ -116,7 +116,7 @@ describe('NuevaProblematicaPage', () => {
     const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '9999999' }) })
     render(jsx)
 
-    expect(screen.getByText(/no encontramos una escuela/i)).toBeInTheDocument()
+    expect(screen.getByText(/no se encontró una escuela/i)).toBeInTheDocument()
   })
 
   it('ofrece los motivos sembrados filtrados por el tipo elegido, y cambiar de tipo limpia motivo y alumnos', async () => {

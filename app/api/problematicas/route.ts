@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
   const ip = getClientIp(request)
   if (ipExcedeLimite(ip)) {
-    return Response.json({ error: 'Demasiadas solicitudes, intentá de nuevo más tarde' }, { status: 429 })
+    return Response.json({ error: 'Demasiadas solicitudes. Intente nuevamente más tarde.' }, { status: 429 })
   }
 
   let body: unknown
