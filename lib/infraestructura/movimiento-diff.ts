@@ -113,6 +113,10 @@ function alumnosPorSeccion(afectacion: Afectacion): Map<number, Set<number>> {
   return mapa
 }
 
+function completitudPorSeccion(afectacion: Afectacion): Map<number, boolean> {
+  return new Map(afectacion.secciones.map((s) => [s.geSectionId, s.seccionCompleta]))
+}
+
 function diffAlcanceAfectacion(
   antes: Afectacion,
   despues: Afectacion,
@@ -125,6 +129,8 @@ function diffAlcanceAfectacion(
 
   const alumnosAntes = alumnosPorSeccion(antes)
   const alumnosDespues = alumnosPorSeccion(despues)
+  const completaAntes = completitudPorSeccion(antes)
+  const completaDespues = completitudPorSeccion(despues)
 
   let alumnosAgregados = 0
   let alumnosRetirados = 0
@@ -132,6 +138,16 @@ function diffAlcanceAfectacion(
   // Alumnos dentro de secciones presentes en ambos lados.
   for (const [seccionId, despuesSet] of alumnosDespues) {
     if (!seccionesAntes.has(seccionId)) continue
+    // Una sección completa significa "todos los alumnos de esa sección,
+    // quienes sean". Los dos lados enumeran ese padrón desde fuentes
+    // distintas —la API para el "antes", el contexto del corte para el
+    // "después"— y una de las dos puede entregarlo vacío o desactualizado,
+    // por ejemplo si las identidades de los alumnos no se pueden resolver.
+    // Comparar esas enumeraciones hacía que un parte intacto se leyera como
+    // un vaciado masivo ("24 alumnos retirados") y habilitaba el guardado en
+    // contra de §17. Un cambio real de completitud lo sigue reportando
+    // diffDatosAfectacion vía seccionesConSeleccionCambiada.
+    if (completaAntes.get(seccionId) === true && completaDespues.get(seccionId) === true) continue
     const antesSet = alumnosAntes.get(seccionId) ?? new Set<number>()
     for (const id of despuesSet) if (!antesSet.has(id)) alumnosAgregados++
     for (const id of antesSet) if (!despuesSet.has(id)) alumnosRetirados++
