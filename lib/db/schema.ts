@@ -446,6 +446,18 @@ export const infraMovimiento = sqliteTable(
     resumen: text('resumen', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     rigeDesde: text('rige_desde').notNull(),
     creadaEn: text('creada_en').notNull(),
+    // Clave de idempotencia del POST que generó este movimiento (batch 3:
+    // app/api/problematicas/parte/route.ts). Nullable y agregada por ALTER
+    // (ver ensureMovimientoIdempotencyKeyColumn en lib/db/seed.ts) por el
+    // mismo motivo que infra_problematica.parte_id: SQLite no permite
+    // agregar una columna NOT NULL a una tabla con filas. El índice único es
+    // parcial de hecho (no declarado como tal): SQLite trata cada NULL como
+    // distinto en un índice único, así que las filas legacy sin clave nunca
+    // colisionan entre sí.
+    idempotencyKey: text('idempotency_key'),
   },
-  (t) => [index('infra_movimiento_parte_id_idx').on(t.parteId)],
+  (t) => [
+    index('infra_movimiento_parte_id_idx').on(t.parteId),
+    uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
+  ],
 )

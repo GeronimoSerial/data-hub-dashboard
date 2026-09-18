@@ -275,9 +275,11 @@ CREATE TABLE IF NOT EXISTS \`infra_movimiento\` (
   \`resumen\` text NOT NULL,
   \`rige_desde\` text NOT NULL,
   \`creada_en\` text NOT NULL,
+  \`idempotency_key\` text,
   FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
 `
 
 let seedPromise: Promise<void> | null = null
@@ -396,6 +398,25 @@ export async function ensureParteIdColumn(): Promise<void> {
   }
 }
 
+// `infra_movimiento.idempotency_key` no existía en el batch de esquema
+// (batch 1): parteActualizacionInputSchema exige `idempotencyKey` pero la
+// tabla no tenía dónde guardarla. Mismo motivo que ensureParteIdColumn
+// arriba: ALTER TABLE ADD COLUMN no es idempotente y SQLite no permite
+// agregar una columna NOT NULL a una tabla con filas, así que queda
+// nullable. El índice único de HUB_DDL ya cubre las bases nuevas; acá sólo
+// hace falta la columna para las que ya tenían la tabla creada sin ella.
+export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
+  const tieneColumna = info.rows.some((r) => String(r.name) === 'idempotency_key')
+  if (!tieneColumna) {
+    await db.$client.execute('ALTER TABLE infra_movimiento ADD COLUMN idempotency_key text')
+  }
+  await db.$client.execute(
+    'CREATE UNIQUE INDEX IF NOT EXISTS `infra_movimiento_idempotency_key_uidx` ON `infra_movimiento` (`idempotency_key`)',
+  )
+}
+
 // Id fijo y estable del único período que existe en esta etapa (protocolo
 // ENOS 2026/2027, ver CONTRACT.md del batch de esquema: "la situación
 // hidrometeorológica es UN período provincial, no un episodio por
@@ -502,6 +523,7 @@ async function seedHub() {
   await db.$client.executeMultiple(HUB_DDL)
   await ensureCategoriaColumn()
   await ensureParteIdColumn()
+  await ensureMovimientoIdempotencyKeyColumn()
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {
