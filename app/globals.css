@@ -2056,6 +2056,61 @@ time {
   cursor: pointer;
 }
 
+/* ── Vigencia field ("Rige desde") ────────────────────────────────────── */
+
+/* A <fieldset> so `disabled` propagates to every input/button below it for
+   free, reset to blend into the surrounding form instead of a boxed group. */
+.vigencia-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vigencia-field__resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.vigencia-field__resumen[hidden] { display: none; }
+
+.vigencia-field__ahora {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.vigencia-field__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.vigencia-field__panel[hidden] { display: none; }
+
+.vigencia-field__inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.vigencia-field__campo {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 140px;
+}
+
+/* Plain-language echo of the picked moment (Nielsen #1) — read back what
+   was set without interpreting the raw inputs above. */
+.vigencia-field__resumen-valor {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
 @media (max-width: 480px) {
   .formulario-problematica { max-width: none; }
 }

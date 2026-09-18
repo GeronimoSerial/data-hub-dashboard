@@ -1,0 +1,180 @@
+'use client'
+
+import { useEffect, useId, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+
+export interface VigenciaFieldProps {
+  /**
+   * ISO 8601 timestamp (the same representation `new Date().toISOString()`
+   * produces, matching every other timestamp column in `lib/db/schema.ts`)
+   * the change is in effect from.
+   */
+  value: string
+  /** Called with the new ISO 8601 timestamp whenever the director picks a date or time. */
+  onChange: (value: string) => void
+  /** Field legend. Defaults to "Rige desde" per spec §5.4 / §12. */
+  label?: string
+  id?: string
+  disabled?: boolean
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+/** Local (not UTC) `YYYY-MM-DD`, the shape `<input type="date">` expects. */
+function fechaLocalInput(fecha: Date): string {
+  return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`
+}
+
+/** Local (not UTC) `HH:mm`, the shape `<input type="time">` expects. */
+function horaLocalInput(fecha: Date): string {
+  return `${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`
+}
+
+/**
+ * Plain-language echo of the chosen moment, matching the spec's own worked
+ * example (§13: "Rige desde el 18 de septiembre a las 10:30") — so the
+ * director can read back what they set without interpreting two raw
+ * date/time widgets themselves.
+ */
+function resumenLegible(fecha: Date): string {
+  const dia = fecha.getDate()
+  const mes = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(fecha)
+  return `Rige desde el ${dia} de ${mes} a las ${horaLocalInput(fecha)}`
+}
+
+/**
+ * "Rige desde" vigencia primitive (spec §12).
+ *
+ * Starts collapsed, showing the word "Ahora" — never a pre-filled date/time
+ * input. Date and time stay hidden until the director presses "Cambiar".
+ * Once expanded, either an earlier or a later moment is valid; neither
+ * direction is clamped.
+ *
+ * Uses native `<input type="date">` / `<input type="time">` on purpose, not
+ * a custom picker: same reasoning as the native `<select>` in
+ * `formulario-problematica.tsx` — this is filled by a non-technical director
+ * on a phone, and native controls give the OS picker, full keyboard and
+ * screen-reader support, and no touch/scroll bugs for free.
+ */
+export function VigenciaField({ value, onChange, label = 'Rige desde', id, disabled = false }: VigenciaFieldProps) {
+  const generatedId = useId()
+  const baseId = id ?? generatedId
+  const panelId = `${baseId}-panel`
+  const dateId = `${baseId}-fecha`
+  const timeId = `${baseId}-hora`
+
+  const [expandido, setExpandido] = useState(false)
+  const fechaInputRef = useRef<HTMLInputElement>(null)
+  const cambiarBotonRef = useRef<HTMLButtonElement>(null)
+  const esPrimerRender = useRef(true)
+
+  const fecha = new Date(value)
+  const fechaValida = !Number.isNaN(fecha.getTime())
+
+  // Move focus to the control that makes sense for the direction just
+  // taken: into the date input on expand, back onto "Cambiar" when
+  // returning to "Ahora" — in both cases the control the user just
+  // activated disappears (`hidden`), so focus would otherwise be lost.
+  // Skipped on mount: there is no prior user action to follow up on yet.
+  useEffect(() => {
+    if (esPrimerRender.current) {
+      esPrimerRender.current = false
+      return
+    }
+    if (expandido) {
+      fechaInputRef.current?.focus()
+    } else {
+      cambiarBotonRef.current?.focus()
+    }
+  }, [expandido])
+
+  // Returns to the "Ahora" default: collapses the panel and re-captures a
+  // fresh "now" rather than keeping whatever custom moment was mid-edit, so
+  // "Ahora" always means the actual current moment (Nielsen #3 — this is
+  // the field's one required emergency exit, spec §12 has no back button).
+  function volverAAhora() {
+    setExpandido(false)
+    onChange(new Date().toISOString())
+  }
+
+  function actualizarFecha(fechaTexto: string) {
+    if (!fechaTexto) return
+    const [anio, mes, dia] = fechaTexto.split('-').map(Number)
+    const base = fechaValida ? new Date(fecha) : new Date()
+    base.setFullYear(anio, mes - 1, dia)
+    onChange(base.toISOString())
+  }
+
+  function actualizarHora(horaTexto: string) {
+    if (!horaTexto) return
+    const [horas, minutos] = horaTexto.split(':').map(Number)
+    const base = fechaValida ? new Date(fecha) : new Date()
+    base.setHours(horas, minutos, 0, 0)
+    onChange(base.toISOString())
+  }
+
+  return (
+    <fieldset className="vigencia-field" disabled={disabled}>
+      <legend className="ui-label">{label}</legend>
+
+      <div className="vigencia-field__resumen" hidden={expandido}>
+        <span className="vigencia-field__ahora">Ahora</span>
+        <Button
+          ref={cambiarBotonRef}
+          type="button"
+          variant="secondary"
+          aria-expanded={expandido}
+          aria-controls={panelId}
+          onClick={() => setExpandido(true)}
+        >
+          Cambiar
+        </Button>
+      </div>
+
+      <div className="vigencia-field__panel" id={panelId} hidden={!expandido}>
+        <div className="vigencia-field__inputs">
+          <div className="vigencia-field__campo">
+            <label htmlFor={dateId} className="ui-label">
+              Fecha
+            </label>
+            <input
+              ref={fechaInputRef}
+              type="date"
+              id={dateId}
+              className="ui-input"
+              value={fechaValida ? fechaLocalInput(fecha) : ''}
+              onChange={(evento) => actualizarFecha(evento.target.value)}
+              disabled={disabled}
+            />
+          </div>
+          <div className="vigencia-field__campo">
+            <label htmlFor={timeId} className="ui-label">
+              Hora
+            </label>
+            <input
+              type="time"
+              id={timeId}
+              className="ui-input"
+              value={fechaValida ? horaLocalInput(fecha) : ''}
+              onChange={(evento) => actualizarHora(evento.target.value)}
+              disabled={disabled}
+            />
+          </div>
+        </div>
+
+        {/* Plain-language echo (Nielsen #1): read back what was picked
+            without interpreting the raw widgets above. aria-live announces
+            it to screen-reader users as it changes, with no extra step. */}
+        <p className="vigencia-field__resumen-valor" aria-live="polite">
+          {fechaValida ? resumenLegible(fecha) : ''}
+        </p>
+
+        <Button type="button" variant="ghost" onClick={volverAAhora}>
+          Usar ahora
+        </Button>
+      </div>
+    </fieldset>
+  )
+}
