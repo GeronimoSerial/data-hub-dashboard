@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   const ahora = new Date()
   const autorizado = await puedeVerNominal(user, ahora)
   if (!autorizado) {
-    return Response.json({ error: 'No tenés acceso a este recurso' }, { status: 403 })
+    return Response.json({ error: 'No tiene acceso a este recurso' }, { status: 403 })
   }
 
   const { searchParams } = new URL(request.url)

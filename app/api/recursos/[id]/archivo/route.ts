@@ -64,7 +64,7 @@ export async function GET(request: Request, ctx: Ctx) {
   }
   if (status === 403) {
     return Response.json(
-      { error: 'No tenés acceso a este recurso' },
+      { error: 'No tiene acceso a este recurso' },
       { status: 403 },
     )
   }

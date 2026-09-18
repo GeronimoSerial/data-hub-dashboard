@@ -36,7 +36,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
 }
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<'nav'>) {
-  return <nav aria-label="Breadcrumb" className={cn('breadcrumb', className)} {...props} />
+  return <nav aria-label="Ruta de navegación" className={cn('breadcrumb', className)} {...props} />
 }
 
 function BreadcrumbList({ className, ...props }: React.ComponentProps<'ol'>) {

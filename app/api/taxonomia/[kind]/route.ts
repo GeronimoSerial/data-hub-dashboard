@@ -24,7 +24,7 @@ function adminDenied(user: Awaited<ReturnType<typeof getSessionUser>>) {
   const denied = staffGuard(user)
   if (denied) return denied
   if (user!.role !== 'admin') {
-    return { status: 403 as const, error: 'No tenés acceso a este recurso' }
+    return { status: 403 as const, error: 'No tiene acceso a este recurso' }
   }
   return null
 }

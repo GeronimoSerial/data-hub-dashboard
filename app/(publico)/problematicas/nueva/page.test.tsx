@@ -115,6 +115,6 @@ describe('NuevaProblematicaPage', () => {
     const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '9999999' }) })
     render(jsx)
 
-    expect(screen.getByText(/no encontramos una escuela/i)).toBeInTheDocument()
+    expect(screen.getByText(/no se encontró una escuela/i)).toBeInTheDocument()
   })
 })

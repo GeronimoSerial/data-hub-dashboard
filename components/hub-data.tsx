@@ -58,7 +58,7 @@ function catalogPathForRole(role: Role | undefined) {
 
 async function readError(res: Response) {
   const data = (await res.json().catch(() => null)) as { error?: unknown }
-  return typeof data?.error === 'string' ? data.error : 'No se pudo guardar'
+  return typeof data?.error === 'string' ? data.error : 'No se pudo guardar el cambio. Intente nuevamente.'
 }
 
 export function HubDataProvider({ children }: { children: React.ReactNode }) {

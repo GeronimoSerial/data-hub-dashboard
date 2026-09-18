@@ -9,10 +9,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
-  cue_ausente: 'Este enlace no incluye el CUE de la escuela. Pedile a quien te lo compartió que revise el enlace.',
-  cue_invalido: 'El CUE del enlace no tiene un formato válido.',
-  sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento. Intentá de nuevo más tarde.',
-  cue_inexistente: 'No encontramos una escuela con ese CUE.',
+  cue_ausente: 'Este enlace no incluye el CUE de la escuela. Solicite el enlace nuevamente a quien se lo compartió.',
+  cue_invalido: 'El CUE incluido en el enlace no tiene un formato válido.',
+  sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
+  cue_inexistente: 'No se encontró una escuela con ese CUE.',
   sin_secciones: 'Esta escuela todavía no tiene secciones cargadas.',
 }
 

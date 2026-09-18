@@ -43,7 +43,7 @@ describe('listUsuariosDenied', () => {
   it('returns 403 for consulta', () => {
     expect(listUsuariosDenied(consulta)).toEqual({
       status: 403,
-      error: 'No tenés acceso a este recurso',
+      error: 'No tiene acceso a este recurso',
     })
   })
 
@@ -61,7 +61,7 @@ describe('mutateUsuariosDenied', () => {
   it('returns 403 for editor and consulta', () => {
     expect(mutateUsuariosDenied(editor)).toEqual({
       status: 403,
-      error: 'No tenés acceso a este recurso',
+      error: 'No tiene acceso a este recurso',
     })
     expect(mutateUsuariosDenied(consulta)?.status).toBe(403)
   })

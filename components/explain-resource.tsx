@@ -73,14 +73,14 @@ export function ExplainResource({ resourceId }: { resourceId: string }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button variant="secondary" />}><Sparkles size={16} /> Explícame este recurso</DialogTrigger>
+      <DialogTrigger render={<Button variant="secondary" />}><Sparkles size={16} /> Explicar este recurso</DialogTrigger>
       <DialogContent>
-        <DialogTitle>¿Qué es este recurso?</DialogTitle>
+        <DialogTitle>Explicación del recurso</DialogTitle>
         <DialogDescription>Una explicación breve basada únicamente en el contexto publicado.</DialogDescription>
         {status === 'loading' ? <p aria-live="polite">Preparando explicación…</p> : null}
         {status === 'unavailable' ? (
           <p role="alert" className="muted">
-            El resumen con IA todavía no está configurado en este despliegue. Podés consultar el recurso igualmente.
+            El resumen con IA todavía no está configurado en este despliegue. Se puede consultar el recurso igualmente.
           </p>
         ) : null}
         {status === 'insufficient-context' ? (
@@ -89,12 +89,12 @@ export function ExplainResource({ resourceId }: { resourceId: string }) {
           </div>
         ) : null}
         {status === 'error' ? (
-          <p role="alert">{message ?? 'No se pudo generar la explicación. Podés consultar el recurso igualmente.'}</p>
+          <p role="alert">{message ?? 'No se pudo generar la explicación. Se puede consultar el recurso igualmente.'}</p>
         ) : null}
         {status === 'success' && explanation ? (
           <div className="explain-result">
             <p>{explanation.summary}</p>
-            {explanation.usefulFor.length ? <><h3>Te puede servir para</h3><ul>{explanation.usefulFor.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
+            {explanation.usefulFor.length ? <><h3>Puede servir para</h3><ul>{explanation.usefulFor.map((item) => <li key={item}>{item}</li>)}</ul></> : null}
             {explanation.firstLook ? <><h3>Qué mirar primero</h3><p>{explanation.firstLook}</p></> : null}
           </div>
         ) : null}

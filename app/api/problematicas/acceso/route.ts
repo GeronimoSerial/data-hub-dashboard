@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const password = (body as { password?: unknown } | null)?.password
   if (typeof password !== 'string' || password.length === 0) {
-    return Response.json({ error: 'Ingresá la contraseña' }, { status: 400 })
+    return Response.json({ error: 'Ingrese la contraseña' }, { status: 400 })
   }
 
   if (!verificarPassword(password)) {

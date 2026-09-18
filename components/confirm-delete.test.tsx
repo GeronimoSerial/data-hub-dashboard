@@ -75,7 +75,7 @@ describe('ConfirmDelete', () => {
     render(
       <ConfirmDelete
         title="¿Eliminar?"
-        description="Confirmá."
+        description="Esta acción no se puede deshacer."
         onConfirm={onConfirm}
         triggerLabel="Borrar ahora"
         trigger={<button type="button" aria-label="Borrar ahora">Borrar ahora</button>}
