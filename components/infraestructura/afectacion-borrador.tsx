@@ -142,6 +142,7 @@ export function AfectacionBorradorCard({
             idPrefijo={idPrefijo}
             motivos={motivos}
             otrasAfectaciones={otrasAfectaciones}
+            esNueva={esNueva}
             onChange={onChange}
             disabled={disabled}
           />

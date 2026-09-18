@@ -202,36 +202,63 @@ describe('AfectacionBorradorCard', () => {
     expect(screen.getByText('2 secciones · 3 alumnos')).toBeInTheDocument()
   })
 
-  it('muestra la nota de duplicado cuando otra afectación tiene el mismo motivo', () => {
+  /*
+    El aviso antes aparecía casi siempre: `detectarMotivoDuplicado` marca
+    coincidencia también cuando apenas se comparte la categoría, y con varias
+    situaciones cargadas eso pasa todo el tiempo. Dentro de un mismo parte
+    compartir categoría es normal —una escuela puede estar inundada Y sin
+    energía, las dos "establecimiento"—, así que el aviso quedó reducido a lo
+    único que significa algo: el mismo motivo exacto, y sólo sobre una
+    situación que se está agregando ahora.
+  */
+  it('avisa por badge cuando una situación NUEVA repite un motivo ya informado', () => {
     renderCard({
+      esNueva: true,
       borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
       otrasAfectaciones: [
         { ...borradorBase, clientId: 'a0', categoria: 'establecimiento', motivo: 'Inundación' },
       ],
     })
 
-    expect(screen.getByText(/ya agregó una afectación/i)).toBeInTheDocument()
+    expect(screen.getByText('Ya informado')).toBeInTheDocument()
+    expect(screen.getByText(/mismo motivo/i)).toBeInTheDocument()
+    // §18.14: recomienda, nunca decide. No es un error ni bloquea.
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('muestra la nota de duplicado cuando otra afectación comparte la categoría con distinto motivo', () => {
+  it('no avisa cuando sólo comparten la categoría', () => {
     renderCard({
+      esNueva: true,
       borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
       otrasAfectaciones: [
         { ...borradorBase, clientId: 'a0', categoria: 'establecimiento', motivo: 'Tormenta severa' },
       ],
     })
 
-    expect(screen.getByText(/ya agregó una afectación/i)).toBeInTheDocument()
+    expect(screen.queryByText('Ya informado')).toBeNull()
   })
 
-  it('no muestra la nota de duplicado cuando no hay coincidencia de motivo ni categoría', () => {
+  it('no avisa sobre una situación que ya figura en el parte: no la está agregando', () => {
     renderCard({
+      esNueva: false,
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
+      otrasAfectaciones: [
+        { ...borradorBase, clientId: 'a0', categoria: 'establecimiento', motivo: 'Inundación' },
+      ],
+    })
+
+    expect(screen.queryByText('Ya informado')).toBeNull()
+  })
+
+  it('no avisa cuando no hay coincidencia de motivo', () => {
+    renderCard({
+      esNueva: true,
       borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
       otrasAfectaciones: [
         { ...borradorBase, clientId: 'a0', categoria: 'alumnos', motivo: 'Anegamiento' },
       ],
     })
 
-    expect(screen.queryByText(/ya agregó una afectación/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Ya informado')).toBeNull()
   })
 })

@@ -31,7 +31,7 @@ describe('VigenciaField', () => {
   it('renders "Ahora" by default with date/time inputs hidden', () => {
     render(<VigenciaField value={AHORA} onChange={vi.fn()} />)
 
-    expect(screen.getByText('Ahora')).toBeVisible()
+    expect(screen.getByText('Desde ahora')).toBeVisible()
     expect(screen.getByLabelText('Fecha')).not.toBeVisible()
     expect(screen.getByLabelText('Hora')).not.toBeVisible()
   })
@@ -44,7 +44,7 @@ describe('VigenciaField', () => {
 
     expect(screen.getByLabelText('Fecha')).toBeVisible()
     expect(screen.getByLabelText('Hora')).toBeVisible()
-    expect(screen.queryByText('Ahora')).not.toBeVisible()
+    expect(screen.queryByText('Desde ahora')).not.toBeVisible()
   })
 
   it('lets the director pick a moment earlier than now', async () => {
@@ -99,10 +99,20 @@ describe('VigenciaField', () => {
     fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-09-15' } })
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '08:00' } })
 
-    expect(screen.getByText('Rige desde el 15 de septiembre a las 08:00')).toBeVisible()
+    // El eco del panel y el resumen colapsado dicen lo mismo a propósito: lo
+    // que el director confirma adentro es lo que va a leer afuera. Se busca
+    // el del panel, que es el que está a la vista en este momento.
+    const eco = document.querySelector('.vigencia-field__resumen-valor')
+    expect(eco).toHaveTextContent('Desde el 15 de septiembre a las 08:00')
   })
 
-  it('lets the director return to "Ahora" via "Usar ahora", resetting to the real current moment', async () => {
+  /*
+    "Usar ahora" era el único botón del panel, así que se leía como la acción
+    principal — pero descartaba el momento recién elegido. Leía "confirmar" y
+    hacía "cancelar". Ahora hay una acción hacia adelante ("Listo") y una
+    hacia atrás, y esta última dice a dónde lleva.
+  */
+  it('"Volver a «Desde ahora»" deshace lo elegido y recaptura el momento real', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<VigenciaField value={AHORA} onChange={onChange} />)
@@ -111,11 +121,11 @@ describe('VigenciaField', () => {
     fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-09-15' } })
 
     const antes = Date.now()
-    await user.click(screen.getByRole('button', { name: 'Usar ahora' }))
+    await user.click(screen.getByRole('button', { name: 'Volver a «Desde ahora»' }))
     const despues = Date.now()
 
-    // Collapses back to the default "Ahora" display...
-    expect(screen.getByText('Ahora')).toBeVisible()
+    // Collapses back to the default "Desde ahora" display...
+    expect(screen.getByText('Desde ahora')).toBeVisible()
     expect(screen.getByLabelText('Fecha')).not.toBeVisible()
     // ...and re-captures a fresh "now" rather than keeping the mid-edit
     // value or the original `value` prop — the timestamp emitted must fall
@@ -146,9 +156,28 @@ describe('VigenciaField', () => {
     expect(screen.getByLabelText('Fecha')).toHaveFocus()
   })
 
-  it('labels the group with the "Rige desde" legend', () => {
+  // La leyenda es la pregunta que §12 hace ("desde cuándo rige"), no el
+  // sustantivo suelto: sobre una palabra colapsada, "Rige desde" obliga al
+  // director a deducir que le están preguntando algo.
+  it('rotula el grupo con la pregunta, no con el sustantivo suelto', () => {
     render(<VigenciaField value={AHORA} onChange={vi.fn()} />)
-    expect(screen.getByText('Rige desde')).toBeInTheDocument()
+    expect(screen.getByText('¿Desde cuándo rige este cambio?')).toBeInTheDocument()
+  })
+
+  it('"Listo" cierra el panel conservando el momento elegido', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+
+    await user.click(screen.getByRole('button', { name: 'Cambiar' }))
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-09-15' } })
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '08:00' } })
+    await user.click(screen.getByRole('button', { name: 'Listo' }))
+
+    expect(screen.getByLabelText('Fecha')).not.toBeVisible()
+    // El estado colapsado deja de decir "Desde ahora" y afirma lo elegido.
+    const colapsado = document.querySelector('.vigencia-field__ahora')
+    expect(colapsado).toHaveTextContent('Desde el 15 de septiembre a las 08:00')
+    expect(colapsado).toBeVisible()
   })
 
   it('disables the toggle and inputs when disabled', async () => {

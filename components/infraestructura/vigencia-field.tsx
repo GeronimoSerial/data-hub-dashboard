@@ -12,7 +12,12 @@ export interface VigenciaFieldProps {
   value: string
   /** Called with the new ISO 8601 timestamp whenever the director picks a date or time. */
   onChange: (value: string) => void
-  /** Field legend. Defaults to "Rige desde" per spec §5.4 / §12. */
+  /**
+   * Field legend. Defaults to the plain question §12 itself asks ("desde
+   * cuándo rige"), not the bare noun phrase: a director reading "Rige desde"
+   * over a collapsed word has to work out that it is a question about when
+   * the change takes effect.
+   */
   label?: string
   id?: string
   disabled?: boolean
@@ -41,7 +46,7 @@ function horaLocalInput(fecha: Date): string {
 function resumenLegible(fecha: Date): string {
   const dia = fecha.getDate()
   const mes = new Intl.DateTimeFormat('es-AR', { month: 'long' }).format(fecha)
-  return `Rige desde el ${dia} de ${mes} a las ${horaLocalInput(fecha)}`
+  return `Desde el ${dia} de ${mes} a las ${horaLocalInput(fecha)}`
 }
 
 /**
@@ -58,7 +63,13 @@ function resumenLegible(fecha: Date): string {
  * on a phone, and native controls give the OS picker, full keyboard and
  * screen-reader support, and no touch/scroll bugs for free.
  */
-export function VigenciaField({ value, onChange, label = 'Rige desde', id, disabled = false }: VigenciaFieldProps) {
+export function VigenciaField({
+  value,
+  onChange,
+  label = '¿Desde cuándo rige este cambio?',
+  id,
+  disabled = false,
+}: VigenciaFieldProps) {
   const generatedId = useId()
   const baseId = id ?? generatedId
   const panelId = `${baseId}-panel`
@@ -66,6 +77,12 @@ export function VigenciaField({ value, onChange, label = 'Rige desde', id, disab
   const timeId = `${baseId}-hora`
 
   const [expandido, setExpandido] = useState(false)
+  // Si el director ELIGIÓ un momento, o sigue rigiendo el valor por defecto.
+  // Es estado propio y no algo derivado del reloj a propósito: comparar
+  // `value` contra `Date.now()` haría que la etiqueta pasara sola de "Desde
+  // ahora" a una fecha concreta al minuto de abierto el formulario, sin que
+  // el director tocara nada.
+  const [momentoElegido, setMomentoElegido] = useState(false)
   const fechaInputRef = useRef<HTMLInputElement>(null)
   const cambiarBotonRef = useRef<HTMLButtonElement>(null)
   const esPrimerRender = useRef(true)
@@ -96,11 +113,13 @@ export function VigenciaField({ value, onChange, label = 'Rige desde', id, disab
   // the field's one required emergency exit, spec §12 has no back button).
   function volverAAhora() {
     setExpandido(false)
+    setMomentoElegido(false)
     onChange(new Date().toISOString())
   }
 
   function actualizarFecha(fechaTexto: string) {
     if (!fechaTexto) return
+    setMomentoElegido(true)
     const [anio, mes, dia] = fechaTexto.split('-').map(Number)
     const base = fechaValida ? new Date(fecha) : new Date()
     base.setFullYear(anio, mes - 1, dia)
@@ -109,6 +128,7 @@ export function VigenciaField({ value, onChange, label = 'Rige desde', id, disab
 
   function actualizarHora(horaTexto: string) {
     if (!horaTexto) return
+    setMomentoElegido(true)
     const [horas, minutos] = horaTexto.split(':').map(Number)
     const base = fechaValida ? new Date(fecha) : new Date()
     base.setHours(horas, minutos, 0, 0)
@@ -119,8 +139,14 @@ export function VigenciaField({ value, onChange, label = 'Rige desde', id, disab
     <fieldset className="vigencia-field" disabled={disabled}>
       <legend className="ui-label">{label}</legend>
 
+      {/* §12 fija el valor inicial "Ahora" y que fecha y hora permanezcan
+          ocultas hasta pulsar "Cambiar": eso se conserva. Lo que cambia es
+          que el estado colapsado ahora AFIRMA algo legible en vez de mostrar
+          una palabra suelta. */}
       <div className="vigencia-field__resumen" hidden={expandido}>
-        <span className="vigencia-field__ahora">Ahora</span>
+        <span className="vigencia-field__ahora">
+          {momentoElegido && fechaValida ? resumenLegible(fecha) : 'Desde ahora'}
+        </span>
         <Button
           ref={cambiarBotonRef}
           type="button"
@@ -171,9 +197,25 @@ export function VigenciaField({ value, onChange, label = 'Rige desde', id, disab
           {fechaValida ? resumenLegible(fecha) : ''}
         </p>
 
-        <Button type="button" variant="ghost" onClick={volverAAhora}>
-          Usar ahora
-        </Button>
+        {/*
+          Antes acá había un solo botón, "Usar ahora", que además de ser el
+          único se veía como la acción principal del panel — pero DESCARTABA
+          el momento recién elegido y volvía atrás. Leía como "confirmar" y
+          hacía "cancelar".
+
+          Ahora hay una acción hacia adelante y una hacia atrás, y cada una
+          dice a dónde lleva: "Listo" cierra conservando lo elegido,
+          "Volver a «Desde ahora»" deshace y vuelve al valor por defecto, que
+          es exactamente lo que muestra el estado colapsado.
+        */}
+        <div className="vigencia-field__acciones">
+          <Button type="button" onClick={() => setExpandido(false)} disabled={!fechaValida}>
+            Listo
+          </Button>
+          <Button type="button" variant="ghost" onClick={volverAAhora}>
+            Volver a «Desde ahora»
+          </Button>
+        </div>
       </div>
     </fieldset>
   )

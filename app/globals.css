@@ -3155,3 +3155,40 @@ time {
 @media (max-width: 420px) {
   .situacion__acciones > * { flex: 1 1 100%; }
 }
+
+/* ── Aviso de recomendación (nunca bloquea) ───────────────────────────── */
+
+/* Va como sello + frase, no como párrafo suelto: un aviso que se lee igual
+   que el resto del texto no se distingue del contenido, y uno que grita
+   parecería un error. Esto es una recomendación (§18.14) y tiene que verse
+   como tal. */
+.aviso-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--warn-tint);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.aviso-badge__sello {
+  flex: none;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--warn);
+  color: var(--white);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.vigencia-field__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}

@@ -223,10 +223,14 @@ describe('ActualizacionForm', () => {
     const seccionCheckboxes = screen.getAllByRole('checkbox', { name: /1° \"A\"/ })
     fireEvent.click(seccionCheckboxes[seccionCheckboxes.length - 1])
 
-    const recordatorios = screen.getAllByText(/Ya agregó una afectación con un motivo o categoría similar/i)
+    // El aviso ahora es un badge y sólo sale por motivo exacto repetido sobre
+    // una situación que se está agregando ahora. "Inundación" ya figura en el
+    // parte vigente, así que corresponde.
+    const recordatorios = screen.getAllByText('Ya informado')
     expect(recordatorios.length).toBeGreaterThan(0)
     for (const recordatorio of recordatorios) {
-      expect(recordatorio).toHaveAttribute('role', 'status')
+      // §18.14: recomienda, nunca decide — role="status", nunca "alert".
+      expect(recordatorio.closest('[role]')).toHaveAttribute('role', 'status')
     }
     expect(screen.queryByRole('alert')).toBeNull()
 

@@ -5,7 +5,10 @@ import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraest
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, getCorteVigente, openGeDb } from '@/lib/infraestructura/ge-db'
+import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
+import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
+import { redirect } from 'next/navigation'
 import { ensureSeeded } from '@/lib/db/seed'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 
@@ -56,13 +59,18 @@ export default async function NuevoPartePage({
     )
   }
 
-  const client = openGeDb()
+  const clienteGe = openGeDb()
   let resultado
+  // El corte se lee con el mismo cliente, antes de cerrarlo: la guarda de
+  // abajo lo necesita y abrir una segunda conexión sólo para eso sería otra
+  // ida a disco por cada carga de la pantalla.
+  let corteId: number | null = null
   try {
-    await ensureGeSchema(client)
-    resultado = await resolverContextoPorCue(client, cue ?? null)
+    await ensureGeSchema(clienteGe)
+    resultado = await resolverContextoPorCue(clienteGe, cue ?? null)
+    corteId = (await getCorteVigente(clienteGe))?.id ?? null
   } finally {
-    client.close()
+    clienteGe.close()
   }
 
   if (!resultado.ok) {
@@ -79,6 +87,15 @@ export default async function NuevoPartePage({
   const { escuela, turnos } = resultado.contexto
 
   await ensureSeeded()
+
+  // El director recibe un enlace y una contraseña, no un mapa del sitio: si
+  // lo que le toca es la otra pantalla, se lo lleva sola. Las dos rutas
+  // siguen existiendo, pero ninguna deja a nadie en el lugar equivocado.
+  const destino = destinoParaParte(
+    corteId === null ? null : await obtenerParteActual(escuela.cueAnexo, corteId),
+  )
+  if (destino !== 'nuevo') redirect(enlaceDestino(destino, escuela.cueAnexo))
+
   const motivos = await listarMotivos()
 
   return (

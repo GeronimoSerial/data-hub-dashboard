@@ -83,6 +83,12 @@ interface CamposComunes {
 export interface CamposQuePasoProps extends CamposComunes {
   motivos: MotivoRow[]
   otrasAfectaciones: AfectacionBorrador[]
+  /**
+   * La afectación se está agregando ahora. Sólo entonces tiene sentido
+   * avisar de un duplicado: sobre algo que ya figura en el parte, el aviso
+   * es ruido — el director no lo está agregando, lo está mirando.
+   */
+  esNueva?: boolean
 }
 
 /*
@@ -103,6 +109,7 @@ export function CamposQuePaso({
   idPrefijo,
   motivos,
   otrasAfectaciones,
+  esNueva = false,
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
@@ -118,17 +125,32 @@ export function CamposQuePaso({
     ? motivos.filter((m) => m.categoria === borrador.categoria)
     : []
 
-  // Recomendación, nunca decisión (spec §18.14): si el motivo ya está en
-  // otra afectación del borrador se avisa, pero la forma sigue operativa.
+  /*
+    Recomendación, nunca decisión (spec §18.14).
+
+    Dos recortes respecto de la versión anterior, que mostraba el aviso casi
+    siempre:
+
+    - Sólo para una afectación que se está agregando AHORA. Sobre las que ya
+      figuran en el parte el aviso no significa nada: el director no las está
+      agregando.
+    - Sólo ante coincidencia EXACTA de motivo. `detectarMotivoDuplicado`
+      también marca coincidencia cuando apenas comparten la categoría, que es
+      lo correcto para §14 —ahí se compara un episodio nuevo contra el parte
+      vigente—, pero dentro de un mismo parte es normal y esperable: una
+      escuela puede estar inundada Y sin energía, las dos "establecimiento".
+      Avisar de eso convertía la recomendación en ruido de fondo.
+  */
   const candidatos = otrasAfectaciones
     .filter((a) => a.motivo && a.categoria)
     .map((a) => ({ motivo: a.motivo, categoria: a.categoria as CategoriaProblematica }))
-  const duplicado = borrador.motivo
-    ? detectarMotivoDuplicado(candidatos, {
-        motivo: borrador.motivo,
-        categoria: borrador.categoria || 'establecimiento',
-      })
-    : null
+  const duplicado =
+    esNueva && borrador.motivo
+      ? detectarMotivoDuplicado(candidatos, {
+          motivo: borrador.motivo,
+          categoria: borrador.categoria || 'establecimiento',
+        })
+      : null
 
   return (
     <>
@@ -208,9 +230,12 @@ export function CamposQuePaso({
         </div>
       </fieldset>
 
-      {duplicado?.hayCoincidencia && (
-        <p className="afectacion-borrador__duplicado" role="status">
-          Ya agregó una afectación con un motivo o categoría similar.
+      {duplicado?.coincidenciaExacta && (
+        <p className="aviso-badge" role="status">
+          <span className="aviso-badge__sello">Ya informado</span>
+          <span className="aviso-badge__texto">
+            Ya hay una situación por este mismo motivo. Puede continuar igual.
+          </span>
         </p>
       )}
     </>

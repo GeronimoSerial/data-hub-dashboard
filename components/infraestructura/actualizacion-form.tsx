@@ -534,8 +534,9 @@ function ActualizacionFormCargado({
         </CampoVigente>
       </section>
 
+      {/* Sin <h2> propio: la leyenda del campo ya es la pregunta completa, y
+          un título encima diciendo lo mismo se lee dos veces. */}
       <section className="reporte-inicial__seccion">
-        <h2>Desde cuándo rige</h2>
         <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
       </section>
 
