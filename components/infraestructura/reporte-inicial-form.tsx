@@ -76,6 +76,7 @@ export function ReporteInicialForm({
   const [estadoEstablecimiento, setEstadoEstablecimiento] = useState<'' | EstadoEstablecimiento>('')
   const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
   const [enviando, setEnviando] = useState(false)
+  const [tocadas, setTocadas] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const [idempotencyKey] = useState(() => crypto.randomUUID())
@@ -206,19 +207,28 @@ export function ReporteInicialForm({
       <section className="reporte-inicial__seccion">
         <h2>Afectaciones</h2>
         {afectaciones.map((a, i) => (
-          <AfectacionBorradorCard
+          <div
             key={a.clientId}
-            borrador={a}
-            index={i}
-            motivos={motivos}
-            turnos={turnos}
-            otrasAfectaciones={afectaciones.filter((_, j) => j !== i)}
-            onChange={(siguiente) =>
-              setAfectaciones((actuales) => actuales.map((x, j) => (j === i ? siguiente : x)))
-            }
-            onRemove={() => setAfectaciones((actuales) => actuales.filter((_, j) => j !== i))}
-            disabled={enviando}
-          />
+            onBlur={() => setTocadas((actuales) => new Set(actuales).add(a.clientId))}
+          >
+            <AfectacionBorradorCard
+              borrador={a}
+              index={i}
+              motivos={motivos}
+              turnos={turnos}
+              otrasAfectaciones={afectaciones.filter((_, j) => j !== i)}
+              onChange={(siguiente) =>
+                setAfectaciones((actuales) => actuales.map((x, j) => (j === i ? siguiente : x)))
+              }
+              onRemove={() => setAfectaciones((actuales) => actuales.filter((_, j) => j !== i))}
+              disabled={enviando}
+            />
+            {tocadas.has(a.clientId) && esAfectacionParcial(a) && (
+              <p className="reporte-inicial__error-campo" role="alert">
+                {MENSAJE_AFECTACION_INCOMPLETA}
+              </p>
+            )}
+          </div>
         ))}
         <Button type="button" variant="secondary" onClick={agregarAfectacion} disabled={enviando}>
           Agregar afectación
@@ -312,6 +322,12 @@ export function ReporteInicialForm({
         <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
       </section>
 
+      {enviando && (
+        <p role="status" aria-live="polite">
+          Guardando…
+        </p>
+      )}
+
       {error && (
         <p className="reporte-inicial__error" role="alert">
           {error}
@@ -319,7 +335,7 @@ export function ReporteInicialForm({
       )}
 
       <Button type="submit" disabled={enviando || !hayAlgunCambio}>
-        Guardar reporte
+        {enviando ? 'Guardando…' : 'Guardar reporte'}
       </Button>
     </form>
   )

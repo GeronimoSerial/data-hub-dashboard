@@ -2695,3 +2695,56 @@ time {
 @media (max-width: 480px) {
   .reporte-inicial { max-width: none; }
 }
+
+/* ── Actualización del parte (batch 6) ────────────────────────────────── */
+
+.reporte-inicial__error-campo {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.actualizacion-resumen__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-4);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.actualizacion-resumen__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.actualizacion-retiradas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.afectacion-retirada {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+@media (max-width: 480px) {
+  .actualizacion-resumen__acciones { flex-direction: column; align-items: stretch; }
+}

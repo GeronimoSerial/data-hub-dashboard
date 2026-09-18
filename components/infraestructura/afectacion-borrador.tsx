@@ -29,6 +29,7 @@ export interface AfectacionBorradorCardProps {
   onChange: (siguiente: AfectacionBorrador) => void
   onRemove: () => void
   disabled?: boolean
+  accionQuitarEtiqueta?: string
 }
 
 function aplanarSecciones(turnos: TurnoContexto[]) {
@@ -44,6 +45,7 @@ export function AfectacionBorradorCard({
   onChange,
   onRemove,
   disabled = false,
+  accionQuitarEtiqueta = 'Quitar',
 }: AfectacionBorradorCardProps): JSX.Element {
   // Al cambiar la categoría se limpian motivo y alumnos: el motivo porque el
   // catálogo depende de la categoría, los alumnos porque una categoría sin
@@ -88,9 +90,9 @@ export function AfectacionBorradorCard({
           className="afectacion-borrador__quitar"
           onClick={onRemove}
           disabled={disabled}
-          aria-label={`Quitar afectación ${index + 1}`}
+          aria-label={`${accionQuitarEtiqueta} afectación ${index + 1}`}
         >
-          Quitar
+          {accionQuitarEtiqueta}
         </button>
       </div>
 

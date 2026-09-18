@@ -202,4 +202,27 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByText(props.escuelaNombre)).toBeInTheDocument()
     expect((screen.getByLabelText(/^motivo/i) as HTMLSelectElement).value).toBe('Inundación')
   })
+
+  it('muestra Guardando mientras se envia el formulario', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+
+    renderFormulario()
+
+    rellenarAfectacionCompleta()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Guardando…')
+    expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+  })
+
+  it('tocar los campos de una afectacion incompleta y salir muestra el error en el momento sin enviar', () => {
+    renderFormulario()
+
+    fireEvent.click(screen.getByRole('button', { name: /agregar afectación/i }))
+    const radio = screen.getByRole('radio', { name: /afecta al establecimiento/i })
+    fireEvent.click(radio)
+    fireEvent.blur(radio)
+
+    expect(screen.getByText(/Complete categoría, motivo, severidad y al menos una sección/i)).toBeInTheDocument()
+  })
 })
