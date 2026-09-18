@@ -2056,6 +2056,61 @@ time {
   cursor: pointer;
 }
 
+/* ── Vigencia field ("Rige desde") ────────────────────────────────────── */
+
+/* A <fieldset> so `disabled` propagates to every input/button below it for
+   free, reset to blend into the surrounding form instead of a boxed group. */
+.vigencia-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.vigencia-field__resumen {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.vigencia-field__resumen[hidden] { display: none; }
+
+.vigencia-field__ahora {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.vigencia-field__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.vigencia-field__panel[hidden] { display: none; }
+
+.vigencia-field__inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.vigencia-field__campo {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-width: 140px;
+}
+
+/* Plain-language echo of the picked moment (Nielsen #1) — read back what
+   was set without interpreting the raw inputs above. */
+.vigencia-field__resumen-valor {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
 @media (max-width: 480px) {
   .formulario-problematica { max-width: none; }
 }
@@ -2166,4 +2221,974 @@ time {
     border-radius: 0;
     box-shadow: none;
   }
+}
+
+/* ── Historial del parte (spec §15) ────────────────────────────────────── */
+
+/* Sólo lectura, en un teléfono, posiblemente durante una emergencia: una
+   columna, sin adornos, y cada movimiento separado por una línea en lugar
+   de una tarjeta (no hay Card en components/ui/ y no hace falta). */
+.historial-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.historial-movimiento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.historial-movimiento:last-child { padding-bottom: 0; border-bottom: 0; }
+
+.historial-movimiento__encabezado {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* El separador "·" del ejemplo de la spec, como borde y no como texto: no lo
+   lee un lector de pantalla, desaparece si la línea se parte, y no queda
+   huérfano cuando la fecha de carga no se pudo interpretar. */
+.historial-movimiento__carga + .historial-movimiento__rol::before {
+  content: '·';
+  margin-right: var(--s-2);
+  color: var(--ink-soft);
+}
+
+.historial-movimiento__vigencia {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.historial-movimiento__cambios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.historial-movimiento__cambio {
+  position: relative;
+  padding-left: 1rem;
+  font-size: var(--t-small);
+  color: var(--ink);
+  line-height: 1.45;
+}
+.historial-movimiento__cambio::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--ink-soft);
+}
+
+/* Espera, error y vacío comparten el mismo bloque: un texto y, cuando hay
+   algo que hacer, una sola acción (Nielsen #1). */
+.historial-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.historial-estado__texto {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.historial-estado__accion { align-self: flex-start; }
+
+.historial-volver {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--s-5);
+  color: var(--accent);
+  font-size: var(--t-small);
+  font-weight: 600;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Estado actual del parte — pantalla inicial del director (spec §6, §17)
+
+   Tres reglas de contexto mandan sobre la estética acá: se lee desde un
+   teléfono, a veces durante una inundación, y quien lee no es una persona
+   técnica. De ahí los bloques grandes separados por una línea, el dato en
+   tamaño de titular y un solo botón oscuro por pantalla.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.estado-actual {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-5);
+}
+
+/* Aviso de carga, de error y de acceso vencido. Bloque propio para que el
+   mensaje no se confunda con un dato del parte. */
+.estado-actual-aviso {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-4);
+  margin: var(--s-5) 0 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.estado-actual-aviso__texto {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--t-body);
+}
+
+/* ── Bloques del §6: servicio educativo, establecimiento, situación ─────── */
+
+.estado-actual-bloque {
+  display: grid;
+  justify-items: start;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.estado-actual-bloque__titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-micro);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* El dato que el director vino a reconocer. Escala de titular, no de
+   párrafo: tiene que leerse de un vistazo y con el teléfono en la mano. */
+.estado-actual-bloque__valor {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.estado-actual-bloque__vigencia {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-bloque__vacio {
+  margin: 0;
+  font-size: var(--t-body);
+  color: var(--ink);
+  max-width: 46ch;
+}
+
+.estado-actual-bloque__accion {
+  margin-top: var(--s-1);
+}
+
+/* ── Afectaciones vigentes ─────────────────────────────────────────────── */
+
+.estado-actual-afectaciones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  gap: var(--s-4);
+}
+
+.estado-actual-afectacion {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.estado-actual-afectacion__encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.estado-actual-afectacion__motivo {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Síntesis permanente de alcance (spec §9): "3 secciones · 74 alumnos". */
+.estado-actual-afectacion__alcance {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-afectacion__descripcion {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.estado-actual-afectacion__alumnos-resumen {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.estado-actual-afectacion__alumnos-lista {
+  margin: 0 0 var(--s-2);
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+/* ── Severidad ─────────────────────────────────────────────────────────────
+   Nunca sólo color: el nivel viaja escrito y además con una forma propia,
+   para que se distinga en escala de grises y para quien no discrimina
+   colores. El color es el tercer refuerzo, no el canal. */
+
+.estado-actual-severidad {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  white-space: nowrap;
+}
+
+.estado-actual-severidad__marca {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid rgb(128 128 128 / 0.55);
+}
+
+.estado-actual-severidad__marca--circulo { border-radius: var(--r-pill); }
+.estado-actual-severidad__marca--cuadrado { border-radius: 0; }
+.estado-actual-severidad__marca--rombo { border-radius: 0; rotate: 45deg; }
+.estado-actual-severidad__marca--triangulo {
+  border: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.estado-actual-severidad__texto {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Pie: última actualización y acciones ──────────────────────────────── */
+
+.estado-actual-pie {
+  display: grid;
+  gap: var(--s-4);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.estado-actual-pie__actualizacion {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.estado-actual-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+/* Un solo botón oscuro por pantalla (§5.3). En el teléfono ocupa el ancho
+   completo para que sea imposible errarle. */
+.estado-actual-acciones__principal {
+  flex: 1 1 14rem;
+}
+
+@media (max-width: 480px) {
+  .estado-actual-acciones { flex-direction: column; align-items: stretch; }
+  .estado-actual-bloque__accion { width: 100%; }
+}
+
+/* ── Borrador de afectación (batch 5) ─────────────────────────────────── */
+
+
+
+
+/* Blanco táctil obligatorio: lo toca un director desde el celular. */
+
+
+
+
+
+/* ── Reporte inicial (batch 5) ─────────────────────────────────────────── */
+
+.reporte-inicial {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  max-width: 640px;
+}
+
+/* Cada sección del parte se separa con una hairline, como los bloques del
+   estado actual: la pantalla lee como una pila de registros, no de tarjetas. */
+.reporte-inicial__seccion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.reporte-inicial__seccion h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  letter-spacing: 0;
+}
+
+.reporte-inicial__campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Filas de radio nativo. El target táctil sigue la regla de 44px mínimos del
+   resto del formulario del director. */
+.reporte-inicial__radio {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: 44px;
+  cursor: pointer;
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.reporte-inicial__error {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.reporte-inicial__confirmacion {
+  padding: var(--s-5);
+  border-radius: var(--r-md);
+  background: var(--ok-tint);
+  color: var(--ok);
+  font-weight: 500;
+}
+
+@media (max-width: 480px) {
+  .reporte-inicial { max-width: none; }
+}
+
+/* ── Actualización del parte (batch 6) ────────────────────────────────── */
+
+.reporte-inicial__error-campo {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.actualizacion-resumen__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-4);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.actualizacion-resumen__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+
+
+@media (max-width: 480px) {
+  .actualizacion-resumen__acciones { flex-direction: column; align-items: stretch; }
+}
+
+/* ── Encabezado del programa (ENOS) ───────────────────────────────────── */
+
+/* El título es el del programa y la escuela queda debajo, como identidad
+   subordinada: el director llega por un enlace que ya lo puso en su
+   establecimiento, así que la línea más visible de la pantalla se gasta mejor
+   diciendo dónde está parado dentro del registro provincial. */
+.encabezado-parte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.encabezado-parte__programa {
+  margin: 0;
+  font-size: clamp(1.375rem, 2.6vw, 1.75rem);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.encabezado-parte__glosa {
+  margin: 0;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.encabezado-parte__escuela {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-left: 3px solid var(--line);
+  background: var(--fill);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.encabezado-parte__escuela-nombre {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.encabezado-parte__escuela-datos {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.encabezado-parte__pantalla {
+  margin: var(--s-3) 0 0;
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.encabezado-parte__descripcion {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+/* ── Opciones de radio con glosa ──────────────────────────────────────── */
+
+/* Reemplazan a los <select> de motivo y severidad. Con catálogos de 3 a 5
+   opciones, tenerlas a la vista cuesta un toque contra los tres de un picker
+   nativo, y la glosa traduce el rótulo administrativo sin abrir nada. */
+.opcion-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  transition-property: border-color, background-color;
+  transition-duration: 120ms;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.opcion-radio:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.opcion-radio:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.opcion-radio input {
+  margin-top: 2px;
+  flex: none;
+}
+
+.opcion-radio__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opcion-radio__titulo {
+  font-size: var(--t-small);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.opcion-radio__ayuda {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.opcion-radio--compacta {
+  align-items: center;
+}
+
+.opcion-radio--compacta input {
+  margin-top: 0;
+}
+
+/* ── Campos de afectación ─────────────────────────────────────────────── */
+
+.afectacion-campos__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.afectacion-campos__legend {
+  padding: 0;
+  margin-bottom: var(--s-1, 4px);
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.afectacion-campos__opciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Severidad son cuatro valores y forman una escala. En flex envolvían 3+1,
+   que se lee como "tres cosas y otra aparte" en vez de como una progresión.
+   La grilla las mantiene parejas: 2x2 en pantalla angosta, una fila de
+   cuatro cuando entra. */
+.afectacion-campos__opciones--fila {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+
+@media (min-width: 560px) {
+  .afectacion-campos__opciones--fila {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.afectacion-campos__anidado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--line);
+}
+
+.afectacion-campos__espera {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+}
+
+/* ── Asistente del reporte inicial ────────────────────────────────────── */
+
+.asistente__progreso {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.asistente__contador {
+  margin: 0;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.asistente__pasos {
+  display: flex;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Barra de progreso por tramos: ocupa una línea, no cuatro, y en un celular
+   sigue diciendo cuánto falta sin obligar a leer cuatro rótulos. */
+.asistente__paso {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.asistente__paso--hecho,
+.asistente__paso--actual {
+  background: var(--accent);
+}
+
+.asistente__paso-texto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.asistente__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.asistente__titulo {
+  margin: 0;
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  letter-spacing: 0;
+}
+
+.asistente__resumen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.asistente__resumen-intro {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.asistente__resumen-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-4);
+  padding-left: calc(var(--s-4) + var(--s-4));
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.asistente__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 480px) {
+  .asistente__acciones { flex-direction: column-reverse; align-items: stretch; }
+}
+
+/* ── Tarjeta de afectación plegable (inventario de la actualización) ──── */
+
+
+
+
+
+
+
+
+/* ── Dato vigente que sólo se toca si cambió (pantalla de actualización) ── */
+
+.campo-vigente {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.campo-vigente--abierto {
+  border-color: var(--accent);
+}
+
+.campo-vigente__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+/* La acción se queda arriba a la derecha aunque la línea "Va a quedar"
+   crezca: si el bloque de texto empuja el botón a un renglón propio, la
+   tarjeta pierde su lectura de "afirmación + una salida". */
+.campo-vigente__valor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.campo-vigente__etiqueta {
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+}
+
+.campo-vigente__actual {
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Lo que va a quedar si guarda: se lee como consecuencia, no como otro dato
+   más de la misma jerarquía que el vigente. */
+.campo-vigente__nuevo {
+  margin-top: 2px;
+  font-size: var(--t-micro);
+  color: var(--ok, var(--ink-soft));
+}
+
+.campo-vigente__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+/* ── Chip de origen de una afectación ─────────────────────────────────── */
+
+
+/* ── Cambios sin guardar, visibles mientras se edita ──────────────────── */
+
+.actualizacion__ayuda {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.actualizacion-pendientes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.actualizacion-pendientes__titulo {
+  margin: 0;
+  font-size: var(--t-small);
+  letter-spacing: 0;
+}
+
+.actualizacion-pendientes__vacio {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+/* Retirar/Quitar baja a acción de texto: es la más destructiva de la tarjeta
+   y era la más pesada visualmente, compitiendo con el dato que describe. */
+
+
+/* ── Una situación del parte (lista de la pantalla de actualización) ───── */
+
+/* La tarjeta no es un contenedor que se abre: es una afirmación con dos
+   salidas. Por eso no hay chevron ni fila clickeable — el estado de cada
+   situación está escrito, y lo que se puede hacer son botones con palabras. */
+.situacion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.situacion--editando {
+  border-color: var(--accent);
+}
+
+.situacion--resuelta {
+  background: var(--fill);
+  border-style: dashed;
+}
+
+.situacion__encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.situacion__identidad {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.situacion__titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.situacion--resuelta .situacion__titulo {
+  text-decoration: line-through;
+  color: var(--ink-soft);
+}
+
+.situacion__detalle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.situacion__alcance {
+  color: var(--ink-faint);
+}
+
+.situacion__alcance::before {
+  content: '·';
+  margin-right: var(--s-2);
+}
+
+/* El estado va escrito, no codificado sólo en color: en una pantalla que se
+   usa a la intemperie y en cualquier teléfono, el color solo no alcanza. */
+.situacion__estado {
+  flex: none;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.situacion__estado--nueva,
+.situacion__estado--corregida {
+  background: var(--info-tint);
+  color: var(--info);
+}
+
+.situacion__estado--resuelta {
+  background: var(--ok-tint);
+  color: var(--ok);
+}
+
+.situacion__campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.situacion__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+@media (max-width: 420px) {
+  .situacion__acciones > * { flex: 1 1 100%; }
+}
+
+/* ── Aviso de recomendación (nunca bloquea) ───────────────────────────── */
+
+/* Va como sello + frase, no como párrafo suelto: un aviso que se lee igual
+   que el resto del texto no se distingue del contenido, y uno que grita
+   parecería un error. Esto es una recomendación (§18.14) y tiene que verse
+   como tal. */
+.aviso-badge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--warn-tint);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.aviso-badge__sello {
+  flex: none;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--warn);
+  color: var(--white);
+  font-size: var(--t-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.vigencia-field__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
 }
