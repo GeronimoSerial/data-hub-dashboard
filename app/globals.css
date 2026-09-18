@@ -2223,6 +2223,109 @@ time {
   }
 }
 
+/* ── Historial del parte (spec §15) ────────────────────────────────────── */
+
+/* Sólo lectura, en un teléfono, posiblemente durante una emergencia: una
+   columna, sin adornos, y cada movimiento separado por una línea en lugar
+   de una tarjeta (no hay Card en components/ui/ y no hace falta). */
+.historial-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.historial-movimiento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.historial-movimiento:last-child { padding-bottom: 0; border-bottom: 0; }
+
+.historial-movimiento__encabezado {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* El separador "·" del ejemplo de la spec, como borde y no como texto: no lo
+   lee un lector de pantalla, desaparece si la línea se parte, y no queda
+   huérfano cuando la fecha de carga no se pudo interpretar. */
+.historial-movimiento__carga + .historial-movimiento__rol::before {
+  content: '·';
+  margin-right: var(--s-2);
+  color: var(--ink-soft);
+}
+
+.historial-movimiento__vigencia {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.historial-movimiento__cambios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.historial-movimiento__cambio {
+  position: relative;
+  padding-left: 1rem;
+  font-size: var(--t-small);
+  color: var(--ink);
+  line-height: 1.45;
+}
+.historial-movimiento__cambio::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--ink-soft);
+}
+
+/* Espera, error y vacío comparten el mismo bloque: un texto y, cuando hay
+   algo que hacer, una sola acción (Nielsen #1). */
+.historial-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.historial-estado__texto {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.historial-estado__accion { align-self: flex-start; }
+
+.historial-volver {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: var(--s-5);
+  color: var(--accent);
+  font-size: var(--t-small);
+  font-weight: 600;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    Estado actual del parte — pantalla inicial del director (spec §6, §17)
 
