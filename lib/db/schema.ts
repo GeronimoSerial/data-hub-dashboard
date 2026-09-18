@@ -220,6 +220,15 @@ export const infraProblematica = sqliteTable('infra_problematica', {
   creadaEn: text('creada_en').notNull(),
   idempotencyKey: text('idempotency_key').notNull().unique(),
   origen: text('origen').notNull(),
+  // Enlace aditivo al modelo de parte (ver
+  // docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md).
+  // Nullable a propósito: mismo motivo que categoria arriba, columna agregada
+  // con ALTER (ver ensureParteIdColumn en lib/db/seed.ts) porque SQLite no
+  // permite agregarla NOT NULL con filas ya presentes. El backfill
+  // (backfillPeriodoYPartes) la completa para las filas existentes, pero
+  // nunca se vuelve NOT NULL a nivel de esquema: una fila histórica de una
+  // base que todavía no corrió el backfill debe seguir siendo válida.
+  parteId: text('parte_id').references(() => infraParte.id),
 })
 
 export const infraProblematicaSeccion = sqliteTable(
@@ -271,3 +280,172 @@ export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
   cantidad: integer('cantidad').notNull(),
   consultadoEn: text('consultado_en').notNull(),
 })
+
+// --- Trayectoria de situaciones hidrometeorológicas ---
+// Ver docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md
+// y el CONTRACT.md del batch de esquema. Migración aditiva: infra_problematica
+// (arriba) sigue existiendo tal cual y mapea ~1:1 a "afectación"; estas tablas
+// nuevas agregan el modelo de período/parte por encima, sin tocar el
+// contrato existente de POST /api/problematicas.
+//
+// Todas las columnas de vigencia siguen la distinción de la spec §12: `rigeDesde`
+// (cuándo empieza a regir el cambio, puede ser pasado o futuro) es siempre
+// distinta de `creadaEn` (cuándo se cargó en el sistema, reloj del servidor).
+// Ninguna se deriva de la otra. Igual que `infra_problematica.creadaEn`, se
+// guardan como texto ISO 8601, nunca como entero epoch (ese modo sólo lo usan
+// las tablas de better-auth).
+
+// Período provincial (p. ej. protocolo ENOS 2026/2027). Sólo un período puede
+// estar `vigente` a la vez: índice único parcial (`WHERE estado = 'vigente'`),
+// no sobre la columna entera, para que puedan coexistir muchos períodos
+// `historico`. La creación real de este índice vive en el DDL crudo de
+// HUB_DDL (lib/db/seed.ts) porque este proyecto no corre drizzle-kit
+// generate/push (ver seedHub) — la declaración acá mantiene el esquema
+// tipado en sincro con esa DDL, no es lo que la crea en runtime.
+export const infraPeriodo = sqliteTable(
+  'infra_periodo',
+  {
+    id: text('id').primaryKey(),
+    nombre: text('nombre').notNull(),
+    inicioEn: text('inicio_en').notNull(),
+    // Nullable: un período vigente todavía no tiene fecha de fin conocida.
+    finEn: text('fin_en'),
+    estado: text('estado').notNull(), // 'vigente' | 'historico'
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_periodo_vigente_unico')
+      .on(t.estado)
+      .where(sql`${t.estado} = 'vigente'`),
+  ],
+)
+
+// Lo que el director ve y actualiza: un parte por cada (cueAnexo, periodoId).
+// `infra_parte_cue_periodo_uidx` impone esa unicidad. Intentar iniciar un
+// reporte cuando ya existe un parte para el establecimiento en el período
+// vigente resuelve a "actualizar el parte" (spec §8, CONTRACT.md — spec §14
+// "Continuar como otro episodio" queda muerta).
+export const infraParte = sqliteTable(
+  'infra_parte',
+  {
+    id: text('id').primaryKey(),
+    periodoId: text('periodo_id')
+      .notNull()
+      .references(() => infraPeriodo.id),
+    cueAnexo: text('cue_anexo').notNull(),
+    // 'habitual' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
+    // del servicio educativo: ver infraServicioAlcance.
+    estadoEstablecimiento: text('estado_establecimiento').notNull().default('habitual'),
+    estadoEstablecimientoRigeDesde: text('estado_establecimiento_rige_desde').notNull(),
+    corteId: integer('corte_id').notNull(),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_parte_cue_periodo_uidx').on(t.cueAnexo, t.periodoId),
+    index('infra_parte_periodo_id_idx').on(t.periodoId),
+  ],
+)
+
+// Una consecuencia concreta del parte (spec §3.2, §9). N por parte, cada una
+// con severidad y alcance propios: modificar una no altera las demás. Soft
+// delete vía `retiradaEn` (nullable): "retirar" una afectación no borra la
+// fila para que el historial (spec §15) conserve la trayectoria completa
+// (spec §8: la actualización conserva el estado anterior en el historial).
+export const infraAfectacion = sqliteTable(
+  'infra_afectacion',
+  {
+    id: text('id').primaryKey(),
+    parteId: text('parte_id')
+      .notNull()
+      .references(() => infraParte.id, { onDelete: 'cascade' }),
+    motivo: text('motivo').notNull(),
+    categoria: text('categoria').notNull(),
+    severidad: text('severidad').notNull(),
+    descripcion: text('descripcion'),
+    rigeDesde: text('rige_desde').notNull(),
+    creadaEn: text('creada_en').notNull(),
+    // Soft delete: nunca se borra una fila, se marca el momento en que dejó
+    // de regir. Null mientras la afectación sigue vigente.
+    retiradaEn: text('retirada_en'),
+  },
+  (t) => [index('infra_afectacion_parte_id_idx').on(t.parteId)],
+)
+
+// Mismo estilo, misma clave compuesta y el mismo cascade que
+// infraProblematicaSeccion.
+export const infraAfectacionSeccion = sqliteTable(
+  'infra_afectacion_seccion',
+  {
+    afectacionId: text('afectacion_id')
+      .notNull()
+      .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
+    geSectionId: integer('ge_section_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.afectacionId, t.geSectionId] })],
+)
+
+// Alumnos seleccionados individualmente dentro de una sección (selección
+// parcial). Misma semántica que infraProblematicaAlumno: una sección presente
+// en infraAfectacionSeccion sin ninguna fila acá se interpreta como "sección
+// completa"; la ausencia de filas es la semántica, no un estado transitorio.
+export const infraAfectacionAlumno = sqliteTable(
+  'infra_afectacion_alumno',
+  {
+    afectacionId: text('afectacion_id')
+      .notNull()
+      .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
+    gePersonId: integer('ge_person_id').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.afectacionId, t.gePersonId] })],
+)
+
+// Alcance de la suspensión del servicio educativo (spec §10). `tipo` indica
+// qué clase de referencia es `referenciaId`: null para 'establecimiento',
+// identificador de turno o `geSectionId` (como texto) para 'turno'/'seccion'.
+// El estado general mostrado al director ('normal' | 'parcial' | 'suspendido')
+// se calcula a partir de las filas vigentes de esta tabla — nunca se
+// persiste, ver CONTRACT.md. Soft delete vía `retiradaEn`, mismo criterio que
+// infraAfectacion.
+export const infraServicioAlcance = sqliteTable(
+  'infra_servicio_alcance',
+  {
+    id: text('id').primaryKey(),
+    parteId: text('parte_id')
+      .notNull()
+      .references(() => infraParte.id, { onDelete: 'cascade' }),
+    tipo: text('tipo').notNull(), // 'establecimiento' | 'turno' | 'seccion'
+    referenciaId: text('referencia_id'),
+    estado: text('estado').notNull(), // 'normal' | 'suspendido'
+    rigeDesde: text('rige_desde').notNull(),
+    creadaEn: text('creada_en').notNull(),
+    retiradaEn: text('retirada_en'),
+  },
+  (t) => [index('infra_servicio_alcance_parte_id_idx').on(t.parteId)],
+)
+
+// Auditoría append-only de la trayectoria del parte (spec §3.3, §15). Nunca
+// se actualiza ni se borra una fila después de insertarla — cada guardado
+// agrega un movimiento nuevo, no reescribe los anteriores (spec §19,
+// "Historial"). `resumen` guarda el diff estructurado como JSON (columna
+// text con mode 'json', mismo patrón que tipos.aplicaA arriba); la forma
+// exacta del diff la define la capa de dominio del batch 2 (movement
+// diffing), acá sólo se reserva la columna.
+export const infraMovimiento = sqliteTable(
+  'infra_movimiento',
+  {
+    id: text('id').primaryKey(),
+    parteId: text('parte_id')
+      .notNull()
+      .references(() => infraParte.id, { onDelete: 'cascade' }),
+    // 'reporte_inicial' | 'actualizacion' | 'cambio_servicio' |
+    // 'cambio_establecimiento' | 'resolucion' (esta última reservada para el
+    // futuro flujo de supervisor, nunca producida en esta etapa)
+    tipo: text('tipo').notNull(),
+    rol: text('rol').notNull(), // 'director' | 'supervisor'
+    resumen: text('resumen', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    rigeDesde: text('rige_desde').notNull(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [index('infra_movimiento_parte_id_idx').on(t.parteId)],
+)

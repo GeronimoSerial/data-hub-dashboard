@@ -1,10 +1,21 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { count } from 'drizzle-orm'
+import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { getDb } from './index'
-import { categorias, niveles, recursos, tags, tipos } from './schema'
+import {
+  categorias,
+  infraAfectacion,
+  infraParte,
+  infraPeriodo,
+  infraProblematica,
+  infraServicioAlcance,
+  niveles,
+  recursos,
+  tags,
+  tipos,
+} from './schema'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -211,5 +222,283 @@ describe('ensureMotivoNombreUnico', () => {
               VALUES ('duplicado', 'Anegamiento', 'establecimiento', 99)`,
       }),
     ).rejects.toThrow()
+  })
+})
+
+// B1 de la trayectoria hidrometeorológica: modelo de período/parte. Ver
+// docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md y el
+// CONTRACT.md del batch de esquema.
+describe('modelo de parte: tablas nuevas en HUB_DDL', () => {
+  it('HUB_DDL crea infra_periodo/infra_parte/infra_afectacion y preserva sus filas al reaplicarse', async () => {
+    const { HUB_DDL } = await import('./seed')
+    const db = getDb()
+
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-ddl-test',
+      nombre: 'Período de prueba',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraParte).values({
+      id: 'parte-ddl-test',
+      periodoId: 'periodo-ddl-test',
+      cueAnexo: '1801605-04',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: '2026-01-01T00:00:00.000Z',
+      corteId: 1,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraAfectacion).values({
+      id: 'afectacion-ddl-test',
+      parteId: 'parte-ddl-test',
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      rigeDesde: '2026-01-01T00:00:00.000Z',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await db.$client.executeMultiple(HUB_DDL)
+    await db.$client.executeMultiple(HUB_DDL)
+
+    const periodos = await db.$client.execute(
+      "SELECT * FROM infra_periodo WHERE id = 'periodo-ddl-test'",
+    )
+    const partes = await db.$client.execute(
+      "SELECT * FROM infra_parte WHERE id = 'parte-ddl-test'",
+    )
+    const afectaciones = await db.$client.execute(
+      "SELECT * FROM infra_afectacion WHERE id = 'afectacion-ddl-test'",
+    )
+    expect(periodos.rows).toHaveLength(1)
+    expect(partes.rows).toHaveLength(1)
+    expect(afectaciones.rows).toHaveLength(1)
+  })
+})
+
+describe('infra_parte: un parte por cueAnexo y período', () => {
+  it('impide dos partes para el mismo cueAnexo dentro del mismo período', async () => {
+    const db = getDb()
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-unico-parte-test',
+      nombre: 'Período único parte',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraParte).values({
+      id: 'parte-unico-1',
+      periodoId: 'periodo-unico-parte-test',
+      cueAnexo: '1801605-04',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: '2026-01-01T00:00:00.000Z',
+      corteId: 1,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await expect(
+      db.insert(infraParte).values({
+        id: 'parte-unico-2',
+        periodoId: 'periodo-unico-parte-test',
+        cueAnexo: '1801605-04',
+        estadoEstablecimiento: 'habitual',
+        estadoEstablecimientoRigeDesde: '2026-01-01T00:00:00.000Z',
+        corteId: 1,
+        creadaEn: '2026-01-01T00:00:00.000Z',
+        actualizadaEn: '2026-01-01T00:00:00.000Z',
+      }),
+    ).rejects.toThrow()
+  })
+})
+
+describe('infra_periodo: un solo período vigente a la vez', () => {
+  it('impide un segundo período vigente, pero permite varios históricos', async () => {
+    const db = getDb()
+    // beforeAll ya corrió backfillPeriodoYPartes, que siembra el período ENOS
+    // vigente: alcanza con intentar sembrar otro vigente encima.
+    await expect(
+      db.insert(infraPeriodo).values({
+        id: 'periodo-vigente-duplicado-test',
+        nombre: 'Otro período vigente',
+        inicioEn: '2026-01-01T00:00:00.000Z',
+        finEn: null,
+        estado: 'vigente',
+        creadaEn: '2026-01-01T00:00:00.000Z',
+      }),
+    ).rejects.toThrow()
+
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-historico-a',
+      nombre: 'Histórico A',
+      inicioEn: '2025-01-01T00:00:00.000Z',
+      finEn: '2025-06-01T00:00:00.000Z',
+      estado: 'historico',
+      creadaEn: '2025-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-historico-b',
+      nombre: 'Histórico B',
+      inicioEn: '2024-01-01T00:00:00.000Z',
+      finEn: '2024-06-01T00:00:00.000Z',
+      estado: 'historico',
+      creadaEn: '2024-01-01T00:00:00.000Z',
+    })
+
+    const historicos = await db.$client.execute(
+      "SELECT id FROM infra_periodo WHERE estado = 'historico'",
+    )
+    expect(historicos.rows.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('soft delete: retirar no borra la fila', () => {
+  it('retirar una afectación conserva la fila con retiradaEn', async () => {
+    const db = getDb()
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-soft-delete-test',
+      nombre: 'Período soft delete',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraParte).values({
+      id: 'parte-soft-delete-test',
+      periodoId: 'periodo-soft-delete-test',
+      cueAnexo: '1801605-04',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: '2026-01-01T00:00:00.000Z',
+      corteId: 1,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraAfectacion).values({
+      id: 'afectacion-soft-delete-test',
+      parteId: 'parte-soft-delete-test',
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      rigeDesde: '2026-01-01T00:00:00.000Z',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await db
+      .update(infraAfectacion)
+      .set({ retiradaEn: '2026-02-01T00:00:00.000Z' })
+      .where(eq(infraAfectacion.id, 'afectacion-soft-delete-test'))
+
+    const [fila] = await db
+      .select()
+      .from(infraAfectacion)
+      .where(eq(infraAfectacion.id, 'afectacion-soft-delete-test'))
+    expect(fila).toBeDefined()
+    expect(fila?.retiradaEn).toBe('2026-02-01T00:00:00.000Z')
+  })
+
+  it('retirar un alcance de servicio conserva la fila con retiradaEn', async () => {
+    const db = getDb()
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-alcance-soft-delete-test',
+      nombre: 'Período alcance soft delete',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraParte).values({
+      id: 'parte-alcance-soft-delete-test',
+      periodoId: 'periodo-alcance-soft-delete-test',
+      cueAnexo: '1801605-04',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: '2026-01-01T00:00:00.000Z',
+      corteId: 1,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraServicioAlcance).values({
+      id: 'alcance-soft-delete-test',
+      parteId: 'parte-alcance-soft-delete-test',
+      tipo: 'seccion',
+      referenciaId: '123',
+      estado: 'suspendido',
+      rigeDesde: '2026-01-01T00:00:00.000Z',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await db
+      .update(infraServicioAlcance)
+      .set({ retiradaEn: '2026-02-01T00:00:00.000Z' })
+      .where(eq(infraServicioAlcance.id, 'alcance-soft-delete-test'))
+
+    const [fila] = await db
+      .select()
+      .from(infraServicioAlcance)
+      .where(eq(infraServicioAlcance.id, 'alcance-soft-delete-test'))
+    expect(fila).toBeDefined()
+    expect(fila?.retiradaEn).toBe('2026-02-01T00:00:00.000Z')
+  })
+})
+
+describe('ensureParteIdColumn', () => {
+  it('agrega la columna parte_id si falta, y no falla si ya existe', async () => {
+    const { ensureParteIdColumn } = await import('./seed')
+
+    await ensureParteIdColumn()
+    await ensureParteIdColumn()
+
+    const db = getDb()
+    const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas.filter((c) => c === 'parte_id')).toHaveLength(1)
+  })
+})
+
+describe('backfillPeriodoYPartes', () => {
+  it('crea un período vigente y un parte por cueAnexo, enlaza las problemáticas y es idempotente', async () => {
+    const db = getDb()
+    const { backfillPeriodoYPartes, PERIODO_ENOS_2026_2027_ID } = await import('./seed')
+
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, categoria, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('backfill-parte-1', '1801605-99', 'Inundación', 'establecimiento', 'Alta', 1, '2026-01-01T00:00:00.000Z', 'k-backfill-parte-1', 'enlace-cue')`,
+    })
+    await db.$client.execute({
+      sql: `INSERT INTO infra_problematica
+              (id, cue_anexo, motivo, categoria, severidad, corte_id, creada_en, idempotency_key, origen)
+            VALUES ('backfill-parte-2', '1801605-99', 'Anegamiento', 'alumnos', 'Media', 2, '2026-02-01T00:00:00.000Z', 'k-backfill-parte-2', 'enlace-cue')`,
+    })
+
+    await backfillPeriodoYPartes()
+    // Idempotente: correrlo de nuevo no debería duplicar el período ni el parte.
+    await backfillPeriodoYPartes()
+
+    const periodos = await db
+      .select()
+      .from(infraPeriodo)
+      .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
+    expect(periodos).toHaveLength(1)
+    expect(periodos[0]?.estado).toBe('vigente')
+
+    const partes = await db
+      .select()
+      .from(infraParte)
+      .where(eq(infraParte.cueAnexo, '1801605-99'))
+    expect(partes).toHaveLength(1)
+    // Se queda con el corte de la problemática más reciente por creada_en
+    // (backfill-parte-2, corte 2) — ver decisión documentada en seed.ts.
+    expect(partes[0]?.corteId).toBe(2)
+
+    const problematicas = await db
+      .select({ id: infraProblematica.id, parteId: infraProblematica.parteId })
+      .from(infraProblematica)
+      .where(eq(infraProblematica.cueAnexo, '1801605-99'))
+    expect(problematicas).toHaveLength(2)
+    expect(problematicas.every((p) => p.parteId === partes[0]?.id)).toBe(true)
   })
 })
