@@ -17,12 +17,36 @@ const MESES_LARGOS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ] as const
 
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
+// La provincia entera trabaja en un solo huso; fijarlo evita que el
+// historial se lea con la hora del dispositivo cuando alguien lo abre desde
+// otro huso (mismo criterio que estado-actual-textos.ts).
+const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
+
+const PARTES_FORMATO = new Intl.DateTimeFormat('en-US', {
+  timeZone: ZONA_HORARIA,
+  month: '2-digit',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+interface PartesFecha {
+  dia: number
+  mes: number
+  hora: string
+  minuto: string
 }
 
-function horaLocal(fecha: Date): string {
-  return `${pad(fecha.getHours())}:${pad(fecha.getMinutes())}`
+function partesEnZona(fecha: Date): PartesFecha {
+  const partes = PARTES_FORMATO.formatToParts(fecha)
+  const valor = (tipo: string) => partes.find((parte) => parte.type === tipo)?.value ?? '00'
+  return {
+    dia: Number(valor('day')),
+    mes: Number(valor('month')) - 1,
+    hora: valor('hour'),
+    minuto: valor('minute'),
+  }
 }
 
 /**
@@ -33,7 +57,8 @@ function horaLocal(fecha: Date): string {
 export function formatearCargaCorta(iso: string): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
-  return `${fecha.getDate()} ${MESES_CORTOS[fecha.getMonth()]} · ${horaLocal(fecha)}`
+  const { dia, mes, hora, minuto } = partesEnZona(fecha)
+  return `${dia} ${MESES_CORTOS[mes]} · ${hora}:${minuto}`
 }
 
 /**
@@ -43,7 +68,8 @@ export function formatearCargaCorta(iso: string): string {
 export function formatearRigeDesde(iso: string): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return ''
-  return `Rige desde el ${fecha.getDate()} de ${MESES_LARGOS[fecha.getMonth()]} a las ${horaLocal(fecha)}`
+  const { dia, mes, hora, minuto } = partesEnZona(fecha)
+  return `Rige desde el ${dia} de ${MESES_LARGOS[mes]} a las ${hora}:${minuto}`
 }
 
 /**

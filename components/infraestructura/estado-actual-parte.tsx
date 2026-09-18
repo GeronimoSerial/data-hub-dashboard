@@ -103,6 +103,14 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
             Reintentar
           </Button>
         )}
+        {estado.mensaje === MENSAJE_ACCESO_VENCIDO && (
+          <a
+            className="ui-button ui-button--default"
+            href={enlaceCon('/problematicas/parte', cue)}
+          >
+            Volver a ingresar la contraseña
+          </a>
+        )}
       </div>
     )
   }

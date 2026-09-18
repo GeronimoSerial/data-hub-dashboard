@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { MENSAJE_ACCESO_VENCIDO } from './estado-actual-textos'
 import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
 
 type Estado =
   | { fase: 'cargando' }
   | { fase: 'listo'; movimientos: MovimientoHistorial[] }
-  | { fase: 'error' }
+  | { fase: 'error'; accesoVencido: boolean }
 
 interface RespuestaHistorial {
   ok?: boolean
@@ -33,13 +34,13 @@ export function HistorialParte({ cue }: { cue: string }): JSX.Element {
     try {
       const respuesta = await fetch(`/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`)
       if (!respuesta.ok) {
-        setEstado({ fase: 'error' })
+        setEstado({ fase: 'error', accesoVencido: respuesta.status === 401 })
         return
       }
       const datos = (await respuesta.json()) as RespuestaHistorial
       setEstado({ fase: 'listo', movimientos: datos.movimientos ?? [] })
     } catch {
-      setEstado({ fase: 'error' })
+      setEstado({ fase: 'error', accesoVencido: false })
     }
   }, [cue])
 
@@ -61,11 +62,22 @@ export function HistorialParte({ cue }: { cue: string }): JSX.Element {
     return (
       <div className="historial-estado" role="alert">
         <p className="historial-estado__texto">
-          No pudimos mostrar el historial. Revise su conexión y vuelva a intentar.
+          {estado.accesoVencido
+            ? MENSAJE_ACCESO_VENCIDO
+            : 'No pudimos mostrar el historial. Revise su conexión y vuelva a intentar.'}
         </p>
-        <Button type="button" onClick={() => void cargar()}>
-          Reintentar
-        </Button>
+        {estado.accesoVencido ? (
+          <a
+            className="ui-button ui-button--default historial-estado__accion"
+            href={`/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`}
+          >
+            Volver a ingresar la contraseña
+          </a>
+        ) : (
+          <Button type="button" onClick={() => void cargar()}>
+            Reintentar
+          </Button>
+        )}
       </div>
     )
   }
