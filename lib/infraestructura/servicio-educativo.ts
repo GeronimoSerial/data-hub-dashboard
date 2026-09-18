@@ -23,17 +23,33 @@ export function calcularEstadoServicioGeneral(
   // suspender, se informa como normal.
   if (secciones.length === 0) return 'normal'
 
+  // Desempate DETERMINISTA cuando dos filas vigentes compiten por el mismo
+  // alcance (misma sección, mismo turno o el establecimiento entero): sin
+  // este criterio, "última fila del array gana" dependía del orden en que
+  // volvía la query, y la misma base de datos podía mostrarle al director
+  // "normal" o "suspendido" para el mismo parte según el orden de retorno.
+  // Gana la fila con creadaEn más reciente; si también empata, gana el id
+  // mayor en orden lexicográfico. Es arbitrario pero estable — no lo
+  // "simplifiques" quitando el desempate, eso reintroduce el no-determinismo.
+  function ganaLaNueva(actual: ServicioAlcance, nueva: ServicioAlcance): boolean {
+    if (nueva.creadaEn !== actual.creadaEn) return nueva.creadaEn > actual.creadaEn
+    return nueva.id > actual.id
+  }
+
   const porSeccion = new Map<number, ServicioAlcance>()
   const porTurno = new Map<string, ServicioAlcance>()
   let establecimiento: ServicioAlcance | undefined
 
   for (const fila of alcanceVigente) {
     if (fila.tipo === 'seccion' && fila.referenciaId !== null) {
-      porSeccion.set(Number(fila.referenciaId), fila)
+      const clave = Number(fila.referenciaId)
+      const actual = porSeccion.get(clave)
+      if (!actual || ganaLaNueva(actual, fila)) porSeccion.set(clave, fila)
     } else if (fila.tipo === 'turno' && fila.referenciaId !== null) {
-      porTurno.set(fila.referenciaId, fila)
+      const actual = porTurno.get(fila.referenciaId)
+      if (!actual || ganaLaNueva(actual, fila)) porTurno.set(fila.referenciaId, fila)
     } else if (fila.tipo === 'establecimiento') {
-      establecimiento = fila
+      if (!establecimiento || ganaLaNueva(establecimiento, fila)) establecimiento = fila
     }
   }
 

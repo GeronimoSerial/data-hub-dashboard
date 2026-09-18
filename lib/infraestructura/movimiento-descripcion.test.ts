@@ -27,6 +27,7 @@ const diffVacio: DiffParte = {
   afectacionesRetiradas: [],
   severidadesCambiadas: [],
   alcancesCambiados: [],
+  datosCambiados: [],
   serviciosCambiados: [],
   establecimientoCambiado: null,
 }
@@ -122,6 +123,27 @@ describe('describirMovimiento', () => {
     expect(describirMovimiento(diff)).toContain('Funcionamiento habitual → Establecimiento evacuado')
   })
 
+  it('cambio de motivo en una afectación existente se traduce a español llano', () => {
+    const antes: ParteSnapshot = {
+      estadoEstablecimiento: 'habitual',
+      afectaciones: [afectacion({ id: 'af-1', motivo: 'Inundación' })],
+      servicioAlcance: [],
+    }
+    const despues: ParteSnapshot = {
+      ...antes,
+      afectaciones: [{ ...antes.afectaciones[0], motivo: 'Inundación por desborde' }],
+    }
+    const diff = diffParte(antes, despues)
+    expect(describirMovimiento(diff)).toContain('Motivo actualizado: "Inundación" → "Inundación por desborde"')
+  })
+
+  it('diff con datosCambiados ausente (resumen persistido antes de esta variante) no rompe', () => {
+    const diffSinDatosCambiados = { ...diffVacio } as Partial<DiffParte>
+    delete diffSinDatosCambiados.datosCambiados
+    expect(() => describirMovimiento(diffSinDatosCambiados as DiffParte)).not.toThrow()
+    expect(describirMovimiento(diffSinDatosCambiados as DiffParte)).toEqual([])
+  })
+
   it('nunca usa el vocabulario prohibido de la spec §5.4', () => {
     const diff: DiffParte = {
       afectacionesAgregadas: [
@@ -132,12 +154,38 @@ describe('describirMovimiento', () => {
       alcancesCambiados: [
         { afectacionId: 'd', motivo: 'Y', seccionesAgregadas: 1, seccionesRetiradas: 1, alumnosAgregados: 1, alumnosRetirados: 1 },
       ],
+      datosCambiados: [],
       serviciosCambiados: [
         { alcance: { tipo: 'turno', referenciaId: 'Mañana', etiqueta: 'Mañana' }, de: 'normal', a: 'suspendido' },
       ],
       establecimientoCambiado: { de: 'habitual', a: 'centro_evacuados' },
     }
     const lineas = describirMovimiento(diff)
+    for (const linea of lineas) {
+      for (const patron of VOCABULARIO_PROHIBIDO) {
+        expect(linea).not.toMatch(patron)
+      }
+    }
+  })
+
+  it('vocabulario prohibido no aparece tampoco en las líneas de datosCambiados', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      datosCambiados: [
+        {
+          afectacionId: 'af-1',
+          motivo: 'Inundación por desborde',
+          campos: [
+            { campo: 'motivo', de: 'Inundación', a: 'Inundación por desborde' },
+            { campo: 'categoria', de: 'establecimiento', a: 'alumnos' },
+            { campo: 'descripcion', de: null, a: 'texto nuevo' },
+          ],
+          seccionesConSeleccionCambiada: [1],
+        },
+      ],
+    }
+    const lineas = describirMovimiento(diff)
+    expect(lineas.length).toBeGreaterThan(0)
     for (const linea of lineas) {
       for (const patron of VOCABULARIO_PROHIBIDO) {
         expect(linea).not.toMatch(patron)

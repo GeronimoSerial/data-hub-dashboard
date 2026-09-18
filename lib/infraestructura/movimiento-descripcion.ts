@@ -7,6 +7,7 @@
 // "registro histórico", "persistencia". Ninguna cadena de este archivo los
 // usa — si se agrega un caso nuevo, mantener esa restricción.
 import type {
+  DiffDatosCambio,
   DiffParte,
   DiffServicioAlcanceRef,
   DiffServicioCambio,
@@ -97,6 +98,28 @@ export function describirMovimiento(
 
   for (const cambio of diff.severidadesCambiadas) {
     lineas.push(`Severidad de "${cambio.motivo}": ${cambio.de} → ${cambio.a}`)
+  }
+
+  // diff.datosCambiados puede faltar en un resumen ya persistido de antes de
+  // que esta variante existiera (infra_movimiento es append-only, nunca se
+  // reescriben filas viejas) — el `?? []` evita que el historial existente
+  // rompa al renderizarse.
+  for (const cambio of (diff.datosCambiados ?? []) as DiffDatosCambio[]) {
+    for (const campo of cambio.campos) {
+      if (campo.campo === 'motivo') {
+        lineas.push(`Motivo actualizado: "${campo.de}" → "${campo.a}"`)
+      } else if (campo.campo === 'categoria') {
+        lineas.push(`Categoría de "${cambio.motivo}" actualizada`)
+      } else if (campo.campo === 'descripcion') {
+        lineas.push(`Descripción de "${cambio.motivo}" actualizada`)
+      }
+    }
+    if (cambio.seccionesConSeleccionCambiada.length > 0) {
+      const cantidad = cambio.seccionesConSeleccionCambiada.length
+      lineas.push(
+        `${cantidad} ${pluralizar(cantidad, 'sección con selección modificada', 'secciones con selección modificada')} en "${cambio.motivo}"`,
+      )
+    }
   }
 
   for (const cambio of diff.alcancesCambiados) {

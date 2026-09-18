@@ -57,6 +57,19 @@ export interface DiffAlcanceCambio {
   alumnosRetirados: number
 }
 
+export interface DiffCampoCambio {
+  campo: 'motivo' | 'categoria' | 'descripcion'
+  de: string | null
+  a: string | null
+}
+
+export interface DiffDatosCambio {
+  afectacionId: string
+  motivo: string
+  campos: DiffCampoCambio[]
+  seccionesConSeleccionCambiada: number[]
+}
+
 export interface DiffServicioAlcanceRef {
   tipo: ServicioAlcanceTipo
   referenciaId: string | null
@@ -79,6 +92,7 @@ export interface DiffParte {
   afectacionesRetiradas: DiffAfectacionRetirada[]
   severidadesCambiadas: DiffSeveridadCambio[]
   alcancesCambiados: DiffAlcanceCambio[]
+  datosCambiados: DiffDatosCambio[]
   serviciosCambiados: DiffServicioCambio[]
   establecimientoCambiado: DiffEstablecimientoCambio | null
 }
@@ -152,6 +166,37 @@ function diffAlcanceAfectacion(
   }
 }
 
+function diffDatosAfectacion(antes: Afectacion, despues: Afectacion): DiffDatosCambio | null {
+  const campos: DiffCampoCambio[] = []
+  if (antes.motivo !== despues.motivo) {
+    campos.push({ campo: 'motivo', de: antes.motivo, a: despues.motivo })
+  }
+  if (antes.categoria !== despues.categoria) {
+    campos.push({ campo: 'categoria', de: antes.categoria, a: despues.categoria })
+  }
+  if (antes.descripcion !== despues.descripcion) {
+    campos.push({ campo: 'descripcion', de: antes.descripcion, a: despues.descripcion })
+  }
+
+  const seccionCompletaAntes = new Map(antes.secciones.map((s) => [s.geSectionId, s.seccionCompleta]))
+  const seccionesConSeleccionCambiada: number[] = []
+  for (const seccion of despues.secciones) {
+    const previaCompleta = seccionCompletaAntes.get(seccion.geSectionId)
+    if (previaCompleta !== undefined && previaCompleta !== seccion.seccionCompleta) {
+      seccionesConSeleccionCambiada.push(seccion.geSectionId)
+    }
+  }
+
+  if (campos.length === 0 && seccionesConSeleccionCambiada.length === 0) return null
+
+  return {
+    afectacionId: despues.id,
+    motivo: despues.motivo,
+    campos,
+    seccionesConSeleccionCambiada,
+  }
+}
+
 function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
   const antesPorId = new Map(antes.map((a) => [a.id, a]))
   const despuesPorId = new Map(despues.map((a) => [a.id, a]))
@@ -160,6 +205,7 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
   const afectacionesRetiradas: DiffAfectacionRetirada[] = []
   const severidadesCambiadas: DiffSeveridadCambio[] = []
   const alcancesCambiados: DiffAlcanceCambio[] = []
+  const datosCambiados: DiffDatosCambio[] = []
 
   for (const afectacion of despues) {
     const previa = antesPorId.get(afectacion.id)
@@ -185,6 +231,9 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
       })
     }
 
+    const cambioDatos = diffDatosAfectacion(previa, afectacion)
+    if (cambioDatos) datosCambiados.push(cambioDatos)
+
     const cambioAlcance = diffAlcanceAfectacion(previa, afectacion)
     if (cambioAlcance) alcancesCambiados.push(cambioAlcance)
   }
@@ -195,7 +244,7 @@ function diffAfectaciones(antes: Afectacion[], despues: Afectacion[]) {
     }
   }
 
-  return { afectacionesAgregadas, afectacionesRetiradas, severidadesCambiadas, alcancesCambiados }
+  return { afectacionesAgregadas, afectacionesRetiradas, severidadesCambiadas, alcancesCambiados, datosCambiados }
 }
 
 function diffServicio(antes: ServicioAlcance[], despues: ServicioAlcance[]): DiffServicioCambio[] {
@@ -238,7 +287,7 @@ function diffEstablecimiento(
 }
 
 export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot): DiffParte {
-  const { afectacionesAgregadas, afectacionesRetiradas, severidadesCambiadas, alcancesCambiados } =
+  const { afectacionesAgregadas, afectacionesRetiradas, severidadesCambiadas, alcancesCambiados, datosCambiados } =
     diffAfectaciones(antes.afectaciones, despues.afectaciones)
 
   return {
@@ -246,6 +295,7 @@ export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot): DiffPar
     afectacionesRetiradas,
     severidadesCambiadas,
     alcancesCambiados,
+    datosCambiados,
     serviciosCambiados: diffServicio(antes.servicioAlcance, despues.servicioAlcance),
     establecimientoCambiado: diffEstablecimiento(antes.estadoEstablecimiento, despues.estadoEstablecimiento),
   }
@@ -261,6 +311,7 @@ export function esDiffVacio(diff: DiffParte): boolean {
     diff.afectacionesRetiradas.length === 0 &&
     diff.severidadesCambiadas.length === 0 &&
     diff.alcancesCambiados.length === 0 &&
+    diff.datosCambiados.length === 0 &&
     diff.serviciosCambiados.length === 0 &&
     diff.establecimientoCambiado === null
   )

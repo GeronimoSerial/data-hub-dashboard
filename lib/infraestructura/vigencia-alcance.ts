@@ -43,7 +43,26 @@ function aFecha(valor: Date | string): Date {
   return valor instanceof Date ? valor : new Date(valor)
 }
 
-export function resolverAlcanceVigente<T extends FilaConVigencia>(
+// Desempate DETERMINISTA cuando dos filas vigentes de la misma clave tienen
+// rigeDesde idéntico: sin este criterio, cuál fila sobrevive dependía del
+// orden de `filas` (el orden de la query, no garantizado), y la misma base
+// de datos podía mostrar un alcance distinto según cómo volviera la
+// consulta. Gana rigeDesde más reciente; en empate de rigeDesde, gana
+// creadaEn más reciente; si también empata, gana el id mayor en orden
+// lexicográfico. Es arbitrario pero estable — no lo "simplifiques" quitando
+// el desempate, eso reintroduce el no-determinismo.
+function ganaLaNueva<T extends FilaConVigencia & { id: string; creadaEn: string }>(
+  actual: T,
+  nueva: T,
+): boolean {
+  const rigeActual = new Date(actual.rigeDesde).getTime()
+  const rigeNueva = new Date(nueva.rigeDesde).getTime()
+  if (rigeNueva !== rigeActual) return rigeNueva > rigeActual
+  if (nueva.creadaEn !== actual.creadaEn) return nueva.creadaEn > actual.creadaEn
+  return nueva.id > actual.id
+}
+
+export function resolverAlcanceVigente<T extends FilaConVigencia & { id: string; creadaEn: string }>(
   filas: T[],
   opciones: ResolverVigenciaOpciones<T> = {},
 ): T[] {
@@ -67,7 +86,7 @@ export function resolverAlcanceVigente<T extends FilaConVigencia>(
   for (const fila of enVigencia) {
     const k = clave(fila)
     const actual = porClave.get(k)
-    if (!actual || new Date(fila.rigeDesde).getTime() > new Date(actual.rigeDesde).getTime()) {
+    if (!actual || ganaLaNueva(actual, fila)) {
       porClave.set(k, fila)
     }
   }
