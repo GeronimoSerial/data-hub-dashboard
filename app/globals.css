@@ -2540,70 +2540,14 @@ time {
 
 /* ── Borrador de afectación (batch 5) ─────────────────────────────────── */
 
-.afectacion-borrador {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-3);
-  padding: var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--card);
-}
 
-.afectacion-borrador__encabezado {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
-}
 
-.afectacion-borrador__encabezado h3 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--t-body);
-  font-weight: 700;
-  color: var(--ink);
-}
 
 /* Blanco táctil obligatorio: lo toca un director desde el celular. */
-.afectacion-borrador__quitar {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 var(--s-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--fill);
-  color: var(--ink);
-  font-size: var(--t-small);
-  cursor: pointer;
-}
 
-.afectacion-borrador__quitar:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
-.afectacion-borrador__campo {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
 
-.afectacion-borrador__resumen {
-  margin: 0;
-  font-size: var(--t-small);
-  color: var(--ink-soft);
-}
 
-.afectacion-borrador__duplicado {
-  margin: 0;
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-sm);
-  background: var(--info-tint);
-  color: var(--ink);
-  font-size: var(--t-small);
-}
 
 /* ── Reporte inicial (batch 5) ─────────────────────────────────────────── */
 
@@ -2612,33 +2556,6 @@ time {
   flex-direction: column;
   gap: var(--s-5);
   max-width: 640px;
-}
-
-/* Bloque de referencia de la escuela: texto de solo lectura, mismo patrón
-   que .formulario-problematica__escuela. */
-.reporte-inicial__escuela {
-  display: grid;
-  gap: 2px;
-  padding: var(--s-4);
-  border-radius: var(--r-md);
-  background: var(--fill);
-}
-
-.reporte-inicial__escuela p { margin: 0; }
-.reporte-inicial__escuela p:first-child {
-  font-family: var(--font-title);
-  font-weight: 700;
-  font-size: 1.0625rem;
-  letter-spacing: 0;
-  line-height: 1.25;
-  color: var(--ink);
-}
-.reporte-inicial__escuela p:last-child {
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
 }
 
 /* Cada sección del parte se separa con una hairline, como los bloques del
@@ -2723,28 +2640,499 @@ time {
   gap: var(--s-3);
 }
 
-.actualizacion-retiradas {
+
+
+@media (max-width: 480px) {
+  .actualizacion-resumen__acciones { flex-direction: column; align-items: stretch; }
+}
+
+/* ── Encabezado del programa (ENOS) ───────────────────────────────────── */
+
+/* El título es el del programa y la escuela queda debajo, como identidad
+   subordinada: el director llega por un enlace que ya lo puso en su
+   establecimiento, así que la línea más visible de la pantalla se gasta mejor
+   diciendo dónde está parado dentro del registro provincial. */
+.encabezado-parte {
   display: flex;
   flex-direction: column;
+  gap: var(--s-2);
+  margin-bottom: var(--s-5);
+}
+
+.encabezado-parte__programa {
+  margin: 0;
+  font-size: clamp(1.375rem, 2.6vw, 1.75rem);
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.encabezado-parte__glosa {
+  margin: 0;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.encabezado-parte__escuela {
+  display: grid;
+  gap: 2px;
+  margin-top: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  border-left: 3px solid var(--line);
+  background: var(--fill);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.encabezado-parte__escuela-nombre {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.encabezado-parte__escuela-datos {
+  margin: 0;
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.encabezado-parte__pantalla {
+  margin: var(--s-3) 0 0;
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.encabezado-parte__descripcion {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+/* ── Opciones de radio con glosa ──────────────────────────────────────── */
+
+/* Reemplazan a los <select> de motivo y severidad. Con catálogos de 3 a 5
+   opciones, tenerlas a la vista cuesta un toque contra los tres de un picker
+   nativo, y la glosa traduce el rótulo administrativo sin abrir nada. */
+.opcion-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  min-height: 44px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.opcion-radio:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--fill);
+}
+
+.opcion-radio:has(input:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.opcion-radio input {
+  margin-top: 2px;
+  flex: none;
+}
+
+.opcion-radio__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.opcion-radio__titulo {
+  font-size: var(--t-small);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.opcion-radio__ayuda {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.opcion-radio--compacta {
+  align-items: center;
+}
+
+.opcion-radio--compacta input {
+  margin-top: 0;
+}
+
+/* ── Campos de afectación ─────────────────────────────────────────────── */
+
+.afectacion-campos__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.afectacion-campos__legend {
+  padding: 0;
+  margin-bottom: var(--s-1, 4px);
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.afectacion-campos__opciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* Severidad son cuatro valores cortos: en fila entran de un vistazo y se
+   leen como una escala, que es lo que son. */
+.afectacion-campos__opciones--fila {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.afectacion-campos__opciones--fila .opcion-radio {
+  flex: 1 1 8rem;
+}
+
+.afectacion-campos__anidado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--line);
+}
+
+.afectacion-campos__espera {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+}
+
+/* ── Asistente del reporte inicial ────────────────────────────────────── */
+
+.asistente__progreso {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.asistente__contador {
+  margin: 0;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+
+.asistente__pasos {
+  display: flex;
   gap: var(--s-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.afectacion-retirada {
+/* Barra de progreso por tramos: ocupa una línea, no cuatro, y en un celular
+   sigue diciendo cuánto falta sin obligar a leer cuatro rótulos. */
+.asistente__paso {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.asistente__paso--hecho,
+.asistente__paso--actual {
+  background: var(--ink);
+}
+
+.asistente__paso-texto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.asistente__cuerpo {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--fill);
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
+.asistente__titulo {
+  margin: 0;
+  font-size: clamp(1.125rem, 2vw, 1.375rem);
+  letter-spacing: 0;
+}
+
+.asistente__resumen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.asistente__resumen-intro {
+  margin: 0;
   color: var(--ink-soft);
   font-size: var(--t-small);
 }
 
+.asistente__resumen-lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-4);
+  padding-left: calc(var(--s-4) + var(--s-4));
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.asistente__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+
 @media (max-width: 480px) {
-  .actualizacion-resumen__acciones { flex-direction: column; align-items: stretch; }
+  .asistente__acciones { flex-direction: column-reverse; align-items: stretch; }
+}
+
+/* ── Tarjeta de afectación plegable (inventario de la actualización) ──── */
+
+
+
+
+
+
+
+
+/* ── Dato vigente que sólo se toca si cambió (pantalla de actualización) ── */
+
+.campo-vigente {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.campo-vigente--abierto {
+  border-color: var(--ink);
+}
+
+.campo-vigente__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+/* La acción se queda arriba a la derecha aunque la línea "Va a quedar"
+   crezca: si el bloque de texto empuja el botón a un renglón propio, la
+   tarjeta pierde su lectura de "afirmación + una salida". */
+.campo-vigente__valor {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.campo-vigente__etiqueta {
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+}
+
+.campo-vigente__actual {
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Lo que va a quedar si guarda: se lee como consecuencia, no como otro dato
+   más de la misma jerarquía que el vigente. */
+.campo-vigente__nuevo {
+  margin-top: 2px;
+  font-size: var(--t-micro);
+  color: var(--ok, var(--ink-soft));
+}
+
+.campo-vigente__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+/* ── Chip de origen de una afectación ─────────────────────────────────── */
+
+
+/* ── Cambios sin guardar, visibles mientras se edita ──────────────────── */
+
+.actualizacion__ayuda {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.actualizacion-pendientes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.actualizacion-pendientes__titulo {
+  margin: 0;
+  font-size: var(--t-small);
+  letter-spacing: 0;
+}
+
+.actualizacion-pendientes__vacio {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+/* Retirar/Quitar baja a acción de texto: es la más destructiva de la tarjeta
+   y era la más pesada visualmente, compitiendo con el dato que describe. */
+
+
+/* ── Una situación del parte (lista de la pantalla de actualización) ───── */
+
+/* La tarjeta no es un contenedor que se abre: es una afirmación con dos
+   salidas. Por eso no hay chevron ni fila clickeable — el estado de cada
+   situación está escrito, y lo que se puede hacer son botones con palabras. */
+.situacion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.situacion--editando {
+  border-color: var(--ink);
+}
+
+.situacion--resuelta {
+  background: var(--fill);
+  border-style: dashed;
+}
+
+.situacion__encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.situacion__identidad {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.situacion__titulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-body);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.situacion--resuelta .situacion__titulo {
+  text-decoration: line-through;
+  color: var(--ink-soft);
+}
+
+.situacion__detalle {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+/* El estado va escrito, no codificado sólo en color: en una pantalla que se
+   usa a la intemperie y en cualquier teléfono, el color solo no alcanza. */
+.situacion__estado {
+  flex: none;
+  padding: 2px var(--s-2);
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.situacion__estado--nueva,
+.situacion__estado--corregida {
+  border-color: transparent;
+  background: var(--info-tint, var(--fill));
+  color: var(--ink);
+}
+
+.situacion__estado--resuelta {
+  border-color: transparent;
+  background: var(--ok-tint, var(--fill));
+  color: var(--ok, var(--ink));
+}
+
+.situacion__campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line);
+}
+
+.situacion__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+@media (max-width: 420px) {
+  .situacion__acciones > * { flex: 1 1 100%; }
 }

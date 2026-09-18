@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { AfectacionBorradorCard } from '@/components/infraestructura/afectacion-borrador'
+import { CampoVigente } from '@/components/infraestructura/campo-vigente'
 import { VigenciaField } from '@/components/infraestructura/vigencia-field'
 import {
   ETIQUETA_ESTABLECIMIENTO,
@@ -13,6 +14,7 @@ import {
   MENSAJE_SIN_SITUACION,
   type EstadoActualRespuesta,
 } from '@/components/infraestructura/estado-actual-textos'
+import { describirAlcanceServicio } from '@/components/infraestructura/reporte-inicial-resumen'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -32,7 +34,6 @@ import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-ti
 
 export interface ActualizacionFormProps {
   cue: string
-  escuelaNombre: string
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
 }
@@ -105,7 +106,7 @@ async function obtenerEstado(cue: string): Promise<Estado> {
  *  - nunca decide nada por su cuenta: es sólo una previsualización: el
  *    servidor recalcula el mismo diff de forma independiente al guardar.
  */
-export function ActualizacionForm({ cue, escuelaNombre, turnos, motivos }: ActualizacionFormProps): JSX.Element {
+export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormProps): JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
 
   useEffect(() => {
@@ -145,7 +146,6 @@ export function ActualizacionForm({ cue, escuelaNombre, turnos, motivos }: Actua
   return (
     <ActualizacionFormCargado
       cue={cue}
-      escuelaNombre={escuelaNombre}
       turnos={turnos}
       motivos={motivos}
       datos={estado.datos}
@@ -155,7 +155,6 @@ export function ActualizacionForm({ cue, escuelaNombre, turnos, motivos }: Actua
 
 function ActualizacionFormCargado({
   cue,
-  escuelaNombre,
   turnos,
   motivos,
   datos,
@@ -214,7 +213,14 @@ function ActualizacionFormCargado({
   const lineasResumen = useMemo(() => describirMovimiento(diff, { tipo: 'actualizacion' }), [diff])
 
   const afectacionesVisibles = afectaciones.filter((a) => !a.retirada)
-  const afectacionesRetiradas = afectaciones.filter((a) => a.retirada)
+
+  // Qué situaciones ya informadas fueron tocadas: se deduce del mismo diff
+  // que alimenta el resumen, sin llevar estado aparte que pueda desfasarse.
+  const idsModificadas = new Set<string>([
+    ...diff.severidadesCambiadas.map((c) => c.afectacionId),
+    ...diff.alcancesCambiados.map((c) => c.afectacionId),
+    ...diff.datosCambiados.map((c) => c.afectacionId),
+  ])
 
   function actualizarAfectacion(clientId: string, siguiente: AfectacionActualizable) {
     setAfectaciones((actuales) => actuales.map((a) => (a.clientId === clientId ? siguiente : a)))
@@ -332,11 +338,6 @@ function ActualizacionFormCargado({
   if (paso === 'resumen') {
     return (
       <div className="reporte-inicial actualizacion-resumen">
-        <div className="reporte-inicial__escuela">
-          <p>{escuelaNombre}</p>
-          <p>CUE {cue}</p>
-        </div>
-
         <section className="reporte-inicial__seccion">
           <h2>Cambios que se registrarán</h2>
           <ul className="actualizacion-resumen__lista">
@@ -372,150 +373,194 @@ function ActualizacionFormCargado({
 
   return (
     <form className="reporte-inicial" onSubmit={irAResumen}>
-      <div className="reporte-inicial__escuela">
-        <p>{escuelaNombre}</p>
-        <p>CUE {cue}</p>
-      </div>
-
       <section className="reporte-inicial__seccion">
-        <h2>Afectaciones</h2>
-        {afectacionesVisibles.map((a) => {
-          const indiceReal = afectaciones.findIndex((x) => x.clientId === a.clientId)
-          return (
-            <div key={a.clientId} onBlur={() => setTocadas((actuales) => new Set(actuales).add(a.clientId))}>
-              <AfectacionBorradorCard
-                borrador={a}
-                index={indiceReal}
-                motivos={motivos}
-                turnos={turnos}
-                otrasAfectaciones={afectacionesVisibles.filter((x) => x.clientId !== a.clientId)}
-                onChange={(siguiente) => actualizarAfectacion(a.clientId, { ...a, ...siguiente })}
-                onRemove={() => quitarONoRetirar(a)}
-                accionQuitarEtiqueta={a.origenId !== null ? 'Retirar' : undefined}
-                disabled={enviando}
-              />
-              {tocadas.has(a.clientId) && esAfectacionParcial(a) && (
-                <p className="reporte-inicial__error-campo" role="alert">
-                  {MENSAJE_AFECTACION_INCOMPLETA}
-                </p>
-              )}
-            </div>
-          )
-        })}
+        <h2>Lo que está pasando en la escuela</h2>
+        {afectaciones.map((a, indiceReal) => (
+          <div key={a.clientId} onBlur={() => setTocadas((actuales) => new Set(actuales).add(a.clientId))}>
+            <AfectacionBorradorCard
+              borrador={a}
+              index={indiceReal}
+              motivos={motivos}
+              turnos={turnos}
+              otrasAfectaciones={afectacionesVisibles.filter((x) => x.clientId !== a.clientId)}
+              onChange={(siguiente) => actualizarAfectacion(a.clientId, { ...a, ...siguiente })}
+              onResolver={() => quitarONoRetirar(a)}
+              onDeshacer={() => deshacerRetiro(a)}
+              resuelta={a.retirada}
+              esNueva={a.origenId === null}
+              modificada={a.origenId !== null && idsModificadas.has(a.origenId)}
+              disabled={enviando}
+            />
+            {!a.retirada && tocadas.has(a.clientId) && esAfectacionParcial(a) && (
+              <p className="reporte-inicial__error-campo" role="alert">
+                {MENSAJE_AFECTACION_INCOMPLETA}
+              </p>
+            )}
+          </div>
+        ))}
         <Button type="button" variant="secondary" onClick={agregarAfectacion} disabled={enviando}>
-          Agregar afectación
+          Agregar otra situación
         </Button>
-
-        {afectacionesRetiradas.length > 0 && (
-          <ul className="actualizacion-retiradas">
-            {afectacionesRetiradas.map((a) => (
-              <li key={a.clientId} className="afectacion-retirada">
-                <span>{a.motivo} — retirada</span>
-                <Button type="button" variant="ghost" onClick={() => deshacerRetiro(a)} disabled={enviando}>
-                  Deshacer
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       <section className="reporte-inicial__seccion">
-        <h2>Servicio educativo</h2>
-        {datos.servicio && (
-          <p className="reporte-inicial__campo">Estado actual: {ETIQUETA_SERVICIO[datos.servicio.estadoGeneral]}</p>
-        )}
-        <div className="reporte-inicial__campo" role="radiogroup" aria-label="Servicio educativo">
-          {(['normal', 'suspendido'] as const).map((valorEstado) => (
-            <label key={valorEstado} className="reporte-inicial__radio">
-              <input
-                type="radio"
-                name="servicio-educativo"
-                value={valorEstado}
-                checked={servicioEstado === valorEstado}
-                onChange={() => setServicioEstado(valorEstado)}
-                disabled={enviando}
-              />
-              {ETIQUETA_SERVICIO[valorEstado]}
-            </label>
-          ))}
-        </div>
-
-        {servicioEstado !== '' && (
-          <div className="reporte-inicial__campo">
-            <div role="radiogroup" aria-label="Alcance del servicio educativo">
-              {ALCANCES_SERVICIO.map((opcion) => (
-                <label key={opcion.tipo} className="reporte-inicial__radio">
+        <h2>Clases</h2>
+        <CampoVigente
+          etiqueta="¿Cómo siguen las clases?"
+          valorVigente={datos.servicio ? ETIQUETA_SERVICIO[datos.servicio.estadoGeneral] : 'Sin informar'}
+          valorNuevo={
+            servicioEstado === ''
+              ? null
+              : describirAlcanceServicio({
+                  estado: servicioEstado,
+                  alcanceTipo: servicioAlcanceTipo,
+                  turnos: servicioTurnos,
+                  secciones: servicioSecciones.length,
+                })
+          }
+          onDejarComoEsta={() => {
+            setServicioEstado('')
+            setServicioAlcanceTipo('')
+            setServicioTurnos([])
+            setServicioSecciones([])
+          }}
+          disabled={enviando}
+        >
+          <fieldset className="afectacion-campos__grupo" disabled={enviando}>
+            <legend className="afectacion-campos__legend">¿Cómo siguen las clases?</legend>
+            <div className="afectacion-campos__opciones">
+              {(['normal', 'suspendido'] as const).map((valorEstado) => (
+                <label key={valorEstado} className="opcion-radio opcion-radio--compacta">
                   <input
                     type="radio"
-                    name="alcance-servicio"
-                    value={opcion.tipo}
-                    checked={servicioAlcanceTipo === opcion.tipo}
-                    onChange={() => setServicioAlcanceTipo(opcion.tipo)}
+                    name="servicio-educativo"
+                    value={valorEstado}
+                    checked={servicioEstado === valorEstado}
+                    onChange={() => setServicioEstado(valorEstado)}
                     disabled={enviando}
                   />
-                  {opcion.etiqueta}
+                  <span className="opcion-radio__texto">
+                    <span className="opcion-radio__titulo">{ETIQUETA_SERVICIO[valorEstado]}</span>
+                  </span>
                 </label>
               ))}
             </div>
+          </fieldset>
 
-            {servicioAlcanceTipo === 'turno' && (
-              <div className="reporte-inicial__campo">
-                {nombresTurnos.map((turno) => (
-                  <Checkbox
-                    key={turno}
-                    label={turno}
-                    checked={servicioTurnos.includes(turno)}
-                    onCheckedChange={() => alternarTurno(turno)}
-                    disabled={enviando}
-                  />
+          {/* Antes el alcance se preguntaba también al elegir "Clases
+              normales", y no quiere decir nada: el alcance describe a quiénes
+              alcanza una SUSPENSIÓN. Mismo criterio que el reporte inicial. */}
+          {servicioEstado === 'suspendido' && (
+            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
+              <legend className="afectacion-campos__legend">¿A quiénes alcanza la suspensión?</legend>
+              <div className="afectacion-campos__opciones">
+                {ALCANCES_SERVICIO.map((opcion) => (
+                  <label key={opcion.tipo} className="opcion-radio opcion-radio--compacta">
+                    <input
+                      type="radio"
+                      name="alcance-servicio"
+                      value={opcion.tipo}
+                      checked={servicioAlcanceTipo === opcion.tipo}
+                      onChange={() => setServicioAlcanceTipo(opcion.tipo)}
+                      disabled={enviando}
+                    />
+                    <span className="opcion-radio__texto">
+                      <span className="opcion-radio__titulo">{opcion.etiqueta}</span>
+                    </span>
+                  </label>
                 ))}
               </div>
-            )}
 
-            {servicioAlcanceTipo === 'seccion' && (
-              <SeccionesSelector
-                turnos={turnos}
-                seleccionadas={servicioSecciones}
-                alumnosSeleccionados={[]}
-                onCambiar={(secciones) => setServicioSecciones(secciones)}
-                disabled={enviando}
-                permiteAlumnos={false}
-              />
-            )}
-          </div>
-        )}
+              {servicioAlcanceTipo === 'turno' && (
+                <div className="afectacion-campos__anidado">
+                  {nombresTurnos.map((turno) => (
+                    <Checkbox
+                      key={turno}
+                      label={turno}
+                      checked={servicioTurnos.includes(turno)}
+                      onCheckedChange={() => alternarTurno(turno)}
+                      disabled={enviando}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {servicioAlcanceTipo === 'seccion' && (
+                <div className="afectacion-campos__anidado">
+                  <SeccionesSelector
+                    turnos={turnos}
+                    seleccionadas={servicioSecciones}
+                    alumnosSeleccionados={[]}
+                    onCambiar={(secciones) => setServicioSecciones(secciones)}
+                    disabled={enviando}
+                    permiteAlumnos={false}
+                  />
+                </div>
+              )}
+            </fieldset>
+          )}
+        </CampoVigente>
       </section>
 
       <section className="reporte-inicial__seccion">
-        <h2>Situación del establecimiento</h2>
-        <p className="reporte-inicial__campo">Estado actual: {ETIQUETA_ESTABLECIMIENTO[estadoEstablecimientoVigente]}</p>
-        <div className="reporte-inicial__campo" role="radiogroup" aria-label="Situación del establecimiento">
-          {Object.entries(ETIQUETA_ESTABLECIMIENTO).map(([valor, etiqueta]) => (
-            <label key={valor} className="reporte-inicial__radio">
-              <input
-                type="radio"
-                name="estado-establecimiento"
-                value={valor}
-                checked={estadoEstablecimiento === valor}
-                onChange={() => setEstadoEstablecimiento(valor as EstadoEstablecimiento)}
-                disabled={enviando}
-              />
-              {etiqueta}
-            </label>
-          ))}
-        </div>
+        <h2>Edificio</h2>
+        <CampoVigente
+          etiqueta="¿Cómo está el edificio?"
+          valorVigente={ETIQUETA_ESTABLECIMIENTO[estadoEstablecimientoVigente]}
+          valorNuevo={estadoEstablecimiento === '' ? null : ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]}
+          onDejarComoEsta={() => setEstadoEstablecimiento('')}
+          disabled={enviando}
+        >
+          <fieldset className="afectacion-campos__grupo" disabled={enviando}>
+            <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
+            <div className="afectacion-campos__opciones">
+              {Object.entries(ETIQUETA_ESTABLECIMIENTO).map(([valor, etiqueta]) => (
+                <label key={valor} className="opcion-radio opcion-radio--compacta">
+                  <input
+                    type="radio"
+                    name="estado-establecimiento"
+                    value={valor}
+                    checked={estadoEstablecimiento === valor}
+                    onChange={() => setEstadoEstablecimiento(valor as EstadoEstablecimiento)}
+                    disabled={enviando}
+                  />
+                  <span className="opcion-radio__texto">
+                    <span className="opcion-radio__titulo">{etiqueta}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        </CampoVigente>
       </section>
 
       <section className="reporte-inicial__seccion">
+        <h2>Desde cuándo rige</h2>
         <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
       </section>
 
-      {diffVacio && (
-        <p className="reporte-inicial__campo" role="status">
-          {MENSAJE_SIN_CAMBIOS}
-        </p>
-      )}
+      {/* El director veía lo que había cambiado recién en la pantalla de
+          confirmación. Mostrarlo mientras edita convierte una pantalla que
+          "no se sabe en qué estado está" en una que se narra sola. */}
+      <section className="actualizacion-pendientes" aria-live="polite">
+        {diffVacio ? (
+          <p className="actualizacion-pendientes__vacio" role="status">
+            {MENSAJE_SIN_CAMBIOS}
+          </p>
+        ) : (
+          <>
+            <h2 className="actualizacion-pendientes__titulo">
+              Sin guardar: {lineasResumen.length}{' '}
+              {lineasResumen.length === 1 ? 'cambio' : 'cambios'}
+            </h2>
+            <ul className="actualizacion-resumen__lista">
+              {lineasResumen.map((linea, indice) => (
+                <li key={indice}>{linea}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
 
       {error && (
         <p className="reporte-inicial__error" role="alert">

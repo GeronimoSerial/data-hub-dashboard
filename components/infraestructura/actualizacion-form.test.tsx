@@ -42,7 +42,6 @@ const motivos: MotivoRow[] = [
 
 const props = {
   cue: '12345678',
-  escuelaNombre: 'Escuela N° 45',
   turnos,
   motivos,
 }
@@ -101,13 +100,22 @@ function stubFetchInicial(overrides = {}) {
 
 function renderFormulario() {
   return render(
-    <ActualizacionForm
-      cue={props.cue}
-      escuelaNombre={props.escuelaNombre}
-      turnos={props.turnos}
-      motivos={props.motivos}
-    />,
+    <ActualizacionForm cue={props.cue} turnos={props.turnos} motivos={props.motivos} />,
   )
+}
+
+/** Espera a que cargue el parte. La lista se lee sin abrir nada. */
+async function esperarParteCargado() {
+  await screen.findByRole('heading', { name: 'Inundación' })
+}
+
+/**
+ * Pone en edición la situación ya informada. La tarjeta no es un contenedor
+ * que se abre: afirma lo que pasa y ofrece "Cambió algo" para corregirla.
+ */
+async function editarAfectacionVigente() {
+  await esperarParteCargado()
+  fireEvent.click(screen.getByRole('button', { name: 'Cambió algo' }))
 }
 
 beforeEach(() => {
@@ -126,7 +134,7 @@ describe('ActualizacionForm', () => {
     stubFetchInicial()
     renderFormulario()
 
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
     expect(screen.getByText(/todavía no realizó cambios en el parte actual/i)).toBeVisible()
@@ -136,9 +144,9 @@ describe('ActualizacionForm', () => {
     stubFetchInicial()
     renderFormulario()
 
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
-    fireEvent.change(screen.getByLabelText(/^severidad/i), { target: { value: 'Alta' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
 
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeEnabled()
 
@@ -152,9 +160,9 @@ describe('ActualizacionForm', () => {
     stubFetchInicial()
     renderFormulario()
 
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
-    fireEvent.change(screen.getByLabelText(/^severidad/i), { target: { value: 'Alta' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
 
     expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
@@ -162,16 +170,19 @@ describe('ActualizacionForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /volver y corregir/i }))
 
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeInTheDocument()
-    expect((screen.getByLabelText(/^severidad/i) as HTMLSelectElement).value).toBe('Alta')
+    // Se vuelve al inventario, donde la afectación aparece plegada con su
+    // resumen ya corregido; abrirla muestra el dato intacto.
+    await editarAfectacionVigente()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
   })
 
   it('guardar una actualización hace POST con el payload esperado y muestra la confirmación', async () => {
     const fetchMock = stubFetchInicial()
     renderFormulario()
 
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
-    fireEvent.change(screen.getByLabelText(/^severidad/i), { target: { value: 'Alta' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
 
@@ -196,18 +207,18 @@ describe('ActualizacionForm', () => {
     stubFetchInicial()
     renderFormulario()
 
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
-    fireEvent.click(screen.getByRole('button', { name: /agregar afectación/i }))
+    fireEvent.click(screen.getByRole('button', { name: /agregar otra situación/i }))
 
     const radiosEstablecimiento = screen.getAllByRole('radio', { name: /afecta al establecimiento/i })
     fireEvent.click(radiosEstablecimiento[radiosEstablecimiento.length - 1])
 
-    const motivoSelects = screen.getAllByLabelText(/^motivo/i)
-    fireEvent.change(motivoSelects[motivoSelects.length - 1], { target: { value: 'Inundación' } })
+    const motivoRadios = screen.getAllByRole('radio', { name: 'Inundación' })
+    fireEvent.click(motivoRadios[motivoRadios.length - 1])
 
-    const severidadSelects = screen.getAllByLabelText(/^severidad/i)
-    fireEvent.change(severidadSelects[severidadSelects.length - 1], { target: { value: 'Alta' } })
+    const severidadRadios = screen.getAllByRole('radio', { name: 'Alta' })
+    fireEvent.click(severidadRadios[severidadRadios.length - 1])
 
     const seccionCheckboxes = screen.getAllByRole('checkbox', { name: /1° \"A\"/ })
     fireEvent.click(seccionCheckboxes[seccionCheckboxes.length - 1])
@@ -232,9 +243,9 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await screen.findByText(props.escuelaNombre)
+    await editarAfectacionVigente()
 
-    fireEvent.change(screen.getByLabelText(/^severidad/i), { target: { value: 'Alta' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
 
@@ -248,6 +259,115 @@ describe('ActualizacionForm', () => {
     expect(screen.getByText(/Media.*Alta/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /volver y corregir/i }))
-    expect((screen.getByLabelText(/^severidad/i) as HTMLSelectElement).value).toBe('Alta')
+    // Se vuelve al inventario, donde la afectación aparece plegada con su
+    // resumen ya corregido; abrirla muestra el dato intacto.
+    await editarAfectacionVigente()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+})
+describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar', () => {
+  it('abre mostrando el estado vigente cerrado, sin grupos de radio a medio llenar', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    // Antes se leía "Estado actual: X" y debajo radios TODOS vacíos, que se
+    // ve como un formulario sin completar.
+    expect(screen.getByText('Clases normales')).toBeInTheDocument()
+    expect(screen.getByText('Funcionamiento habitual')).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Clases suspendidas' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Establecimiento evacuado' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Cambiar' }).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('"Cambiar" abre las opciones y "Dejar como está" las cierra borrando la selección', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    const [cambiarClases] = screen.getAllByRole('button', { name: 'Cambiar' })
+    fireEvent.click(cambiarClases)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeEnabled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dejar como está' }))
+
+    expect(screen.queryByRole('radio', { name: 'Clases suspendidas' })).toBeNull()
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
+  })
+
+  // El alcance describe a quiénes alcanza una SUSPENSIÓN: preguntarlo tras
+  // elegir "Clases normales" no quiere decir nada.
+  it('el alcance sólo se pregunta al suspender las clases', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    const [cambiarClases] = screen.getAllByRole('button', { name: 'Cambiar' })
+    fireEvent.click(cambiarClases)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Clases normales' }))
+    expect(screen.queryByRole('radio', { name: 'Todo el establecimiento' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
+    expect(screen.getByRole('radio', { name: 'Todo el establecimiento' })).toBeInTheDocument()
+  })
+
+  it('lista los cambios sin guardar mientras se edita, no recién al confirmar', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await editarAfectacionVigente()
+
+    expect(screen.getByText(/todavía no realizó cambios/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+
+    expect(screen.getByRole('heading', { name: /sin guardar: 1 cambio/i })).toBeInTheDocument()
+    expect(screen.getByText(/Media.*Alta/)).toBeInTheDocument()
+  })
+})
+
+describe('ActualizacionForm — un parte intacto no inventa cambios', () => {
+  /*
+    Regresión encontrada en el navegador: la pantalla abría declarando "24
+    alumnos retirados de Anegamiento" para cada afectación vigente, sin que
+    el director tocara nada, y habilitaba el guardado contra spec §17.
+
+    Se reproduce cuando la API entrega el padrón enumerado de una sección
+    completa y el contexto del corte (`turnos`) entrega esa misma sección SIN
+    padrón — lo que pasa, por ejemplo, si las identidades de los alumnos no se
+    pueden resolver. Una sección completa significa "todos, quienes sean", así
+    que las dos enumeraciones no deben compararse.
+  */
+  it('con el padrón enumerado del lado de la API y vacío del lado del corte, no hay cambios', async () => {
+    stubFetchInicial({
+      afectaciones: [
+        {
+          ...RESPUESTA_BASE.afectaciones[0],
+          secciones: [
+            {
+              geSectionId: 10,
+              seccionCompleta: true,
+              alumnos: Array.from({ length: 12 }, (_, i) => ({
+                gePersonId: 1000 + i,
+                nombre: String(1000 + i),
+                apellido: '',
+              })),
+            },
+          ],
+        },
+      ],
+    })
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    expect(screen.getByText(/todavía no realizó cambios/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
   })
 })

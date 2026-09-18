@@ -78,16 +78,23 @@ describe('NuevoPartePage', () => {
     expect(screen.queryByText('Escuela 4')).not.toBeInTheDocument()
   })
 
-  it('con cookie de acceso vigente, muestra la escuela y el formulario de reporte inicial', async () => {
+  it('con cookie de acceso vigente, encabeza con el programa y abre el asistente', async () => {
     await seedEscuelaConSeccion()
     conAcceso()
 
     const jsx = await NuevoPartePage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
     render(jsx)
 
-    expect(screen.getByRole('heading', { name: 'Escuela 4' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /agregar afectación/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeDisabled()
+    // El título es el del programa; la escuela queda como identidad
+    // subordinada, una sola vez y sin encabezar la pantalla.
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Registro de Incidencias ENOS 2026/2027' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Escuela 4' })).toBeNull()
+    expect(screen.getByText('Escuela 4')).toBeInTheDocument()
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agregar afectación/i })).toBeNull()
   })
 
   it('muestra un error claro sin CUE, sin ofrecer alternativas', async () => {

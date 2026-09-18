@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
+import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { EstadoActualParte } from '@/components/infraestructura/estado-actual-parte'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
@@ -10,10 +11,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Estado actual del parte',
+  title: `Estado actual · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
-const TITULO = 'Estado actual del parte'
+const TITULO = 'Estado actual'
 
 // Mismos textos que app/(publico)/problematicas/nueva/page.tsx: el director
 // no debería leer dos explicaciones distintas del mismo problema según por
@@ -47,7 +48,7 @@ export default async function EstadoActualPartePage({
   if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <AccesoForm />
       </div>
     )
@@ -65,7 +66,7 @@ export default async function EstadoActualPartePage({
   if (!resultado.ok) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <p className="estado-actual-aviso__texto" role="alert">
           {MENSAJES_ERROR[resultado.error.kind]}
         </p>
@@ -77,11 +78,9 @@ export default async function EstadoActualPartePage({
 
   return (
     <div className="publico-content">
-      {/* §6.1 — Identificación del establecimiento. */}
-      <h1 className="publico-content__title">{escuela.nombre}</h1>
-      <p className="publico-content__intro">
-        CUE {escuela.cueAnexo} · {escuela.localidad}, {escuela.departamento}
-      </p>
+      {/* §6.1 — Identificación del establecimiento, ahora subordinada al
+          título del programa: el enlace ya puso al director en su escuela. */}
+      <EncabezadoParte pantalla={TITULO} escuela={escuela} />
 
       <EstadoActualParte cue={escuela.cueAnexo} />
     </div>

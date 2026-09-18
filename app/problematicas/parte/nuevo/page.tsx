@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
+import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
@@ -12,7 +13,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Iniciar un reporte',
+  title: `Iniciar un reporte · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
 const TITULO = 'Iniciar un reporte'
@@ -49,7 +50,7 @@ export default async function NuevoPartePage({
   if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <AccesoForm />
       </div>
     )
@@ -67,7 +68,7 @@ export default async function NuevoPartePage({
   if (!resultado.ok) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <p className="estado-actual-aviso__texto" role="alert">
           {MENSAJES_ERROR[resultado.error.kind]}
         </p>
@@ -82,16 +83,12 @@ export default async function NuevoPartePage({
 
   return (
     <div className="publico-content">
-      <h1 className="publico-content__title">{escuela.nombre}</h1>
-      <p className="publico-content__intro">
-        CUE {escuela.cueAnexo} · {escuela.localidad}, {escuela.departamento}
-      </p>
-      <ReporteInicialForm
-        cue={escuela.cueAnexo}
-        escuelaNombre={escuela.nombre}
-        turnos={turnos}
-        motivos={motivos}
+      <EncabezadoParte
+        pantalla={TITULO}
+        escuela={escuela}
+        descripcion="Informe un hecho. Le vamos a hacer unas pocas preguntas, de a una por vez."
       />
+      <ReporteInicialForm cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
     </div>
   )
 }

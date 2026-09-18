@@ -93,7 +93,10 @@ export function describirMovimiento(
   })
 
   for (const retirada of diff.afectacionesRetiradas) {
-    lineas.push(`Se retiró "${retirada.motivo}"`)
+    // "Se resolvió", no "Se retiró": la §15 no fija una cadena para esto, y
+    // "retirar" nombra lo que el sistema hace con la fila, no lo que pasó en
+    // la escuela. Es la misma palabra que el director tocó para llegar acá.
+    lineas.push(`Se resolvió "${retirada.motivo}"`)
   }
 
   for (const cambio of diff.severidadesCambiadas) {

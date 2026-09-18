@@ -107,7 +107,7 @@ describe('describirMovimiento', () => {
       servicioAlcance: [],
     }
     const diff = diffParte(antes, crearSnapshotVacio())
-    expect(describirMovimiento(diff)).toContain('Se retiró "Inundación"')
+    expect(describirMovimiento(diff)).toContain('Se resolvió "Inundación"')
   })
 
   it('cambio de severidad', () => {

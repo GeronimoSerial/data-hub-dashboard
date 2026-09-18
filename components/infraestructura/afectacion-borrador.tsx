@@ -1,24 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import type { JSX } from 'react'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
-import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
-import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
-import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
-import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
+import {
+  CamposAQuienAfecta,
+  CamposQuePaso,
+  esAfectacionLista,
+  totalAlumnosDe,
+  type AfectacionBorrador,
+} from '@/components/infraestructura/afectacion-campos'
+import { Button } from '@/components/ui/button'
 
-export interface AfectacionBorrador {
-  clientId: string
-  categoria: CategoriaProblematica | ''
-  motivo: string
-  severidad: Severidad | ''
-  secciones: number[]
-  alumnos: number[]
-  descripcion: string
-}
+export type { AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 
 export interface AfectacionBorradorCardProps {
   borrador: AfectacionBorrador
@@ -27,15 +23,42 @@ export interface AfectacionBorradorCardProps {
   turnos: TurnoContexto[]
   otrasAfectaciones: AfectacionBorrador[]
   onChange: (siguiente: AfectacionBorrador) => void
-  onRemove: () => void
+  /** Marca el problema como terminado, o descarta uno recién agregado. */
+  onResolver: () => void
+  /** Vuelve atrás esa marca. */
+  onDeshacer?: () => void
+  /** Ya fue marcado como terminado y espera el guardado. */
+  resuelta?: boolean
+  /** Se agregó en esta sesión y todavía no figura en el parte. */
+  esNueva?: boolean
+  /** Ya figuraba en el parte y el director le cambió algo. */
+  modificada?: boolean
   disabled?: boolean
-  accionQuitarEtiqueta?: string
 }
 
-function aplanarSecciones(turnos: TurnoContexto[]) {
-  return turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
-}
-
+/**
+ * Una situación del parte, dentro de la lista de la pantalla de
+ * actualización.
+ *
+ * Qué cambió respecto de la versión anterior, y por qué:
+ *
+ * 1. La fila ERA un disclosure: un chevron y un título que al tocarlos abrían
+ *    un formulario. "Abierto" y "cerrado" son estados de software; el director
+ *    no tiene cómo saber que esa fila esconde campos, ni qué le va a pasar si
+ *    la toca. Ahora la tarjeta no se abre: afirma lo que pasa, y abajo hay
+ *    botones que nombran las DOS cosas que pueden haber ocurrido en la
+ *    escuela — que la situación cambió, o que ya terminó.
+ *
+ * 2. "Retirar" nombraba lo que el sistema hace con la fila, no lo que pasó en
+ *    la escuela, y su consecuencia era invisible. Ahora es "Ya se resolvió", y
+ *    el resultado se ve en el acto: la tarjeta se queda en su lugar, marcada
+ *    como resuelta y con "Deshacer". El director ve qué pasó antes de
+ *    guardar, y puede volver atrás sin buscar nada.
+ *
+ * 3. El estado de cada situación está escrito en la tarjeta —sin cambios,
+ *    corregida, nueva, se resolvió— para que la lista se lea de un vistazo,
+ *    en vez de tener que abrir una por una para recordar qué tocó.
+ */
 export function AfectacionBorradorCard({
   borrador,
   index,
@@ -43,158 +66,103 @@ export function AfectacionBorradorCard({
   turnos,
   otrasAfectaciones,
   onChange,
-  onRemove,
+  onResolver,
+  onDeshacer,
+  resuelta = false,
+  esNueva = false,
+  modificada = false,
   disabled = false,
-  accionQuitarEtiqueta = 'Quitar',
 }: AfectacionBorradorCardProps): JSX.Element {
-  // Al cambiar la categoría se limpian motivo y alumnos: el motivo porque el
-  // catálogo depende de la categoría, los alumnos porque una categoría sin
-  // permiteAlumnos nunca puede llevarlos. Las secciones elegidas se
-  // conservan: siguen siendo válidas para cualquier categoría.
-  function cambiarCategoria(categoria: CategoriaProblematica) {
-    onChange({ ...borrador, categoria, motivo: '', alumnos: [] })
+  // Una situación recién agregada nace en edición: todavía no hay nada que
+  // leer. Una que ya figura en el parte nace como afirmación.
+  const [editando, setEditando] = useState(() => !esAfectacionLista(borrador))
+  const idPrefijo = `afectacion-${index}`
+
+  const completa = esAfectacionLista(borrador)
+  const titulo = completa && borrador.motivo ? borrador.motivo : `Situación ${index + 1}`
+  const detalle = completa
+    ? `${borrador.severidad} · ${resumirAlcance({
+        secciones: borrador.secciones.length,
+        alumnos: totalAlumnosDe(borrador, turnos),
+      })}`
+    : 'Falta completarla'
+
+  const estado = resuelta
+    ? { clave: 'resuelta', texto: 'Se resolvió' }
+    : esNueva
+      ? { clave: 'nueva', texto: 'Nueva' }
+      : modificada
+        ? { clave: 'corregida', texto: 'Corregida' }
+        : { clave: 'sin-cambios', texto: 'Sin cambios' }
+
+  if (resuelta) {
+    return (
+      <div className="situacion situacion--resuelta">
+        <div className="situacion__encabezado">
+          <div className="situacion__identidad">
+            <h3 className="situacion__titulo">{titulo}</h3>
+            <p className="situacion__detalle">Se va a dar por terminada cuando guarde</p>
+          </div>
+          <span className="situacion__estado situacion__estado--resuelta">{estado.texto}</span>
+        </div>
+        <div className="situacion__acciones">
+          <Button type="button" variant="secondary" onClick={onDeshacer} disabled={disabled}>
+            Deshacer
+          </Button>
+        </div>
+      </div>
+    )
   }
 
-  const motivosDeLaCategoria = borrador.categoria
-    ? motivos.filter((m) => m.categoria === borrador.categoria)
-    : []
-
-  // Síntesis de alcance, calculada localmente (sin red): si hay alumnos
-  // explícitos se cuentan esos; si no, la suma de la matrícula de todas las
-  // secciones elegidas del corte vigente.
-  const totalAlumnos =
-    borrador.alumnos.length > 0
-      ? borrador.alumnos.length
-      : aplanarSecciones(turnos)
-          .filter((seccion) => borrador.secciones.includes(seccion.geSectionId))
-          .reduce((suma, seccion) => suma + seccion.matricula, 0)
-
-  // Recomendación, nunca decisión (spec §18.14): si el motivo ya está en
-  // otra afectación del borrador se avisa, pero la forma sigue operativa.
-  const candidatos = otrasAfectaciones
-    .filter((a) => a.motivo && a.categoria)
-    .map((a) => ({ motivo: a.motivo, categoria: a.categoria as CategoriaProblematica }))
-  const duplicado = borrador.motivo
-    ? detectarMotivoDuplicado(candidatos, {
-        motivo: borrador.motivo,
-        categoria: borrador.categoria || 'establecimiento',
-      })
-    : null
-
   return (
-    <div className="afectacion-borrador">
-      <div className="afectacion-borrador__encabezado">
-        <h3>Afectación {index + 1}</h3>
-        <button
-          type="button"
-          className="afectacion-borrador__quitar"
-          onClick={onRemove}
-          disabled={disabled}
-          aria-label={`${accionQuitarEtiqueta} afectación ${index + 1}`}
-        >
-          {accionQuitarEtiqueta}
-        </button>
+    <div className={`situacion${editando ? ' situacion--editando' : ''}`}>
+      <div className="situacion__encabezado">
+        <div className="situacion__identidad">
+          <h3 className="situacion__titulo">{titulo}</h3>
+          <p className="situacion__detalle">{detalle}</p>
+        </div>
+        <span className={`situacion__estado situacion__estado--${estado.clave}`}>{estado.texto}</span>
       </div>
 
-      <div
-        className="afectacion-borrador__campo"
-        role="radiogroup"
-        aria-labelledby={`afectacion-${index}-categoria-label`}
-      >
-        <Label id={`afectacion-${index}-categoria-label`}>Categoría</Label>
-        {CATEGORIAS.map((c) => (
-          <label key={c} className="formulario-problematica__radio">
-            <input
-              type="radio"
-              name={`afectacion-${index}-categoria`}
-              value={c}
-              checked={borrador.categoria === c}
-              onChange={() => cambiarCategoria(c)}
-              disabled={disabled}
-            />
-            {CATEGORIA_META[c].label}
-          </label>
-        ))}
-      </div>
+      {editando && (
+        <div className="situacion__campos">
+          <CamposQuePaso
+            borrador={borrador}
+            idPrefijo={idPrefijo}
+            motivos={motivos}
+            otrasAfectaciones={otrasAfectaciones}
+            onChange={onChange}
+            disabled={disabled}
+          />
+          <CamposAQuienAfecta
+            borrador={borrador}
+            idPrefijo={idPrefijo}
+            turnos={turnos}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        </div>
+      )}
 
       {/*
-        Motivo/Severidad usan <select> nativo a propósito, mismo criterio que
-        formulario-problematica.tsx: lo llena un director desde el celular,
-        sin cuenta y a veces con mala conexión. El nativo abre el picker del
-        sistema operativo y opera 100% por teclado y con lectores de pantalla.
+        Las dos acciones nombran lo que pasó en la escuela, no lo que hace el
+        sistema con la fila: son las únicas dos cosas que el director puede
+        querer hacer con algo ya informado.
       */}
-      <div className="afectacion-borrador__campo">
-        <Label htmlFor={`afectacion-${index}-motivo`}>Motivo</Label>
-        <select
-          id={`afectacion-${index}-motivo`}
-          className="ui-input"
-          value={borrador.motivo}
-          onChange={(evento) => onChange({ ...borrador, motivo: evento.target.value })}
-          disabled={disabled || !borrador.categoria}
-        >
-          <option value="" disabled>
-            Seleccione un motivo
-          </option>
-          {motivosDeLaCategoria.map((m) => (
-            <option key={m.id} value={m.nombre}>
-              {m.nombre}
-            </option>
-          ))}
-        </select>
+      <div className="situacion__acciones">
+        {editando ? (
+          <Button type="button" onClick={() => setEditando(false)} disabled={disabled || !completa}>
+            Listo
+          </Button>
+        ) : (
+          <Button type="button" variant="secondary" onClick={() => setEditando(true)} disabled={disabled}>
+            Cambió algo
+          </Button>
+        )}
+        <Button type="button" variant="ghost" onClick={onResolver} disabled={disabled}>
+          {esNueva ? 'Quitar de la lista' : 'Ya se resolvió'}
+        </Button>
       </div>
-
-      <div className="afectacion-borrador__campo">
-        <Label htmlFor={`afectacion-${index}-severidad`}>Severidad</Label>
-        <select
-          id={`afectacion-${index}-severidad`}
-          className="ui-input"
-          value={borrador.severidad}
-          onChange={(evento) => onChange({ ...borrador, severidad: evento.target.value as Severidad | '' })}
-          disabled={disabled}
-        >
-          <option value="" disabled>
-            Seleccione una severidad
-          </option>
-          {SEVERIDADES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="afectacion-borrador__campo">
-        <Label>Secciones afectadas</Label>
-        <SeccionesSelector
-          turnos={turnos}
-          seleccionadas={borrador.secciones}
-          alumnosSeleccionados={borrador.alumnos}
-          onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
-          disabled={disabled}
-          permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
-        />
-      </div>
-
-      <div className="afectacion-borrador__campo">
-        <Label htmlFor={`afectacion-${index}-descripcion`}>Descripción (opcional)</Label>
-        <Textarea
-          id={`afectacion-${index}-descripcion`}
-          maxLength={500}
-          value={borrador.descripcion}
-          onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
-          disabled={disabled}
-        />
-      </div>
-
-      <p className="afectacion-borrador__resumen" aria-live="polite">
-        {borrador.secciones.length} secciones · {totalAlumnos} alumnos
-      </p>
-
-      {duplicado?.hayCoincidencia && (
-        <p className="afectacion-borrador__duplicado" role="status">
-          Ya agregó una afectación con un motivo o categoría similar.
-        </p>
-      )}
     </div>
   )
 }

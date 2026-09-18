@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
+import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { HistorialParte } from '@/components/infraestructura/historial-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
@@ -9,10 +10,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Historial del parte',
+  title: `Historial · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
-const TITULO = 'Historial del parte'
+const TITULO = 'Historial'
 
 /**
  * Historial del parte (spec §15): sólo lectura.
@@ -32,7 +33,7 @@ export default async function HistorialPartePage({
   if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <AccesoForm />
       </div>
     )
@@ -42,7 +43,7 @@ export default async function HistorialPartePage({
   if (!cueNormalizado) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <p className="historial-estado__texto" role="alert">
           Este enlace no incluye un CUE válido. Solicite el enlace nuevamente a quien se lo compartió.
         </p>
@@ -52,8 +53,7 @@ export default async function HistorialPartePage({
 
   return (
     <div className="publico-content">
-      <h1 className="publico-content__title">{TITULO}</h1>
-      <p className="publico-content__intro">Los cambios más recientes aparecen primero.</p>
+      <EncabezadoParte pantalla={TITULO} descripcion="Los cambios más recientes aparecen primero." />
 
       <HistorialParte cue={cueNormalizado.value} />
 

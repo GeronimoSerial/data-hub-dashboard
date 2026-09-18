@@ -58,7 +58,8 @@ function renderCard(overrides: Partial<AfectacionBorradorCardProps> = {}) {
     turnos,
     otrasAfectaciones: [],
     onChange: vi.fn(),
-    onRemove: vi.fn(),
+    onResolver: vi.fn(),
+    onDeshacer: vi.fn(),
     ...overrides,
   }
   render(<AfectacionBorradorCard {...props} />)
@@ -84,11 +85,11 @@ describe('AfectacionBorradorCard', () => {
     })
   })
 
-  it('seleccionar un motivo del select filtrado emite onChange con ese motivo', () => {
+  it('elegir un motivo de la lista emite onChange con ese motivo', () => {
     const onChange = vi.fn()
     renderCard({ borrador: { ...borradorBase, categoria: 'establecimiento' }, onChange })
 
-    fireEvent.change(screen.getByLabelText(/^motivo/i), { target: { value: 'Inundación' } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
 
     expect(onChange).toHaveBeenCalledWith({
       ...borradorBase,
@@ -97,24 +98,96 @@ describe('AfectacionBorradorCard', () => {
     })
   })
 
-  it('el select de motivo solo ofrece los motivos de la categoría elegida', () => {
+  // Motivo y severidad dejaron de ser <select>: con 3 a 5 opciones el
+  // desplegable cuesta tres gestos y tapa la pantalla con un modal del
+  // sistema, así que van a la vista como radios.
+  it('los motivos se ofrecen a la vista y sólo los de la categoría elegida', () => {
     renderCard({ borrador: { ...borradorBase, categoria: 'alumnos' } })
 
-    const opciones = screen
-      .getByLabelText(/^motivo/i)
-      .querySelectorAll('option')
-    const valores = Array.from(opciones).map((opcion) => opcion.value)
-    expect(valores).toContain('Anegamiento')
-    expect(valores).not.toContain('Inundación')
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(screen.getByRole('radio', { name: 'Anegamiento' })).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
   })
 
-  it('clic en Quitar llama onRemove', () => {
-    const onRemove = vi.fn()
-    renderCard({ onRemove })
+  /*
+    La tarjeta dejó de ser un disclosure con chevron. "Abierto" y "cerrado"
+    son estados de software: el director no tenía cómo saber que la fila
+    escondía campos ni qué pasaba al tocarla. Ahora afirma lo que ocurre y
+    ofrece las dos cosas que pueden haber pasado en la escuela.
+  */
+  it('una situación ya informada se lee como afirmación, sin campos a la vista', () => {
+    renderCard({
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación', severidad: 'Alta', secciones: [10] },
+    })
 
-    fireEvent.click(screen.getByRole('button', { name: /quitar afectación 1/i }))
+    expect(screen.getByRole('heading', { name: 'Inundación' })).toBeInTheDocument()
+    expect(screen.getByText('Sin cambios')).toBeInTheDocument()
+    expect(screen.queryByRole('radio')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Cambió algo' })).toBeInTheDocument()
+  })
 
-    expect(onRemove).toHaveBeenCalledTimes(1)
+  it('"Cambió algo" muestra los campos y "Listo" los vuelve a guardar', () => {
+    renderCard({
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación', severidad: 'Alta', secciones: [10] },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cambió algo' }))
+    expect(screen.getByRole('radio', { name: 'Inundación' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
+    expect(screen.queryByRole('radio')).toBeNull()
+  })
+
+  // "Retirar" nombraba lo que el sistema hace con la fila. "Ya se resolvió"
+  // nombra lo que pasó en la escuela.
+  it('una situación ya informada ofrece darla por resuelta, no "retirarla"', () => {
+    const onResolver = vi.fn()
+    renderCard({
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación', severidad: 'Alta', secciones: [10] },
+      onResolver,
+    })
+
+    expect(screen.queryByRole('button', { name: /retirar/i })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Ya se resolvió' }))
+
+    expect(onResolver).toHaveBeenCalledTimes(1)
+  })
+
+  it('una situación agregada ahora se descarta, no se "resuelve"', () => {
+    const onResolver = vi.fn()
+    renderCard({ esNueva: true, onResolver })
+
+    expect(screen.getByText('Nueva')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar de la lista' }))
+
+    expect(onResolver).toHaveBeenCalledTimes(1)
+  })
+
+  // La consecuencia de resolver se ve en el acto y en el lugar, en vez de
+  // mandar la fila a un cajón aparte al pie de la pantalla.
+  it('una situación resuelta se queda en su lugar, marcada y con Deshacer', () => {
+    const onDeshacer = vi.fn()
+    renderCard({
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación', severidad: 'Alta', secciones: [10] },
+      resuelta: true,
+      onDeshacer,
+    })
+
+    expect(screen.getByRole('heading', { name: 'Inundación' })).toBeInTheDocument()
+    expect(screen.getByText('Se resolvió')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cambió algo' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deshacer' }))
+    expect(onDeshacer).toHaveBeenCalledTimes(1)
+  })
+
+  it('marca como corregida la que ya figuraba en el parte y fue tocada', () => {
+    renderCard({
+      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación', severidad: 'Alta', secciones: [10] },
+      modificada: true,
+    })
+
+    expect(screen.getByText('Corregida')).toBeInTheDocument()
   })
 
   it('resumen suma la matrícula de las secciones elegidas', () => {

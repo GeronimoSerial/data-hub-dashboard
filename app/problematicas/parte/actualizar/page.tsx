@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { ActualizacionForm } from '@/components/infraestructura/actualizacion-form'
+import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
@@ -12,10 +13,10 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Actualizar el parte',
+  title: `Actualizar · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
-const TITULO = 'Actualizar el parte'
+const TITULO = 'Actualizar'
 
 // Mismos textos que app/problematicas/parte/page.tsx y
 // app/problematicas/parte/nuevo/page.tsx: el director no debería leer dos
@@ -48,7 +49,7 @@ export default async function ActualizarPartePage({
   if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <AccesoForm />
       </div>
     )
@@ -66,7 +67,7 @@ export default async function ActualizarPartePage({
   if (!resultado.ok) {
     return (
       <div className="publico-content">
-        <h1 className="publico-content__title">{TITULO}</h1>
+        <EncabezadoParte pantalla={TITULO} />
         <p className="estado-actual-aviso__texto" role="alert">
           {MENSAJES_ERROR[resultado.error.kind]}
         </p>
@@ -81,16 +82,12 @@ export default async function ActualizarPartePage({
 
   return (
     <div className="publico-content">
-      <h1 className="publico-content__title">{escuela.nombre}</h1>
-      <p className="publico-content__intro">
-        CUE {escuela.cueAnexo} · {escuela.localidad}, {escuela.departamento}
-      </p>
-      <ActualizacionForm
-        cue={escuela.cueAnexo}
-        escuelaNombre={escuela.nombre}
-        turnos={turnos}
-        motivos={motivos}
+      <EncabezadoParte
+        pantalla={TITULO}
+        escuela={escuela}
+        descripcion="Revise lo informado hasta ahora y agregue o corrija lo que cambió."
       />
+      <ActualizacionForm cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
     </div>
   )
 }
