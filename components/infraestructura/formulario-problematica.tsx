@@ -162,126 +162,134 @@ export function FormularioProblematica({ cue, escuelaNombre, turnos, motivos }: 
   }
 
   return (
-    <form className="formulario-problematica" onSubmit={manejarEnvio}>
+    // Los dos contenedores de columna respetan la secuencia actual de campos:
+    // en escritorio el CSS los pone lado a lado, y en teléfono se apilan en el
+    // mismo orden de siempre. Agrupar para balancear las columnas se veria
+    // mejor en escritorio y se leeria peor donde se llena el formulario.
+    <form className="formulario-problematica formulario-problematica--dos-columnas" onSubmit={manejarEnvio}>
       <div className="formulario-problematica__escuela">
         <p>{escuelaNombre}</p>
         <p>CUE {cue}</p>
       </div>
 
-      <div className="formulario-problematica__campo" role="radiogroup" aria-labelledby="tipo-label">
-        <Label id="tipo-label">Tipo de problemática</Label>
-        {CATEGORIAS.map((c) => (
-          <label key={c} className="formulario-problematica__radio">
-            <input
-              type="radio"
-              name="tipo"
-              value={c}
-              checked={tipo === c}
-              onChange={() => cambiarTipo(c)}
-              disabled={enviando}
-            />
-            {CATEGORIA_META[c].label}
-          </label>
-        ))}
-      </div>
-
-      {/*
-        Motivo/Severidad usan <select> nativo a propósito, no el componente Select
-        compartido: este formulario lo llena un director desde el celular, sin
-        cuenta y a veces con mala conexión. El nativo abre el picker del sistema
-        operativo, funciona con lectores de pantalla sin configuración adicional,
-        no tiene bugs de touch/scroll y opera 100% por teclado. Un combobox
-        custom acá es un riesgo de accesibilidad, no una mejora visual.
-
-        Revisado al sumar las categorías: el motivo pasó a ser dato (con ABM
-        en el admin) y ahora depende del tipo elegido arriba, pero la decisión
-        de usar <select> nativo se mantiene sin cambios por las mismas razones.
-      */}
-      <div className="formulario-problematica__campo">
-        <Label htmlFor="motivo">Motivo</Label>
-        <select
-          id="motivo"
-          className="ui-input"
-          value={motivo}
-          onChange={(evento) => setMotivo(evento.target.value)}
-          disabled={enviando || !tipo}
-        >
-          <option value="" disabled>
-            Seleccione un motivo
-          </option>
-          {motivosDelTipo.map((m) => (
-            <option key={m.id} value={m.nombre}>
-              {m.nombre}
-            </option>
+      <div className="formulario-problematica__columna">
+        <div className="formulario-problematica__campo" role="radiogroup" aria-labelledby="tipo-label">
+          <Label id="tipo-label">Tipo de problemática</Label>
+          {CATEGORIAS.map((c) => (
+            <label key={c} className="formulario-problematica__radio">
+              <input
+                type="radio"
+                name="tipo"
+                value={c}
+                checked={tipo === c}
+                onChange={() => cambiarTipo(c)}
+                disabled={enviando}
+              />
+              {CATEGORIA_META[c].label}
+            </label>
           ))}
-        </select>
-      </div>
-
-      <div className="formulario-problematica__campo">
-        <Label htmlFor="severidad">Severidad</Label>
-        <select
-          id="severidad"
-          className="ui-input"
-          value={severidad}
-          onChange={(evento) => setSeveridad(evento.target.value)}
-          disabled={enviando}
-        >
-          <option value="" disabled>
-            Seleccione una severidad
-          </option>
-          {SEVERIDADES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="formulario-problematica__campo">
-        <Label>Secciones afectadas</Label>
-        <SeccionesSelector
-          turnos={turnos}
-          seleccionadas={seccionesSeleccionadas}
-          alumnosSeleccionados={alumnosSeleccionados}
-          onCambiar={(secciones, alumnos) => {
-            setSeccionesSeleccionadas(secciones)
-            setAlumnosSeleccionados(alumnos)
-          }}
-          disabled={enviando}
-          permiteAlumnos={tipo ? CATEGORIA_META[tipo].permiteAlumnos : true}
-        />
-      </div>
-
-      <div className="formulario-problematica__campo">
-        <Label htmlFor="descripcion">Descripción (opcional)</Label>
-        <Textarea
-          id="descripcion"
-          value={descripcion}
-          onChange={(evento) => setDescripcion(evento.target.value)}
-          disabled={enviando}
-          maxLength={500}
-        />
-      </div>
-
-      {impactoPreliminar && (
-        <div className="formulario-problematica__impacto-preliminar">
-          <p>
-            Impacto preliminar: {impactoPreliminar.alumnos} alumnos en {impactoPreliminar.secciones} secciones
-            {impactoPreliminar.calculoIncompleto ? ' (cálculo incompleto)' : ''}
-          </p>
-          <p>Preliminar, se confirma al guardar.</p>
         </div>
-      )}
 
-      {error && (
-        <p className="formulario-problematica__error" role="alert">
-          {error}
-        </p>
-      )}
+        {/*
+          Motivo/Severidad usan <select> nativo a propósito, no el componente Select
+          compartido: este formulario lo llena un director desde el celular, sin
+          cuenta y a veces con mala conexión. El nativo abre el picker del sistema
+          operativo, funciona con lectores de pantalla sin configuración adicional,
+          no tiene bugs de touch/scroll y opera 100% por teclado. Un combobox
+          custom acá es un riesgo de accesibilidad, no una mejora visual.
 
-      <Button type="submit" disabled={enviando}>
-        Registrar problemática
-      </Button>
+          Revisado al sumar las categorías: el motivo pasó a ser dato (con ABM
+          en el admin) y ahora depende del tipo elegido arriba, pero la decisión
+          de usar <select> nativo se mantiene sin cambios por las mismas razones.
+        */}
+        <div className="formulario-problematica__campo">
+          <Label htmlFor="motivo">Motivo</Label>
+          <select
+            id="motivo"
+            className="ui-input"
+            value={motivo}
+            onChange={(evento) => setMotivo(evento.target.value)}
+            disabled={enviando || !tipo}
+          >
+            <option value="" disabled>
+              Seleccione un motivo
+            </option>
+            {motivosDelTipo.map((m) => (
+              <option key={m.id} value={m.nombre}>
+                {m.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="formulario-problematica__campo">
+          <Label htmlFor="severidad">Severidad</Label>
+          <select
+            id="severidad"
+            className="ui-input"
+            value={severidad}
+            onChange={(evento) => setSeveridad(evento.target.value)}
+            disabled={enviando}
+          >
+            <option value="" disabled>
+              Seleccione una severidad
+            </option>
+            {SEVERIDADES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="formulario-problematica__columna">
+        <div className="formulario-problematica__campo">
+          <Label>Secciones afectadas</Label>
+          <SeccionesSelector
+            turnos={turnos}
+            seleccionadas={seccionesSeleccionadas}
+            alumnosSeleccionados={alumnosSeleccionados}
+            onCambiar={(secciones, alumnos) => {
+              setSeccionesSeleccionadas(secciones)
+              setAlumnosSeleccionados(alumnos)
+            }}
+            disabled={enviando}
+            permiteAlumnos={tipo ? CATEGORIA_META[tipo].permiteAlumnos : true}
+          />
+        </div>
+
+        <div className="formulario-problematica__campo">
+          <Label htmlFor="descripcion">Descripción (opcional)</Label>
+          <Textarea
+            id="descripcion"
+            value={descripcion}
+            onChange={(evento) => setDescripcion(evento.target.value)}
+            disabled={enviando}
+            maxLength={500}
+          />
+        </div>
+
+        {impactoPreliminar && (
+          <div className="formulario-problematica__impacto-preliminar">
+            <p>
+              Impacto preliminar: {impactoPreliminar.alumnos} alumnos en {impactoPreliminar.secciones} secciones
+              {impactoPreliminar.calculoIncompleto ? ' (cálculo incompleto)' : ''}
+            </p>
+            <p>Preliminar, se confirma al guardar.</p>
+          </div>
+        )}
+
+        {error && (
+          <p className="formulario-problematica__error" role="alert">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" disabled={enviando}>
+          Registrar problemática
+        </Button>
+      </div>
     </form>
   )
 }

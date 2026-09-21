@@ -61,7 +61,7 @@ export default async function NuevaProblematicaPage({
   const motivos = await listarMotivos()
 
   return (
-    <div className="publico-content">
+    <div className="publico-content publico-content--ancho">
       <h1 className="publico-content__title">Reportar una problemática</h1>
       <p className="publico-content__intro">
         {escuela.localidad}, {escuela.departamento}

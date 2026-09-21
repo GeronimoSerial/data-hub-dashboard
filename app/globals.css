@@ -2115,6 +2115,43 @@ time {
   .formulario-problematica { max-width: none; }
 }
 
+/* ── Reporte de una problemática en dos columnas ─────────────────────────── */
+
+/* Los dos grupos existen en el DOM en todos los anchos y sólo se sientan uno
+   al lado del otro cuando hay lugar. Apilados —que es como quedan en el
+   teléfono— reproducen la secuencia de campos de siempre. */
+.formulario-problematica__columna {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+/* El formulario se parte en dos mitades de naturaleza distinta: tres campos
+   cortos de una línea, y el selector de secciones, que es lo único que crece
+   con el tamaño de la escuela y empujaba todo lo demás abajo del pliegue.
+   Con las dos columnas la identificación y el primer campo entran juntos en
+   la primera pantalla, y ninguna se estira: en su tope quedan dos de ~620, no
+   un select a todo lo ancho.
+
+   El punto de quiebre es el mismo en el que la tarjeta se ensancha, y no uno
+   más alto: si se separaran, entre los dos habría una banda donde la tarjeta
+   ya creció y el formulario seguiría en una columna, corrido contra el borde
+   izquierdo. Los campos de acá son cortos y toleran columnas de ~350. */
+@media (min-width: 880px) {
+  .formulario-problematica--dos-columnas {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--s-6);
+    row-gap: var(--s-5);
+    align-items: start;
+    max-width: none;
+  }
+
+  /* La escuela es identificación, no un campo: cruza las dos columnas arriba
+     de todo, como la banda que ya usa el resto del recorrido. */
+  .formulario-problematica__escuela { grid-column: 1 / -1; }
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
    ══════════════════════════════════════════════════════════════════════════ */
