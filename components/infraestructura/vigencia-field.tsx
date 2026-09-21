@@ -169,6 +169,7 @@ export function VigenciaField({
               ref={fechaInputRef}
               type="date"
               id={dateId}
+              lang="es-AR"
               className="ui-input"
               value={fechaValida ? fechaLocalInput(fecha) : ''}
               onChange={(evento) => actualizarFecha(evento.target.value)}
