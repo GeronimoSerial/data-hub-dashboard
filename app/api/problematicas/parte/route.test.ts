@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { infraAfectacion, infraMovimiento, infraParte } from '@/lib/db/schema'
@@ -11,6 +11,11 @@ import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { GET, POST } from './route'
+
+// Estas pruebas cubren la guarda por contraseña. La sesión se fuerza a
+// ausente para que 'sin cookie' signifique 401 y no dependa del bypass de
+// administrador, que tiene su propia cobertura en acceso-parte.test.ts.
+vi.mock('@/lib/session', () => ({ getSessionUser: async () => null }))
 
 const CLAVE = claveDePrueba()
 

@@ -16,7 +16,7 @@ import {
   infraParte,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
+import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaProblematica } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
@@ -63,7 +63,7 @@ function contarAlcance(afectacion: Afectacion): { secciones: number; alumnos: nu
 }
 
 export async function GET(request: Request) {
-  if (!tieneAccesoPublico(request)) {
+  if (!(await tieneAccesoAlParte(request))) {
     return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 
@@ -194,7 +194,7 @@ async function respuestaExito(
 }
 
 export async function POST(request: Request) {
-  if (!tieneAccesoPublico(request)) {
+  if (!(await tieneAccesoAlParte(request))) {
     return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 

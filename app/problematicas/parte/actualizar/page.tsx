@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { ActualizacionForm } from '@/components/infraestructura/actualizacion-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
-import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
+import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, getCorteVigente, openGeDb } from '@/lib/infraestructura/ge-db'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
@@ -48,8 +47,7 @@ export default async function ActualizarPartePage({
 }) {
   const { cue } = await searchParams
 
-  const cookieStore = await cookies()
-  if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
+  if (!(await tieneAccesoAlParteDesdeCookies())) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />

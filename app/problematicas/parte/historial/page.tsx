@@ -1,10 +1,9 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { HistorialParte } from '@/components/infraestructura/historial-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { NOMBRE_COOKIE, tieneAccesoPublicoDesdeValorCookie } from '@/lib/infraestructura/acceso-publico'
+import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,8 +28,7 @@ export default async function HistorialPartePage({
 }) {
   const { cue } = await searchParams
 
-  const cookieStore = await cookies()
-  if (!tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) {
+  if (!(await tieneAccesoAlParteDesdeCookies())) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />

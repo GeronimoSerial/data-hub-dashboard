@@ -1,4 +1,4 @@
-import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
+import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
@@ -29,7 +29,7 @@ const STATUS_ERROR: Record<ContextoErrorKind, number> = {
 // autenticación por token que viene después) porque ahora el contexto puede
 // incluir identidad de alumnos (ver lib/infraestructura/contexto.ts).
 export async function GET(request: Request) {
-  if (!tieneAccesoPublico(request)) {
+  if (!(await tieneAccesoAlParte(request))) {
     return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 

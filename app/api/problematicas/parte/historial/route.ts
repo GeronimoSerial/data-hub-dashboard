@@ -6,7 +6,7 @@ import { desc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { infraMovimiento } from '@/lib/db/schema'
-import { tieneAccesoPublico } from '@/lib/infraestructura/acceso-publico'
+import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
 export async function GET(request: Request) {
-  if (!tieneAccesoPublico(request)) {
+  if (!(await tieneAccesoAlParte(request))) {
     return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 

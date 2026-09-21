@@ -13,6 +13,8 @@ const cookiesGetMock = vi.fn()
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: cookiesGetMock }),
 }))
+// Sin sesión: 'sin cookie de acceso' tiene que seguir mostrando el ingreso.
+vi.mock('@/lib/session', () => ({ getSessionUser: async () => null }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }))
