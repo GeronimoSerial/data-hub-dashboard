@@ -2234,9 +2234,19 @@ time {
    La medida viaja como custom property para que el encabezado institucional
    siga al contenido: `:has()` la sube al layout, que es antecesor tanto de la
    firma como del contenido, y así ambos comparten el borde izquierdo. */
-.publico-content--ancho,
-.publico-layout:has(.publico-content--ancho) {
-  --publico-medida: 1120px;
+/* Desde el mismo punto en que aparecen las dos columnas, ni antes: abajo de
+   880 la pantalla sigue siendo la del teléfono, donde el marco de tarjeta ya
+   se retira para que el contenido use todo el gutter. Un margen lateral acá
+   le robaría 32px a cada lado justo donde menos sobran. */
+@media (min-width: 880px) {
+  .publico-content--ancho,
+  .publico-layout:has(.publico-content--ancho) {
+    /* El tope es fluido, no fijo: en un monitor de 2500px una tarjeta clavada
+       en 1120 se lee como una tira angosta en el medio de la nada, y en uno
+       de 1200 una clavada en 1440 se pega a los bordes. El `100% - 4rem`
+       reserva el margen lateral antes de que el tope llegue a mandar. */
+    --publico-medida: min(1440px, 100% - 4rem);
+  }
 }
 
 /* ── Historial del parte (spec §15) ────────────────────────────────────── */
@@ -2330,7 +2340,15 @@ time {
 
   .historial-movimiento__encabezado { grid-column: 1; grid-row: 1; }
   .historial-movimiento__vigencia { grid-column: 1; grid-row: 2; }
-  .historial-movimiento__cambios { grid-column: 2; grid-row: 1 / -1; }
+  .historial-movimiento__cambios {
+    grid-column: 2;
+    grid-row: 1 / -1;
+    /* El riel puede ensancharse, el texto no: un renglón de cambio a 1000px
+       obliga al ojo a volver desde muy lejos para encontrar el siguiente. El
+       tope va en el contenido y no en la pista, que con un máximo definido
+       se desborda cuando el contenedor se achica. */
+    max-width: 46rem;
+  }
 }
 
 /* Espera, error y vacío comparten el mismo bloque: un texto y, cuando hay
@@ -2594,8 +2612,12 @@ time {
 
   /* Las afectaciones son tarjetas cortas e independientes: en una sola
      columna ancha quedaban con una línea de texto y medio metro de vacío. */
+  /* 22rem no es decorativo: con el contenedor en su tope entran tres por
+     fila y no cuatro. Una escuela rara vez informa más de tres situaciones a
+     la vez, y una cuarta columna sólo agrega un hueco al final. El `min()`
+     evita que la pista pida más de lo que el contenedor tiene. */
   .estado-actual-afectaciones {
-    grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
   }
 
   /* El botón crece hasta ocupar el ancho sólo en el teléfono, donde la regla
@@ -2716,6 +2738,18 @@ time {
     margin-top: 0;
     position: sticky;
     top: var(--s-5);
+    /* El tope va en el panel y no en la pista: una pista topeada desborda
+       cuando el contenedor se achica, y esta lista son tres renglones de
+       texto — a 700px de ancho deja de leerse como una columna. */
+    /* El `width` acompaña al tope porque `justify-self` deja al panel del
+       ancho de su contenido: sin él, el borde izquierdo se corre cada vez
+       que entra o sale una línea de la lista de cambios. */
+    width: 100%;
+    max-width: 26rem;
+    /* Contra el borde derecho de la tarjeta, donde ya está la referencia que
+       marcan el encabezado y las líneas de sección. Pegado al formulario
+       dejaba una franja muerta a la derecha y el conjunto quedaba corrido. */
+    justify-self: end;
   }
 }
 
