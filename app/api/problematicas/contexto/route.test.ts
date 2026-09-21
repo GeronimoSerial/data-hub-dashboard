@@ -1,11 +1,16 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { GET } from './route'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+
+// Estas pruebas cubren la guarda por contraseña. La sesión se fuerza a
+// ausente para que 'sin cookie' signifique 401 y no dependa del bypass de
+// administrador, que tiene su propia cobertura en acceso-parte.test.ts.
+vi.mock('@/lib/session', () => ({ getSessionUser: async () => null }))
 
 const CLAVE = claveDePrueba()
 

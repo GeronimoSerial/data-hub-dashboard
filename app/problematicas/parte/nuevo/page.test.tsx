@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
@@ -14,17 +13,13 @@ const cookiesGetMock = vi.fn()
 vi.mock('next/headers', () => ({
   cookies: async () => ({ get: cookiesGetMock }),
 }))
-// AccesoForm usa useRouter() para refrescar tras loguearse; fuera de un
-// request real de Next no hay router montado, así que se mockea igual que
-// cookies() de arriba.
+// Sin sesión: 'sin cookie de acceso' tiene que seguir mostrando el ingreso.
+vi.mock('@/lib/session', () => ({ getSessionUser: async () => null }))
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }))
 
-// El import de la página tiene que ir después del vi.mock de arriba: next/headers
-// no funciona fuera de un request real de Next, así que este test lo mockea
-// como hacen los tests de páginas gateadas por cookie de sesión.
-const { default: NuevaProblematicaPage } = await import('./page')
+const { default: NuevoPartePage } = await import('./page')
 const { crearTokenSesion } = await import('@/lib/infraestructura/acceso-publico')
 
 let dir: string
@@ -32,7 +27,7 @@ let prevDataDir: string | undefined
 let prevPassword: string | undefined
 
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), 'contexto-page-'))
+  dir = mkdtempSync(path.join(tmpdir(), 'parte-nuevo-page-'))
   prevDataDir = process.env.DATA_DIR
   prevPassword = process.env.PROBLEMATICAS_ACCESO_PASSWORD
   process.env.DATA_DIR = dir
@@ -73,36 +68,42 @@ async function seedEscuelaConSeccion() {
   }
 }
 
-describe('NuevaProblematicaPage', () => {
+describe('NuevoPartePage', () => {
   it('sin cookie de acceso, muestra la pantalla de ingreso en vez del formulario', async () => {
     await seedEscuelaConSeccion()
     cookiesGetMock.mockReturnValue(undefined)
 
-    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
+    const jsx = await NuevoPartePage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
     render(jsx)
 
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
     expect(screen.queryByText('Escuela 4')).not.toBeInTheDocument()
   })
 
-  it('con cookie de acceso vigente, muestra la escuela y sus secciones', async () => {
+  it('con cookie de acceso vigente, encabeza con el programa y abre el asistente', async () => {
     await seedEscuelaConSeccion()
     conAcceso()
 
-    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
+    const jsx = await NuevoPartePage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
     render(jsx)
 
+    // El título es el del programa; la escuela queda como identidad
+    // subordinada, una sola vez y sin encabezar la pantalla.
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Registro de Incidencias ENOS 2026/2027' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Escuela 4' })).toBeNull()
     expect(screen.getByText('Escuela 4')).toBeInTheDocument()
-    expect(screen.getByText('Mañana')).toBeInTheDocument()
-    expect(screen.getByText('Primario')).toBeInTheDocument()
-    expect(screen.getByText(/1 "A" — 1 alumnos/)).toBeInTheDocument()
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /agregar afectación/i })).toBeNull()
   })
 
   it('muestra un error claro sin CUE, sin ofrecer alternativas', async () => {
     await seedEscuelaConSeccion()
     conAcceso()
 
-    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({}) })
+    const jsx = await NuevoPartePage({ searchParams: Promise.resolve({}) })
     render(jsx)
 
     expect(screen.getByText(/no incluye el CUE/i)).toBeInTheDocument()
@@ -113,37 +114,9 @@ describe('NuevaProblematicaPage', () => {
     await seedEscuelaConSeccion()
     conAcceso()
 
-    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '9999999' }) })
+    const jsx = await NuevoPartePage({ searchParams: Promise.resolve({ cue: '9999999' }) })
     render(jsx)
 
     expect(screen.getByText(/no se encontró una escuela/i)).toBeInTheDocument()
-  })
-
-  it('ofrece los motivos sembrados filtrados por el tipo elegido, y cambiar de tipo limpia motivo y alumnos', async () => {
-    await seedEscuelaConSeccion()
-    conAcceso()
-
-    const jsx = await NuevaProblematicaPage({ searchParams: Promise.resolve({ cue: '1801605-04' }) })
-    render(jsx)
-
-    const usuario = userEvent.setup()
-
-    // Sin tipo elegido, el motivo está deshabilitado y no ofrece opciones.
-    expect(screen.getByLabelText(/motivo/i)).toBeDisabled()
-
-    await usuario.click(screen.getByRole('radio', { name: /afecta al establecimiento/i }))
-    expect(screen.getByRole('option', { name: 'Inundación' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Anegamiento' })).not.toBeInTheDocument()
-
-    await usuario.selectOptions(screen.getByLabelText(/motivo/i), 'Inundación')
-    await usuario.click(screen.getByRole('checkbox', { name: /1 "A"/ }))
-
-    await usuario.click(screen.getByRole('radio', { name: /inaccesibilidad de alumnos/i }))
-
-    // El tipo 'alumnos' ofrece sus propios motivos, y el cambio limpió el
-    // motivo elegido bajo el tipo anterior.
-    expect((screen.getByLabelText(/motivo/i) as HTMLSelectElement).value).toBe('')
-    expect(screen.getByRole('option', { name: 'Anegamiento' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Inundación' })).not.toBeInTheDocument()
   })
 })

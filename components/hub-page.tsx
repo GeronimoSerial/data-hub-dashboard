@@ -108,6 +108,22 @@ export function HubPage() {
         </div>
       </header>
 
+      {/* Acción, no catálogo: el resto del home lleva a consultar recursos y
+          esta tarjeta lleva a cargar un dato. Va primero porque durante una
+          emergencia es lo que se viene a hacer, no lo que se viene a leer. */}
+      <section className="section">
+        <div className="section-head">
+          <h2>Registrar una problemática</h2>
+        </div>
+        <Link className="accion-card" href="/infraestructura/cargar">
+          <span className="accion-card__name">Cargar el parte de una escuela</span>
+          <span className="accion-card__note">
+            Busque la escuela por CUE y entre a informar lo que está pasando. Si ya tiene un parte
+            abierto, la pantalla lleva a actualizarlo.
+          </span>
+        </Link>
+      </section>
+
       <section className="section">
         <div className="section-head">
           <h2>Actualizaciones recientes</h2>
