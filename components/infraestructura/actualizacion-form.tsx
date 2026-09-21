@@ -375,7 +375,7 @@ function ActualizacionFormCargado({
   }
 
   return (
-    <form className="reporte-inicial" onSubmit={irAResumen}>
+    <form className="reporte-inicial reporte-inicial--con-panel" onSubmit={irAResumen}>
       <section className="reporte-inicial__seccion">
         <h2>Lo que está pasando en la escuela</h2>
         {afectaciones.map((a, indiceReal) => (
@@ -545,7 +545,9 @@ function ActualizacionFormCargado({
 
       {/* El director veía lo que había cambiado recién en la pantalla de
           confirmación. Mostrarlo mientras edita convierte una pantalla que
-          "no se sabe en qué estado está" en una que se narra sola. */}
+          "no se sabe en qué estado está" en una que se narra sola. En
+          teléfono cae acá, entre el último campo y el botón; en escritorio
+          el CSS lo sienta al costado, donde se lee sin bajar. */}
       <section className="actualizacion-pendientes" aria-live="polite">
         {diffVacio ? (
           <p className="actualizacion-pendientes__vacio" role="status">

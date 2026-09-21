@@ -164,7 +164,10 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         </section>
       )}
 
-      <section className="estado-actual-bloque" aria-labelledby="estado-actual-situacion">
+      <section
+        className="estado-actual-bloque estado-actual-bloque--ancho"
+        aria-labelledby="estado-actual-situacion"
+      >
         <h2 className="estado-actual-bloque__titulo" id="estado-actual-situacion">
           Situación hidrometeorológica en seguimiento
         </h2>

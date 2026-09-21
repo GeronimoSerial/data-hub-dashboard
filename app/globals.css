@@ -2139,7 +2139,7 @@ time {
      with the form. var(--measure) left it stranded on wide screens. */
   /* The padding is added to the width so the signature's left edge lands on
      the form's border, not 24px inside it. */
-  max-width: calc(640px + 2 * clamp(1rem, 3vw, 2.5rem));
+  max-width: calc(var(--publico-medida, 640px) + 2 * clamp(1rem, 3vw, 2.5rem));
   margin: 0 auto;
   padding: var(--s-3) clamp(1rem, 3vw, 2.5rem);
   display: flex;
@@ -2189,7 +2189,7 @@ time {
 }
 
 .publico-content {
-  max-width: 640px;
+  max-width: var(--publico-medida, 640px);
   margin: clamp(1.5rem, 4vw, 3rem) auto clamp(3rem, 6vw, 5rem);
   padding: clamp(1.75rem, 4vw, 2.5rem);
   display: grid;
@@ -2221,6 +2221,22 @@ time {
     border-radius: 0;
     box-shadow: none;
   }
+}
+
+/* ── Pantallas que ganan algo con el ancho ─────────────────────────────────
+   640px es la medida de lectura y de formulario: estirar un radio hasta el
+   borde de un monitor aleja la etiqueta de su control y no agrega
+   información. Lo que sí sobra en escritorio es espacio al costado, así que
+   estas pantallas ensanchan el contenedor y lo reparten en dos columnas
+   —el contenido conserva su medida, el material secundario se muda al lado—
+   mientras que abajo del punto de quiebre todo vuelve a la única columna.
+
+   La medida viaja como custom property para que el encabezado institucional
+   siga al contenido: `:has()` la sube al layout, que es antecesor tanto de la
+   firma como del contenido, y así ambos comparten el borde izquierdo. */
+.publico-content--ancho,
+.publico-layout:has(.publico-content--ancho) {
+  --publico-medida: 1120px;
 }
 
 /* ── Historial del parte (spec §15) ────────────────────────────────────── */
@@ -2293,6 +2309,28 @@ time {
   position: absolute;
   left: 0;
   color: var(--ink-soft);
+}
+
+/* En escritorio la cronología se lee mejor con la fecha y el autor en un
+   riel propio a la izquierda y los cambios a la derecha: el ojo baja por una
+   columna de cuándo y salta a la de qué sólo cuando algo le llama. Apilado
+   —que es como queda en el teléfono— cada movimiento es un párrafo más. */
+@media (min-width: 880px) {
+  .historial-movimiento {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    /* Filas explícitas, no implícitas: el bloque de cambios abarca las dos y
+       el sobrante de altura tiene que caer entero en la segunda. Con filas
+       automáticas el navegador lo reparte entre ambas y la vigencia se
+       despega del encabezado en los movimientos más largos. */
+    grid-template-rows: min-content 1fr;
+    column-gap: var(--s-6);
+    align-items: start;
+  }
+
+  .historial-movimiento__encabezado { grid-column: 1; grid-row: 1; }
+  .historial-movimiento__vigencia { grid-column: 1; grid-row: 2; }
+  .historial-movimiento__cambios { grid-column: 2; grid-row: 1 / -1; }
 }
 
 /* Espera, error y vacío comparten el mismo bloque: un texto y, cuando hay
@@ -2538,6 +2576,34 @@ time {
   .estado-actual-bloque__accion { width: 100%; }
 }
 
+/* En escritorio los dos datos de cabecera —servicio y establecimiento— se
+   leen de una sola mirada si están uno al lado del otro: son la misma
+   pregunta hecha sobre dos objetos, y apilados obligan a recorrer la
+   pantalla para compararlos. La situación en seguimiento y el pie siguen
+   ocupando el ancho entero porque son listas, no datos sueltos. */
+@media (min-width: 880px) {
+  .estado-actual {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--s-6);
+  }
+
+  .estado-actual-bloque--ancho,
+  .estado-actual-pie {
+    grid-column: 1 / -1;
+  }
+
+  /* Las afectaciones son tarjetas cortas e independientes: en una sola
+     columna ancha quedaban con una línea de texto y medio metro de vacío. */
+  .estado-actual-afectaciones {
+    grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+  }
+
+  /* El botón crece hasta ocupar el ancho sólo en el teléfono, donde la regla
+     es que sea imposible errarle. Estirado a media pantalla deja de leerse
+     como un botón y empieza a leerse como una barra. */
+  .estado-actual-acciones__principal { flex: 0 1 auto; }
+}
+
 /* ── Borrador de afectación (batch 5) ─────────────────────────────────── */
 
 
@@ -2611,6 +2677,46 @@ time {
 
 @media (max-width: 480px) {
   .reporte-inicial { max-width: none; }
+}
+
+/* ── Formulario con panel al costado (actualización del parte) ───────────── */
+
+/* Una sola columna hasta que entran las dos sin comprimir ninguna:
+   640 de formulario + 2rem + 17rem de panel. Debajo de eso el panel vuelve
+   a su lugar en el flujo, entre el último campo y el botón. */
+@media (min-width: 1060px) {
+  .reporte-inicial--con-panel {
+    display: grid;
+    /* La primera pista va fija en la medida del formulario: una pista
+       elástica se dimensiona por su contenido, y un paso con pocos campos
+       encogería la columna y movería el panel de lugar entre pantallas. El
+       punto de quiebre garantiza que 640 + separación entren sin desbordar. */
+    grid-template-columns: 640px minmax(0, 1fr);
+    column-gap: var(--s-6);
+    /* Sin separación entre filas: el panel abarca todas, y una separación
+       se cobraría también en las filas vacías que ese tramo deja debajo.
+       El aire vuelve como margen entre hermanos de la primera columna. */
+    row-gap: 0;
+    align-items: start;
+    max-width: none;
+  }
+
+  .reporte-inicial--con-panel > * { grid-column: 1; }
+  .reporte-inicial--con-panel > * + * { margin-top: var(--s-5); }
+
+  /* El tramo de filas abarca el formulario entero para que el pegado tenga
+     por dónde viajar: su razón de ser es acompañar, y el director necesita
+     ver lo que lleva cambiado mientras completa una sección de más abajo. El
+     número es holgado a propósito —las filas se crean solas según cuántas
+     secciones muestre el paso— y las que sobran no ocupan nada, porque están
+     vacías y no hay separación entre filas. */
+  .reporte-inicial--con-panel > .actualizacion-pendientes {
+    grid-column: 2;
+    grid-row: 1 / span 40;
+    margin-top: 0;
+    position: sticky;
+    top: var(--s-5);
+  }
 }
 
 /* ── Actualización del parte (batch 6) ────────────────────────────────── */

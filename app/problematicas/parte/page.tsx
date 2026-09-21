@@ -77,7 +77,7 @@ export default async function EstadoActualPartePage({
   const { escuela } = resultado.contexto
 
   return (
-    <div className="publico-content">
+    <div className="publico-content publico-content--ancho">
       {/* §6.1 — Identificación del establecimiento, ahora subordinada al
           título del programa: el enlace ya puso al director en su escuela. */}
       <EncabezadoParte pantalla={TITULO} escuela={escuela} />
