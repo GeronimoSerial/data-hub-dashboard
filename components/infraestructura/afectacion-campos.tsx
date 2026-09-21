@@ -242,7 +242,7 @@ export function CamposQuePaso({
                     cuatro palabras sueltas y pasa a ser ubicarse en una
                     escala — la misma que después ve en el parte. */}
                 <span className="opcion-radio__titulo" id={`${idPrefijo}-severidad-${s}-nombre`}>
-                  <EstadoActualSeveridad severidad={s} prefijo={false} />
+                  <EstadoActualSeveridad severidad={s} prefijo={false} marca={false} />
                 </span>
                 <span className="opcion-radio__ayuda" id={`${idPrefijo}-severidad-${s}-criterio`}>
                   {SEVERIDAD_CRITERIOS[s]}
