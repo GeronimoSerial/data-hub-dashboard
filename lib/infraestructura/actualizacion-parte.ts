@@ -196,10 +196,31 @@ export interface SnapshotDespuesParams {
 // retiraron, con los cambios en pantalla aplicados, más las nuevas; el
 // servicio educativo y la situación del establecimiento reflejan la
 // selección del director si la tocó, o se conservan si no.
+/*
+  Una fila recién agregada que todavía está en blanco no es un cambio.
+
+  Sin este recorte, apenas el director pulsaba "Agregar otra situación" la
+  previsualización ya anunciaba `Se agregó "" · Severidad Baja` y habilitaba
+  el guardado: `borradorAAfectacion` rellena los campos que faltan con
+  valores por defecto ('establecimiento', 'Baja') para poder alimentar
+  diffParte, y esos defaults se leían como una declaración del director.
+
+  El recorte se limita a las filas NUEVAS: una afectación que ya figura en el
+  parte y quedó incompleta debe seguir en el snapshot, porque sacarla de ahí
+  la haría aparecer como retirada — un cambio que nadie pidió. Esa la frena
+  la guarda de envío del formulario.
+*/
+function esBorradorEnBlanco(a: AfectacionActualizable): boolean {
+  if (a.origenId !== null) return false
+  return a.categoria === '' || a.motivo === '' || a.severidad === '' || a.secciones.length === 0
+}
+
 export function snapshotDespuesDeFormulario(params: SnapshotDespuesParams): ParteSnapshot {
   return {
     estadoEstablecimiento: params.estadoEstablecimientoSeleccionado || params.estadoEstablecimientoVigente,
-    afectaciones: params.afectaciones.filter((a) => !a.retirada).map((a) => borradorAAfectacion(a, params.turnos)),
+    afectaciones: params.afectaciones
+      .filter((a) => !a.retirada && !esBorradorEnBlanco(a))
+      .map((a) => borradorAAfectacion(a, params.turnos)),
     servicioAlcance: servicioAlcanceDespues(params.servicioAlcanceVigente, params.servicioSeleccionado),
   }
 }

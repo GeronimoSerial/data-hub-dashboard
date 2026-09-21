@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffParte, esDiffVacio } from './movimiento-diff'
+import { contarCambios, diffParte, esDiffVacio } from './movimiento-diff'
 import { crearSnapshotVacio } from './trayectoria-tipos'
 import type { Afectacion, ParteSnapshot, ServicioAlcance } from './trayectoria-tipos'
 
@@ -187,5 +187,34 @@ describe('secciones completas: el padrón enumerado no debe generar diff', () =>
     const diff = diffParte(antes, despues)
 
     expect(diff.alcancesCambiados[0]).toMatchObject({ seccionesAgregadas: 1, alumnosAgregados: 1 })
+  })
+})
+
+describe('contarCambios', () => {
+  it('un diff vacío no tiene cambios', () => {
+    expect(contarCambios(diffParte(crearSnapshotVacio('habitual'), crearSnapshotVacio('habitual')))).toBe(0)
+  })
+
+  /*
+    Agregar una afectación se narra en dos renglones (el alta y su alcance) y
+    sigue siendo UN cambio. El panel de cambios sin guardar contaba renglones
+    y le informaba dos al director donde había uno.
+  */
+  it('agregar una afectación cuenta como un cambio aunque se narre en dos renglones', () => {
+    const diff = diffParte(crearSnapshotVacio('habitual'), snapshotConAfectacion(baseAfectacion()))
+
+    expect(contarCambios(diff)).toBe(1)
+    expect(diff.afectacionesAgregadas).toHaveLength(1)
+  })
+
+  it('suma los cambios de distinta naturaleza, incluido el del establecimiento', () => {
+    const antes = snapshotConAfectacion(baseAfectacion())
+    const despues = {
+      ...snapshotConAfectacion({ ...baseAfectacion(), severidad: 'Crítica' as const }),
+      estadoEstablecimiento: 'evacuado' as const,
+    }
+
+    // Severidad de la afectación + estado del establecimiento.
+    expect(contarCambios(diffParte(antes, despues))).toBe(2)
   })
 })

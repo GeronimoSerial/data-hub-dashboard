@@ -375,3 +375,48 @@ describe('ActualizacionForm — un parte intacto no inventa cambios', () => {
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
   })
 })
+
+describe('ActualizacionForm — una situación en blanco no es un cambio', () => {
+  /*
+    Bug visto en el navegador: apenas se pulsaba "Agregar otra situación", el
+    panel de cambios sin guardar ya anunciaba `Se agregó "" · Severidad Baja`
+    y "Revisar cambios" quedaba habilitado. `borradorAAfectacion` rellena los
+    campos que faltan con valores por defecto para poder alimentar diffParte,
+    y esos defaults se leían como una declaración del director — incluso una
+    severidad que nunca eligió.
+  */
+  it('agregar una situación vacía no cuenta como cambio ni habilita el guardado', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    fireEvent.click(screen.getByRole('button', { name: /agregar otra situación/i }))
+
+    expect(screen.getByText(/todavía no realizó cambios/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
+    expect(screen.queryByText(/Se agregó ""/)).toBeNull()
+  })
+
+  it('recién cuenta como cambio cuando la situación queda completa', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await esperarParteCargado()
+
+    fireEvent.click(screen.getByRole('button', { name: /agregar otra situación/i }))
+
+    const categorias = screen.getAllByRole('radio', { name: /Afecta al establecimiento/ })
+    fireEvent.click(categorias[categorias.length - 1])
+    const motivos = screen.getAllByRole('radio', { name: 'Tormenta severa' })
+    fireEvent.click(motivos[motivos.length - 1])
+    const severidades = screen.getAllByRole('radio', { name: 'Media' })
+    fireEvent.click(severidades[severidades.length - 1])
+    const secciones = screen.getAllByRole('checkbox', { name: /1° "A"/ })
+    fireEvent.click(secciones[secciones.length - 1])
+
+    expect(screen.getByRole('heading', { name: /sin guardar: 1 cambio/i })).toBeInTheDocument()
+    expect(screen.getByText(/Se agregó "Tormenta severa"/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeEnabled()
+  })
+})

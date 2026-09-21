@@ -28,7 +28,7 @@ import {
 } from '@/lib/infraestructura/actualizacion-parte'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
-import { diffParte, esDiffVacio } from '@/lib/infraestructura/movimiento-diff'
+import { contarCambios, diffParte, esDiffVacio } from '@/lib/infraestructura/movimiento-diff'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 
@@ -210,6 +210,9 @@ function ActualizacionFormCargado({
 
   const diff = useMemo(() => diffParte(snapshotAntes, snapshotDespues), [snapshotAntes, snapshotDespues])
   const diffVacio = esDiffVacio(diff)
+  // Cantidad de cambios, no de renglones: agregar una afectación se narra en
+  // dos líneas y sigue siendo un solo cambio.
+  const cantidadCambios = contarCambios(diff)
   const lineasResumen = useMemo(() => describirMovimiento(diff, { tipo: 'actualizacion' }), [diff])
 
   const afectacionesVisibles = afectaciones.filter((a) => !a.retirada)
@@ -551,8 +554,7 @@ function ActualizacionFormCargado({
         ) : (
           <>
             <h2 className="actualizacion-pendientes__titulo">
-              Sin guardar: {lineasResumen.length}{' '}
-              {lineasResumen.length === 1 ? 'cambio' : 'cambios'}
+              Sin guardar: {cantidadCambios} {cantidadCambios === 1 ? 'cambio' : 'cambios'}
             </h2>
             <ul className="actualizacion-resumen__lista">
               {lineasResumen.map((linea, indice) => (

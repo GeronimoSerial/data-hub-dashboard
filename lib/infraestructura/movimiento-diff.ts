@@ -321,6 +321,26 @@ export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot): DiffPar
 // §17: "Todavía no realizó cambios en el parte actual"). Se expone como
 // función aparte para que las UI (batches 4-7) no tengan que conocer la
 // forma interna del diff para tomar esa decisión.
+/*
+  Cuántos cambios hay, para poder decírselo al director mientras edita.
+
+  No es lo mismo que contar las líneas de describirMovimiento: un solo cambio
+  puede narrarse en dos renglones (por ejemplo, agregar una afectación emite
+  el alta y además su alcance). Contar renglones y llamarlos "cambios" le
+  informaba dos donde había uno.
+*/
+export function contarCambios(diff: DiffParte): number {
+  return (
+    diff.afectacionesAgregadas.length +
+    diff.afectacionesRetiradas.length +
+    diff.severidadesCambiadas.length +
+    diff.alcancesCambiados.length +
+    diff.datosCambiados.length +
+    diff.serviciosCambiados.length +
+    (diff.establecimientoCambiado === null ? 0 : 1)
+  )
+}
+
 export function esDiffVacio(diff: DiffParte): boolean {
   return (
     diff.afectacionesAgregadas.length === 0 &&
