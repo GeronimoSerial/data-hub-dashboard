@@ -741,6 +741,124 @@ time {
   transition-timing-function: ease;
 }
 .browse-card:hover { border-color: var(--ink); background: var(--fill); }
+
+/* Tarjeta de acción del home. Comparte el marco de .browse-card pero no su
+   contador: no lleva a un conjunto de recursos, lleva a hacer una cosa. El
+   borde de acento es lo único que la distingue del resto de la grilla —
+   alcanza, y no necesita ser el elemento más pesado de la pantalla. */
+.accion-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 34rem;
+  padding: var(--s-5);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  text-decoration: none;
+  transition-property: border-color, background-color;
+  transition-duration: 160ms;
+  transition-timing-function: ease;
+}
+
+.accion-card:hover { background: var(--fill); }
+.accion-card:hover .accion-card__name { text-decoration: underline; text-underline-offset: 3px; }
+
+.accion-card__name {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+
+.accion-card__note {
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+/* ── Buscar la escuela antes de cargar su parte ──────────────────────────── */
+
+.cargar-parte {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  max-width: 640px;
+}
+
+.cargar-parte__encabezado { display: flex; flex-direction: column; gap: var(--s-2); }
+
+.cargar-parte__intro {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+/* El campo y el botón en una fila mientras entren; el campo manda el ancho
+   porque un CUE es corto y un input a 640 promete más de lo que se escribe. */
+.cargar-parte__busqueda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-3);
+}
+
+.cargar-parte__campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  flex: 1 1 14rem;
+  max-width: 18rem;
+}
+
+.cargar-parte__error {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
+.cargar-parte__resultado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+}
+
+.cargar-parte__escuela {
+  margin: 0;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: 0;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.cargar-parte__ubicacion {
+  margin: 0;
+  font-size: var(--t-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* La contraseña del recorrido público es una guarda que el titular del dato
+   pidió y que esta pantalla no saltea: se avisa antes, no después del clic. */
+.cargar-parte__aviso {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
 .browse-card:hover .browse-card__name { text-decoration: underline; text-underline-offset: 3px; }
 /* The illustration sits on the card itself rather than inside a tinted
    chip: the drawing is the identifier, so it does not need a container. */
@@ -1858,13 +1976,6 @@ time {
   --severidad-critica: var(--red);
 }
 
-.formulario-problematica {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-  max-width: 640px;
-}
-
 .acceso-form {
   display: flex;
   flex-direction: column;
@@ -1877,61 +1988,20 @@ time {
   font-size: var(--t-small);
 }
 
-.formulario-problematica__escuela {
-  display: grid;
-  gap: 2px;
-  padding: var(--s-4);
-  border-radius: var(--r-md);
-  background: var(--fill);
-}
-
-.formulario-problematica__escuela p { margin: 0; }
-.formulario-problematica__escuela p:first-child {
-  font-family: var(--font-title);
-  font-weight: 700;
-  font-size: 1.0625rem;
-  letter-spacing: 0;
-  line-height: 1.25;
-  color: var(--ink);
-}
-.formulario-problematica__escuela p:last-child {
-  font-size: var(--t-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.formulario-problematica__campo {
+/* Heredadas del formulario de problemática, que ya no existe: hoy las usa
+   sólo el gate de contraseña, que es común a todo el recorrido público. */
+.acceso-form__campo {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
 }
 
-.formulario-problematica__impacto-preliminar {
-  padding: var(--s-3) var(--s-4);
-  border-radius: var(--r-sm);
-  background: var(--info-tint);
-  border-left: 4px solid var(--info);
-}
-
-.formulario-problematica__impacto-preliminar p { font-size: var(--t-small); color: var(--ink); margin: 0; }
-.formulario-problematica__impacto-preliminar p:last-child { color: var(--ink-soft); font-size: var(--t-micro); }
-
-.formulario-problematica__error {
+.acceso-form__error {
   padding: var(--s-3) var(--s-4);
   border-radius: var(--r-sm);
   background: var(--danger-tint);
   color: var(--danger);
   font-size: var(--t-small);
-}
-
-.formulario-problematica__confirmacion {
-  padding: var(--s-5);
-  border-radius: var(--r-md);
-  background: var(--ok-tint);
-  color: var(--ok);
-  font-weight: 500;
 }
 
 .secciones-selector {
@@ -2043,19 +2113,6 @@ time {
   color: var(--ink);
 }
 
-/* Native <select> kept for form controls covered by Testing Library's
-   userEvent.selectOptions (native-only API) — styled to match ui-select-trigger. */
-.formulario-problematica select.ui-input {
-  appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
-    linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
-  background-position: calc(100% - 1.3rem) 55%, calc(100% - 0.95rem) 55%;
-  background-size: 6px 6px, 6px 6px;
-  background-repeat: no-repeat;
-  padding-right: 2.5rem;
-  cursor: pointer;
-}
-
 /* ── Vigencia field ("Rige desde") ────────────────────────────────────── */
 
 /* A <fieldset> so `disabled` propagates to every input/button below it for
@@ -2109,47 +2166,6 @@ time {
   margin: 0;
   font-size: var(--t-small);
   color: var(--ink-soft);
-}
-
-@media (max-width: 480px) {
-  .formulario-problematica { max-width: none; }
-}
-
-/* ── Reporte de una problemática en dos columnas ─────────────────────────── */
-
-/* Los dos grupos existen en el DOM en todos los anchos y sólo se sientan uno
-   al lado del otro cuando hay lugar. Apilados —que es como quedan en el
-   teléfono— reproducen la secuencia de campos de siempre. */
-.formulario-problematica__columna {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
-}
-
-/* El formulario se parte en dos mitades de naturaleza distinta: tres campos
-   cortos de una línea, y el selector de secciones, que es lo único que crece
-   con el tamaño de la escuela y empujaba todo lo demás abajo del pliegue.
-   Con las dos columnas la identificación y el primer campo entran juntos en
-   la primera pantalla, y ninguna se estira: en su tope quedan dos de ~620, no
-   un select a todo lo ancho.
-
-   El punto de quiebre es el mismo en el que la tarjeta se ensancha, y no uno
-   más alto: si se separaran, entre los dos habría una banda donde la tarjeta
-   ya creció y el formulario seguiría en una columna, corrido contra el borde
-   izquierdo. Los campos de acá son cortos y toleran columnas de ~350. */
-@media (min-width: 880px) {
-  .formulario-problematica--dos-columnas {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: var(--s-6);
-    row-gap: var(--s-5);
-    align-items: start;
-    max-width: none;
-  }
-
-  /* La escuela es identificación, no un campo: cruza las dos columnas arriba
-     de todo, como la banda que ya usa el resto del recorrido. */
-  .formulario-problematica__escuela { grid-column: 1 / -1; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

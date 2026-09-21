@@ -44,7 +44,7 @@ export function AccesoForm() {
   return (
     <form className="acceso-form" onSubmit={manejarEnvio}>
       <p className="acceso-form__intro">Este formulario requiere una contraseña de acceso.</p>
-      <div className="formulario-problematica__campo">
+      <div className="acceso-form__campo">
         <Label htmlFor="acceso-password">Contraseña</Label>
         <input
           id="acceso-password"
@@ -58,7 +58,7 @@ export function AccesoForm() {
       </div>
 
       {error && (
-        <p className="formulario-problematica__error" role="alert">
+        <p className="acceso-form__error" role="alert">
           {error}
         </p>
       )}
