@@ -135,6 +135,29 @@ function barajar(lista) {
   return copia
 }
 
+// --- PRNG secundario para la variedad nueva ------------------------------
+// Restauración de servicio y retiros de afectación usan un stream APARTE del
+// principal (randVariedad, con su propia semilla fija). A propósito: así la
+// siembra existente (categorías, secciones, alumnos, los idx* históricos)
+// queda byte a byte igual a antes de este cambio — el determinismo se
+// mantiene (misma semilla => mismo resultado) y ninguna cobertura existente
+// se reasigna por azar.
+const randVariedad = crearPrng(SEMILLA ^ 0x9e3779b9)
+
+function randIntVariedad(min, max) {
+  // entero en [min, max], ambos inclusive
+  return min + Math.floor(randVariedad() * (max - min + 1))
+}
+
+function barajarVariedad(lista) {
+  const copia = [...lista]
+  for (let i = copia.length - 1; i > 0; i--) {
+    const j = randIntVariedad(0, i)
+    ;[copia[i], copia[j]] = [copia[j], copia[i]]
+  }
+  return copia
+}
+
 // --- Namespace de ids demo en ge.sqlite (ver comentario de cabecera) -----
 const ID_DEMO_BASE = 900000
 
@@ -459,6 +482,8 @@ const CANT_HABITUAL = TOTAL_PARTES - CANT_EVACUADO - CANT_CENTRO_EVACUADOS // 40
 const CANT_TODO_RETIRADO = 3 // subconjunto de los 'habitual', no aparecen en el mapa
 const CANT_SERVICIO_SUSPENDIDO = 5
 const CANT_SERVICIO_PARCIAL = 10
+const CANT_SERVICIO_RESTAURADO = 6 // servicio suspendido y restaurado a mitad del período
+const CANT_AFECTACION_RETIRADA = 15 // candidatos a retirar una afectación; sólo cuentan los de 2+ afectaciones
 const CANT_SIN_REPORTAR = 8 // actualizadaEn > 72hs
 
 async function sembrarPartes(hub, periodoId, corteId, establecimientosConSecciones, alumnosPorSeccionGlobal) {
@@ -487,12 +512,29 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
   const idxServicioParcial = new Set(resto.slice(CANT_SERVICIO_SUSPENDIDO, CANT_SERVICIO_SUSPENDIDO + CANT_SERVICIO_PARCIAL))
   const idxSinReportar = new Set(barajar(indices).slice(0, CANT_SIN_REPORTAR))
 
+  // Servicio "suspendido y restaurado": slice contiguo de `resto`, por lo que
+  // queda disjunto de todoRetirado/suspendido/parcial. La fila lleva
+  // retiradaEn en el pasado (mitad del período) para que la serie de
+  // evolución muestre la caída y después la restauración.
+  const idxServicioRestaurado = new Set(
+    resto.slice(
+      CANT_SERVICIO_SUSPENDIDO + CANT_SERVICIO_PARCIAL,
+      CANT_SERVICIO_SUSPENDIDO + CANT_SERVICIO_PARCIAL + CANT_SERVICIO_RESTAURADO,
+    ),
+  )
+  // Candidatos a retirar UNA afectación por parte (los que terminen con 2+
+  // afectaciones). Se sortean con el PRNG secundario para no tocar el stream
+  // principal; mismos helpers barajar/randInt que los otros idx*.
+  const idxAfectacionRetirada = new Set(barajarVariedad(resto).slice(0, CANT_AFECTACION_RETIRADA))
+
   const resumen = {
     partes: 0,
     afectaciones: 0,
     servicios: 0,
     movimientos: 0,
     porEstadoServicio: { normal: 0, parcial: 0, suspendido: 0 },
+    serviciosRestaurados: 0,
+    afectacionesRetiradas: 0,
   }
   let severidadCiclo = 0
 
@@ -554,7 +596,23 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
         .map((s, idx) => ({ geSectionId: s.geSectionId, completa: (a + idx) % 2 === 0 }))
 
       const rigeDesdeAfectacion = rigeDesdeParte
-      const retiradaEn = todoRetirado ? actualizadaEn : null
+      // Retiradas: las partes 'todoRetirado' se retiran con la actualización
+      // (como hoy). Además, en un subconjunto de partes con 2+ afectaciones
+      // (idxAfectacionRetirada) se retira UNA — la última — con una fecha
+      // propia distribuida en los últimos 5-30 días: la situación de esa
+      // afectación se resolvió sin sacar al parte del mapa (siempre queda al
+      // menos una afectación vigente).
+      const esAfectacionRetirada =
+        !todoRetirado &&
+        idxAfectacionRetirada.has(i) &&
+        cantidadAfectaciones >= 2 &&
+        a === cantidadAfectaciones - 1
+
+      const retiradaEn = todoRetirado
+        ? actualizadaEn
+        : esAfectacionRetirada
+          ? diasAtras(randIntVariedad(5, Math.min(30, antiguedadDias - 1)), ahora)
+          : null
 
       const { dominio } = armarAfectacion({
         id: afectacionId,
@@ -570,16 +628,26 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 
       await insertarAfectacion(hub, dominio)
       resumen.afectaciones++
+      if (esAfectacionRetirada) resumen.afectacionesRetiradas++
 
-      if (!todoRetirado) afectacionesFinal.push(dominio)
+      // La afectación retirada NO va al snapshot final (que modela el conjunto
+      // vigente: una afectación retirada desaparece del after aunque su fila
+      // siga existiendo con retiradaEn — mismo criterio que 'todoRetirado',
+      // ver movimiento-diff.ts). Sí va a la inicial (con retiradaEn null: era
+      // vigente al momento del reporte) para que el diff de actualización la
+      // narre como retirada.
+      if (!todoRetirado && !esAfectacionRetirada) afectacionesFinal.push(dominio)
       // La "inicial" (para el diff de reporte_inicial) sólo trae la primera
       // afectación: modela que el resto se agregó en una actualización
-      // posterior, sin necesidad de tocar más filas reales.
-      if (a === 0) afectacionesIniciales.push({ ...dominio, retiradaEn: null })
+      // posterior, sin necesidad de tocar más filas reales. La excepción es la
+      // afectación retirada de los partes con 2+: se informó en el reporte
+      // inicial (vigente) y la retirada llega después.
+      if (a === 0 || esAfectacionRetirada) afectacionesIniciales.push({ ...dominio, retiradaEn: null })
     }
 
     // --- Servicio educativo ---
     const serviciosFinal = []
+    const serviciosIniciales = []
     let estadoServicioEsperado = 'normal'
 
     if (idxServicioSuspendido.has(i)) {
@@ -615,6 +683,43 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
       resumen.servicios++
       serviciosFinal.push(s)
       estadoServicioEsperado = est.secciones.length > 1 ? 'parcial' : 'suspendido'
+    } else if (idxServicioRestaurado.has(i)) {
+      // Servicio suspendido al inicio y RESTAURADO a mitad del período: la
+      // fila se inserta con retiradaEn entre rigeDesdeParte y actualizadaEn
+      // (mitad del intervalo), simulando "estuvo caído y se restableció a
+      // mitad de la vigencia". Para la serie de evolución esto cuenta como
+      // caído hasta esa fecha y como normal desde entonces — el intervalo
+      // semiabierto [rigeDesde, retiradaEn) de vigencia-alcance.ts.
+      //
+      // Para el reporte de HOY el estado es 'normal': tras retiradaEn el
+      // servicio cuenta como restaurado a partir de esa fecha (eso es lo que
+      // calcula calcularEstadoServicioGeneral al resolver la vigencia con
+      // retiradaEn). Por eso estadoServicioEsperado se computa igual que si
+      // no hubiera fila vigente.
+      const servicioId = `demo-servicio-${parteId.slice('demo-parte-'.length)}-1`
+      const msRestaurado =
+        new Date(rigeDesdeParte).getTime() +
+        Math.round((new Date(actualizadaEn).getTime() - new Date(rigeDesdeParte).getTime()) / 2)
+      const s = {
+        id: servicioId,
+        parteId,
+        tipo: 'establecimiento',
+        referenciaId: null,
+        estado: 'suspendido',
+        rigeDesde: rigeDesdeParte,
+        creadaEn,
+        retiradaEn: new Date(msRestaurado).toISOString(),
+      }
+      await insertarServicioAlcance(hub, s)
+      resumen.servicios++
+      resumen.serviciosRestaurados++
+      // La fila se informó suspendida en el reporte inicial (por eso va al
+      // snapshot INICIAL con retiradaEn null, vigente en ese momento) y hoy
+      // quedó restaurada (no está en el final, que modela el conjunto
+      // vigente): el diff de actualización narra "suspendido → normal" en vez
+      // de un alta sin baja.
+      serviciosIniciales.push({ ...s, retiradaEn: null })
+      estadoServicioEsperado = 'normal'
     }
     resumen.porEstadoServicio[estadoServicioEsperado]++
 
@@ -623,7 +728,7 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
     const snapshotInicial = {
       estadoEstablecimiento: 'habitual',
       afectaciones: afectacionesIniciales,
-      servicioAlcance: [],
+      servicioAlcance: serviciosIniciales,
     }
     const snapshotFinal = {
       estadoEstablecimiento,
@@ -745,6 +850,7 @@ async function main() {
     console.log(
       `  Desglose por estado de servicio (esperado, ver verificación con listarPartesVigentes): normal=${resumen.porEstadoServicio.normal}, parcial=${resumen.porEstadoServicio.parcial}, suspendido=${resumen.porEstadoServicio.suspendido}`,
     )
+    console.log(`  Con retiradaEn (además de las 3 todo-retirado): ${resumen.serviciosRestaurados} servicios y ${resumen.afectacionesRetiradas} afectaciones.`)
   } finally {
     ge.close()
     hub.close()
