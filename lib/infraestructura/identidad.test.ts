@@ -137,7 +137,7 @@ describe('importarIdentidad / listarIdentidadesPorPersonas', () => {
 // F3.3: listarAfectadosNominal/consultarYRegistrarAfectados repuntaron de
 // problematicaId a afectacionId — ahora resuelven corte/secciones vía
 // infra_afectacion + infra_parte (obtenerCorteYSeccionesDeAfectacion), nunca
-// vía el modelo deprecado infra_problematica. Este describe usa getDb() (no
+// vía el modelo deprecado, eliminado en la Fase 4. Este describe usa getDb() (no
 // createClient manual) porque necesita las tablas del modelo de parte, que
 // sólo ensureSeeded() da de alta.
 //

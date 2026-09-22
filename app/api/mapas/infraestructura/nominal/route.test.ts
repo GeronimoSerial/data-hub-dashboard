@@ -49,7 +49,7 @@ beforeAll(async () => {
   const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
   await ensureSeeded()
 
-  // Modelo nuevo (F3.3): parte + afectación, en vez de infra_problematica.
+  // Modelo de parte (F3.3): parte + afectación.
   const db = getDb()
   const ahora = new Date().toISOString()
   const parteId = crypto.randomUUID()

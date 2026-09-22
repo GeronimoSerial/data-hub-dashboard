@@ -1,6 +1,6 @@
 import { asc, count, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { infraMotivo, infraProblematica } from '@/lib/db/schema'
+import { infraAfectacion, infraMotivo } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { esCategoria } from '@/lib/infraestructura/categorias'
 import { getSessionUser, staffGuard } from '@/lib/session'
@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   const db = getDb()
 
   // El nombre es único en toda la tabla, no por categoría: resolverCategoria
-  // deduce la categoría a partir del nombre guardado en infra_problematica
+  // deduce la categoría a partir del nombre guardado en infra_afectacion
   // (ver el invariante en motivos.ts). La base también lo impone con un índice
   // único; se chequea acá para devolver un mensaje entendible en vez de que
   // estalle la restricción.
@@ -126,13 +126,17 @@ export async function DELETE(request: Request) {
     return Response.json({ error: 'Motivo inexistente' }, { status: 400 })
   }
 
+  // F4.2: el guard de uso se repuntó del modelo deprecado (retirado en la
+  // Fase 4) a infra_afectacion, que es donde hoy se persiste el nombre
+  // del motivo en el modelo de parte. Sin este conteo, borrar un motivo en
+  // uso dejaría afectaciones huérfanas sin forma de mostrarse en el ABM.
   const [{ n }] = await db
     .select({ n: count() })
-    .from(infraProblematica)
-    .where(eq(infraProblematica.motivo, motivo.nombre))
+    .from(infraAfectacion)
+    .where(eq(infraAfectacion.motivo, motivo.nombre))
   if (n > 0) {
     return Response.json(
-      { error: 'No se puede eliminar: hay problemáticas asociadas' },
+      { error: 'No se puede eliminar: hay afectaciones que usan este motivo' },
       { status: 400 },
     )
   }

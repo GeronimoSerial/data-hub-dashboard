@@ -7,10 +7,9 @@ import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// F3.3: equivalente de GET /api/infraestructura/nominal (modelo viejo,
-// problematicaId) pero sobre el modelo nuevo — identifica el alcance por
-// afectacionId (infra_afectacion.id) en vez de problematicaId. Convive con
-// la ruta vieja mientras Fase 4 no retira infra_problematica.
+// F3.3: identifica el alcance nominal por afectacionId (infra_afectacion.id)
+// en vez de por el id del modelo deprecado, que se retiró por completo en la
+// Fase 4 junto con su ruta vieja (app/api/infraestructura/nominal).
 //
 // verificarAccesoLectura() gobierna el acceso de LECTURA al mapa
 // (/mapas/infraestructura); puedeVerNominal() es un permiso aparte, nunca

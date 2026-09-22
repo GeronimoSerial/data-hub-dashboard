@@ -1,8 +1,8 @@
 // Proyección de los partes vigentes para el mapa de infraestructura (Fase 1
-// de odd/tasks/mapa-parte-operativo.md). Reemplaza, para el mapa, a
-// listarAlertasActivas (consulta.ts) que lee la tabla deprecada
-// infra_problematica: acá se lee el modelo de parte/trayectoria
-// (infra_parte / infra_afectacion / infra_servicio_alcance).
+// de odd/tasks/mapa-parte-operativo.md). Es la proyección, sobre el modelo de
+// parte/trayectoria (infra_parte / infra_afectacion / infra_servicio_alcance),
+// que reemplazó a la consulta de alertas del modelo deprecado retirado en la
+// Fase 4.
 //
 // REQUISITO NO NEGOCIABLE: nada de N+1. Toda la carga es un número CONSTANTE
 // de queries (no depende de cuántos partes/afectaciones haya): período +

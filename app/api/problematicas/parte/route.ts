@@ -212,9 +212,9 @@ export async function POST(request: Request) {
 
   // Idempotencia: antes de cualquier escritura. Deliberadamente NO se aplica
   // CUE_MAX_ALERTAS_ACTIVAS acá (ver docs/trayectoria-contrato-implementacion.md
-  // y batch-3-spec.md): hay un único parte por CUE y período, ese tope es
-  // para infra_problematica y capar actualizaciones dejaría a un director
-  // afuera en medio de una inundación.
+  // y batch-3-spec.md): hay un único parte por CUE y período, ese tope era
+  // del modelo deprecado (retirado en la Fase 4) y capar actualizaciones
+  // dejaría a un director afuera en medio de una inundación.
   const [movimientoExistente] = await db
     .select()
     .from(infraMovimiento)

@@ -157,21 +157,34 @@ describe('DELETE /api/infraestructura/motivos', () => {
     expect(res.status).toBe(403)
   })
 
-  it('bloquea la eliminación si hay problemáticas asociadas', async () => {
+  it('bloquea la eliminación si hay afectaciones que usan el motivo', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
     const { getDb } = await import('@/lib/db')
-    const { infraProblematica } = await import('@/lib/db/schema')
+    const { PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
+    const { infraAfectacion, infraParte } = await import('@/lib/db/schema')
     const db = getDb()
-    await db.insert(infraProblematica).values({
-      id: 'prob-motivo-en-uso',
-      cueAnexo: '1801605-04',
+    // El guard de DELETE cuenta contra infra_afectacion.motivo (F4.2), así
+    // que el arma del test es el modelo de parte: período ya sembrado por
+    // ensureSeeded + un parte propio + una afectación que usa "Inundación".
+    const ahora = new Date().toISOString()
+    await db.insert(infraParte).values({
+      id: 'parte-motivo-en-uso',
+      periodoId: PERIODO_ENOS_2026_2027_ID,
+      cueAnexo: '1801605-42',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      corteId: 1,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
+    await db.insert(infraAfectacion).values({
+      id: 'afect-motivo-en-uso',
+      parteId: 'parte-motivo-en-uso',
       motivo: 'Inundación',
       categoria: 'establecimiento',
       severidad: 'Alta',
-      corteId: 1,
-      creadaEn: new Date().toISOString(),
-      idempotencyKey: 'k-motivo-en-uso',
-      origen: 'enlace-cue',
+      rigeDesde: ahora,
+      creadaEn: ahora,
     })
 
     const { DELETE } = await import('./route')

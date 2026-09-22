@@ -62,11 +62,18 @@ Every movimiento and every state-bearing row carries BOTH:
 
 They are frequently different. Never conflate them. Never derive one from the other.
 
-## Migration strategy: ADDITIVE
+## Migration strategy: RETIRED (Fase 4, September 2026)
 
-`infra_problematica` (lib/db/schema.ts:206-250) maps ~1:1 to "afectación". Do NOT drop it and
-do NOT rewrite the existing `POST /api/problematicas` contract in the schema batch. Backfill:
-one `infra_periodo`, one `infra_parte` per distinct `cueAnexo`, and link existing rows.
+This section previously read "Migration strategy: ADDITIVE … `infra_problematica` … Do NOT
+drop it". That was the plan while both models coexisted; it is now obsolete and false. In
+Fase 4 of `odd/tasks/mapa-parte-operativo.md` the deprecated model was removed:
+`infra_problematica`, `infra_problematica_seccion` and `infra_problematica_alumno` are gone
+from `lib/db/schema.ts` and from `HUB_DDL`, and `seedHub()` runs idempotent
+`DROP TABLE IF EXISTS` statements (children first) so existing databases clean themselves on
+start. Why it was safe to drop with no backfill: those tables only ever held test data,
+every consumer (map projection, admin tab, alert query, impact helpers, motivo guard) had
+already migrated to the parte model (`infra_parte` / `infra_afectacion` /
+`infra_servicio_alcance`), and nothing in production reads them anymore.
 
 Existing tests under `app/api/problematicas/*.test.ts` must keep passing.
 
@@ -186,14 +193,13 @@ Tables now exist in `lib/db/schema.ts` with these EXACT columns (all timestamps 
   Unique on `(cueAnexo, periodoId)`.
 - `infra_afectacion`: id, parteId (FK cascade), motivo, categoria, severidad, descripcion,
   rigeDesde, creadaEn, retiradaEn (nullable — soft delete, keeps historial intact).
-- `infra_afectacion_seccion` / `infra_afectacion_alumno`: mirror the `infra_problematica_*`
-  shape exactly (composite PK, cascade, "absence of an alumno row = whole section").
+- `infra_afectacion_seccion` / `infra_afectacion_alumno`: composite PK, cascade, and
+  "absence of an alumno row = whole section".
 - `infra_servicio_alcance`: id, parteId (FK cascade), tipo, referenciaId (nullable text),
   estado, rigeDesde, creadaEn, retiradaEn (nullable).
 - `infra_movimiento`: id, parteId (FK cascade), tipo, rol,
   `resumen` (JSON in a text column, typed `.$type<Record<string, unknown>>()`),
   rigeDesde, creadaEn. **APPEND-ONLY — never UPDATE or DELETE a movimiento.**
-- `infra_problematica.parteId`: nullable text FK to `infra_parte.id` (the additive link).
 
 ### Migration mechanism — IMPORTANT, this project has no drizzle-kit
 
@@ -204,16 +210,18 @@ Schema changes to EXISTING populated tables go through the `ensureXColumn()` pat
 (PRAGMA check + `ALTER TABLE ADD COLUMN`, nullable — SQLite cannot add NOT NULL to a
 populated table). Follow this. Do NOT introduce drizzle-kit.
 
-`backfillPeriodoYPartes()` in `lib/db/seed.ts` runs automatically inside `seedHub()` and is
-idempotent (only touches `infra_problematica` rows where `parte_id IS NULL`).
+`sembrarPeriodoEnos()` in `lib/db/seed.ts` runs automatically inside `seedHub()` and is
+idempotent (`onConflictDoNothing` on the fixed ENOS period id). The old
+`backfillPeriodoYPartes()`, which linked deprecated-model rows to partes, was retired with
+that model in Fase 4.
 
-### Known caveat inherited from the backfill — Batch 3 must address
+### Known caveat inherited from the (retired) backfill — historical
 
-The backfill sets each new `infra_parte.corteId` from the `infra_problematica` row with the
-max `creadaEn` for that `cueAnexo`, because no "corte vigente per cue" source existed at
-backfill time. This is a heuristic for legacy rows only.
-**Batch 3 must set `corteId` explicitly on parte creation, from the actual corte vigente
-(`getCorteVigente`), and must never rely on this heuristic for new partes.**
+The retired backfill used to set each new `infra_parte.corteId` from the most recent
+deprecated-model row for that `cueAnexo`, because no "corte vigente per cue" source existed
+at backfill time. That heuristic is gone with the backfill. The requirement it spawned
+stands: **set `corteId` explicitly on parte creation, from the actual corte vigente
+(`getCorteVigente`), and never rely on a heuristic for new partes.**
 
 ### Batch 0 — LANDED. Reuse it, do not rebuild it.
 

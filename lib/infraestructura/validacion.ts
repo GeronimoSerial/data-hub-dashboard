@@ -90,7 +90,7 @@ export type ResolverCategoriaResultado =
 // la tabla, 400 "Motivo inválido".
 //
 // Deduce la categoría a partir del nombre del motivo, que es lo que guarda
-// `infra_problematica.motivo`. Depende del invariante de nombre único que
+// `infra_afectacion.motivo`. Depende del invariante de nombre único que
 // impone ensureMotivoNombreUnico() (ver motivos.ts).
 //
 // Si ese invariante llegara a romperse, esta función falla en vez de elegir

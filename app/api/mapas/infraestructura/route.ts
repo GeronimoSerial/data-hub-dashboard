@@ -42,8 +42,8 @@ export async function GET(request: Request) {
     servicio: servicioValido(searchParams.get('servicio')),
   }
 
-  // listarPartesVigentes resuelve su propio Client (getDb().$client interno):
-  // a diferencia de listarAlertasActivas, no lo recibe por parámetro.
+  // listarPartesVigentes resuelve su propio Client (getDb().$client interno)
+  // en vez de recibirlo por parámetro.
   const resultado = await listarPartesVigentes(filtros)
 
   return Response.json(resultado, {

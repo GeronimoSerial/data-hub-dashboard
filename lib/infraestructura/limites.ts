@@ -1,10 +1,8 @@
-import { and, eq, gte } from 'drizzle-orm'
-import { getDb } from '../db'
-import { infraProblematica } from '../db/schema'
-
-// Ventanas y techos deliberadamente conservadores: el endpoint es público
-// (contrato de solo-CUE, sin autenticación) y estos límites son la única
-// contención contra abuso. Ver riesgos de B3 en el plan de batches.
+// Límites del endpoint público de solo-CUE. El tope por CUE de alertas
+// vivientes (CUE_MAX_ALERTAS_ACTIVAS) quedó sin implementación cuando la Fase
+// 4 retiró el conteo contra el modelo deprecado: el modelo de parte tiene un
+// único parte por CUE y período, así que ese tope ya no aplica (ver el
+// comentario de idempotencia en app/api/problematicas/parte/route.ts).
 export const IP_WINDOW_MS = 60_000
 export const IP_MAX_REQUESTS = 10
 
@@ -42,17 +40,4 @@ export function ipExcedeLimite(ip: string, now: number = Date.now()): boolean {
 
 export function _resetLimitesParaTests(): void {
   ipBuckets.clear()
-}
-
-export async function contarAlertasActivasPorCue(
-  cueAnexo: string,
-  now: number = Date.now(),
-): Promise<number> {
-  const db = getDb()
-  const desde = new Date(now - CUE_WINDOW_MS).toISOString()
-  const rows = await db
-    .select({ id: infraProblematica.id })
-    .from(infraProblematica)
-    .where(and(eq(infraProblematica.cueAnexo, cueAnexo), gte(infraProblematica.creadaEn, desde)))
-  return rows.length
 }

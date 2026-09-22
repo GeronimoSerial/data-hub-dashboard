@@ -76,12 +76,13 @@ export async function obtenerPeriodoVigente(
 }
 
 // Arma las AfectacionAlcanceSeccion de una afectación aplicando el MISMO
-// criterio que calcularImpactoSecciones (impacto.ts) e infra_problematica_*:
-// una sección cuenta "completa" (seccionCompleta: true, alumnos = toda la
+// criterio que calcularImpactoSecciones (impacto.ts): una sección cuenta
+// "completa" (seccionCompleta: true, alumnos = toda la
 // matrícula) salvo que alguno de sus alumnos matriculados esté entre los
 // seleccionados puntualmente para esta afectación — en ese caso cuenta sólo
 // la intersección. infra_afectacion_alumno no guarda a qué sección pertenece
-// cada alumno seleccionado (mismo diseño que infra_problematica_alumno): esa
+// cada alumno seleccionado (la ausencia de filas es la semántica de "sección
+// completa"): esa
 // pertenencia se resuelve acá, contra la matrícula real del corte vigente,
 // no se infiere de la fila persistida.
 async function cargarAfectaciones(
