@@ -55,3 +55,79 @@ export const COLORES_DEPARTAMENTO = {
   pesoLineaNormal: 1.5,
   pesoLineaSeleccionado: 4,
 } as const
+
+// ── Normalización de nombre de departamento ─────────────────────────────────
+//
+// GOTCHA CONFIRMADO EN LA BASE REAL (public/data/localizaciones.json): el
+// GeoJSON de los 25 departamentos usa capitalización de título con tildes
+// ("Bella Vista", "Concepción", "Ituzaingó"), mientras que la base trae
+// mayúsculas con tildes INCONSISTENTES — "CONCEPCION" y "CONCEPCIÓN" conviven
+// como dos valores de texto distintos para el mismo departamento, e
+// "ITUZAINGO" nunca lleva tilde. Comparar los strings tal cual, en cualquier
+// dirección, pierde partes.
+//
+// La normalización es mayúsculas + sin diacríticos (NFD y se descartan los
+// caracteres de la clase Unicode "combining diacritical marks", que es donde
+// caen los acentos al descomponer). Verificado a mano contra los 25 nombres
+// del GeoJSON y los 26 valores distintos de `departamento` en
+// localizaciones.json: normalizados, ambos lados colapsan a las mismas 25
+// claves — confirma que esta normalización (y no, por ejemplo, un mapeo
+// manual de sinónimos) alcanza para este dataset.
+export function normalizarNombreDepartamento(nombre: string): string {
+  return nombre
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toUpperCase()
+    .trim()
+}
+
+/** Una escuela con servicio caído (suspendido o parcial), a los fines de la agregación departamental. */
+export interface EscuelaServicioCaido {
+  departamento: string
+  servicio: 'normal' | 'parcial' | 'suspendido'
+}
+
+export interface AgregacionDepartamentos {
+  // Clave = nombre de departamento NORMALIZADO (ver normalizarNombreDepartamento).
+  // Se arma sobre esa clave, no sobre el nombre "de exhibición", porque el
+  // consumidor (el fill-opacity del coroplético) matchea contra los nombres
+  // del GeoJSON, también normalizados.
+  escuelasCaidasPorDepartamento: Map<string, number>
+  // Departamentos de origen (tal cual figuran en la base, sin normalizar) que
+  // no matchearon ningún departamento del GeoJSON. Nunca se descartan en
+  // silencio: el llamador decide cómo hacerlos visibles (loguear, mostrar en
+  // la leyenda).
+  departamentosSinMatch: string[]
+}
+
+// Cruza escuelas con servicio caído contra los departamentos conocidos
+// (los del GeoJSON) para contar cuántas hay por departamento. Normaliza AMBOS
+// lados del join (el nombre que trae la escuela y los nombres conocidos),
+// porque el gotcha de arriba puede aparecer en cualquiera de los dos: hoy es
+// la base la que tiene la inconsistencia, pero nada garantiza que el GeoJSON
+// nunca la tenga.
+export function agregarEscuelasCaidasPorDepartamento(
+  escuelas: EscuelaServicioCaido[],
+  nombresDepartamentosConocidos: string[],
+): AgregacionDepartamentos {
+  const conocidos = new Set(nombresDepartamentosConocidos.map(normalizarNombreDepartamento))
+  const escuelasCaidasPorDepartamento = new Map<string, number>()
+  const departamentosSinMatchVistos = new Set<string>()
+
+  for (const escuela of escuelas) {
+    if (escuela.servicio !== 'suspendido' && escuela.servicio !== 'parcial') continue
+
+    const clave = normalizarNombreDepartamento(escuela.departamento)
+    if (!conocidos.has(clave)) {
+      departamentosSinMatchVistos.add(escuela.departamento)
+      continue
+    }
+
+    escuelasCaidasPorDepartamento.set(clave, (escuelasCaidasPorDepartamento.get(clave) ?? 0) + 1)
+  }
+
+  return {
+    escuelasCaidasPorDepartamento,
+    departamentosSinMatch: [...departamentosSinMatchVistos],
+  }
+}

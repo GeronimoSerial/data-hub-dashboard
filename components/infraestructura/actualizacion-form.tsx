@@ -332,12 +332,6 @@ function ActualizacionFormCargado({
 }: ActualizacionFormProps & { datos: EstadoActualRespuesta; onRegistrarOtra: () => void }): JSX.Element {
   const vigentes = datos.afectaciones ?? []
   const estadoEstablecimientoVigente: EstadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
-  // Memoizado para que `[]` no sea una identidad nueva en cada render: sin
-  // esto los useMemo que lo dependen se recalculan siempre.
-  const servicioAlcanceVigente = useMemo(
-    () => datos.servicio?.alcanceVigente ?? [],
-    [datos.servicio?.alcanceVigente],
-  )
 
   const [afectaciones, setAfectaciones] = useState<AfectacionActualizable[]>(() =>
     vigentes.map(afectacionVigenteABorrador),
@@ -472,12 +466,12 @@ function ActualizacionFormCargado({
       snapshotDespuesDeFormulario({
         estadoEstablecimientoVigente,
         estadoEstablecimientoSeleccionado: estadoEstablecimiento,
-        servicioAlcanceVigente,
+        servicioAlcanceVigente: datos.servicio?.alcanceVigente ?? [],
         servicioSeleccionado,
         afectaciones,
         turnos,
       }),
-    [estadoEstablecimientoVigente, estadoEstablecimiento, servicioAlcanceVigente, servicioSeleccionado, afectaciones, turnos],
+    [estadoEstablecimientoVigente, estadoEstablecimiento, datos, servicioSeleccionado, afectaciones, turnos],
   )
 
   const diff = useMemo(() => diffParte(snapshotAntes, snapshotDespues), [snapshotAntes, snapshotDespues])

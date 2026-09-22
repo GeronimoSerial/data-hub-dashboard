@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { FeatureCollection, Geometry, Position } from 'geojson'
-import { LIMITES_CORRIENTES } from './departamentos'
+import {
+  agregarEscuelasCaidasPorDepartamento,
+  LIMITES_CORRIENTES,
+  normalizarNombreDepartamento,
+} from './departamentos'
 
 function cargarDepartamentos(): FeatureCollection {
   const filePath = path.resolve(process.cwd(), 'public/data/departamentos-corrientes.geojson')
@@ -114,5 +118,79 @@ describe('máscara de la provincia', () => {
     expect(tapado([-58.98, -27.45])).toBe(true) // Resistencia, Chaco
     expect(tapado([-55.89, -27.37])).toBe(true) // Posadas, Misiones
     expect(tapado([-50.0, -35.0])).toBe(true) // Atlántico
+  })
+})
+
+describe('normalizarNombreDepartamento', () => {
+  it('unifica capitalización de título con tildes y mayúsculas sin tildes', () => {
+    expect(normalizarNombreDepartamento('Ituzaingó')).toBe('ITUZAINGO')
+    expect(normalizarNombreDepartamento('ITUZAINGO')).toBe('ITUZAINGO')
+  })
+
+  it('unifica el gotcha confirmado en la base: CONCEPCION y CONCEPCIÓN son el mismo departamento', () => {
+    expect(normalizarNombreDepartamento('Concepción')).toBe('CONCEPCION')
+    expect(normalizarNombreDepartamento('CONCEPCION')).toBe('CONCEPCION')
+    expect(normalizarNombreDepartamento('CONCEPCIÓN')).toBe('CONCEPCION')
+  })
+
+  it('recorta espacios sobrantes', () => {
+    expect(normalizarNombreDepartamento('  Goya  ')).toBe('GOYA')
+  })
+})
+
+describe('agregarEscuelasCaidasPorDepartamento', () => {
+  const departamentosConocidos = ['Goya', 'Concepción', 'Ituzaingó', 'Sauce']
+
+  it('cuenta escuelas con servicio suspendido o parcial, ignora las de servicio normal', () => {
+    const { escuelasCaidasPorDepartamento } = agregarEscuelasCaidasPorDepartamento(
+      [
+        { departamento: 'Goya', servicio: 'suspendido' },
+        { departamento: 'GOYA', servicio: 'parcial' },
+        { departamento: 'Goya', servicio: 'normal' },
+      ],
+      departamentosConocidos,
+    )
+
+    expect(escuelasCaidasPorDepartamento.get('GOYA')).toBe(2)
+  })
+
+  it('cruza ambos lados normalizados: ITUZAINGO (base) matchea Ituzaingó (geojson)', () => {
+    const { escuelasCaidasPorDepartamento } = agregarEscuelasCaidasPorDepartamento(
+      [{ departamento: 'ITUZAINGO', servicio: 'suspendido' }],
+      departamentosConocidos,
+    )
+
+    expect(escuelasCaidasPorDepartamento.get('ITUZAINGO')).toBe(1)
+  })
+
+  it('cruza el gotcha confirmado: CONCEPCION y CONCEPCIÓN de la base suman al mismo departamento', () => {
+    const { escuelasCaidasPorDepartamento } = agregarEscuelasCaidasPorDepartamento(
+      [
+        { departamento: 'CONCEPCION', servicio: 'suspendido' },
+        { departamento: 'CONCEPCIÓN', servicio: 'parcial' },
+      ],
+      departamentosConocidos,
+    )
+
+    expect(escuelasCaidasPorDepartamento.get('CONCEPCION')).toBe(2)
+  })
+
+  it('un departamento sin escuelas afectadas simplemente no aparece en el mapa de conteos', () => {
+    const { escuelasCaidasPorDepartamento } = agregarEscuelasCaidasPorDepartamento(
+      [{ departamento: 'Goya', servicio: 'suspendido' }],
+      departamentosConocidos,
+    )
+
+    expect(escuelasCaidasPorDepartamento.has('SAUCE')).toBe(false)
+  })
+
+  it('un departamento que no matchea ningún conocido se reporta en departamentosSinMatch, no desaparece', () => {
+    const { escuelasCaidasPorDepartamento, departamentosSinMatch } = agregarEscuelasCaidasPorDepartamento(
+      [{ departamento: 'DEPARTAMENTO INEXISTENTE', servicio: 'suspendido' }],
+      departamentosConocidos,
+    )
+
+    expect(escuelasCaidasPorDepartamento.size).toBe(0)
+    expect(departamentosSinMatch).toEqual(['DEPARTAMENTO INEXISTENTE'])
   })
 })

@@ -23,20 +23,31 @@ export interface EstadoActualSeveridadProps {
    * opción sin agregar nada.
    */
   prefijo?: boolean
+  /**
+   * Muestra la marca de forma+color. Va en false en el selector de "¿Qué tan
+   * grave es?" (afectacion-campos.tsx): ahí cada opción ya lleva al lado su
+   * criterio en texto (SEVERIDAD_CRITERIOS), así que la marca es redundante
+   * con la etiqueta. Sigue en true en el resto de las pantallas, donde es la
+   * única señal no-basada-en-color de qué severidad se está mostrando.
+   */
+  marca?: boolean
 }
 
 export function EstadoActualSeveridad({
   severidad,
   prefijo = true,
+  marca = true,
 }: EstadoActualSeveridadProps): JSX.Element {
   const forma = FORMA_POR_SEVERIDAD[severidad] ?? 'circulo'
   return (
     <span className="estado-actual-severidad">
-      <span
-        className={`estado-actual-severidad__marca estado-actual-severidad__marca--${forma}`}
-        style={{ backgroundColor: colorSeveridad(severidad) }}
-        aria-hidden
-      />
+      {marca && (
+        <span
+          className={`estado-actual-severidad__marca estado-actual-severidad__marca--${forma}`}
+          style={{ backgroundColor: colorSeveridad(severidad) }}
+          aria-hidden
+        />
+      )}
       <span className="estado-actual-severidad__texto">
         {prefijo ? `Severidad ${severidad}` : severidad}
       </span>

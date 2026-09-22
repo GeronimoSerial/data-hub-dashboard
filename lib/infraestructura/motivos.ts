@@ -1,19 +1,19 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraMotivo } from '@/lib/db/schema'
-import { esCategoria, type CategoriaProblematica } from './categorias'
+import { esCategoria, type CategoriaAfectacion } from './categorias'
 
 export interface MotivoRow {
   id: string
   nombre: string
-  categoria: CategoriaProblematica
+  categoria: CategoriaAfectacion
   orden: number
 }
 
 // Semilla inicial de motivos (reparto acordado en la spec de diseño).
 //
 // INVARIANTE: el nombre de un motivo es ÚNICO en toda la tabla, sin importar
-// la categoría. No es cosmético: `infra_problematica.motivo` guarda el NOMBRE
+// la categoría. No es cosmético: `infra_afectacion.motivo` guarda el NOMBRE
 // (texto histórico, no FK) y resolverCategoria() deduce la categoría a partir
 // de ese nombre. Dos motivos con el mismo nombre en categorías distintas
 // harían esa deducción ambigua, y el síntoma sería un 400 al azar cuando un
@@ -58,8 +58,9 @@ export async function sembrarMotivos(): Promise<void> {
 // Impone el invariante de nombre único a nivel de base. Va acá y no en
 // HUB_DDL a propósito: el índice no puede crearse mientras existan las filas
 // duplicadas de una base vieja, así que primero hay que renombrar los
-// comodines y recién después crear el índice. Mismo criterio que
-// ensureCategoriaColumn en seed.ts, que tampoco puede vivir en el DDL.
+// comodines y recién después crear el índice. Va acá y no en HUB_DDL porque
+// el DDL de arranque corre sobre bases ya pobladas y no debe depender del
+// orden en que esas bases aplicaron renombres previos.
 export async function ensureMotivoNombreUnico(): Promise<void> {
   const db = getDb()
   for (const { id, nombreViejo } of RENOMBRES_COMODINES) {

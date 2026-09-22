@@ -2,18 +2,13 @@
 // Mismo pipeline de guardas que GET /api/problematicas/parte (acceso
 // público, ensureSeeded, CUE válido, corte vigente) — la ausencia de parte o
 // de período vigente no es un error acá tampoco, es un historial vacío.
-import { desc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
-import { infraMovimiento } from '@/lib/db/schema'
 import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
-import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
-import type { DiffParte } from '@/lib/infraestructura/movimiento-diff'
-import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
-import type { TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import { listarMovimientosDescritos } from '@/lib/infraestructura/parte-consulta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,29 +37,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'No hay un corte vigente de Gestión Educativa' }, { status: 503 })
   }
 
-  const actual = await obtenerParteActual(cue.value, corte.id)
-  if (!actual || !actual.parte) {
-    // Sin período vigente o sin parte todavía: no es un error (spec §15/§17).
-    return Response.json({ ok: true, movimientos: [] }, { status: 200, headers: CACHE_HEADERS })
-  }
-
-  const filas = await db
-    .select()
-    .from(infraMovimiento)
-    .where(eq(infraMovimiento.parteId, actual.parte.id))
-    .orderBy(desc(infraMovimiento.creadaEn))
-
-  const movimientos = filas.map((fila) => {
-    const tipo = fila.tipo as TipoMovimiento
-    return {
-      id: fila.id,
-      tipo,
-      rol: fila.rol,
-      creadaEn: fila.creadaEn,
-      rigeDesde: fila.rigeDesde,
-      cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo }),
-    }
-  })
+  const movimientos = await listarMovimientosDescritos(cue.value, corte.id)
 
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }

@@ -1761,6 +1761,47 @@ time {
 }
 .map-title-panel { top: 12px; left: 55px; }
 .map-legend-panel { bottom: 25px; left: 25px; width: min(20rem, calc(100vw - 50px)); }
+
+/* Columna izquierda del mapa de infraestructura.
+   .map-title-panel y .map-legend-panel son slots ANCLADOS: un offset fijo cada
+   uno, pensados para un componente por slot, como en el mapa de matrícula. Este
+   mapa muestra tres paneles de ese lado (indicadores, lista con filtros y
+   leyenda), así que reclamaban el mismo offset y se montaban uno sobre otro.
+   Acá el anclaje pasa al contenedor y los paneles vuelven a ser estáticos:
+   apilados en flujo, no superpuestos.
+   El tope de altura deja libre la esquina superior izquierda, donde vive el
+   control de zoom de MapLibre, y habilita scroll propio para que la columna
+   nunca desborde el mapa ni tape el pie de atribución. */
+.map-left-stack {
+  position: absolute;
+  bottom: 25px;
+  left: 25px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(20rem, calc(100vw - 50px));
+  max-height: calc(100% - 140px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.map-left-stack > .map-panel {
+  position: static;
+  width: auto;
+  max-width: none;
+  flex: 0 0 auto;
+}
+
+/* Cabecera de la leyenda colapsable. Plano y con el mismo peso que el resto
+   de los títulos de panel: el triángulo nativo de <summary> alcanza como
+   afordancia, no hace falta un ícono propio. */
+.map-legend-summary {
+  font-weight: 600;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.map-legend-summary::marker { color: var(--ink); }
+details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-controls-stack {
   position: absolute;
   top: 12px;
@@ -2688,6 +2729,81 @@ time {
   .estado-actual-acciones__principal { flex: 0 1 auto; }
 }
 
+/* ── Ficha del parte y alcance nominal — modales del mapa (F3.2/F3.3) ────
+   Reusan el vocabulario visual de "Estado actual del parte" (bloques,
+   afectaciones, severidad) de arriba: mismo dominio, misma jerarquía, sólo
+   dentro de un Dialog en vez de la pantalla completa del director. */
+
+.ficha-parte-modal {
+  display: grid;
+  gap: var(--s-5);
+  margin-top: var(--s-3);
+}
+
+.ficha-parte-modal__aviso {
+  margin: 0;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.ficha-parte-modal__historial {
+  display: grid;
+  gap: var(--s-3);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line);
+}
+
+.alcance-nominal-modal__resultado {
+  display: grid;
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.alcance-nominal-modal__cantidad {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.alcance-nominal-modal__seccion {
+  display: grid;
+  gap: var(--s-2);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-soft);
+}
+.alcance-nominal-modal__seccion:first-child { padding-top: 0; border-top: 0; }
+
+.alcance-nominal-modal__seccion-titulo {
+  margin: 0;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.alcance-nominal-modal__vacio {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.alcance-nominal-modal__alumnos {
+  margin: 0;
+  padding-left: var(--s-5);
+  display: grid;
+  gap: var(--s-1);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+
+.historial-parte-modal__body {
+  padding: 0 var(--s-5) var(--s-5);
+  overflow: auto;
+}
+
 /* ── Borrador de afectación (batch 5) ─────────────────────────────────── */
 
 
@@ -3408,4 +3524,94 @@ time {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-2);
+}
+
+/* ── Pestañas del mapa de infraestructura (F5.1) ──────────────────────────
+   Dos pestañas sobre el mismo lienzo: la operativa (el mapa) y la de
+   evolución. El cuerpo es un flex con un solo panel visible: el activo
+   estira para ocupar el alto disponible y el inactivo sale del layout con
+   display:none. Nada de esto desmonta el mapa — ver
+   app/(hub)/mapas/infraestructura/map-client.tsx.
+   OJO con declarar `display` en .mapa-pestana-panel: un display del autor
+   pisa al [hidden] del UA y el mapa dejaría de ocultarse; la regla explícita
+   de abajo es la que garantiza el `display: none`. */
+.mapa-pestanas {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.mapa-pestanas-barra {
+  flex: 0 0 auto;
+  padding: var(--s-2) var(--gutter) 0;
+  background: var(--page);
+}
+.mapa-pestanas-cuerpo {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.mapa-pestana-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.mapa-pestana-panel[hidden] { display: none; }
+.mapa-pestana-panel--scroll {
+  overflow-y: auto;
+  padding: var(--s-5) var(--gutter) var(--s-8);
+}
+
+/* ── Pestaña de evolución (F5.3) ──────────────────────────────────────────
+   Una sola columna centrada: los gráficos necesitan ancho estable y la tabla
+   de ranking scrollea dentro de su propia superficie (.ui-table-wrap). */
+.evolucion-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.evolucion-vista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.evolucion-subtitulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.evolucion-descripcion {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  line-height: 1.5;
+}
+/* Altura fija y explícita: ResponsiveContainer mide su contenedor y con una
+   altura indeterminada devuelve 0 y el gráfico queda en blanco. */
+.grafico-contenedor {
+  width: 100%;
+  height: 17rem;
+}
+.evolucion-tabla th:not(:first-child),
+.evolucion-tabla td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Las celdas de la primera columna son th[scope=row] (encabezado de fila,
+   para lectores de pantalla); sin este ajuste heredarían el estilo de th de
+   cabecera: fondo gris, caja alta y tipografía micro. */
+.evolucion-tabla tbody th[scope='row'] {
+  background: none;
+  color: var(--ink);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
 }

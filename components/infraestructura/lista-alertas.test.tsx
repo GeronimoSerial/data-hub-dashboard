@@ -2,24 +2,38 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ListaAlertas } from './lista-alertas'
-import type { AlertaActiva } from '@/lib/infraestructura/consulta'
+import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
 afterEach(() => {
   document.body.innerHTML = ''
 })
 
-const alerta: AlertaActiva = {
-  id: 'a1',
+const parte: ParteMapa = {
+  parteId: 'p1',
   cueAnexo: '1801605-04',
   nombre: 'Escuela 1',
   departamento: 'ER',
   localidad: 'Parana',
   lat: -31.7,
   lon: -60.5,
-  motivo: 'Inundación',
-  categoria: 'establecimiento',
-  severidad: 'Alta',
-  creadaEn: '2026-08-01T00:00:00Z',
+  servicio: 'suspendido',
+  estadoEstablecimiento: 'habitual',
+  peorSeveridad: 'Alta',
+  categorias: ['establecimiento'],
+  afectaciones: [
+    {
+      id: 'a1',
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      descripcion: null,
+      rigeDesde: '2026-08-01T00:00:00Z',
+    },
+  ],
+  seccionesAlcanzadas: 2,
+  alumnosAlcanzados: 40,
+  rigeDesde: '2026-08-01T00:00:00Z',
+  actualizadaEn: '2026-08-01T00:00:00Z',
 }
 
 const filtrosVacios = {
@@ -28,14 +42,16 @@ const filtrosVacios = {
   establecimiento: '',
   motivo: '',
   severidad: '',
+  categoria: '',
+  servicio: '',
 }
 
 describe('ListaAlertas', () => {
-  it('selecciona una alerta al hacer click y no ofrece acciones de gestión', () => {
+  it('selecciona una escuela al hacer click y no ofrece acciones de gestión', () => {
     const onSeleccionar = vi.fn()
     render(
       <ListaAlertas
-        alertas={[alerta]}
+        partes={[parte]}
         filtros={filtrosVacios}
         onFiltroChange={vi.fn()}
         seleccionadaCue={null}
@@ -53,11 +69,24 @@ describe('ListaAlertas', () => {
     }
   })
 
+  it('muestra el estado de servicio en la fila', () => {
+    render(
+      <ListaAlertas
+        partes={[parte]}
+        filtros={filtrosVacios}
+        onFiltroChange={vi.fn()}
+        seleccionadaCue={null}
+        onSeleccionar={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/clases suspendidas/i)).toBeInTheDocument()
+  })
+
   it('notifica el cambio de un filtro sin tocar los demás', () => {
     const onFiltroChange = vi.fn()
     render(
       <ListaAlertas
-        alertas={[]}
+        partes={[]}
         filtros={filtrosVacios}
         onFiltroChange={onFiltroChange}
         seleccionadaCue={null}
@@ -71,10 +100,10 @@ describe('ListaAlertas', () => {
     expect(onFiltroChange).toHaveBeenCalledWith('territorio', 'Paraná')
   })
 
-  it('avisa cuando no hay alertas con los filtros aplicados', () => {
+  it('avisa cuando no hay escuelas con los filtros aplicados', () => {
     render(
       <ListaAlertas
-        alertas={[]}
+        partes={[]}
         filtros={filtrosVacios}
         onFiltroChange={vi.fn()}
         seleccionadaCue={null}
@@ -82,7 +111,7 @@ describe('ListaAlertas', () => {
       />,
     )
     expect(
-      screen.getByText(/no hay alertas activas con los filtros aplicados/i),
+      screen.getByText(/no hay escuelas con afectación vigente con los filtros aplicados/i),
     ).toBeInTheDocument()
   })
 })

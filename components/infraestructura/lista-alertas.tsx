@@ -2,13 +2,21 @@
 
 import { useMemo, type JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import type { AlertaActiva } from '@/lib/infraestructura/consulta'
+import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { CATEGORIAS, CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
+import { ETIQUETA_SERVICIO } from './estado-actual-textos'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 
 const TODOS = 'todos'
 const TODAS = 'todas'
+
+// Los tres estados posibles de EstadoServicioGeneral, en el mismo orden en
+// que se los muestra en todos lados (normal → parcial → suspendido): de
+// "nada que reportar" a "lo peor".
+const SERVICIOS: EstadoServicioGeneral[] = ['normal', 'parcial', 'suspendido']
 
 type FiltrosForm = {
   territorio: string
@@ -16,10 +24,12 @@ type FiltrosForm = {
   establecimiento: string
   motivo: string
   severidad: string
+  categoria: string
+  servicio: string
 }
 
 export function ListaAlertas(props: {
-  alertas: AlertaActiva[]
+  partes: ParteMapa[]
   filtros: FiltrosForm
   onFiltroChange: <K extends keyof FiltrosForm>(
     campo: K,
@@ -32,11 +42,16 @@ export function ListaAlertas(props: {
 
   // El motivo ya no es un catálogo fijo en código (tiene ABM, ver
   // lib/infraestructura/motivos.ts): el filtro ofrece los motivos que
-  // efectivamente aparecen en las alertas activas, no un catálogo completo
+  // efectivamente aparecen en los partes vigentes, no un catálogo completo
   // que requeriría otra llamada a la API sólo para poblar un <select>.
+  // Ahora se recorren las afectaciones de cada parte (antes cada alerta ERA
+  // una afectación; ahora un parte agrupa varias).
   const motivosPresentes = useMemo(
-    () => Array.from(new Set(props.alertas.map((a) => a.motivo))).sort((a, b) => a.localeCompare(b)),
-    [props.alertas],
+    () =>
+      Array.from(
+        new Set(props.partes.flatMap((parte) => parte.afectaciones.map((a) => a.motivo))),
+      ).sort((a, b) => a.localeCompare(b)),
+    [props.partes],
   )
   const itemsMotivo = useMemo(
     () => ({ [TODOS]: 'Todos', ...Object.fromEntries(motivosPresentes.map((m) => [m, m])) }),
@@ -44,6 +59,17 @@ export function ListaAlertas(props: {
   )
   const itemsSeveridad = useMemo(
     () => ({ [TODAS]: 'Todas', ...Object.fromEntries(SEVERIDADES.map((s) => [s, s])) }),
+    [],
+  )
+  const itemsCategoria = useMemo(
+    () => ({
+      [TODAS]: 'Todas',
+      ...Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label])),
+    }),
+    [],
+  )
+  const itemsServicio = useMemo(
+    () => ({ [TODOS]: 'Todos', ...Object.fromEntries(SERVICIOS.map((s) => [s, ETIQUETA_SERVICIO[s]])) }),
     [],
   )
 
@@ -130,36 +156,89 @@ export function ListaAlertas(props: {
             </SelectContent>
           </Select>
         </div>
+
+        <div className="map-filtro-campo">
+          <span className="map-filtro-label">Categoría</span>
+          <Select
+            value={props.filtros.categoria || TODAS}
+            items={itemsCategoria}
+            onValueChange={(value) =>
+              props.onFiltroChange('categoria', value === TODAS ? '' : String(value))
+            }
+          >
+            <SelectTrigger aria-label="Categoría" className="map-filtro-input" />
+            <SelectContent>
+              <SelectItem value={TODAS}>Todas</SelectItem>
+              {CATEGORIAS.map((categoria) => (
+                <SelectItem key={categoria} value={categoria}>
+                  {CATEGORIA_META[categoria].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="map-filtro-campo">
+          <span className="map-filtro-label">Servicio</span>
+          <Select
+            value={props.filtros.servicio || TODOS}
+            items={itemsServicio}
+            onValueChange={(value) =>
+              props.onFiltroChange('servicio', value === TODOS ? '' : String(value))
+            }
+          >
+            <SelectTrigger aria-label="Servicio" className="map-filtro-input" />
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos</SelectItem>
+              {SERVICIOS.map((servicio) => (
+                <SelectItem key={servicio} value={servicio}>
+                  {ETIQUETA_SERVICIO[servicio]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {props.alertas.length === 0 ? (
+      {props.partes.length === 0 ? (
         <span className={styles.hint}>
-          No hay alertas activas con los filtros aplicados.
+          No hay escuelas con afectación vigente con los filtros aplicados.
         </span>
       ) : (
         <ul className={styles.alertasList}>
-          {props.alertas.map((alerta) => (
-            <li key={alerta.id}>
-              <button
-                type="button"
-                className={
-                  props.seleccionadaCue === alerta.cueAnexo
-                    ? `${styles.alertaRow} ${styles.alertaRowActive}`
-                    : styles.alertaRow
-                }
-                onClick={() => props.onSeleccionar(alerta.cueAnexo)}
-              >
-                <span
-                  className={styles.swatch}
-                  style={{ backgroundColor: colorSeveridad(alerta.severidad) }}
-                />
-                <b>{alerta.nombre}</b>
-                <span className={styles.popupMuted}>
-                  {alerta.localidad}, {alerta.departamento} · {alerta.motivo}
-                </span>
-              </button>
-            </li>
-          ))}
+          {props.partes.map((parte) => {
+            // Motivos únicos del parte: una escuela puede acumular varias
+            // afectaciones (y por lo tanto varios motivos) a la vez.
+            const motivos = Array.from(
+              new Set(parte.afectaciones.map((a) => a.motivo)),
+            ).join(', ')
+            return (
+              <li key={parte.parteId}>
+                <button
+                  type="button"
+                  className={
+                    props.seleccionadaCue === parte.cueAnexo
+                      ? `${styles.alertaRow} ${styles.alertaRowActive}`
+                      : styles.alertaRow
+                  }
+                  onClick={() => props.onSeleccionar(parte.cueAnexo)}
+                >
+                  <span
+                    className={styles.swatch}
+                    style={{ backgroundColor: colorSeveridad(parte.peorSeveridad) }}
+                  />
+                  <b>{parte.nombre}</b>
+                  {/* El estado de servicio es el dato más importante de la
+                      fila: es la respuesta a "¿hay clases?", que antes no se
+                      veía en ningún lado del mapa. */}
+                  <span className={styles.popupMuted}>
+                    {ETIQUETA_SERVICIO[parte.servicio]} · {parte.localidad}, {parte.departamento} ·{' '}
+                    {motivos}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
     </div>
