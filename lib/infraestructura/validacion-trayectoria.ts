@@ -12,6 +12,7 @@
 import { z } from 'zod'
 import { normalizeCue } from './cue'
 import { SEVERIDADES } from './validacion'
+import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
 
 const HTML_RE = /<[^>]*>/
 
@@ -23,6 +24,9 @@ const rigeDesdeSchema = z
   .string()
   .trim()
   .refine((v) => ISO_DATETIME_RE.test(v) && !Number.isNaN(new Date(v).getTime()), 'Fecha inválida')
+  // Issues #29/#30: ventana móvil de los últimos 12 meses (vigencia-rango.ts),
+  // la misma que clampea el cliente.
+  .refine((v) => dentroDeRangoVigencia(new Date(v)), MENSAJE_FUERA_DE_RANGO_VIGENCIA)
 
 const descripcionSchema = z
   .string()

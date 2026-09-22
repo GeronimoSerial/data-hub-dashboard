@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActualizacionForm } from './actualizacion-form'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -125,6 +125,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Desmonta de verdad (los listeners de popstate y el root de React viven
+  // fuera del DOM) y olvida el borrador: cada test arranca limpio.
+  cleanup()
+  sessionStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -201,6 +205,31 @@ describe('ActualizacionForm', () => {
     const body = JSON.parse(String(init?.body))
     expect(body.afectacionesModificadas).toHaveLength(1)
     expect(body.afectacionesModificadas[0].severidad).toBe('Alta')
+  })
+
+  // La confirmación de la actualización tenía el mismo callejón sin salida
+  // que el reporte inicial: sólo el mensaje verde, sin manera de seguir.
+  it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    await screen.findByText(
+      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+    )
+
+    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
+    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    // Vuelve a buscar el estado vigente en vez de reutilizar el que ya quedó
+    // viejo: se ve la pantalla de carga y después el formulario, de nuevo.
+    expect(await screen.findByRole('button', { name: /revisar cambios/i })).toBeDisabled()
   })
 
   it('el recordatorio de motivo duplicado en la actualización se muestra pero no bloquea el envío', async () => {
@@ -418,5 +447,76 @@ describe('ActualizacionForm — una situación en blanco no es un cambio', () =>
     expect(screen.getByRole('heading', { name: /sin guardar: 1 cambio/i })).toBeInTheDocument()
     expect(screen.getByText(/Se agregó "Tormenta severa"/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeEnabled()
+  })
+})
+
+describe('ActualizacionForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+  const clave = `parte-actualizacion:draft:${props.cue}`
+
+  it('guarda el borrador con la pantalla activa y lo restaura al remontar (#32)', async () => {
+    stubFetchInicial()
+    const primero = renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+
+    expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
+    expect(sessionStorage.getItem(clave)).not.toBeNull()
+
+    // Recarga simulada: el formulario vuelve a montar con el mismo storage.
+    primero.unmount()
+    stubFetchInicial()
+    renderFormulario()
+
+    expect(
+      await screen.findByRole('heading', { name: 'Cambios que se registrarán' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Media.*Alta/)).toBeInTheDocument()
+  })
+
+  it('un popstate vuelve del resumen al formulario conservando los cambios (#31)', async () => {
+    stubFetchInicial()
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
+
+    fireEvent(window, new PopStateEvent('popstate'))
+
+    expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeInTheDocument()
+    await editarAfectacionVigente()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('un guardado exitoso limpia la clave del borrador de la actualización', async () => {
+    stubFetchInicial()
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    await screen.findByText(
+      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+    )
+    expect(sessionStorage.getItem(clave)).toBeNull()
+  })
+
+  it('"Registrar otra incidencia" limpia el borrador de la actualización', async () => {
+    stubFetchInicial()
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await screen.findByText(
+      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    expect(await screen.findByRole('button', { name: /revisar cambios/i })).toBeDisabled()
+    expect(sessionStorage.getItem(clave)).toBeNull()
   })
 })

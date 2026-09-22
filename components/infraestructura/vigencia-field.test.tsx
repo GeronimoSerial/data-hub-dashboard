@@ -16,6 +16,12 @@ afterEach(() => {
 
 const AHORA = '2026-09-18T10:30:00.000Z'
 
+/** Local `YYYY-MM-DD`, la forma que espera `<input type="date">`. */
+function formatoFecha(fecha: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${fecha.getFullYear()}-${pad(fecha.getMonth() + 1)}-${pad(fecha.getDate())}`
+}
+
 /** Controlled harness: mirrors how a consuming form owns the value via useState. */
 function Harness({ inicial = AHORA }: { inicial?: string }) {
   const [value, setValue] = useState(inicial)
@@ -60,17 +66,75 @@ describe('VigenciaField', () => {
     expect(new Date(emitido as string).getTime()).toBeLessThan(new Date(AHORA).getTime())
   })
 
-  it('lets the director pick a moment later than now', async () => {
+  // Un valor "later than now" fijo (2026-09-25) queda obsoleto en cuanto pasa
+  // esa fecha real: se calcula relativo al reloj del test, dentro de la
+  // ventana de 12 meses, para que la prueba siga siendo válida siempre.
+  it('lets the director pick a valid later moment, still within the 12-month window', async () => {
     const user = userEvent.setup()
     render(<Harness />)
 
     await user.click(screen.getByRole('button', { name: 'Cambiar' }))
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: '2026-09-25' } })
+    const ayer = new Date()
+    ayer.setDate(ayer.getDate() - 1)
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(ayer) } })
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '18:45' } })
 
     const emitido = screen.getByLabelText('valor actual').textContent
     expect(emitido).not.toBeNull()
     expect(new Date(emitido as string).getTime()).toBeGreaterThan(new Date(AHORA).getTime())
+  })
+
+  // Issue #29: una fecha del futuro se rechaza. Tipear pasa por alto el
+  // min/max nativo del input, así que el handler de cambio tiene que
+  // rechazarla igual, sin tocar el valor emitido, y avisar por qué.
+  it('rechaza una fecha del futuro y avisa, sin tocar el valor', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<VigenciaField value={AHORA} onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'Cambiar' }))
+    const manana = new Date()
+    manana.setDate(manana.getDate() + 1)
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(manana) } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'La fecha debe estar entre hace 12 meses y el momento actual.',
+    )
+  })
+
+  // Issue #30: una fecha de hace más de 12 meses se rechaza con el mismo
+  // mecanismo.
+  it('rechaza una fecha de hace más de 12 meses y avisa, sin tocar el valor', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<VigenciaField value={AHORA} onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'Cambiar' }))
+    const vieja = new Date()
+    vieja.setMonth(vieja.getMonth() - 13)
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(vieja) } })
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'La fecha debe estar entre hace 12 meses y el momento actual.',
+    )
+  })
+
+  // Además del rechazo en el handler, el input nativo ya debería impedir
+  // seleccionar un día fuera de la ventana desde el picker del navegador.
+  it('fija min/max nativos del input de fecha a la ventana móvil de 12 meses', async () => {
+    const user = userEvent.setup()
+    const ahora = new Date()
+    const doceMesesAtras = new Date(ahora)
+    doceMesesAtras.setMonth(doceMesesAtras.getMonth() - 12)
+
+    render(<VigenciaField value={AHORA} onChange={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Cambiar' }))
+
+    const inputFecha = screen.getByLabelText('Fecha') as HTMLInputElement
+    expect(inputFecha.max).toBe(formatoFecha(ahora))
+    expect(inputFecha.min).toBe(formatoFecha(doceMesesAtras))
   })
 
   it('emits an ISO 8601 string that preserves the untouched half of the timestamp', async () => {

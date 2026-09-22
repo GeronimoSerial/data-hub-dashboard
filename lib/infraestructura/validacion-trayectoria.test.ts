@@ -145,6 +145,30 @@ describe('parseParteActualizacionInput', () => {
     expect(result.ok).toBe(false)
   })
 
+  // Issues #29/#30: ventana móvil de los últimos 12 meses. Se calcula
+  // relativo al reloj del test, no con literales fijos, para que la prueba
+  // no quede obsoleta con el paso del tiempo.
+  it('rechaza un rigeDesde del futuro', () => {
+    const manana = new Date()
+    manana.setDate(manana.getDate() + 1)
+    const result = parseParteActualizacionInput({ ...basePayload, rigeDesde: manana.toISOString() })
+    expect(result.ok).toBe(false)
+  })
+
+  it('rechaza un rigeDesde de hace más de 12 meses', () => {
+    const vieja = new Date()
+    vieja.setMonth(vieja.getMonth() - 13)
+    const result = parseParteActualizacionInput({ ...basePayload, rigeDesde: vieja.toISOString() })
+    expect(result.ok).toBe(false)
+  })
+
+  it('acepta un rigeDesde dentro de la ventana de 12 meses', () => {
+    const dentro = new Date()
+    dentro.setMonth(dentro.getMonth() - 6)
+    const result = parseParteActualizacionInput({ ...basePayload, rigeDesde: dentro.toISOString() })
+    expect(result.ok).toBe(true)
+  })
+
   it('rechaza un envío sin ningún cambio (spec §17 "Todavía no realizó cambios")', () => {
     const result = parseParteActualizacionInput({
       cue: '1801605-04',

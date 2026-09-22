@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -61,12 +61,18 @@ function completarAQuienAfecta() {
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
+/** Paso 3: cómo está el edificio (obligatorio). */
+function completarEstadoEstablecimiento() {
+  fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento habitual' }))
+}
+
 /** Deja el asistente en el paso 4, listo para guardar. */
 function llegarAConfirmar() {
   completarQuePaso()
   continuar()
   completarAQuienAfecta()
   continuar()
+  completarEstadoEstablecimiento()
   continuar()
 }
 
@@ -77,6 +83,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Desmonta de verdad (los listeners de popstate y el root de React viven
+  // fuera del DOM) y olvida el borrador: cada test arranca limpio.
+  cleanup()
+  sessionStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -172,6 +182,30 @@ describe('ReporteInicialForm', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mañana' }))
     continuar()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
+
+    completarEstadoEstablecimiento()
+    continuar()
+    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+  })
+
+  it('no avanza del tercer paso sin indicar cómo está el edificio', () => {
+    renderFormulario()
+
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+
+    continuar()
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
+    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+
+    completarEstadoEstablecimiento()
+    continuar()
+
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
@@ -254,6 +288,7 @@ describe('ReporteInicialForm', () => {
     const continuarEnPaso3 = screen.getByRole('button', { name: 'Continuar' })
     expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(0)
 
+    completarEstadoEstablecimiento()
     continuar()
 
     const guardar = screen.getByRole('button', { name: /guardar reporte/i })
@@ -313,6 +348,34 @@ describe('ReporteInicialForm', () => {
     expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
   })
 
+  // El reporte guardado no puede dejar al director en un callejón sin salida:
+  // necesita una forma de volver y una de declarar un hecho distinto.
+  it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+
+    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
+    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+
+    // No hay redirección automática: el mensaje y las acciones siguen ahí.
+    expect(screen.getByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
+    expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
+    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+  })
+
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 500))
     vi.stubGlobal('fetch', fetchMock)
@@ -356,5 +419,94 @@ describe('ReporteInicialForm', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Guardando…')
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+  })
+})
+
+describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+  const clave = `parte-nuevo:draft:${props.cue}`
+
+  it('guarda el borrador con su paso y lo restaura al remontar (#32)', () => {
+    const primero = renderFormulario()
+    completarQuePaso()
+    continuar()
+
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(sessionStorage.getItem(clave)).not.toBeNull()
+
+    // Recarga simulada: el asistente vuelve a montar con el mismo storage.
+    primero.unmount()
+    renderFormulario()
+
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
+    volver()
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
+    const primero = render(
+      <ReporteInicialForm cue="11111111" turnos={turnos} motivos={motivos} />,
+    )
+    completarQuePaso()
+    continuar()
+    primero.unmount()
+
+    render(<ReporteInicialForm cue="22222222" turnos={turnos} motivos={motivos} />)
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+  })
+
+  it('un popstate retrocede exactamente un paso y conserva lo cargado (#31)', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /1° "A"/ })).toBeChecked()
+
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
+
+    // Desde el primer paso el asistente no se pierde: el paso se mantiene.
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+  })
+
+  it('un guardado exitoso limpia la clave del borrador', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    await screen.findByText(
+      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+    )
+    expect(sessionStorage.getItem(clave)).toBeNull()
+  })
+
+  it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await screen.findByText(
+      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(sessionStorage.getItem(clave)).toBeNull()
   })
 })

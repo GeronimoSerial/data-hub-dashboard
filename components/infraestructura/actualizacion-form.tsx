@@ -62,6 +62,164 @@ function esAfectacionLista(a: AfectacionActualizable): boolean {
   return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && a.secciones.length > 0
 }
 
+// Borrador de sesión (#32): F5 no debería perder lo escrito en la pantalla de
+// actualización. Clave por CUE para que dos establecimientos en la misma
+// pestaña no se pisen, y TODO acceso a sessionStorage envuelto en try/catch:
+// en modo privado (o cuota llena) puede lanzar o directamente no estar.
+function claveBorradorDe(cue: string): string {
+  return `parte-actualizacion:draft:${cue}`
+}
+
+type PasoActualizacion = 'formulario' | 'resumen'
+
+function pasoANumero(paso: PasoActualizacion): number {
+  return paso === 'resumen' ? 2 : 1
+}
+
+function numeroAPaso(numero: number): PasoActualizacion {
+  return numero === 2 ? 'resumen' : 'formulario'
+}
+
+interface BorradorParteActualizacion {
+  generacion: string
+  paso: PasoActualizacion
+  afectaciones: AfectacionActualizable[]
+  servicioEstado: '' | 'normal' | 'suspendido'
+  servicioAlcanceTipo: '' | 'establecimiento' | 'turno' | 'seccion'
+  servicioTurnos: string[]
+  servicioSecciones: number[]
+  estadoEstablecimiento: '' | EstadoEstablecimiento
+  rigeDesde: string
+  idempotencyKey: string
+  tocadas: string[]
+}
+
+function esAfectacionActualizable(valor: unknown): valor is AfectacionActualizable {
+  if (typeof valor !== 'object' || valor === null) return false
+  const a = valor as Record<string, unknown>
+  if (typeof a.clientId !== 'string' || typeof a.categoria !== 'string') return false
+  if (typeof a.motivo !== 'string' || typeof a.severidad !== 'string') return false
+  if (typeof a.descripcion !== 'string') return false
+  if (a.origenId !== null && typeof a.origenId !== 'string') return false
+  if (typeof a.retirada !== 'boolean') return false
+  if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
+  if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  return true
+}
+
+function esBorradorParteActualizacion(valor: unknown): valor is BorradorParteActualizacion {
+  if (typeof valor !== 'object' || valor === null) return false
+  const b = valor as Record<string, unknown>
+  if (
+    typeof b.generacion !== 'string' ||
+    typeof b.rigeDesde !== 'string' ||
+    typeof b.idempotencyKey !== 'string'
+  ) {
+    return false
+  }
+  if (b.paso !== 'formulario' && b.paso !== 'resumen') return false
+  if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
+    return false
+  }
+  if (
+    b.servicioAlcanceTipo !== '' &&
+    b.servicioAlcanceTipo !== 'establecimiento' &&
+    b.servicioAlcanceTipo !== 'turno' &&
+    b.servicioAlcanceTipo !== 'seccion'
+  ) {
+    return false
+  }
+  if (!Array.isArray(b.servicioTurnos) || !b.servicioTurnos.every((t) => typeof t === 'string')) {
+    return false
+  }
+  if (
+    !Array.isArray(b.servicioSecciones) ||
+    !b.servicioSecciones.every((n) => typeof n === 'number')
+  ) {
+    return false
+  }
+  if (typeof b.estadoEstablecimiento !== 'string') return false
+  if (
+    b.estadoEstablecimiento !== '' &&
+    !Object.prototype.hasOwnProperty.call(ETIQUETA_ESTABLECIMIENTO, b.estadoEstablecimiento)
+  ) {
+    return false
+  }
+  if (!Array.isArray(b.afectaciones) || !b.afectaciones.every(esAfectacionActualizable)) {
+    return false
+  }
+  if (!Array.isArray(b.tocadas) || !b.tocadas.every((t) => typeof t === 'string')) return false
+  return true
+}
+
+function leerBorrador(clave: string): BorradorParteActualizacion | null {
+  try {
+    const crudo = window.sessionStorage.getItem(clave)
+    if (!crudo) return null
+    const dato: unknown = JSON.parse(crudo)
+    if (esBorradorParteActualizacion(dato)) return dato
+    // Un borrador de otra versión del formulario no se restaura a medias.
+    window.sessionStorage.removeItem(clave)
+    return null
+  } catch {
+    return null
+  }
+}
+
+function guardarBorrador(clave: string, borrador: BorradorParteActualizacion): void {
+  try {
+    window.sessionStorage.setItem(clave, JSON.stringify(borrador))
+  } catch {
+    // Sin almacenamiento disponible el formulario sigue funcionando en memoria.
+  }
+}
+
+function limpiarBorrador(clave: string): void {
+  try {
+    window.sessionStorage.removeItem(clave)
+  } catch {
+    // Idem: no poder limpiar no debe romper el guardado ni el reinicio.
+  }
+}
+
+function empujarPasoEnHistorial(paso: number, generacion: string): void {
+  try {
+    window.history.pushState({ partePaso: paso, parteGeneracion: generacion }, '')
+  } catch {
+    // Sin historial navegable el formulario avanza igual, sólo pierde "atrás".
+  }
+}
+
+function colapsarHistorial(profundidad: number): void {
+  if (profundidad <= 0) return
+  try {
+    window.history.go(-profundidad)
+  } catch {
+    // Idem: el borrador ya quedó limpio aunque no se pueda recorrer atrás.
+  }
+}
+
+// La pantalla restaurada tiene que ser alcanzable con el botón "atrás" del
+// navegador (#31): si la entrada actual es la inicial, empujamos la que falta;
+// si ya es la restaurada (recarga con F5 conserva el history.state), no
+// hacemos nada para no duplicar entradas.
+function sincronizarHistorialTrasRestaurar(pasoActual: PasoActualizacion, generacion: string): void {
+  let base = 1
+  try {
+    const estado = window.history.state as { partePaso?: number; parteGeneracion?: string } | null
+    if (estado && typeof estado.partePaso === 'number' && estado.parteGeneracion === generacion) {
+      base = estado.partePaso
+    }
+  } catch {
+    // Sin historial utilizable se empuja desde la pantalla 1, que es lo correcto.
+  }
+  const destino = pasoANumero(pasoActual)
+  if (base >= destino) return
+  for (let p = base + 1; p <= destino; p += 1) {
+    empujarPasoEnHistorial(p, generacion)
+  }
+}
+
 function esAfectacionParcial(a: AfectacionActualizable): boolean {
   if (esAfectacionLista(a)) return false
   return (
@@ -119,6 +277,17 @@ export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormPro
     }
   }, [cue])
 
+  // "Registrar otra" vuelve a buscar el estado vigente en vez de sólo limpiar
+  // campos: lo que se acaba de guardar ya es el nuevo vigente, y el formulario
+  // de abajo se remonta con `datos` frescos porque deja de existir mientras
+  // `estado.fase` está en 'cargando'.
+  function registrarOtra() {
+    // El borrador de sesión ya no representa nada pendiente (#32).
+    limpiarBorrador(claveBorradorDe(cue))
+    setEstado({ fase: 'cargando' })
+    void obtenerEstado(cue).then(setEstado)
+  }
+
   if (estado.fase === 'cargando') {
     return (
       <p className="estado-actual-aviso" role="status">
@@ -149,6 +318,7 @@ export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormPro
       turnos={turnos}
       motivos={motivos}
       datos={estado.datos}
+      onRegistrarOtra={registrarOtra}
     />
   )
 }
@@ -158,7 +328,8 @@ function ActualizacionFormCargado({
   turnos,
   motivos,
   datos,
-}: ActualizacionFormProps & { datos: EstadoActualRespuesta }): JSX.Element {
+  onRegistrarOtra,
+}: ActualizacionFormProps & { datos: EstadoActualRespuesta; onRegistrarOtra: () => void }): JSX.Element {
   const vigentes = datos.afectaciones ?? []
   const estadoEstablecimientoVigente: EstadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
 
@@ -176,8 +347,104 @@ function ActualizacionFormCargado({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const enviandoRef = useRef(false)
+  // Identidad de las entradas de historial de ESTE formulario: un popstate de
+  // una sesión ya reiniciada no debe revivir sus pantallas.
+  const generacionRef = useRef<string | null>(null)
+  // La primera ejecución del efecto de escritura es el montaje (el formulario
+  // se remonta después de "registrar otra"): hay que dejar el storage como está.
+  const omitirEscrituraRef = useRef(true)
+  const claveBorrador = claveBorradorDe(cue)
+
+  function generacionVigente(): string {
+    if (generacionRef.current === null) generacionRef.current = crypto.randomUUID()
+    return generacionRef.current
+  }
+
+  // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
+  // leer sessionStorage en el render produciría un desajuste de hidratación.
+  // Sin borrador (o ilegible) el formulario conserva el estado que arma la
+  // carga del parte vigente.
+  /* eslint-disable react-hooks/set-state-in-effect -- restauración única al
+     montar de un borrador de sesión: no hay suscripción que haga (el storage
+     no emite eventos) y el render no puede leerlo, así que el efecto aplica lo
+     leído una sola vez. La regla aplica a efectos reactivos a cambios de
+     estado, no a esta hidratación inicial. */
+  useEffect(() => {
+    const borrador = leerBorrador(claveBorrador)
+    if (!borrador) return
+    generacionRef.current = borrador.generacion
+    setPaso(borrador.paso)
+    setAfectaciones(borrador.afectaciones)
+    setServicioEstado(borrador.servicioEstado)
+    setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
+    setServicioTurnos(borrador.servicioTurnos)
+    setServicioSecciones(borrador.servicioSecciones)
+    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+    setRigeDesde(borrador.rigeDesde)
+    setIdempotencyKey(borrador.idempotencyKey)
+    setTocadas(new Set(borrador.tocadas))
+    sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+  }, [claveBorrador])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // #31: el botón "atrás" del navegador vuelve del resumen al formulario en
+  // vez de salirse del flujo y tirar lo cargado. Sólo se sale del flujo desde
+  // la pantalla 1, donde no quedan entradas empujadas.
+  useEffect(() => {
+    function alVolverAtras(evento: PopStateEvent): void {
+      const estado = evento.state as { partePaso?: number; parteGeneracion?: string } | null
+      if (estado && typeof estado.partePaso === 'number') {
+        if (estado.parteGeneracion !== generacionRef.current) return
+        if (estado.partePaso === 1 || estado.partePaso === 2) {
+          setPaso(numeroAPaso(estado.partePaso))
+          setError(null)
+        }
+        return
+      }
+      // Entrada inicial (sin estado): un paso atrás sin salir del formulario.
+      setPaso((actual) => (actual === 'resumen' ? 'formulario' : actual))
+      setError(null)
+    }
+    window.addEventListener('popstate', alVolverAtras)
+    return () => window.removeEventListener('popstate', alVolverAtras)
+  }, [])
+
+  // Persiste el borrador y la pantalla activa en cada cambio relevante. El
+  // primer run (montaje) se salta para no reescribir la clave recién limpia
+  // con el estado por defecto.
+  useEffect(() => {
+    if (omitirEscrituraRef.current) {
+      omitirEscrituraRef.current = false
+      return
+    }
+    guardarBorrador(claveBorrador, {
+      generacion: generacionVigente(),
+      paso,
+      afectaciones,
+      servicioEstado,
+      servicioAlcanceTipo,
+      servicioTurnos,
+      servicioSecciones,
+      estadoEstablecimiento,
+      rigeDesde,
+      idempotencyKey,
+      tocadas: Array.from(tocadas),
+    })
+  }, [
+    claveBorrador,
+    paso,
+    afectaciones,
+    servicioEstado,
+    servicioAlcanceTipo,
+    servicioTurnos,
+    servicioSecciones,
+    estadoEstablecimiento,
+    rigeDesde,
+    idempotencyKey,
+    tocadas,
+  ])
 
   const nombresTurnos = Array.from(new Set(turnos.map((t) => t.turno)))
 
@@ -276,10 +543,20 @@ function ActualizacionFormCargado({
     if (diffVacio) return
     setError(null)
     setPaso('resumen')
+    // Una entrada por pantalla: así "atrás" del navegador camina
+    // resumen → formulario sin salir del flujo.
+    empujarPasoEnHistorial(2, generacionVigente())
   }
 
   function volverAFormulario() {
     setPaso('formulario')
+    // El historial tiene que seguir al formulario: sin este back(), la próxima
+    // pulsación de "atrás" del navegador llegaría desfasada de pantalla.
+    try {
+      window.history.back()
+    } catch {
+      // Sin historial navegable la pantalla anterior se muestra igual.
+    }
   }
 
   async function confirmarGuardado() {
@@ -315,6 +592,12 @@ function ActualizacionFormCargado({
 
       const cuerpo = await respuesta.json()
       if (cuerpo?.ok === true) {
+        // La actualización quedó guardada: el borrador de sesión ya no
+        // representa nada pendiente, y el historial se colapsa para que "atrás"
+        // desde la confirmación salga del formulario en vez de revivir la
+        // pantalla de resumen.
+        limpiarBorrador(claveBorrador)
+        colapsarHistorial(pasoANumero(paso) - 1)
         setGuardado({ movimientoId: cuerpo.movimientoId })
         return
       }
@@ -333,6 +616,14 @@ function ActualizacionFormCargado({
     return (
       <div className="reporte-inicial__confirmacion" role="status">
         <p>{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-acciones">
+          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+            Volver al panel
+          </Button>
+          <Button type="button" variant="secondary" onClick={onRegistrarOtra}>
+            Registrar otra incidencia
+          </Button>
+        </div>
       </div>
     )
   }

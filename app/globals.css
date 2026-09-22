@@ -2209,6 +2209,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-soft);
 }
 
+.vigencia-field__error {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
    ══════════════════════════════════════════════════════════════════════════ */
@@ -2864,6 +2873,18 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--ok-tint);
   color: var(--ok);
   font-weight: 500;
+}
+
+.reporte-inicial__confirmacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  font-weight: 400;
+}
+
+@media (max-width: 480px) {
+  .reporte-inicial__confirmacion-acciones { flex-direction: column; align-items: stretch; }
 }
 
 @media (max-width: 480px) {

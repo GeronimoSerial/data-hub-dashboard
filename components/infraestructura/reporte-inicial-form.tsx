@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
@@ -47,6 +47,8 @@ const MENSAJE_ALCANCE_TURNOS_VACIO = 'Indique a qué turnos alcanza la suspensi�
 
 const MENSAJE_ALCANCE_SECCIONES_VACIO = 'Indique a qué secciones alcanza la suspensión.'
 
+const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
+
 const ALCANCES_SERVICIO: { tipo: 'establecimiento' | 'turno' | 'seccion'; etiqueta: string }[] = [
   { tipo: 'establecimiento', etiqueta: 'Todo el establecimiento' },
   { tipo: 'turno', etiqueta: 'Uno o más turnos' },
@@ -56,6 +58,148 @@ const ALCANCES_SERVICIO: { tipo: 'establecimiento' | 'turno' | 'seccion'; etique
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', '¿Cómo sigue el servicio?', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4
+
+// Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
+// clave va por CUE para que dos establecimientos abiertos en la misma pestaña
+// no se pisen, y TODO acceso a sessionStorage está envuelto en try/catch: en
+// modo privado (o cuota llena) puede lanzar o directamente no estar.
+function claveBorradorDe(cue: string): string {
+  return `parte-nuevo:draft:${cue}`
+}
+
+interface BorradorParteNuevo {
+  generacion: string
+  paso: Paso
+  afectacion: AfectacionBorrador
+  servicioEstado: '' | 'normal' | 'suspendido'
+  servicioAlcanceTipo: '' | 'establecimiento' | 'turno' | 'seccion'
+  servicioTurnos: string[]
+  servicioSecciones: number[]
+  estadoEstablecimiento: '' | EstadoEstablecimiento
+  rigeDesde: string
+  idempotencyKey: string
+}
+
+function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
+  if (typeof valor !== 'object' || valor === null) return false
+  const b = valor as Record<string, unknown>
+  if (
+    typeof b.generacion !== 'string' ||
+    typeof b.rigeDesde !== 'string' ||
+    typeof b.idempotencyKey !== 'string'
+  ) {
+    return false
+  }
+  if (b.paso !== 1 && b.paso !== 2 && b.paso !== 3 && b.paso !== 4) return false
+  if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
+    return false
+  }
+  if (
+    b.servicioAlcanceTipo !== '' &&
+    b.servicioAlcanceTipo !== 'establecimiento' &&
+    b.servicioAlcanceTipo !== 'turno' &&
+    b.servicioAlcanceTipo !== 'seccion'
+  ) {
+    return false
+  }
+  if (!Array.isArray(b.servicioTurnos) || !b.servicioTurnos.every((t) => typeof t === 'string')) {
+    return false
+  }
+  if (
+    !Array.isArray(b.servicioSecciones) ||
+    !b.servicioSecciones.every((n) => typeof n === 'number')
+  ) {
+    return false
+  }
+  if (typeof b.estadoEstablecimiento !== 'string') return false
+  if (
+    b.estadoEstablecimiento !== '' &&
+    !Object.prototype.hasOwnProperty.call(ETIQUETA_ESTABLECIMIENTO, b.estadoEstablecimiento)
+  ) {
+    return false
+  }
+  const a = b.afectacion as Record<string, unknown> | null
+  if (typeof a !== 'object' || a === null) return false
+  if (
+    typeof a.clientId !== 'string' ||
+    typeof a.categoria !== 'string' ||
+    typeof a.motivo !== 'string' ||
+    typeof a.severidad !== 'string' ||
+    typeof a.descripcion !== 'string'
+  ) {
+    return false
+  }
+  if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
+  if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  return true
+}
+
+function leerBorrador(clave: string): BorradorParteNuevo | null {
+  try {
+    const crudo = window.sessionStorage.getItem(clave)
+    if (!crudo) return null
+    const dato: unknown = JSON.parse(crudo)
+    if (esBorradorParteNuevo(dato)) return dato
+    // Un borrador de otra versión del formulario no se restaura a medias.
+    window.sessionStorage.removeItem(clave)
+    return null
+  } catch {
+    return null
+  }
+}
+
+function guardarBorrador(clave: string, borrador: BorradorParteNuevo): void {
+  try {
+    window.sessionStorage.setItem(clave, JSON.stringify(borrador))
+  } catch {
+    // Sin almacenamiento disponible el asistente sigue funcionando en memoria.
+  }
+}
+
+function limpiarBorrador(clave: string): void {
+  try {
+    window.sessionStorage.removeItem(clave)
+  } catch {
+    // Idem: no poder limpiar no debe romper el guardado ni el reinicio.
+  }
+}
+
+function empujarPasoEnHistorial(paso: number, generacion: string): void {
+  try {
+    window.history.pushState({ partePaso: paso, parteGeneracion: generacion }, '')
+  } catch {
+    // Sin historial navegable el asistente avanza igual, sólo pierde "atrás".
+  }
+}
+
+function colapsarHistorial(profundidad: number): void {
+  if (profundidad <= 0) return
+  try {
+    window.history.go(-profundidad)
+  } catch {
+    // Idem: el borrador ya quedó limpio aunque no se pueda recorrer atrás.
+  }
+}
+
+// El paso restaurado tiene que ser alcanzable con el botón "atrás" del
+// navegador (#31): si la entrada actual es la inicial, empujamos las que
+// faltan; si ya es el paso restaurado (recarga con F5 conserva el
+// history.state), no hacemos nada para no duplicar entradas.
+function sincronizarHistorialTrasRestaurar(pasoActual: number, generacion: string): void {
+  let base = 1
+  try {
+    const estado = window.history.state as { partePaso?: number; parteGeneracion?: string } | null
+    if (estado && typeof estado.partePaso === 'number' && estado.parteGeneracion === generacion) {
+      base = estado.partePaso
+    }
+  } catch {
+    // Sin historial utilizable se empuja desde el paso 1, que es lo correcto.
+  }
+  if (base >= pasoActual) return
+  for (let p = base + 1; p <= pasoActual; p += 1) {
+    empujarPasoEnHistorial(p, generacion)
+  }
+}
 
 /**
  * Asistente de reporte inicial (spec §7).
@@ -91,8 +235,101 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const enviandoRef = useRef(false)
+  // Identidad de las entradas de historial de ESTE asistente: un popstate de
+  // una sesión ya reiniciada no debe revivir sus pasos.
+  const generacionRef = useRef<string | null>(null)
+  // La primera ejecución del efecto de escritura es el montaje (o el tras
+  // "registrar otra"): en ambos casos hay que dejar el storage como está.
+  const omitirEscrituraRef = useRef(true)
+  const claveBorrador = claveBorradorDe(cue)
+
+  function generacionVigente(): string {
+    if (generacionRef.current === null) generacionRef.current = crypto.randomUUID()
+    return generacionRef.current
+  }
+
+  // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
+  // leer sessionStorage en el render produciría un desajuste de hidratación
+  // entre servidor y cliente. Sin borrador (o ilegible) no hay nada que
+  // restaurar y el asistente arranca limpio en el paso 1.
+  /* eslint-disable react-hooks/set-state-in-effect -- restauración única al
+     montar de un borrador de sesión: no hay suscripción que haga (el storage
+     no emite eventos) y el render no puede leerlo, así que el efecto aplica lo
+     leído una sola vez. La regla aplica a efectos reactivos a cambios de
+     estado, no a esta hidratación inicial. */
+  useEffect(() => {
+    const borrador = leerBorrador(claveBorrador)
+    if (!borrador) return
+    generacionRef.current = borrador.generacion
+    setPaso(borrador.paso)
+    setAfectacion(borrador.afectacion)
+    setServicioEstado(borrador.servicioEstado)
+    setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
+    setServicioTurnos(borrador.servicioTurnos)
+    setServicioSecciones(borrador.servicioSecciones)
+    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+    setRigeDesde(borrador.rigeDesde)
+    setIdempotencyKey(borrador.idempotencyKey)
+    sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+  }, [claveBorrador])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // #31: el botón "atrás" del navegador camina el asistente un paso para
+  // atrás en vez de salirse del flujo y tirar todo lo cargado. Sólo se sale
+  // del flujo desde el paso 1, donde no quedan entradas empujadas.
+  useEffect(() => {
+    function alVolverAtras(evento: PopStateEvent): void {
+      const estado = evento.state as { partePaso?: number; parteGeneracion?: string } | null
+      if (estado && typeof estado.partePaso === 'number') {
+        if (estado.parteGeneracion !== generacionRef.current) return
+        if (estado.partePaso >= 1 && estado.partePaso <= PASOS.length) {
+          setPaso(estado.partePaso as Paso)
+          setError(null)
+        }
+        return
+      }
+      // Entrada inicial (sin estado): un paso atrás sin salir del asistente.
+      setPaso((actual) => (actual > 1 ? ((actual - 1) as Paso) : actual))
+      setError(null)
+    }
+    window.addEventListener('popstate', alVolverAtras)
+    return () => window.removeEventListener('popstate', alVolverAtras)
+  }, [])
+
+  // Persiste el borrador y el paso en cada cambio relevante. El primer
+  // run (montaje o "registrar otra") se salta para no reescribir la clave
+  // recién limpia con el estado por defecto.
+  useEffect(() => {
+    if (omitirEscrituraRef.current) {
+      omitirEscrituraRef.current = false
+      return
+    }
+    guardarBorrador(claveBorrador, {
+      generacion: generacionVigente(),
+      paso,
+      afectacion,
+      servicioEstado,
+      servicioAlcanceTipo,
+      servicioTurnos,
+      servicioSecciones,
+      estadoEstablecimiento,
+      rigeDesde,
+      idempotencyKey,
+    })
+  }, [
+    claveBorrador,
+    paso,
+    afectacion,
+    servicioEstado,
+    servicioAlcanceTipo,
+    servicioTurnos,
+    servicioSecciones,
+    estadoEstablecimiento,
+    rigeDesde,
+    idempotencyKey,
+  ])
 
   const nombresTurnos = Array.from(new Set(turnos.map((t) => t.turno)))
 
@@ -110,12 +347,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
     }
     if (actual === 3) {
-      if (servicioEstado !== 'suspendido') return null
-      if (servicioAlcanceTipo === '') return MENSAJE_ALCANCE_FALTANTE
-      if (servicioAlcanceTipo === 'turno' && servicioTurnos.length === 0)
-        return MENSAJE_ALCANCE_TURNOS_VACIO
-      if (servicioAlcanceTipo === 'seccion' && servicioSecciones.length === 0)
-        return MENSAJE_ALCANCE_SECCIONES_VACIO
+      if (servicioEstado === 'suspendido') {
+        if (servicioAlcanceTipo === '') return MENSAJE_ALCANCE_FALTANTE
+        if (servicioAlcanceTipo === 'turno' && servicioTurnos.length === 0)
+          return MENSAJE_ALCANCE_TURNOS_VACIO
+        if (servicioAlcanceTipo === 'seccion' && servicioSecciones.length === 0)
+          return MENSAJE_ALCANCE_SECCIONES_VACIO
+      }
+      if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       return null
     }
     return null
@@ -128,12 +367,45 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return
     }
     setError(null)
-    setPaso((actual) => (actual < 4 ? ((actual + 1) as Paso) : actual))
+    if (paso >= PASOS.length) return
+    const siguiente = (paso + 1) as Paso
+    setPaso(siguiente)
+    // Una entrada por paso: así "atrás" del navegador camina N → N-1.
+    empujarPasoEnHistorial(siguiente, generacionVigente())
   }
 
   function retroceder() {
     setError(null)
+    if (paso <= 1) return
     setPaso((actual) => (actual > 1 ? ((actual - 1) as Paso) : actual))
+    // El historial tiene que seguir al asistente: sin este back(), la próxima
+    // pulsación de "atrás" del navegador llegaría desfasada a un paso.
+    try {
+      window.history.back()
+    } catch {
+      // Sin historial navegable el paso anterior se muestra igual.
+    }
+  }
+
+  // Deja el asistente listo para un hecho nuevo, no para reintentar el que ya
+  // se guardó: por eso también cambia el idempotencyKey, no sólo limpia los
+  // campos.
+  function registrarOtra() {
+    omitirEscrituraRef.current = true
+    limpiarBorrador(claveBorrador)
+    enviandoRef.current = false
+    setPaso(1)
+    setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
+    setServicioEstado('')
+    setServicioAlcanceTipo('')
+    setServicioTurnos([])
+    setServicioSecciones([])
+    setEstadoEstablecimiento('')
+    setRigeDesde(new Date().toISOString())
+    setEnviando(false)
+    setError(null)
+    setIdempotencyKey(crypto.randomUUID())
+    setGuardado(null)
   }
 
   function alternarTurno(turno: string) {
@@ -194,6 +466,11 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
 
       const datos = await respuesta.json()
       if (datos?.ok === true) {
+        // El reporte quedó guardado: el borrador de sesión ya no representa
+        // nada pendiente, y el historial se colapsa para que "atrás" desde la
+        // confirmación salga del asistente en vez de revivir sus pasos.
+        limpiarBorrador(claveBorrador)
+        colapsarHistorial(paso - 1)
         // Un reporte guardado no se reenvía desde la misma instancia del
         // formulario: el ref queda clavado en true a propósito.
         setGuardado({ movimientoId: datos.movimientoId })
@@ -214,6 +491,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     return (
       <div className="reporte-inicial__confirmacion" role="status">
         <p>{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-acciones">
+          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+            Volver al panel
+          </Button>
+          <Button type="button" variant="secondary" onClick={registrarOtra}>
+            Registrar otra incidencia
+          </Button>
+        </div>
       </div>
     )
   }

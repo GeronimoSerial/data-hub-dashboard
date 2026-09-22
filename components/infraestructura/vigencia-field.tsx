@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 
 export interface VigenciaFieldProps {
   /**
@@ -54,8 +55,11 @@ function resumenLegible(fecha: Date): string {
  *
  * Starts collapsed, showing the word "Ahora" — never a pre-filled date/time
  * input. Date and time stay hidden until the director presses "Cambiar".
- * Once expanded, either an earlier or a later moment is valid; neither
- * direction is clamped.
+ * Once expanded, either an earlier or a later moment is valid, but only
+ * within the rolling 12-month window `rangoVigencia` defines (issues #29/#30):
+ * future dates and dates older than 12 months are rejected, both by the
+ * native `min`/`max` on the date input and, since typing bypasses those, by
+ * the change handlers below.
  *
  * Uses native `<input type="date">` / `<input type="time">` on purpose, not
  * a custom picker: same reasoning as the native `<select>` in
@@ -83,12 +87,17 @@ export function VigenciaField({
   // ahora" a una fecha concreta al minuto de abierto el formulario, sin que
   // el director tocara nada.
   const [momentoElegido, setMomentoElegido] = useState(false)
+  // Fecha/hora tipeadas que caen fuera de la ventana de 12 meses: se
+  // rechazan (no llegan a `onChange`) y se avisan acá, porque tipear pasa por
+  // alto el `min`/`max` nativo del input de fecha.
+  const [errorRango, setErrorRango] = useState<string | null>(null)
   const fechaInputRef = useRef<HTMLInputElement>(null)
   const cambiarBotonRef = useRef<HTMLButtonElement>(null)
   const esPrimerRender = useRef(true)
 
   const fecha = new Date(value)
   const fechaValida = !Number.isNaN(fecha.getTime())
+  const { min: fechaMinima, max: fechaMaxima } = rangoVigencia()
 
   // Move focus to the control that makes sense for the direction just
   // taken: into the date input on expand, back onto "Cambiar" when
@@ -114,25 +123,37 @@ export function VigenciaField({
   function volverAAhora() {
     setExpandido(false)
     setMomentoElegido(false)
+    setErrorRango(null)
     onChange(new Date().toISOString())
+  }
+
+  // Único punto que efectivamente aplica una fecha/hora nueva: si cae fuera
+  // de la ventana de 12 meses, se rechaza (no se llama a `onChange`, el
+  // director sigue viendo el último valor válido) y se avisa con un mensaje.
+  function aplicarSiValido(nuevaFecha: Date) {
+    if (nuevaFecha.getTime() < fechaMinima.getTime() || nuevaFecha.getTime() > fechaMaxima.getTime()) {
+      setErrorRango(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      return
+    }
+    setErrorRango(null)
+    setMomentoElegido(true)
+    onChange(nuevaFecha.toISOString())
   }
 
   function actualizarFecha(fechaTexto: string) {
     if (!fechaTexto) return
-    setMomentoElegido(true)
     const [anio, mes, dia] = fechaTexto.split('-').map(Number)
     const base = fechaValida ? new Date(fecha) : new Date()
     base.setFullYear(anio, mes - 1, dia)
-    onChange(base.toISOString())
+    aplicarSiValido(base)
   }
 
   function actualizarHora(horaTexto: string) {
     if (!horaTexto) return
-    setMomentoElegido(true)
     const [horas, minutos] = horaTexto.split(':').map(Number)
     const base = fechaValida ? new Date(fecha) : new Date()
     base.setHours(horas, minutos, 0, 0)
-    onChange(base.toISOString())
+    aplicarSiValido(base)
   }
 
   return (
@@ -172,6 +193,8 @@ export function VigenciaField({
               lang="es-AR"
               className="ui-input"
               value={fechaValida ? fechaLocalInput(fecha) : ''}
+              min={fechaLocalInput(fechaMinima)}
+              max={fechaLocalInput(fechaMaxima)}
               onChange={(evento) => actualizarFecha(evento.target.value)}
               disabled={disabled}
             />
@@ -190,6 +213,12 @@ export function VigenciaField({
             />
           </div>
         </div>
+
+        {errorRango && (
+          <p className="vigencia-field__error" role="alert">
+            {errorRango}
+          </p>
+        )}
 
         {/* Plain-language echo (Nielsen #1): read back what was picked
             without interpreting the raw widgets above. aria-live announces
