@@ -3463,3 +3463,93 @@ time {
   flex-wrap: wrap;
   gap: var(--s-2);
 }
+
+/* ── Pestañas del mapa de infraestructura (F5.1) ──────────────────────────
+   Dos pestañas sobre el mismo lienzo: la operativa (el mapa) y la de
+   evolución. El cuerpo es un flex con un solo panel visible: el activo
+   estira para ocupar el alto disponible y el inactivo sale del layout con
+   display:none. Nada de esto desmonta el mapa — ver
+   app/(hub)/mapas/infraestructura/map-client.tsx.
+   OJO con declarar `display` en .mapa-pestana-panel: un display del autor
+   pisa al [hidden] del UA y el mapa dejaría de ocultarse; la regla explícita
+   de abajo es la que garantiza el `display: none`. */
+.mapa-pestanas {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.mapa-pestanas-barra {
+  flex: 0 0 auto;
+  padding: var(--s-2) var(--gutter) 0;
+  background: var(--page);
+}
+.mapa-pestanas-cuerpo {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.mapa-pestana-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.mapa-pestana-panel[hidden] { display: none; }
+.mapa-pestana-panel--scroll {
+  overflow-y: auto;
+  padding: var(--s-5) var(--gutter) var(--s-8);
+}
+
+/* ── Pestaña de evolución (F5.3) ──────────────────────────────────────────
+   Una sola columna centrada: los gráficos necesitan ancho estable y la tabla
+   de ranking scrollea dentro de su propia superficie (.ui-table-wrap). */
+.evolucion-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: 64rem;
+  margin: 0 auto;
+}
+.evolucion-vista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.evolucion-subtitulo {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.evolucion-descripcion {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  line-height: 1.5;
+}
+/* Altura fija y explícita: ResponsiveContainer mide su contenedor y con una
+   altura indeterminada devuelve 0 y el gráfico queda en blanco. */
+.grafico-contenedor {
+  width: 100%;
+  height: 17rem;
+}
+.evolucion-tabla th:not(:first-child),
+.evolucion-tabla td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* Las celdas de la primera columna son th[scope=row] (encabezado de fila,
+   para lectores de pantalla); sin este ajuste heredarían el estilo de th de
+   cabecera: fondo gris, caja alta y tipografía micro. */
+.evolucion-tabla tbody th[scope='row'] {
+  background: none;
+  color: var(--ink);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+}

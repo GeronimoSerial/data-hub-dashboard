@@ -1,0 +1,66 @@
+=== F4 verificación (2026-09-21) ===
+
+$ rg "infra_problematica|infraProblematica|listarAlertasActivas|AlertaActiva" app/ components/ lib/ scripts/
+lib/db/seed.test.ts:  it('no deja infra_problematica, infra_problematica_seccion ni infra_problematica_alumno', async () => {
+lib/db/seed.test.ts:      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('infra_problematica', 'infra_problematica_seccion', 'infra_problematica_alumno')",
+lib/db/seed.ts:  await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_alumno`')
+lib/db/seed.ts:  await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_seccion`')
+lib/db/seed.ts:  await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
+(exit=0: 5 matches — 3 DROP de F4.6 en lib/db/seed.ts + 2 del test F4.6 en lib/db/seed.test.ts; cero consumidores)
+
+$ pnpm test   # (salida final literal)
+ RUN  v4.1.11 /home/gero/orca/workspaces/data-hub-dashboard/mapa-enos
+
+ Test Files  90 passed (90)
+      Tests  735 passed (735)
+   Start at  23:10:11
+   Duration  12.98s (transform 10.83s, setup 23.70s, import 49.91s, tests 50.97s, environment 33.92s)
+(exit=0)
+
+$ pnpm build   # (exit code + últimas líneas literales)
+build-exit=0
+└ ○ /tableros
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+$ pnpm lint   # (salida completa literal)
+$ eslint .
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/components/infraestructura/actualizacion-form.test.tsx
+  84:47  warning  'init' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/components/infraestructura/actualizacion-form.tsx
+  164:9  warning  The 'servicioAlcanceVigente' logical expression could make the dependencies of useMemo Hook (at line 208) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'servicioAlcanceVigente' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/components/infraestructura/historial-parte.tsx
+  71:10  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/components/infraestructura/historial-parte.tsx:71:10
+  69 |
+  70 |   useEffect(() => {
+> 71 |     void cargar()
+     |          ^^^^^^ Avoid calling setState() directly within an effect
+  72 |   }, [cargar])
+  73 |
+  74 |   if (estado.fase === 'cargando') {  react-hooks/set-state-in-effect
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/components/infraestructura/reporte-inicial-form.tsx
+  24:15  warning  'CategoriaProblematica' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+/home/gero/orca/workspaces/data-hub-dashboard/mapa-enos/lib/infraestructura/movimiento-descripcion.test.ts
+  3:21  warning  'esDiffVacio' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 5 problems (1 error, 4 warnings)
+
+[ELIFECYCLE] Command failed with exit code 1.
