@@ -48,6 +48,8 @@ const MENSAJE_ALCANCE_TURNOS_VACIO = 'Indique a qué turnos alcanza la suspensi�
 
 const MENSAJE_ALCANCE_SECCIONES_VACIO = 'Indique a qué secciones alcanza la suspensión.'
 
+const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
+
 const ALCANCES_SERVICIO: { tipo: 'establecimiento' | 'turno' | 'seccion'; etiqueta: string }[] = [
   { tipo: 'establecimiento', etiqueta: 'Todo el establecimiento' },
   { tipo: 'turno', etiqueta: 'Uno o más turnos' },
@@ -111,12 +113,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
     }
     if (actual === 3) {
-      if (servicioEstado !== 'suspendido') return null
-      if (servicioAlcanceTipo === '') return MENSAJE_ALCANCE_FALTANTE
-      if (servicioAlcanceTipo === 'turno' && servicioTurnos.length === 0)
-        return MENSAJE_ALCANCE_TURNOS_VACIO
-      if (servicioAlcanceTipo === 'seccion' && servicioSecciones.length === 0)
-        return MENSAJE_ALCANCE_SECCIONES_VACIO
+      if (servicioEstado === 'suspendido') {
+        if (servicioAlcanceTipo === '') return MENSAJE_ALCANCE_FALTANTE
+        if (servicioAlcanceTipo === 'turno' && servicioTurnos.length === 0)
+          return MENSAJE_ALCANCE_TURNOS_VACIO
+        if (servicioAlcanceTipo === 'seccion' && servicioSecciones.length === 0)
+          return MENSAJE_ALCANCE_SECCIONES_VACIO
+      }
+      if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       return null
     }
     return null

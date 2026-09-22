@@ -61,12 +61,18 @@ function completarAQuienAfecta() {
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
+/** Paso 3: cómo está el edificio (obligatorio). */
+function completarEstadoEstablecimiento() {
+  fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento habitual' }))
+}
+
 /** Deja el asistente en el paso 4, listo para guardar. */
 function llegarAConfirmar() {
   completarQuePaso()
   continuar()
   completarAQuienAfecta()
   continuar()
+  completarEstadoEstablecimiento()
   continuar()
 }
 
@@ -172,6 +178,30 @@ describe('ReporteInicialForm', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mañana' }))
     continuar()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
+
+    completarEstadoEstablecimiento()
+    continuar()
+    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+  })
+
+  it('no avanza del tercer paso sin indicar cómo está el edificio', () => {
+    renderFormulario()
+
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+
+    continuar()
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
+    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+
+    completarEstadoEstablecimiento()
+    continuar()
+
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
@@ -254,6 +284,7 @@ describe('ReporteInicialForm', () => {
     const continuarEnPaso3 = screen.getByRole('button', { name: 'Continuar' })
     expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(0)
 
+    completarEstadoEstablecimiento()
     continuar()
 
     const guardar = screen.getByRole('button', { name: /guardar reporte/i })
