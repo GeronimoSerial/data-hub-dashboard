@@ -2168,6 +2168,15 @@ time {
   color: var(--ink-soft);
 }
 
+.vigencia-field__error {
+  margin: 0;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--t-small);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
    ══════════════════════════════════════════════════════════════════════════ */
