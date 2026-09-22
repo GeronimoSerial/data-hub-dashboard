@@ -85,9 +85,9 @@ localidad; el mapa de matrícula.
       lógico). `InfraLayerControl` reducido a una sola capa (`escuelas`) —
       F2.3 agrega ahí las capas de evacuación/sin-reportar sin tocar esta
       forma.
-- [ ] **F2.3** Capas toggleables de evacuación y "sin reportar" (umbral 72 h, constante
+- [x] **F2.3** Capas toggleables de evacuación y "sin reportar" (umbral 72 h, constante
       nombrada y justificada).
-- [ ] **F2.4** Coroplético departamental por escuelas con servicio caído (opacidad, sin
+- [x] **F2.4** Coroplético departamental por escuelas con servicio caído (opacidad, sin
       segunda escala de color). Reusa la normalización de nombres de
       `lib/mapas/departamentos.ts`.
 - [x] **F2.5** `InfraLegendPanel` reescrita con los canales nuevos (color/tamaño/anillo)
@@ -209,7 +209,84 @@ Sin commit todavía (fuera de alcance de este writer).
 Forecast inicial: muy por encima de las ~400 líneas autoradas por slice. Estrategia
 pendiente de elegir con el usuario **antes del primer commit** (`ask-on-risk`).
 
+### Fase 2 — cierre (F2.3, F2.4)
+
+`lib/mapas/departamentos.ts` no traía todavía la normalización de nombres que la tarea
+daba por existente: se agregó ahí (`normalizarNombreDepartamento` — NFD + descarte de
+diacríticos + mayúsculas — y `agregarEscuelasCaidasPorDepartamento`), verificada a mano
+contra `public/data/localizaciones.json` (2005 filas reales): 26 valores distintos de
+`departamento`, con el gotcha confirmado (`CONCEPCION` y `CONCEPCIÓN` conviven como dos
+strings) colapsando a las 25 claves normalizadas del GeoJSON.
+
+Decisiones de codificación visual:
+- **Evacuación**: dos símbolos vía `Marker` (DOM), no una capa MapLibre — `evacuado`
+  (cuadrado, borde) y `centro_evacuados` (triángulo, borde vía CSS) en
+  `ANILLO_COLOR`, el mismo neutro que ya usa el anillo de servicio. Nada de
+  `circle`/`symbol` con sprite porque MapLibre no da dos *formas* geométricas
+  distintas sin iconos, y los iconos están explícitamente prohibidos por el brief.
+  Capa toggleable, apagada por defecto.
+- **Sin reportar**: halo (`circle-stroke`, sin relleno) en gris neutro `#6b7280`
+  alrededor del punto, con el mismo radio base (`sqrt(alumnosAlcanzados)`) más un
+  margen fijo. `UMBRAL_SIN_REPORTAR_HORAS` se reusa tal cual de `parte-mapa.ts`
+  (mismo criterio que el indicador agregado, nunca dos definiciones de "viejo").
+  El "ahora" contra el que se compara se resuelve en un efecto (no durante el
+  render: `Date.now()` es impuro y la regla `react-hooks/purity` lo bloquea),
+  disparado por cada respuesta nueva de `useAlertas`.
+- **Coroplético departamental**: `fill-opacity` pasa a ser `interpolate` sobre
+  `escuelasCaidas` (propiedad calculada en el cliente, cruzando `data.partes` contra
+  un fetch propio de `DEPARTAMENTOS_URL` vía `useMemo`) con piso en la opacidad fija
+  que ya existía (0.055) y techo en `OPACIDAD_DEPARTAMENTO_CAIDO_TECHO` (0.4) a partir
+  de `ESCUELAS_CAIDAS_TECHO` (5) escuelas caídas en un mismo departamento. El color
+  sigue fijo (`COLORES_DEPARTAMENTO.rellenoNormal`): no se introdujo una segunda
+  escala. Etiqueta "GOYA 3" vía capa `symbol` con `text-field` data-driven (nombre en
+  mayúsculas + conteo, sólo cuando el conteo es mayor a cero). Un departamento sin
+  match visible se loguea (`console.error`) y se muestra en `InfraLegendPanel`.
+- `InfraLegendPanel` explica los dos símbolos de evacuación, el halo de sin-reportar
+  y la intensidad del coroplético; agrega las filas de indicadores que faltaban
+  (evacuadas, centros de evacuados, sin reportar) usando los mismos números de
+  `IndicadoresMapa` que ya carga `useAlertas`.
+- `InfraLayerControl` gana dos entradas (`evacuacion`, `sinReportar`), apagadas por
+  defecto para no sumar ruido al encuadre inicial; `escuelas` no cambió de forma.
+
+Tests nuevos en `lib/mapas/departamentos.test.ts` (14 tests, todos verdes): 3 de
+`normalizarNombreDepartamento` (Ituzaingó/ITUZAINGO, el gotcha CONCEPCION/CONCEPCIÓN,
+recorte de espacios) y 6 de `agregarEscuelasCaidasPorDepartamento` (conteo por
+servicio suspendido/parcial ignorando normal, cruce ITUZAINGO↔Ituzaingó, cruce del
+gotcha de tildes, un departamento sin escuelas afectadas, y un departamento que no
+matchea — se reporta en `departamentosSinMatch`, no desaparece).
+
+Verificación en foreground:
+- `pnpm lint`: **1 error + 4 warnings**, idénticos a los documentados en Fase 1/2
+  (`historial-parte.tsx`, `actualizacion-form.tsx`/`.test.tsx`,
+  `reporte-inicial-form.tsx`, `movimiento-descripcion.test.ts`). Cero problemas
+  nuevos — el primer intento sí introdujo dos errores nuevos (`Date.now()` impuro
+  en `useMemo` durante el render, y el `setState` resultante llamado de forma
+  síncrona dentro de un efecto); se resolvieron moviendo el cálculo de "ahora" a un
+  efecto disparado por `data` con el `setState` dentro de un `setTimeout` (patrón de
+  suscripción, no de derivación durante el render).
+- `pnpm test`: **737/737 verdes** (87 archivos; +14 nuevos en
+  `departamentos.test.ts`, de los cuales 4 eran preexistentes). Una corrida mostró un
+  `ReferenceError: window is not defined` no determinístico en
+  `actualizacion-form.test.tsx` (archivo fuera de este alcance); no se repitió en
+  las corridas siguientes ni corriendo ese archivo solo — se trata como flake del
+  entorno compartido, no como regresión introducida acá.
+- `pnpm build`: **falla** con un error de Turbopack ajeno a los archivos de esta
+  tarea — `basemap-control.tsx` (bajo `components/mapas/`, pero no tocado en esta
+  pasada) no compila porque Turbopack fusiona su chunk con un módulo que importa
+  `node:fs`, y el trace de importación pasa por `map-matricula-page.tsx` /
+  `mapas/matricula`, no por `map-infraestructura-page.tsx`. `git diff --stat`
+  muestra que `package.json`/`pnpm-lock.yaml` cambiaron durante esta pasada (se
+  sumó `recharts`) y aparecieron `app/api/mapas/infraestructura/evolucion/` y
+  `lib/infraestructura/evolucion.ts` sin tocar por este worker — es el otro worker
+  en paralelo (Fase 5, fuera de este alcance) el que movió esas piezas. `tsc --noEmit`
+  sobre todo el proyecto no reporta ningún error en `components/mapas/` ni
+  `lib/mapas/`; los únicos errores de tipo son en `scripts/padron-ge.test.ts`
+  (tampoco de este alcance). No se investigó más a fondo porque tocar `package.json`
+  o `app/api/` para diagnosticarlo está fuera de la ownership de esta tarea.
+
 ## Próximo paso
 
-Fase 2 — F2.3 y F2.4 (capas de evacuación/sin-reportar, coroplético departamental),
-en una pasada aparte para no pisar F2.1/F2.2/F2.5.
+Fase 3 (modales). El `pnpm build` roto necesita que alguien con ownership de
+`package.json`/`app/api/` (el worker de Fase 5, o el orquestador) confirme si el
+error de Turbopack en `basemap-control.tsx` es una regresión de la dependencia
+`recharts` recién agregada, antes de dar la Fase 2 por cerrada a nivel de build.
