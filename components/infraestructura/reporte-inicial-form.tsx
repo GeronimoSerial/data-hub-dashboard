@@ -94,7 +94,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
-  const [idempotencyKey] = useState(() => crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const enviandoRef = useRef(false)
 
   const nombresTurnos = Array.from(new Set(turnos.map((t) => t.turno)))
@@ -139,6 +139,25 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   function retroceder() {
     setError(null)
     setPaso((actual) => (actual > 1 ? ((actual - 1) as Paso) : actual))
+  }
+
+  // Deja el asistente listo para un hecho nuevo, no para reintentar el que ya
+  // se guardó: por eso también cambia el idempotencyKey, no sólo limpia los
+  // campos.
+  function registrarOtra() {
+    enviandoRef.current = false
+    setPaso(1)
+    setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
+    setServicioEstado('')
+    setServicioAlcanceTipo('')
+    setServicioTurnos([])
+    setServicioSecciones([])
+    setEstadoEstablecimiento('')
+    setRigeDesde(new Date().toISOString())
+    setEnviando(false)
+    setError(null)
+    setIdempotencyKey(crypto.randomUUID())
+    setGuardado(null)
   }
 
   function alternarTurno(turno: string) {
@@ -219,6 +238,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     return (
       <div className="reporte-inicial__confirmacion" role="status">
         <p>{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-acciones">
+          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+            Volver al panel
+          </Button>
+          <Button type="button" variant="secondary" onClick={registrarOtra}>
+            Registrar otra incidencia
+          </Button>
+        </div>
       </div>
     )
   }

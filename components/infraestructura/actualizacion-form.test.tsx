@@ -203,6 +203,31 @@ describe('ActualizacionForm', () => {
     expect(body.afectacionesModificadas[0].severidad).toBe('Alta')
   })
 
+  // La confirmación de la actualización tenía el mismo callejón sin salida
+  // que el reporte inicial: sólo el mensaje verde, sin manera de seguir.
+  it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
+    stubFetchInicial()
+    renderFormulario()
+
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    await screen.findByText(
+      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+    )
+
+    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
+    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    // Vuelve a buscar el estado vigente en vez de reutilizar el que ya quedó
+    // viejo: se ve la pantalla de carga y después el formulario, de nuevo.
+    expect(await screen.findByRole('button', { name: /revisar cambios/i })).toBeDisabled()
+  })
+
   it('el recordatorio de motivo duplicado en la actualización se muestra pero no bloquea el envío', async () => {
     stubFetchInicial()
     renderFormulario()

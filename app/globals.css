@@ -2750,6 +2750,18 @@ time {
   font-weight: 500;
 }
 
+.reporte-inicial__confirmacion-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin-top: var(--s-4);
+  font-weight: 400;
+}
+
+@media (max-width: 480px) {
+  .reporte-inicial__confirmacion-acciones { flex-direction: column; align-items: stretch; }
+}
+
 @media (max-width: 480px) {
   .reporte-inicial { max-width: none; }
 }

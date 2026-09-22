@@ -119,6 +119,15 @@ export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormPro
     }
   }, [cue])
 
+  // "Registrar otra" vuelve a buscar el estado vigente en vez de sólo limpiar
+  // campos: lo que se acaba de guardar ya es el nuevo vigente, y el formulario
+  // de abajo se remonta con `datos` frescos porque deja de existir mientras
+  // `estado.fase` está en 'cargando'.
+  function registrarOtra() {
+    setEstado({ fase: 'cargando' })
+    void obtenerEstado(cue).then(setEstado)
+  }
+
   if (estado.fase === 'cargando') {
     return (
       <p className="estado-actual-aviso" role="status">
@@ -149,6 +158,7 @@ export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormPro
       turnos={turnos}
       motivos={motivos}
       datos={estado.datos}
+      onRegistrarOtra={registrarOtra}
     />
   )
 }
@@ -158,7 +168,8 @@ function ActualizacionFormCargado({
   turnos,
   motivos,
   datos,
-}: ActualizacionFormProps & { datos: EstadoActualRespuesta }): JSX.Element {
+  onRegistrarOtra,
+}: ActualizacionFormProps & { datos: EstadoActualRespuesta; onRegistrarOtra: () => void }): JSX.Element {
   const vigentes = datos.afectaciones ?? []
   const estadoEstablecimientoVigente: EstadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
   const servicioAlcanceVigente = datos.servicio?.alcanceVigente ?? []
@@ -334,6 +345,14 @@ function ActualizacionFormCargado({
     return (
       <div className="reporte-inicial__confirmacion" role="status">
         <p>{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-acciones">
+          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+            Volver al panel
+          </Button>
+          <Button type="button" variant="secondary" onClick={onRegistrarOtra}>
+            Registrar otra incidencia
+          </Button>
+        </div>
       </div>
     )
   }

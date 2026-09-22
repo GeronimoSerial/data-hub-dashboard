@@ -344,6 +344,34 @@ describe('ReporteInicialForm', () => {
     expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
   })
 
+  // El reporte guardado no puede dejar al director en un callejón sin salida:
+  // necesita una forma de volver y una de declarar un hecho distinto.
+  it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+
+    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
+    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+
+    // No hay redirección automática: el mensaje y las acciones siguen ahí.
+    expect(screen.getByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
+    expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
+    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+  })
+
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 500))
     vi.stubGlobal('fetch', fetchMock)
