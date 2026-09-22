@@ -6,7 +6,6 @@ import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import type { IndicadoresMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 
 type Props = {
@@ -105,14 +104,12 @@ export function LegendPanel({
 // codificación exacta. El símbolo por categoría desapareció (la categoría
 // pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
 //
-// `indicadores` llega por props (igual que LegendPanel recibe `summary`
-// arriba): son los mismos números que ya carga useAlertas para el panel de
-// Indicadores, no una fuente de datos aparte.
+// Esta leyenda ya no recibe `indicadores`: los números consolidados los
+// muestra <Indicadores>, arriba en la misma columna. Tenerlos en los dos
+// lados era duplicar la misma fuente en la misma pantalla.
 export function InfraLegendPanel({
-  indicadores,
   departamentosSinMatch = [],
 }: {
-  indicadores: IndicadoresMapa
   // F2.4: un departamento de la base que no matchea ningún polígono del
   // GeoJSON no se silencia (gotcha de nombres, ver lib/mapas/departamentos.ts)
   // — se loguea en consola Y se muestra acá, para que sea visible también
@@ -122,8 +119,14 @@ export function InfraLegendPanel({
   const styles = useOverlayStyles()
 
   return (
-    <div className={`${styles.panel} ${styles.legendPanel}`}>
-      <b>Referencias</b>
+    // Colapsable y cerrada por defecto. La referencia se consulta una vez y
+    // después estorba: abierta ocupa media columna y empuja los filtros y la
+    // lista fuera de la vista. `<details>` nativo en vez de estado propio
+    // porque el navegador ya resuelve teclado y accesibilidad.
+    // Los números consolidados NO van acá: los muestra <Indicadores> justo
+    // arriba, en esta misma columna, y repetirlos era duplicar una fuente.
+    <details className={`${styles.panel} ${styles.legendPanel}`}>
+      <summary className={styles.legendSummary}>Referencias</summary>
       <div className={styles.hint}>
         Color: severidad de la peor afectación vigente. Tamaño: alumnos alcanzados. Anillo:
         estado del servicio educativo.
@@ -219,32 +222,6 @@ export function InfraLegendPanel({
         </div>
       )}
 
-      <br />
-      <div>
-        Escuelas: <span className={styles.emphasis}>{indicadores.escuelas}</span>
-      </div>
-      <div>
-        Con servicio suspendido:{' '}
-        <span className={styles.emphasis}>{indicadores.conServicioSuspendido}</span>
-      </div>
-      <div>
-        Con servicio parcial:{' '}
-        <span className={styles.emphasis}>{indicadores.conServicioParcial}</span>
-      </div>
-      <div>
-        Evacuadas: <span className={styles.emphasis}>{indicadores.evacuadas}</span>
-      </div>
-      <div>
-        Centros de evacuados:{' '}
-        <span className={styles.emphasis}>{indicadores.centrosDeEvacuados}</span>
-      </div>
-      <div>
-        Sin reportar: <span className={styles.emphasis}>{indicadores.sinReportar}</span>
-      </div>
-      <div>
-        Alumnos alcanzados:{' '}
-        <span className={styles.emphasis}>{indicadores.alumnosAlcanzados}</span>
-      </div>
-    </div>
+    </details>
   )
 }

@@ -726,30 +726,26 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         onOpenChange={(open) => !open && setHistorialCue(null)}
       />
 
-      {data && <Indicadores indicadores={data.indicadores} loading={loading} />}
-
-      {data && (
-        <ListaAlertas
-          partes={data.partes}
-          filtros={filtrosForm}
-          onFiltroChange={setFiltro}
-          seleccionadaCue={seleccionCue}
-          onSeleccionar={setSeleccionCue}
-        />
-      )}
-
       {/*
-        La leyenda va fuera del stack de controles, como hermana: usa las
-        clases map-panel/map-legend-panel, que son `position: absolute` con
-        offsets propios (abajo a la izquierda). Adentro del stack — que también
-        es absolute — se posicionaba respecto de él y se montaba encima de los
-        otros dos controles. Mismo armado que el mapa de matrícula.
+        Los tres paneles de la izquierda van en un contenedor propio y no
+        sueltos. Cada uno traía su propio `position: absolute` con el mismo
+        offset heredado del mapa de matrícula, que muestra un panel por
+        esquina; acá son tres y terminaban apilados uno encima del otro,
+        tapándose entre sí y tapando el control de zoom. El anclaje ahora vive
+        en .map-left-stack y los paneles vuelven al flujo normal.
       */}
       {data && (
-        <InfraLegendPanel
-          indicadores={data.indicadores}
-          departamentosSinMatch={departamentosSinMatch}
-        />
+        <div className={styles.leftStack}>
+          <Indicadores indicadores={data.indicadores} loading={loading} />
+          <ListaAlertas
+            partes={data.partes}
+            filtros={filtrosForm}
+            onFiltroChange={setFiltro}
+            seleccionadaCue={seleccionCue}
+            onSeleccionar={setSeleccionCue}
+          />
+          <InfraLegendPanel departamentosSinMatch={departamentosSinMatch} />
+        </div>
       )}
 
       <div className={styles.controlsStack}>
