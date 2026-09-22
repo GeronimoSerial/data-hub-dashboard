@@ -40,23 +40,23 @@ has to edit the form components. Zero file overlap between A and B.
 
 ## Tasks
 
-- [ ] T1 (Domain A, delegated) — #29/#30: clamp vigencia to `[now - 12 months, now]`
+- [x] T1 (Domain A, delegated) — #29/#30: clamp vigencia to `[now - 12 months, now]`
       in `VigenciaField` (native `min`/`max` on the date input, clamp on change)
       and enforce the same range in `rigeDesdeSchema`.
       Accept: new vitest cases reject a future date and a date older than 12 months;
       `pnpm test` green.
-- [ ] T2 (Domain B, delegated) — #28: make `estadoEstablecimiento` required in
+- [x] T2 (Domain B, delegated) — #28: make `estadoEstablecimiento` required in
       `faltanteDelPaso` step 3, with an inline validation message, in both forms.
       Accept: vitest asserts step 3 blocks advance with the field empty.
-- [ ] T3 (Domain B, delegated) — #27: add primary/secondary actions to the success
+- [x] T3 (Domain B, delegated) — #27: add primary/secondary actions to the success
       screen in both forms (back to panel, register another).
       Accept: vitest asserts both actions render after a successful save.
-- [ ] T4 (Domain B, delegated) — #31/#32: persist wizard draft + current step
+- [x] T4 (Domain B, delegated) — #31/#32: persist wizard draft + current step
       (sessionStorage keyed by CUE) and sync the step with browser history so the
       native back button walks steps instead of leaving the flow.
       Accept: vitest asserts state restores from storage and that `popstate`
       moves back one step.
-- [ ] T5 (root) — integration: full `pnpm test`, `pnpm lint`, `pnpm build`, commits.
+- [x] T5 (root) — integration: full `pnpm test`, `pnpm lint`, `pnpm build`, commits.
 
 ## Delivery
 Strategy: `ask-on-risk`. Forecast ~450–650 authored changed lines across 6 issues.
@@ -134,3 +134,61 @@ apart from the untracked `odd/` documents.
 Waiting on the user: raise the nested worker depth setting (then relaunch the
 single leader and the four work units proceed as specified), or authorize a
 two-level topology instead.
+
+
+## CLOSED — verified outcome (2026-09-21)
+
+### Topology that actually worked
+The `nested_worker_depth_exceeded` blocker was NOT a missing desktop setting.
+The depth cap counts **dispatch lineage**, so the fix was to stop making the
+level-2 leader a dispatch at all:
+
+    L1 root  : this Claude Code coordinator (Opus)
+    L2 leader: a TERMINAL agent (claude/sonnet) in its own worktree
+               `issues-27-32`, branch `feat/issues-27-32`, created with
+               `orca-ide worktree create --parent-worktree active --agent claude`
+    L3 worker: real `orchestration worker-start` dispatches from the leader,
+               accepted at depth 1 because a terminal has no dispatch lineage
+
+Level-3 audit — leader's own run `run_6f70717c392d`, 4 dispatches:
+`ctx_330b8bea0721`, `ctx_cb3076813214`, `ctx_b503868933e3` succeeded (WU1-WU3);
+`ctx_87eddb5a276c` stopped and released (the discarded sonnet WU4).
+
+Per the user's directive mid-run, WU4's implementer was switched from a sonnet
+Orca worker to `opencode run --auto --format json -m opencode-go/mimo-v2.6-flash`.
+The first mimo dispatch exited 124 (timeout at 900s) but had already written
+complete changes — confirmed by `git diff`, never trusted from the exit code.
+Two short follow-up mimo dispatches fixed a real TypeScript error that the
+leader's own `pnpm build` caught and that neither `pnpm test` nor `pnpm lint` saw.
+
+### Commits on `feat/issues-27-32`
+| Commit | Work unit | Issues |
+| --- | --- | --- |
+| `995c344` | WU1 | #28 building-status required in step 3 |
+| `96a0d16` | WU2 | #27 success-screen actions |
+| `d953b62` | WU3 | #29 + #30 rolling 12-month vigencia window |
+| `82d86bd` | WU4 | #31 + #32 sessionStorage draft + popstate step sync |
+
+### Root verification (run by the coordinator, not taken from any worker claim)
+- `pnpm test` -> **730 passed, 85 files**. Matches the leader's report exactly.
+- `pnpm build` -> **passes**, TypeScript and Turbopack compile clean.
+- `pnpm lint` -> 2 problems (1 error, 1 warning), both **pre-existing**:
+  `historial-parte.tsx:48` react-hooks/set-state-in-effect and an unused var in
+  `movimiento-descripcion.test.ts`. Verified independently: neither file appears
+  in `git diff --name-only 69a5a85..82d86bd`, and the offending line is already
+  present at base commit `5436a5e`. Down from a baseline of 5 because WU1 and
+  WU4 incidentally cleaned three unrelated warnings in files they touched.
+- Diff scope: 11 files, all inside the brief's declared scope plus the one new
+  shared helper `lib/infraestructura/vigencia-rango.ts` that WU3 called for.
+  No scope creep.
+
+### Delivery
+Not pushed, no PR. 4 work-unit commits on `feat/issues-27-32`, stacked on
+`feat/fix-issues`. Merge, push and PR remain the user's decision under ordinary
+repository policy. RDD is off, so no review receipt applies.
+
+### Cleanup
+All Orca dispatches settled: `run_34211a6201a7` reports 0 reclaimable; the
+leader's `run_6f70717c392d` children are released or absent. The leader terminal
+in worktree `issues-27-32` is still live and holds the full review context, kept
+deliberately in case follow-up is wanted.
