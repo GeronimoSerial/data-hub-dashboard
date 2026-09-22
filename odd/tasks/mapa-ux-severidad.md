@@ -31,7 +31,7 @@ Strategy: ask-on-risk. Forecast ~600 authored lines across stage 0 + 1.
 Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepSeek via opencode). Trigger: user request; 4+ files, 2+ non-trivial writes.
 
 - [x] T0.1 Local env + seed coverage + baseline screenshots
-- [ ] T1.1 Severity: fixed small dot + animated pulse ring for severe cases, clustering at low zoom
+- [x] T1.1 Severity: fixed small dot + animated pulse ring for severe cases, clustering at low zoom
 - [ ] T1.2 Single scroll container in left stack; search results without nested scroll
 - [ ] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
@@ -75,5 +75,44 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
     T1.3 evidence on narrow viewports. Evolución tab confirmed working with
     a real rise/fall trend from the new seed data.
 
+- 2026-09-22: T1.1 done.
+  - New pure module `lib/mapas/severidad-visual.ts` (+ colocated tests):
+    `RADIO_DOT_BASE=6` fixed dot radius, `esSeveridadPulsante` (Alta/Crítica
+    only), `radioMaximoPulso` (Crítica=16 > Alta=12 > base for others),
+    `calcularRadioPulso`/`calcularOpacidadPulso` (clamped linear interpolation
+    driving the pulse), `DURACION_PULSO_MS=1600`.
+  - `components/mapas/map-infraestructura-page.tsx`: circlePaintPartes/
+    circlePaintSinReportar no longer scale by `alumnosAlcanzados` (deleted
+    RADIO_PISO/RADIO_TECHO/ALUMNOS_TECHO + the sqrt-interpolate expression);
+    dot radius is the flat constant. Added `infra-partes-pulso` circle layer
+    (filtered to unclustered + `esSevero`), driven every rAF frame via
+    `map.setPaintProperty` (never a React re-render), with a
+    prefers-reduced-motion branch that sets one static subtle ring instead of
+    animating (checked once per mount, no rAF at all when true). Added
+    clustering (`cluster`/`clusterMaxZoom`/`clusterRadius` on the GeoJSON
+    source) with a neutral-gray cluster circle + count label layer (cluster
+    color deliberately NOT severity-averaged) and click-to-zoom via
+    `getClusterExpansionZoom`.
+  - `components/mapas/legend-panel.tsx` (`InfraLegendPanel` only): hint text
+    updated to describe fixed size + animated pulse instead of size-by-
+    alumnos.
+  - Leader review found and fixed one bug before accepting: `handleClick`
+    read `feature.layer.id` unguarded, crashing (and breaking 4 existing
+    tests) when a feature had no `.layer` — changed to `feature.layer?.id`.
+  - Checks: `pnpm exec tsc --noEmit` clean (only the same pre-existing
+    unrelated scripts/padron-ge.test.ts errors); `pnpm test` 742/742 green
+    (731 existing + 11 new for severidad-visual).
+  - Visual check in `pnpm dev` (logged in as seeded admin): confirmed fixed
+    dot size and clustering with count bubbles that split on zoom, and
+    cluster-click zooms in (getClusterExpansionZoom path). Confirmed the
+    pulse's `setPaintProperty` loop is live and computing correct in-range
+    values (sampled via injected JS: radius/opacity mid-cycle, not the static
+    reduced-motion defaults) — could not visually watch the animation
+    smoothly in this session because `requestAnimationFrame` never fires at
+    all in this occluded/automated Chrome tab (verified independently with a
+    raw rAF counter that stayed at 0 after 1s); this is a browser-automation
+    artifact, not an app bug. Reverted an unrelated `next-env.d.ts` diff
+    produced as a side effect of running `next dev`/tsc.
+
 ## Next step
-Leader dispatches T1.1 (severity dot + pulse) next.
+Leader dispatches T1.2 (single scroll container) next.

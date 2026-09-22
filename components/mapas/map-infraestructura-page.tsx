@@ -13,7 +13,9 @@ import MapGL, {
 import type {
   CircleLayerSpecification,
   FillLayerSpecification,
+  GeoJSONSource,
   LineLayerSpecification,
+  MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
@@ -49,6 +51,14 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
+import {
+  calcularOpacidadPulso,
+  calcularRadioPulso,
+  DURACION_PULSO_MS,
+  esSeveridadPulsante,
+  RADIO_DOT_BASE,
+  radioMaximoPulso,
+} from '@/lib/mapas/severidad-visual'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 
 ensureMapWorker()
@@ -58,6 +68,15 @@ ensureMapWorker()
 // ahora esos dos canales están ocupados por severidad (color) y servicio
 // (anillo, ver circlePaintPartes), y la categoría pasó a filtro + ficha.
 const CAPA_PARTES_ID = 'infra-partes'
+
+// T1.1: pulso de severidad alta/crítica. Capa aparte (va DEBAJO de
+// CAPA_PARTES_ID en el árbol) para que el anillo animado se lea alrededor del
+// punto, no encima. Los clusters de supercluster también son capas aparte,
+// con sus propios ids, para poder distinguir el click de un agregado del
+// click de una escuela.
+const CAPA_PARTES_PULSO_ID = 'infra-partes-pulso'
+const CAPA_PARTES_CLUSTER_ID = 'infra-partes-cluster'
+const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 
 // F2.3: capa "sin reportar". Va DEBAJO de CAPA_PARTES_ID en el árbol (por eso
 // se declara antes en el JSX) para que se lea como un halo alrededor del
@@ -207,30 +226,15 @@ const FILTROS_VACIOS: FiltrosForm = {
   servicio: '',
 }
 
-// ── Radio: alumnos alcanzados, no cantidad de afectaciones ──────────────────
+// ── Tamaño: fijo, ya no alumnosAlcanzados ──────────────────────────────────
 //
-// Antes: 'circle-radius': ['get', 'radius'] con radius = 7 + min(len-1,5)*2,
-// escalado por CANTIDAD de problemáticas del cue_anexo. Eso era una mentira
-// visual: una escuela con una sola afectación gravísima y 900 alumnos se
-// veía IGUAL que una con una afectación menor y 5 alumnos.
-//
-// Ahora escala por `alumnosAlcanzados`, en área, no en radio: el ojo compara
-// el ÁREA de un círculo, no su radio (es la razón por la que los mapas de
-// símbolos proporcionales —ver Flannery— interpolan sobre la raíz cuadrada
-// del valor en vez del valor directo: área = π·r², así que r ∝ √valor
-// mantiene el área proporcional al dato, mientras que r ∝ valor la
-// exagera cuadráticamente).
-//
-// Piso y techo: RADIO_PISO=6 asegura que una escuela con alumnosAlcanzados
-// === 0 (categoría "establecimiento" sin selección nominal) siga siendo un
-// punto visible y clickeable, no un pixel. ALUMNOS_TECHO=800 y RADIO_TECHO=26
-// son una escuela grande de la provincia (por encima de la matrícula típica
-// de un establecimiento) — evita que una escuela excepcionalmente numerosa
-// dibuje un círculo que tape a sus vecinas; por encima del techo el radio se
-// achata (MapLibre extrapola el último tramo del interpolate).
-const RADIO_PISO = 6
-const RADIO_TECHO = 26
-const ALUMNOS_TECHO = 800
+// La antigua codificación escalaba el radio por `alumnosAlcanzados` (área
+// proporcional al dato, interpolando sobre la raíz cuadrada). Ese canal dejó
+// de usarse: la matrícula pasó a la ficha/lista y un punto de tamaño
+// variable terminaba tapando a sus vecinas a zoom bajo. Lo que ahora
+// distingue a una escuela de severidad alta/crítica es el PULSO (ver
+// infra-partes-pulso y lib/mapas/severidad-visual.ts), no el tamaño: el
+// radio del punto es la constante fija RADIO_DOT_BASE para todas.
 
 // Anillo: color NEUTRO (el color ya está tomado por severidad, no se puede
 // reusar acá sin generar una segunda escala). "suspendido" y "parcial" se
@@ -244,15 +248,7 @@ const ANILLO_COLOR = '#1c1c1c'
 
 function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['sqrt', ['get', 'alumnosAlcanzados']],
-      0,
-      RADIO_PISO,
-      Math.sqrt(ALUMNOS_TECHO),
-      RADIO_TECHO,
-    ],
+    'circle-radius': RADIO_DOT_BASE,
     'circle-color': ['get', 'color'],
     'circle-opacity': 0.9,
     'circle-stroke-color': ANILLO_COLOR,
@@ -266,6 +262,11 @@ type PropiedadesParte = {
   color: string
   servicio: EstadoServicioGeneral
   alumnosAlcanzados: number
+  // T1.1: la etiqueta cruda de severidad (parte.peorSeveridad) y el booleano
+  // derivado que filtra la capa de pulso — calculado acá, una vez, en vez de
+  // en una expresión MapLibre por frame.
+  severidad: string
+  esSevero: boolean
 }
 
 // Función de módulo (no closure del componente) a propósito: así useMemo
@@ -287,27 +288,21 @@ function construirFeatureCollection(
         color: colorSeveridad(parte.peorSeveridad),
         servicio: parte.servicio,
         alumnosAlcanzados: parte.alumnosAlcanzados,
+        severidad: parte.peorSeveridad,
+        esSevero: esSeveridadPulsante(parte.peorSeveridad),
       },
     }))
   return { type: 'FeatureCollection', features }
 }
 
-// Halo "sin reportar": mismo radio base que el punto (piso/techo por
-// alumnosAlcanzados) más un margen fijo, para que se lea como un anillo
-// alrededor de la escuela y no como un círculo aparte flotando cerca. Sin
-// relleno (circle-color transparent): es sólo un borde, nunca compite con el
-// color de severidad del punto que rodea.
+// Halo "sin reportar": mismo radio base fijo que el punto (RADIO_DOT_BASE)
+// más un margen fijo, para que se lea como un anillo alrededor de la escuela
+// y no como un círculo aparte flotando cerca. Sin relleno (circle-color
+// transparent): es sólo un borde, nunca compite con el color de severidad
+// del punto que rodea.
 function circlePaintSinReportar(): CircleLayerSpecification['paint'] {
   return {
-    'circle-radius': [
-      'interpolate',
-      ['linear'],
-      ['sqrt', ['get', 'alumnosAlcanzados']],
-      0,
-      RADIO_PISO + SIN_REPORTAR_RADIO_EXTRA,
-      Math.sqrt(ALUMNOS_TECHO),
-      RADIO_TECHO + SIN_REPORTAR_RADIO_EXTRA,
-    ],
+    'circle-radius': RADIO_DOT_BASE + SIN_REPORTAR_RADIO_EXTRA,
     'circle-color': 'transparent',
     'circle-stroke-color': SIN_REPORTAR_COLOR,
     'circle-stroke-width': 2,
@@ -386,6 +381,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
+  // Frame id del loop de pulso, para poder cancelarlo en el cleanup sin
+  // depender de un closure que un StrictMode pueda re-ejecutar.
+  const pulsoFrameRef = useRef<number | null>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
@@ -494,6 +492,65 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     }
   }, [])
 
+  // Pulso de severidad alta/crítica (T1.1). setPaintProperty recibe UN
+  // escalar para TODA la capa — un radio máximo distinto por severidad sería
+  // un problema de expresión MapLibre, no de JS — así que el pulso se anima
+  // con el peor caso (Crítica) para todas las que pulsan: misma duración y
+  // fase para todas, más simple y consistente. El desfase entre Alta y
+  // Crítica en el tamaño máximo se pierde deliberadamente a favor de un solo
+  // anillo compartido. Se comprueba prefers-reduced-motion una sola vez por
+  // montaje: no hace falta escuchar cambios.
+  useEffect(() => {
+    const capaPulso = CAPA_PARTES_PULSO_ID
+
+    // `matchMedia` puede no existir (p. ej. jsdom en los tests): sin él no
+    // hay forma de conocer la preferencia, así que se trata como "no
+    // reduced" (se corre el loop; el guard de la capa ya lo vuelve inofensivo
+    // donde el mapa no está).
+    const reduceMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+    if (reduceMotion) {
+      // Con reduced-motion no hay loop: un anillo estático y sutil, seteado
+      // una sola vez apenas la capa existe (un retardo corto cubre el
+      // montaje del mapa). Sin requestAnimationFrame.
+      const timeoutId = window.setTimeout(() => {
+        const mapa = mapRef.current?.getMap()
+        if (!mapa?.getLayer(capaPulso)) return
+        mapa.setPaintProperty(capaPulso, 'circle-radius', RADIO_DOT_BASE + 4)
+        mapa.setPaintProperty(capaPulso, 'circle-opacity', 0.25)
+      }, 250)
+      return () => window.clearTimeout(timeoutId)
+    }
+
+    const inicio = performance.now()
+    const paso = () => {
+      const mapa = mapRef.current?.getMap()
+      // La capa puede no existir todavía (mapa cargando) o haber sido
+      // desmontada (capa de escuelas apagada): se salta el frame y se sigue
+      // pidiendo el siguiente — el loop se autocura apenas la capa monte.
+      if (mapa?.getLayer(capaPulso)) {
+        const progreso = ((performance.now() - inicio) % DURACION_PULSO_MS) / DURACION_PULSO_MS
+        mapa.setPaintProperty(
+          capaPulso,
+          'circle-radius',
+          calcularRadioPulso(progreso, RADIO_DOT_BASE, radioMaximoPulso('Crítica')),
+        )
+        mapa.setPaintProperty(capaPulso, 'circle-opacity', calcularOpacidadPulso(progreso))
+      }
+      pulsoFrameRef.current = window.requestAnimationFrame(paso)
+    }
+    pulsoFrameRef.current = window.requestAnimationFrame(paso)
+
+    return () => {
+      if (pulsoFrameRef.current !== null) {
+        window.cancelAnimationFrame(pulsoFrameRef.current)
+        pulsoFrameRef.current = null
+      }
+    }
+  }, [])
+
   const { departamentosGeojson, departamentosSinMatch } = useMemo(() => {
     if (!departamentosRaw) return { departamentosGeojson: null, departamentosSinMatch: [] as string[] }
 
@@ -540,12 +597,41 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
 
-  const capasInteractivas = capasVisibles.escuelas ? [CAPA_PARTES_ID] : []
+  // T1.1: el cluster también es clickeable (zoom de expansión); las capas
+  // "sin reportar"/pulso no lo son.
+  const capasInteractivas = capasVisibles.escuelas
+    ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID]
+    : []
+
+  // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
+  // de puntos, no una escuela — así que en vez de abrir la ficha se hace
+  // zoom al nivel de expansión que calcula supercluster, y el usuario vuelve
+  // a clickear con el mapa ya acercado. El guard por id de capa (no por
+  // propiedades) evita confundirse con el click de una escuela.
+  async function acercarAlCluster(feature: MapGeoJSONFeature): Promise<void> {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    try {
+      const source = mapa.getSource('infra-partes-src') as GeoJSONSource | undefined
+      const clusterId = Number(feature.properties?.cluster_id)
+      const coords = feature.geometry?.type === 'Point' ? feature.geometry.coordinates : null
+      if (!source || !Number.isFinite(clusterId) || !coords) return
+      const zoom = await source.getClusterExpansionZoom(clusterId)
+      mapa.easeTo({ center: [coords[0], coords[1]], zoom })
+    } catch {
+      // Cualquier fallo (fuente todavía cargando, supercluster no listo) es
+      // ruido transitorio: mejor no hacer nada que romper el flujo del mapa.
+    }
+  }
 
   function handleClick(event: MapLayerMouseEvent) {
     const feature = (event.features ?? [])[0]
     if (!feature || !feature.properties) {
       setSeleccionCue(null)
+      return
+    }
+    if (feature.layer?.id === CAPA_PARTES_CLUSTER_ID) {
+      void acercarAlCluster(feature)
       return
     }
     setSeleccionCue(String(feature.properties.cueAnexo))
@@ -657,8 +743,71 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           )}
 
           {capasVisibles.escuelas && (
-            <Source id="infra-partes-src" type="geojson" data={featureCollection}>
-              <Layer id={CAPA_PARTES_ID} type="circle" paint={circlePaintPartes()} />
+            <Source
+              id="infra-partes-src"
+              type="geojson"
+              data={featureCollection}
+              cluster={true}
+              clusterMaxZoom={14}
+              clusterRadius={40}
+            >
+              {/*
+                Pulso (T1.1): va DEBAJO del punto para que se lea como un
+                anillo que se expande alrededor, no como algo que lo tapa.
+                Filtra sólo las no agrupadas con esSevero. El radio/opacidad
+                declarados acá son el estado inicial; los maneja el efecto de
+                animación más abajo vía setPaintProperty.
+              */}
+              <Layer
+                id={CAPA_PARTES_PULSO_ID}
+                type="circle"
+                filter={['all', ['!', ['has', 'point_count']], ['==', ['get', 'esSevero'], true]]}
+                paint={{
+                  'circle-color': ['get', 'color'],
+                  'circle-stroke-width': 0,
+                  'circle-radius': RADIO_DOT_BASE,
+                  'circle-opacity': 0,
+                }}
+              />
+              <Layer
+                id={CAPA_PARTES_ID}
+                type="circle"
+                filter={['!', ['has', 'point_count']]}
+                paint={circlePaintPartes()}
+              />
+              {/*
+                Clusters: gris neutro a propósito, no un promedio de las
+                severidades agrupadas — el color de severidad pierde sentido
+                cuando el punto representa varias escuelas de distinta
+                severidad, y promediarlas inventaría un color que no está en
+                la escala. El tamaño del círculo sube por tramos con el
+                conteo (más escuelas agrupadas = círculo más grande).
+              */}
+              <Layer
+                id={CAPA_PARTES_CLUSTER_ID}
+                type="circle"
+                filter={['has', 'point_count']}
+                paint={{
+                  'circle-color': '#9aa3ab',
+                  'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+                  'circle-stroke-color': '#1c1c1c',
+                  'circle-stroke-width': 1,
+                }}
+              />
+              <Layer
+                id={CAPA_PARTES_CLUSTER_COUNT_ID}
+                type="symbol"
+                filter={['has', 'point_count']}
+                layout={{
+                  'text-field': ['get', 'point_count_abbreviated'],
+                  'text-size': 12,
+                  // Misma fuente que el resto de los símbolos del mapa (ver
+                  // map-view.tsx); no se inventa una nueva.
+                  'text-font': ['Noto Sans Regular'],
+                  'text-allow-overlap': false,
+                }}
+                paint={{ 'text-color': '#ffffff' }}
+              />
             </Source>
           )}
 
@@ -669,7 +818,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 longitude={parte.lon as number}
                 latitude={parte.lat as number}
                 anchor="bottom-left"
-                offset={[SIMBOLO_EVACUACION_TAMANO / 2, -RADIO_TECHO]}
+                offset={[SIMBOLO_EVACUACION_TAMANO / 2, -RADIO_DOT_BASE]}
               >
                 <div
                   data-capa={CAPA_EVACUACION_ID}
