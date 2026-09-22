@@ -17,7 +17,7 @@ import {
   infraServicioAlcance,
 } from '@/lib/db/schema'
 import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
-import type { CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
@@ -253,7 +253,7 @@ export async function POST(request: Request) {
   const motivos = await listarMotivos()
   const nuevasConCategoria: Array<{
     input: (typeof input.afectacionesNuevas)[number]
-    categoria: CategoriaProblematica
+    categoria: CategoriaAfectacion
   }> = []
   for (const entrada of input.afectacionesNuevas) {
     const resuelto = resolverCategoria(entrada.motivo, motivos)

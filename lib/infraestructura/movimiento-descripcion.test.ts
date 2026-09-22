@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { describirMovimiento } from './movimiento-descripcion'
-import { diffParte, esDiffVacio } from './movimiento-diff'
+import { diffParte } from './movimiento-diff'
 import type { DiffParte } from './movimiento-diff'
 import { crearSnapshotVacio } from './trayectoria-tipos'
 import type { Afectacion, ParteSnapshot } from './trayectoria-tipos'

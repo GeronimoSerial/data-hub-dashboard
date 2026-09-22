@@ -1,12 +1,12 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraMotivo } from '@/lib/db/schema'
-import { esCategoria, type CategoriaProblematica } from './categorias'
+import { esCategoria, type CategoriaAfectacion } from './categorias'
 
 export interface MotivoRow {
   id: string
   nombre: string
-  categoria: CategoriaProblematica
+  categoria: CategoriaAfectacion
   orden: number
 }
 

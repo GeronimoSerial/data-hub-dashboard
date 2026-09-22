@@ -50,7 +50,6 @@ export function HistorialParte({
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
 
   const cargar = useCallback(async () => {
-    setEstado({ fase: 'cargando' })
     try {
       const respuesta = await fetch(endpoint)
       if (!respuesta.ok) {
@@ -97,7 +96,13 @@ export function HistorialParte({
             Volver a ingresar la contraseña
           </a>
         ) : (
-          <Button type="button" onClick={() => void cargar()}>
+          <Button
+            type="button"
+            onClick={() => {
+              setEstado({ fase: 'cargando' })
+              void cargar()
+            }}
+          >
             Reintentar
           </Button>
         )}

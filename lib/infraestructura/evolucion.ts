@@ -26,7 +26,7 @@ import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarPartesVigentes, type ParteMapa } from './parte-mapa'
 import { listarSeccionesDeCues } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
-import { esCategoria, type CategoriaProblematica } from './categorias'
+import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type {
   Afectacion,
@@ -75,7 +75,7 @@ function stringValor(original: unknown): string {
   return original === null || original === undefined ? '' : String(original)
 }
 
-function esCategoriaSegura(valor: unknown): CategoriaProblematica {
+function esCategoriaSegura(valor: unknown): CategoriaAfectacion {
   const texto = stringValor(valor)
   return esCategoria(texto) ? texto : 'establecimiento'
 }

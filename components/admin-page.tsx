@@ -32,7 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 const COLORS: BadgeColor[] = [
@@ -1190,7 +1190,7 @@ function MotivoForm({
   onSaved: () => Promise<void>
 }) {
   const [nombre, setNombre] = React.useState(editing?.nombre ?? '')
-  const [categoria, setCategoria] = React.useState<CategoriaProblematica>(
+  const [categoria, setCategoria] = React.useState<CategoriaAfectacion>(
     editing?.categoria ?? CATEGORIAS[0],
   )
   const [orden, setOrden] = React.useState(editing?.orden ?? 0)
@@ -1241,7 +1241,7 @@ function MotivoForm({
           <Select
             value={categoria}
             items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
-            onValueChange={(value) => setCategoria(value as CategoriaProblematica)}
+            onValueChange={(value) => setCategoria(value as CategoriaAfectacion)}
           >
             <SelectTrigger aria-label="Categoría" />
             <SelectContent>

@@ -10,7 +10,7 @@
 // datos simples a estas funciones.
 
 import type { Severidad } from './validacion'
-import type { CategoriaProblematica as Categoria } from './categorias'
+import type { CategoriaAfectacion as Categoria } from './categorias'
 
 export type { Severidad, Categoria }
 

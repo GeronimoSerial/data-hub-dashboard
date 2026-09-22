@@ -20,7 +20,7 @@ import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarSeccionesDeCues } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
-import { esCategoria, type CategoriaProblematica } from './categorias'
+import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { SEVERIDADES, type Severidad } from './validacion'
 import type {
   Afectacion,
@@ -40,14 +40,14 @@ export interface FiltrosMapa {
   cueAnexo?: string
   motivo?: string
   severidad?: string
-  categoria?: CategoriaProblematica
+  categoria?: CategoriaAfectacion
   servicio?: EstadoServicioGeneral
 }
 
 export interface AfectacionMapa {
   id: string
   motivo: string
-  categoria: CategoriaProblematica
+  categoria: CategoriaAfectacion
   severidad: string
   descripcion: string | null
   rigeDesde: string
@@ -64,7 +64,7 @@ export interface ParteMapa {
   servicio: EstadoServicioGeneral
   estadoEstablecimiento: EstadoEstablecimiento
   peorSeveridad: string
-  categorias: CategoriaProblematica[]
+  categorias: CategoriaAfectacion[]
   afectaciones: AfectacionMapa[]
   seccionesAlcanzadas: number
   alumnosAlcanzados: number
@@ -382,7 +382,7 @@ export async function listarPartesVigentes(
 
     const alumnosAlcanzados = new Set<number>()
     const seccionesAlcanzadas = new Set<number>()
-    const categorias = new Set<CategoriaProblematica>()
+    const categorias = new Set<CategoriaAfectacion>()
     let peorSeveridad = filtradas[0].severidad
     let peorIndice = SEVERIDADES.indexOf(peorSeveridad as Severidad)
     let rigeDesdeMasAntiguo = filtradas[0].rigeDesde

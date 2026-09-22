@@ -48,7 +48,7 @@ import { useAlertas } from '@/lib/infraestructura/use-alertas'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { esCategoria, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 
 ensureMapWorker()
@@ -411,7 +411,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       severidad: filtrosForm.severidad || undefined,
       categoria:
         filtrosForm.categoria && esCategoria(filtrosForm.categoria)
-          ? (filtrosForm.categoria as CategoriaProblematica)
+          ? (filtrosForm.categoria as CategoriaAfectacion)
           : undefined,
       servicio: (filtrosForm.servicio || undefined) as EstadoServicioGeneral | undefined,
     }),

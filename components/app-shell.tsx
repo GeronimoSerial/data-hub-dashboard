@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
           <span className="app-footer__links">
             <Link href="/explorar">Explorar recursos</Link>
-            <Link href="/problematicas">Problemáticas de infraestructura</Link>
+            <Link href="/mapas/infraestructura">Infraestructura escolar</Link>
           </span>
         </footer>
       )}
