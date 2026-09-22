@@ -39,20 +39,20 @@ import {
 } from '@/lib/mapas/departamentos'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
-import type { AlertaActiva } from '@/lib/infraestructura/consulta'
+import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { esCategoria, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 
 ensureMapWorker()
 
-// Capa "establecimiento": círculo relleno, igual que el punto único de antes
-// de la categorización. Capa "alumnos": anillo hueco (circle-opacity: 0,
-// stroke visible), dibujada después en el árbol de capas para quedar encima:
-// una escuela con problemáticas de ambas categorías se ve como ◉.
-const CAPA_ESTABLECIMIENTO_ID = 'infra-alertas-establecimiento'
-const CAPA_ALUMNOS_ID = 'infra-alertas-alumnos'
+// Fase 2 (parte-mapa): una escuela = un punto, no una capa por categoría. La
+// capa vieja distinguía establecimiento/alumnos con símbolo (relleno/anillo);
+// ahora esos dos canales están ocupados por severidad (color) y servicio
+// (anillo, ver circlePaintPartes), y la categoría pasó a filtro + ficha.
+const CAPA_PARTES_ID = 'infra-partes'
 
-// Límites departamentales. Se declaran antes que las capas de alertas en el
+// Límites departamentales. Se declaran antes que la capa de partes en el
 // árbol de MapGL para que queden por debajo: son contexto geográfico, no el
 // dato. El relleno es casi transparente a propósito — su función es que se
 // distinga un departamento del otro, no competir con los puntos.
@@ -114,6 +114,8 @@ type FiltrosForm = {
   establecimiento: string
   motivo: string
   severidad: string
+  categoria: string
+  servicio: string
 }
 
 const FILTROS_VACIOS: FiltrosForm = {
@@ -122,79 +124,97 @@ const FILTROS_VACIOS: FiltrosForm = {
   establecimiento: '',
   motivo: '',
   severidad: '',
+  categoria: '',
+  servicio: '',
 }
 
-function circlePaintEstablecimiento(): CircleLayerSpecification['paint'] {
+// ── Radio: alumnos alcanzados, no cantidad de afectaciones ──────────────────
+//
+// Antes: 'circle-radius': ['get', 'radius'] con radius = 7 + min(len-1,5)*2,
+// escalado por CANTIDAD de problemáticas del cue_anexo. Eso era una mentira
+// visual: una escuela con una sola afectación gravísima y 900 alumnos se
+// veía IGUAL que una con una afectación menor y 5 alumnos.
+//
+// Ahora escala por `alumnosAlcanzados`, en área, no en radio: el ojo compara
+// el ÁREA de un círculo, no su radio (es la razón por la que los mapas de
+// símbolos proporcionales —ver Flannery— interpolan sobre la raíz cuadrada
+// del valor en vez del valor directo: área = π·r², así que r ∝ √valor
+// mantiene el área proporcional al dato, mientras que r ∝ valor la
+// exagera cuadráticamente).
+//
+// Piso y techo: RADIO_PISO=6 asegura que una escuela con alumnosAlcanzados
+// === 0 (categoría "establecimiento" sin selección nominal) siga siendo un
+// punto visible y clickeable, no un pixel. ALUMNOS_TECHO=800 y RADIO_TECHO=26
+// son una escuela grande de la provincia (por encima de la matrícula típica
+// de un establecimiento) — evita que una escuela excepcionalmente numerosa
+// dibuje un círculo que tape a sus vecinas; por encima del techo el radio se
+// achata (MapLibre extrapola el último tramo del interpolate).
+const RADIO_PISO = 6
+const RADIO_TECHO = 26
+const ALUMNOS_TECHO = 800
+
+// Anillo: color NEUTRO (el color ya está tomado por severidad, no se puede
+// reusar acá sin generar una segunda escala). "suspendido" y "parcial" se
+// distinguen por grosor + opacidad de trazo, no por color: MapLibre no
+// soporta circle-stroke-dasharray, así que un trazo punteado real no es una
+// opción. A zoom provincial un anillo grueso y sólido se distingue de uno
+// fino y traslúcido incluso con varios puntos superpuestos; "normal" queda
+// con el mismo trazo mínimo que ya traía el punto (línea de separación con
+// el fondo), que a esa distancia se lee como "sin anillo".
+const ANILLO_COLOR = '#1c1c1c'
+
+function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
-    'circle-radius': ['get', 'radius'],
+    'circle-radius': [
+      'interpolate',
+      ['linear'],
+      ['sqrt', ['get', 'alumnosAlcanzados']],
+      0,
+      RADIO_PISO,
+      Math.sqrt(ALUMNOS_TECHO),
+      RADIO_TECHO,
+    ],
     'circle-color': ['get', 'color'],
-    'circle-stroke-color': '#1c1c1c',
-    'circle-stroke-width': 1,
     'circle-opacity': 0.9,
+    'circle-stroke-color': ANILLO_COLOR,
+    'circle-stroke-width': ['match', ['get', 'servicio'], 'suspendido', 4, 'parcial', 2, 1],
+    'circle-stroke-opacity': ['match', ['get', 'servicio'], 'suspendido', 1, 'parcial', 0.55, 0.9],
   }
 }
 
-// Anillo hueco: mismo radio y color de severidad que la capa de
-// establecimiento, pero sin relleno y con un trazo grueso para distinguirse
-// como símbolo (categoría), no como intensidad (eso lo sigue codificando el
-// color).
-function circlePaintAlumnos(): CircleLayerSpecification['paint'] {
-  return {
-    'circle-radius': ['get', 'radius'],
-    'circle-opacity': 0,
-    'circle-stroke-width': 3,
-    'circle-stroke-color': ['get', 'color'],
-  }
-}
-
-// Orden de severidad de menor a mayor, para elegir el color del punto
-// cuando varias alertas activas comparten el mismo cue_anexo.
-const ORDEN_SEVERIDAD = SEVERIDADES
-
-function peorAlerta(alertas: AlertaActiva[]): AlertaActiva {
-  return alertas.reduce((peor, actual) => {
-    const iActual = ORDEN_SEVERIDAD.indexOf(
-      actual.severidad as (typeof ORDEN_SEVERIDAD)[number],
-    )
-    const iPeor = ORDEN_SEVERIDAD.indexOf(
-      peor.severidad as (typeof ORDEN_SEVERIDAD)[number],
-    )
-    return iActual > iPeor ? actual : peor
-  }, alertas[0])
+type PropiedadesParte = {
+  cueAnexo: string
+  color: string
+  servicio: EstadoServicioGeneral
+  alumnosAlcanzados: number
 }
 
 // Función de módulo (no closure del componente) a propósito: así useMemo
-// puede depender sólo de `grupos` sin arrastrar warnings de exhaustive-deps
+// puede depender sólo de `partes` sin arrastrar warnings de exhaustive-deps
 // por una función recreada en cada render.
 function construirFeatureCollection(
-  grupos: Map<string, AlertaActiva[]>,
-  categoria: CapaInfraestructura,
-): FeatureCollection<Point, { cueAnexo: string; count: number; color: string; radius: number }> {
-  const features = Array.from(grupos.values())
-    .filter((alertas) => alertas[0].categoria === categoria)
-    .map((alertas) => {
-      const primera = alertas[0]
-      const peor = peorAlerta(alertas)
-      return {
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [primera.lon as number, primera.lat as number],
-        },
-        properties: {
-          cueAnexo: primera.cueAnexo,
-          count: alertas.length,
-          color: colorSeveridad(peor.severidad),
-          radius: 7 + Math.min(alertas.length - 1, 5) * 2,
-        },
-      }
-    })
+  partes: ParteMapa[],
+): FeatureCollection<Point, PropiedadesParte> {
+  const features = partes
+    .filter((parte) => parte.lat !== null && parte.lon !== null)
+    .map((parte) => ({
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [parte.lon as number, parte.lat as number],
+      },
+      properties: {
+        cueAnexo: parte.cueAnexo,
+        color: colorSeveridad(parte.peorSeveridad),
+        servicio: parte.servicio,
+        alumnosAlcanzados: parte.alumnosAlcanzados,
+      },
+    }))
   return { type: 'FeatureCollection', features }
 }
 
 const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
-  establecimiento: true,
-  alumnos: true,
+  escuelas: true,
 }
 
 export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: boolean }) {
@@ -218,65 +238,39 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       cueAnexo: filtrosForm.establecimiento || undefined,
       motivo: filtrosForm.motivo || undefined,
       severidad: filtrosForm.severidad || undefined,
+      categoria:
+        filtrosForm.categoria && esCategoria(filtrosForm.categoria)
+          ? (filtrosForm.categoria as CategoriaProblematica)
+          : undefined,
+      servicio: (filtrosForm.servicio || undefined) as EstadoServicioGeneral | undefined,
     }),
     [filtrosForm],
   )
 
   const { data, loading, error } = useAlertas(filtros)
 
-  // Agrupación por cue_anexo, sin distinguir categoría: usada para la ficha
-  // (popup), que sigue mostrando todas las alertas activas de la escuela sin
-  // importar de qué capa vino el click.
-  const gruposPorCue = useMemo(() => {
-    const map = new Map<string, AlertaActiva[]>()
-    for (const alerta of data?.alertas ?? []) {
-      if (alerta.lat == null || alerta.lon == null) continue
-      const existentes = map.get(alerta.cueAnexo)
-      if (existentes) existentes.push(alerta)
-      else map.set(alerta.cueAnexo, [alerta])
-    }
+  // Un punto por escuela: la ficha y la lista seleccionan por cueAnexo, no
+  // hace falta una agrupación intermedia como la que existía cuando un mismo
+  // cue podía tener features en dos capas distintas.
+  const partesPorCue = useMemo(() => {
+    const map = new Map<string, ParteMapa>()
+    for (const parte of data?.partes ?? []) map.set(parte.cueAnexo, parte)
     return map
   }, [data])
 
-  // Agrupación por clave compuesta cue_anexo|categoria: una escuela con
-  // problemáticas de ambas categorías produce dos features en las mismas
-  // coordenadas, una por capa. `peorAlerta` se aplica dentro de cada grupo
-  // (por categoría), no sobre todas las alertas del CUE.
-  const gruposPorClave = useMemo(() => {
-    const map = new Map<string, AlertaActiva[]>()
-    for (const alerta of data?.alertas ?? []) {
-      if (alerta.lat == null || alerta.lon == null) continue
-      const clave = `${alerta.cueAnexo}|${alerta.categoria}`
-      const existentes = map.get(clave)
-      if (existentes) existentes.push(alerta)
-      else map.set(clave, [alerta])
-    }
-    return map
-  }, [data])
-
-  const featureCollectionEstablecimiento = useMemo(
-    () => construirFeatureCollection(gruposPorClave, 'establecimiento'),
-    [gruposPorClave],
-  )
-  const featureCollectionAlumnos = useMemo(
-    () => construirFeatureCollection(gruposPorClave, 'alumnos'),
-    [gruposPorClave],
+  const featureCollection = useMemo(
+    () => construirFeatureCollection(data?.partes ?? []),
+    [data],
   )
 
   const mapStyle = BASEMAPS[basemap].styleUrl
-  const seleccionAlertas = seleccionCue ? (gruposPorCue.get(seleccionCue) ?? []) : []
+  const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
   const seleccionCoords =
-    seleccionAlertas.length > 0
-      ? ([seleccionAlertas[0].lon as number, seleccionAlertas[0].lat as number] as [
-          number,
-          number,
-        ])
+    parteSeleccionado && parteSeleccionado.lat !== null && parteSeleccionado.lon !== null
+      ? ([parteSeleccionado.lon, parteSeleccionado.lat] as [number, number])
       : null
 
-  const capasInteractivas = [
-    ...(capasVisibles.establecimiento ? [CAPA_ESTABLECIMIENTO_ID] : []),
-    ...(capasVisibles.alumnos ? [CAPA_ALUMNOS_ID] : []),
-  ]
+  const capasInteractivas = capasVisibles.escuelas ? [CAPA_PARTES_ID] : []
 
   function handleClick(event: MapLayerMouseEvent) {
     const feature = (event.features ?? [])[0]
@@ -369,23 +363,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
             />
           </Source>
 
-          {capasVisibles.establecimiento && (
-            <Source
-              id="infra-alertas-establecimiento-src"
-              type="geojson"
-              data={featureCollectionEstablecimiento}
-            >
-              <Layer
-                id={CAPA_ESTABLECIMIENTO_ID}
-                type="circle"
-                paint={circlePaintEstablecimiento()}
-              />
-            </Source>
-          )}
-
-          {capasVisibles.alumnos && (
-            <Source id="infra-alertas-alumnos-src" type="geojson" data={featureCollectionAlumnos}>
-              <Layer id={CAPA_ALUMNOS_ID} type="circle" paint={circlePaintAlumnos()} />
+          {capasVisibles.escuelas && (
+            <Source id="infra-partes-src" type="geojson" data={featureCollection}>
+              <Layer id={CAPA_PARTES_ID} type="circle" paint={circlePaintPartes()} />
             </Source>
           )}
 
@@ -413,7 +393,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
               maxWidth="390px"
             >
               <FichaAlerta
-                alertas={seleccionAlertas}
+                parte={parteSeleccionado}
                 mostrarEnlaceNominal={props.mostrarEnlaceNominal}
               />
             </Popup>
@@ -425,7 +405,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
 
       {data && (
         <ListaAlertas
-          alertas={data.alertas}
+          partes={data.partes}
           filtros={filtrosForm}
           onFiltroChange={setFiltro}
           seleccionadaCue={seleccionCue}
@@ -440,7 +420,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         es absolute — se posicionaba respecto de él y se montaba encima de los
         otros dos controles. Mismo armado que el mapa de matrícula.
       */}
-      <InfraLegendPanel />
+      {data && <InfraLegendPanel indicadores={data.indicadores} />}
 
       <div className={styles.controlsStack}>
         <BasemapControl value={basemap} onChange={setBasemap} />

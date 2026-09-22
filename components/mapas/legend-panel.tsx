@@ -6,6 +6,7 @@ import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import type { IndicadoresMapa } from '@/lib/infraestructura/parte-mapa'
 
 type Props = {
   summary: Summary
@@ -96,38 +97,83 @@ export function LegendPanel({
 
 // ── Leyenda del mapa de infraestructura ─────────────────────────────────────
 //
-// Dominio distinto del resto de este archivo (evolución de matrícula): el
-// símbolo codifica la categoría (● relleno = establecimiento, ○ anillo =
-// alumnos) y el color codifica la severidad, no la tendencia. Componente
-// propio en vez de reutilizar LegendPanel de arriba, que está armado
-// enteramente alrededor de Summary/Trend.
-export function InfraLegendPanel() {
+// Dominio distinto del resto de este archivo (evolución de matrícula) y,
+// desde Fase 2, distinto también de la leyenda anterior: una escuela = un
+// punto, y los tres canales visuales son color (severidad), tamaño (alumnos
+// alcanzados) y anillo (servicio) — ver map-infraestructura-page.tsx para la
+// codificación exacta. El símbolo por categoría desapareció (la categoría
+// pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
+//
+// `indicadores` llega por props (igual que LegendPanel recibe `summary`
+// arriba): son los mismos números que ya carga useAlertas para el panel de
+// Indicadores, no una fuente de datos aparte.
+export function InfraLegendPanel({ indicadores }: { indicadores: IndicadoresMapa }) {
   const styles = useOverlayStyles()
 
   return (
     <div className={`${styles.panel} ${styles.legendPanel}`}>
       <b>Referencias</b>
       <div className={styles.hint}>
-        El símbolo indica la categoría de la problemática; el color, su severidad.
+        Color: severidad de la peor afectación vigente. Tamaño: alumnos alcanzados. Anillo:
+        estado del servicio educativo.
       </div>
-      <div className={styles.legendItem}>
-        <span className={styles.swatch} style={{ background: '#777', borderRadius: '50%' }} />
-        Afecta al establecimiento
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '2px solid #777', borderRadius: '50%' }}
-        />
-        Inaccesibilidad de alumnos
-      </div>
-      <br />
+
       {SEVERIDADES.map((severidad) => (
         <div key={severidad} className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: colorSeveridad(severidad) }} />
           {severidad}
         </div>
       ))}
+
+      <br />
+      {/*
+        El anillo no puede usar color (ya está tomado por severidad): se
+        distingue por grosor y opacidad de trazo. Estos tres swatches son
+        ilustrativos de esa codificación, no una escala de color nueva.
+      */}
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '3px solid #1c1c1c', borderRadius: '50%' }}
+        />
+        Servicio suspendido (anillo grueso)
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{
+            background: 'transparent',
+            border: '2px solid #1c1c1c',
+            borderRadius: '50%',
+            opacity: 0.55,
+          }}
+        />
+        Servicio parcial (anillo fino)
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '1px solid #1c1c1c', borderRadius: '50%' }}
+        />
+        Servicio normal (sin anillo)
+      </div>
+
+      <br />
+      <div>
+        Escuelas: <span className={styles.emphasis}>{indicadores.escuelas}</span>
+      </div>
+      <div>
+        Con servicio suspendido:{' '}
+        <span className={styles.emphasis}>{indicadores.conServicioSuspendido}</span>
+      </div>
+      <div>
+        Con servicio parcial:{' '}
+        <span className={styles.emphasis}>{indicadores.conServicioParcial}</span>
+      </div>
+      <div>
+        Alumnos alcanzados:{' '}
+        <span className={styles.emphasis}>{indicadores.alumnosAlcanzados}</span>
+      </div>
     </div>
   )
 }

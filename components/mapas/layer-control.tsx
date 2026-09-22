@@ -44,18 +44,20 @@ export function LayerControl({ overlays, onChange }: Props) {
 
 // ── Capas del mapa de infraestructura ───────────────────────────────────────
 //
-// Dos capas propias (establecimiento / alumnos, ver map-infraestructura-page),
-// ajenas al OverlayKey de arriba (que es del mapa de evolución de matrícula).
+// Fase 2 (parte-mapa): una escuela = un punto, ya no una capa por categoría
+// (la categoría pasó a ser filtro y dato de ficha, ver
+// map-infraestructura-page). Por ahora hay una sola capa de datos, la de
+// escuelas con afectación vigente; F2.3 agrega acá 'evacuadas' y
+// 'sinReportar' como capas toggleables aparte, sin tocar esta forma.
 // Componente propio en vez de generalizar LayerControl para no acoplar dos
 // dominios de mapa distintos a un mismo tipo de clave.
-export type CapaInfraestructura = 'establecimiento' | 'alumnos'
+export type CapaInfraestructura = 'escuelas'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  establecimiento: 'Afecta al establecimiento',
-  alumnos: 'Inaccesibilidad de alumnos',
+  escuelas: 'Escuelas con afectación vigente',
 }
 
-const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = ['establecimiento', 'alumnos']
+const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = ['escuelas']
 
 export function InfraLayerControl({
   capas,

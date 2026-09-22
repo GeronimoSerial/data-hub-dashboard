@@ -70,7 +70,7 @@ describe('GET /api/mapas/infraestructura', () => {
     const res = await GET(req())
     expect(res.status).toBe(401)
     const body = await res.json()
-    expect(body.alertas).toBeUndefined()
+    expect(body.partes).toBeUndefined()
     expect(body.indicadores).toBeUndefined()
   })
 
@@ -91,7 +91,7 @@ describe('GET /api/mapas/infraestructura', () => {
     const res = await GET(req())
     expect(res.status).toBe(403)
     const body = await res.json()
-    expect(body.alertas).toBeUndefined()
+    expect(body.partes).toBeUndefined()
 
     await db.delete(recursoAudienciaNiveles)
   })
@@ -107,7 +107,7 @@ describe('GET /api/mapas/infraestructura', () => {
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.indicadores.escuelas).toBe(body.alertas.length)
+    expect(body.indicadores.escuelas).toBe(body.partes.length)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 

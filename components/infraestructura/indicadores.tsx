@@ -2,10 +2,10 @@
 
 import type { JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import type { IndicadoresConsolidados } from '@/lib/infraestructura/consulta'
+import type { IndicadoresMapa } from '@/lib/infraestructura/parte-mapa'
 
 export function Indicadores(props: {
-  indicadores: IndicadoresConsolidados
+  indicadores: IndicadoresMapa
   loading: boolean
 }): JSX.Element {
   const styles = useOverlayStyles()
@@ -16,31 +16,36 @@ export function Indicadores(props: {
       <b>Indicadores consolidados</b>
       <br />
       <span className={styles.hint}>
-        Totales sobre las secciones y filtros aplicados.
+        Totales sobre las escuelas y filtros aplicados.
       </span>
       <div>
-        Escuelas:{' '}
-        <span className={styles.emphasis}>{indicadores.escuelas}</span>
+        Escuelas: <span className={styles.emphasis}>{indicadores.escuelas}</span>
       </div>
       <div>
-        Localizaciones georreferenciadas:{' '}
-        <span className={styles.emphasis}>{indicadores.localizaciones}</span>
+        Con servicio suspendido:{' '}
+        <span className={styles.emphasis}>{indicadores.conServicioSuspendido}</span>
       </div>
       <div>
-        Inmuebles:{' '}
-        <span className={styles.emphasis}>
-          {indicadores.inmueblesDisponible
-            ? indicadores.inmuebles
-            : 'No disponible'}
-        </span>
+        Con servicio parcial:{' '}
+        <span className={styles.emphasis}>{indicadores.conServicioParcial}</span>
       </div>
       <div>
-        Alumnos en alertas activas:{' '}
-        <span className={styles.emphasis}>{indicadores.alumnos}</span>
+        Evacuadas: <span className={styles.emphasis}>{indicadores.evacuadas}</span>
       </div>
       <div>
-        Universo educativo:{' '}
-        <span className={styles.emphasis}>{indicadores.universoEducativo}</span>
+        Centros de evacuados:{' '}
+        <span className={styles.emphasis}>{indicadores.centrosDeEvacuados}</span>
+      </div>
+      <div>
+        Sin reportar: <span className={styles.emphasis}>{indicadores.sinReportar}</span>
+      </div>
+      <div>
+        Alumnos alcanzados:{' '}
+        <span className={styles.emphasis}>{indicadores.alumnosAlcanzados}</span>
+      </div>
+      <div>
+        Secciones alcanzadas:{' '}
+        <span className={styles.emphasis}>{indicadores.seccionesAlcanzadas}</span>
       </div>
       {loading && <span className={styles.hint}>Actualizando…</span>}
     </div>
