@@ -86,13 +86,10 @@ export interface IndicadoresMapa {
   seccionesAlcanzadas: number
 }
 
-// Umbral (en horas) a partir del cual un parte se considera "sin reportar"
-// (actualizadaEn más viejo que esto). HIPÓTESIS AJUSTABLE: 72 h ≈ 3 días,
-// pensado para que un director que no vuelve a tocar el parte en un fin de
-// semana largo no aparezca marcado en falso, pero sí lo haga si pasó una
-// semana sin ninguna actualización durante una situación en curso. Si el
-// producto define otro criterio, este es el único lugar que hay que tocar.
-export const UMBRAL_SIN_REPORTAR_HORAS = 72
+// El umbral vive en umbrales.ts, un modulo sin importaciones de servidor:
+// el mapa lo necesita en runtime y este modulo arrastra node:fs via getDb.
+import { UMBRAL_SIN_REPORTAR_HORAS } from './umbrales'
+export { UMBRAL_SIN_REPORTAR_HORAS }
 
 const resultadoVacio = { partes: [] as ParteMapa[], indicadores: indicadoresVacios() }
 

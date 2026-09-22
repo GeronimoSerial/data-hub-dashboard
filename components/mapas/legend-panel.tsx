@@ -7,6 +7,7 @@ import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { IndicadoresMapa } from '@/lib/infraestructura/parte-mapa'
+import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 
 type Props = {
   summary: Summary
@@ -107,7 +108,17 @@ export function LegendPanel({
 // `indicadores` llega por props (igual que LegendPanel recibe `summary`
 // arriba): son los mismos números que ya carga useAlertas para el panel de
 // Indicadores, no una fuente de datos aparte.
-export function InfraLegendPanel({ indicadores }: { indicadores: IndicadoresMapa }) {
+export function InfraLegendPanel({
+  indicadores,
+  departamentosSinMatch = [],
+}: {
+  indicadores: IndicadoresMapa
+  // F2.4: un departamento de la base que no matchea ningún polígono del
+  // GeoJSON no se silencia (gotcha de nombres, ver lib/mapas/departamentos.ts)
+  // — se loguea en consola Y se muestra acá, para que sea visible también
+  // para quien mira el mapa y no la consola del navegador.
+  departamentosSinMatch?: string[]
+}) {
   const styles = useOverlayStyles()
 
   return (
@@ -159,6 +170,56 @@ export function InfraLegendPanel({ indicadores }: { indicadores: IndicadoresMapa
       </div>
 
       <br />
+      {/*
+        Evacuación (F2.3): dos formas, no dos colores — evacuado y
+        centro_evacuados son opuestos (daño vs. recurso) y en emergencia el
+        recurso es lo primero que se busca, así que no pueden compartir
+        símbolo. Capa aparte, apagada por defecto (ver InfraLayerControl).
+      */}
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '2px solid #1c1c1c' }}
+        />
+        Evacuado (cuadrado): daño en el establecimiento
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{
+            background: 'transparent',
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderBottom: '12px solid #1c1c1c',
+            width: 0,
+            height: 0,
+          }}
+        />
+        Centro de evacuados (triángulo): la escuela aloja gente
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '2px solid #6b7280', borderRadius: '50%' }}
+        />
+        Sin reportar (halo gris): más de {UMBRAL_SIN_REPORTAR_HORAS} h sin actualización — ausencia
+        de información, no severidad
+      </div>
+
+      <br />
+      <div className={styles.hint}>
+        Departamentos: la intensidad del relleno (no el color) sube con la cantidad de escuelas
+        con servicio suspendido o parcial en ese departamento; la etiqueta muestra el nombre y, si
+        hay alguna, el conteo.
+      </div>
+
+      {departamentosSinMatch.length > 0 && (
+        <div className={`${styles.hint} ${styles.statusError}`}>
+          Departamento(s) sin coincidencia geográfica: {departamentosSinMatch.join(', ')}
+        </div>
+      )}
+
+      <br />
       <div>
         Escuelas: <span className={styles.emphasis}>{indicadores.escuelas}</span>
       </div>
@@ -169,6 +230,16 @@ export function InfraLegendPanel({ indicadores }: { indicadores: IndicadoresMapa
       <div>
         Con servicio parcial:{' '}
         <span className={styles.emphasis}>{indicadores.conServicioParcial}</span>
+      </div>
+      <div>
+        Evacuadas: <span className={styles.emphasis}>{indicadores.evacuadas}</span>
+      </div>
+      <div>
+        Centros de evacuados:{' '}
+        <span className={styles.emphasis}>{indicadores.centrosDeEvacuados}</span>
+      </div>
+      <div>
+        Sin reportar: <span className={styles.emphasis}>{indicadores.sinReportar}</span>
       </div>
       <div>
         Alumnos alcanzados:{' '}
