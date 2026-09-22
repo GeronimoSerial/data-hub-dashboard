@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Image name (GHCR requires lowercase)
         run: |
@@ -31,10 +31,10 @@ jobs:
           echo "IMAGE_NAME=ghcr.io/${OWNER}/${REPO}" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -42,7 +42,7 @@ jobs:
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
@@ -50,7 +50,7 @@ jobs:
             type=sha,prefix=,format=short
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true
@@ -59,8 +59,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Optional: trigger a Coolify *preview* app. Do not point COOLIFY_APP_UUID
-      # at the production Fastify app until smoke on this image succeeds.
+      # Triggers a redeploy of the production Coolify app (data-hub-dashboard,
+      # UUID in COOLIFY_APP_UUID) so it picks up the image just pushed above.
+      # There is no preview app: this always targets production.
       # Coolify pulls private GHCR via host `docker login ghcr.io` (PAT read:packages).
       - name: Trigger Coolify deploy
         env:
@@ -71,8 +72,51 @@ jobs:
             echo "COOLIFY_TOKEN / COOLIFY_APP_UUID not set — skipping deploy trigger"
             exit 0
           fi
-          curl -fsS -X GET \
+
+          response=$(curl -fsS -X GET \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Accept: application/json" \
-            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=true"
-          echo
+            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=true")
+
+          deployment_uuid=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
+          if [ -z "$deployment_uuid" ]; then
+            echo "Could not read deployment_uuid from Coolify response:"
+            echo "$response"
+            exit 1
+          fi
+          echo "Coolify deployment queued: ${deployment_uuid}"
+
+          # Poll for completion: every 10s, up to ~10 minutes.
+          max_attempts=60
+          attempt=0
+          status=""
+          while [ "$attempt" -lt "$max_attempts" ]; do
+            http_code=$(curl -sS -o deployment.json -w '%{http_code}' \
+              -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+              -H "Accept: application/json" \
+              "${COOLIFY_URL}/api/v1/deployments/${deployment_uuid}")
+            if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+              echo "::warning::COOLIFY_TOKEN cannot read deployments (HTTP ${http_code}); not waiting for the result."
+              exit 0
+            fi
+            status=$(jq -r '.status // empty' deployment.json 2>/dev/null)
+
+            echo "Deployment status: ${status:-unknown} (attempt $((attempt + 1))/${max_attempts})"
+
+            case "$status" in
+              finished)
+                echo "Coolify deployment finished successfully."
+                exit 0
+                ;;
+              failed|cancelled-by-user)
+                echo "Coolify deployment ended with status: ${status}"
+                exit 1
+                ;;
+            esac
+
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+
+          echo "Timed out waiting for Coolify deployment to finish (last status: ${status:-unknown})"
+          exit 1

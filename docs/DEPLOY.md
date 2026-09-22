@@ -9,7 +9,7 @@ preview: `main` es producción.**
 | --- | --- |
 | Propietario GitHub | `GeronimoSerial` |
 | FQDN | `analisis.sistemas.mec.gob.ar` |
-| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt` — nombre heredado `mapa-demografico`, **ya sirve la imagen de este repo** |
+| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt`, renombrada `data-hub-dashboard` (el UUID no cambió). **No hay app de preview.** |
 | Límites por contenedor | `limits_memory=1536m`, `limits_memory_swap=1536m` (swap cero a propósito), `limits_memory_reservation=256m` |
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
 | Imagen de rollback | el tag `<sha>` anterior de `ghcr.io/geronimoserial/data-hub-dashboard` |
@@ -122,9 +122,11 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 | Secret | Uso |
 | --- | --- |
 | `COOLIFY_TOKEN` | Token de API Coolify con permiso de deploy. |
-| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción**. Un merge a `main` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar` directamente. |
+| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción** (`data-hub-dashboard`). Un merge a `main` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar` directamente. |
 
-Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify.
+Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify. Cuando están seteados, el paso *Trigger Coolify deploy* no solo dispara el deploy: además consulta `GET /api/v1/deployments/<uuid>` cada 10 segundos (hasta ~10 minutos) y falla el job si Coolify termina en `failed`/`cancelled-by-user` o si se agota el tiempo de espera, así el workflow refleja el resultado real del despliegue.
+
+Además de `ghcr.yml`, el workflow **CI** (`.github/workflows/ci.yml`) corre en cada pull request: instala dependencias con pnpm y ejecuta lint, typecheck y tests. No publica imagen ni dispara deploy.
 
 ## Despliegue
 
