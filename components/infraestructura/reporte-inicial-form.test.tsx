@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -83,6 +83,10 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  // Desmonta de verdad (los listeners de popstate y el root de React viven
+  // fuera del DOM) y olvida el borrador: cada test arranca limpio.
+  cleanup()
+  sessionStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -415,5 +419,94 @@ describe('ReporteInicialForm', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Guardando…')
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+  })
+})
+
+describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+  const clave = `parte-nuevo:draft:${props.cue}`
+
+  it('guarda el borrador con su paso y lo restaura al remontar (#32)', () => {
+    const primero = renderFormulario()
+    completarQuePaso()
+    continuar()
+
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(sessionStorage.getItem(clave)).not.toBeNull()
+
+    // Recarga simulada: el asistente vuelve a montar con el mismo storage.
+    primero.unmount()
+    renderFormulario()
+
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
+    volver()
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
+    const primero = render(
+      <ReporteInicialForm cue="11111111" turnos={turnos} motivos={motivos} />,
+    )
+    completarQuePaso()
+    continuar()
+    primero.unmount()
+
+    render(<ReporteInicialForm cue="22222222" turnos={turnos} motivos={motivos} />)
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+  })
+
+  it('un popstate retrocede exactamente un paso y conserva lo cargado (#31)', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /1° "A"/ })).toBeChecked()
+
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
+
+    // Desde el primer paso el asistente no se pierde: el paso se mantiene.
+    fireEvent(window, new PopStateEvent('popstate'))
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+  })
+
+  it('un guardado exitoso limpia la clave del borrador', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    await screen.findByText(
+      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+    )
+    expect(sessionStorage.getItem(clave)).toBeNull()
+  })
+
+  it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await screen.findByText(
+      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(sessionStorage.getItem(clave)).toBeNull()
   })
 })
