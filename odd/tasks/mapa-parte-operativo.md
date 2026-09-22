@@ -96,15 +96,15 @@ localidad; el mapa de matrícula.
 
 ### Fase 3 — Modales
 
-- [ ] **F3.1** Extraer el armado del body del GET de
+- [x] **F3.1** Extraer el armado del body del GET de
       `app/api/problematicas/parte/route.ts:65-161` a función compartida; consumirla desde
       la ruta existente y desde el mapa.
-- [ ] **F3.2** Modal de ficha del parte (reemplaza `FichaAlerta`), con `descripcion`.
-- [ ] **F3.3** Modal de alcance nominal + Route Handler; repunte de `problematicaId` a
+- [x] **F3.2** Modal de ficha del parte (reemplaza `FichaAlerta`), con `descripcion`.
+- [x] **F3.3** Modal de alcance nominal + Route Handler; repunte de `problematicaId` a
       `afectacionId` en `identidad.ts`, `impacto.ts` y la columna
       `infra_acceso_nominal_log.problematica_id` → `afectacion_id`.
-- [ ] **F3.4** Modal de historial + Route Handler bajo la ACL del hub.
-- [ ] **F3.5** Bloque "qué cambió" vía `describirMovimiento` sobre `infra_movimiento`.
+- [x] **F3.4** Modal de historial + Route Handler bajo la ACL del hub.
+- [x] **F3.5** Bloque "qué cambió" vía `describirMovimiento` sobre `infra_movimiento`.
 
 ### Fase 4 — Retirar el modelo deprecado
 
@@ -290,3 +290,81 @@ Fase 3 (modales). El `pnpm build` roto necesita que alguien con ownership de
 `package.json`/`app/api/` (el worker de Fase 5, o el orquestador) confirme si el
 error de Turbopack en `basemap-control.tsx` es una regresión de la dependencia
 `recharts` recién agregada, antes de dar la Fase 2 por cerrada a nivel de build.
+
+### Fase 3 completa (F3.1–F3.5)
+
+Tres writers delegados, dos en paralelo sobre archivos disjuntos (backend: F3.1 +
+mitad de F3.2/F3.4; backend: F3.3) y un tercero secuencial de integración de
+frontend (F3.2/F3.4/F3.5 + limpieza), verificados en foreground por el
+orquestador al final con todo integrado.
+
+**F3.1** — `armarFichaParte(cueAnexo, corteId)` y `listarMovimientosDescritos(cueAnexo,
+corteId)` nuevas en `lib/infraestructura/parte-consulta.ts`, al lado de
+`snapshotDesde`. `app/api/problematicas/parte/route.ts` GET y
+`app/api/problematicas/parte/historial/route.ts` refactorizados para consumirlas
+(comportamiento y forma de respuesta preservados, sin tocar su auth por cookie).
+Decisión de diseño deliberada: `armarFichaParte` **no resuelve nombres de
+alumnos** (sólo `totales: {secciones, alumnos}` por afectación) — extraer la
+resolución de identidades hacia la función compartida habría filtrado nombres al
+endpoint del mapa (acceso de lectura del hub, no el gate nominal auditado de
+F3.3). La resolución de identidades queda como paso posterior, sólo en la ruta
+del director. Es la única proyección de servicio/estado/afectaciones para un
+parte puntual — el mapa y el director leen la misma función.
+
+**F3.2** — `components/infraestructura/ficha-parte-modal.tsx` (`Dialog`),
+reemplaza el `Popup` de MapLibre + `FichaAlerta` (borrada, sin otro
+consumidor). Nuevo `GET /api/mapas/infraestructura/parte?cue=` (`verificarAccesoLectura`,
+usa `armarFichaParte`, nunca expone alumnos por nombre ni por id). Usa
+`ParteMapa` ya cargado en memoria como placeholder mientras llega el detalle con
+totales reales por afectación.
+
+**F3.3** — `infra_acceso_nominal_log.problematica_id` → `afectacion_id` en
+`lib/db/schema.ts` (sin FK, rename barato) + migración idempotente
+`ensureAccesoNominalLogAfectacionIdColumn` en `lib/db/seed.ts` (patrón
+`PRAGMA table_info` + `ALTER TABLE ... RENAME COLUMN`, mismo estilo que
+`ensureParteIdColumn`). `obtenerCorteYSeccionesDeAfectacion` nueva en
+`impacto.ts` (join `infra_afectacion` → `infra_parte`: el corteId vive en el
+parte). `listarAfectadosNominal`/`consultarYRegistrarAfectados` en
+`identidad.ts` repunteados a `afectacionId`. Nuevo
+`GET /api/mapas/infraestructura/nominal?afectacionId=` (`verificarAccesoLectura`
++ `puedeVerNominal`, escribe en la misma transacción que responde — un GET
+exitoso es una fila de log, ni más ni menos). Frontend:
+`alcance-nominal-modal.tsx`, contenido montado sólo mientras `open`, un único
+`useEffect([])` por apertura (patrón `RecursoDialog`), sin prefetch ni montaje
+especulativo. Página vieja `app/(hub)/infraestructura/afectados/` y su API
+huérfana `app/api/infraestructura/nominal/route.ts` (nada la llamaba salvo su
+propio test) borradas.
+
+**F3.4** — `GET /api/mapas/infraestructura/historial?cue=` (`verificarAccesoLectura`,
+usa `listarMovimientosDescritos`), paralelo a la ruta del director que sigue
+detrás de la cookie. `historial-parte.tsx` parametrizado (`endpoint`,
+`mostrarReingresoCookie`) en vez de duplicado; `historial-parte-modal.tsx`
+nuevo lo envuelve en un `Sheet` lateral (no `Dialog`: la lista de movimientos no
+tiene techo, mismo criterio que `MobileFilters`).
+
+**F3.5** — bloque "qué cambió" embebido en `ficha-parte-modal.tsx`: fetch a
+`/historial` (mismo trigger `open`), primeros 3 `movimientos[].cambios` (ya en
+prosa vía `describirMovimiento`), botón "Ver historial completo" que abre el
+modal de F3.4. No se agregó endpoint nuevo — reusa el de F3.4.
+
+**Estado del mapa preservado al cerrar**: `seleccionCue` (abre la ficha),
+`nominalAfectacionId` y `historialCue` son tres piezas de estado independientes
+entre sí y de `filtrosForm`/`capasVisibles`/encuadre — cerrar cualquier modal
+sólo resetea su propio estado.
+
+**Verificación en foreground, por el orquestador, con los tres writers ya
+integrados:**
+- `pnpm test`: **760/760 verdes** (92 archivos).
+- `pnpm lint`: **5 problemas** (1 error + 4 warnings), idénticos a la línea de
+  base documentada en Fase 1/2 (`historial-parte.tsx` — el error preexistente
+  de `set-state-in-effect`, no tocado por el repunte de esta fase —,
+  `actualizacion-form.tsx`/`.test.tsx`, `reporte-inicial-form.tsx`,
+  `movimiento-descripcion.test.ts`). Cero problemas nuevos.
+- `pnpm build`: **compila**. El error de Turbopack en `basemap-control.tsx`
+  documentado al cierre de Fase 2 ya no reproduce — desapareció con los
+  cambios de la Fase 5 en paralelo (evolución/Recharts), ajeno a esta fase.
+  Las tres rutas nuevas (`/api/mapas/infraestructura/{parte,historial,nominal}`)
+  aparecen en el árbol; `/infraestructura/afectados/[problematicaId]` ya no
+  existe; `/infraestructura/cargar` sigue intacta.
+
+Sin commit todavía.

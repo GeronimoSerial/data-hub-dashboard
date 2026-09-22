@@ -24,7 +24,9 @@ import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Indicadores } from '@/components/infraestructura/indicadores'
 import { ListaAlertas } from '@/components/infraestructura/lista-alertas'
-import { FichaAlerta } from '@/components/infraestructura/ficha-alerta'
+import { FichaParteModal } from '@/components/infraestructura/ficha-parte-modal'
+import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
+import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
   InfraLayerControl,
   type CapaInfraestructura,
@@ -387,6 +389,12 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
+  // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
+  // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
+  // sólo tiene que tocar SU propio estado — nunca `filtrosForm`,
+  // `capasVisibles` ni el encuadre del mapa (MapGL no se remonta acá).
+  const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
+  const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [departamentoHover, setDepartamentoHover] = useState<{
     nombre: string
@@ -527,11 +535,10 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   }, [departamentosRaw, data])
 
   const mapStyle = BASEMAPS[basemap].styleUrl
+  // F3.2: ya no hace falta la coordenada del punto seleccionado (era sólo
+  // para anclar el Popup de MapLibre); el modal no depende de la posición
+  // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
-  const seleccionCoords =
-    parteSeleccionado && parteSeleccionado.lat !== null && parteSeleccionado.lon !== null
-      ? ([parteSeleccionado.lon, parteSeleccionado.lat] as [number, number])
-      : null
 
   const capasInteractivas = capasVisibles.escuelas ? [CAPA_PARTES_ID] : []
 
@@ -689,23 +696,35 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
             </Popup>
           )}
 
-          {seleccionCoords && (
-            <Popup
-              longitude={seleccionCoords[0]}
-              latitude={seleccionCoords[1]}
-              anchor="bottom"
-              onClose={() => setSeleccionCue(null)}
-              closeOnClick={false}
-              maxWidth="390px"
-            >
-              <FichaAlerta
-                parte={parteSeleccionado}
-                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
-              />
-            </Popup>
-          )}
         </MapGL>
       </div>
+
+      {/*
+        F3.2: la ficha pasó de Popup de MapLibre (flotante, atado al punto,
+        se cerraba solo con closeOnClick) a un modal de verdad. `open` deriva
+        de `seleccionCue`, así que seguir clickeando otro punto mientras el
+        modal está abierto lo mantiene abierto con el nuevo cue (la `key`
+        adentro de FichaParteModal fuerza el remontaje del contenido).
+      */}
+      <FichaParteModal
+        cueAnexo={seleccionCue ?? ''}
+        open={seleccionCue !== null}
+        onOpenChange={(next) => !next && setSeleccionCue(null)}
+        parteResumen={parteSeleccionado}
+        mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+        onVerAlumnosAlcanzados={setNominalAfectacionId}
+        onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+      />
+
+      <AlcanceNominalModal
+        afectacionId={nominalAfectacionId}
+        onOpenChange={(open) => !open && setNominalAfectacionId(null)}
+      />
+
+      <HistorialParteModal
+        cueAnexo={historialCue}
+        onOpenChange={(open) => !open && setHistorialCue(null)}
+      />
 
       {data && <Indicadores indicadores={data.indicadores} loading={loading} />}
 

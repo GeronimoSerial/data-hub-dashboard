@@ -198,7 +198,7 @@ CREATE INDEX IF NOT EXISTS \`infra_permiso_nominal_user_id_idx\` ON \`infra_perm
 CREATE TABLE IF NOT EXISTS \`infra_acceso_nominal_log\` (
   \`id\` text PRIMARY KEY NOT NULL,
   \`user_id\` text NOT NULL,
-  \`problematica_id\` text NOT NULL,
+  \`afectacion_id\` text NOT NULL,
   \`cantidad\` integer NOT NULL,
   \`consultado_en\` text NOT NULL
 );
@@ -417,6 +417,19 @@ export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   )
 }
 
+// infra_acceso_nominal_log.problematica_id nace apuntando al modelo deprecado
+// (infra_problematica); F3.3 la repunta a infra_afectacion.id. Es texto plano
+// SIN foreign key, así que el rename es barato — no hay índices ni
+// constraints que reconstruir.
+export async function ensureAccesoNominalLogAfectacionIdColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_acceso_nominal_log')")
+  const columnas = new Set(info.rows.map((r) => String(r.name)))
+  if (columnas.has('afectacion_id')) return
+  if (!columnas.has('problematica_id')) return // tabla creada ya con el nombre nuevo (DDL fresco)
+  await db.$client.execute('ALTER TABLE infra_acceso_nominal_log RENAME COLUMN problematica_id TO afectacion_id')
+}
+
 // Id fijo y estable del único período que existe en esta etapa (protocolo
 // ENOS 2026/2027, ver CONTRACT.md del batch de esquema: "la situación
 // hidrometeorológica es UN período provincial, no un episodio por
@@ -524,6 +537,7 @@ async function seedHub() {
   await ensureCategoriaColumn()
   await ensureParteIdColumn()
   await ensureMovimientoIdempotencyKeyColumn()
+  await ensureAccesoNominalLogAfectacionIdColumn()
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {

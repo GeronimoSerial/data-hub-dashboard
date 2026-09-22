@@ -15,7 +15,7 @@ describe('HistorialParte — recuperación de acceso vencido', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: 'No autorizado' }) }),
     )
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Su acceso ya no está vigente. Vuelva a ingresar la contraseña para ver el estado actual.',
@@ -32,7 +32,7 @@ describe('HistorialParte — recuperación de acceso vencido', () => {
       'fetch',
       vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }),
     )
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     expect(await screen.findByRole('button', { name: 'Reintentar' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Volver a ingresar la contraseña' })).toBeNull()

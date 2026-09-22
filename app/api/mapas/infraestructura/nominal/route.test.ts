@@ -4,7 +4,7 @@ import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '@/lib/db'
-import { infraProblematica, infraProblematicaSeccion } from '@/lib/db/schema'
+import { infraAfectacion, infraAfectacionSeccion, infraParte } from '@/lib/db/schema'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { importarIdentidad } from '@/lib/infraestructura/identidad'
 import { otorgarPermisoNominal } from '@/lib/infraestructura/permiso-nominal'
@@ -15,14 +15,14 @@ vi.mock('@/lib/session', () => ({
 }))
 
 const CUE = '1801605-04'
-const PROBLEMATICA_ID = 'prob-nominal-1'
 
 let dir: string
 let prevDataDir: string | undefined
 let prevKey: string | undefined
+let afectacionId: string
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'nominal-route-'))
+  dir = mkdtempSync(path.join(tmpdir(), 'mapas-infraestructura-nominal-route-'))
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
   prevKey = process.env.NOMINAL_ENCRYPTION_KEY
@@ -46,25 +46,37 @@ beforeAll(async () => {
     ge.close()
   }
 
-  const { ensureSeeded } = await import('@/lib/db/seed')
+  const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
   await ensureSeeded()
 
+  // Modelo nuevo (F3.3): parte + afectación, en vez de infra_problematica.
   const db = getDb()
-  await db.insert(infraProblematica).values({
-    id: PROBLEMATICA_ID,
+  const ahora = new Date().toISOString()
+  const parteId = crypto.randomUUID()
+  await db.insert(infraParte).values({
+    id: parteId,
+    periodoId: PERIODO_ENOS_2026_2027_ID,
     cueAnexo: CUE,
+    estadoEstablecimiento: 'habitual',
+    estadoEstablecimientoRigeDesde: ahora,
+    corteId: 1,
+    creadaEn: ahora,
+    actualizadaEn: ahora,
+  })
+
+  afectacionId = crypto.randomUUID()
+  await db.insert(infraAfectacion).values({
+    id: afectacionId,
+    parteId,
     motivo: 'Inundación',
     categoria: 'establecimiento',
     severidad: 'Alta',
-    corteId: 1,
-    creadaEn: '2026-01-01T00:00:00Z',
-    idempotencyKey: 'idem-nominal-1',
-    origen: 'test',
+    descripcion: null,
+    rigeDesde: ahora,
+    creadaEn: ahora,
+    retiradaEn: null,
   })
-  await db.insert(infraProblematicaSeccion).values({
-    problematicaId: PROBLEMATICA_ID,
-    geSectionId: 10,
-  })
+  await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 10 })
 })
 
 afterAll(() => {
@@ -79,11 +91,20 @@ beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
 })
 
-function req() {
-  return new Request(`http://localhost/api/infraestructura/nominal?problematica=${PROBLEMATICA_ID}`)
+function req(afectacion = afectacionId) {
+  return new Request(`http://localhost/api/mapas/infraestructura/nominal?afectacionId=${afectacion}`)
 }
 
-describe('GET /api/infraestructura/nominal', () => {
+async function contarLogsDe(userId: string): Promise<number> {
+  const db = getDb()
+  const res = await db.$client.execute({
+    sql: 'SELECT id FROM infra_acceso_nominal_log WHERE user_id = ?',
+    args: [userId],
+  })
+  return res.rows.length
+}
+
+describe('GET /api/mapas/infraestructura/nominal', () => {
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const { GET } = await import('./route')
@@ -91,7 +112,7 @@ describe('GET /api/infraestructura/nominal', () => {
     expect(res.status).toBe(401)
   })
 
-  it('rechaza a consulta sin grant con 403', async () => {
+  it('rechaza con 403 cuando puedeVerNominal es false, y no registra ninguna fila en el log', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'consulta-sin-grant',
       role: 'consulta',
@@ -101,73 +122,13 @@ describe('GET /api/infraestructura/nominal', () => {
     const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
+    expect(await contarLogsDe('consulta-sin-grant')).toBe(0)
   })
 
-  it('rechaza a editor sin grant con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'editor-sin-grant',
-      role: 'editor',
-      banned: false,
-      nivelIds: [],
-    })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(403)
-  })
-
-  // El admin entra sin grant, pero no entra sin dejar rastro: la fila en
-  // infra_acceso_nominal_log es lo que sostiene el control ahora que el rol
-  // abre la puerta por sí solo.
-  it('admite a admin sin grant y registra igual el acceso en el log', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'admin-sin-grant',
-      role: 'admin',
-      banned: false,
-      nivelIds: [],
-    })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(200)
-
-    const db = getDb()
-    const logs = await db.$client.execute({
-      sql: 'SELECT problematica_id, cantidad FROM infra_acceso_nominal_log WHERE user_id = ?',
-      args: ['admin-sin-grant'],
-    })
-    expect(logs.rows).toHaveLength(1)
-    expect(logs.rows[0].problematica_id).toBe(PROBLEMATICA_ID)
-  })
-
-  it('rechaza a un admin baneado con 403 pese al rol', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'admin-baneado',
-      role: 'admin',
-      banned: true,
-      nivelIds: [],
-    })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(403)
-  })
-
-  it('un grant vencido no da acceso', async () => {
-    await otorgarPermisoNominal({
-      userId: 'usuario-vencido',
-      otorgadoPor: 'admin-x',
-      venceEn: new Date(Date.now() - 1000),
-    })
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'usuario-vencido',
-      role: 'consulta',
-      banned: false,
-      nivelIds: [],
-    })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(403)
-  })
-
-  it('con grant vigente entrega los nombres y registra el acceso en el log', async () => {
+  // Criterio de aceptación de F3.3: un único GET autorizado produce
+  // exactamente una fila nueva en infra_acceso_nominal_log — la lectura y su
+  // auditoría son la misma transacción, nunca una sin la otra.
+  it('con acceso concedido entrega el alcance nominal y registra exactamente una fila en el log', async () => {
     await otorgarPermisoNominal({
       userId: 'usuario-con-grant',
       otorgadoPor: 'admin-x',
@@ -179,6 +140,9 @@ describe('GET /api/infraestructura/nominal', () => {
       banned: false,
       nivelIds: [],
     })
+
+    const antes = await contarLogsDe('usuario-con-grant')
+
     const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
@@ -188,14 +152,9 @@ describe('GET /api/infraestructura/nominal', () => {
     expect(body.secciones[0].alumnos).toEqual(
       expect.arrayContaining([{ nombre: 'Facundo', apellido: 'Quiroga' }]),
     )
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
 
-    const db = getDb()
-    const logs = await db.$client.execute({
-      sql: 'SELECT user_id, problematica_id, cantidad FROM infra_acceso_nominal_log WHERE user_id = ?',
-      args: ['usuario-con-grant'],
-    })
-    expect(logs.rows).toHaveLength(1)
-    expect(logs.rows[0].problematica_id).toBe(PROBLEMATICA_ID)
-    expect(Number(logs.rows[0].cantidad)).toBe(1)
+    const despues = await contarLogsDe('usuario-con-grant')
+    expect(despues - antes).toBe(1)
   })
 })

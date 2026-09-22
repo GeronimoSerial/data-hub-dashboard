@@ -27,6 +27,7 @@ import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import {
+  armarFichaParte,
   obtenerAfectacionesYServicio,
   obtenerParteActual,
   obtenerPeriodoVigente,
@@ -35,7 +36,7 @@ import {
 } from '@/lib/infraestructura/parte-consulta'
 import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
-import type { Afectacion, EstadoEstablecimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { EstadoEstablecimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import { resolverCategoria, validarAlumnosPermitidos } from '@/lib/infraestructura/validacion'
 import { parseParteActualizacionInput } from '@/lib/infraestructura/validacion-trayectoria'
 
@@ -53,14 +54,6 @@ const MENSAJE_SIN_SITUACION =
 // POST, un rollback deliberado (diff vacío, spec §17) de un error real de
 // escritura. Nunca sale de este archivo.
 class RollbackDiffVacio extends Error {}
-
-function contarAlcance(afectacion: Afectacion): { secciones: number; alumnos: number } {
-  const alumnos = new Set<number>()
-  for (const seccion of afectacion.secciones) {
-    for (const id of seccion.alumnos) alumnos.add(id)
-  }
-  return { secciones: afectacion.secciones.length, alumnos: alumnos.size }
-}
 
 export async function GET(request: Request) {
   if (!(await tieneAccesoAlParte(request))) {
@@ -84,8 +77,8 @@ export async function GET(request: Request) {
     return Response.json({ error: 'No hay un corte vigente de Gestión Educativa' }, { status: 503 })
   }
 
-  const actual = await obtenerParteActual(cue.value, corte.id)
-  if (!actual) {
+  const ficha = await armarFichaParte(cue.value, corte.id)
+  if (!ficha) {
     // Sin período vigente: no es un error, es "sin situación en seguimiento"
     // (spec §17).
     return Response.json(
@@ -94,14 +87,13 @@ export async function GET(request: Request) {
     )
   }
 
-  const snapshot = snapshotDesde(actual)
-  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
-
-  // Une los ids de alumnos de TODAS las afectaciones vigentes y los resuelve
-  // en una única llamada por lotes (spec batch 3: nunca por afectación, nunca
-  // por alumno).
+  // La ficha compartida (armarFichaParte) no resuelve nombres — ver
+  // parte-consulta.ts. Sólo acá, autenticado por cookie del director, se
+  // resuelven: se juntan los ids de TODAS las afectaciones vigentes y se
+  // resuelven en una única llamada por lotes (spec batch 3: nunca por
+  // afectación, nunca por alumno).
   const idsAlumnos = new Set<number>()
-  for (const afectacion of snapshot.afectaciones) {
+  for (const afectacion of ficha.afectaciones) {
     for (const seccion of afectacion.secciones) {
       for (const id of seccion.alumnos) idsAlumnos.add(id)
     }
@@ -118,7 +110,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const afectacionesRespuesta = snapshot.afectaciones.map((afectacion) => ({
+  const afectacionesRespuesta = ficha.afectaciones.map((afectacion) => ({
     id: afectacion.id,
     motivo: afectacion.motivo,
     categoria: afectacion.categoria,
@@ -135,26 +127,18 @@ export async function GET(request: Request) {
           : { gePersonId: id, nombre: String(id), apellido: '' }
       }),
     })),
-    totales: contarAlcance(afectacion),
+    totales: afectacion.totales,
   }))
 
   return Response.json(
     {
       ok: true,
-      periodo: actual.periodo,
-      parte: actual.parte
-        ? {
-            id: actual.parte.id,
-            cueAnexo: actual.parte.cueAnexo,
-            estadoEstablecimiento: snapshot.estadoEstablecimiento,
-            estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
-            actualizadaEn: actual.parte.actualizadaEn,
-          }
-        : null,
-      servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+      periodo: ficha.periodo,
+      parte: ficha.parte,
+      servicio: ficha.servicio,
       afectaciones: afectacionesRespuesta,
-      secciones: actual.secciones,
-      ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
+      secciones: ficha.secciones,
+      ultimaActualizacion: ficha.ultimaActualizacion,
     },
     { status: 200, headers: CACHE_HEADERS },
   )

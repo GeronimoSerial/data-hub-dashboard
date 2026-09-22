@@ -18,23 +18,46 @@ interface RespuestaHistorial {
 /**
  * Historial del parte (spec §15).
  *
- * Pide GET /api/problematicas/parte/historial y muestra los movimientos en
- * el orden que devuelve la ruta (cronológico inverso, resuelto server-side).
- * No reordena ni reescribe nada: las líneas de `cambios` llegan ya
- * redactadas por el dominio.
+ * Pide GET `endpoint` y muestra los movimientos en el orden que devuelve la
+ * ruta (cronológico inverso, resuelto server-side). No reordena ni reescribe
+ * nada: las líneas de `cambios` llegan ya redactadas por el dominio.
+ *
+ * `endpoint` está parametrizado (F3.4) porque este mismo componente lo usa
+ * tanto el director (`/api/problematicas/parte/historial`, con la cookie de
+ * acceso público) como el modal del mapa (`/api/mapas/infraestructura/historial`,
+ * con la sesión de usuario del hub) — dos rutas server-side distintas, mismo
+ * componente de presentación.
  *
  * Que no haya movimientos no es un error: es el estado "sin situación en
  * seguimiento" (spec §17), con su propia copia y su propia salida.
  */
-export function HistorialParte({ cue }: { cue: string }): JSX.Element {
+export function HistorialParte({
+  cue,
+  endpoint,
+  mostrarReingresoCookie = true,
+}: {
+  cue: string
+  endpoint: string
+  /**
+   * El enlace "Volver a ingresar la contraseña" sólo tiene sentido en el
+   * recorrido del director (acceso por cookie temporal). En el mapa el 401
+   * viene de la sesión de usuario del hub, no de esa cookie — ese enlace ahí
+   * sería una acción que no resuelve nada, así que se apaga con este flag y
+   * el 401 cae en el mismo error genérico que cualquier otro fallo de acceso.
+   */
+  mostrarReingresoCookie?: boolean
+}): JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
 
   const cargar = useCallback(async () => {
     setEstado({ fase: 'cargando' })
     try {
-      const respuesta = await fetch(`/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`)
+      const respuesta = await fetch(endpoint)
       if (!respuesta.ok) {
-        setEstado({ fase: 'error', accesoVencido: respuesta.status === 401 })
+        setEstado({
+          fase: 'error',
+          accesoVencido: mostrarReingresoCookie && respuesta.status === 401,
+        })
         return
       }
       const datos = (await respuesta.json()) as RespuestaHistorial
@@ -42,7 +65,7 @@ export function HistorialParte({ cue }: { cue: string }): JSX.Element {
     } catch {
       setEstado({ fase: 'error', accesoVencido: false })
     }
-  }, [cue])
+  }, [endpoint, mostrarReingresoCookie])
 
   useEffect(() => {
     void cargar()

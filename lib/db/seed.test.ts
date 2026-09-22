@@ -81,8 +81,8 @@ describe('HUB_DDL sobre una base ya poblada', () => {
             VALUES ('p1', 'u1', 'admin1', '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')`,
     })
     await db.$client.execute({
-      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, problematica_id, cantidad, consultado_en)
-            VALUES ('l1', 'u1', 'prob1', 3, '2026-01-02T00:00:00Z')`,
+      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, afectacion_id, cantidad, consultado_en)
+            VALUES ('l1', 'u1', 'afect1', 3, '2026-01-02T00:00:00Z')`,
     })
 
     await db.$client.executeMultiple(HUB_DDL)
@@ -455,6 +455,39 @@ describe('ensureParteIdColumn', () => {
     const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
     const columnas = info.rows.map((r) => String(r.name))
     expect(columnas.filter((c) => c === 'parte_id')).toHaveLength(1)
+  })
+})
+
+describe('ensureAccesoNominalLogAfectacionIdColumn', () => {
+  it('renombra problematica_id a afectacion_id y preserva los datos existentes', async () => {
+    const db = getDb()
+    const { ensureAccesoNominalLogAfectacionIdColumn } = await import('./seed')
+
+    // Simula una base creada con el DDL viejo (columna problematica_id):
+    // primero se vuelve atrás para partir del estado pre-migración.
+    await db.$client.execute(
+      'ALTER TABLE infra_acceso_nominal_log RENAME COLUMN afectacion_id TO problematica_id',
+    )
+    await db.$client.execute({
+      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, problematica_id, cantidad, consultado_en)
+            VALUES ('migracion-1', 'u1', 'afect-migracion-1', 5, '2026-01-03T00:00:00Z')`,
+    })
+
+    await ensureAccesoNominalLogAfectacionIdColumn()
+    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
+    await ensureAccesoNominalLogAfectacionIdColumn()
+
+    const info = await db.$client.execute("PRAGMA table_info('infra_acceso_nominal_log')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas).toContain('afectacion_id')
+    expect(columnas).not.toContain('problematica_id')
+
+    const fila = await db.$client.execute({
+      sql: 'SELECT afectacion_id, cantidad FROM infra_acceso_nominal_log WHERE id = ?',
+      args: ['migracion-1'],
+    })
+    expect(fila.rows[0]?.afectacion_id).toBe('afect-migracion-1')
+    expect(Number(fila.rows[0]?.cantidad)).toBe(5)
   })
 })
 

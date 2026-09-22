@@ -1,6 +1,12 @@
 import type { Client } from '@libsql/client'
 import { getDb } from '../db'
-import { infraProblematica, infraProblematicaSeccion } from '../db/schema'
+import {
+  infraAfectacion,
+  infraAfectacionSeccion,
+  infraParte,
+  infraProblematica,
+  infraProblematicaSeccion,
+} from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { attachGe, type EjecutorSql } from './ge-db'
 
@@ -134,9 +140,12 @@ export async function calcularImpactoSecciones(
   }
 }
 
-// Resuelve el corte_id y las secciones ya persistidas de una problemática.
-// Único punto de lectura de esta relación: tanto el motor de impacto como el
-// alcance nominal (identidad.ts) parten de acá para no duplicar el join.
+// Resuelve el corte_id y las secciones ya persistidas de una problemática
+// (modelo deprecado infra_problematica). F3.3 repuntó el alcance nominal
+// (identidad.ts) a obtenerCorteYSeccionesDeAfectacion, sobre el modelo nuevo;
+// esta función queda viva sólo porque calcularImpactoProblematica, acá
+// mismo, todavía la usa. No la elimines sin antes confirmar que ese último
+// llamador también migró.
 export async function obtenerCorteYSeccionesDeProblematica(
   problematicaId: string,
 ): Promise<{ corteId: number; geSectionIds: number[] } | null> {
@@ -155,6 +164,34 @@ export async function obtenerCorteYSeccionesDeProblematica(
 
   return {
     corteId: problematica.corteId,
+    geSectionIds: secciones.map((s) => s.geSectionId),
+  }
+}
+
+// Equivalente de obtenerCorteYSeccionesDeProblematica sobre el modelo nuevo.
+// OJO: el corteId vive en infra_parte, no en infra_afectacion — por eso el
+// join. Reemplaza a la función vieja como fuente de corte/secciones para el
+// alcance nominal (F3.3): la afectación ya no se identifica por
+// infra_problematica.id sino por infra_afectacion.id.
+export async function obtenerCorteYSeccionesDeAfectacion(
+  afectacionId: string,
+): Promise<{ corteId: number; geSectionIds: number[] } | null> {
+  const db = getDb()
+  const [fila] = await db
+    .select({ corteId: infraParte.corteId })
+    .from(infraAfectacion)
+    .innerJoin(infraParte, eq(infraAfectacion.parteId, infraParte.id))
+    .where(eq(infraAfectacion.id, afectacionId))
+    .limit(1)
+  if (!fila) return null
+
+  const secciones = await db
+    .select({ geSectionId: infraAfectacionSeccion.geSectionId })
+    .from(infraAfectacionSeccion)
+    .where(eq(infraAfectacionSeccion.afectacionId, afectacionId))
+
+  return {
+    corteId: fila.corteId,
     geSectionIds: secciones.map((s) => s.geSectionId),
   }
 }

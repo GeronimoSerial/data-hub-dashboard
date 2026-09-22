@@ -270,13 +270,19 @@ export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
   revocadoEn: text('revocado_en'),
 })
 
-// Auditoría de cada consulta al alcance nominal: quién, qué problemática y
+// Auditoría de cada consulta al alcance nominal: quién, qué afectación y
 // cuántos alumnos vio. Se escribe en la misma transacción que sirve la
-// respuesta del endpoint (ver app/api/infraestructura/nominal/route.ts).
+// respuesta del endpoint (ver app/api/mapas/infraestructura/nominal/route.ts;
+// la ruta vieja sobre el modelo deprecado, app/api/infraestructura/nominal,
+// se retiró en F3.3 frontend).
+// `afectacionId` (F3.3) reemplaza a la columna `problematica_id` original:
+// apuntaba al modelo deprecado infra_problematica, que Fase 4 va a eliminar.
+// Sigue siendo texto plano SIN foreign key (nunca la tuvo), así que el rename
+// no arrastra constraints ni índices.
 export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
-  problematicaId: text('problematica_id').notNull(),
+  afectacionId: text('afectacion_id').notNull(),
   cantidad: integer('cantidad').notNull(),
   consultadoEn: text('consultado_en').notNull(),
 })

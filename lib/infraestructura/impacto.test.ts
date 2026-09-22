@@ -3,8 +3,14 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createClient, type Client } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getDb } from '../db'
+import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
 import { ensureGeSchema, openGeDb } from './ge-db'
-import { calcularImpactoConsolidadoCue, calcularImpactoSecciones } from './impacto'
+import {
+  calcularImpactoConsolidadoCue,
+  calcularImpactoSecciones,
+  obtenerCorteYSeccionesDeAfectacion,
+} from './impacto'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -217,5 +223,65 @@ describe('calcularImpactoConsolidadoCue', () => {
     } finally {
       hub.close()
     }
+  })
+})
+
+// F3.3: obtenerCorteYSeccionesDeAfectacion es el reemplazo, sobre el modelo
+// nuevo (infra_afectacion + infra_parte), de obtenerCorteYSeccionesDeProblematica.
+// Usa getDb()/ensureSeeded() (schema tipado + HUB_DDL), a diferencia del resto
+// de este archivo que arma sus propias tablas infra_problematica* a mano: acá
+// hace falta el modelo de parte completo, que sólo ensureSeeded() da de alta.
+//
+// Los dos casos (afectación existente / inexistente) viven en un único `it`:
+// getDb() memoiza la conexión a nivel de módulo, y el resto de este archivo
+// usa beforeEach para dar a cada test su propio directorio — un segundo test
+// que llame a getDb() reusaría la conexión ya memoizada del primero, apuntando
+// a un directorio que el afterEach ya borró.
+describe('obtenerCorteYSeccionesDeAfectacion', () => {
+  it('devuelve el corteId del parte (no de la afectación) y sus geSectionIds; una afectacionId inexistente devuelve null', async () => {
+    const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('../db/seed')
+    await ensureSeeded()
+
+    const db = getDb()
+    const ahora = new Date().toISOString()
+
+    const parteId = crypto.randomUUID()
+    await db.insert(infraParte).values({
+      id: parteId,
+      periodoId: PERIODO_ENOS_2026_2027_ID,
+      cueAnexo: '1801605-88',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      // corteId vive en infra_parte: la función bajo prueba debe leerlo de
+      // acá, nunca de infra_afectacion (que no tiene esa columna).
+      corteId: 42,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
+
+    const afectacionId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: afectacionId,
+      parteId,
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      descripcion: null,
+      rigeDesde: ahora,
+      creadaEn: ahora,
+      retiradaEn: null,
+    })
+    await db.insert(infraAfectacionSeccion).values([
+      { afectacionId, geSectionId: 10 },
+      { afectacionId, geSectionId: 20 },
+    ])
+
+    const referencia = await obtenerCorteYSeccionesDeAfectacion(afectacionId)
+    expect(referencia).not.toBeNull()
+    expect(referencia?.corteId).toBe(42)
+    expect(referencia?.geSectionIds.sort()).toEqual([10, 20])
+
+    const referenciaInexistente = await obtenerCorteYSeccionesDeAfectacion('afectacion-que-no-existe')
+    expect(referenciaInexistente).toBeNull()
   })
 })
