@@ -2,7 +2,7 @@
 
 import type { JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
-import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 
 export interface AfectacionBorrador {
   clientId: string
-  categoria: CategoriaProblematica | ''
+  categoria: CategoriaAfectacion | ''
   motivo: string
   severidad: Severidad | ''
   secciones: number[]
@@ -43,7 +43,7 @@ export function totalAlumnosDe(borrador: AfectacionBorrador, turnos: TurnoContex
  * están completos. Una fila a medio llenar no se manda ni habilita el botón.
  */
 export function esAfectacionLista(a: AfectacionBorrador): a is AfectacionBorrador & {
-  categoria: CategoriaProblematica
+  categoria: CategoriaAfectacion
   severidad: Severidad
 } {
   return a.categoria !== '' && a.motivo !== '' && a.severidad !== '' && a.secciones.length > 0
@@ -118,7 +118,7 @@ export function CamposQuePaso({
   // catálogo depende de la categoría, los alumnos porque una categoría sin
   // permiteAlumnos nunca puede llevarlos. Las secciones elegidas se
   // conservan: siguen siendo válidas para cualquier categoría.
-  function cambiarCategoria(categoria: CategoriaProblematica) {
+  function cambiarCategoria(categoria: CategoriaAfectacion) {
     onChange({ ...borrador, categoria, motivo: '', alumnos: [] })
   }
 
@@ -144,7 +144,7 @@ export function CamposQuePaso({
   */
   const candidatos = otrasAfectaciones
     .filter((a) => a.motivo && a.categoria)
-    .map((a) => ({ motivo: a.motivo, categoria: a.categoria as CategoriaProblematica }))
+    .map((a) => ({ motivo: a.motivo, categoria: a.categoria as CategoriaAfectacion }))
   const duplicado =
     esNueva && borrador.motivo
       ? detectarMotivoDuplicado(candidatos, {

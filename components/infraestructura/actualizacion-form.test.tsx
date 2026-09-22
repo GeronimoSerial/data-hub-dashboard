@@ -81,7 +81,7 @@ const RESPUESTA_BASE = {
 
 function stubFetchInicial(overrides = {}) {
   const respuestaGet = { ...RESPUESTA_BASE, ...overrides }
-  const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
     if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(respuestaGet)
     return jsonResponse(
       {

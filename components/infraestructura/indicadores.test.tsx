@@ -2,47 +2,40 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { Indicadores } from './indicadores'
+import type { IndicadoresMapa } from '@/lib/infraestructura/parte-mapa'
 
 afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('Indicadores', () => {
-  it('muestra "No disponible" cuando el recuento de inmuebles no está disponible, nunca 0', () => {
-    render(
-      <Indicadores
-        loading={false}
-        indicadores={{
-          escuelas: 12,
-          localizaciones: 10,
-          inmuebles: null,
-          inmueblesDisponible: false,
-          alumnos: 340,
-          universoEducativo: 5000,
-        }}
-      />,
-    )
+const indicadores: IndicadoresMapa = {
+  escuelas: 12,
+  conServicioSuspendido: 3,
+  conServicioParcial: 2,
+  evacuadas: 1,
+  centrosDeEvacuados: 0,
+  sinReportar: 4,
+  alumnosAlcanzados: 340,
+  seccionesAlcanzadas: 18,
+}
 
-    expect(screen.getByText('No disponible')).toBeInTheDocument()
-    expect(screen.queryByText('0')).not.toBeInTheDocument()
+describe('Indicadores', () => {
+  it('muestra los indicadores nuevos de servicio y sin reportar', () => {
+    render(<Indicadores indicadores={indicadores} loading={false} />)
+
+    expect(screen.getByText('12')).toBeInTheDocument()
+    expect(screen.getByText('3')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getByText('4')).toBeInTheDocument()
+    expect(screen.getByText('340')).toBeInTheDocument()
+    expect(screen.getByText('18')).toBeInTheDocument()
   })
 
-  it('muestra el número real de inmuebles cuando está disponible', () => {
-    render(
-      <Indicadores
-        loading={false}
-        indicadores={{
-          escuelas: 12,
-          localizaciones: 10,
-          inmuebles: 7,
-          inmueblesDisponible: true,
-          alumnos: 340,
-          universoEducativo: 5000,
-        }}
-      />,
-    )
+  it('muestra "Actualizando…" sólo mientras loading es true', () => {
+    const { rerender } = render(<Indicadores indicadores={indicadores} loading={true} />)
+    expect(screen.getByText('Actualizando…')).toBeInTheDocument()
 
-    expect(screen.getByText('7')).toBeInTheDocument()
-    expect(screen.queryByText('No disponible')).not.toBeInTheDocument()
+    rerender(<Indicadores indicadores={indicadores} loading={false} />)
+    expect(screen.queryByText('Actualizando…')).not.toBeInTheDocument()
   })
 })

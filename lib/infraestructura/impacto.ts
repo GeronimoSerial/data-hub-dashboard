@@ -1,6 +1,10 @@
 import type { Client } from '@libsql/client'
 import { getDb } from '../db'
-import { infraProblematica, infraProblematicaSeccion } from '../db/schema'
+import {
+  infraAfectacion,
+  infraAfectacionSeccion,
+  infraParte,
+} from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { attachGe, type EjecutorSql } from './ge-db'
 
@@ -134,64 +138,31 @@ export async function calcularImpactoSecciones(
   }
 }
 
-// Resuelve el corte_id y las secciones ya persistidas de una problemática.
-// Único punto de lectura de esta relación: tanto el motor de impacto como el
-// alcance nominal (identidad.ts) parten de acá para no duplicar el join.
-export async function obtenerCorteYSeccionesDeProblematica(
-  problematicaId: string,
+// Resuelve el corte_id y las secciones ya persistidas de una afectación. El
+// corteId vive en infra_parte, no en infra_afectacion — por eso el join.
+// Es la fuente de corte/secciones para el alcance nominal (F3.3): la
+// afectación se identifica por infra_afectacion.id. (Su equivalente sobre el
+// modelo deprecado se retiró en la Fase 4, junto con el único llamador que
+// le quedaba.)
+export async function obtenerCorteYSeccionesDeAfectacion(
+  afectacionId: string,
 ): Promise<{ corteId: number; geSectionIds: number[] } | null> {
   const db = getDb()
-  const [problematica] = await db
-    .select({ corteId: infraProblematica.corteId })
-    .from(infraProblematica)
-    .where(eq(infraProblematica.id, problematicaId))
+  const [fila] = await db
+    .select({ corteId: infraParte.corteId })
+    .from(infraAfectacion)
+    .innerJoin(infraParte, eq(infraAfectacion.parteId, infraParte.id))
+    .where(eq(infraAfectacion.id, afectacionId))
     .limit(1)
-  if (!problematica) return null
+  if (!fila) return null
 
   const secciones = await db
-    .select({ geSectionId: infraProblematicaSeccion.geSectionId })
-    .from(infraProblematicaSeccion)
-    .where(eq(infraProblematicaSeccion.problematicaId, problematicaId))
+    .select({ geSectionId: infraAfectacionSeccion.geSectionId })
+    .from(infraAfectacionSeccion)
+    .where(eq(infraAfectacionSeccion.afectacionId, afectacionId))
 
   return {
-    corteId: problematica.corteId,
+    corteId: fila.corteId,
     geSectionIds: secciones.map((s) => s.geSectionId),
   }
-}
-
-// Resuelve el corte_id y las secciones ya persistidas de una problemática y
-// delega en calcularImpactoSecciones: es el mismo camino de cálculo que el
-// preliminar, nunca una consulta paralela.
-export async function calcularImpactoProblematica(
-  client: Client,
-  problematicaId: string,
-): Promise<ImpactoResultado | null> {
-  const referencia = await obtenerCorteYSeccionesDeProblematica(problematicaId)
-  if (!referencia) return null
-
-  return calcularImpactoSecciones(client, referencia)
-}
-
-// Impacto consolidado por CUE a través de TODAS sus alertas. El JOIN vive acá
-// literal porque es la consulta oficial del §4.1: DISTINCT ge_person_id sobre
-// la unión de secciones de todas las problemáticas de ese CUE. Dos alertas
-// sobre la misma sección no duplican alumnos porque DISTINCT opera sobre la
-// clave estable ge_person_id, no sobre la cantidad de alertas. Filtra por
-// cue_anexo exacto: un CUI compartido entre CUEs nunca contamina este total.
-export async function calcularImpactoConsolidadoCue(
-  client: Client,
-  cueAnexo: string,
-): Promise<{ alumnos: number }> {
-  await asegurarGeAdjuntada(client)
-
-  const res = await client.execute({
-    sql: `SELECT COUNT(DISTINCT s.ge_person_id) AS n
-          FROM infra_problematica p
-          JOIN infra_problematica_seccion ps ON ps.problematica_id = p.id
-          JOIN ge.ge_alumno_seccion s ON s.ge_section_id = ps.ge_section_id
-                                     AND s.corte_id      = p.corte_id
-          WHERE p.cue_anexo = ?`,
-    args: [cueAnexo],
-  })
-  return { alumnos: Number(res.rows[0]?.n ?? 0) }
 }

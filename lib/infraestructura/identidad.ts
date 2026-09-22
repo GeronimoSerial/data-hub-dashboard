@@ -2,7 +2,7 @@ import { createDecipheriv } from 'node:crypto'
 import type { Client } from '@libsql/client'
 import {
   asegurarGeAdjuntada,
-  obtenerCorteYSeccionesDeProblematica,
+  obtenerCorteYSeccionesDeAfectacion,
   type EjecutorSql,
 } from './impacto'
 import {
@@ -116,18 +116,19 @@ export async function listarIdentidadesPorPersonasDesdeGeDb(
   })
 }
 
-// Arma la lista nominal por sección de una problemática: mismo origen
+// Arma la lista nominal por sección de una afectación: mismo origen
 // (corteId, geSectionIds) que el motor de impacto, vía
-// obtenerCorteYSeccionesDeProblematica, así que la cantidad de alumnos que
-// esta función revela nunca puede discrepar en su universo con la cifra que
-// ya vio quien tiene acceso al mapa. El llamador es responsable de haber
-// verificado puedeVerNominal(user, ahora) === true antes de invocar esta
-// función, igual que listarIdentidadesPorPersonas.
+// obtenerCorteYSeccionesDeAfectacion (F3.3, modelo nuevo infra_afectacion),
+// así que la cantidad de alumnos que esta función revela nunca puede
+// discrepar en su universo con la cifra que ya vio quien tiene acceso al
+// mapa. El llamador es responsable de haber verificado
+// puedeVerNominal(user, ahora) === true antes de invocar esta función, igual
+// que listarIdentidadesPorPersonas.
 export async function listarAfectadosNominal(
   hostClient: EjecutorSql,
-  problematicaId: string,
+  afectacionId: string,
 ): Promise<AfectadosNominal | null> {
-  const referencia = await obtenerCorteYSeccionesDeProblematica(problematicaId)
+  const referencia = await obtenerCorteYSeccionesDeAfectacion(afectacionId)
   if (!referencia) return null
   const { corteId, geSectionIds } = referencia
   if (geSectionIds.length === 0) return { secciones: [], cantidad: 0 }
@@ -227,22 +228,24 @@ export async function rotarClaveIdentidad(
   return { filasRotadas: filas.rows.length }
 }
 
-// Lee el alcance nominal de una problemática y registra el acceso en
+// Lee el alcance nominal de una afectación y registra el acceso en
 // infra_acceso_nominal_log dentro de la misma transacción que produce la
 // respuesta: no puede quedar una lectura sin su fila de auditoría, ni una
-// fila de auditoría sin la lectura que la originó. Usada tanto por
-// GET /api/infraestructura/nominal como por la página de alcance: cada una
-// verifica puedeVerNominal() por su cuenta antes de llamar acá, esta función
-// no repite esa verificación.
+// fila de auditoría sin la lectura que la originó. Usada por
+// GET /api/mapas/infraestructura/nominal (F3.3, modelo nuevo, vía el modal
+// de alcance nominal del mapa) — la ruta vieja sobre el modelo deprecado
+// (GET /api/infraestructura/nominal, con su página app/(hub)/infraestructura/afectados)
+// se retiró en F3.3 frontend. Este caller verifica puedeVerNominal() por su
+// cuenta antes de llamar acá; esta función no repite esa verificación.
 export async function consultarYRegistrarAfectados(
   client: Client,
   userId: string,
-  problematicaId: string,
+  afectacionId: string,
   ahora: Date,
 ): Promise<AfectadosNominal | null> {
   const tx = await client.transaction('write')
   try {
-    const resultado = await listarAfectadosNominal(tx, problematicaId)
+    const resultado = await listarAfectadosNominal(tx, afectacionId)
     if (!resultado) {
       await tx.rollback()
       return null
@@ -250,9 +253,9 @@ export async function consultarYRegistrarAfectados(
 
     await tx.execute({
       sql: `INSERT INTO infra_acceso_nominal_log
-              (id, user_id, problematica_id, cantidad, consultado_en)
+              (id, user_id, afectacion_id, cantidad, consultado_en)
             VALUES (?, ?, ?, ?, ?)`,
-      args: [crypto.randomUUID(), userId, problematicaId, resultado.cantidad, ahora.toISOString()],
+      args: [crypto.randomUUID(), userId, afectacionId, resultado.cantidad, ahora.toISOString()],
     })
 
     await tx.commit()

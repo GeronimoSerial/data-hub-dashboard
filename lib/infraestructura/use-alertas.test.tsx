@@ -1,19 +1,21 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
-import { useAlertas } from './use-alertas'
-import type { ConsultaAlertasResultado, FiltrosAlertas } from './consulta'
+import { useAlertas, type RespuestaPartesMapa } from './use-alertas'
+import type { FiltrosMapa } from './parte-mapa'
 
-function resultado(n: number): ConsultaAlertasResultado {
+function resultado(n: number): RespuestaPartesMapa {
   return {
-    alertas: [],
+    partes: [],
     indicadores: {
       escuelas: n,
-      localizaciones: n,
-      inmuebles: null,
-      inmueblesDisponible: false,
-      alumnos: n,
-      universoEducativo: n,
+      conServicioSuspendido: n,
+      conServicioParcial: n,
+      evacuadas: n,
+      centrosDeEvacuados: n,
+      sinReportar: n,
+      alumnosAlcanzados: n,
+      seccionesAlcanzadas: n,
     },
   }
 }
@@ -29,7 +31,7 @@ function jsonResponse(body: unknown) {
 let calls: string[]
 let fetchMock: ReturnType<typeof vi.fn>
 
-function Probe({ filtros }: { filtros: FiltrosAlertas }) {
+function Probe({ filtros }: { filtros: FiltrosMapa }) {
   const { data, loading, error } = useAlertas(filtros)
   return (
     <div>

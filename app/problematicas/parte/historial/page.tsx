@@ -53,7 +53,10 @@ export default async function HistorialPartePage({
     <div className="publico-content publico-content--ancho">
       <EncabezadoParte pantalla={TITULO} descripcion="Los cambios más recientes aparecen primero." />
 
-      <HistorialParte cue={cueNormalizado.value} />
+      <HistorialParte
+        cue={cueNormalizado.value}
+        endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cueNormalizado.value)}`}
+      />
 
       {/* Nielsen #3: salida visible hacia el estado actual del parte, para
           no depender del botón de atrás del navegador en un teléfono. */}

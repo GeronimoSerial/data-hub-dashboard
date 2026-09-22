@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createClient, type Client } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { getDb } from '../db'
+import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
 import { ensureGeSchema, openGeDb } from './ge-db'
-import { calcularImpactoConsolidadoCue, calcularImpactoSecciones } from './impacto'
+import { calcularImpactoSecciones, obtenerCorteYSeccionesDeAfectacion } from './impacto'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -68,28 +70,6 @@ async function seedGe() {
 
 function openHub(): Client {
   return createClient({ url: `file:${path.join(dir, 'hub-test.sqlite')}` })
-}
-
-async function createInfraTables(client: Client) {
-  await client.execute(`CREATE TABLE IF NOT EXISTS infra_problematica (
-    id text PRIMARY KEY NOT NULL,
-    cue_anexo text NOT NULL,
-    motivo text NOT NULL,
-    severidad text NOT NULL,
-    descripcion text,
-    corte_id integer NOT NULL,
-    creada_en text NOT NULL,
-    idempotency_key text NOT NULL,
-    origen text NOT NULL
-  )`)
-  await client.execute(
-    'CREATE UNIQUE INDEX IF NOT EXISTS infra_problematica_idempotency_key_unique ON infra_problematica (idempotency_key)',
-  )
-  await client.execute(`CREATE TABLE IF NOT EXISTS infra_problematica_seccion (
-    problematica_id text NOT NULL,
-    ge_section_id integer NOT NULL,
-    PRIMARY KEY(problematica_id, ge_section_id)
-  )`)
 }
 
 describe('calcularImpactoSecciones', () => {
@@ -163,59 +143,61 @@ describe('calcularImpactoSecciones', () => {
   })
 })
 
-describe('calcularImpactoConsolidadoCue', () => {
-  it('dos alertas sobre la misma sección no duplican alumnos en el consolidado', async () => {
-    await seedGe()
-    const hub = openHub()
-    try {
-      await createInfraTables(hub)
-      await hub.execute(
-        "INSERT INTO infra_problematica (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen) VALUES ('p1', '1801605-04', 'Inundación', 'Alta', 1, '2025-01-01T00:00:00Z', 'k1', 'enlace-cue')",
-      )
-      await hub.execute(
-        "INSERT INTO infra_problematica (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen) VALUES ('p2', '1801605-04', 'Anegamiento', 'Media', 1, '2025-01-02T00:00:00Z', 'k2', 'enlace-cue')",
-      )
-      await hub.execute("INSERT INTO infra_problematica_seccion (problematica_id, ge_section_id) VALUES ('p1', 10)")
-      await hub.execute("INSERT INTO infra_problematica_seccion (problematica_id, ge_section_id) VALUES ('p2', 10)")
+// F3.3: obtenerCorteYSeccionesDeAfectacion resuelve corte/secciones sobre el
+// modelo de parte (infra_afectacion + infra_parte). Usa getDb()/ensureSeeded()
+// (schema tipado + HUB_DDL): hace falta el modelo de parte completo, que sólo
+// ensureSeeded() da de alta.
+//
+// Los dos casos (afectación existente / inexistente) viven en un único `it`:
+// getDb() memoiza la conexión a nivel de módulo, y el resto de este archivo
+// usa beforeEach para dar a cada test su propio directorio — un segundo test
+// que llame a getDb() reusaría la conexión ya memoizada del primero, apuntando
+// a un directorio que el afterEach ya borró.
+describe('obtenerCorteYSeccionesDeAfectacion', () => {
+  it('devuelve el corteId del parte (no de la afectación) y sus geSectionIds; una afectacionId inexistente devuelve null', async () => {
+    const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('../db/seed')
+    await ensureSeeded()
 
-      const impacto = await calcularImpactoConsolidadoCue(hub, '1801605-04')
-      expect(impacto.alumnos).toBe(25)
-    } finally {
-      hub.close()
-    }
-  })
+    const db = getDb()
+    const ahora = new Date().toISOString()
 
-  it('un CUI compartido no marca automáticamente otros CUE como afectados', async () => {
-    await seedGe()
-    const ge = openGeDb()
-    try {
-      await ge.execute(
-        "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-05', 'CUI-COMPARTIDO', 'Anexo 5', 'ER', 'Parana')",
-      )
-      await ge.execute(
-        "INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 40, '1801605-05', '1', 'A', 'PRIMARIA', 'MAÑANA')",
-      )
-      for (let i = 300; i < 310; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 40, ?)',
-          args: [i],
-        })
-      }
-    } finally {
-      ge.close()
-    }
-    const hub = openHub()
-    try {
-      await createInfraTables(hub)
-      await hub.execute(
-        "INSERT INTO infra_problematica (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen) VALUES ('p1', '1801605-04', 'Inundación', 'Alta', 1, '2025-01-01T00:00:00Z', 'k1', 'enlace-cue')",
-      )
-      await hub.execute("INSERT INTO infra_problematica_seccion (problematica_id, ge_section_id) VALUES ('p1', 10)")
+    const parteId = crypto.randomUUID()
+    await db.insert(infraParte).values({
+      id: parteId,
+      periodoId: PERIODO_ENOS_2026_2027_ID,
+      cueAnexo: '1801605-88',
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      // corteId vive en infra_parte: la función bajo prueba debe leerlo de
+      // acá, nunca de infra_afectacion (que no tiene esa columna).
+      corteId: 42,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
 
-      const impactoOtroAnexo = await calcularImpactoConsolidadoCue(hub, '1801605-05')
-      expect(impactoOtroAnexo.alumnos).toBe(0)
-    } finally {
-      hub.close()
-    }
+    const afectacionId = crypto.randomUUID()
+    await db.insert(infraAfectacion).values({
+      id: afectacionId,
+      parteId,
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      descripcion: null,
+      rigeDesde: ahora,
+      creadaEn: ahora,
+      retiradaEn: null,
+    })
+    await db.insert(infraAfectacionSeccion).values([
+      { afectacionId, geSectionId: 10 },
+      { afectacionId, geSectionId: 20 },
+    ])
+
+    const referencia = await obtenerCorteYSeccionesDeAfectacion(afectacionId)
+    expect(referencia).not.toBeNull()
+    expect(referencia?.corteId).toBe(42)
+    expect(referencia?.geSectionIds.sort()).toEqual([10, 20])
+
+    const referenciaInexistente = await obtenerCorteYSeccionesDeAfectacion('afectacion-que-no-existe')
+    expect(referenciaInexistente).toBeNull()
   })
 })

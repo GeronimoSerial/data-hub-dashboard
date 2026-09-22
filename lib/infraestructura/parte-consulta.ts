@@ -5,31 +5,38 @@
 // son puros): esta capa SÍ hace I/O, a propósito, porque es la que arma los
 // snapshots que consume la capa pura.
 import type { Client } from '@libsql/client'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   infraAfectacion,
   infraAfectacionAlumno,
   infraAfectacionSeccion,
+  infraMovimiento,
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
 } from '@/lib/db/schema'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
+import { describirMovimiento } from './movimiento-descripcion'
+import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
+import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
   Categoria,
   EstadoEstablecimiento,
+  EstadoServicioGeneral,
   Parte,
   ParteSnapshot,
+  RolMovimiento,
   SeccionEstablecimiento,
   Severidad,
   ServicioAlcance,
   ServicioAlcanceTipo,
   ServicioEstado,
+  TipoMovimiento,
 } from './trayectoria-tipos'
 
 // Cualquiera de los dos: la conexión de Drizzle "suelta" (getDb()) o el `tx`
@@ -69,12 +76,13 @@ export async function obtenerPeriodoVigente(
 }
 
 // Arma las AfectacionAlcanceSeccion de una afectación aplicando el MISMO
-// criterio que calcularImpactoSecciones (impacto.ts) e infra_problematica_*:
-// una sección cuenta "completa" (seccionCompleta: true, alumnos = toda la
+// criterio que calcularImpactoSecciones (impacto.ts): una sección cuenta
+// "completa" (seccionCompleta: true, alumnos = toda la
 // matrícula) salvo que alguno de sus alumnos matriculados esté entre los
 // seleccionados puntualmente para esta afectación — en ese caso cuenta sólo
 // la intersección. infra_afectacion_alumno no guarda a qué sección pertenece
-// cada alumno seleccionado (mismo diseño que infra_problematica_alumno): esa
+// cada alumno seleccionado (la ausencia de filas es la semántica de "sección
+// completa"): esa
 // pertenencia se resuelve acá, contra la matrícula real del corte vigente,
 // no se infiere de la fila persistida.
 async function cargarAfectaciones(
@@ -246,4 +254,129 @@ export function snapshotDesde(actual: ParteActual, referencia?: Date | string): 
       clave: claveServicioAlcance,
     }),
   }
+}
+
+// Ficha de una afectación lista para mostrar: mismos campos que Afectacion
+// (trayectoria-tipos) más `totales`, el conteo de secciones/alumnos únicos
+// que antes armaba `contarAlcance` en el route handler del director. Se
+// preserva `secciones` (los ids crudos de alumno por sección) para que quien
+// resuelva nombres — hoy sólo la ruta del director — pueda hacerlo; el
+// llamador del mapa (F3.2) descarta ese campo antes de responder.
+export interface AfectacionFicha {
+  id: string
+  motivo: string
+  categoria: Categoria
+  severidad: Severidad
+  descripcion: string | null
+  rigeDesde: string
+  secciones: AfectacionAlcanceSeccion[]
+  totales: { secciones: number; alumnos: number }
+}
+
+export interface FichaParte {
+  periodo: { id: string; nombre: string }
+  parte: {
+    id: string
+    cueAnexo: string
+    estadoEstablecimiento: EstadoEstablecimiento
+    estadoEstablecimientoRigeDesde: string
+    actualizadaEn: string
+  } | null
+  servicio: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
+  afectaciones: AfectacionFicha[]
+  secciones: SeccionEstablecimiento[]
+  ultimaActualizacion: string | null
+}
+
+// Arma la ficha completa de un parte (servicio, estado, afectaciones
+// vigentes con sus conteos) para consumo compartido entre la ruta del
+// director (app/api/problematicas/parte/route.ts) y la del mapa
+// (app/api/mapas/infraestructura/parte/route.ts, F3.2). Deliberadamente NO
+// resuelve nombres de alumnos: sólo el flujo del director, autenticado por
+// cookie y sujeto al gate nominal auditado, puede mostrarlos (F3.3); el mapa
+// se abre con el acceso de lectura amplio del hub y sólo debe ver conteos.
+export async function armarFichaParte(cueAnexo: string, corteId: number): Promise<FichaParte | null> {
+  const actual = await obtenerParteActual(cueAnexo, corteId)
+  if (!actual) return null
+
+  const snapshot = snapshotDesde(actual)
+  const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, actual.secciones)
+
+  const afectaciones: AfectacionFicha[] = snapshot.afectaciones.map((afectacion) => {
+    const alumnosUnicos = new Set<number>()
+    for (const seccion of afectacion.secciones) {
+      for (const id of seccion.alumnos) alumnosUnicos.add(id)
+    }
+    return {
+      id: afectacion.id,
+      motivo: afectacion.motivo,
+      categoria: afectacion.categoria,
+      severidad: afectacion.severidad,
+      descripcion: afectacion.descripcion,
+      rigeDesde: afectacion.rigeDesde,
+      secciones: afectacion.secciones,
+      totales: { secciones: afectacion.secciones.length, alumnos: alumnosUnicos.size },
+    }
+  })
+
+  return {
+    periodo: actual.periodo,
+    parte: actual.parte
+      ? {
+          id: actual.parte.id,
+          cueAnexo: actual.parte.cueAnexo,
+          estadoEstablecimiento: snapshot.estadoEstablecimiento,
+          estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
+          actualizadaEn: actual.parte.actualizadaEn,
+        }
+      : null,
+    servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+    afectaciones,
+    secciones: actual.secciones,
+    ultimaActualizacion: actual.parte?.actualizadaEn ?? null,
+  }
+}
+
+export interface MovimientoDescrito {
+  id: string
+  tipo: TipoMovimiento
+  rol: RolMovimiento
+  creadaEn: string
+  rigeDesde: string
+  cambios: string[]
+}
+
+// Historial de movimientos de un parte, ya traducidos a prosa castellana
+// (describirMovimiento). Compartida entre la ruta del director
+// (app/api/problematicas/parte/historial/route.ts) y la ruta paralela del
+// mapa (app/api/mapas/infraestructura/historial/route.ts, F3.4): misma
+// lectura, dos guardas de acceso distintas — el historial no lleva nombres
+// de alumnos (nunca los llevó), así que no hay nada que degradar acá.
+export async function listarMovimientosDescritos(
+  cueAnexo: string,
+  corteId: number,
+): Promise<MovimientoDescrito[]> {
+  const actual = await obtenerParteActual(cueAnexo, corteId)
+  // Sin período vigente o sin parte todavía: no es un error, es historial
+  // vacío (mismo criterio que las rutas que ya consumían este caso).
+  if (!actual || !actual.parte) return []
+
+  const db = getDb()
+  const filas = await db
+    .select()
+    .from(infraMovimiento)
+    .where(eq(infraMovimiento.parteId, actual.parte.id))
+    .orderBy(desc(infraMovimiento.creadaEn))
+
+  return filas.map((fila) => {
+    const tipo = fila.tipo as TipoMovimiento
+    return {
+      id: fila.id,
+      tipo,
+      rol: fila.rol as RolMovimiento,
+      creadaEn: fila.creadaEn,
+      rigeDesde: fila.rigeDesde,
+      cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo }),
+    }
+  })
 }

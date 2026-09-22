@@ -6,6 +6,7 @@ import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 
 type Props = {
   summary: Summary
@@ -96,38 +97,131 @@ export function LegendPanel({
 
 // ── Leyenda del mapa de infraestructura ─────────────────────────────────────
 //
-// Dominio distinto del resto de este archivo (evolución de matrícula): el
-// símbolo codifica la categoría (● relleno = establecimiento, ○ anillo =
-// alumnos) y el color codifica la severidad, no la tendencia. Componente
-// propio en vez de reutilizar LegendPanel de arriba, que está armado
-// enteramente alrededor de Summary/Trend.
-export function InfraLegendPanel() {
+// Dominio distinto del resto de este archivo (evolución de matrícula) y,
+// desde Fase 2, distinto también de la leyenda anterior: una escuela = un
+// punto, y los tres canales visuales son color (severidad), tamaño (alumnos
+// alcanzados) y anillo (servicio) — ver map-infraestructura-page.tsx para la
+// codificación exacta. El símbolo por categoría desapareció (la categoría
+// pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
+//
+// Esta leyenda ya no recibe `indicadores`: los números consolidados los
+// muestra <Indicadores>, arriba en la misma columna. Tenerlos en los dos
+// lados era duplicar la misma fuente en la misma pantalla.
+export function InfraLegendPanel({
+  departamentosSinMatch = [],
+}: {
+  // F2.4: un departamento de la base que no matchea ningún polígono del
+  // GeoJSON no se silencia (gotcha de nombres, ver lib/mapas/departamentos.ts)
+  // — se loguea en consola Y se muestra acá, para que sea visible también
+  // para quien mira el mapa y no la consola del navegador.
+  departamentosSinMatch?: string[]
+}) {
   const styles = useOverlayStyles()
 
   return (
-    <div className={`${styles.panel} ${styles.legendPanel}`}>
-      <b>Referencias</b>
+    // Colapsable y cerrada por defecto. La referencia se consulta una vez y
+    // después estorba: abierta ocupa media columna y empuja los filtros y la
+    // lista fuera de la vista. `<details>` nativo en vez de estado propio
+    // porque el navegador ya resuelve teclado y accesibilidad.
+    // Los números consolidados NO van acá: los muestra <Indicadores> justo
+    // arriba, en esta misma columna, y repetirlos era duplicar una fuente.
+    <details className={`${styles.panel} ${styles.legendPanel}`}>
+      <summary className={styles.legendSummary}>Referencias</summary>
       <div className={styles.hint}>
-        El símbolo indica la categoría de la problemática; el color, su severidad.
+        Color: severidad de la peor afectación vigente. Tamaño: alumnos alcanzados. Anillo:
+        estado del servicio educativo.
       </div>
-      <div className={styles.legendItem}>
-        <span className={styles.swatch} style={{ background: '#777', borderRadius: '50%' }} />
-        Afecta al establecimiento
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '2px solid #777', borderRadius: '50%' }}
-        />
-        Inaccesibilidad de alumnos
-      </div>
-      <br />
+
       {SEVERIDADES.map((severidad) => (
         <div key={severidad} className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: colorSeveridad(severidad) }} />
           {severidad}
         </div>
       ))}
-    </div>
+
+      <br />
+      {/*
+        El anillo no puede usar color (ya está tomado por severidad): se
+        distingue por grosor y opacidad de trazo. Estos tres swatches son
+        ilustrativos de esa codificación, no una escala de color nueva.
+      */}
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '3px solid #1c1c1c', borderRadius: '50%' }}
+        />
+        Servicio suspendido (anillo grueso)
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{
+            background: 'transparent',
+            border: '2px solid #1c1c1c',
+            borderRadius: '50%',
+            opacity: 0.55,
+          }}
+        />
+        Servicio parcial (anillo fino)
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '1px solid #1c1c1c', borderRadius: '50%' }}
+        />
+        Servicio normal (sin anillo)
+      </div>
+
+      <br />
+      {/*
+        Evacuación (F2.3): dos formas, no dos colores — evacuado y
+        centro_evacuados son opuestos (daño vs. recurso) y en emergencia el
+        recurso es lo primero que se busca, así que no pueden compartir
+        símbolo. Capa aparte, apagada por defecto (ver InfraLayerControl).
+      */}
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '2px solid #1c1c1c' }}
+        />
+        Evacuado (cuadrado): daño en el establecimiento
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{
+            background: 'transparent',
+            borderLeft: '6px solid transparent',
+            borderRight: '6px solid transparent',
+            borderBottom: '12px solid #1c1c1c',
+            width: 0,
+            height: 0,
+          }}
+        />
+        Centro de evacuados (triángulo): la escuela aloja gente
+      </div>
+      <div className={styles.legendItem}>
+        <span
+          className={styles.swatch}
+          style={{ background: 'transparent', border: '2px solid #6b7280', borderRadius: '50%' }}
+        />
+        Sin reportar (halo gris): más de {UMBRAL_SIN_REPORTAR_HORAS} h sin actualización — ausencia
+        de información, no severidad
+      </div>
+
+      <br />
+      <div className={styles.hint}>
+        Departamentos: la intensidad del relleno (no el color) sube con la cantidad de escuelas
+        con servicio suspendido o parcial en ese departamento; la etiqueta muestra el nombre y, si
+        hay alguna, el conteo.
+      </div>
+
+      {departamentosSinMatch.length > 0 && (
+        <div className={`${styles.hint} ${styles.statusError}`}>
+          Departamento(s) sin coincidencia geográfica: {departamentosSinMatch.join(', ')}
+        </div>
+      )}
+
+    </details>
   )
 }

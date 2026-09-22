@@ -36,7 +36,7 @@ describe('HistorialParte', () => {
     const fetchMock = responderCon([])
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(fetchMock.mock.calls[0][0]).toBe(`/api/problematicas/parte/historial?cue=${CUE}`)
@@ -52,7 +52,7 @@ describe('HistorialParte', () => {
       ]),
     )
 
-    const { container } = render(<HistorialParte cue={CUE} />)
+    const { container } = render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     await screen.findByText('12 alumnos incorporados')
     const cargas = Array.from(container.querySelectorAll('.historial-movimiento__carga')).map(
@@ -64,7 +64,7 @@ describe('HistorialParte', () => {
   it('muestra el estado vacío, y no un error, cuando no hay movimientos', async () => {
     vi.stubGlobal('fetch', responderCon([]))
 
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     expect(
       await screen.findByText(
@@ -87,7 +87,7 @@ describe('HistorialParte', () => {
       })),
     )
 
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     expect(screen.getByRole('status')).toHaveTextContent('Buscando los movimientos del parte…')
 
@@ -105,7 +105,7 @@ describe('HistorialParte', () => {
       })
     vi.stubGlobal('fetch', fetchMock)
 
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     const aviso = await screen.findByRole('alert')
     expect(aviso).toHaveTextContent('No pudimos mostrar el historial.')
@@ -118,7 +118,7 @@ describe('HistorialParte', () => {
   it('trata una respuesta HTTP fallida como error de lectura, no como historial vacío', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) }))
 
-    render(<HistorialParte cue={CUE} />)
+    render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     expect(await screen.findByRole('alert')).toBeInTheDocument()
   })

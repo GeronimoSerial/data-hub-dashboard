@@ -21,7 +21,6 @@ import { Checkbox } from '@/components/ui/checkbox'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
-import type { CategoriaProblematica } from '@/lib/infraestructura/categorias'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 
 export interface ReporteInicialFormProps {

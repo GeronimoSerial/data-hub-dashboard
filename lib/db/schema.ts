@@ -195,68 +195,13 @@ export const userNiveles = sqliteTable(
 // no un enum en código. `categoria` referencia el catálogo fijo de
 // lib/infraestructura/categorias.ts (no hay FK porque ese catálogo no es una
 // tabla). `id` es un slug estable usado sólo en el ABM y en el formulario; lo
-// que persiste infra_problematica.motivo es el nombre, no este id.
+// que persiste infra_afectacion.motivo es el nombre, no este id.
 export const infraMotivo = sqliteTable('infra_motivo', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   categoria: text('categoria').notNull(),
   orden: integer('orden').notNull().default(0),
 })
-
-export const infraProblematica = sqliteTable('infra_problematica', {
-  id: text('id').primaryKey(),
-  cueAnexo: text('cue_anexo').notNull(),
-  motivo: text('motivo').notNull(),
-  // Resuelta por el servidor a partir de infra_motivo en el momento del alta
-  // (ver resolverCategoria en lib/infraestructura/validacion.ts); nunca la
-  // decide el cliente. Columna agregada con ALTER a las bases existentes
-  // (ver ensureCategoriaColumn en lib/db/seed.ts) porque SQLite no permite
-  // agregarla NOT NULL con filas ya presentes: acá se declara notNull porque
-  // el backfill la completa antes de que cualquier lectura la use.
-  categoria: text('categoria').notNull(),
-  severidad: text('severidad').notNull(),
-  descripcion: text('descripcion'),
-  corteId: integer('corte_id').notNull(),
-  creadaEn: text('creada_en').notNull(),
-  idempotencyKey: text('idempotency_key').notNull().unique(),
-  origen: text('origen').notNull(),
-  // Enlace aditivo al modelo de parte (ver
-  // docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md).
-  // Nullable a propósito: mismo motivo que categoria arriba, columna agregada
-  // con ALTER (ver ensureParteIdColumn en lib/db/seed.ts) porque SQLite no
-  // permite agregarla NOT NULL con filas ya presentes. El backfill
-  // (backfillPeriodoYPartes) la completa para las filas existentes, pero
-  // nunca se vuelve NOT NULL a nivel de esquema: una fila histórica de una
-  // base que todavía no corrió el backfill debe seguir siendo válida.
-  parteId: text('parte_id').references(() => infraParte.id),
-})
-
-export const infraProblematicaSeccion = sqliteTable(
-  'infra_problematica_seccion',
-  {
-    problematicaId: text('problematica_id')
-      .notNull()
-      .references(() => infraProblematica.id, { onDelete: 'cascade' }),
-    geSectionId: integer('ge_section_id').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.problematicaId, t.geSectionId] })],
-)
-
-// Alumnos seleccionados individualmente dentro de una sección (selección
-// parcial). Una sección presente en infraProblematicaSeccion sin ninguna fila
-// acá se interpreta como "sección completa": la ausencia de filas es la
-// semántica, no un estado transitorio. Mismo estilo que
-// infraProblematicaSeccion, misma clave compuesta y el mismo cascade.
-export const infraProblematicaAlumno = sqliteTable(
-  'infra_problematica_alumno',
-  {
-    problematicaId: text('problematica_id')
-      .notNull()
-      .references(() => infraProblematica.id, { onDelete: 'cascade' }),
-    gePersonId: integer('ge_person_id').notNull(),
-  },
-  (t) => [primaryKey({ columns: [t.problematicaId, t.gePersonId] })],
-)
 
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
 // obligatorio: no existen grants permanentes. `otorgado_por` deja registrado
@@ -270,30 +215,35 @@ export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
   revocadoEn: text('revocado_en'),
 })
 
-// Auditoría de cada consulta al alcance nominal: quién, qué problemática y
+// Auditoría de cada consulta al alcance nominal: quién, qué afectación y
 // cuántos alumnos vio. Se escribe en la misma transacción que sirve la
-// respuesta del endpoint (ver app/api/infraestructura/nominal/route.ts).
+// respuesta del endpoint (ver app/api/mapas/infraestructura/nominal/route.ts;
+// la ruta vieja sobre el modelo deprecado, app/api/infraestructura/nominal,
+// se retiró en F3.3 frontend).
+// `afectacionId` (F3.3) reemplaza a la columna `problematica_id` original:
+// apuntaba al modelo deprecado, eliminado en la Fase 4.
+// Sigue siendo texto plano SIN foreign key (nunca la tuvo), así que el rename
+// no arrastra constraints ni índices.
 export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
-  problematicaId: text('problematica_id').notNull(),
+  afectacionId: text('afectacion_id').notNull(),
   cantidad: integer('cantidad').notNull(),
   consultadoEn: text('consultado_en').notNull(),
 })
 
 // --- Trayectoria de situaciones hidrometeorológicas ---
 // Ver docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md
-// y el CONTRACT.md del batch de esquema. Migración aditiva: infra_problematica
-// (arriba) sigue existiendo tal cual y mapea ~1:1 a "afectación"; estas tablas
-// nuevas agregan el modelo de período/parte por encima, sin tocar el
-// contrato existente de POST /api/problematicas.
+// y el CONTRACT.md del batch de esquema. Este es el modelo vigente: período /
+// parte / afectación. Nació como migración aditiva por encima del modelo
+// deprecado, que se eliminó por completo en la Fase 4 de
+// odd/tasks/mapa-parte-operativo.md (ver DROP en lib/db/seed.ts).
 //
 // Todas las columnas de vigencia siguen la distinción de la spec §12: `rigeDesde`
 // (cuándo empieza a regir el cambio, puede ser pasado o futuro) es siempre
 // distinta de `creadaEn` (cuándo se cargó en el sistema, reloj del servidor).
-// Ninguna se deriva de la otra. Igual que `infra_problematica.creadaEn`, se
-// guardan como texto ISO 8601, nunca como entero epoch (ese modo sólo lo usan
-// las tablas de better-auth).
+// Ninguna se deriva de la otra. Se guardan como texto ISO 8601, nunca como
+// entero epoch (ese modo sólo lo usan las tablas de better-auth).
 
 // Período provincial (p. ej. protocolo ENOS 2026/2027). Sólo un período puede
 // estar `vigente` a la vez: índice único parcial (`WHERE estado = 'vigente'`),
@@ -372,8 +322,8 @@ export const infraAfectacion = sqliteTable(
   (t) => [index('infra_afectacion_parte_id_idx').on(t.parteId)],
 )
 
-// Mismo estilo, misma clave compuesta y el mismo cascade que
-// infraProblematicaSeccion.
+// Selección de secciones de una afectación: clave compuesta
+// (afectacionId, geSectionId) y cascade desde infra_afectacion.
 export const infraAfectacionSeccion = sqliteTable(
   'infra_afectacion_seccion',
   {
@@ -386,9 +336,9 @@ export const infraAfectacionSeccion = sqliteTable(
 )
 
 // Alumnos seleccionados individualmente dentro de una sección (selección
-// parcial). Misma semántica que infraProblematicaAlumno: una sección presente
-// en infraAfectacionSeccion sin ninguna fila acá se interpreta como "sección
-// completa"; la ausencia de filas es la semántica, no un estado transitorio.
+// parcial). Una sección presente en infraAfectacionSeccion sin ninguna fila
+// acá se interpreta como "sección completa"; la ausencia de filas es la
+// semántica, no un estado transitorio.
 export const infraAfectacionAlumno = sqliteTable(
   'infra_afectacion_alumno',
   {
@@ -449,8 +399,9 @@ export const infraMovimiento = sqliteTable(
     // Clave de idempotencia del POST que generó este movimiento (batch 3:
     // app/api/problematicas/parte/route.ts). Nullable y agregada por ALTER
     // (ver ensureMovimientoIdempotencyKeyColumn en lib/db/seed.ts) por el
-    // mismo motivo que infra_problematica.parte_id: SQLite no permite
-    // agregar una columna NOT NULL a una tabla con filas. El índice único es
+    // mismo motivo que cualquier columna agregada con ALTER a una base
+    // poblada: SQLite no permite agregar una columna NOT NULL a una tabla
+    // con filas. El índice único es
     // parcial de hecho (no declarado como tal): SQLite trata cada NULL como
     // distinto en un índice único, así que las filas legacy sin clave nunca
     // colisionan entre sí.

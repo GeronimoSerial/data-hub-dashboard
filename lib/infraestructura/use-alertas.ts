@@ -1,13 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ConsultaAlertasResultado, FiltrosAlertas } from './consulta'
+import type { FiltrosMapa, IndicadoresMapa, ParteMapa } from './parte-mapa'
 
-const RUTA_ALERTAS = '/api/mapas/infraestructura'
+const RUTA_PARTES = '/api/mapas/infraestructura'
 const INTERVALO_POLLING_MS = 15000
-const MENSAJE_ERROR = 'No se pudieron cargar las alertas.'
+const MENSAJE_ERROR = 'No se pudieron cargar los partes.'
 
-function construirQueryString(filtros: FiltrosAlertas): string {
+// Forma exacta de la respuesta de GET /api/mapas/infraestructura desde la
+// migración a Fase 2: un parte por escuela, no una alerta por problemática.
+export interface RespuestaPartesMapa {
+  partes: ParteMapa[]
+  indicadores: IndicadoresMapa
+}
+
+function construirQueryString(filtros: FiltrosMapa): string {
   const parametros = new URLSearchParams()
 
   const agregar = (nombre: string, valor: string | undefined): void => {
@@ -21,21 +28,23 @@ function construirQueryString(filtros: FiltrosAlertas): string {
   agregar('establecimiento', filtros.cueAnexo)
   agregar('motivo', filtros.motivo)
   agregar('severidad', filtros.severidad)
+  agregar('categoria', filtros.categoria)
+  agregar('servicio', filtros.servicio)
 
   const cadena = parametros.toString()
   return cadena === '' ? '' : `?${cadena}`
 }
 
-export function useAlertas(filtros: FiltrosAlertas): {
-  data: ConsultaAlertasResultado | null
+export function useAlertas(filtros: FiltrosMapa): {
+  data: RespuestaPartesMapa | null
   loading: boolean
   error: string | null
 } {
-  const [data, setData] = useState<ConsultaAlertasResultado | null>(null)
+  const [data, setData] = useState<RespuestaPartesMapa | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const filtrosRef = useRef<FiltrosAlertas>(filtros)
+  const filtrosRef = useRef<FiltrosMapa>(filtros)
   const abortRef = useRef<AbortController | null>(null)
   const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const desmontadoRef = useRef(false)
@@ -52,7 +61,7 @@ export function useAlertas(filtros: FiltrosAlertas): {
 
     try {
       const respuesta = await fetch(
-        `${RUTA_ALERTAS}${construirQueryString(filtrosRef.current)}`,
+        `${RUTA_PARTES}${construirQueryString(filtrosRef.current)}`,
         {
           signal: controller.signal,
           cache: 'no-store',
@@ -64,7 +73,7 @@ export function useAlertas(filtros: FiltrosAlertas): {
         throw new Error(`HTTP ${respuesta.status}`)
       }
 
-      const json = (await respuesta.json()) as ConsultaAlertasResultado
+      const json = (await respuesta.json()) as RespuestaPartesMapa
 
       if (desmontadoRef.current || controller.signal.aborted) return
 
@@ -137,6 +146,8 @@ export function useAlertas(filtros: FiltrosAlertas): {
     filtros.cueAnexo,
     filtros.motivo,
     filtros.severidad,
+    filtros.categoria,
+    filtros.servicio,
   ])
 
   return { data, loading, error }

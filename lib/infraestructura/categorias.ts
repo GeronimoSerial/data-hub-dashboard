@@ -5,10 +5,10 @@
 // su cuenta, siempre consultan este mapa.
 export const CATEGORIAS = ['establecimiento', 'alumnos'] as const
 
-export type CategoriaProblematica = (typeof CATEGORIAS)[number]
+export type CategoriaAfectacion = (typeof CATEGORIAS)[number]
 
 export const CATEGORIA_META: Record<
-  CategoriaProblematica,
+  CategoriaAfectacion,
   { label: string; descripcion: string; permiteAlumnos: boolean }
 > = {
   establecimiento: {
@@ -23,6 +23,6 @@ export const CATEGORIA_META: Record<
   },
 }
 
-export function esCategoria(v: string): v is CategoriaProblematica {
+export function esCategoria(v: string): v is CategoriaAfectacion {
   return (CATEGORIAS as readonly string[]).includes(v)
 }

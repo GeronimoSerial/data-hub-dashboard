@@ -10,7 +10,7 @@
 // datos simples a estas funciones.
 
 import type { Severidad } from './validacion'
-import type { CategoriaProblematica as Categoria } from './categorias'
+import type { CategoriaAfectacion as Categoria } from './categorias'
 
 export type { Severidad, Categoria }
 
@@ -55,7 +55,7 @@ export interface FilaConVigencia {
 
 // Selección de alcance de una afectación dentro de una sección. La ausencia
 // de `alumnos` (o un arreglo vacío) significa "sección completa" — mismo
-// criterio que infraProblematicaSeccion/infraProblematicaAlumno en
+// criterio que infraAfectacionSeccion/infraAfectacionAlumno en
 // lib/db/schema.ts. `alumnos` acá ya viene resuelto contra el corte vigente
 // por quien arma el snapshot (batch 3): esta capa es pura y no puede
 // consultar ge.sqlite para saber cuántos alumnos matricula una sección.

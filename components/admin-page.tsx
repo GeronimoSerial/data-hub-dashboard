@@ -32,9 +32,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
-import type { ContextoCue } from '@/lib/infraestructura/contexto'
-import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { CATEGORIAS, CATEGORIA_META, type CategoriaProblematica } from '@/lib/infraestructura/categorias'
+import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 const COLORS: BadgeColor[] = [
@@ -1156,375 +1154,11 @@ function UsersAdmin() {
   )
 }
 
-// ── Problemáticas de infraestructura ───────────────────────────────────────
-
-type InfraProblematicaRow = {
-  id: string
-  cueAnexo: string
-  motivo: string
-  severidad: string
-  descripcion: string | null
-  creadaEn: string
-  origen: string
-  seccionesCantidad: number
-}
-
-function ProblematicaDialog({
-  open,
-  onClose,
-  onSaved,
-}: {
-  open: boolean
-  onClose: () => void
-  onSaved: () => Promise<void>
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      {open ? <ProblematicaForm onClose={onClose} onSaved={onSaved} /> : null}
-    </Dialog>
-  )
-}
-
-function ProblematicaForm({
-  onClose,
-  onSaved,
-}: {
-  onClose: () => void
-  onSaved: () => Promise<void>
-}) {
-  const [cueInput, setCueInput] = React.useState('')
-  const [contexto, setContexto] = React.useState<ContextoCue | null>(null)
-  const [buscando, setBuscando] = React.useState(false)
-  const [contextoError, setContextoError] = React.useState<string | null>(null)
-  const [tipo, setTipo] = React.useState<CategoriaProblematica | ''>('')
-  const [motivos, setMotivos] = React.useState<MotivoRow[]>([])
-  const [motivo, setMotivo] = React.useState<string>('')
-  const [severidad, setSeveridad] = React.useState<string>('')
-  const [seccionesSeleccionadas, setSeccionesSeleccionadas] = React.useState<string[]>([])
-  const [descripcion, setDescripcion] = React.useState('')
-  const [saving, setSaving] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-
-  React.useEffect(() => {
-    let cancelled = false
-    fetch('/api/infraestructura/motivos')
-      .then((res) => res.json())
-      .then((data: { motivos?: MotivoRow[] }) => {
-        if (!cancelled) setMotivos(data.motivos ?? [])
-      })
-      .catch(() => {
-        if (!cancelled) setMotivos([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const motivosDelTipo = tipo ? motivos.filter((m) => m.categoria === tipo) : []
-
-  // Al cambiar el tipo se limpia el motivo: el catálogo filtrado depende de
-  // él y un motivo de otra categoría no tendría sentido seleccionado.
-  const cambiarTipo = (nuevoTipo: CategoriaProblematica) => {
-    setTipo(nuevoTipo)
-    setMotivo('')
-  }
-
-  const seccionesOptions = (contexto?.turnos ?? []).flatMap((turno) =>
-    turno.niveles.flatMap((nivel) =>
-      nivel.secciones.map((seccion) => ({
-        value: String(seccion.geSectionId),
-        label: `${turno.turno} · ${nivel.nivel} · ${seccion.curso}° ${seccion.division} (matrícula ${seccion.matricula})`,
-      })),
-    ),
-  )
-
-  const buscarEscuela = async () => {
-    const cue = cueInput.trim()
-    if (!cue) return
-    setBuscando(true)
-    setContextoError(null)
-    setContexto(null)
-    setSeccionesSeleccionadas([])
-    try {
-      const res = await fetch(`/api/problematicas/contexto?cue=${encodeURIComponent(cue)}`)
-      const data = (await res.json().catch(() => null)) as
-        | ContextoCue
-        | { error?: unknown }
-        | null
-      if (!res.ok) {
-        setContextoError(
-          data && typeof (data as { error?: unknown }).error === 'string'
-            ? (data as { error: string }).error
-            : 'No se pudo resolver la escuela. Verifique el CUE ingresado.',
-        )
-        return
-      }
-      setContexto(data as ContextoCue)
-    } finally {
-      setBuscando(false)
-    }
-  }
-
-  const valido =
-    Boolean(contexto) &&
-    Boolean(tipo) &&
-    Boolean(motivo) &&
-    Boolean(severidad) &&
-    seccionesSeleccionadas.length > 0
-
-  const guardar = async () => {
-    if (!contexto) return
-    setSaving(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/infraestructura/problematicas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cue: contexto.escuela.cueAnexo,
-          motivo,
-          severidad,
-          descripcion: descripcion.trim() || undefined,
-          secciones: seccionesSeleccionadas.map(Number),
-        }),
-      })
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: unknown } | null
-        setError(
-          typeof data?.error === 'string'
-            ? data.error
-            : 'No se pudo guardar la problemática. Intente nuevamente.',
-        )
-        return
-      }
-      await onSaved()
-      onClose()
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <DialogContent>
-      <DialogTitle>Nueva problemática</DialogTitle>
-      <div className="ui-form-grid">
-        {error ? (
-          <div className="ui-messagebar ui-messagebar--error" role="alert">
-            {error}
-          </div>
-        ) : null}
-        <AdminField label="CUE" required hint="Identificador de la escuela y anexo">
-          <div className="ui-actions">
-            <Input
-              value={cueInput}
-              onChange={(event) => setCueInput(event.currentTarget.value)}
-              placeholder="1801605-04"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={buscando || cueInput.trim().length === 0}
-              onClick={() => void buscarEscuela()}
-            >
-              Buscar
-            </Button>
-          </div>
-        </AdminField>
-        {contextoError ? (
-          <div className="ui-messagebar ui-messagebar--error" role="alert">
-            {contextoError}
-          </div>
-        ) : null}
-        {contexto ? (
-          <>
-            <p className="ui-hint">
-              {contexto.escuela.nombre} · {contexto.escuela.departamento}, {contexto.escuela.localidad}
-            </p>
-            <AdminField label="Tipo de problemática" required>
-              <Select
-                value={tipo}
-                items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
-                onValueChange={(value) => cambiarTipo(value as CategoriaProblematica)}
-              >
-                <SelectTrigger aria-label="Tipo de problemática" />
-                <SelectContent>
-                  {CATEGORIAS.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {CATEGORIA_META[c].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
-            <AdminField label="Motivo" required>
-              <Select
-                value={motivo}
-                items={Object.fromEntries(motivosDelTipo.map((m) => [m.nombre, m.nombre]))}
-                onValueChange={(value) => setMotivo(value as string)}
-                disabled={!tipo}
-              >
-                <SelectTrigger aria-label="Motivo" />
-                <SelectContent>
-                  {motivosDelTipo.map((m) => (
-                    <SelectItem key={m.id} value={m.nombre}>
-                      {m.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
-            <AdminField label="Severidad" required>
-              <Select
-                value={severidad}
-                items={Object.fromEntries(SEVERIDADES.map((s) => [s, s]))}
-                onValueChange={(value) => setSeveridad(value as string)}
-              >
-                <SelectTrigger aria-label="Severidad" />
-                <SelectContent>
-                  {SEVERIDADES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
-            <AdminField label="Secciones afectadas" required>
-              <MultiSelect
-                value={seccionesSeleccionadas}
-                onChange={setSeccionesSeleccionadas}
-                options={seccionesOptions}
-                placeholder="Seleccione secciones"
-                ariaLabel="Secciones afectadas"
-              />
-            </AdminField>
-            <AdminField label="Descripción" hint="Opcional, hasta 500 caracteres">
-              <Textarea
-                value={descripcion}
-                onChange={(event) => setDescripcion(event.currentTarget.value)}
-                maxLength={500}
-              />
-            </AdminField>
-          </>
-        ) : null}
-      </div>
-      <div className="ui-dialog-actions">
-        <Button variant="secondary" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button disabled={!valido || saving} onClick={() => void guardar()}>
-          Guardar
-        </Button>
-      </div>
-    </DialogContent>
-  )
-}
-
-function ProblematicasAdmin() {
-  const [problematicas, setProblematicas] = React.useState<InfraProblematicaRow[]>([])
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [open, setOpen] = React.useState(false)
-
-  const requestProblematicas = React.useCallback(async () => {
-    const res = await fetch('/api/infraestructura/problematicas')
-    const data = (await res.json().catch(() => null)) as {
-      problematicas?: InfraProblematicaRow[]
-      error?: unknown
-    } | null
-    if (!res.ok) {
-      throw new Error(
-        typeof data?.error === 'string'
-          ? data.error
-          : 'No se pudieron cargar las problemáticas.',
-      )
-    }
-    return data?.problematicas ?? []
-  }, [])
-
-  const reload = React.useCallback(async () => {
-    const rows = await requestProblematicas()
-    setProblematicas(rows)
-    setLoadError(null)
-  }, [requestProblematicas])
-
-  React.useEffect(() => {
-    let cancelled = false
-    requestProblematicas().then(
-      (rows) => {
-        if (!cancelled) setProblematicas(rows)
-      },
-      (error) => {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : 'No se pudieron cargar las problemáticas.',
-          )
-        }
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [requestProblematicas])
-
-  return (
-    <div>
-      <div className="ui-toolbar">
-        <span className="ui-hint">
-          {problematicas.length}{' '}
-          {problematicas.length === 1 ? 'problemática' : 'problemáticas'}
-        </span>
-        <Button onClick={() => setOpen(true)}>
-          <Plus size={16} /> Nueva problemática
-        </Button>
-      </div>
-
-      {loadError ? (
-        <div className="ui-messagebar ui-messagebar--error" role="alert">
-          {loadError}
-        </div>
-      ) : null}
-
-      <div className="ui-table-wrap">
-        <table className="ui-table" aria-label="Problemáticas de infraestructura">
-          <thead>
-            <tr>
-              <th>CUE</th>
-              <th>Motivo</th>
-              <th>Severidad</th>
-              <th>Secciones</th>
-              <th>Creada</th>
-              <th>Origen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {problematicas.map((p) => (
-              <tr key={p.id}>
-                <td>{p.cueAnexo}</td>
-                <td>{p.motivo}</td>
-                <td>{p.severidad}</td>
-                <td>{p.seccionesCantidad}</td>
-                <td>{formatearFecha(p.creadaEn)}</td>
-                <td>
-                  <span className="badge badge--neutral">{p.origen}</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <ProblematicaDialog open={open} onClose={() => setOpen(false)} onSaved={reload} />
-    </div>
-  )
-}
-
 // ── Motivos de infraestructura (ABM) ───────────────────────────────────────
 //
 // No reutiliza TaxonomyAdmin: esa tabla cuenta "en uso" contra `recursos`
 // (ver taxonomyInUseCount), mientras que un motivo está en uso cuando hay
-// filas en infra_problematica — dominios distintos, API propia
+// filas en infra_afectacion — dominios distintos, API propia
 // (/api/infraestructura/motivos, ver spec de diseño §3).
 function MotivoDialog({
   open,
@@ -1556,7 +1190,7 @@ function MotivoForm({
   onSaved: () => Promise<void>
 }) {
   const [nombre, setNombre] = React.useState(editing?.nombre ?? '')
-  const [categoria, setCategoria] = React.useState<CategoriaProblematica>(
+  const [categoria, setCategoria] = React.useState<CategoriaAfectacion>(
     editing?.categoria ?? CATEGORIAS[0],
   )
   const [orden, setOrden] = React.useState(editing?.orden ?? 0)
@@ -1607,7 +1241,7 @@ function MotivoForm({
           <Select
             value={categoria}
             items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
-            onValueChange={(value) => setCategoria(value as CategoriaProblematica)}
+            onValueChange={(value) => setCategoria(value as CategoriaAfectacion)}
           >
             <SelectTrigger aria-label="Categoría" />
             <SelectContent>
@@ -1744,7 +1378,7 @@ function MotivosAdmin() {
                     </Tooltip>
                     <ConfirmDelete
                       title="¿Eliminar motivo?"
-                      description="El motivo se eliminará de forma permanente. Si hay problemáticas asociadas, no se podrá eliminar."
+                      description="El motivo se eliminará de forma permanente. Si hay afectaciones que lo usan, no se podrá eliminar."
                       onConfirm={() => void eliminar(m.id)}
                       triggerLabel="Eliminar motivo"
                     />
@@ -1848,7 +1482,6 @@ export function AdminPage() {
                 <TabsTab value="niveles">Niveles</TabsTab>
                 <TabsTab value="tipos">Tipos</TabsTab>
                 <TabsTab value="usuarios">Usuarios</TabsTab>
-                <TabsTab value="problematicas">Problemáticas</TabsTab>
                 <TabsTab value="motivos">Motivos</TabsTab>
               </>
             ) : null}
@@ -1987,8 +1620,6 @@ export function AdminPage() {
         )}
 
         {isAdmin && tab === 'usuarios' && <UsersAdmin />}
-
-        {isAdmin && tab === 'problematicas' && <ProblematicasAdmin />}
 
         {isAdmin && tab === 'motivos' && <MotivosAdmin />}
       </div>

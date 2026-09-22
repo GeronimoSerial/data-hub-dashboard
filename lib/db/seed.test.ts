@@ -9,7 +9,6 @@ import {
   infraAfectacion,
   infraParte,
   infraPeriodo,
-  infraProblematica,
   infraServicioAlcance,
   niveles,
   recursos,
@@ -81,8 +80,8 @@ describe('HUB_DDL sobre una base ya poblada', () => {
             VALUES ('p1', 'u1', 'admin1', '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')`,
     })
     await db.$client.execute({
-      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, problematica_id, cantidad, consultado_en)
-            VALUES ('l1', 'u1', 'prob1', 3, '2026-01-02T00:00:00Z')`,
+      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, afectacion_id, cantidad, consultado_en)
+            VALUES ('l1', 'u1', 'afect1', 3, '2026-01-02T00:00:00Z')`,
     })
 
     await db.$client.executeMultiple(HUB_DDL)
@@ -91,25 +90,6 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     const logs = await db.$client.execute('SELECT * FROM infra_acceso_nominal_log')
     expect(permisos.rows).toHaveLength(1)
     expect(logs.rows).toHaveLength(1)
-  })
-
-  it('preserva filas de infra_problematica_alumno (selección de alumnos) al reaplicarse', async () => {
-    const { HUB_DDL } = await import('./seed')
-    const db = getDb()
-
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('probAlumno1', '1801605-04', 'Inundación', 'Alta', 1, '2026-01-01T00:00:00Z', 'k-alumno-1', 'enlace-cue')`,
-    })
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica_alumno (problematica_id, ge_person_id) VALUES ('probAlumno1', 12345)`,
-    })
-
-    await db.$client.executeMultiple(HUB_DDL)
-
-    const alumnos = await db.$client.execute('SELECT * FROM infra_problematica_alumno')
-    expect(alumnos.rows).toHaveLength(1)
   })
 
   it('preserva las filas de infra_motivo (semilla y agregados por un admin) al reaplicarse', async () => {
@@ -125,56 +105,6 @@ describe('HUB_DDL sobre una base ya poblada', () => {
 
     const motivos = await db.$client.execute('SELECT * FROM infra_motivo')
     expect(motivos.rows.some((r) => r.id === 'propio-admin')).toBe(true)
-  })
-})
-
-describe('ensureCategoriaColumn', () => {
-  it('agrega la columna categoria si falta, y no falla si ya existe', async () => {
-    const { ensureCategoriaColumn } = await import('./seed')
-
-    await ensureCategoriaColumn()
-    await ensureCategoriaColumn()
-
-    const db = getDb()
-    const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
-    const columnas = info.rows.map((r) => String(r.name))
-    expect(columnas.filter((c) => c === 'categoria')).toHaveLength(1)
-  })
-})
-
-describe('backfillCategoriaProblematicas', () => {
-  it('completa categoria según el motivo de filas preexistentes, y cae a establecimiento si el motivo es desconocido', async () => {
-    const db = getDb()
-    const { ensureCategoriaColumn, backfillCategoriaProblematicas } = await import('./seed')
-    await ensureCategoriaColumn()
-
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('backfill-establecimiento', '1801605-04', 'Inundación', 'Alta', 1, '2026-01-01T00:00:00Z', 'k-backfill-1', 'enlace-cue')`,
-    })
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('backfill-alumnos', '1801605-04', 'Anegamiento', 'Media', 1, '2026-01-01T00:00:00Z', 'k-backfill-2', 'enlace-cue')`,
-    })
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('backfill-desconocido', '1801605-04', 'Motivo que no está en la semilla', 'Baja', 1, '2026-01-01T00:00:00Z', 'k-backfill-3', 'enlace-cue')`,
-    })
-
-    await backfillCategoriaProblematicas()
-    // Idempotente: correrlo de nuevo no debería tocar filas ya categorizadas.
-    await backfillCategoriaProblematicas()
-
-    const filas = await db.$client.execute(
-      "SELECT id, categoria FROM infra_problematica WHERE id IN ('backfill-establecimiento', 'backfill-alumnos', 'backfill-desconocido')",
-    )
-    const porId = new Map(filas.rows.map((r) => [String(r.id), String(r.categoria)]))
-    expect(porId.get('backfill-establecimiento')).toBe('establecimiento')
-    expect(porId.get('backfill-alumnos')).toBe('alumnos')
-    expect(porId.get('backfill-desconocido')).toBe('establecimiento')
   })
 })
 
@@ -319,8 +249,8 @@ describe('infra_parte: un parte por cueAnexo y período', () => {
 describe('infra_periodo: un solo período vigente a la vez', () => {
   it('impide un segundo período vigente, pero permite varios históricos', async () => {
     const db = getDb()
-    // beforeAll ya corrió backfillPeriodoYPartes, que siembra el período ENOS
-    // vigente: alcanza con intentar sembrar otro vigente encima.
+    // beforeAll ya corrió sembrarPeriodoEnos (vía ensureSeeded), que siembra
+    // el período ENOS vigente: alcanza con intentar sembrar otro vigente.
     await expect(
       db.insert(infraPeriodo).values({
         id: 'periodo-vigente-duplicado-test',
@@ -444,61 +374,48 @@ describe('soft delete: retirar no borra la fila', () => {
   })
 })
 
-describe('ensureParteIdColumn', () => {
-  it('agrega la columna parte_id si falta, y no falla si ya existe', async () => {
-    const { ensureParteIdColumn } = await import('./seed')
-
-    await ensureParteIdColumn()
-    await ensureParteIdColumn()
-
+// F4.6: seedHub dropea (IF EXISTS, idempotente) las tres tablas del modelo
+// retirado, así que tras ensureSeeded ninguna debe existir ni en una base
+// fresca ni en una que ya las tuviera.
+describe('modelo retirado: DROP idempotente de las tres tablas', () => {
+  it('no deja infra_problematica, infra_problematica_seccion ni infra_problematica_alumno', async () => {
     const db = getDb()
-    const info = await db.$client.execute("PRAGMA table_info('infra_problematica')")
-    const columnas = info.rows.map((r) => String(r.name))
-    expect(columnas.filter((c) => c === 'parte_id')).toHaveLength(1)
+    const tablas = await db.$client.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('infra_problematica', 'infra_problematica_seccion', 'infra_problematica_alumno')",
+    )
+    expect(tablas.rows).toHaveLength(0)
   })
 })
 
-describe('backfillPeriodoYPartes', () => {
-  it('crea un período vigente y un parte por cueAnexo, enlaza las problemáticas y es idempotente', async () => {
+describe('ensureAccesoNominalLogAfectacionIdColumn', () => {
+  it('renombra problematica_id a afectacion_id y preserva los datos existentes', async () => {
     const db = getDb()
-    const { backfillPeriodoYPartes, PERIODO_ENOS_2026_2027_ID } = await import('./seed')
+    const { ensureAccesoNominalLogAfectacionIdColumn } = await import('./seed')
 
+    // Simula una base creada con el DDL viejo (columna problematica_id):
+    // primero se vuelve atrás para partir del estado pre-migración.
+    await db.$client.execute(
+      'ALTER TABLE infra_acceso_nominal_log RENAME COLUMN afectacion_id TO problematica_id',
+    )
     await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, categoria, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('backfill-parte-1', '1801605-99', 'Inundación', 'establecimiento', 'Alta', 1, '2026-01-01T00:00:00.000Z', 'k-backfill-parte-1', 'enlace-cue')`,
-    })
-    await db.$client.execute({
-      sql: `INSERT INTO infra_problematica
-              (id, cue_anexo, motivo, categoria, severidad, corte_id, creada_en, idempotency_key, origen)
-            VALUES ('backfill-parte-2', '1801605-99', 'Anegamiento', 'alumnos', 'Media', 2, '2026-02-01T00:00:00.000Z', 'k-backfill-parte-2', 'enlace-cue')`,
+      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, problematica_id, cantidad, consultado_en)
+            VALUES ('migracion-1', 'u1', 'afect-migracion-1', 5, '2026-01-03T00:00:00Z')`,
     })
 
-    await backfillPeriodoYPartes()
-    // Idempotente: correrlo de nuevo no debería duplicar el período ni el parte.
-    await backfillPeriodoYPartes()
+    await ensureAccesoNominalLogAfectacionIdColumn()
+    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
+    await ensureAccesoNominalLogAfectacionIdColumn()
 
-    const periodos = await db
-      .select()
-      .from(infraPeriodo)
-      .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
-    expect(periodos).toHaveLength(1)
-    expect(periodos[0]?.estado).toBe('vigente')
+    const info = await db.$client.execute("PRAGMA table_info('infra_acceso_nominal_log')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas).toContain('afectacion_id')
+    expect(columnas).not.toContain('problematica_id')
 
-    const partes = await db
-      .select()
-      .from(infraParte)
-      .where(eq(infraParte.cueAnexo, '1801605-99'))
-    expect(partes).toHaveLength(1)
-    // Se queda con el corte de la problemática más reciente por creada_en
-    // (backfill-parte-2, corte 2) — ver decisión documentada en seed.ts.
-    expect(partes[0]?.corteId).toBe(2)
-
-    const problematicas = await db
-      .select({ id: infraProblematica.id, parteId: infraProblematica.parteId })
-      .from(infraProblematica)
-      .where(eq(infraProblematica.cueAnexo, '1801605-99'))
-    expect(problematicas).toHaveLength(2)
-    expect(problematicas.every((p) => p.parteId === partes[0]?.id)).toBe(true)
+    const fila = await db.$client.execute({
+      sql: 'SELECT afectacion_id, cantidad FROM infra_acceso_nominal_log WHERE id = ?',
+      args: ['migracion-1'],
+    })
+    expect(fila.rows[0]?.afectacion_id).toBe('afect-migracion-1')
+    expect(Number(fila.rows[0]?.cantidad)).toBe(5)
   })
 })
