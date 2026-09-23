@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ConfirmDelete } from './confirm-delete'
 
 afterEach(() => {
+  // Unmount React roots before clearing the DOM: clearing alone leaves the
+  // scheduler with pending work that fires after jsdom is torn down.
+  cleanup()
   document.body.innerHTML = ''
 })
 
