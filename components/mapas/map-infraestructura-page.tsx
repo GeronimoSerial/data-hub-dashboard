@@ -478,6 +478,10 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // Id del intervalo del pulso, para poder cancelarlo en el cleanup sin
   // depender de un closure que un StrictMode pueda re-ejecutar.
   const pulsoIntervalRef = useRef<number | null>(null)
+  // Estado del pulso (base o expandido), persistido entre renders: lo mutan
+  // tanto el tick del intervalo como la pausa/reanudación por movimiento del
+  // mapa (movestart/moveend), por eso un ref y no una variable del closure.
+  const expandidoRef = useRef(false)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
@@ -636,25 +640,60 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // vez del diente de sierra viejo (crece y se reinicia al instante) que
   // producía la interpolación cruda por frame; sigue siendo un pulso
   // repetido, sólo más suave y muchísimo más barato.
+  function aplicarEstadoPulso() {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa?.getLayer(CAPA_PARTES_PULSO_ID)) return
+    const radio = expandidoRef.current
+      ? (['+', expresionRadioBasePulso(), ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]] as unknown as DataDrivenPropertyValueSpecification<number>)
+      : expresionRadioBasePulso()
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius', radio)
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity', expandidoRef.current ? 0 : 0.5)
+    expandidoRef.current = !expandidoRef.current
+  }
+
+  // Mientras el mapa se mueve (movestart) una TRANSICIÓN
+  // circle-radius/opacity en curso obliga a MapLibre a repintar en CADA frame
+  // mientras interpola, y ese repintado compite con el compositing de
+  // pan/zoom del navegador — los drags se sienten menos fluidos. Pausar
+  // (limpiar el intervalo y, con duración 0, encajar al instante al estado
+  // base sin encolar otra transición) mientras el usuario mueve el mapa
+  // mantiene el drag fluido; reanudar en moveend re-chequea el mismo guard
+  // que el efecto de montaje (no tiene sentido reanudar con reduced-motion,
+  // capa apagada o sin nada severo) y no hace nada si por lo que sea ya
+  // estaba corriendo.
+  function pausarPulsoPorMovimiento() {
+    if (pulsoIntervalRef.current !== null) {
+      window.clearInterval(pulsoIntervalRef.current)
+      pulsoIntervalRef.current = null
+    }
+    const mapa = mapRef.current?.getMap()
+    if (!mapa?.getLayer(CAPA_PARTES_PULSO_ID)) return
+    // Duración 0 para que el snap al estado base sea instantáneo, no una
+    // transición más - luego se restaura la duración real para cuando el
+    // pulso se reanude en moveend.
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius-transition', { duration: 0, delay: 0 })
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity-transition', { duration: 0, delay: 0 })
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius', expresionRadioBasePulso())
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity', prefersReducedMotion ? 0.25 : 0)
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius-transition', { duration: DURACION_PULSO_MS, delay: 0 })
+    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity-transition', { duration: DURACION_PULSO_MS, delay: 0 })
+    expandidoRef.current = false
+  }
+
+  function reanudarPulsoTrasMovimiento() {
+    if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) return
+    if (pulsoIntervalRef.current !== null) return
+    aplicarEstadoPulso()
+    pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
+  }
+
   useEffect(() => {
-    const capaPulso = CAPA_PARTES_PULSO_ID
     if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) {
       // Reduced motion ya se resuelve en el paint declarativo de la capa
       // (ver arriba); sin la capa de escuelas visible o sin nada severo en
       // los datos actuales no hay nada que animar - no se agenda ningún
       // timer.
       return
-    }
-    let expandido = false
-    function aplicarEstadoPulso() {
-      const mapa = mapRef.current?.getMap()
-      if (!mapa?.getLayer(capaPulso)) return
-      const radio = expandido
-        ? (['+', expresionRadioBasePulso(), ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]] as unknown as DataDrivenPropertyValueSpecification<number>)
-        : expresionRadioBasePulso()
-      mapa.setPaintProperty(capaPulso, 'circle-radius', radio)
-      mapa.setPaintProperty(capaPulso, 'circle-opacity', expandido ? 0 : 0.5)
-      expandido = !expandido
     }
     aplicarEstadoPulso()
     pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
@@ -843,7 +882,11 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           onMouseLeave={() => setDepartamentoHover(null)}
           cursor="pointer"
           onLoad={actualizarCuesNoAgrupados}
-          onMoveEnd={actualizarCuesNoAgrupados}
+          onMoveStart={pausarPulsoPorMovimiento}
+          onMoveEnd={(_event) => {
+            actualizarCuesNoAgrupados()
+            reanudarPulsoTrasMovimiento()
+          }}
         >
           <NavigationControl position="top-left" />
 

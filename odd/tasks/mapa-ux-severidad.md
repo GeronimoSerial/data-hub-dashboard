@@ -407,5 +407,48 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
   - Checks: tsc clean (pre-existing unrelated errors only), eslint clean,
     `pnpm test` 743/743 green. Not committed — awaiting root's review.
 
+- 2026-09-23: T1.6 committed by root as `1761567`; breathing pulse shape
+  accepted. T1.6b done (root follow-up, before T1.4): even with the interval
+  fix, a running `circle-radius-transition`/`circle-opacity-transition`
+  forces MapLibre to repaint every frame while interpolating, competing with
+  the browser's own pan/zoom compositing.
+  - Fix (`components/mapas/map-infraestructura-page.tsx`): hoisted
+    `aplicarEstadoPulso` out of the mount effect to component scope, moved
+    its `expandido` flag into `expandidoRef` (mutated both by the interval
+    tick and the new pause/resume handlers). Added `pausarPulsoPorMovimiento`
+    (on `onMoveStart`): clears the interval, then snaps the layer to its
+    static base state using a momentary zero-duration transition override
+    (so the snap is instant, not itself animated) before restoring the real
+    transition duration for when it resumes. Added
+    `reanudarPulsoTrasMovimiento` (on `onMoveEnd`, alongside the existing
+    `actualizarCuesNoAgrupados` call): re-checks the same guard as the mount
+    effect and restarts the interval. The existing hidden-tab pause is
+    untouched.
+  - **Measurement**: compared drag behavior with and without the fix by
+    temporarily swapping in the committed pre-T1.6b file via `git show
+    HEAD:<path>` (not stash — per the earlier rule), measuring, then
+    restoring my working copy from a local backup (confirmed identical diff
+    afterward). Same instrumented method as T1.6 (patched
+    `setPaintProperty` + an independent rAF counter) over a 2.2s programmatic
+    `panBy` drag.
+    - `setPaintProperty` calls during the drag: before 2 (still ticking on
+      its own 1.6s timer, decoupled from the gesture) → after 8, but now
+      firing exactly ONCE per gesture (6 at movestart to snap+restore
+      transitions, 2 at moveend to resume) instead of continuously — this
+      is the clean, deterministic part of the result.
+    - rAF ticks/sec during the drag: before 116.5 (roughly double the ~57
+      idle baseline, confirming the running transition was inflating frame
+      work during pan) → after, 2 of 3 repeated runs at ~57 (matching idle,
+      i.e. panning no longer costs anything extra), one run spiked to 176.1
+      that did not reproduce on a third identical run — flagging this
+      metric as noisy in this specific automated-browser environment (the
+      same "after" code measured 3 different times gave 57 / 176 / 57);
+      treating the setPaintProperty-count result as the reliable signal and
+      the rAF-rate result as corroborating but noisy, not to be over-read
+      as a precise number.
+  - Checks: tsc clean, eslint clean, `pnpm test` 743/743 (one more instance
+    of the same known pre-existing `actualizacion-form.test.tsx` flake,
+    clean on rerun). Not committed — awaiting root.
+
 ## Next step
-Root review/commit of T1.6, then T1.4 (interaction: touch/keyboard, loading/empty states) and T1.5 (tests + after-screenshots).
+Root review/commit of T1.6b, then T1.4 (interaction: touch/keyboard, loading/empty states) and T1.5 (tests + after-screenshots).
