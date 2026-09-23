@@ -15,9 +15,7 @@ import {
   ETIQUETA_SERVICIO,
 } from '@/components/infraestructura/estado-actual-textos'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
-import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
@@ -41,23 +39,15 @@ const MENSAJE_FALTA_QUE_PASO =
 const MENSAJE_FALTA_ALCANCE_AFECTACION =
   'Elija al menos una sección afectada para continuar.'
 
-const MENSAJE_ALCANCE_FALTANTE = 'Indique el alcance de la suspensión.'
-
-const MENSAJE_ALCANCE_TURNOS_VACIO = 'Indique a qué turnos alcanza la suspensión.'
-
-const MENSAJE_ALCANCE_SECCIONES_VACIO = 'Indique a qué secciones alcanza la suspensión.'
-
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
-
-const ALCANCES_SERVICIO: { tipo: 'establecimiento' | 'turno' | 'seccion'; etiqueta: string }[] = [
-  { tipo: 'establecimiento', etiqueta: 'Todo el establecimiento' },
-  { tipo: 'turno', etiqueta: 'Uno o más turnos' },
-  { tipo: 'seccion', etiqueta: 'Una o más secciones' },
-]
 
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', '¿Cómo sigue el servicio?', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4
+
+function pasosDe(categoria: AfectacionBorrador['categoria']): Paso[] {
+  return categoria === 'alumnos' ? [1, 2, 4] : [1, 2, 3, 4]
+}
 
 // Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
 // clave va por CUE para que dos establecimientos abiertos en la misma pestaña
@@ -72,9 +62,6 @@ interface BorradorParteNuevo {
   paso: Paso
   afectacion: AfectacionBorrador
   servicioEstado: '' | 'normal' | 'suspendido'
-  servicioAlcanceTipo: '' | 'establecimiento' | 'turno' | 'seccion'
-  servicioTurnos: string[]
-  servicioSecciones: number[]
   estadoEstablecimiento: '' | EstadoEstablecimiento
   rigeDesde: string
   idempotencyKey: string
@@ -92,23 +79,6 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (b.paso !== 1 && b.paso !== 2 && b.paso !== 3 && b.paso !== 4) return false
   if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
-    return false
-  }
-  if (
-    b.servicioAlcanceTipo !== '' &&
-    b.servicioAlcanceTipo !== 'establecimiento' &&
-    b.servicioAlcanceTipo !== 'turno' &&
-    b.servicioAlcanceTipo !== 'seccion'
-  ) {
-    return false
-  }
-  if (!Array.isArray(b.servicioTurnos) || !b.servicioTurnos.every((t) => typeof t === 'string')) {
-    return false
-  }
-  if (
-    !Array.isArray(b.servicioSecciones) ||
-    !b.servicioSecciones.every((n) => typeof n === 'number')
-  ) {
     return false
   }
   if (typeof b.estadoEstablecimiento !== 'string') return false
@@ -185,7 +155,7 @@ function colapsarHistorial(profundidad: number): void {
 // navegador (#31): si la entrada actual es la inicial, empujamos las que
 // faltan; si ya es el paso restaurado (recarga con F5 conserva el
 // history.state), no hacemos nada para no duplicar entradas.
-function sincronizarHistorialTrasRestaurar(pasoActual: number, generacion: string): void {
+function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string, pasos: Paso[]): void {
   let base = 1
   try {
     const estado = window.history.state as { partePaso?: number; parteGeneracion?: string } | null
@@ -195,9 +165,10 @@ function sincronizarHistorialTrasRestaurar(pasoActual: number, generacion: strin
   } catch {
     // Sin historial utilizable se empuja desde el paso 1, que es lo correcto.
   }
-  if (base >= pasoActual) return
-  for (let p = base + 1; p <= pasoActual; p += 1) {
-    empujarPasoEnHistorial(p, generacion)
+  const indiceBase = pasos.indexOf(base as Paso)
+  const indiceActual = pasos.indexOf(pasoActual)
+  for (let i = Math.max(0, indiceBase + 1); i <= indiceActual; i += 1) {
+    empujarPasoEnHistorial(pasos[i], generacion)
   }
 }
 
@@ -225,11 +196,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     crearAfectacionVacia(crypto.randomUUID()),
   )
   const [servicioEstado, setServicioEstado] = useState<'' | 'normal' | 'suspendido'>('')
-  const [servicioAlcanceTipo, setServicioAlcanceTipo] = useState<
-    '' | 'establecimiento' | 'turno' | 'seccion'
-  >('')
-  const [servicioTurnos, setServicioTurnos] = useState<string[]>([])
-  const [servicioSecciones, setServicioSecciones] = useState<number[]>([])
   const [estadoEstablecimiento, setEstadoEstablecimiento] = useState<'' | EstadoEstablecimiento>('')
   const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
   const [enviando, setEnviando] = useState(false)
@@ -250,6 +216,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     return generacionRef.current
   }
 
+  function cambiarAfectacion(siguiente: AfectacionBorrador) {
+    if (siguiente.categoria !== afectacion.categoria) {
+      setServicioEstado('')
+      setEstadoEstablecimiento('')
+    }
+    setAfectacion(siguiente)
+  }
+
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
   // leer sessionStorage en el render produciría un desajuste de hidratación
   // entre servidor y cliente. Sin borrador (o ilegible) no hay nada que
@@ -263,16 +237,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     const borrador = leerBorrador(claveBorrador)
     if (!borrador) return
     generacionRef.current = borrador.generacion
-    setPaso(borrador.paso)
+    const pasos = pasosDe(borrador.afectacion.categoria)
+    const pasoRestaurado = pasos.includes(borrador.paso) ? borrador.paso : 4
+    setPaso(pasoRestaurado)
     setAfectacion(borrador.afectacion)
     setServicioEstado(borrador.servicioEstado)
-    setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
-    setServicioTurnos(borrador.servicioTurnos)
-    setServicioSecciones(borrador.servicioSecciones)
     setEstadoEstablecimiento(borrador.estadoEstablecimiento)
     setRigeDesde(borrador.rigeDesde)
     setIdempotencyKey(borrador.idempotencyKey)
-    sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+    sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
   }, [claveBorrador])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -284,19 +257,22 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       const estado = evento.state as { partePaso?: number; parteGeneracion?: string } | null
       if (estado && typeof estado.partePaso === 'number') {
         if (estado.parteGeneracion !== generacionRef.current) return
-        if (estado.partePaso >= 1 && estado.partePaso <= PASOS.length) {
+        if (pasosDe(afectacion.categoria).includes(estado.partePaso as Paso)) {
           setPaso(estado.partePaso as Paso)
           setError(null)
         }
         return
       }
       // Entrada inicial (sin estado): un paso atrás sin salir del asistente.
-      setPaso((actual) => (actual > 1 ? ((actual - 1) as Paso) : actual))
+      setPaso((actual) => {
+        const pasos = pasosDe(afectacion.categoria)
+        return pasos[Math.max(0, pasos.indexOf(actual) - 1)]
+      })
       setError(null)
     }
     window.addEventListener('popstate', alVolverAtras)
     return () => window.removeEventListener('popstate', alVolverAtras)
-  }, [])
+  }, [afectacion.categoria])
 
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
@@ -311,9 +287,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       paso,
       afectacion,
       servicioEstado,
-      servicioAlcanceTipo,
-      servicioTurnos,
-      servicioSecciones,
       estadoEstablecimiento,
       rigeDesde,
       idempotencyKey,
@@ -323,15 +296,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     paso,
     afectacion,
     servicioEstado,
-    servicioAlcanceTipo,
-    servicioTurnos,
-    servicioSecciones,
     estadoEstablecimiento,
     rigeDesde,
     idempotencyKey,
   ])
 
-  const nombresTurnos = Array.from(new Set(turnos.map((t) => t.turno)))
+  const pasos = pasosDe(afectacion.categoria)
+  const indicePaso = pasos.indexOf(paso)
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
@@ -347,13 +318,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
     }
     if (actual === 3) {
-      if (servicioEstado === 'suspendido') {
-        if (servicioAlcanceTipo === '') return MENSAJE_ALCANCE_FALTANTE
-        if (servicioAlcanceTipo === 'turno' && servicioTurnos.length === 0)
-          return MENSAJE_ALCANCE_TURNOS_VACIO
-        if (servicioAlcanceTipo === 'seccion' && servicioSecciones.length === 0)
-          return MENSAJE_ALCANCE_SECCIONES_VACIO
-      }
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       return null
     }
@@ -367,8 +331,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return
     }
     setError(null)
-    if (paso >= PASOS.length) return
-    const siguiente = (paso + 1) as Paso
+    if (indicePaso >= pasos.length - 1) return
+    const siguiente = pasos[indicePaso + 1]
     setPaso(siguiente)
     // Una entrada por paso: así "atrás" del navegador camina N → N-1.
     empujarPasoEnHistorial(siguiente, generacionVigente())
@@ -377,7 +341,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   function retroceder() {
     setError(null)
     if (paso <= 1) return
-    setPaso((actual) => (actual > 1 ? ((actual - 1) as Paso) : actual))
+    setPaso(pasos[Math.max(0, indicePaso - 1)])
     // El historial tiene que seguir al asistente: sin este back(), la próxima
     // pulsación de "atrás" del navegador llegaría desfasada a un paso.
     try {
@@ -397,21 +361,12 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setPaso(1)
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
     setServicioEstado('')
-    setServicioAlcanceTipo('')
-    setServicioTurnos([])
-    setServicioSecciones([])
     setEstadoEstablecimiento('')
     setRigeDesde(new Date().toISOString())
     setEnviando(false)
     setError(null)
     setIdempotencyKey(crypto.randomUUID())
     setGuardado(null)
-  }
-
-  function alternarTurno(turno: string) {
-    setServicioTurnos((actuales) =>
-      actuales.includes(turno) ? actuales.filter((t) => t !== turno) : [...actuales, turno],
-    )
   }
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
@@ -422,13 +377,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     enviandoRef.current = true
     setEnviando(true)
     setError(null)
-
-    const alcance =
-      servicioAlcanceTipo === 'turno'
-        ? { tipo: 'turno' as const, turnos: servicioTurnos }
-        : servicioAlcanceTipo === 'seccion'
-          ? { tipo: 'seccion' as const, secciones: servicioSecciones }
-          : { tipo: 'establecimiento' as const }
 
     try {
       const respuesta = await fetch('/api/problematicas/parte', {
@@ -449,10 +397,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           ],
           afectacionesModificadas: [],
           afectacionesRetiradas: [],
+          // El alcance de la interrupción ya fue elegido al marcar las secciones afectadas.
           servicioEducativo:
-            servicioEstado === '' ? undefined : { estado: servicioEstado, alcance },
+            afectacion.categoria === 'alumnos' || servicioEstado === ''
+              ? undefined
+              : { estado: servicioEstado, alcance: { tipo: 'seccion', secciones: afectacion.secciones } },
           estadoEstablecimiento:
-            estadoEstablecimiento === '' ? undefined : { estado: estadoEstablecimiento },
+            afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
+              ? undefined
+              : { estado: estadoEstablecimiento },
         }),
       })
 
@@ -470,7 +423,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         // nada pendiente, y el historial se colapsa para que "atrás" desde la
         // confirmación salga del asistente en vez de revivir sus pasos.
         limpiarBorrador(claveBorrador)
-        colapsarHistorial(paso - 1)
+        colapsarHistorial(indicePaso)
         // Un reporte guardado no se reenvía desde la misma instancia del
         // formulario: el ref queda clavado en true a propósito.
         setGuardado({ movimientoId: datos.movimientoId })
@@ -512,15 +465,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       descripcion: afectacion.descripcion,
     },
     servicio:
-      servicioEstado === ''
+      afectacion.categoria === 'alumnos' || servicioEstado === ''
         ? null
         : {
             estado: servicioEstado,
-            alcanceTipo: servicioAlcanceTipo,
-            turnos: servicioTurnos,
-            secciones: servicioSecciones.length,
+            alcanceTipo: 'seccion',
+            turnos: [],
+            secciones: afectacion.secciones.length,
           },
-    estadoEstablecimiento,
+    estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
     rigeDesde,
   })
 
@@ -528,18 +481,18 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
       <div className="asistente__progreso">
         <p className="asistente__contador">
-          Paso {paso} de {PASOS.length}
+          Paso {indicePaso + 1} de {pasos.length}
         </p>
         <ol className="asistente__pasos">
-          {PASOS.map((titulo, i) => (
+          {pasos.map((numero, i) => (
             <li
-              key={titulo}
-              className={`asistente__paso${i + 1 === paso ? ' asistente__paso--actual' : ''}${
-                i + 1 < paso ? ' asistente__paso--hecho' : ''
+              key={numero}
+              className={`asistente__paso${numero === paso ? ' asistente__paso--actual' : ''}${
+                i < indicePaso ? ' asistente__paso--hecho' : ''
               }`}
-              aria-current={i + 1 === paso ? 'step' : undefined}
+              aria-current={numero === paso ? 'step' : undefined}
             >
-              <span className="asistente__paso-texto">{titulo}</span>
+              <span className="asistente__paso-texto">{PASOS[numero - 1]}</span>
             </li>
           ))}
         </ol>
@@ -556,25 +509,32 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
-            onChange={setAfectacion}
+            onChange={cambiarAfectacion}
             disabled={enviando}
           />
         )}
 
         {paso === 2 && (
-          <CamposAQuienAfecta
-            borrador={afectacion}
-            idPrefijo="reporte"
-            turnos={turnos}
-            onChange={setAfectacion}
-            disabled={enviando}
-          />
+          <>
+            <CamposAQuienAfecta
+              borrador={afectacion}
+              idPrefijo="reporte"
+              turnos={turnos}
+              onChange={cambiarAfectacion}
+              disabled={enviando}
+            />
+            {afectacion.categoria === 'alumnos' && (
+              <div className="afectacion-campos__grupo">
+                <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
+              </div>
+            )}
+          </>
         )}
 
         {paso === 3 && (
           <>
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo siguen las clases?</legend>
+              <legend className="afectacion-campos__legend">¿Cómo funciona la escuela?</legend>
               <div className="afectacion-campos__opciones">
                 {(['normal', 'suspendido'] as const).map((estado) => (
                   <label key={estado} className="opcion-radio opcion-radio--compacta">
@@ -593,59 +553,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
                 ))}
               </div>
             </fieldset>
-
-            {/* El alcance sólo tiene sentido si hay suspensión: preguntarlo
-                siempre obligaría al director a leer y descartar tres opciones
-                que no le aplican. */}
-            {servicioEstado === 'suspendido' && (
-              <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-                <legend className="afectacion-campos__legend">¿A quiénes alcanza la suspensión?</legend>
-                <div className="afectacion-campos__opciones">
-                  {ALCANCES_SERVICIO.map((opcion) => (
-                    <label key={opcion.tipo} className="opcion-radio opcion-radio--compacta">
-                      <input
-                        type="radio"
-                        name="alcance-servicio"
-                        value={opcion.tipo}
-                        checked={servicioAlcanceTipo === opcion.tipo}
-                        onChange={() => setServicioAlcanceTipo(opcion.tipo)}
-                        disabled={enviando}
-                      />
-                      <span className="opcion-radio__texto">
-                        <span className="opcion-radio__titulo">{opcion.etiqueta}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-
-                {servicioAlcanceTipo === 'turno' && (
-                  <div className="afectacion-campos__anidado">
-                    {nombresTurnos.map((turno) => (
-                      <Checkbox
-                        key={turno}
-                        label={turno}
-                        checked={servicioTurnos.includes(turno)}
-                        onCheckedChange={() => alternarTurno(turno)}
-                        disabled={enviando}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {servicioAlcanceTipo === 'seccion' && (
-                  <div className="afectacion-campos__anidado">
-                    <SeccionesSelector
-                      turnos={turnos}
-                      seleccionadas={servicioSecciones}
-                      alumnosSeleccionados={[]}
-                      onCambiar={(secciones) => setServicioSecciones(secciones)}
-                      disabled={enviando}
-                      permiteAlumnos={false}
-                    />
-                  </div>
-                )}
-              </fieldset>
-            )}
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
@@ -701,7 +608,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       )}
 
       <div className="asistente__acciones">
-        {paso > 1 && (
+        {indicePaso > 0 && (
           <Button type="button" variant="secondary" onClick={retroceder} disabled={enviando}>
             Volver
           </Button>

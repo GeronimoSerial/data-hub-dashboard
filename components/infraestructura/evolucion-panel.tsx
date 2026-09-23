@@ -99,7 +99,7 @@ export function EvolucionPanel(): JSX.Element {
         <section className="evolucion-vista">
           <h3 className="evolucion-subtitulo">Escuelas con servicio caído</h3>
           <p className="evolucion-descripcion">
-            Escuelas en estado <strong>suspendido</strong> o <strong>parcial</strong> cada día del
+            Escuelas con funcionamiento <strong>interrumpido</strong> o <strong>parcialmente interrumpido</strong> cada día del
             período. El último punto es hoy y responde lo mismo que los indicadores del mapa.
           </p>
           {datos.serieEscuelasServicioCaido.length === 0 ? (

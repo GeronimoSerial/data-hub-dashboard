@@ -13,7 +13,7 @@ export const CATEGORIA_META: Record<
 > = {
   establecimiento: {
     label: 'Afecta al establecimiento',
-    descripcion: 'La escuela o parte de ella queda fuera de servicio.',
+    descripcion: 'La escuela o parte de ella deja de funcionar con normalidad.',
     permiteAlumnos: false,
   },
   alumnos: {

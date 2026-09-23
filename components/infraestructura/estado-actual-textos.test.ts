@@ -121,10 +121,10 @@ describe('sinSituacionEnSeguimiento', () => {
 })
 
 describe('vocabulary', () => {
-  it('shows "Clases parcialmente suspendidas" as a derived label (spec §3.4)', () => {
-    expect(ETIQUETA_SERVICIO.parcial).toBe('Clases parcialmente suspendidas')
-    expect(ETIQUETA_SERVICIO.normal).toBe('Clases normales')
-    expect(ETIQUETA_SERVICIO.suspendido).toBe('Clases suspendidas')
+  it('shows "Funcionamiento escolar parcialmente interrumpido" as a derived label (spec §3.4)', () => {
+    expect(ETIQUETA_SERVICIO.parcial).toBe('Funcionamiento escolar parcialmente interrumpido')
+    expect(ETIQUETA_SERVICIO.normal).toBe('Funcionamiento escolar normal')
+    expect(ETIQUETA_SERVICIO.suspendido).toBe('Funcionamiento escolar interrumpido')
   })
 
   it('names the establishment states as spec §3.5 does', () => {

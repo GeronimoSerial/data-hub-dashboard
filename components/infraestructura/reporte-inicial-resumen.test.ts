@@ -20,7 +20,7 @@ describe('describirAlcanceServicio', () => {
   it('el servicio normal no menciona alcance alguno', () => {
     expect(
       describirAlcanceServicio({ estado: 'normal', alcanceTipo: '', turnos: [], secciones: 0 }),
-    ).toBe('Clases normales')
+    ).toBe('Funcionamiento escolar normal')
   })
 
   it('nombra los turnos suspendidos', () => {
@@ -31,13 +31,13 @@ describe('describirAlcanceServicio', () => {
         turnos: ['Mañana', 'Tarde'],
         secciones: 0,
       }),
-    ).toBe('Clases suspendidas en el turno Mañana, Tarde')
+    ).toBe('Funcionamiento escolar interrumpido en el turno Mañana, Tarde')
   })
 
   it('singulariza una sección', () => {
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: 'seccion', turnos: [], secciones: 1 }),
-    ).toBe('Clases suspendidas en 1 sección')
+    ).toBe('Funcionamiento escolar interrumpido en 1 sección')
   })
 
   // El director tiene que poder ver que le falta un dato ANTES de guardar. Un
@@ -46,10 +46,10 @@ describe('describirAlcanceServicio', () => {
   it('un alcance elegido pero vacío se informa como faltante, no como todo el establecimiento', () => {
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: 'turno', turnos: [], secciones: 0 }),
-    ).toBe('Clases suspendidas, sin alcance indicado')
+    ).toBe('Funcionamiento escolar interrumpido, sin alcance indicado')
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: '', turnos: [], secciones: 0 }),
-    ).toBe('Clases suspendidas, sin alcance indicado')
+    ).toBe('Funcionamiento escolar interrumpido, sin alcance indicado')
   })
 })
 
@@ -82,7 +82,7 @@ describe('armarResumen', () => {
       estadoEstablecimiento: 'centro_evacuados',
     })
 
-    expect(lineas).toContain('Clases suspendidas en todo el establecimiento')
+    expect(lineas).toContain('Funcionamiento escolar interrumpido en todo el establecimiento')
     expect(lineas).toContain('Utilizado como centro de evacuados')
   })
 

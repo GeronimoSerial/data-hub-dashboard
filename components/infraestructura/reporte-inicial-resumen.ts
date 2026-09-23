@@ -41,7 +41,7 @@ function contar(cantidad: number, singular: string, plural: string): string {
 }
 
 /**
- * Cómo se lee el alcance de una suspensión. Un alcance de turnos o secciones
+ * Cómo se lee el alcance de una interrupción. Un alcance de turnos o secciones
  * sin ninguno elegido se informa como "sin alcance indicado" en vez de
  * inventar "todo el establecimiento": el director tiene que poder ver que le
  * falta un dato antes de guardar, no después.
