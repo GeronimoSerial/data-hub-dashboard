@@ -24,12 +24,10 @@
  *   - hub.sqlite: ids de texto con prefijo 'demo-' (infra_parte, infra_afectacion,
  *     infra_servicio_alcance, infra_movimiento). Se borran por LIKE 'demo-%'
  *     antes de sembrar, así una segunda corrida no duplica nada.
- *   - ge.sqlite: ge_section_id y ge_person_id son INTEGER, no admiten un
- *     prefijo de texto. Se reserva el rango >= ID_DEMO_BASE (900000) como
- *     "namespace demo": el fixture de sync-ge.mjs usa 1-3 (secciones) y
- *     1001-1003 (alumnos), muy por debajo, así que nunca hay colisión ni
- *     riesgo de borrar algo que este script no creó. La limpieza borra sólo
- *     filas con id >= ID_DEMO_BASE del corte vigente.
+ *   - ge.sqlite: ge_section_id y ge_person_id son INTEGER. Se reserva el
+ *     rango negativo <= ID_DEMO_BASE (-900000) para los datos ficticios.
+ *     Los IDs del padrón real pueden ser mucho mayores que 900000; usar un
+ *     rango positivo borraría datos reales durante la limpieza.
  *
  * Semilla de aleatoriedad fija (SEMILLA más abajo): correrlo dos veces con la
  * misma base produce exactamente el mismo resultado.
@@ -159,7 +157,7 @@ function barajarVariedad(lista) {
 }
 
 // --- Namespace de ids demo en ge.sqlite (ver comentario de cabecera) -----
-const ID_DEMO_BASE = 900000
+const ID_DEMO_BASE = -900000
 
 // --- Nombres ficticios plausibles para Corrientes ------------------------
 // Ningún nombre real: son combinaciones genéricas de nombres/apellidos
@@ -251,15 +249,15 @@ async function limpiarHub(hub) {
 
 async function limpiarGe(ge, corteId) {
   await ge.execute({
-    sql: 'DELETE FROM ge_alumno_seccion WHERE corte_id = ? AND ge_person_id >= ?',
+    sql: 'DELETE FROM ge_alumno_seccion WHERE corte_id = ? AND ge_person_id <= ?',
     args: [corteId, ID_DEMO_BASE],
   })
   await ge.execute({
-    sql: 'DELETE FROM ge_alumno_identidad WHERE ge_person_id >= ?',
+    sql: 'DELETE FROM ge_alumno_identidad WHERE ge_person_id <= ?',
     args: [ID_DEMO_BASE],
   })
   await ge.execute({
-    sql: 'DELETE FROM ge_seccion WHERE corte_id = ? AND ge_section_id >= ?',
+    sql: 'DELETE FROM ge_seccion WHERE corte_id = ? AND ge_section_id <= ?',
     args: [corteId, ID_DEMO_BASE],
   })
 }
@@ -325,7 +323,7 @@ async function sembrarMatricula(ge, corteId, establecimientos) {
 
     for (let i = 0; i < cantidadSecciones; i++) {
       const combo = combosDisponibles[i % combosDisponibles.length]
-      const geSectionId = seccionIdCounter++
+      const geSectionId = seccionIdCounter--
       const curso = elegir(combo.cursos)
       const division = elegir(DIVISIONES)
 
@@ -337,7 +335,7 @@ async function sembrarMatricula(ge, corteId, establecimientos) {
       const cantidadAlumnos = randInt(12, 35)
       const idsDeEstaSeccion = []
       for (let j = 0; j < cantidadAlumnos; j++) {
-        const gePersonId = personIdCounter++
+        const gePersonId = personIdCounter--
         const { nombre, apellido } = nombreAlumno()
 
         await ge.execute({
