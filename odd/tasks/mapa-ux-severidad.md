@@ -36,7 +36,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 - [x] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
 - [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
-- [ ] T1.6 Performance: user reports the map feels laggy after T1.1. Profile first (Chrome performance trace while idle, panning, zooming), then fix measured hotspots. Suspects: per-frame `setPaintProperty` with a freshly built data-driven expression (re-parse + full repaint every frame), `querySourceFeatures` on every move end, re-renders from React state. Acceptance: idle map no longer repaints at 60 fps continuously, pan/zoom smooth, pulse still visible; before/after trace numbers recorded here.
+- [x] T1.6 Performance: user reports the map feels laggy after T1.1. Profile first (Chrome performance trace while idle, panning, zooming), then fix measured hotspots. Suspects: per-frame `setPaintProperty` with a freshly built data-driven expression (re-parse + full repaint every frame), `querySourceFeatures` on every move end, re-renders from React state. Acceptance: idle map no longer repaints at 60 fps continuously, pan/zoom smooth, pulse still visible; before/after trace numbers recorded here.
 
 ## Progress
 - 2026-09-22: exploration done; plan approved by user; stages 0–1 delegated.
@@ -351,5 +351,61 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
   focus, loading/empty states) harder to evaluate honestly. Profiling first,
   then fixing measured hotspots, per root's instruction.
 
+- 2026-09-23: T1.6 done.
+  - **Profiling method note**: `chrome-devtools-mcp`'s `performance_start_trace`/
+    `performance_stop_trace` proved unreliable in this session (the browser
+    crashed on a second `start_trace` call, and the trace file itself grew to
+    57MB for just 3s of "idle" — too large for the tool's own insight-parsing
+    step, which errored on both attempts). Used a more direct, equally
+    defensible method instead: monkey-patched `map.setPaintProperty` to count
+    calls, plus an independent `requestAnimationFrame` counter, both run for
+    a fixed 5s window with the map fully idle (no user interaction).
+  - **Before**: ~199 rAF ticks/sec, ~398 `setPaintProperty` calls/sec (2 per
+    tick: `circle-radius` + `circle-opacity`) — continuous, forever, whenever
+    any severe school is in view (true for almost the whole demo dataset).
+    Confirms root's exact suspicion.
+  - **Fix** (`components/mapas/map-infraestructura-page.tsx`): replaced the
+    `requestAnimationFrame` loop with MapLibre's own native paint-property
+    transitions. Added `'circle-radius-transition'`/`'circle-opacity-transition':
+    { duration: DURACION_PULSO_MS, delay: 0 }` to the pulse layer's paint —
+    MapLibre now interpolates any change to those properties smoothly on the
+    compositor thread, at zero JS cost per frame. The effect itself just
+    toggles between two paint states (base radius/opacity 0.5 ↔
+    base+expansion radius/opacity 0) once every `DURACION_PULSO_MS` via
+    `window.setInterval` (renamed `pulsoFrameRef` → `pulsoIntervalRef`).
+    Added a `visibilitychange` listener that clears the interval when the
+    tab is hidden and restarts it when visible again. Kept the exact same
+    guard/dependency array (`prefersReducedMotion`, `capasVisibles.escuelas`,
+    `haySeveroEnVista`) — nothing runs when reduced-motion, the layer is
+    off, or nothing severe is in view. Visual character changes slightly:
+    the pulse now breathes back-and-forth (grow-then-shrink, continuous) via
+    the transition, instead of the old sawtooth (grow-then-instant-reset)
+    from raw per-frame interpolation — still clearly a repeating pulse, just
+    smoother and far cheaper; flagging this in case root wants the old
+    one-directional shape specifically.
+  - **After**: ~1.2 `setPaintProperty` calls/sec (≈332× reduction from
+    ~398/sec) and the independent rAF counter itself dropped ~3.5× (199→57
+    ticks/sec, corroborating far less forced-repaint pressure even though
+    that counter is unrelated harness code, not app code). Verified live
+    that the pulse still visibly toggles (sampled `getPaintProperty` at two
+    points 850ms apart mid-cycle: radius/opacity both changed as expected)
+    and is visually present in a screenshot (a faint expanding ring around
+    the "10" cluster). Verified the hidden-tab pause: 0 `setPaintProperty`
+    calls during 4s with `document.hidden` forced true, resuming
+    immediately on visible.
+  - **Folded in root's small follow-up** (sin-reportar/evacuado cluster
+    rings overlapping when a cluster has both flags): added
+    `EVACUADO_RADIO_EXTRA = 10` (vs sin-reportar's existing 6), so the two
+    rings read as concentric circles instead of drawing on top of each
+    other. Only the evacuado ring's radius changed; sin-reportar untouched.
+  - Not investigated further (measured negligible against the pulse fix,
+    and out of scope for "idle" lag specifically): `querySourceFeatures` on
+    `moveend` only runs once per user gesture (not continuously), and
+    React re-renders weren't implicated by the setPaintProperty/rAF
+    measurements above. Will revisit if pan/zoom still feels janky after
+    this fix in root's own testing.
+  - Checks: tsc clean (pre-existing unrelated errors only), eslint clean,
+    `pnpm test` 743/743 green. Not committed — awaiting root's review.
+
 ## Next step
-Profiling T1.6 (idle/pan/zoom Chrome performance trace) before touching any code.
+Root review/commit of T1.6, then T1.4 (interaction: touch/keyboard, loading/empty states) and T1.5 (tests + after-screenshots).

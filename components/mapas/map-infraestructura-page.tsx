@@ -60,7 +60,6 @@ import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
-  calcularOpacidadPulso,
   DURACION_PULSO_MS,
   esSeveridadPulsante,
   RADIO_DOT_BASE,
@@ -103,6 +102,11 @@ const CAPA_SIN_REPORTAR_ID = 'infra-sin-reportar'
 const CAPA_SIN_REPORTAR_CLUSTER_ID = 'infra-sin-reportar-cluster'
 const SIN_REPORTAR_COLOR = '#6b7280'
 const SIN_REPORTAR_RADIO_EXTRA = 6
+
+// Un cluster puede tener ambas banderas a la vez, así que los dos anillos
+// necesitan radios distintos para leerse como dos anillos concéntricos en
+// vez de uno dibujado encima del otro.
+const EVACUADO_RADIO_EXTRA = 10
 
 // Anillo de cluster "evacuado": igual que CAPA_SIN_REPORTAR_CLUSTER_ID, da
 // feedback a zoom bajo de que una burbuja contiene al menos una escuela en
@@ -471,9 +475,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
-  // Frame id del loop de pulso, para poder cancelarlo en el cleanup sin
+  // Id del intervalo del pulso, para poder cancelarlo en el cleanup sin
   // depender de un closure que un StrictMode pueda re-ejecutar.
-  const pulsoFrameRef = useRef<number | null>(null)
+  const pulsoIntervalRef = useRef<number | null>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
@@ -616,51 +620,65 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
 
   // Pulso de severidad alta/crítica (T1.1, T1.1b, T1.1c). Con reduced-motion, o sin
   // la capa de escuelas visible, o sin nada severo en los datos actuales, no
-  // se agenda ningún requestAnimationFrame — el anillo estático de
-  // reduced-motion ya lo resuelve el paint declarativo de la capa. El radio
-  // es DATA-DRIVEN por feature/cluster: en vez de un escalar compartido se
-  // setea una expresión MapLibre que parte del radio base propio de la
-  // feature (expresionRadioBasePulso: el radio del cluster si es un agregado,
-  // RADIO_DOT_BASE si es un punto) y expande hasta el `radioMaxPulso` propio
-  // de cada punto (ver clusterProperties del Source) — así Alta pulsa a su
-  // radio máximo menor y Crítica al mayor, y el anillo de un cluster crece
-  // POR FUERA de su propio círculo en vez de empezar debajo de él. En la
-  // misma capa y con UN setPaintProperty por frame — construir ese array
-  // pequeño por frame no toca React en absoluto. La opacidad sí es un escalar
-  // (calcularOpacidadPulso): no necesita variar por severidad.
+  // se agenda ningún timer — el anillo estático de reduced-motion ya lo
+  // resuelve el paint declarativo de la capa. Antes esto era un loop de
+  // requestAnimationFrame que llamaba setPaintProperty en CADA frame (~200
+  // ticks/seg y ~400 setPaintProperty/seg medidos, incluso con el mapa
+  // completamente quieto). Ahora el efecto alterna entre DOS ESTADOS de paint
+  // (radio base con opacidad 0.5, y radio base + expansión con opacidad 0)
+  // una vez por DURACION_PULSO_MS vía window.setInterval, y las transiciones
+  // `circle-radius-transition`/`circle-opacity-transition` de la propia capa
+  // (agregadas en el paint de infra-partes-pulso) interpolan suavemente entre
+  // un estado y el otro en el compositor — la animación la hace MapLibre, no
+  // este efecto. Eso baja los setPaintProperty de ~400/seg a 2 llamadas cada
+  // 1.6s. Nota: cambia levemente el carácter visual del pulso — ahora
+  // respira de ida y vuelta (crece y encoge, continuo) vía la transición, en
+  // vez del diente de sierra viejo (crece y se reinicia al instante) que
+  // producía la interpolación cruda por frame; sigue siendo un pulso
+  // repetido, sólo más suave y muchísimo más barato.
   useEffect(() => {
     const capaPulso = CAPA_PARTES_PULSO_ID
     if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) {
       // Reduced motion ya se resuelve en el paint declarativo de la capa
       // (ver arriba); sin la capa de escuelas visible o sin nada severo en
       // los datos actuales no hay nada que animar - no se agenda ningún
-      // requestAnimationFrame.
+      // timer.
       return
     }
-    const inicio = performance.now()
-    const paso = () => {
+    let expandido = false
+    function aplicarEstadoPulso() {
       const mapa = mapRef.current?.getMap()
-      // La capa puede no existir todavía (mapa cargando) o haber sido
-      // desmontada (capa de escuelas apagada): se salta el frame y se sigue
-      // pidiendo el siguiente — el loop se autocura apenas la capa monte.
-      if (mapa?.getLayer(capaPulso)) {
-        const progreso = ((performance.now() - inicio) % DURACION_PULSO_MS) / DURACION_PULSO_MS
-        mapa.setPaintProperty(capaPulso, 'circle-radius', [
-          '+',
-          expresionRadioBasePulso(),
-          ['*', progreso, ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]],
-        ] as unknown as DataDrivenPropertyValueSpecification<number>)
-        mapa.setPaintProperty(capaPulso, 'circle-opacity', calcularOpacidadPulso(progreso))
-      }
-      pulsoFrameRef.current = window.requestAnimationFrame(paso)
+      if (!mapa?.getLayer(capaPulso)) return
+      const radio = expandido
+        ? (['+', expresionRadioBasePulso(), ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]] as unknown as DataDrivenPropertyValueSpecification<number>)
+        : expresionRadioBasePulso()
+      mapa.setPaintProperty(capaPulso, 'circle-radius', radio)
+      mapa.setPaintProperty(capaPulso, 'circle-opacity', expandido ? 0 : 0.5)
+      expandido = !expandido
     }
-    pulsoFrameRef.current = window.requestAnimationFrame(paso)
+    aplicarEstadoPulso()
+    pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
+
+    // No tiene sentido seguir animando una pestaña que nadie está mirando:
+    // se limpia el intervalo al ocultarse y se rearma al volver a verse.
+    function manejarVisibilidad() {
+      if (pulsoIntervalRef.current !== null) {
+        window.clearInterval(pulsoIntervalRef.current)
+        pulsoIntervalRef.current = null
+      }
+      if (!document.hidden) {
+        aplicarEstadoPulso()
+        pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
+      }
+    }
+    document.addEventListener('visibilitychange', manejarVisibilidad)
 
     return () => {
-      if (pulsoFrameRef.current !== null) {
-        window.cancelAnimationFrame(pulsoFrameRef.current)
-        pulsoFrameRef.current = null
+      if (pulsoIntervalRef.current !== null) {
+        window.clearInterval(pulsoIntervalRef.current)
+        pulsoIntervalRef.current = null
       }
+      document.removeEventListener('visibilitychange', manejarVisibilidad)
     }
   }, [prefersReducedMotion, capasVisibles.escuelas, haySeveroEnVista])
 
@@ -953,7 +971,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                   type="circle"
                   filter={['all', ['has', 'point_count'], ['==', ['get', 'esEvacuado'], 1]]}
                   paint={{
-                    'circle-radius': ['+', expresionRadioCluster(), SIN_REPORTAR_RADIO_EXTRA] as unknown as DataDrivenPropertyValueSpecification<number>,
+                    'circle-radius': ['+', expresionRadioCluster(), EVACUADO_RADIO_EXTRA] as unknown as DataDrivenPropertyValueSpecification<number>,
                     'circle-color': 'transparent',
                     'circle-stroke-color': ANILLO_COLOR,
                     'circle-stroke-width': 2,
@@ -975,6 +993,13 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 vez de empezar debajo de él. El radio/opacidad los maneja el
                 efecto de animación más abajo vía setPaintProperty (y
                 prefersReducedMotion, resuelto con useSyncExternalStore).
+                Las transiciones circle-radius-transition /
+                circle-opacity-transition le dicen a MapLibre que interpole
+                suavemente cualquier cambio en circle-radius/circle-opacity
+                a lo largo de un ciclo de pulso completo, en el hilo del
+                compositor — por eso el efecto de animación de abajo sólo
+                necesita llamar setPaintProperty una vez por medio ciclo, no
+                una vez por cada tick de requestAnimationFrame.
               */}
               <Layer
                 id={CAPA_PARTES_PULSO_ID}
@@ -990,7 +1015,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                   'circle-radius': prefersReducedMotion
                     ? (['+', expresionRadioBasePulso(), 4] as unknown as DataDrivenPropertyValueSpecification<number>)
                     : expresionRadioBasePulso(),
+                  'circle-radius-transition': { duration: DURACION_PULSO_MS, delay: 0 },
                   'circle-opacity': prefersReducedMotion ? 0.25 : 0,
+                  'circle-opacity-transition': { duration: DURACION_PULSO_MS, delay: 0 },
                 }}
               />
               <Layer
