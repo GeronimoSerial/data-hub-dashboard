@@ -327,7 +327,7 @@ export function FichaParteModal({
 }): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="map-detail-dialog">
         <DialogTitle>{parteResumen?.nombre ?? 'Ficha del parte'}</DialogTitle>
         {parteResumen && (
           <p className="estado-actual-bloque__vigencia">

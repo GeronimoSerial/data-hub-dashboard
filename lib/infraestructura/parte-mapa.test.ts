@@ -168,6 +168,29 @@ async function crearServicioAlcance(params: {
 }
 
 describe('listarPartesVigentes', () => {
+  it('filtra un departamento del GeoJSON aunque GE use mayúsculas y tildes distintas', async () => {
+    const ge = openGeDb()
+    try {
+      for (const [cue, departamento] of [
+        ['CUE-DEP-1', 'CONCEPCION'],
+        ['CUE-DEP-2', 'CONCEPCIÓN'],
+      ]) {
+        await ge.execute({
+          sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+          args: [cue, `Escuela ${cue}`, departamento, 'Otro lugar', -28, -58],
+        })
+        const parteId = await crearParte(cue)
+        await crearAfectacion({ parteId, secciones: [] })
+      }
+    } finally {
+      ge.close()
+    }
+
+    const { partes, indicadores } = await listarPartesVigentes({ territorio: 'Concepción' })
+    expect(partes.map((parte) => parte.cueAnexo).sort()).toEqual(['CUE-DEP-1', 'CUE-DEP-2'])
+    expect(indicadores.escuelas).toBe(2)
+  })
+
   it('no incluye un parte sin afectaciones vigentes', async () => {
     await crearParte('CUE-1')
 

@@ -21,6 +21,7 @@ import { listarSeccionesDeCues } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
+import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
 import { SEVERIDADES, type Severidad } from './validacion'
 import type {
   Afectacion,
@@ -139,8 +140,19 @@ function filtrosParteSql(filtros: FiltrosMapa): { clausulas: string[]; args: (st
   const args: (string | number)[] = []
 
   if (activo(filtros.territorio)) {
-    clausulas.push('(l.departamento = ? OR l.localidad = ?)')
-    args.push(filtros.territorio!, filtros.territorio!)
+    // El GeoJSON usa "Capital"/"Concepción" y GE guarda "CAPITAL" y
+    // variantes con o sin tilde. SQLite NOCASE sólo resuelve ASCII: plegamos
+    // explícitamente los acentos antes de comparar el departamento.
+    const acentos = [
+      ['Á', 'A'], ['É', 'E'], ['Í', 'I'], ['Ó', 'O'], ['Ú', 'U'], ['Ü', 'U'], ['Ñ', 'N'],
+      ['á', 'A'], ['é', 'E'], ['í', 'I'], ['ó', 'O'], ['ú', 'U'], ['ü', 'U'], ['ñ', 'N'],
+    ]
+    const departamentoNormalizado = acentos.reduce(
+      (sql, [acento, base]) => `REPLACE(${sql}, '${acento}', '${base}')`,
+      'UPPER(l.departamento)',
+    )
+    clausulas.push(`(${departamentoNormalizado} = ? OR l.localidad = ?)`)
+    args.push(normalizarNombreDepartamento(filtros.territorio!), filtros.territorio!)
   }
   if (activo(filtros.cueAnexo)) {
     clausulas.push('p.cue_anexo = ?')

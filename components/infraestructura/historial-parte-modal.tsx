@@ -31,7 +31,7 @@ export function HistorialParteModal({
 
   return (
     <SheetRoot open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right">
+      <SheetContent side="right" className="map-historial-sheet">
         <SheetTitle>Historial del parte</SheetTitle>
         <div className="historial-parte-modal__body">
           {/* Igual que RecursoDialog (components/admin-page.tsx): el

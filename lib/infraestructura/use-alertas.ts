@@ -77,7 +77,10 @@ export function useAlertas(filtros: FiltrosMapa): {
 
       if (desmontadoRef.current || controller.signal.aborted) return
 
-      setData(json)
+      // El polling devuelve objetos nuevos aun cuando el parte no cambió.
+      // Mantener la referencia evita reprocesar GeoJSON y clusters del mapa
+      // cada 15 segundos sin un cambio real en los datos.
+      setData((prev) => prev && JSON.stringify(prev) === JSON.stringify(json) ? prev : json)
       setError(null)
     } catch {
       if (controller.signal.aborted || desmontadoRef.current) return
