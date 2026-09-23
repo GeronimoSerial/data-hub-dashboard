@@ -88,6 +88,8 @@ export function parsearConexion(raw) {
 /**
  * Resuelve la conexión desde el entorno. `PADRON_PG_URL` es la variable de
  * producción; `ConnectionStrings` existe para no duplicar el .env de desarrollo.
+ *
+ * @param {Record<string, string | undefined>} [env]
  */
 export function conexionDesdeEntorno(env = process.env) {
   const raw = env.PADRON_PG_URL ?? env.ConnectionStrings
@@ -117,12 +119,25 @@ export function normalizarFilaGe(row) {
 }
 
 /**
+ * @typedef {object} OpcionesConsultaPadronGe
+ * @property {*} [conexion] - Config de conexión de `pg.Client`. Sin tipar a
+ *   propósito: los tests inyectan clases y objetos falsos que no son un
+ *   `pg.Client` real (ver `Client` más abajo).
+ * @property {string} [cicloLectivo]
+ * @property {new (...args: any[]) => any} [Client] - Constructor inyectable;
+ *   por defecto `pg.Client`, pero los tests pasan clases falsas.
+ * @property {number} [tamanoPagina]
+ */
+
+/**
  * Recorre el padrón del ciclo por lotes y entrega cada uno a `onLote`. Nunca
  * mantiene más de una página en memoria: el llamador acumula lo que necesita y
  * el lote se descarta.
  *
  * Devuelve los totales, no las filas, justamente para que no haya forma de
  * retener el padrón entero sin querer.
+ *
+ * @param {OpcionesConsultaPadronGe & { onLote: (lote: ReturnType<typeof normalizarFilaGe>[]) => unknown }} opciones
  */
 export async function recorrerPadronDesdeGe({
   conexion,
@@ -170,6 +185,8 @@ export async function recorrerPadronDesdeGe({
 /**
  * Trae el padrón completo en memoria. Sirve para pruebas y para volúmenes
  * chicos; el importador usa recorrerPadronDesdeGe.
+ *
+ * @param {OpcionesConsultaPadronGe} [opciones]
  */
 export async function leerPadronDesdeGe(opciones = {}) {
   const filas = []
