@@ -33,7 +33,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 - [x] T0.1 Local env + seed coverage + baseline screenshots
 - [x] T1.1 Severity: fixed small dot + animated pulse ring for severe cases, clustering at low zoom
 - [x] T1.2 Single scroll container in left stack; search results without nested scroll
-- [ ] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
+- [x] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
 - [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
 
@@ -140,5 +140,41 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
     stack.clientWidth` (sampled via injected JS) confirm no horizontal
     overflow anywhere in the column.
 
+- 2026-09-22: T1.3 done.
+  - Confirmed via screenshot that the overlap only happens <= 720px width
+    (1024/1440 were already fine): `.map-left-stack` (bottom-left) and
+    `.map-controls-stack` (moved to bottom-right under the existing 720px
+    breakpoint) collide and become unreadable at 390px.
+  - `components/mapas/overlay-styles.ts`: added `leftStackToggle:
+    'map-left-stack-toggle'`.
+  - `app/globals.css`: new `.map-left-stack-toggle` rule (hidden by default,
+    bottom-left) plus, inside the existing `@media (max-width: 720px)`
+    block, `.map-left-stack { display: none }` by default,
+    `.map-left-stack[data-open="true"]` as a full-screen scrollable drawer
+    (z-index 20, above the controls panel), and `.map-left-stack-toggle {
+    display: inline-flex }`. Below 720px the left stack starts collapsed to
+    just the toggle chip so it can never simultaneously occupy screen space
+    with the controls panel; opening it takes over the full screen instead
+    of competing for the same corner.
+  - `components/mapas/map-infraestructura-page.tsx`: added
+    `leftStackAbierto` state (default closed), `data-open` attribute on the
+    left-stack div, and the toggle button between it and the controls
+    stack.
+  - Caught and fixed one real bug via visual verification: the drawer's
+    z-index:20 was covering the toggle button (originally z-index:4),
+    trapping the user with no way to close it. Fixed by bumping the toggle
+    to z-index:21 (must stay above the drawer).
+  - Checks: `pnpm exec tsc --noEmit` clean (same pre-existing unrelated
+    errors), `pnpm test` 742/742 green.
+  - Visually verified in `pnpm dev`: 390px shows no overlap (collapsed by
+    default), opening the drawer shows one scroll container covering the
+    whole screen with a working "Cerrar" button, closing it returns to the
+    normal collapsed view; 1024px and 1440px unaffected (left stack shown
+    normally, toggle correctly hidden).
+  - One of the level-3 dispatches for this task also produced an unrelated
+    hallucinated file (`docs/recomendaciones-flujo-enos.md`, an unprompted
+    product-strategy document) alongside the correct scoped edit — deleted
+    before review; the three real diffs were otherwise exactly as briefed.
+
 ## Next step
-Leader dispatches T1.3 (panel overlap responsive fixes) next.
+Leader dispatches T1.4 (interaction: touch/keyboard, loading/empty states) next.

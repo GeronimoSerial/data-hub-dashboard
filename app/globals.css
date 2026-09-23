@@ -1792,6 +1792,24 @@ time {
   flex: 0 0 auto;
 }
 
+/* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
+   izquierda (escuelas/filtros/indicadores) y el panel de base/capas en la
+   esquina superior derecha a la vez — se pisan y se vuelven ilegibles. Debajo
+   de ese ancho la columna izquierda arranca colapsada (queda sólo este botón
+   pequeño abajo a la izquierda) y sólo ocupa la pantalla completa (panel
+   desplazable, z-index por encima de todo, incluido el panel de controles)
+   cuando la persona la abre explícitamente: los dos paneles nunca se ven
+   juntos ni se superponen. Oculto por defecto; el media query de 720px lo
+   vuelve visible únicamente en pantallas angostas. */
+.map-left-stack-toggle {
+  display: none;
+  position: absolute;
+  bottom: 25px;
+  left: 25px;
+  /* Debe superar el z-index:20 del cajón abierto para que el toggle nunca quede cubierto. */
+  z-index: 21;
+}
+
 /* Cabecera de la leyenda colapsable. Plano y con el mismo peso que el resto
    de los títulos de panel: el triángulo nativo de <summary> alcanza como
    afordancia, no hace falta un ícono propio. */
@@ -1996,6 +2014,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-title-panel { left: 12px; right: 12px; max-width: none; }
   .map-legend-panel { bottom: 12px; left: 12px; }
   .map-controls-stack { top: auto; bottom: 120px; right: 12px; left: auto; }
+  .map-left-stack { display: none; }
+  .map-left-stack[data-open="true"] {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    top: var(--header-h, 0px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: none;
+    z-index: 20;
+    background: var(--page);
+    padding: 12px;
+    overflow-y: auto;
+  }
+  .map-left-stack-toggle { display: inline-flex; }
 }
 
 @media (prefers-reduced-motion: reduce) {

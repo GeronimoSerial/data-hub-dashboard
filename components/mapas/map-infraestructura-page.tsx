@@ -387,6 +387,10 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
+  // T1.3: panel izquierdo colapsable en pantallas angostas (<= 720px), donde
+  // no hay ancho para la columna y el panel de controles a la vez. Arranca
+  // cerrado; el botón toggle y el CSS de globals.css lo gobiernan.
+  const [leftStackAbierto, setLeftStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
   // sólo tiene que tocar SU propio estado — nunca `filtrosForm`,
@@ -884,7 +888,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         en .map-left-stack y los paneles vuelven al flujo normal.
       */}
       {data && (
-        <div className={styles.leftStack}>
+        <div className={styles.leftStack} data-open={leftStackAbierto ? 'true' : 'false'}>
           <Indicadores indicadores={data.indicadores} loading={loading} />
           <ListaAlertas
             partes={data.partes}
@@ -896,6 +900,15 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           <InfraLegendPanel departamentosSinMatch={departamentosSinMatch} />
         </div>
       )}
+
+      <button
+        type="button"
+        className={styles.leftStackToggle}
+        onClick={() => setLeftStackAbierto((abierto) => !abierto)}
+        aria-expanded={leftStackAbierto}
+      >
+        {leftStackAbierto ? 'Cerrar' : 'Escuelas y filtros'}
+      </button>
 
       <div className={styles.controlsStack}>
         <BasemapControl value={basemap} onChange={setBasemap} />

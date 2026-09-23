@@ -6,6 +6,7 @@ const styles = {
   legendPanel: 'map-legend-panel',
   controlsStack: 'map-controls-stack',
   leftStack: 'map-left-stack',
+  leftStackToggle: 'map-left-stack-toggle',
   controlCard: 'map-control-card',
   controlHeading: 'map-control-heading',
   hint: 'map-hint',
