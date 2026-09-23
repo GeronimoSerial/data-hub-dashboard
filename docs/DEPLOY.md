@@ -64,6 +64,12 @@ cargarlos una vez por corte:
 node --experimental-strip-types scripts/import-padron.mjs --ge --ciclo 2026
 ```
 
+Para una demostración, `node scripts/seed-demo-partes.mjs` agrega partes ficticios
+al período vigente y secciones y alumnos sintéticos al corte vigente. Usa IDs
+negativos desde `-900000` para separar esos registros del padrón real. Antes de
+ejecutarlo en producción, comprobá que ese rango esté libre. El comando
+`node scripts/seed-demo-partes.mjs --limpiar` retira los registros ficticios.
+
 Necesita `PADRON_PG_URL` y `NOMINAL_ENCRYPTION_KEY` en el entorno. Tarda entre 40 y 90 segundos
 sobre ~272.000 filas. El flag `--experimental-strip-types` está porque importa módulos `.ts` de
 `lib/`; en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
