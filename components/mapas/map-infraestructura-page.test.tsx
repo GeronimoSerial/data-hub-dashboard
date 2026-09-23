@@ -116,13 +116,17 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
 vi.mock('react-map-gl/maplibre', () => {
   function MapGL(props: {
     children?: React.ReactNode
-    onClick?: (event: { features: Array<{ properties: { cueAnexo: string } }> }) => void
+    onClick?: (event: { features: Array<{ layer?: { id: string }; properties: Record<string, string> }> }) => void
   }) {
     return (
       <div data-testid="mock-maplibre">
         <button
           data-testid="mock-click-parte"
-          onClick={() => props.onClick?.({ features: [{ properties: { cueAnexo: CUE } }] })}
+          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE } }] })}
+        />
+        <button
+          data-testid="mock-click-departamento"
+          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }] })}
         />
         {props.children}
       </div>
@@ -176,6 +180,15 @@ afterEach(() => {
 })
 
 describe('MapInfraestructuraPage — orquestación de modales', () => {
+  it('filtra por departamento al hacer click y permite quitar el filtro', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(screen.getByText('Departamento:')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
+    await userEvent.click(screen.getByText('Quitar filtro'))
+    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+  })
+
   it('abre la ficha al hacer click en un parte del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 

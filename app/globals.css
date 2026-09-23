@@ -1791,6 +1791,20 @@ time {
   max-width: none;
   flex: 0 0 auto;
 }
+.map-departamento-seleccionado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+.map-departamento-seleccionado button {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
 
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
    izquierda (escuelas/filtros/indicadores) y el panel de base/capas en la
@@ -1938,6 +1952,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   margin: var(--s-1) 0 0;
   padding: 0;
 }
+.map-escuelas-search { margin-bottom: var(--s-2); }
+.map-escuelas-search .map-filtro-input { width: 100%; }
+.map-escuelas-resultados { margin-bottom: var(--s-2); }
+.map-escuelas-resultados .map-alertas-list { max-height: 15rem; overflow-y: auto; }
+.map-alerta-texto { display: grid; min-width: 0; gap: 2px; }
+.map-alerta-texto b, .map-alerta-texto small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.map-alerta-texto small { color: var(--ink-soft); }
+.map-filtros-avanzados summary { font-weight: 600; cursor: pointer; }
+.map-filtros-avanzados .map-filtros-grid { margin-top: var(--s-2); margin-bottom: 0; }
+.map-filtros-avanzados .map-filtro-campo:first-child { grid-column: 1 / -1; }
 .map-alerta-row {
   min-width: 0;
   width: 100%;
@@ -2815,6 +2839,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-5);
   margin-top: var(--s-3);
 }
+.ui-dialog-popup.map-detail-dialog {
+  width: min(56rem, 100%);
+  max-height: calc(100dvh - 2rem);
+}
+.ui-sheet--right.map-historial-sheet { width: min(38rem, 100vw); }
 
 .ficha-parte-modal__aviso {
   margin: 0;

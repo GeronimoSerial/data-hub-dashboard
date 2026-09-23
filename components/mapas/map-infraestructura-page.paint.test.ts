@@ -10,7 +10,6 @@ import {
   colorPorSeveridadRango,
   construirFeatureCollection,
   esSinReportar,
-  expresionRadioBasePulso,
   expresionRadioCluster,
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
@@ -81,16 +80,6 @@ describe('expresionRadioCluster', () => {
       50,
       RADIO_CLUSTER_MAYOR,
     ])
-  })
-})
-
-describe('expresionRadioBasePulso', () => {
-  it('parte del radio del cluster cuando es un agregado y de RADIO_DOT_BASE si no', () => {
-    const expresion = expresionRadioBasePulso() as unknown[]
-    expect(expresion[0]).toBe('case')
-    expect(expresion[1]).toEqual(['has', 'point_count'])
-    expect(expresion[2]).toEqual(expresionRadioCluster())
-    expect(expresion[3]).toBe(RADIO_DOT_BASE)
   })
 })
 
