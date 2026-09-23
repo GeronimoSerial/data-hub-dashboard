@@ -45,7 +45,7 @@ describe('describirMovimiento', () => {
       ],
     }
     const lineas = describirMovimiento(diff)
-    expect(lineas).toContain('Clases normales → Clases suspendidas en 2.º A')
+    expect(lineas).toContain('Funcionamiento escolar normal → Funcionamiento escolar interrumpido en 2.º A')
   })
 
   it('cambio de servicio sin estado anterior (primer alcance) no usa flecha', () => {
@@ -53,7 +53,7 @@ describe('describirMovimiento', () => {
       ...diffVacio,
       serviciosCambiados: [{ alcance: { tipo: 'establecimiento', referenciaId: null }, de: null, a: 'suspendido' }],
     }
-    expect(describirMovimiento(diff)).toEqual(['Clases suspendidas'])
+    expect(describirMovimiento(diff)).toEqual(['Funcionamiento escolar interrumpido'])
   })
 
   it('afectación agregada produce el texto del ejemplo de §15', () => {

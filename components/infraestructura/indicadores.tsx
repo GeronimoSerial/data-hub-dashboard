@@ -22,7 +22,7 @@ export function Indicadores(props: {
         Escuelas: <span className={styles.emphasis}>{indicadores.escuelas}</span>
       </div>
       <div>
-        Con servicio suspendido:{' '}
+        Con funcionamiento interrumpido:{' '}
         <span className={styles.emphasis}>{indicadores.conServicioSuspendido}</span>
       </div>
       <div>

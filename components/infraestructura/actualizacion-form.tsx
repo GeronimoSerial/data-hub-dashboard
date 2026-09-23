@@ -697,9 +697,9 @@ function ActualizacionFormCargado({
       </section>
 
       <section className="reporte-inicial__seccion">
-        <h2>Clases</h2>
+        <h2>Funcionamiento escolar</h2>
         <CampoVigente
-          etiqueta="¿Cómo siguen las clases?"
+          etiqueta="¿Cómo funciona la escuela?"
           valorVigente={datos.servicio ? ETIQUETA_SERVICIO[datos.servicio.estadoGeneral] : 'Sin informar'}
           valorNuevo={
             servicioEstado === ''
@@ -720,7 +720,7 @@ function ActualizacionFormCargado({
           disabled={enviando}
         >
           <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-            <legend className="afectacion-campos__legend">¿Cómo siguen las clases?</legend>
+            <legend className="afectacion-campos__legend">¿Cómo funciona la escuela?</legend>
             <div className="afectacion-campos__opciones">
               {(['normal', 'suspendido'] as const).map((valorEstado) => (
                 <label key={valorEstado} className="opcion-radio opcion-radio--compacta">
@@ -740,12 +740,9 @@ function ActualizacionFormCargado({
             </div>
           </fieldset>
 
-          {/* Antes el alcance se preguntaba también al elegir "Clases
-              normales", y no quiere decir nada: el alcance describe a quiénes
-              alcanza una SUSPENSIÓN. Mismo criterio que el reporte inicial. */}
           {servicioEstado === 'suspendido' && (
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿A quiénes alcanza la suspensión?</legend>
+              <legend className="afectacion-campos__legend">¿Dónde se interrumpió el funcionamiento?</legend>
               <div className="afectacion-campos__opciones">
                 {ALCANCES_SERVICIO.map((opcion) => (
                   <label key={opcion.tipo} className="opcion-radio opcion-radio--compacta">

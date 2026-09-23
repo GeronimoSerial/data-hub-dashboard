@@ -86,7 +86,7 @@ describe('ListaAlertas', () => {
     fireEvent.change(screen.getByPlaceholderText(/nombre, cue o localidad/i), {
       target: { value: '1801605' },
     })
-    expect(screen.getByText(/clases suspendidas/i)).toBeInTheDocument()
+    expect(screen.getByText(/funcionamiento escolar interrumpido/i)).toBeInTheDocument()
   })
 
   it('notifica el cambio de un filtro sin tocar los demás', () => {

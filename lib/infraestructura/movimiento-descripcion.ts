@@ -23,7 +23,7 @@ export interface DescribirMovimientoOpciones {
 }
 
 function textoServicioEstado(estado: ServicioEstado): string {
-  return estado === 'suspendido' ? 'suspendidas' : 'normales'
+  return estado === 'suspendido' ? 'Funcionamiento escolar interrumpido' : 'Funcionamiento escolar normal'
 }
 
 function textoAlcanceServicio(alcance: DiffServicioAlcanceRef): string {
@@ -37,9 +37,9 @@ function lineaServicio(cambio: DiffServicioCambio): string {
   const sufijo = textoAlcanceServicio(cambio.alcance)
   if (cambio.de === null || cambio.a === null) {
     const estado = cambio.a ?? cambio.de
-    return estado ? `Clases ${textoServicioEstado(estado)}${sufijo}` : ''
+    return estado ? `${textoServicioEstado(estado)}${sufijo}` : ''
   }
-  return `Clases ${textoServicioEstado(cambio.de)} → Clases ${textoServicioEstado(cambio.a)}${sufijo}`
+  return `${textoServicioEstado(cambio.de)} → ${textoServicioEstado(cambio.a)}${sufijo}`
 }
 
 function pluralizar(cantidad: number, singular: string, plural: string): string {
