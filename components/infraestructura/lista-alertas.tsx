@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type JSX } from 'react'
+import { useMemo, useState, type JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -39,6 +39,15 @@ export function ListaAlertas(props: {
   onSeleccionar: (cueAnexo: string) => void
 }): JSX.Element {
   const styles = useOverlayStyles()
+  const [busqueda, setBusqueda] = useState('')
+  const resultados = useMemo(() => {
+    const termino = busqueda.trim().toLocaleLowerCase('es')
+    if (!termino) return []
+    return props.partes.filter((parte) =>
+      [parte.nombre, parte.cueAnexo, parte.localidad, parte.departamento]
+        .some((valor) => valor.toLocaleLowerCase('es').includes(termino)),
+    )
+  }, [busqueda, props.partes])
 
   // El motivo ya no es un catálogo fijo en código (tiene ABM, ver
   // lib/infraestructura/motivos.ts): el filtro ofrece los motivos que
@@ -75,6 +84,47 @@ export function ListaAlertas(props: {
 
   return (
     <div className={`${styles.panel} ${styles.legendPanel}`}>
+      <label className="map-filtro-campo map-escuelas-search">
+        <span className="map-filtro-label">Buscar escuela</span>
+        <input
+          className="ui-input map-filtro-input"
+          type="search"
+          placeholder="Nombre, CUE o localidad"
+          value={busqueda}
+          onChange={(event) => setBusqueda(event.target.value)}
+        />
+      </label>
+      {busqueda.trim() && (
+        <div className="map-escuelas-resultados" aria-live="polite">
+          <p className={styles.hint}>
+            {resultados.length === 0
+              ? 'No se encontraron escuelas con los filtros aplicados.'
+              : `${resultados.length} ${resultados.length === 1 ? 'escuela encontrada' : 'escuelas encontradas'}`}
+          </p>
+          <ul className={styles.alertasList}>
+            {resultados.slice(0, 8).map((parte) => (
+              <li key={parte.parteId}>
+                <button
+                  type="button"
+                  className={props.seleccionadaCue === parte.cueAnexo
+                    ? `${styles.alertaRow} ${styles.alertaRowActive}`
+                    : styles.alertaRow}
+                  onClick={() => props.onSeleccionar(parte.cueAnexo)}
+                >
+                  <span className={styles.swatch} style={{ backgroundColor: colorSeveridad(parte.peorSeveridad) }} />
+                  <span className="map-alerta-texto">
+                    <b>{parte.nombre}</b>
+                    <small>{parte.cueAnexo} · {ETIQUETA_SERVICIO[parte.servicio]} · {parte.localidad}, {parte.departamento}</small>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          {resultados.length > 8 && <p className={styles.hint}>Escribí más para acotar los resultados.</p>}
+        </div>
+      )}
+      <details className="map-filtros-avanzados">
+        <summary>Filtros del mapa</summary>
       <div className={styles.filtrosGrid}>
         <label className="map-filtro-campo">
           <span className="map-filtro-label">Territorio</span>
@@ -98,19 +148,6 @@ export function ListaAlertas(props: {
             value={props.filtros.nivel}
             onChange={(event) =>
               props.onFiltroChange('nivel', event.target.value)
-            }
-          />
-        </label>
-
-        <label className="map-filtro-campo">
-          <span className="map-filtro-label">Establecimiento</span>
-          <input
-            className="ui-input map-filtro-input"
-            type="text"
-            placeholder="CUE-Anexo"
-            value={props.filtros.establecimiento}
-            onChange={(event) =>
-              props.onFiltroChange('establecimiento', event.target.value)
             }
           />
         </label>
@@ -199,48 +236,12 @@ export function ListaAlertas(props: {
           </Select>
         </div>
       </div>
-
+      </details>
       {props.partes.length === 0 ? (
         <span className={styles.hint}>
           No hay escuelas con afectación vigente con los filtros aplicados.
         </span>
-      ) : (
-        <ul className={styles.alertasList}>
-          {props.partes.map((parte) => {
-            // Motivos únicos del parte: una escuela puede acumular varias
-            // afectaciones (y por lo tanto varios motivos) a la vez.
-            const motivos = Array.from(
-              new Set(parte.afectaciones.map((a) => a.motivo)),
-            ).join(', ')
-            return (
-              <li key={parte.parteId}>
-                <button
-                  type="button"
-                  className={
-                    props.seleccionadaCue === parte.cueAnexo
-                      ? `${styles.alertaRow} ${styles.alertaRowActive}`
-                      : styles.alertaRow
-                  }
-                  onClick={() => props.onSeleccionar(parte.cueAnexo)}
-                >
-                  <span
-                    className={styles.swatch}
-                    style={{ backgroundColor: colorSeveridad(parte.peorSeveridad) }}
-                  />
-                  <b>{parte.nombre}</b>
-                  {/* El estado de servicio es el dato más importante de la
-                      fila: es la respuesta a "¿hay clases?", que antes no se
-                      veía en ningún lado del mapa. */}
-                  <span className={styles.popupMuted}>
-                    {ETIQUETA_SERVICIO[parte.servicio]} · {parte.localidad}, {parte.departamento} ·{' '}
-                    {motivos}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+      ) : null}
     </div>
   )
 }

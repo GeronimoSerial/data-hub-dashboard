@@ -5,14 +5,12 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties,
 } from 'react'
 import MapGL, {
   Layer,
   Marker,
   NavigationControl,
-  Popup,
   Source,
   type MapLayerMouseEvent,
   type MapRef,
@@ -56,15 +54,13 @@ import {
 } from '@/lib/mapas/departamentos'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
+import { filtrarDepartamentoMapa } from '@/lib/infraestructura/filtrar-departamento-mapa'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
-  DURACION_PULSO_MS,
-  esSeveridadPulsante,
   RADIO_DOT_BASE,
-  radioMaximoPulso,
   rangoSeveridad,
 } from '@/lib/mapas/severidad-visual'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
@@ -78,12 +74,8 @@ ensureMapWorker()
 // (anillo, ver circlePaintPartes), y la categoría pasó a filtro + ficha.
 const CAPA_PARTES_ID = 'infra-partes'
 
-// T1.1: pulso de severidad alta/crítica. Capa aparte (va DEBAJO de
-// CAPA_PARTES_ID en el árbol) para que el anillo animado se lea alrededor del
-// punto, no encima. Los clusters de supercluster también son capas aparte,
-// con sus propios ids, para poder distinguir el click de un agregado del
-// click de una escuela.
-const CAPA_PARTES_PULSO_ID = 'infra-partes-pulso'
+// Los clusters de supercluster tienen ids propios para distinguir el click
+// de un agregado del click de una escuela.
 const CAPA_PARTES_CLUSTER_ID = 'infra-partes-cluster'
 const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 
@@ -193,6 +185,7 @@ function symbolLayoutDepartamentos(): SymbolLayerSpecification['layout'] {
       ['get', 'nombreMayus'],
     ],
     'text-size': 11,
+    'text-font': ['Noto Sans Regular'],
     'text-allow-overlap': false,
   }
 }
@@ -258,10 +251,8 @@ const FILTROS_VACIOS: FiltrosForm = {
 // La antigua codificación escalaba el radio por `alumnosAlcanzados` (área
 // proporcional al dato, interpolando sobre la raíz cuadrada). Ese canal dejó
 // de usarse: la matrícula pasó a la ficha/lista y un punto de tamaño
-// variable terminaba tapando a sus vecinas a zoom bajo. Lo que ahora
-// distingue a una escuela de severidad alta/crítica es el PULSO (ver
-// infra-partes-pulso y lib/mapas/severidad-visual.ts), no el tamaño: el
-// radio del punto es la constante fija RADIO_DOT_BASE para todas.
+// variable terminaba tapando a sus vecinas a zoom bajo. El radio es fijo;
+// el color informa la severidad y el anillo informa el estado del servicio.
 
 // Anillo: color NEUTRO (el color ya está tomado por severidad, no se puede
 // reusar acá sin generar una segunda escala). "suspendido" y "parcial" se
@@ -273,15 +264,11 @@ const FILTROS_VACIOS: FiltrosForm = {
 // el fondo), que a esa distancia se lee como "sin anillo".
 const ANILLO_COLOR = '#1c1c1c'
 
-// T1.1b/T1.1c: el color del cluster y del pulso deja de ser un gris fijo y
-// pasa a ser el de la severidad MÁS ALTA presente entre los puntos agrupados,
+// El color del cluster es el de la severidad MÁS ALTA entre sus puntos,
 // leída del agregado `severidadRango` que calcula clusterProperties (max). Es
 // una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
 // mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
-// no el mayor es Alta (>=2), y así hasta Baja (default). Compartida entre la
-// capa de clusters y la capa de pulso: ambas leen `severidadRango`, una
-// propiedad que los puntos severos individuales y los clusters agrupados
-// traen por igual.
+// no el mayor es Alta (>=2), y así hasta Baja (default).
 export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
   const expresion: unknown[] = ['case']
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
@@ -291,26 +278,13 @@ export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<s
   return expresion as unknown as DataDrivenPropertyValueSpecification<string>
 }
 
-// T1.1c: el radio del cluster es una expresión compartida, no un literal
-// inline duplicado. La capa de clusters, el pulso (que parte del radio propio
-// del cluster para expandirse POR FUERA del círculo, no por debajo) y
-// cualquier futuro consumidor que necesite "qué tan grande se dibuja este
-// cluster" leen la MISMA expresión, para que nunca puedan desincronizarse.
+// El radio del cluster sube por tramos con la cantidad de escuelas.
 export const RADIO_CLUSTER_MENOR = 16
 export const RADIO_CLUSTER_MEDIO = 22
 export const RADIO_CLUSTER_MAYOR = 28
 
 export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
   return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR] as unknown as DataDrivenPropertyValueSpecification<number>
-}
-
-// El pulso parte del radio con que se dibuja la feature: el radio propio del
-// cluster si es un agregado (['has', 'point_count']), RADIO_DOT_BASE si es un
-// punto individual. Así el anillo de un cluster arranca en el borde de su
-// círculo y crece por fuera, en vez de empezar bajo el círculo sólido e
-// invisible hasta que lo supera.
-export function expresionRadioBasePulso(): DataDrivenPropertyValueSpecification<number> {
-  return ['case', ['has', 'point_count'], expresionRadioCluster(), RADIO_DOT_BASE] as unknown as DataDrivenPropertyValueSpecification<number>
 }
 
 export function circlePaintPartes(): CircleLayerSpecification['paint'] {
@@ -329,17 +303,9 @@ type PropiedadesParte = {
   color: string
   servicio: EstadoServicioGeneral
   alumnosAlcanzados: number
-  // T1.1: la etiqueta cruda de severidad (parte.peorSeveridad) y el booleano
-  // derivado que filtra la capa de pulso — calculado acá, una vez, en vez de
-  // en una expresión MapLibre por frame.
+  // Etiqueta cruda para la ficha y rango numérico para el cluster.
   severidad: string
-  esSevero: boolean
-  // T1.1b: el rango numérico de severidad (0..3) y el radio máximo de pulso
-  // por severidad, unidos al feature para que clusterProperties pueda
-  // agregarlos con max() entre los puntos agrupados (un label string no se
-  // puede agregar de forma significativa).
   severidadRango: number
-  radioMaxPulso: number
   // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
   // según esSinReportar/UMBRAL_SIN_REPORTAR_HORAS). Se une al feature para
   // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
@@ -371,9 +337,7 @@ export function construirFeatureCollection(
         servicio: parte.servicio,
         alumnosAlcanzados: parte.alumnosAlcanzados,
         severidad: parte.peorSeveridad,
-        esSevero: esSeveridadPulsante(parte.peorSeveridad),
         severidadRango: rangoSeveridad(parte.peorSeveridad),
-        radioMaxPulso: radioMaximoPulso(parte.peorSeveridad),
         sinReportar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
         esEvacuado:
           parte.estadoEstablecimiento === 'evacuado' ||
@@ -455,34 +419,10 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
 // listener 'change' además hace que el mapa reaccione en vivo si el usuario
 // cambia el ajuste de reduced-motion del sistema operativo, cosa que el
 // efecto one-shot viejo no hacía.
-const CONSULTA_REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
-
-function suscribirseAReducedMotion(onChange: () => void): () => void {
-  if (typeof window.matchMedia !== 'function') return () => {}
-  const mql = window.matchMedia(CONSULTA_REDUCED_MOTION)
-  mql.addEventListener('change', onChange)
-  return () => mql.removeEventListener('change', onChange)
-}
-
-function leerReducedMotion(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(CONSULTA_REDUCED_MOTION).matches
-}
-
-function leerReducedMotionServidor(): boolean {
-  return false
-}
-
 export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: boolean }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
-  // Id del intervalo del pulso, para poder cancelarlo en el cleanup sin
-  // depender de un closure que un StrictMode pueda re-ejecutar.
-  const pulsoIntervalRef = useRef<number | null>(null)
-  // Estado del pulso (base o expandido), persistido entre renders: lo mutan
-  // tanto el tick del intervalo como la pausa/reanudación por movimiento del
-  // mapa (movestart/moveend), por eso un ref y no una variable del closure.
-  const expandidoRef = useRef(false)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
@@ -501,23 +441,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
-  // T1.1c: prefers-reduced-motion se lee con useSyncExternalStore (ver las
-  // funciones de módulo de arriba) en vez de un estado seteado en un efecto:
-  // es la forma sancionada por React de leer matchMedia, reacciona en vivo al
-  // ajuste del sistema y no dispara react-hooks/set-state-in-effect. Con él,
-  // el anillo estático de reduced-motion es un valor declarativo del paint de
-  // la capa (ver el JSX del pulso), y el efecto de animación simplemente no
-  // agenda ningún frame.
-  const prefersReducedMotion = useSyncExternalStore(
-    suscribirseAReducedMotion,
-    leerReducedMotion,
-    leerReducedMotionServidor,
-  )
-  const [departamentoHover, setDepartamentoHover] = useState<{
-    nombre: string
-    lng: number
-    lat: number
-  } | null>(null)
+  const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
+  const [puntosVisibles, setPuntosVisibles] = useState(true)
+  const entradaPuntosPendiente = useRef(false)
   // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
   // agrupados) en `infra-partes-src`, recomputado cada vez que el mapa
   // termina de moverse o hacer zoom (onMoveEnd). El halo "sin reportar" y
@@ -547,14 +473,25 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
 
   const { data, loading, error } = useAlertas(filtros)
 
+  const [ahoraMs, setAhoraMs] = useState<number | null>(null)
+  useEffect(() => {
+    const id = setTimeout(() => setAhoraMs(Date.now()), 0)
+    return () => clearTimeout(id)
+  }, [data])
+
+  const dataVisible = useMemo(
+    () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
+    [data, departamentoSeleccionado, ahoraMs],
+  )
+
   // Un punto por escuela: la ficha y la lista seleccionan por cueAnexo, no
   // hace falta una agrupación intermedia como la que existía cuando un mismo
   // cue podía tener features en dos capas distintas.
   const partesPorCue = useMemo(() => {
     const map = new Map<string, ParteMapa>()
-    for (const parte of data?.partes ?? []) map.set(parte.cueAnexo, parte)
+    for (const parte of dataVisible?.partes ?? []) map.set(parte.cueAnexo, parte)
     return map
-  }, [data])
+  }, [dataVisible])
 
   // F2.3: `Date.now()` es impuro, así que no puede llamarse durante el
   // render (regla react-hooks/purity) — se toma en un efecto, disparado por
@@ -562,35 +499,21 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // mouse no debe recalcular ni parpadear el halo). Antes de que corra el
   // primer efecto, `ahoraMs` es null y el halo simplemente no dibuja nada
   // (mejor eso que fechar con un valor inventado).
-  const [ahoraMs, setAhoraMs] = useState<number | null>(null)
-  useEffect(() => {
-    const id = setTimeout(() => setAhoraMs(Date.now()), 0)
-    return () => clearTimeout(id)
-  }, [data])
-
   const featureCollection = useMemo(
-    () => construirFeatureCollection(data?.partes ?? [], ahoraMs),
-    [data, ahoraMs],
-  )
-
-  // T1.1b: hay algo severo (Alta/Crítica) en la colección YA desagrupada
-  // (antes de clusterizar). Si no lo hay no hay nada que animar y el efecto
-  // de pulso no agenda frames.
-  const haySeveroEnVista = useMemo(
-    () => featureCollection.features.some((feature) => feature.properties.esSevero),
-    [featureCollection],
+    () => construirFeatureCollection(dataVisible?.partes ?? [], ahoraMs),
+    [dataVisible, ahoraMs],
   )
 
   const partesEvacuacion = useMemo(
     () =>
-      (data?.partes ?? []).filter(
+      (dataVisible?.partes ?? []).filter(
         (parte) =>
           parte.lat !== null &&
           parte.lon !== null &&
           (parte.estadoEstablecimiento === 'evacuado' ||
             parte.estadoEstablecimiento === 'centro_evacuados'),
       ),
-    [data],
+    [dataVisible],
   )
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
@@ -620,121 +543,6 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       cancelado = true
     }
   }, [])
-
-  // T1.4: Escape cierra el popup del departamento — el equivalente de teclado
-  // a alejar el mouse o tocar en otro lado.
-  useEffect(() => {
-    function manejarEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setDepartamentoHover(null)
-    }
-    document.addEventListener('keydown', manejarEscape)
-    return () => document.removeEventListener('keydown', manejarEscape)
-  }, [])
-
-  // T1.1c: la preferencia de reduced-motion ya no se guarda en estado (ver el
-  // useSyncExternalStore de arriba); `matchMedia` puede no existir (p. ej.
-  // jsdom en los tests), y sin él leerReducedMotion devuelve false — se trata
-  // como "no reduced" (el anillo estático no se muestra; el loop se corre con
-  // sus guards, inofensivo donde el mapa no está).
-
-  // Pulso de severidad alta/crítica (T1.1, T1.1b, T1.1c). Con reduced-motion, o sin
-  // la capa de escuelas visible, o sin nada severo en los datos actuales, no
-  // se agenda ningún timer — el anillo estático de reduced-motion ya lo
-  // resuelve el paint declarativo de la capa. Antes esto era un loop de
-  // requestAnimationFrame que llamaba setPaintProperty en CADA frame (~200
-  // ticks/seg y ~400 setPaintProperty/seg medidos, incluso con el mapa
-  // completamente quieto). Ahora el efecto alterna entre DOS ESTADOS de paint
-  // (radio base con opacidad 0.5, y radio base + expansión con opacidad 0)
-  // una vez por DURACION_PULSO_MS vía window.setInterval, y las transiciones
-  // `circle-radius-transition`/`circle-opacity-transition` de la propia capa
-  // (agregadas en el paint de infra-partes-pulso) interpolan suavemente entre
-  // un estado y el otro en el compositor — la animación la hace MapLibre, no
-  // este efecto. Eso baja los setPaintProperty de ~400/seg a 2 llamadas cada
-  // 1.6s. Nota: cambia levemente el carácter visual del pulso — ahora
-  // respira de ida y vuelta (crece y encoge, continuo) vía la transición, en
-  // vez del diente de sierra viejo (crece y se reinicia al instante) que
-  // producía la interpolación cruda por frame; sigue siendo un pulso
-  // repetido, sólo más suave y muchísimo más barato.
-  function aplicarEstadoPulso() {
-    const mapa = mapRef.current?.getMap()
-    if (!mapa?.getLayer(CAPA_PARTES_PULSO_ID)) return
-    const radio = expandidoRef.current
-      ? (['+', expresionRadioBasePulso(), ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]] as unknown as DataDrivenPropertyValueSpecification<number>)
-      : expresionRadioBasePulso()
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius', radio)
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity', expandidoRef.current ? 0 : 0.5)
-    expandidoRef.current = !expandidoRef.current
-  }
-
-  // Mientras el mapa se mueve (movestart) una TRANSICIÓN
-  // circle-radius/opacity en curso obliga a MapLibre a repintar en CADA frame
-  // mientras interpola, y ese repintado compite con el compositing de
-  // pan/zoom del navegador — los drags se sienten menos fluidos. Pausar
-  // (limpiar el intervalo y, con duración 0, encajar al instante al estado
-  // base sin encolar otra transición) mientras el usuario mueve el mapa
-  // mantiene el drag fluido; reanudar en moveend re-chequea el mismo guard
-  // que el efecto de montaje (no tiene sentido reanudar con reduced-motion,
-  // capa apagada o sin nada severo) y no hace nada si por lo que sea ya
-  // estaba corriendo.
-  function pausarPulsoPorMovimiento() {
-    if (pulsoIntervalRef.current !== null) {
-      window.clearInterval(pulsoIntervalRef.current)
-      pulsoIntervalRef.current = null
-    }
-    const mapa = mapRef.current?.getMap()
-    if (!mapa?.getLayer(CAPA_PARTES_PULSO_ID)) return
-    // Duración 0 para que el snap al estado base sea instantáneo, no una
-    // transición más - luego se restaura la duración real para cuando el
-    // pulso se reanude en moveend.
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius-transition', { duration: 0, delay: 0 })
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity-transition', { duration: 0, delay: 0 })
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius', expresionRadioBasePulso())
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity', prefersReducedMotion ? 0.25 : 0)
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-radius-transition', { duration: DURACION_PULSO_MS, delay: 0 })
-    mapa.setPaintProperty(CAPA_PARTES_PULSO_ID, 'circle-opacity-transition', { duration: DURACION_PULSO_MS, delay: 0 })
-    expandidoRef.current = false
-  }
-
-  function reanudarPulsoTrasMovimiento() {
-    if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) return
-    if (pulsoIntervalRef.current !== null) return
-    aplicarEstadoPulso()
-    pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
-  }
-
-  useEffect(() => {
-    if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) {
-      // Reduced motion ya se resuelve en el paint declarativo de la capa
-      // (ver arriba); sin la capa de escuelas visible o sin nada severo en
-      // los datos actuales no hay nada que animar - no se agenda ningún
-      // timer.
-      return
-    }
-    aplicarEstadoPulso()
-    pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
-
-    // No tiene sentido seguir animando una pestaña que nadie está mirando:
-    // se limpia el intervalo al ocultarse y se rearma al volver a verse.
-    function manejarVisibilidad() {
-      if (pulsoIntervalRef.current !== null) {
-        window.clearInterval(pulsoIntervalRef.current)
-        pulsoIntervalRef.current = null
-      }
-      if (!document.hidden) {
-        aplicarEstadoPulso()
-        pulsoIntervalRef.current = window.setInterval(aplicarEstadoPulso, DURACION_PULSO_MS)
-      }
-    }
-    document.addEventListener('visibilitychange', manejarVisibilidad)
-
-    return () => {
-      if (pulsoIntervalRef.current !== null) {
-        window.clearInterval(pulsoIntervalRef.current)
-        pulsoIntervalRef.current = null
-      }
-      document.removeEventListener('visibilitychange', manejarVisibilidad)
-    }
-  }, [prefersReducedMotion, capasVisibles.escuelas, haySeveroEnVista])
 
   const { departamentosGeojson, departamentosSinMatch } = useMemo(() => {
     if (!departamentosRaw) return { departamentosGeojson: null, departamentosSinMatch: [] as string[] }
@@ -782,11 +590,12 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
 
-  // T1.1: el cluster también es clickeable (zoom de expansión); las capas
-  // "sin reportar"/pulso no lo son.
-  const capasInteractivas = capasVisibles.escuelas
-    ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID]
-    : []
+  // El cluster también es clickeable para hacer zoom de expansión.
+  const capasInteractivas = [
+    ...(capasVisibles.escuelas ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID] : []),
+    CAPA_DEPARTAMENTOS_RELLENO_ID,
+    'infra-departamentos-etiqueta',
+  ]
 
   // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
   // de puntos, no una escuela — así que en vez de abrir la ficha se hace
@@ -810,49 +619,27 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   }
 
   function handleClick(event: MapLayerMouseEvent) {
-    const feature = (event.features ?? [])[0]
-    if (!feature || !feature.properties) {
-      // T1.4: el departamento también se alcanza con tap, no sólo con hover
-      // (que en pantallas táctiles no existe) — click sobre el relleno
-      // muestra su ficha igual que al pasar el mouse. Un segundo tap sobre
-      // el MISMO departamento lo cierra: sin hover-away, el toque es la
-      // única forma de descartarlo.
-      const mapa = mapRef.current
-      const [departamento] = mapa
-        ? mapa.queryRenderedFeatures(event.point, { layers: [CAPA_DEPARTAMENTOS_RELLENO_ID] })
-        : []
-      const nombre = departamento?.properties?.nombre
-      if (typeof nombre === 'string') {
-        setDepartamentoHover((prev) =>
-          prev?.nombre === nombre ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
-        )
-      } else {
-        setSeleccionCue(null)
-      }
-      return
-    }
-    if (feature.layer?.id === CAPA_PARTES_CLUSTER_ID) {
+    const features = event.features ?? []
+    const feature = features.find((item) => item.layer?.id === CAPA_PARTES_CLUSTER_ID)
+      ?? features.find((item) => item.layer?.id === CAPA_PARTES_ID)
+    if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
       void acercarAlCluster(feature)
       return
     }
-    setSeleccionCue(String(feature.properties.cueAnexo))
-  }
-
-  // queryRenderedFeatures en vez de sumar la capa a interactiveLayerIds: si
-  // el relleno departamental fuera interactivo, un click sobre el mapa vacío
-  // devolvería un feature sin cueAnexo y handleClick seleccionaría "undefined".
-  function handleMouseMove(event: MapLayerMouseEvent) {
-    const mapa = mapRef.current
-    if (!mapa) return
-    const [encontrado] = mapa.queryRenderedFeatures(event.point, {
-      layers: [CAPA_DEPARTAMENTOS_RELLENO_ID],
-    })
-    const nombre = encontrado?.properties?.nombre
-    if (typeof nombre !== 'string') {
-      setDepartamentoHover((prev) => (prev === null ? prev : null))
+    if (feature?.properties?.cueAnexo) {
+      setSeleccionCue(String(feature.properties.cueAnexo))
       return
     }
-    setDepartamentoHover({ nombre, lng: event.lngLat.lng, lat: event.lngLat.lat })
+    const departamento = features.find((item) =>
+      item.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID || item.layer?.id === 'infra-departamentos-etiqueta',
+    )
+    const nombre = departamento?.properties?.nombre
+    if (typeof nombre === 'string') {
+      const siguiente = departamentoSeleccionado === nombre ? null : nombre
+      entradaPuntosPendiente.current = true
+      setPuntosVisibles(false)
+      setDepartamentoSeleccionado(siguiente)
+    }
   }
 
   // T1.1c: lee del mapa (querySourceFeatures) qué features de
@@ -877,6 +664,10 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   function seleccionarDesdeLista(cueAnexo: string) {
     setSeleccionCue(cueAnexo)
     setLeftStackAbierto(false)
+    const parte = partesPorCue.get(cueAnexo)
+    if (parte?.lon != null && parte.lat != null) {
+      mapRef.current?.flyTo({ center: [parte.lon, parte.lat], zoom: 12, duration: 800 })
+    }
   }
 
   function alternarCapa(capa: CapaInfraestructura, value: boolean) {
@@ -884,6 +675,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   }
 
   function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
+    if (campo === 'territorio') setDepartamentoSeleccionado(null)
     setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
   }
 
@@ -909,7 +701,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       {/* T1.4: espeja el mensaje vacío de la propia lista para que ambos
           lados de un filtro sin resultados se lean igual — acá es lo primero
           que vería quien mira sólo el mapa. */}
-      {data && data.partes.length === 0 && (
+      {dataVisible && dataVisible.partes.length === 0 && (
         <div className={`${styles.panel} ${styles.titlePanel}`}>
           No hay escuelas con afectación vigente con los filtros aplicados.
         </div>
@@ -928,14 +720,14 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setDepartamentoHover(null)}
           cursor="pointer"
           onLoad={actualizarCuesNoAgrupados}
-          onMoveStart={pausarPulsoPorMovimiento}
-          onMoveEnd={(_event) => {
-            actualizarCuesNoAgrupados()
-            reanudarPulsoTrasMovimiento()
+          onMoveEnd={actualizarCuesNoAgrupados}
+          onIdle={() => {
+            if (entradaPuntosPendiente.current) {
+              entradaPuntosPendiente.current = false
+              setPuntosVisibles(true)
+            }
           }}
         >
           <NavigationControl position="top-left" />
@@ -970,13 +762,13 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
               id={CAPA_DEPARTAMENTO_HOVER_ID}
               type="fill"
               paint={fillPaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoHover?.nombre ?? '']}
+              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
             />
             <Layer
               id={CAPA_DEPARTAMENTO_HOVER_BORDE_ID}
               type="line"
               paint={linePaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoHover?.nombre ?? '']}
+              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
             />
             <Layer
               id="infra-departamentos-etiqueta"
@@ -996,10 +788,8 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
               clusterRadius={40}
               clusterProperties={{
                 // T1.1b: agregados por max() entre los puntos agrupados — el
-                // cluster hereda la severidad y el radio de pulso de su punto
-                // MÁS severo, no un promedio.
+                // El cluster hereda la severidad más alta, no un promedio.
                 severidadRango: ['max', ['get', 'severidadRango']],
-                radioMaxPulso: ['max', ['get', 'radioMaxPulso']],
                 // T1.1c: en el cluster `sinReportar` se agrega como 0/1 con
                 // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
                 // está sin reportar (semántica OR), a diferencia de los
@@ -1072,52 +862,15 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                   }}
                 />
               )}
-              {/*
-                Pulso (T1.1, T1.1c): va DEBAJO del punto para que se lea como
-                un anillo que se expande alrededor, no como algo que lo tapa.
-                Filtra las no agrupadas con esSevero y, desde T1.1b, también
-                los clusters cuya severidad agregada es Alta o superior
-                (2 = rangoSeveridad('Alta'); los clusters agregan la
-                propiedad vía clusterProperties, ver el Source arriba). El
-                radio base declarado acá es una expresión por feature
-                (expresionRadioBasePulso): parte del radio del cluster cuando
-                es un agregado y de RADIO_DOT_BASE cuando es un punto, para
-                que el anillo de un cluster crezca por fuera de su círculo en
-                vez de empezar debajo de él. El radio/opacidad los maneja el
-                efecto de animación más abajo vía setPaintProperty (y
-                prefersReducedMotion, resuelto con useSyncExternalStore).
-                Las transiciones circle-radius-transition /
-                circle-opacity-transition le dicen a MapLibre que interpole
-                suavemente cualquier cambio en circle-radius/circle-opacity
-                a lo largo de un ciclo de pulso completo, en el hilo del
-                compositor — por eso el efecto de animación de abajo sólo
-                necesita llamar setPaintProperty una vez por medio ciclo, no
-                una vez por cada tick de requestAnimationFrame.
-              */}
-              <Layer
-                id={CAPA_PARTES_PULSO_ID}
-                type="circle"
-                filter={[
-                  'any',
-                  ['all', ['!', ['has', 'point_count']], ['==', ['get', 'esSevero'], true]],
-                  ['all', ['has', 'point_count'], ['>=', ['get', 'severidadRango'], 2]],
-                ]}
-                paint={{
-                  'circle-color': colorPorSeveridadRango(),
-                  'circle-stroke-width': 0,
-                  'circle-radius': prefersReducedMotion
-                    ? (['+', expresionRadioBasePulso(), 4] as unknown as DataDrivenPropertyValueSpecification<number>)
-                    : expresionRadioBasePulso(),
-                  'circle-radius-transition': { duration: DURACION_PULSO_MS, delay: 0 },
-                  'circle-opacity': prefersReducedMotion ? 0.25 : 0,
-                  'circle-opacity-transition': { duration: DURACION_PULSO_MS, delay: 0 },
-                }}
-              />
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
                 filter={['!', ['has', 'point_count']]}
-                paint={circlePaintPartes()}
+                paint={{
+                  ...circlePaintPartes(),
+                  'circle-opacity': puntosVisibles ? 0.9 : 0,
+                  'circle-opacity-transition': { duration: 180, delay: 0 },
+                }}
               />
               {/*
                 Clusters (T1.1b): el color ya no es un gris neutro fijo — los
@@ -1136,6 +889,8 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 paint={{
                   'circle-color': colorPorSeveridadRango(),
                   'circle-radius': expresionRadioCluster(),
+                  'circle-opacity': puntosVisibles ? 1 : 0,
+                  'circle-opacity-transition': { duration: 180, delay: 0 },
                   'circle-stroke-color': '#1c1c1c',
                   'circle-stroke-width': 1,
                 }}
@@ -1152,7 +907,11 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                   'text-font': ['Noto Sans Regular'],
                   'text-allow-overlap': false,
                 }}
-                paint={{ 'text-color': '#ffffff' }}
+                paint={{
+                  'text-color': '#ffffff',
+                  'text-opacity': puntosVisibles ? 1 : 0,
+                  'text-opacity-transition': { duration: 180, delay: 0 },
+                }}
               />
             </Source>
           )}
@@ -1180,19 +939,6 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 </Marker>
               ))}
 
-          {departamentoHover && (
-            <Popup
-              longitude={departamentoHover.lng}
-              latitude={departamentoHover.lat}
-              anchor="bottom"
-              offset={14}
-              closeButton={false}
-              closeOnClick={false}
-              className="mapa-tooltip-departamento"
-            >
-              {departamentoHover.nombre}
-            </Popup>
-          )}
 
         </MapGL>
       </div>
@@ -1232,11 +978,21 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         tapándose entre sí y tapando el control de zoom. El anclaje ahora vive
         en .map-left-stack y los paneles vuelven al flujo normal.
       */}
-      {data && (
+      {dataVisible && (
         <div className={styles.leftStack} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
-          <Indicadores indicadores={data.indicadores} loading={loading} />
+          <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
+          {departamentoSeleccionado && (
+            <div className={`${styles.panel} map-departamento-seleccionado`}>
+              <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
+              <button type="button" onClick={() => {
+                entradaPuntosPendiente.current = true
+                setPuntosVisibles(false)
+                setDepartamentoSeleccionado(null)
+              }}>Quitar filtro</button>
+            </div>
+          )}
           <ListaAlertas
-            partes={data.partes}
+            partes={dataVisible.partes}
             filtros={filtrosForm}
             onFiltroChange={setFiltro}
             seleccionadaCue={seleccionCue}
@@ -1260,7 +1016,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         aria-expanded={leftStackAbierto}
         aria-controls="infra-left-stack"
       >
-        {leftStackAbierto ? 'Cerrar' : 'Escuelas y filtros'}
+        {leftStackAbierto ? 'Cerrar' : departamentoSeleccionado ?? 'Buscar escuelas'}
       </Button>
 
       <div

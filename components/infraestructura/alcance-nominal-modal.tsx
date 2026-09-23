@@ -132,7 +132,7 @@ export function AlcanceNominalModal({
 }): JSX.Element {
   return (
     <Dialog open={afectacionId !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="map-detail-dialog">
         <DialogTitle>Alumnos alcanzados</DialogTitle>
         {afectacionId ? <AlcanceNominalContenido key={afectacionId} afectacionId={afectacionId} /> : null}
       </DialogContent>

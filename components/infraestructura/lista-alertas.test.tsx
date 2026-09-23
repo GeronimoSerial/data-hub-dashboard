@@ -59,6 +59,10 @@ describe('ListaAlertas', () => {
       />,
     )
 
+    expect(screen.queryByText('Escuela 1')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/nombre, cue o localidad/i), {
+      target: { value: 'escuela' },
+    })
     fireEvent.click(screen.getByText('Escuela 1'))
     expect(onSeleccionar).toHaveBeenCalledWith('1801605-04')
 
@@ -79,6 +83,9 @@ describe('ListaAlertas', () => {
         onSeleccionar={vi.fn()}
       />,
     )
+    fireEvent.change(screen.getByPlaceholderText(/nombre, cue o localidad/i), {
+      target: { value: '1801605' },
+    })
     expect(screen.getByText(/clases suspendidas/i)).toBeInTheDocument()
   })
 
@@ -94,6 +101,7 @@ describe('ListaAlertas', () => {
       />,
     )
 
+    fireEvent.click(screen.getByText('Filtros del mapa'))
     fireEvent.change(screen.getByPlaceholderText(/departamento o localidad/i), {
       target: { value: 'Paraná' },
     })
