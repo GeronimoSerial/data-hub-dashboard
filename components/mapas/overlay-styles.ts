@@ -5,6 +5,7 @@ const styles = {
   titlePanel: 'map-title-panel',
   legendPanel: 'map-legend-panel',
   controlsStack: 'map-controls-stack',
+  controlsStackToggle: 'map-controls-stack-toggle',
   leftStack: 'map-left-stack',
   leftStackToggle: 'map-left-stack-toggle',
   controlCard: 'map-control-card',

@@ -1830,6 +1830,21 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-2);
   width: min(17.5rem, calc(100vw - 24px));
 }
+
+/* Contraparte de .map-left-stack-toggle para el panel de base/capas (T1.3
+   extendido): oculto por defecto, sólo el media query de 720px lo muestra. En
+   mobile este panel arranca colapsado en este botón chico arriba a la
+   derecha, lejos del toggle de la izquierda (abajo a la izquierda) y del
+   botón de pantalla completa (abajo a la derecha), así los dos cajones y esos
+   botones nunca se superponen. */
+.map-controls-stack-toggle {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  /* Mismo criterio que .map-left-stack-toggle: por encima del cajón abierto. */
+  z-index: 21;
+}
 .map-control-card {
   background: var(--card);
   color: var(--ink);
@@ -2013,7 +2028,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (max-width: 720px) {
   .map-title-panel { left: 12px; right: 12px; max-width: none; }
   .map-legend-panel { bottom: 12px; left: 12px; }
-  .map-controls-stack { top: auto; bottom: 120px; right: 12px; left: auto; }
   .map-left-stack { display: none; }
   /* El botón de cierre vive fijo sobre el cajón abierto (mismo z-index que la
      barra del header, en una posición fija de pantalla); el cajón necesita
@@ -2035,6 +2049,26 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     overflow-y: auto;
   }
   .map-left-stack-toggle { display: inline-flex; }
+
+  /* El panel de base/capas tapaba casi la mitad del mapa en mobile (390x844):
+     arranca colapsado en el toggle de arriba a la derecha y sólo ocupa la
+     pantalla completa cuando se abre, con el mismo cajón fijo que .map-left-stack. */
+  .map-controls-stack { display: none; }
+  .map-controls-stack[data-open="true"] {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    top: var(--header-h, 0px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    z-index: 20;
+    background: var(--page);
+    padding: 12px 12px calc(12px + 44px + 12px) 12px;
+    overflow-y: auto;
+  }
+  .map-controls-stack-toggle { display: inline-flex; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -489,6 +489,10 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   // no hay ancho para la columna y el panel de controles a la vez. Arranca
   // cerrado; el botón toggle y el CSS de globals.css lo gobiernan.
   const [leftStackAbierto, setLeftStackAbierto] = useState(false)
+  // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
+  // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
+  // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
+  const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
   // sólo tiene que tocar SU propio estado — nunca `filtrosForm`,
@@ -1244,17 +1248,43 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       <button
         type="button"
         className={styles.leftStackToggle}
-        onClick={() => setLeftStackAbierto((abierto) => !abierto)}
+        onClick={() =>
+          setLeftStackAbierto((abierto) => {
+            const proximo = !abierto
+            if (proximo) setControlsStackAbierto(false)
+            return proximo
+          })
+        }
         aria-expanded={leftStackAbierto}
         aria-controls="infra-left-stack"
       >
         {leftStackAbierto ? 'Cerrar' : 'Escuelas y filtros'}
       </button>
 
-      <div className={styles.controlsStack}>
+      <div
+        className={styles.controlsStack}
+        id="infra-controls-stack"
+        data-open={controlsStackAbierto ? 'true' : 'false'}
+      >
         <BasemapControl value={basemap} onChange={setBasemap} />
         <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
       </div>
+
+      <button
+        type="button"
+        className={styles.controlsStackToggle}
+        onClick={() =>
+          setControlsStackAbierto((abierto) => {
+            const proximo = !abierto
+            if (proximo) setLeftStackAbierto(false)
+            return proximo
+          })
+        }
+        aria-expanded={controlsStackAbierto}
+        aria-controls="infra-controls-stack"
+      >
+        {controlsStackAbierto ? 'Cerrar' : 'Capas'}
+      </button>
 
       <FullscreenButton targetRef={shellRef} />
     </div>
