@@ -32,7 +32,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 
 - [x] T0.1 Local env + seed coverage + baseline screenshots
 - [x] T1.1 Severity: fixed small dot + animated pulse ring for severe cases, clustering at low zoom
-- [ ] T1.2 Single scroll container in left stack; search results without nested scroll
+- [x] T1.2 Single scroll container in left stack; search results without nested scroll
 - [ ] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
 - [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
@@ -114,5 +114,31 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
     artifact, not an app bug. Reverted an unrelated `next-env.d.ts` diff
     produced as a side effect of running `next dev`/tsc.
 
+- 2026-09-22: T1.2 done.
+  - `app/globals.css`: removed the nested `max-height`/`overflow-y: auto`
+    from `.map-search-results` (was 11rem) and `.map-alertas-list` (was
+    14rem) — `.map-left-stack` remains the single intended scroll container,
+    untouched.
+  - Diagnosed root's flagged "horizontal scrollbar in the alert list at
+    1440" to its real cause (not just leftover from the nested-scroll fix):
+    `.map-alerta-row` is a flex row whose text children default to
+    `min-width: auto`, so one long unbreakable school name overflowed the
+    row by a few px; because `.map-left-stack` sets `overflow-y: auto`
+    without an explicit `overflow-x`, the CSS spec auto-promotes
+    `overflow-x` to `auto` too when the two mismatch, so that one long name
+    was producing a horizontal scrollbar on the whole left-stack column.
+    Fixed with `min-width: 0` on `.map-alerta-row` and a new
+    `.map-alerta-row > b, .map-alerta-row > span { min-width: 0;
+    overflow-wrap: anywhere; }` rule, scoped to that row only (left
+    `.map-popup-muted` untouched, since it's shared with map popups
+    elsewhere).
+  - Checks: `pnpm exec tsc --noEmit` clean (same pre-existing unrelated
+    errors only), `pnpm test` 742/742 green.
+  - Visually verified in `pnpm dev` at 1440: exactly one scrollbar on the
+    left stack, no nested one inside the alert list, and
+    `list.scrollWidth === list.clientWidth` / `stack.scrollWidth ===
+    stack.clientWidth` (sampled via injected JS) confirm no horizontal
+    overflow anywhere in the column.
+
 ## Next step
-Leader dispatches T1.2 (single scroll container) next.
+Leader dispatches T1.3 (panel overlap responsive fixes) next.

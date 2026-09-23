@@ -1837,7 +1837,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-emphasis { font-weight: 600; color: var(--ink); }
 .map-legend-item { display: flex; align-items: center; gap: var(--s-1); margin: 3px 0; }
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
-.map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; max-height: 11rem; overflow-y: auto; }
+.map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
 /* El contenedor de MapLibre (.maplibregl-popup-content) se deja transparente y sin
    padding en maplibre-popup.css a propósito, para que la superficie la ponga el
@@ -1904,10 +1904,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   list-style: none;
   margin: var(--s-1) 0 0;
   padding: 0;
-  max-height: 14rem;
-  overflow-y: auto;
 }
 .map-alerta-row {
+  min-width: 0;
   width: 100%;
   text-align: left;
   display: flex;
@@ -1918,6 +1917,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border: 1px solid transparent;
   background: transparent;
   cursor: pointer;
+}
+.map-alerta-row > b, .map-alerta-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .map-alerta-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .map-alerta-row-active {
