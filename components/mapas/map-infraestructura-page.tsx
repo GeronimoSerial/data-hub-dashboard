@@ -616,6 +616,16 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     }
   }, [])
 
+  // T1.4: Escape cierra el popup del departamento — el equivalente de teclado
+  // a alejar el mouse o tocar en otro lado.
+  useEffect(() => {
+    function manejarEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setDepartamentoHover(null)
+    }
+    document.addEventListener('keydown', manejarEscape)
+    return () => document.removeEventListener('keydown', manejarEscape)
+  }, [])
+
   // T1.1c: la preferencia de reduced-motion ya no se guarda en estado (ver el
   // useSyncExternalStore de arriba); `matchMedia` puede no existir (p. ej.
   // jsdom en los tests), y sin él leerReducedMotion devuelve false — se trata
@@ -797,7 +807,23 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   function handleClick(event: MapLayerMouseEvent) {
     const feature = (event.features ?? [])[0]
     if (!feature || !feature.properties) {
-      setSeleccionCue(null)
+      // T1.4: el departamento también se alcanza con tap, no sólo con hover
+      // (que en pantallas táctiles no existe) — click sobre el relleno
+      // muestra su ficha igual que al pasar el mouse. Un segundo tap sobre
+      // el MISMO departamento lo cierra: sin hover-away, el toque es la
+      // única forma de descartarlo.
+      const mapa = mapRef.current
+      const [departamento] = mapa
+        ? mapa.queryRenderedFeatures(event.point, { layers: [CAPA_DEPARTAMENTOS_RELLENO_ID] })
+        : []
+      const nombre = departamento?.properties?.nombre
+      if (typeof nombre === 'string') {
+        setDepartamentoHover((prev) =>
+          prev?.nombre === nombre ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
+        )
+      } else {
+        setSeleccionCue(null)
+      }
       return
     }
     if (feature.layer?.id === CAPA_PARTES_CLUSTER_ID) {
@@ -856,6 +882,13 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
   }
 
+  // T1.4: antes, la primera carga mostraba un mapa vacío sin ningún feedback
+  // mientras useAlertas seguía resolviendo (loading=true, data=null, sin
+  // error todavía) — este aviso tapa ese hueco.
+  if (loading && !data) {
+    return <div className={styles.status}>Cargando datos del mapa…</div>
+  }
+
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -864,6 +897,14 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
 
   return (
     <div className={styles.shell} ref={shellRef}>
+      {/* T1.4: espeja el mensaje vacío de la propia lista para que ambos
+          lados de un filtro sin resultados se lean igual — acá es lo primero
+          que vería quien mira sólo el mapa. */}
+      {data && data.partes.length === 0 && (
+        <div className={`${styles.panel} ${styles.titlePanel}`}>
+          No hay escuelas con afectación vigente con los filtros aplicados.
+        </div>
+      )}
       <div className={styles.mapRoot}>
         <MapGL
           ref={mapRef}

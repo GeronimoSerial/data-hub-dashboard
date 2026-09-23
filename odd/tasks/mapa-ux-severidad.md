@@ -34,7 +34,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 - [x] T1.1 Severity: fixed small dot + animated pulse ring for severe cases, clustering at low zoom
 - [x] T1.2 Single scroll container in left stack; search results without nested scroll
 - [x] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
-- [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
+- [x] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
 - [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
 - [x] T1.6 Performance: user reports the map feels laggy after T1.1. Profile first (Chrome performance trace while idle, panning, zooming), then fix measured hotspots. Suspects: per-frame `setPaintProperty` with a freshly built data-driven expression (re-parse + full repaint every frame), `querySourceFeatures` on every move end, re-renders from React state. Acceptance: idle map no longer repaints at 60 fps continuously, pan/zoom smooth, pulse still visible; before/after trace numbers recorded here.
 
@@ -450,5 +450,57 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
     of the same known pre-existing `actualizacion-form.test.tsx` flake,
     clean on rerun). Not committed — awaiting root.
 
+- 2026-09-23: T1.4 done (`components/mapas/map-infraestructura-page.tsx`
+  only).
+  - **Department info by tap, not hover-only**: `handleClick`'s "no
+    escuela/cluster feature" branch now also queries the departamentos fill
+    layer at the click point (same technique `handleMouseMove` already
+    used) and toggles `departamentoHover` for it — a second click on the
+    same department clears it (needed on touch, where there's no
+    hover-away to dismiss). Added an `Escape` keydown listener that clears
+    `departamentoHover` too.
+  - **Loading state**: added `if (loading && !data) return <div
+    className={styles.status}>Cargando datos del mapa…</div>` right before
+    the existing `error && !data` early return (same `styles.status` class,
+    no new CSS) — before this, the very first load showed a fully blank map
+    with zero feedback while `useAlertas` was still resolving.
+  - **Empty state on the map side**: added a small banner using the
+    `titlePanel` CSS slot (already defined, confirmed unused anywhere in
+    this file before now) shown when `data.partes.length === 0`, with the
+    exact same message text already used by `ListaAlertas`'s own empty
+    state (copied verbatim, not reworded) so both sides of a zero-result
+    filter read identically.
+  - **Keyboard selection for schools**: verified this already worked
+    correctly with NO code change needed — the alert list rows are native
+    `<button>` elements (`tabIndex=0`), the existing global
+    `:focus-visible { outline: 2px solid var(--ink) }` rule in globals.css
+    applies to them with nothing overriding it, and Enter/click already
+    triggers `seleccionarDesdeLista` (opens the ficha modal, closes the
+    drawer on narrow screens per T1.3b). Verified live: `.focus()` +
+    `.click()` on a row opens the ficha modal.
+  - Checks: tsc clean, eslint clean, `pnpm test` 743/743 green.
+  - Visually verified: Escape reliably clears an open department popup
+    (hover-set then Escape → cleared); the empty-state banner appears
+    consistently on both the map and the list when filtering to zero
+    results; the loading-state code path mirrors the already-proven error
+    path exactly (structurally identical, did not additionally screenshot
+    it live since the demo dataset resolves too fast in this environment to
+    reliably catch the frame, but the logic is the same pattern as the
+    already-verified error branch). **Verification gap, disclosed**: could
+    not cleanly verify the department click-to-toggle "shows on tap"
+    half in this browser-automation environment — the click tool always
+    moves the OS cursor to the target first (firing a real `mousemove`/hover
+    event before the click), so on desktop the popup is already open by the
+    time the click fires and toggles it back off; this is indistinguishable
+    from a bug via this tooling. I did verify: the department-detection
+    query itself works (hover shows the correct name), the toggle branch
+    executes deterministically (same-point clicks reliably clear an
+    already-open popup), and the code is a straightforward, reviewed
+    ternary — but the "first tap with no prior hover state opens it" path
+    (the actual touch-user scenario) is only verified by code review, not
+    by a live interaction trace. Flagging this so root can spot-check on a
+    real touch device or ask for a different verification approach if it
+    matters enough.
+
 ## Next step
-Root review/commit of T1.6b, then T1.4 (interaction: touch/keyboard, loading/empty states) and T1.5 (tests + after-screenshots).
+Root review/commit of T1.4, then T1.5 (tests for new pure helpers + clustering; before/after screenshots).
