@@ -104,6 +104,11 @@ const CAPA_SIN_REPORTAR_CLUSTER_ID = 'infra-sin-reportar-cluster'
 const SIN_REPORTAR_COLOR = '#6b7280'
 const SIN_REPORTAR_RADIO_EXTRA = 6
 
+// Anillo de cluster "evacuado": igual que CAPA_SIN_REPORTAR_CLUSTER_ID, da
+// feedback a zoom bajo de que una burbuja contiene al menos una escuela en
+// estado evacuado/centro_evacuados.
+const CAPA_EVACUADO_CLUSTER_ID = 'infra-evacuado-cluster'
+
 // F2.3: capa "evacuación". Se resuelve con Marker (DOM), no con una capa
 // MapLibre, porque necesita dos FORMAS geométricas distintas (cuadrado vs.
 // triángulo) para distinguir evacuado (daño) de centro_evacuados (recurso) —
@@ -334,6 +339,10 @@ type PropiedadesParte = {
   // según esSinReportar/UMBRAL_SIN_REPORTAR_HORAS). Se une al feature para
   // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
   sinReportar: boolean
+  // Booleano real por punto ("este establecimiento está evacuado o es centro
+  // de evacuados", según estadoEstablecimiento). Se une al feature para que
+  // clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
+  esEvacuado: boolean
 }
 
 // Función de módulo (no closure del componente) a propósito: así useMemo
@@ -361,6 +370,9 @@ function construirFeatureCollection(
         severidadRango: rangoSeveridad(parte.peorSeveridad),
         radioMaxPulso: radioMaximoPulso(parte.peorSeveridad),
         sinReportar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
+        esEvacuado:
+          parte.estadoEstablecimiento === 'evacuado' ||
+          parte.estadoEstablecimiento === 'centro_evacuados',
       },
     }))
   return { type: 'FeatureCollection', features }
@@ -882,6 +894,11 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 // está sin reportar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
                 sinReportar: ['max', ['case', ['get', 'sinReportar'], 1, 0]],
+                // En el cluster `esEvacuado` se agrega como 0/1 con max() —
+                // el cluster vale 1 si AL MENOS UNO de sus puntos es un
+                // establecimiento evacuado/centro de evacuados (semántica
+                // OR), igual que `sinReportar`.
+                esEvacuado: ['max', ['case', ['get', 'esEvacuado'], 1, 0]],
               }}
             >
               {/*
@@ -915,6 +932,30 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                     'circle-radius': ['+', expresionRadioCluster(), SIN_REPORTAR_RADIO_EXTRA] as unknown as DataDrivenPropertyValueSpecification<number>,
                     'circle-color': 'transparent',
                     'circle-stroke-color': SIN_REPORTAR_COLOR,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-opacity': 0.65,
+                  }}
+                />
+              )}
+              {/*
+                Evacuado: anillo de cluster que da feedback a zoom bajo de que
+                una burbuja contiene al menos una escuela en estado
+                evacuado/centro_evacuados, espejando el anillo de cluster "sin
+                reportar" pero keyed off `esEvacuado` y gobernado por el
+                toggle de la capa `evacuacion` en vez del de `sinReportar`. Usa
+                el MISMO ANILLO_COLOR neutro que los marcadores individuales de
+                evacuación (cuadrado/triángulo), no SIN_REPORTAR_COLOR: es una
+                señal distinta.
+              */}
+              {capasVisibles.evacuacion && (
+                <Layer
+                  id={CAPA_EVACUADO_CLUSTER_ID}
+                  type="circle"
+                  filter={['all', ['has', 'point_count'], ['==', ['get', 'esEvacuado'], 1]]}
+                  paint={{
+                    'circle-radius': ['+', expresionRadioCluster(), SIN_REPORTAR_RADIO_EXTRA] as unknown as DataDrivenPropertyValueSpecification<number>,
+                    'circle-color': 'transparent',
+                    'circle-stroke-color': ANILLO_COLOR,
                     'circle-stroke-width': 2,
                     'circle-stroke-opacity': 0.65,
                   }}

@@ -36,6 +36,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 - [x] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [ ] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
 - [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
+- [ ] T1.6 Performance: user reports the map feels laggy after T1.1. Profile first (Chrome performance trace while idle, panning, zooming), then fix measured hotspots. Suspects: per-frame `setPaintProperty` with a freshly built data-driven expression (re-parse + full repaint every frame), `querySourceFeatures` on every move end, re-renders from React state. Acceptance: idle map no longer repaints at 60 fps continuously, pan/zoom smooth, pulse still visible; before/after trace numbers recorded here.
 
 ## Progress
 - 2026-09-22: exploration done; plan approved by user; stages 0–1 delegated.
@@ -319,5 +320,36 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
   - Still NOT committed — root's own instruction for this round was "do not
     commit"; leaving this for root to review/commit as usual.
 
+- 2026-09-23: T1.1c committed by root as `38e554c`. Additional gap fixed on
+  top (root-requested, before T1.4): evacuated schools absorbed into a
+  cluster showed nothing at provincial zoom. Mirrored the existing
+  sin-reportar cluster-ring pattern in
+  `components/mapas/map-infraestructura-page.tsx`: new `esEvacuado: boolean`
+  on `PropiedadesParte`/`construirFeatureCollection` (same condition already
+  used for `partesEvacuacion`), a `esEvacuado: ['max', ['case', ...]]`
+  clusterProperties aggregate (OR semantics), and a new
+  `infra-evacuado-cluster` ring layer (gated by the existing `evacuacion`
+  toggle, using the same neutral `ANILLO_COLOR` the individual evacuación
+  markers already use, not `SIN_REPORTAR_COLOR`). No repeat of the earlier
+  Fragment bug — each Layer has its own separate conditional. Checks: tsc/
+  eslint clean, `pnpm test` 743/743 (one isolated rerun of the same known
+  pre-existing flake in `actualizacion-form.test.tsx`, unrelated). Verified
+  live: 4 evacuado cluster rings render at default zoom. Not committed —
+  awaiting root as usual.
+- 2026-09-23: root added T1.6 (Performance) to the task list — the map feels
+  laggy. Root explicitly allowed reordering ("if T1.4 is not started yet and
+  you judge the lag blocks testing, you may do T1.6 first"). Decision: doing
+  **T1.6 before T1.4/T1.5**. Rationale: the pulse animation effect
+  (`infra-partes-pulso`) calls `map.setPaintProperty` every
+  `requestAnimationFrame` tick for BOTH `circle-radius` (a freshly-built
+  MapLibre expression array each frame) and `circle-opacity`, unconditionally
+  whenever any severe school is in view — which in this demo dataset is
+  almost always true — with no throttling, no pause on map movement, and no
+  pause when the tab is hidden. This is exactly the hotspot root suspects,
+  it's continuous background work regardless of user interaction, and a
+  genuinely laggy map would make T1.4's interactive testing (tap, keyboard
+  focus, loading/empty states) harder to evaluate honestly. Profiling first,
+  then fixing measured hotspots, per root's instruction.
+
 ## Next step
-Awaiting root's review/commit of T1.1c before T1.4.
+Profiling T1.6 (idle/pan/zoom Chrome performance trace) before touching any code.
