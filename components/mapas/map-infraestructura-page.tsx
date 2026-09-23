@@ -31,6 +31,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
+import { Button } from '@/components/ui/button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Indicadores } from '@/components/infraestructura/indicadores'
 import { ListaAlertas } from '@/components/infraestructura/lista-alertas'
@@ -1245,8 +1246,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         className={styles.leftStackToggle}
         onClick={() =>
           setLeftStackAbierto((abierto) => {
@@ -1259,7 +1261,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         aria-controls="infra-left-stack"
       >
         {leftStackAbierto ? 'Cerrar' : 'Escuelas y filtros'}
-      </button>
+      </Button>
 
       <div
         className={styles.controlsStack}
@@ -1270,8 +1272,9 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
       </div>
 
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         className={styles.controlsStackToggle}
         onClick={() =>
           setControlsStackAbierto((abierto) => {
@@ -1284,7 +1287,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         aria-controls="infra-controls-stack"
       >
         {controlsStackAbierto ? 'Cerrar' : 'Capas'}
-      </button>
+      </Button>
 
       <FullscreenButton targetRef={shellRef} />
     </div>
