@@ -99,10 +99,11 @@ export function LegendPanel({
 //
 // Dominio distinto del resto de este archivo (evolución de matrícula) y,
 // desde Fase 2, distinto también de la leyenda anterior: una escuela = un
-// punto, y los tres canales visuales son color (severidad), tamaño (alumnos
-// alcanzados) y anillo (servicio) — ver map-infraestructura-page.tsx para la
-// codificación exacta. El símbolo por categoría desapareció (la categoría
-// pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
+// punto, y los canales visuales son color (severidad), tamaño (fijo, igual
+// para todas), anillo (servicio) y, desde T1.1, pulso animado (severidad
+// Alta/Crítica) — ver map-infraestructura-page.tsx para la codificación
+// exacta. El símbolo por categoría desapareció (la categoría pasó a filtro y
+// a la ficha), así que esta leyenda ya no lo explica.
 //
 // Esta leyenda ya no recibe `indicadores`: los números consolidados los
 // muestra <Indicadores>, arriba en la misma columna. Tenerlos en los dos
@@ -128,8 +129,8 @@ export function InfraLegendPanel({
     <details className={`${styles.panel} ${styles.legendPanel}`}>
       <summary className={styles.legendSummary}>Referencias</summary>
       <div className={styles.hint}>
-        Color: severidad de la peor afectación vigente. Tamaño: alumnos alcanzados. Anillo:
-        estado del servicio educativo.
+        Color: severidad de la peor afectación vigente. Tamaño: fijo, igual para todas las
+        escuelas. Anillo: estado del servicio educativo. Pulso: severidad Alta o Crítica.
       </div>
 
       {SEVERIDADES.map((severidad) => (

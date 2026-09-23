@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { MENSAJE_ACCESO_VENCIDO } from './estado-actual-textos'
 import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
@@ -48,27 +48,42 @@ export function HistorialParte({
   mostrarReingresoCookie?: boolean
 }): JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
-
-  const cargar = useCallback(async () => {
-    try {
-      const respuesta = await fetch(endpoint)
-      if (!respuesta.ok) {
-        setEstado({
-          fase: 'error',
-          accesoVencido: mostrarReingresoCookie && respuesta.status === 401,
-        })
-        return
-      }
-      const datos = (await respuesta.json()) as RespuestaHistorial
-      setEstado({ fase: 'listo', movimientos: datos.movimientos ?? [] })
-    } catch {
-      setEstado({ fase: 'error', accesoVencido: false })
-    }
-  }, [endpoint, mostrarReingresoCookie])
+  // Cuenta los pedidos (inicial + reintentos). El efecto sólo lee su valor
+  // como dependencia: no expone una función que el efecto pueda invocar de
+  // forma síncrona, así que la carga real vive enteramente dentro del efecto
+  // (patrón recomendado por react-hooks/set-state-in-effect).
+  const [intento, setIntento] = useState(0)
 
   useEffect(() => {
-    void cargar()
-  }, [cargar])
+    let cancelado = false
+
+    async function buscarHistorial() {
+      try {
+        const respuesta = await fetch(endpoint)
+        if (cancelado) return
+        if (!respuesta.ok) {
+          setEstado({
+            fase: 'error',
+            accesoVencido: mostrarReingresoCookie && respuesta.status === 401,
+          })
+          return
+        }
+        const datos = (await respuesta.json()) as RespuestaHistorial
+        if (cancelado) return
+        setEstado({ fase: 'listo', movimientos: datos.movimientos ?? [] })
+      } catch {
+        if (!cancelado) {
+          setEstado({ fase: 'error', accesoVencido: false })
+        }
+      }
+    }
+
+    void buscarHistorial()
+
+    return () => {
+      cancelado = true
+    }
+  }, [endpoint, mostrarReingresoCookie, intento])
 
   if (estado.fase === 'cargando') {
     // Nielsen #1: el estado de espera se anuncia, no se deja la pantalla en
@@ -100,7 +115,7 @@ export function HistorialParte({
             type="button"
             onClick={() => {
               setEstado({ fase: 'cargando' })
-              void cargar()
+              setIntento((valor) => valor + 1)
             }}
           >
             Reintentar
