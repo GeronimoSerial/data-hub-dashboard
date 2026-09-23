@@ -35,7 +35,7 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
 - [x] T1.2 Single scroll container in left stack; search results without nested scroll
 - [x] T1.3 Panel overlap: controls/fullscreen/attribution/left stack on short and narrow viewports
 - [x] T1.4 Interaction: touch/keyboard department info, map loading/empty states, keyboard selection
-- [ ] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
+- [x] T1.5 Tests for severity paint expressions and clustering; before/after screenshots
 - [x] T1.6 Performance: user reports the map feels laggy after T1.1. Profile first (Chrome performance trace while idle, panning, zooming), then fix measured hotspots. Suspects: per-frame `setPaintProperty` with a freshly built data-driven expression (re-parse + full repaint every frame), `querySourceFeatures` on every move end, re-renders from React state. Acceptance: idle map no longer repaints at 60 fps continuously, pan/zoom smooth, pulse still visible; before/after trace numbers recorded here.
 
 ## Progress
@@ -502,5 +502,57 @@ Route: three-level orchestration (root Opus → Sonnet leader via Orca → DeepS
     real touch device or ask for a different verification approach if it
     matters enough.
 
+- 2026-09-23: T1.5 done. T1.4 committed by root as `76669dc`.
+  - **Root's fold-in fix**: the T1.4 `if (loading && !data) return <status>`
+    early-return blocked `MapGL` from mounting at all until the first
+    `useAlertas` response, delaying basemap-tile/department-polygon loading
+    (neither depends on `data`). Removed that early return (kept
+    `error && !data` untouched); the loading message is now a `titlePanel`
+    overlay INSIDE the main JSX, sibling to the empty-state banner, so the
+    map itself always mounts and starts loading immediately regardless of
+    data state. The two conditions (`loading && !data`,
+    `data && partes.length === 0`) are mutually exclusive by construction.
+  - **Unit tests** (`components/mapas/map-infraestructura-page.tsx` +
+    new `components/mapas/map-infraestructura-page.paint.test.ts`, 14
+    tests): exported 7 previously-private pure functions
+    (`colorPorSeveridadRango`, `expresionRadioCluster`,
+    `expresionRadioBasePulso`, `circlePaintPartes`, `circlePaintSinReportar`,
+    `esSinReportar`, `construirFeatureCollection`) plus 4 constants
+    (`RADIO_CLUSTER_MENOR/MEDIO/MAYOR`, `SIN_REPORTAR_RADIO_EXTRA`) —
+    export-only, no behavior changes. Tests verify the actual documented
+    behavior against real imported constants (not hardcoded numbers):
+    worst-severity-wins case expression with Baja as fallback, the cluster
+    step expression's real breakpoints, the pulse's cluster-vs-dot base
+    radius branch, the servicio-state stroke match expression, the
+    sin-reportar halo's radius/transparency, the sin-reportar threshold
+    (including an exact-boundary case), and `construirFeatureCollection`'s
+    per-feature property derivation (color, severidadRango, esEvacuado,
+    sinReportar) plus its null-lat/lon filtering. One self-caught deviation
+    from my own brief: I'd asked for `colorPorSeveridadRango().length` to be
+    asserted as odd, which was arithmetically wrong (it's `2 *
+    SEVERIDADES.length`, always even) — the worker caught this, asserted
+    the correct even length derived from `SEVERIDADES` instead of the
+    literal number, and flagged the correction in its report rather than
+    silently going along with a wrong instruction.
+  - **After-screenshots**: `.data/screenshots/after/{1440x900,1024x768,
+    390x844}-{operativa,evolucion}.jpg`, same viewport matrix as the T0.1
+    baseline. Confirms fixed-size pulsing dots + worst-severity-colored
+    clusters (T1.1/T1.1b/T1.1c) replacing the old size-by-alumnos circles;
+    single scroll container, no nested scrollbars (T1.2); no panel overlap
+    at any width, including the collapsible drawer at 390px (T1.3/T1.3b);
+    the evolución trend chart shows the real rise/dip shape from the T0.1
+    seed extension.
+  - Checks: tsc clean (pre-existing unrelated errors only), eslint clean,
+    `pnpm test` 757/757 green (743 + 14 new).
+  - Visually verified live: the map mounts and starts loading tiles
+    immediately on a fresh navigation regardless of data state (confirmed
+    structurally via diff review and the mutual-exclusivity of the two
+    JSX conditions; did not additionally re-verify with a fresh network
+    trace beyond what was already established for the analogous
+    empty-state banner).
+  - Not committed. This closes the full T0.1-T1.6b delegated task list.
+
 ## Next step
-Root review/commit of T1.4, then T1.5 (tests for new pure helpers + clustering; before/after screenshots).
+All of T0.1 through T1.6b are complete and reported; root has T1.5 (this
+round) to review/commit. No further leader-initiated work pending unless
+root finds issues in review or adds a new task.

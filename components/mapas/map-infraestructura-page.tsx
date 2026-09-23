@@ -101,7 +101,7 @@ const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
 const CAPA_SIN_REPORTAR_ID = 'infra-sin-reportar'
 const CAPA_SIN_REPORTAR_CLUSTER_ID = 'infra-sin-reportar-cluster'
 const SIN_REPORTAR_COLOR = '#6b7280'
-const SIN_REPORTAR_RADIO_EXTRA = 6
+export const SIN_REPORTAR_RADIO_EXTRA = 6
 
 // Un cluster puede tener ambas banderas a la vez, así que los dos anillos
 // necesitan radios distintos para leerse como dos anillos concéntricos en
@@ -281,7 +281,7 @@ const ANILLO_COLOR = '#1c1c1c'
 // capa de clusters y la capa de pulso: ambas leen `severidadRango`, una
 // propiedad que los puntos severos individuales y los clusters agrupados
 // traen por igual.
-function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
+export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
   const expresion: unknown[] = ['case']
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
     expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
@@ -295,11 +295,11 @@ function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> 
 // del cluster para expandirse POR FUERA del círculo, no por debajo) y
 // cualquier futuro consumidor que necesite "qué tan grande se dibuja este
 // cluster" leen la MISMA expresión, para que nunca puedan desincronizarse.
-const RADIO_CLUSTER_MENOR = 16
-const RADIO_CLUSTER_MEDIO = 22
-const RADIO_CLUSTER_MAYOR = 28
+export const RADIO_CLUSTER_MENOR = 16
+export const RADIO_CLUSTER_MEDIO = 22
+export const RADIO_CLUSTER_MAYOR = 28
 
-function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
+export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
   return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR] as unknown as DataDrivenPropertyValueSpecification<number>
 }
 
@@ -308,11 +308,11 @@ function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
 // punto individual. Así el anillo de un cluster arranca en el borde de su
 // círculo y crece por fuera, en vez de empezar bajo el círculo sólido e
 // invisible hasta que lo supera.
-function expresionRadioBasePulso(): DataDrivenPropertyValueSpecification<number> {
+export function expresionRadioBasePulso(): DataDrivenPropertyValueSpecification<number> {
   return ['case', ['has', 'point_count'], expresionRadioCluster(), RADIO_DOT_BASE] as unknown as DataDrivenPropertyValueSpecification<number>
 }
 
-function circlePaintPartes(): CircleLayerSpecification['paint'] {
+export function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
     'circle-radius': RADIO_DOT_BASE,
     'circle-color': ['get', 'color'],
@@ -352,7 +352,7 @@ type PropiedadesParte = {
 // Función de módulo (no closure del componente) a propósito: así useMemo
 // puede depender sólo de `partes` sin arrastrar warnings de exhaustive-deps
 // por una función recreada en cada render.
-function construirFeatureCollection(
+export function construirFeatureCollection(
   partes: ParteMapa[],
   ahoraMs: number | null,
 ): FeatureCollection<Point, PropiedadesParte> {
@@ -387,7 +387,7 @@ function construirFeatureCollection(
 // y no como un círculo aparte flotando cerca. Sin relleno (circle-color
 // transparent): es sólo un borde, nunca compite con el color de severidad
 // del punto que rodea.
-function circlePaintSinReportar(): CircleLayerSpecification['paint'] {
+export function circlePaintSinReportar(): CircleLayerSpecification['paint'] {
   return {
     'circle-radius': RADIO_DOT_BASE + SIN_REPORTAR_RADIO_EXTRA,
     'circle-color': 'transparent',
@@ -403,7 +403,7 @@ function circlePaintSinReportar(): CircleLayerSpecification['paint'] {
 // información no se serializa aparte. UMBRAL_SIN_REPORTAR_HORAS es la misma
 // constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
 // un solo lugar define "viejo", nunca dos criterios que puedan divergir.
-function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
+export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
   const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
 }
@@ -882,13 +882,6 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
   }
 
-  // T1.4: antes, la primera carga mostraba un mapa vacío sin ningún feedback
-  // mientras useAlertas seguía resolviendo (loading=true, data=null, sin
-  // error todavía) — este aviso tapa ese hueco.
-  if (loading && !data) {
-    return <div className={styles.status}>Cargando datos del mapa…</div>
-  }
-
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -897,6 +890,17 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
 
   return (
     <div className={styles.shell} ref={shellRef}>
+      {/* T1.4: mientras useAlertas resuelve (loading=true, data=null, sin
+          error todavía), el aviso se dibuja como overlay ENCIMA del MapGL ya
+          montado, en vez de reemplazarlo — así el basemap y los polígonos
+          departamentales, que no dependen de `data`, arrancan a cargarse de
+          inmediato. `loading && !data` y `data && partes.length === 0` son
+          mutuamente excluyentes: nunca se muestran a la vez. */}
+      {loading && !data && (
+        <div className={`${styles.panel} ${styles.titlePanel}`}>
+          Cargando datos del mapa…
+        </div>
+      )}
       {/* T1.4: espeja el mensaje vacío de la propia lista para que ambos
           lados de un filtro sin resultados se lean igual — acá es lo primero
           que vería quien mira sólo el mapa. */}
