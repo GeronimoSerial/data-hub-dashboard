@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import {
   calcularOpacidadPulso,
-  calcularRadioPulso,
   DURACION_PULSO_MS,
   esSeveridadPulsante,
   RADIO_DOT_BASE,
   radioMaximoPulso,
+  rangoSeveridad,
 } from './severidad-visual'
 
 describe('esSeveridadPulsante', () => {
@@ -47,19 +47,6 @@ describe('radioMaximoPulso', () => {
   })
 })
 
-describe('calcularRadioPulso', () => {
-  it('interpola linealmente entre radioBase y radioMax', () => {
-    expect(calcularRadioPulso(0, 6, 16)).toBe(6)
-    expect(calcularRadioPulso(0.5, 6, 16)).toBe(11)
-    expect(calcularRadioPulso(1, 6, 16)).toBe(16)
-  })
-
-  it('clampea progreso fuera de [0, 1]', () => {
-    expect(calcularRadioPulso(-1, 6, 16)).toBe(6)
-    expect(calcularRadioPulso(2, 6, 16)).toBe(16)
-  })
-})
-
 describe('calcularOpacidadPulso', () => {
   it('va de ~0.5 en el punto recién pulsado a 0 en el máximo', () => {
     expect(calcularOpacidadPulso(0)).toBeCloseTo(0.5)
@@ -75,5 +62,21 @@ describe('calcularOpacidadPulso', () => {
 describe('DURACION_PULSO_MS', () => {
   it('es la constante de un ciclo usada por la animación', () => {
     expect(DURACION_PULSO_MS).toBe(1600)
+  })
+})
+
+describe('rangoSeveridad', () => {
+  it('mapea Baja a 0 y sube con el orden real de SEVERIDADES', () => {
+    expect(rangoSeveridad('Baja')).toBe(0)
+    expect(rangoSeveridad('Media')).toBe(1)
+    expect(rangoSeveridad('Alta')).toBe(2)
+  })
+
+  it('mapea Crítica (con tilde, el nombre real del catálogo) a 3', () => {
+    expect(rangoSeveridad('Crítica')).toBe(3)
+  })
+
+  it('una severidad desconocida cae a 0 (la más baja) en vez de fallar', () => {
+    expect(rangoSeveridad('Desconocida')).toBe(0)
   })
 })

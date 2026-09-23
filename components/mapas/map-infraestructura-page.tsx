@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+} from 'react'
 import MapGL, {
   Layer,
   Marker,
@@ -12,6 +19,7 @@ import MapGL, {
 } from 'react-map-gl/maplibre'
 import type {
   CircleLayerSpecification,
+  DataDrivenPropertyValueSpecification,
   FillLayerSpecification,
   GeoJSONSource,
   LineLayerSpecification,
@@ -53,12 +61,13 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
   calcularOpacidadPulso,
-  calcularRadioPulso,
   DURACION_PULSO_MS,
   esSeveridadPulsante,
   RADIO_DOT_BASE,
   radioMaximoPulso,
+  rangoSeveridad,
 } from '@/lib/mapas/severidad-visual'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 
 ensureMapWorker()
@@ -78,12 +87,20 @@ const CAPA_PARTES_PULSO_ID = 'infra-partes-pulso'
 const CAPA_PARTES_CLUSTER_ID = 'infra-partes-cluster'
 const CAPA_PARTES_CLUSTER_COUNT_ID = 'infra-partes-cluster-count'
 
+// Umbral de clustering: sólo `clusterMaxZoom` de la fuente de escuelas — el
+// zoom al que supercluster deja de agrupar en clusters. El halo "sin
+// reportar" y los marcadores de evacuación ya NO dependen de este umbral:
+// derivan su visibilidad del estado de clustering REAL del mapa (ver
+// `cuesNoAgrupados` y el agregado `sinReportar` de clusterProperties).
+const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
+
 // F2.3: capa "sin reportar". Va DEBAJO de CAPA_PARTES_ID en el árbol (por eso
 // se declara antes en el JSX) para que se lea como un halo alrededor del
 // punto, no como algo que lo tapa. Es ausencia de información, no severidad:
 // no toca color (esa escala es de severidad.ts), se resuelve con un anillo
 // extra en un gris neutro que no aparece en ningún otro canal del mapa.
 const CAPA_SIN_REPORTAR_ID = 'infra-sin-reportar'
+const CAPA_SIN_REPORTAR_CLUSTER_ID = 'infra-sin-reportar-cluster'
 const SIN_REPORTAR_COLOR = '#6b7280'
 const SIN_REPORTAR_RADIO_EXTRA = 6
 
@@ -246,6 +263,46 @@ const FILTROS_VACIOS: FiltrosForm = {
 // el fondo), que a esa distancia se lee como "sin anillo".
 const ANILLO_COLOR = '#1c1c1c'
 
+// T1.1b/T1.1c: el color del cluster y del pulso deja de ser un gris fijo y
+// pasa a ser el de la severidad MÁS ALTA presente entre los puntos agrupados,
+// leída del agregado `severidadRango` que calcula clusterProperties (max). Es
+// una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
+// mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
+// no el mayor es Alta (>=2), y así hasta Baja (default). Compartida entre la
+// capa de clusters y la capa de pulso: ambas leen `severidadRango`, una
+// propiedad que los puntos severos individuales y los clusters agrupados
+// traen por igual.
+function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
+  const expresion: unknown[] = ['case']
+  for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
+    expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
+  }
+  expresion.push(colorSeveridad(SEVERIDADES[0]))
+  return expresion as unknown as DataDrivenPropertyValueSpecification<string>
+}
+
+// T1.1c: el radio del cluster es una expresión compartida, no un literal
+// inline duplicado. La capa de clusters, el pulso (que parte del radio propio
+// del cluster para expandirse POR FUERA del círculo, no por debajo) y
+// cualquier futuro consumidor que necesite "qué tan grande se dibuja este
+// cluster" leen la MISMA expresión, para que nunca puedan desincronizarse.
+const RADIO_CLUSTER_MENOR = 16
+const RADIO_CLUSTER_MEDIO = 22
+const RADIO_CLUSTER_MAYOR = 28
+
+function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
+  return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR] as unknown as DataDrivenPropertyValueSpecification<number>
+}
+
+// El pulso parte del radio con que se dibuja la feature: el radio propio del
+// cluster si es un agregado (['has', 'point_count']), RADIO_DOT_BASE si es un
+// punto individual. Así el anillo de un cluster arranca en el borde de su
+// círculo y crece por fuera, en vez de empezar bajo el círculo sólido e
+// invisible hasta que lo supera.
+function expresionRadioBasePulso(): DataDrivenPropertyValueSpecification<number> {
+  return ['case', ['has', 'point_count'], expresionRadioCluster(), RADIO_DOT_BASE] as unknown as DataDrivenPropertyValueSpecification<number>
+}
+
 function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
     'circle-radius': RADIO_DOT_BASE,
@@ -267,6 +324,16 @@ type PropiedadesParte = {
   // en una expresión MapLibre por frame.
   severidad: string
   esSevero: boolean
+  // T1.1b: el rango numérico de severidad (0..3) y el radio máximo de pulso
+  // por severidad, unidos al feature para que clusterProperties pueda
+  // agregarlos con max() entre los puntos agrupados (un label string no se
+  // puede agregar de forma significativa).
+  severidadRango: number
+  radioMaxPulso: number
+  // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
+  // según esSinReportar/UMBRAL_SIN_REPORTAR_HORAS). Se une al feature para
+  // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
+  sinReportar: boolean
 }
 
 // Función de módulo (no closure del componente) a propósito: así useMemo
@@ -274,6 +341,7 @@ type PropiedadesParte = {
 // por una función recreada en cada render.
 function construirFeatureCollection(
   partes: ParteMapa[],
+  ahoraMs: number | null,
 ): FeatureCollection<Point, PropiedadesParte> {
   const features = partes
     .filter((parte) => parte.lat !== null && parte.lon !== null)
@@ -290,6 +358,9 @@ function construirFeatureCollection(
         alumnosAlcanzados: parte.alumnosAlcanzados,
         severidad: parte.peorSeveridad,
         esSevero: esSeveridadPulsante(parte.peorSeveridad),
+        severidadRango: rangoSeveridad(parte.peorSeveridad),
+        radioMaxPulso: radioMaximoPulso(parte.peorSeveridad),
+        sinReportar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
       },
     }))
   return { type: 'FeatureCollection', features }
@@ -319,23 +390,6 @@ function circlePaintSinReportar(): CircleLayerSpecification['paint'] {
 function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
   const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
-}
-
-function construirFeatureCollectionSinReportar(
-  partes: ParteMapa[],
-  ahoraMs: number,
-): FeatureCollection<Point, Pick<PropiedadesParte, 'alumnosAlcanzados'>> {
-  const features = partes
-    .filter((parte) => parte.lat !== null && parte.lon !== null && esSinReportar(parte, ahoraMs))
-    .map((parte) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [parte.lon as number, parte.lat as number],
-      },
-      properties: { alumnosAlcanzados: parte.alumnosAlcanzados },
-    }))
-  return { type: 'FeatureCollection', features }
 }
 
 // Estilo inline (no clase CSS): son dos formas puntuales, más simples que
@@ -377,6 +431,30 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   sinReportar: false,
 }
 
+// T1.1c: la preferencia de reduced-motion se lee con useSyncExternalStore, la
+// forma sancionada por React de leer una API del browser (matchMedia) sin
+// llamar setState de forma síncrona dentro del cuerpo de un efecto (que
+// dispara react-hooks/set-state-in-effect y puede encadenar renders). El
+// listener 'change' además hace que el mapa reaccione en vivo si el usuario
+// cambia el ajuste de reduced-motion del sistema operativo, cosa que el
+// efecto one-shot viejo no hacía.
+const CONSULTA_REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
+
+function suscribirseAReducedMotion(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {}
+  const mql = window.matchMedia(CONSULTA_REDUCED_MOTION)
+  mql.addEventListener('change', onChange)
+  return () => mql.removeEventListener('change', onChange)
+}
+
+function leerReducedMotion(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(CONSULTA_REDUCED_MOTION).matches
+}
+
+function leerReducedMotionServidor(): boolean {
+  return false
+}
+
 export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: boolean }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -398,11 +476,33 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
+  // T1.1c: prefers-reduced-motion se lee con useSyncExternalStore (ver las
+  // funciones de módulo de arriba) en vez de un estado seteado en un efecto:
+  // es la forma sancionada por React de leer matchMedia, reacciona en vivo al
+  // ajuste del sistema y no dispara react-hooks/set-state-in-effect. Con él,
+  // el anillo estático de reduced-motion es un valor declarativo del paint de
+  // la capa (ver el JSX del pulso), y el efecto de animación simplemente no
+  // agenda ningún frame.
+  const prefersReducedMotion = useSyncExternalStore(
+    suscribirseAReducedMotion,
+    leerReducedMotion,
+    leerReducedMotionServidor,
+  )
   const [departamentoHover, setDepartamentoHover] = useState<{
     nombre: string
     lng: number
     lat: number
   } | null>(null)
+  // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
+  // agrupados) en `infra-partes-src`, recomputado cada vez que el mapa
+  // termina de moverse o hacer zoom (onMoveEnd). El halo "sin reportar" y
+  // los marcadores de evacuación sólo se pintan sobre puntos que el
+  // clustering de supercluster dejó sueltos de verdad, sin adivinar por
+  // umbral de zoom (que peca de off-by-one y no mostraba nada a zoom
+  // provincial). `null` = todavía no computado: no se renderiza nada, el
+  // mismo default conservador que tenía el gate viejo antes del primer
+  // onLoad.
+  const [cuesNoAgrupados, setCuesNoAgrupados] = useState<Set<string> | null>(null)
 
   const filtros = useMemo(
     () => ({
@@ -431,11 +531,6 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     return map
   }, [data])
 
-  const featureCollection = useMemo(
-    () => construirFeatureCollection(data?.partes ?? []),
-    [data],
-  )
-
   // F2.3: `Date.now()` es impuro, así que no puede llamarse durante el
   // render (regla react-hooks/purity) — se toma en un efecto, disparado por
   // cada respuesta nueva de useAlertas, no en cada render (p. ej. mover el
@@ -448,12 +543,17 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     return () => clearTimeout(id)
   }, [data])
 
-  const featureCollectionSinReportar = useMemo(
-    () =>
-      ahoraMs === null
-        ? construirFeatureCollectionSinReportar([], 0)
-        : construirFeatureCollectionSinReportar(data?.partes ?? [], ahoraMs),
+  const featureCollection = useMemo(
+    () => construirFeatureCollection(data?.partes ?? [], ahoraMs),
     [data, ahoraMs],
+  )
+
+  // T1.1b: hay algo severo (Alta/Crítica) en la colección YA desagrupada
+  // (antes de clusterizar). Si no lo hay no hay nada que animar y el efecto
+  // de pulso no agenda frames.
+  const haySeveroEnVista = useMemo(
+    () => featureCollection.features.some((feature) => feature.properties.esSevero),
+    [featureCollection],
   )
 
   const partesEvacuacion = useMemo(
@@ -496,38 +596,35 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     }
   }, [])
 
-  // Pulso de severidad alta/crítica (T1.1). setPaintProperty recibe UN
-  // escalar para TODA la capa — un radio máximo distinto por severidad sería
-  // un problema de expresión MapLibre, no de JS — así que el pulso se anima
-  // con el peor caso (Crítica) para todas las que pulsan: misma duración y
-  // fase para todas, más simple y consistente. El desfase entre Alta y
-  // Crítica en el tamaño máximo se pierde deliberadamente a favor de un solo
-  // anillo compartido. Se comprueba prefers-reduced-motion una sola vez por
-  // montaje: no hace falta escuchar cambios.
+  // T1.1c: la preferencia de reduced-motion ya no se guarda en estado (ver el
+  // useSyncExternalStore de arriba); `matchMedia` puede no existir (p. ej.
+  // jsdom en los tests), y sin él leerReducedMotion devuelve false — se trata
+  // como "no reduced" (el anillo estático no se muestra; el loop se corre con
+  // sus guards, inofensivo donde el mapa no está).
+
+  // Pulso de severidad alta/crítica (T1.1, T1.1b, T1.1c). Con reduced-motion, o sin
+  // la capa de escuelas visible, o sin nada severo en los datos actuales, no
+  // se agenda ningún requestAnimationFrame — el anillo estático de
+  // reduced-motion ya lo resuelve el paint declarativo de la capa. El radio
+  // es DATA-DRIVEN por feature/cluster: en vez de un escalar compartido se
+  // setea una expresión MapLibre que parte del radio base propio de la
+  // feature (expresionRadioBasePulso: el radio del cluster si es un agregado,
+  // RADIO_DOT_BASE si es un punto) y expande hasta el `radioMaxPulso` propio
+  // de cada punto (ver clusterProperties del Source) — así Alta pulsa a su
+  // radio máximo menor y Crítica al mayor, y el anillo de un cluster crece
+  // POR FUERA de su propio círculo en vez de empezar debajo de él. En la
+  // misma capa y con UN setPaintProperty por frame — construir ese array
+  // pequeño por frame no toca React en absoluto. La opacidad sí es un escalar
+  // (calcularOpacidadPulso): no necesita variar por severidad.
   useEffect(() => {
     const capaPulso = CAPA_PARTES_PULSO_ID
-
-    // `matchMedia` puede no existir (p. ej. jsdom en los tests): sin él no
-    // hay forma de conocer la preferencia, así que se trata como "no
-    // reduced" (se corre el loop; el guard de la capa ya lo vuelve inofensivo
-    // donde el mapa no está).
-    const reduceMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-
-    if (reduceMotion) {
-      // Con reduced-motion no hay loop: un anillo estático y sutil, seteado
-      // una sola vez apenas la capa existe (un retardo corto cubre el
-      // montaje del mapa). Sin requestAnimationFrame.
-      const timeoutId = window.setTimeout(() => {
-        const mapa = mapRef.current?.getMap()
-        if (!mapa?.getLayer(capaPulso)) return
-        mapa.setPaintProperty(capaPulso, 'circle-radius', RADIO_DOT_BASE + 4)
-        mapa.setPaintProperty(capaPulso, 'circle-opacity', 0.25)
-      }, 250)
-      return () => window.clearTimeout(timeoutId)
+    if (prefersReducedMotion || !capasVisibles.escuelas || !haySeveroEnVista) {
+      // Reduced motion ya se resuelve en el paint declarativo de la capa
+      // (ver arriba); sin la capa de escuelas visible o sin nada severo en
+      // los datos actuales no hay nada que animar - no se agenda ningún
+      // requestAnimationFrame.
+      return
     }
-
     const inicio = performance.now()
     const paso = () => {
       const mapa = mapRef.current?.getMap()
@@ -536,11 +633,11 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
       // pidiendo el siguiente — el loop se autocura apenas la capa monte.
       if (mapa?.getLayer(capaPulso)) {
         const progreso = ((performance.now() - inicio) % DURACION_PULSO_MS) / DURACION_PULSO_MS
-        mapa.setPaintProperty(
-          capaPulso,
-          'circle-radius',
-          calcularRadioPulso(progreso, RADIO_DOT_BASE, radioMaximoPulso('Crítica')),
-        )
+        mapa.setPaintProperty(capaPulso, 'circle-radius', [
+          '+',
+          expresionRadioBasePulso(),
+          ['*', progreso, ['-', ['get', 'radioMaxPulso'], RADIO_DOT_BASE]],
+        ] as unknown as DataDrivenPropertyValueSpecification<number>)
         mapa.setPaintProperty(capaPulso, 'circle-opacity', calcularOpacidadPulso(progreso))
       }
       pulsoFrameRef.current = window.requestAnimationFrame(paso)
@@ -553,7 +650,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         pulsoFrameRef.current = null
       }
     }
-  }, [])
+  }, [prefersReducedMotion, capasVisibles.escuelas, haySeveroEnVista])
 
   const { departamentosGeojson, departamentosSinMatch } = useMemo(() => {
     if (!departamentosRaw) return { departamentosGeojson: null, departamentosSinMatch: [] as string[] }
@@ -658,6 +755,30 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
     setDepartamentoHover({ nombre, lng: event.lngLat.lng, lat: event.lngLat.lat })
   }
 
+  // T1.1c: lee del mapa (querySourceFeatures) qué features de
+  // `infra-partes-src` están actualmente DESAGRUPADAS y guarda sus cueAnexo.
+  // querySourceFeatures sin filtro de capa devuelve las features fuente como
+  // las ve el clustering actual de supercluster: un punto individual no
+  // tiene `point_count`, un cluster sí. Un Set vacío es válido (no hay
+  // puntos sueltos); `null` es "aún no calculado" y se traduce en no
+  // renderizar nada. Como todo Set se recrea, `setCuesNoAgrupados` siempre
+  // dispara re-render — inofensivo acá, es el estado derivado del mapa.
+  function actualizarCuesNoAgrupados() {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa || !mapa.getSource('infra-partes-src')) return
+    const features = mapa.querySourceFeatures('infra-partes-src', {
+      filter: ['!', ['has', 'point_count']],
+    })
+    setCuesNoAgrupados(new Set(features.map((feature) => String(feature.properties?.cueAnexo))))
+  }
+
+  // Seleccionar una escuela desde la lista también cierra el cajón angosto:
+  // así el mapa/ficha vuelve a ser visible en vez de seguir mostrando el panel.
+  function seleccionarDesdeLista(cueAnexo: string) {
+    setSeleccionCue(cueAnexo)
+    setLeftStackAbierto(false)
+  }
+
   function alternarCapa(capa: CapaInfraestructura, value: boolean) {
     setCapasVisibles((prev) => ({ ...prev, [capa]: value }))
   }
@@ -691,6 +812,8 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setDepartamentoHover(null)}
           cursor="pointer"
+          onLoad={actualizarCuesNoAgrupados}
+          onMoveEnd={actualizarCuesNoAgrupados}
         >
           <NavigationControl position="top-left" />
 
@@ -740,37 +863,93 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
             />
           </Source>
 
-          {capasVisibles.sinReportar && (
-            <Source id="infra-sin-reportar-src" type="geojson" data={featureCollectionSinReportar}>
-              <Layer id={CAPA_SIN_REPORTAR_ID} type="circle" paint={circlePaintSinReportar()} />
-            </Source>
-          )}
-
           {capasVisibles.escuelas && (
             <Source
               id="infra-partes-src"
               type="geojson"
               data={featureCollection}
               cluster={true}
-              clusterMaxZoom={14}
+              clusterMaxZoom={CAPA_PARTES_CLUSTER_MAX_ZOOM}
               clusterRadius={40}
+              clusterProperties={{
+                // T1.1b: agregados por max() entre los puntos agrupados — el
+                // cluster hereda la severidad y el radio de pulso de su punto
+                // MÁS severo, no un promedio.
+                severidadRango: ['max', ['get', 'severidadRango']],
+                radioMaxPulso: ['max', ['get', 'radioMaxPulso']],
+                // T1.1c: en el cluster `sinReportar` se agrega como 0/1 con
+                // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
+                // está sin reportar (semántica OR), a diferencia de los
+                // puntos individuales donde sigue siendo un booleano real.
+                sinReportar: ['max', ['case', ['get', 'sinReportar'], 1, 0]],
+              }}
             >
               {/*
-                Pulso (T1.1): va DEBAJO del punto para que se lea como un
-                anillo que se expande alrededor, no como algo que lo tapa.
-                Filtra sólo las no agrupadas con esSevero. El radio/opacidad
-                declarados acá son el estado inicial; los maneja el efecto de
-                animación más abajo vía setPaintProperty.
+                Sin reportar (T1.1c): el halo y el anillo de cluster viven
+                DENTRO de la fuente clusterizada, no en una fuente aparte con
+                un gate de zoom — así sólo se dibujan sobre features que están
+                REALMENTE desagrupadas/clusterizadas en este instante (sin
+                adivinar umbrales ni sufrir su off-by-one). El halo rodea los
+                puntos individuales sin reportar; el anillo de cluster da
+                feedback a zoom bajo de que una burbuja contiene al menos una
+                escuela sin reportar, arreglando que tildar "Sin reportar" no
+                hiciera nada en la vista provincial por defecto. Van primeros
+                en el árbol del source para quedar debajo de todo.
+              */}
+              {/* react-map-gl's Source no detecta Layer hijos a través de un
+                  Fragment: cada uno necesita su propio condicional. */}
+              {capasVisibles.sinReportar && (
+                <Layer
+                  id={CAPA_SIN_REPORTAR_ID}
+                  type="circle"
+                  filter={['all', ['!', ['has', 'point_count']], ['==', ['get', 'sinReportar'], true]]}
+                  paint={circlePaintSinReportar()}
+                />
+              )}
+              {capasVisibles.sinReportar && (
+                <Layer
+                  id={CAPA_SIN_REPORTAR_CLUSTER_ID}
+                  type="circle"
+                  filter={['all', ['has', 'point_count'], ['==', ['get', 'sinReportar'], 1]]}
+                  paint={{
+                    'circle-radius': ['+', expresionRadioCluster(), SIN_REPORTAR_RADIO_EXTRA] as unknown as DataDrivenPropertyValueSpecification<number>,
+                    'circle-color': 'transparent',
+                    'circle-stroke-color': SIN_REPORTAR_COLOR,
+                    'circle-stroke-width': 2,
+                    'circle-stroke-opacity': 0.65,
+                  }}
+                />
+              )}
+              {/*
+                Pulso (T1.1, T1.1c): va DEBAJO del punto para que se lea como
+                un anillo que se expande alrededor, no como algo que lo tapa.
+                Filtra las no agrupadas con esSevero y, desde T1.1b, también
+                los clusters cuya severidad agregada es Alta o superior
+                (2 = rangoSeveridad('Alta'); los clusters agregan la
+                propiedad vía clusterProperties, ver el Source arriba). El
+                radio base declarado acá es una expresión por feature
+                (expresionRadioBasePulso): parte del radio del cluster cuando
+                es un agregado y de RADIO_DOT_BASE cuando es un punto, para
+                que el anillo de un cluster crezca por fuera de su círculo en
+                vez de empezar debajo de él. El radio/opacidad los maneja el
+                efecto de animación más abajo vía setPaintProperty (y
+                prefersReducedMotion, resuelto con useSyncExternalStore).
               */}
               <Layer
                 id={CAPA_PARTES_PULSO_ID}
                 type="circle"
-                filter={['all', ['!', ['has', 'point_count']], ['==', ['get', 'esSevero'], true]]}
+                filter={[
+                  'any',
+                  ['all', ['!', ['has', 'point_count']], ['==', ['get', 'esSevero'], true]],
+                  ['all', ['has', 'point_count'], ['>=', ['get', 'severidadRango'], 2]],
+                ]}
                 paint={{
-                  'circle-color': ['get', 'color'],
+                  'circle-color': colorPorSeveridadRango(),
                   'circle-stroke-width': 0,
-                  'circle-radius': RADIO_DOT_BASE,
-                  'circle-opacity': 0,
+                  'circle-radius': prefersReducedMotion
+                    ? (['+', expresionRadioBasePulso(), 4] as unknown as DataDrivenPropertyValueSpecification<number>)
+                    : expresionRadioBasePulso(),
+                  'circle-opacity': prefersReducedMotion ? 0.25 : 0,
                 }}
               />
               <Layer
@@ -780,11 +959,13 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 paint={circlePaintPartes()}
               />
               {/*
-                Clusters: gris neutro a propósito, no un promedio de las
-                severidades agrupadas — el color de severidad pierde sentido
-                cuando el punto representa varias escuelas de distinta
-                severidad, y promediarlas inventaría un color que no está en
-                la escala. El tamaño del círculo sube por tramos con el
+                Clusters (T1.1b): el color ya no es un gris neutro fijo — los
+                clusters pintan del color de la severidad MÁS ALTA presente
+                entre las escuelas agrupadas, leída del agregado
+                `severidadRango` de clusterProperties (max). Promediar las
+                severidades inventaría un color que no está en la escala y
+                ocultaría el peor caso, que es lo que importa en una
+                emergencia. El tamaño del círculo sube por tramos con el
                 conteo (más escuelas agrupadas = círculo más grande).
               */}
               <Layer
@@ -792,8 +973,8 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
                 type="circle"
                 filter={['has', 'point_count']}
                 paint={{
-                  'circle-color': '#9aa3ab',
-                  'circle-radius': ['step', ['get', 'point_count'], 16, 10, 22, 50, 28],
+                  'circle-color': colorPorSeveridadRango(),
+                  'circle-radius': expresionRadioCluster(),
                   'circle-stroke-color': '#1c1c1c',
                   'circle-stroke-width': 1,
                 }}
@@ -816,24 +997,27 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
           )}
 
           {capasVisibles.evacuacion &&
-            partesEvacuacion.map((parte) => (
-              <Marker
-                key={parte.cueAnexo}
-                longitude={parte.lon as number}
-                latitude={parte.lat as number}
-                anchor="bottom-left"
-                offset={[SIMBOLO_EVACUACION_TAMANO / 2, -RADIO_DOT_BASE]}
-              >
-                <div
-                  data-capa={CAPA_EVACUACION_ID}
-                  style={
-                    parte.estadoEstablecimiento === 'evacuado'
-                      ? estiloSimboloEvacuado()
-                      : estiloSimboloCentroEvacuados()
-                  }
-                />
-              </Marker>
-            ))}
+            cuesNoAgrupados !== null &&
+            partesEvacuacion
+              .filter((parte) => cuesNoAgrupados.has(parte.cueAnexo))
+              .map((parte) => (
+                <Marker
+                  key={parte.cueAnexo}
+                  longitude={parte.lon as number}
+                  latitude={parte.lat as number}
+                  anchor="bottom-left"
+                  offset={[SIMBOLO_EVACUACION_TAMANO / 2, -RADIO_DOT_BASE]}
+                >
+                  <div
+                    data-capa={CAPA_EVACUACION_ID}
+                    style={
+                      parte.estadoEstablecimiento === 'evacuado'
+                        ? estiloSimboloEvacuado()
+                        : estiloSimboloCentroEvacuados()
+                    }
+                  />
+                </Marker>
+              ))}
 
           {departamentoHover && (
             <Popup
@@ -888,14 +1072,14 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         en .map-left-stack y los paneles vuelven al flujo normal.
       */}
       {data && (
-        <div className={styles.leftStack} data-open={leftStackAbierto ? 'true' : 'false'}>
+        <div className={styles.leftStack} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
           <Indicadores indicadores={data.indicadores} loading={loading} />
           <ListaAlertas
             partes={data.partes}
             filtros={filtrosForm}
             onFiltroChange={setFiltro}
             seleccionadaCue={seleccionCue}
-            onSeleccionar={setSeleccionCue}
+            onSeleccionar={seleccionarDesdeLista}
           />
           <InfraLegendPanel departamentosSinMatch={departamentosSinMatch} />
         </div>
@@ -906,6 +1090,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         className={styles.leftStackToggle}
         onClick={() => setLeftStackAbierto((abierto) => !abierto)}
         aria-expanded={leftStackAbierto}
+        aria-controls="infra-left-stack"
       >
         {leftStackAbierto ? 'Cerrar' : 'Escuelas y filtros'}
       </button>

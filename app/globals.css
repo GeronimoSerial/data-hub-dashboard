@@ -2015,6 +2015,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-legend-panel { bottom: 12px; left: 12px; }
   .map-controls-stack { top: auto; bottom: 120px; right: 12px; left: auto; }
   .map-left-stack { display: none; }
+  /* El botón de cierre vive fijo sobre el cajón abierto (mismo z-index que la
+     barra del header, en una posición fija de pantalla); el cajón necesita
+     padding inferior extra para que el último ítem scrolleado (la leyenda de
+     Referencias) nunca termine oculto debajo de ese botón. */
   .map-left-stack[data-open="true"] {
     display: flex;
     position: fixed;
@@ -2027,7 +2031,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     max-height: none;
     z-index: 20;
     background: var(--page);
-    padding: 12px;
+    padding: 12px 12px calc(12px + 44px + 12px) 12px;
     overflow-y: auto;
   }
   .map-left-stack-toggle { display: inline-flex; }
