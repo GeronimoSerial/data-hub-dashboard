@@ -1,0 +1,30 @@
+// Única fuente de lectura de flags de feature del motor de riesgo: ninguna
+// otra parte del repo debe leer RISK_ENGINE_ENABLED, RISK_RADAR_ENABLED,
+// AI_BRIEFING_ENABLED ni RISK_MODE (verificado con rg antes de crear este
+// módulo). Leer process.env en cada llamada (sin cachear en el import) para
+// que los tests puedan mutar el entorno entre casos.
+const ES_TRUE = 'true'
+const ES_ADVISORY = 'advisory'
+
+function esTrue(valor: string | undefined): boolean {
+  return valor === ES_TRUE
+}
+
+export function riskEngineEnabled(): boolean {
+  return esTrue(process.env.RISK_ENGINE_ENABLED)
+}
+
+export function riskRadarEnabled(): boolean {
+  return esTrue(process.env.RISK_RADAR_ENABLED)
+}
+
+export function aiBriefingEnabled(): boolean {
+  return esTrue(process.env.AI_BRIEFING_ENABLED)
+}
+
+// Modo de operación del motor: 'advisory' solo si el valor es exactamente
+// 'advisory'; cualquier otro valor (incluido undefined o inválido) cae al
+// default seguro 'shadow'. No lanza excepción ante valor inválido.
+export function riskMode(): 'shadow' | 'advisory' {
+  return process.env.RISK_MODE === ES_ADVISORY ? 'advisory' : 'shadow'
+}

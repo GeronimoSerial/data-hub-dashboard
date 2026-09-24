@@ -412,3 +412,40 @@ export const infraMovimiento = sqliteTable(
     uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
   ],
 )
+
+// Control de ejecución de jobs de infraestructura, con lease renovable. Un
+// job_run por combinación (tipo, claveIdempotente): los reintentos de la MISMA
+// invocación actualizan la fila existente (upsert), nunca crean una segunda
+// fila — así dos invocaciones del mismo job no publican dos resultados.
+// `estado` es texto plano ('pendiente' | 'en_progreso' | 'completado' |
+// 'fallido', mismos valores que estadoJobSchema en
+// lib/infraestructura/riesgo/tipos.ts); la validación de forma vive en la
+// capa de dominio. Timestamps en texto ISO UTC (patrón de infraParte).
+export const infraJobRun = sqliteTable(
+  'infra_job_run',
+  {
+    id: text('id').primaryKey(),
+    tipo: text('tipo').notNull(),
+    claveIdempotente: text('clave_idempotente').notNull(),
+    intento: integer('intento').notNull().default(1),
+    // ISO UTC; se setea al crear la fila o al recuperar un lease vencido (no es null en ningún estado).
+    iniciadoEn: text('iniciado_en').notNull(),
+    finalizadoEn: text('finalizado_en'),
+    estado: text('estado').notNull(),
+    // p. ej. { procesados: 10, exitosos: 8, fallidos: 2 }.
+    contadores: text('contadores', { mode: 'json' }).$type<Record<string, number>>(),
+    // Mensaje de error sin datos nominales ni secretos, para diagnóstico.
+    errorSaneado: text('error_saneado'),
+    version: text('version').notNull(),
+    // Identificador del proceso/worker que sostiene el lease.
+    leaseOwner: text('lease_owner'),
+    // ISO UTC; null cuando no hay lease activo.
+    leaseExpiraEn: text('lease_expira_en'),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_job_run_clave_uidx').on(t.tipo, t.claveIdempotente),
+    index('infra_job_run_estado_idx').on(t.estado),
+  ],
+)

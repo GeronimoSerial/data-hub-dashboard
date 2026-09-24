@@ -23,6 +23,16 @@ WORKDIR /tools
 RUN npm init -y > /dev/null \
   && npm install --omit=dev --no-audit --no-fund pg@8.23.0
 
+# drizzle-orm lo usa el servidor (bundleado por webpack dentro de .next/server,
+# por eso no queda en node_modules del standalone) y también los scripts de
+# job/mantenimiento que corren fuera del bundle de Next (E0:
+# scripts/job-diagnostico.mjs). Sin esto esos scripts fallan con "Cannot find
+# package 'drizzle-orm'" al correr con `docker exec`.
+FROM base AS dbtools
+WORKDIR /tools
+RUN npm init -y > /dev/null \
+  && npm install --omit=dev --no-audit --no-fund drizzle-orm@0.45.2
+
 FROM base AS runner
 WORKDIR /app
 
@@ -38,9 +48,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Herramientas de operación del espejo de datos (ge.sqlite). El servidor no las
-# usa: se ejecutan con `docker exec` para poblar /data en una instalación nueva.
-# Sin esto, scripts/ y lib/ no existen en la imagen y el espejo no se puede cargar.
+# Herramientas de operación del espejo de datos (ge.sqlite) y jobs batch de
+# infraestructura (E0: scripts/job-diagnostico.mjs, ejecución finita con lease
+# e idempotencia sobre infra_job_run). El servidor no las usa: se ejecutan con
+# `docker exec <contenedor> node scripts/job-diagnostico.mjs`. Sin esto,
+# scripts/ y lib/ no existen en la imagen y ningún job puede correr.
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
@@ -48,6 +60,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 # el trace de Next no lo deja en .next/standalone y el importador del padrón no
 # arranca sin él.
 COPY --from=pgdriver --chown=nextjs:nodejs /tools/node_modules/. ./node_modules/
+COPY --from=dbtools --chown=nextjs:nodejs /tools/node_modules/. ./node_modules/
 
 ENV DATA_DIR=/data
 RUN mkdir -p /data/uploads && chown -R nextjs:nodejs /data

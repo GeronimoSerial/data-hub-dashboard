@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, FolderKanban, Tags, Users, Layers3, ListTree } from 'lucide-react'
+import { ArrowLeft, Activity, FolderKanban, Tags, Users, Layers3, ListTree } from 'lucide-react'
 import type { Role } from '@/lib/acl'
 
 const sections = [
@@ -13,6 +13,7 @@ const sections = [
     { label: 'Tipos', href: '/admin#tipos', icon: ListTree },
   ] },
   { label: 'Accesos', items: [{ label: 'Usuarios', href: '/admin#usuarios', icon: Users }] },
+  { label: 'Operación', items: [{ label: 'Salud', href: '/admin/operacion', icon: Activity }] },
 ]
 
 export function AdminShell({ children, role }: { children: React.ReactNode; role: Role }) {

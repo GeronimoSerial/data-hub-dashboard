@@ -7,6 +7,7 @@ import { getDb } from './index'
 import {
   categorias,
   infraAfectacion,
+  infraJobRun,
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
@@ -53,6 +54,7 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     const [categoriasAntes] = await db.select({ n: count() }).from(categorias)
     const [tagsAntes] = await db.select({ n: count() }).from(tags)
     const [recursosAntes] = await db.select({ n: count() }).from(recursos)
+    const [infraJobRunAntes] = await db.select({ n: count() }).from(infraJobRun)
 
     await db.$client.executeMultiple(HUB_DDL)
     await db.$client.executeMultiple(HUB_DDL)
@@ -62,12 +64,14 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     const [categoriasDespues] = await db.select({ n: count() }).from(categorias)
     const [tagsDespues] = await db.select({ n: count() }).from(tags)
     const [recursosDespues] = await db.select({ n: count() }).from(recursos)
+    const [infraJobRunDespues] = await db.select({ n: count() }).from(infraJobRun)
 
     expect(nivelesDespues.n).toBe(nivelesAntes.n)
     expect(tiposDespues.n).toBe(tiposAntes.n)
     expect(categoriasDespues.n).toBe(categoriasAntes.n)
     expect(tagsDespues.n).toBe(tagsAntes.n)
     expect(recursosDespues.n).toBe(recursosAntes.n)
+    expect(infraJobRunDespues.n).toBe(infraJobRunAntes.n)
     expect(nivelesAntes.n).toBeGreaterThan(0)
   })
 

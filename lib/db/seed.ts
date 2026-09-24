@@ -251,6 +251,24 @@ CREATE TABLE IF NOT EXISTS \`infra_movimiento\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
+CREATE TABLE IF NOT EXISTS \`infra_job_run\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`tipo\` text NOT NULL,
+  \`clave_idempotente\` text NOT NULL,
+  \`intento\` integer DEFAULT 1 NOT NULL,
+  \`iniciado_en\` text NOT NULL,
+  \`finalizado_en\` text,
+  \`estado\` text NOT NULL,
+  \`contadores\` text,
+  \`error_saneado\` text,
+  \`version\` text NOT NULL,
+  \`lease_owner\` text,
+  \`lease_expira_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_job_run_clave_uidx\` ON \`infra_job_run\` (\`tipo\`, \`clave_idempotente\`);
+CREATE INDEX IF NOT EXISTS \`infra_job_run_estado_idx\` ON \`infra_job_run\` (\`estado\`);
 `
 
 let seedPromise: Promise<void> | null = null
