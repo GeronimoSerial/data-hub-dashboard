@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+/**
+ * Job de diagnóstico de ejecución finita (E0): verifica que la base sqlite
+ * operativa responde y que DATA_DIR es escribible, usando lease e
+ * idempotencia (infra_job_run) para que dos invocaciones concurrentes o
+ * repetidas del mismo día no publiquen dos resultados.
+ *
+ * Empaquetado en la imagen Docker junto con scripts/ y lib/ (ver Dockerfile);
+ * se corre con `docker exec <contenedor> node scripts/job-diagnostico.mjs`,
+ * igual que scripts/sync-ge.mjs. No es un servicio: termina y sale.
+ *
+ * Usage: node scripts/job-diagnostico.mjs [claveIdempotente]
+ */
+import { accessSync, constants, existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { registerHooks } from 'node:module'
+
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const root = join(__dirname, '..')
+
+// Mismo hook que scripts/sync-ge.mjs: lib/infraestructura/riesgo/job-run.ts
+// importa vía alias '@/' y rutas relativas sin extensión, que el resolver
+// ESM nativo no completa.
+function resolveTsCandidate(base) {
+  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
+    if (existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith('@/')) {
+      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
+      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
+    } else if (
+      specifier.startsWith('./') ||
+      specifier.startsWith('../') ||
+      specifier.startsWith('/')
+    ) {
+      const base = specifier.startsWith('/')
+        ? specifier
+        : join(dirname(fileURLToPath(context.parentURL)), specifier)
+      const candidate = resolveTsCandidate(base)
+      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
+    }
+    return nextResolve(specifier, context)
+  },
+})
+
+const TIPO = 'diagnostico'
+const DURACION_LEASE_MS = 5 * 60 * 1000
+const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
+
+export async function correrDiagnostico({ claveIdempotente } = {}) {
+  // Imports diferidos a la llamada (no al top-level del módulo): getDb() de
+  // lib/db/index.ts memoiza la conexión en el primer uso, y los tests
+  // necesitan poder fijar DATA_DIR antes de que eso ocurra.
+  const { adquirirLease, publicarResultado } = await import(
+    '../lib/infraestructura/riesgo/job-run.ts'
+  )
+  const { ensureSeeded } = await import('../lib/db/seed.ts')
+  const { getDb } = await import('../lib/db/index.ts')
+  const { getSqlitePath, getDataDir } = await import('../lib/data-dir.ts')
+
+  await ensureSeeded()
+
+  const clave = claveIdempotente ?? new Date().toISOString().slice(0, 10)
+  const lease = await adquirirLease({
+    tipo: TIPO,
+    claveIdempotente: clave,
+    version: pkg.version,
+    duracionLeaseMs: DURACION_LEASE_MS,
+  })
+
+  if (!lease.adquirido) {
+    return { ejecutado: false, motivo: lease.motivo }
+  }
+
+  try {
+    const chequeos = { db: false, dataDir: false }
+
+    const db = getDb()
+    await db.$client.execute('SELECT 1')
+    chequeos.db = true
+
+    accessSync(getDataDir(), constants.W_OK)
+    chequeos.dataDir = true
+
+    const publicado = await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'completado',
+      contadores: { db: 1, dataDir: 1 },
+    })
+
+    return {
+      ejecutado: true,
+      jobRunId: lease.jobRunId,
+      chequeos,
+      sqlitePath: getSqlitePath(),
+      leasePerdido: !publicado,
+    }
+  } catch (error) {
+    const errorSaneado =
+      error instanceof Error ? error.message : 'Error desconocido en job de diagnóstico'
+    // Best-effort: si el lease se perdió (otro proceso lo recuperó),
+    // publicarResultado devuelve false y no pisa nada; el error original
+    // se relanza igual.
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      errorSaneado,
+    })
+    throw error
+  }
+}
+
+export function codigoSalida(resultado) {
+  if (resultado.ejecutado && resultado.leasePerdido) return 3
+  return 0
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  try {
+    const resultado = await correrDiagnostico({ claveIdempotente: process.argv[2] })
+    console.log(JSON.stringify(resultado))
+    process.exit(codigoSalida(resultado))
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error)
+    process.exit(1)
+  }
+}
