@@ -1,0 +1,15 @@
+=== pnpm test ===
+$ vitest run
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /home/gero/orca/workspaces/data-hub-dashboard/enos-e0
+
+
+ Test Files  96 passed (96)
+      Tests  773 passed (773)
+   Start at  20:36:56
+   Duration  16.35s (transform 20.34s, setup 29.60s, import 67.00s, tests 62.82s, environment 41.81s)
+
+EXIT:0

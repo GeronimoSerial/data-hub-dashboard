@@ -1,0 +1,35 @@
+$ docker build -t enos-e0-diag-test .
+... (build exitoso, ver docker-build resumido abajo)
+Successfully built and tagged enos-e0-diag-test:latest
+
+$ docker run -d --name enos-e0-diag-test-run -v enos-e0-diag-data:/data enos-e0-diag-test
+711765aa2f50b204e90aa365e24ceb340cf9a82393984a92bae36e4033faea05
+
+$ docker exec enos-e0-diag-test-run node scripts/job-diagnostico.mjs prueba-docker-1
+[infraestructura] ge_localizacion sembrada: 2005 registros
+Skipping first admin seed: ADMIN_EMAIL and ADMIN_PASSWORD are required
+{"ejecutado":true,"jobRunId":"1fd38073-d1d4-488c-91bc-0c959f217821","chequeos":{"db":true,"dataDir":true},"sqlitePath":"/data/hub.sqlite"}
+EXIT:0
+
+$ docker exec enos-e0-diag-test-run node scripts/job-diagnostico.mjs prueba-docker-1
+Skipping first admin seed: ADMIN_EMAIL and ADMIN_PASSWORD are required
+{"ejecutado":false,"motivo":"ya_completado"}
+EXIT:0
+
+# Segunda invocación con la misma clave de idempotencia no publica un segundo
+# resultado (motivo:ya_completado), confirmando idempotencia end-to-end dentro
+# de la imagen empaquetada, no sólo en tests unitarios con mocks.
+
+# Nota: el primer intento de build falló con
+# "Cannot find package 'drizzle-orm' imported from /app/lib/infraestructura/riesgo/job-run.ts"
+# porque next traza/bundlea drizzle-orm dentro de .next/server para el
+# servidor, pero no lo deja como paquete instalado en node_modules del
+# standalone; los scripts batch que corren fuera del bundle de Next (como
+# job-diagnostico.mjs) sí necesitan el paquete real. Se agregó un stage
+# 'dbtools' al Dockerfile (mismo patrón que el stage 'pgdriver' ya existente
+# para el driver de Postgres) que instala drizzle-orm@0.45.2 plano y lo
+# fusiona en el runner. Ver Dockerfile.
+
+# Limpieza posterior: docker rm -f enos-e0-diag-test-run; docker volume rm
+# enos-e0-diag-data; docker rmi enos-e0-diag-test (todo removido, no queda
+# estado docker residual de esta verificación).
