@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gatedStaticPath, isBleedViewerPath } from './nav'
+import { gatedStaticPath, isBleedViewerPath, scrollRestorationKey } from './nav'
 
 describe('gatedStaticPath', () => {
   it('returns prefix roots and nested paths', () => {
@@ -54,5 +54,26 @@ describe('isBleedViewerPath', () => {
     )
     expect(isBleedViewerPath('/')).toBe(false)
     expect(isBleedViewerPath('/admin')).toBe(false)
+  })
+})
+
+describe('scrollRestorationKey', () => {
+  it('combines pathname and search into one stable key', () => {
+    expect(scrollRestorationKey('/explorar', '?tema=x&nivel=y')).toBe(
+      'app-scroll:/explorar?tema=x&nivel=y',
+    )
+    expect(scrollRestorationKey('/explorar', 'tema=x')).toBe(
+      'app-scroll:/explorar?tema=x',
+    )
+  })
+
+  it('omits the query separator when there is no search', () => {
+    expect(scrollRestorationKey('/', '')).toBe('app-scroll:/')
+  })
+
+  it('treats different search params as different keys', () => {
+    expect(scrollRestorationKey('/explorar', '?tema=a')).not.toBe(
+      scrollRestorationKey('/explorar', '?tema=b'),
+    )
   })
 })

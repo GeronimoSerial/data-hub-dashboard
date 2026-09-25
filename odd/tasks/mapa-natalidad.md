@@ -56,6 +56,11 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - [ ] T6 Visual check in `pnpm dev` (needs user login)
 - [x] T9 UI polish (user feedback 2026-09-25, direct inline/delegated writer, this session): replaced native `<select>`s (map year selects, Estadísticas departamento selector) with the project's `components/ui/select` primitive; removed the right-side "Métrica / Escuelas / Mapa base" panel — replaced with a compact `SegmentedGroup`/`SegmentedItem` metric switch (new `components/ui/toggle-group.tsx`, `@base-ui/react/toggle-group` + `toggle`, no new dependency) plus the relevant year select(s), integrated under the title panel; dropped the basemap switcher (kept `voyager` as the fixed default) and the "Mostrar escuelas" checkbox + nivel filter (schools always rendered, Inicial stays highlighted); legend `<details>` now has `open` by default (was collapsed) so the choropleth breaks are visible without a click. See "Progress (T9)" below for full detail.
 
+- [x] T10a Map fixes (fresh agent A; owns map-natalidad-page.tsx, lib/mapas/natalidad*, components/ui/*, app/globals.css): select dropdown anchoring, variation-mode legend breaks, provincial/departamento variation follows selected years, title card fixed width + symmetric column + "Fuentes" disclosure, school search box (partially implemented in 53f5a22 — finish and verify)
+- [x] T10b Estadísticas fixes (fresh agent B; owns estadisticas-natalidad-*.tsx, lib/mapas/estadisticas-natalidad*): readable variation bars, "nacidos por sección de Sala de 3 a 5" metric with correct cohort alignment (2020/2021/2022 → Sala 5/4/3 in ciclo 2026), dark-mode chart tokens, charts react to the departamento selector (series + highlight + rank)
+- [ ] T12 Site-wide layout shift (user, 2026-09-25): document scrollbar appearing/disappearing (pages of different height, Base UI scroll lock on popups) moves centered content ~7px. Decision: every page scrolls inside the app content container (like bleed viewers) with `scrollbar-gutter: stable` on that container; header never moves. Fresh agent, owns app shell layout + base CSS
+- [x] T11 Performance pass (fresh agent, after T10a/T10b): measure and optimize load/render/interaction of /mapas/natalidad
+
 ## Acceptance
 - `/mapas/natalidad` renders the 25 departamentos colored by the selected metric, with values matching the snapshot.
 - School markers for geolocated inicial CUEs; popup lists salas and secciones.
@@ -377,3 +382,6 @@ misleading. Removed entirely rather than kept behind a flag:
   control/selects (same pre-existing gap as T4/T8 — no component/route test
   for this page); light/dark mode and 375px-width visual check not run
   (needs the parent's browser-based check).
+
+- T11 done: reliable initial fit (onLoad + first reveal), map.stop() when hidden, cached search index, escuelas.geojson 2.2 MB → 1.4 MB raw (132 KB transferred). Parent browser check: 0 long tasks in 4 s with Estadísticas open (the earlier "busy hidden map" reading was an artifact of background-tab timer throttling), map fits Corrientes when revealed.
+- T12 browser check: header x constant (379.4) on /explorar short/long, with Select open, /mapas/natalidad and /admin. Found: back/forward scroll restoration not working; admin sidebar sticky offset wrong. Pre-existing hydration error in components/ui/tabs.tsx (Admin), unrelated to this branch.

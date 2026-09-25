@@ -47,3 +47,15 @@ export function isBleedViewerPath(pathname: string) {
   return !rest.includes('.')
 }
 
+/**
+ * sessionStorage key used to persist the app shell's inner scroller position
+ * for one navigation entry, so browser back/forward can restore it. Keyed by
+ * the full URL (pathname + search) — the hash is intentionally excluded,
+ * since fragment navigation scrolls within the page rather than moving
+ * between history entries, and Next's router hooks don't expose it anyway.
+ */
+export function scrollRestorationKey(pathname: string, search: string) {
+  const query = search.startsWith('?') ? search.slice(1) : search
+  return `app-scroll:${pathname}${query ? `?${query}` : ''}`
+}
+

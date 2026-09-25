@@ -172,8 +172,12 @@
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; min-height: 100%; }
-html { scroll-behavior: smooth; }
+/* The document itself never scrolls: every page scrolls inside the shell's
+   `.app-content`/`.app-content--bleed` region instead (T12). This is what
+   keeps the header fixed and stops centered content from jumping when a
+   scrollbar or a Base UI scroll lock would otherwise appear/disappear on the
+   document — there is no document scrollbar to appear or disappear. */
+html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
 
 body {
   background: var(--page);
@@ -269,8 +273,7 @@ time {
 
 /* ── Frame ─────────────────────────────────────────────────────────────── */
 
-.app-page { min-height: 100dvh; display: flex; flex-direction: column; }
-.app-page--viewer { height: 100dvh; }
+.app-page { height: 100dvh; display: flex; flex-direction: column; }
 
 /* Institutional strip: five solid segments, one colour each. Not a
    gradient — the manual forbids ramps built from the palette (§3.4). */
@@ -428,7 +431,26 @@ time {
 }
 .app-actions .ui-button:focus-visible { outline-color: var(--marker); }
 
+/* The one scroller for ordinary pages. Full width (like `.app-header`/
+   `.app-footer`) so `scrollbar-gutter: stable` reserves its lane at the true
+   viewport edge, not inside the centered reading column — `.app-content__inner`
+   is what actually centers `{children}` at `var(--measure)`. The footer is a
+   sibling of that inner wrapper, inside this same scroller, so it scrolls
+   with the content instead of sitting pinned below it. */
 .app-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.app-content__inner {
   flex: 1;
   width: 100%;
   max-width: var(--measure);
@@ -1624,7 +1646,10 @@ time {
 .admin-sidebar {
   align-self: start;
   position: sticky;
-  top: calc(var(--header-h) + var(--s-4));
+  /* The header lives outside `.app-content` now (T12) — it never scrolls
+     into this container, so the sticky offset no longer needs to clear its
+     height, just a small breathing gap from the scroller's own top edge. */
+  top: var(--s-4);
   display: grid;
   gap: var(--s-5);
   background: var(--card);
@@ -2346,7 +2371,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    ══════════════════════════════════════════════════════════════════════════ */
 
 .publico-layout {
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--page);
@@ -2409,10 +2434,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .publico-header .app-signature__compact { display: flex; }
 }
 
+/* Not part of the AppShell, but it shares the same document — with `html`/
+   `body` no longer scrolling (T12), this is now the public flow's own inner
+   scroller so the form stays reachable. */
 .publico-main {
   flex: 1;
+  min-height: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
+.publico-main__body { flex: 1; width: 100%; }
 
 .publico-content {
   max-width: var(--publico-medida, 640px);

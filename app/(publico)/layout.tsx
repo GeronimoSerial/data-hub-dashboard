@@ -25,11 +25,15 @@ export default function PublicoLayout({
         </div>
       </header>
 
-      <main className="publico-main">{children}</main>
-
-      <footer className="publico-footer">
-        Ministerio de Educación · Provincia de Corrientes
-      </footer>
+      {/* Footer sits inside the scroller (`.publico-main`, T12) so it scrolls
+          with the form instead of staying pinned once the document itself
+          stopped scrolling. */}
+      <main className="publico-main">
+        <div className="publico-main__body">{children}</div>
+        <footer className="publico-footer">
+          Ministerio de Educación · Provincia de Corrientes
+        </footer>
+      </main>
     </div>
   )
 }
