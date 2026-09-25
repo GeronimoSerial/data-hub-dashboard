@@ -6,11 +6,15 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import {
   LAST_ADMIN_ERROR,
+  UNKNOWN_RECURSOS_ERROR,
   authApiError,
   mutateUsuariosDenied,
   parsePatchUserBody,
   replaceUserNiveles,
+  replaceUserRecursos,
+  setAccesoRecursos,
   unbannedAdminIds,
+  unknownRecursoIds,
   wouldRemoveLastAdmin,
 } from '@/lib/usuarios'
 
@@ -37,6 +41,13 @@ export async function PATCH(request: Request, ctx: Ctx) {
   const parsed = parsePatchUserBody(body)
   if (!parsed) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
+  }
+
+  if (
+    parsed.recursoIds &&
+    (await unknownRecursoIds(parsed.recursoIds)).length > 0
+  ) {
+    return Response.json({ error: UNKNOWN_RECURSOS_ERROR }, { status: 400 })
   }
 
   const [existing] = await getDb()
@@ -86,6 +97,12 @@ export async function PATCH(request: Request, ctx: Ctx) {
     }
     if (parsed.nivelIds) {
       await replaceUserNiveles(id, parsed.nivelIds)
+    }
+    if (parsed.accesoRecursos) {
+      await setAccesoRecursos(id, parsed.accesoRecursos)
+    }
+    if (parsed.recursoIds) {
+      await replaceUserRecursos(id, parsed.recursoIds)
     }
   } catch (err) {
     const mapped = authApiError(err)
