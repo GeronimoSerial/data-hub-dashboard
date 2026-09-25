@@ -6,8 +6,11 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Label,
+  LabelList,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,7 +19,7 @@ import {
 import { useThemeMode } from '@/app/providers'
 import type {
   BarraVariacionDepartamento,
-  FilaOfertaInicialVsCohorte,
+  FilaNacidosPorSeccion,
   PuntoSerieAnual,
 } from '@/lib/mapas/estadisticas-natalidad'
 
@@ -114,9 +117,14 @@ function formatearValorTooltipPct(valor: unknown): string {
   return typeof valor === 'number' ? `${valor.toFixed(1)}%` : 'Sin base comparable'
 }
 
-function GraficoContenedor(props: { etiqueta: string; children: React.ReactNode }) {
+function GraficoContenedor(props: { etiqueta: string; alto?: number; children: React.ReactNode }) {
   return (
-    <div className="grafico-contenedor" role="img" aria-label={props.etiqueta}>
+    <div
+      className="grafico-contenedor"
+      style={props.alto != null ? { height: `${props.alto}px` } : undefined}
+      role="img"
+      aria-label={props.etiqueta}
+    >
       <ResponsiveContainer width="100%" height="100%">
         {props.children}
       </ResponsiveContainer>
@@ -124,12 +132,35 @@ function GraficoContenedor(props: { etiqueta: string; children: React.ReactNode 
   )
 }
 
+function etiquetaValorMiles(
+  x: number | string | undefined,
+  y: number | string | undefined,
+  value: number | string | null | undefined,
+): React.ReactElement | undefined {
+  if (x == null || y == null || value == null) return undefined
+  return (
+    <text x={x} y={Number(y) - 6} textAnchor="middle" fontSize={11} fill="currentColor">
+      {typeof value === 'number' ? formatearMiles(value) : value}
+    </text>
+  )
+}
+
 // 1. Nacidos vivos — tendencia provincial 2014–2023.
+//
+// Bug corregido (2026-09-25): la caída sólo se veía si el contenedor tenía
+// alto suficiente — el genérico de 17rem la aplanaba demasiado. Se sube a
+// 20rem (sólo para este gráfico, via el `alto` opcional de
+// GraficoContenedor) y se agregan las etiquetas de valor en el primer y
+// último punto (2014/2023), que son los que importan para leer la caída sin
+// pasar el mouse. El eje sigue arrancando en 0 (honesto: no exagerar la
+// pendiente cortando el eje).
 export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
   const paleta = usePaleta()
+  const primero = props.puntos[0]
+  const ultimo = props.puntos[props.puntos.length - 1]
   return (
-    <GraficoContenedor etiqueta="Nacidos vivos en Corrientes por año">
-      <LineChart data={props.puntos} margin={{ top: 8, right: 12, bottom: 4, left: -4 }}>
+    <GraficoContenedor etiqueta="Nacidos vivos en Corrientes por año" alto={320}>
+      <LineChart data={props.puntos} margin={{ top: 20, right: 24, bottom: 4, left: -4 }}>
         <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
           dataKey="anio"
@@ -139,6 +170,7 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
         />
         <YAxis
           allowDecimals={false}
+          domain={[0, 'auto']}
           width={44}
           tickFormatter={formatearMiles}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
@@ -158,9 +190,30 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
           name="Nacidos vivos"
           stroke={paleta.nacimientos}
           strokeWidth={2}
-          dot={false}
+          dot={(dotProps: { cx?: number; cy?: number; payload?: PuntoSerieAnual }) => {
+            const destacado =
+              dotProps.payload != null && (dotProps.payload.anio === primero?.anio || dotProps.payload.anio === ultimo?.anio)
+            return destacado ? (
+              <circle
+                key={`punto-${dotProps.payload?.anio}`}
+                cx={dotProps.cx}
+                cy={dotProps.cy}
+                r={3}
+                fill={paleta.nacimientos}
+                stroke={paleta.superficie}
+                strokeWidth={1}
+              />
+            ) : (
+              <g key={`punto-${dotProps.payload?.anio}`} />
+            )
+          }}
           activeDot={{ r: 3, strokeWidth: 1, fill: paleta.nacimientos, stroke: paleta.nacimientos }}
           isAnimationActive={false}
+          label={(labelProps) => {
+            if (labelProps.index !== 0 && labelProps.index !== props.puntos.length - 1) return undefined
+            const valor = typeof labelProps.value === 'number' ? labelProps.value : undefined
+            return etiquetaValorMiles(labelProps.x, labelProps.y, valor)
+          }}
         />
       </LineChart>
     </GraficoContenedor>
@@ -168,14 +221,25 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
 }
 
 // 2. Variación de nacidos vivos por departamento — barras horizontales divergentes, ordenadas.
+//
+// Bug corregido (2026-09-25): 25 filas apretadas en 17rem hacían que los
+// nombres de departamento se superpusieran. Alto dinámico (24px por fila +
+// márgenes, "dale a cada fila el alto que necesita" en vez de un contenedor
+// fijo) y `<LabelList>` con el valor al final de cada barra (p. ej. "-47%"),
+// para no depender del tooltip para leer el número.
+const ALTO_FILA_VARIACION = 24
+const MARGEN_VARIACION = 40
+
 export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionDepartamento[] }) {
   const paleta = usePaleta()
+  const alto = props.barras.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
   return (
-    <GraficoContenedor etiqueta="Variación de nacidos vivos por departamento">
+    <GraficoContenedor etiqueta="Variación de nacidos vivos por departamento" alto={alto}>
       <BarChart
         data={props.barras}
         layout="vertical"
-        margin={{ top: 8, right: 24, bottom: 4, left: 4 }}
+        barCategoryGap={4}
+        margin={{ top: 8, right: 44, bottom: 4, left: 4 }}
       >
         <CartesianGrid horizontal={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
@@ -189,7 +253,7 @@ export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionD
           type="category"
           dataKey="departamento"
           interval={0}
-          width={110}
+          width={130}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -208,35 +272,49 @@ export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionD
               fill={barra.pct == null ? paleta.eje : barra.pct < 0 ? paleta.negativo : paleta.positivo}
             />
           ))}
+          <LabelList
+            dataKey="pct"
+            position="right"
+            formatter={(v) => (typeof v === 'number' ? `${v > 0 ? '+' : ''}${v.toFixed(1)}%` : 'S/D')}
+            style={{ fill: 'currentColor', fontSize: 11 }}
+            className="natalidad-grafico-etiqueta"
+          />
         </Bar>
       </BarChart>
     </GraficoContenedor>
   )
 }
 
-// 3. Oferta de inicial (secciones) vs. nacidos vivos de la cohorte que hoy
-// entra a Sala de 3 — barras agrupadas por departamento. `anioCohorte` va en
-// el título del panel (ver estadisticas-natalidad-panel.tsx), no acá.
-export function GraficoOfertaInicialVsCohorte(props: { filas: FilaOfertaInicialVsCohorte[] }) {
+// 3. Nacidos por sección de Sala de 3 a 5 (ciclo 2026) — barras horizontales
+// ordenadas, valor provincial como línea de referencia. Reemplaza el
+// gráfico anterior de dos ejes (secciones vs. nacidos): ver el comentario en
+// lib/mapas/estadisticas-natalidad.ts (construirNacidosPorSeccionCohorte).
+export function GraficoNacidosPorSeccion(props: {
+  filas: FilaNacidosPorSeccion[]
+  provincia: FilaNacidosPorSeccion
+}) {
   const paleta = usePaleta()
+  const alto = props.filas.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
   return (
-    <GraficoContenedor etiqueta="Secciones de nivel inicial vs. nacidos vivos de la cohorte de Sala de 3, por departamento">
-      <BarChart data={props.filas} margin={{ top: 8, right: 12, bottom: 24, left: -4 }}>
-        <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
+    <GraficoContenedor etiqueta="Nacidos por sección de Sala de 3 a 5, por departamento" alto={alto}>
+      <BarChart
+        data={props.filas}
+        layout="vertical"
+        barCategoryGap={4}
+        margin={{ top: 8, right: 44, bottom: 4, left: 4 }}
+      >
+        <CartesianGrid horizontal={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
-          dataKey="departamento"
-          interval={0}
-          angle={-35}
-          textAnchor="end"
-          height={56}
+          type="number"
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
         />
         <YAxis
-          allowDecimals={false}
-          width={44}
-          tickFormatter={formatearMiles}
+          type="category"
+          dataKey="departamento"
+          interval={0}
+          width={130}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -246,10 +324,27 @@ export function GraficoOfertaInicialVsCohorte(props: { filas: FilaOfertaInicialV
           labelStyle={ESTILO_ETIQUETA_TOOLTIP}
           itemStyle={ESTILO_DATO_TOOLTIP}
           cursor={{ fill: paleta.resalte }}
-          formatter={formatearValorTooltipMiles}
+          formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : 'Sin secciones (excluido)')}
         />
-        <Bar dataKey="nacidosCohorte" name="Nacidos vivos (cohorte)" fill={paleta.nacimientos} isAnimationActive={false} />
-        <Bar dataKey="secciones" name="Secciones de Inicial" fill={paleta.inicial} isAnimationActive={false} />
+        <Bar dataKey="nacidosPorSeccion" name="Nacidos por sección" fill={paleta.inicial} isAnimationActive={false}>
+          <LabelList
+            dataKey="nacidosPorSeccion"
+            position="right"
+            formatter={(v) => (typeof v === 'number' ? v.toFixed(1) : 'S/D')}
+            style={{ fill: 'currentColor', fontSize: 11 }}
+            className="natalidad-grafico-etiqueta"
+          />
+        </Bar>
+        {props.provincia.nacidosPorSeccion != null && (
+          <ReferenceLine x={props.provincia.nacidosPorSeccion} stroke={paleta.negativo} strokeDasharray="4 3">
+            <Label
+              value={`Provincia: ${props.provincia.nacidosPorSeccion.toFixed(1)}`}
+              position="insideTopRight"
+              fill={paleta.texto}
+              fontSize={11}
+            />
+          </ReferenceLine>
+        )}
       </BarChart>
     </GraficoContenedor>
   )

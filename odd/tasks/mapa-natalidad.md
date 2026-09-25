@@ -54,6 +54,7 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - [x] T7 **withdrawn (user, 2026-09-25):** matrícula 2023–2026 per establishment extracted from `Mapa_Evolucion_Matricula_2023_2026 (1).html` (enrollment only: no zones, amounts or costs) into a committed snapshot; enrich schools and departamento aggregates on the map — reason: the source HTML only covers a panel of 288 small rural schools (median 6 students), so summing it per departamento/province was misleading. Fully removed from the feature (data file, script, lib module + tests, map choropleth mode/popups, Estadísticas chart) — see "Removal (T7 withdrawn)" below.
 - [x] T8 "Estadísticas" tab with recharts (births trend, variation by departamento, offer vs. births cohort — trimmed to Inicial/Primario), mirroring the infra map tabs. Adjusted 2026-09-25 after T7 withdrawal: dropped the matrícula KPI and the "births vs. matrícula"/"oferta by nivel" charts, replaced with a single "oferta de inicial vs. cohorte de Sala de 3" chart (see below) — 3 charts total, not 4.
 - [ ] T6 Visual check in `pnpm dev` (needs user login)
+- [x] T9 UI polish (user feedback 2026-09-25, direct inline/delegated writer, this session): replaced native `<select>`s (map year selects, Estadísticas departamento selector) with the project's `components/ui/select` primitive; removed the right-side "Métrica / Escuelas / Mapa base" panel — replaced with a compact `SegmentedGroup`/`SegmentedItem` metric switch (new `components/ui/toggle-group.tsx`, `@base-ui/react/toggle-group` + `toggle`, no new dependency) plus the relevant year select(s), integrated under the title panel; dropped the basemap switcher (kept `voyager` as the fixed default) and the "Mostrar escuelas" checkbox + nivel filter (schools always rendered, Inicial stays highlighted); legend `<details>` now has `open` by default (was collapsed) so the choropleth breaks are visible without a click. See "Progress (T9)" below for full detail.
 
 ## Acceptance
 - `/mapas/natalidad` renders the 25 departamentos colored by the selected metric, with values matching the snapshot.
@@ -329,3 +330,50 @@ misleading. Removed entirely rather than kept behind a flag:
   data transforms are fully unit-tested.
 - Matrícula is fully removed from this feature (see "Removal" above); the
   unrelated `/mapas/matricula` map and its data are untouched.
+
+## Progress (T9 — UI polish, user feedback 2026-09-25)
+- New `components/ui/toggle-group.tsx`: `SegmentedGroup`/`SegmentedItem`, a
+  single-select segmented control wrapping `@base-ui/react/toggle-group` +
+  `@base-ui/react/toggle` (both already a transitive dep of `@base-ui/react`,
+  used nowhere else in the repo yet — no new package). Follows the existing
+  `components/ui/*` wrapper style (thin className-merging wrapper, `cn()`).
+  New CSS: `.ui-segmented`/`.ui-segmented__item` in `app/globals.css`
+  (mirrors `.ui-button--default`'s `--action` fill + white/black text swap
+  for dark mode).
+- `components/mapas/map-natalidad-page.tsx`:
+  - Removed `Checkbox`, `RadioGroup`/`RadioItem`, `BasemapControl` imports
+    and the entire right-side `styles.controlsStack` panel (Métrica /
+    Escuelas / Mapa base cards).
+  - `modo`/`anioSeleccionado`/`anioVariacionA`/`anioVariacionB` now render as
+    a `SegmentedGroup` (Nacidos en el año | Variación %) plus the relevant
+    `AnioSelect`(s) (new local component, `components/ui/select` styled with
+    the existing compact `.map-filtro-campo`/`.map-filtro-label`/
+    `.map-filtro-input` classes), integrated inside the title panel via new
+    `.natalidad-metrica-control`/`.natalidad-anio-par` CSS.
+  - Removed `basemap` state — `mapStyle` is now the constant
+    `BASEMAPS.voyager.styleUrl` (kept default, no switcher).
+  - Removed `capaEscuelasVisible`/`filtroNivel` state and the `FiltroNivel`
+    type: the escuelas `<Source>` always renders (no gate), `NIVELES` import
+    dropped. Inicial highlight (teal) and the legend entry explaining it are
+    unchanged.
+  - Legend `<details>` gained the `open` attribute (was collapsed by
+    default) — the choropleth breaks and the escuela color legend are
+    visible without clicking "Referencias"; kept as `<details>` (not a plain
+    div) so it's still collapsible, consistent with the infra map's pattern.
+- `components/mapas/estadisticas-natalidad-panel.tsx`: departamento
+  `<select>` replaced with `components/ui/select`
+  (`Select`/`SelectTrigger`/`SelectContent`/`SelectItem`), same
+  `.map-filtro-campo`/`.map-filtro-label`/`.map-filtro-input` styling as the
+  map's year selects, for a consistent look across the two tabs.
+- No changes to `app/(hub)/mapas/natalidad/map-client.tsx` (tabs wiring
+  untouched) or `estadisticas-natalidad-graficos.tsx` (charts untouched).
+- Hover departamento popup, click escuela popup, fullscreen button and all
+  other behaviour unchanged.
+- Verification: `pnpm exec tsc --noEmit` clean · `pnpm lint` clean ·
+  `pnpm test` 819/819 passed (100 files). No visual check run in `pnpm dev`
+  this session (dev server was already running per instructions; login
+  required, left to the parent — same gap as T6).
+- Gaps: no dedicated component test added for the new segmented
+  control/selects (same pre-existing gap as T4/T8 — no component/route test
+  for this page); light/dark mode and 375px-width visual check not run
+  (needs the parent's browser-based check).

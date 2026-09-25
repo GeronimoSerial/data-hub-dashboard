@@ -17,7 +17,7 @@
 //   Superior/Servicios Educativos). Supersede a inicial-2026-padron.json
 //   (sólo inicial, con alumnos_activos — ese archivo y su manejo se
 //   eliminaron). Snapshot: data/natalidad/escuelas-2026-padron.json.
-import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
+import type { Feature, FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import { normalizarNombreDepartamento } from './departamentos'
 import { distanciaMinimaAlContorno, puntoDentroDeFeatureCollection, type Punto } from './geo'
 
@@ -695,4 +695,72 @@ export function construirExpresionStep(
     expresion.push(breaks[i], colors[i + 1])
   }
   return expresion
+}
+
+// ── Rango de años seleccionable (T10: resumen provincial/popup por rango) ──
+//
+// El título del mapa y el popup de departamento mostraban siempre la
+// variación fija meta.anioInicio→meta.anioFin, sin importar los controles
+// (año elegido en modo "año", o el par Desde/Hasta en modo "variación").
+// Estas dos funciones acotan las opciones de cada selector para que "Hasta"
+// nunca pueda quedar <= "Desde" (en vez de permitir un rango invertido y
+// tener que decidir qué hacer con él después).
+
+/** Años válidos para "Hasta": estrictamente mayores que `desde`. */
+export function opcionesAnioHasta(anios: number[], desde: number): number[] {
+  return anios.filter((anio) => anio > desde)
+}
+
+/** Años válidos para "Desde": estrictamente menores que `hasta`. */
+export function opcionesAnioDesde(anios: number[], hasta: number): number[] {
+  return anios.filter((anio) => anio < hasta)
+}
+
+// ── Búsqueda de escuelas (T10: buscador en el mapa) ─────────────────────────
+
+/** Minúsculas + sin diacríticos, reutilizando la misma normalización que ya usa el matching de departamentos. */
+function normalizarTextoBusqueda(texto: string): string {
+  return normalizarNombreDepartamento(texto)
+}
+
+export interface ResultadoBusquedaEscuela {
+  feature: Feature<Point, EscuelaProperties>
+  /** Menor = mejor match; usado sólo para ordenar, no se expone en UI. */
+  rango: number
+}
+
+/**
+ * Busca escuelas por nombre, CUE-anexo o localidad — insensible a mayúsculas
+ * y acentos. Ordena por calidad de match (prefijo de nombre primero, después
+ * prefijo de CUE, después coincidencia en cualquier posición de nombre/CUE/
+ * localidad) y por nombre alfabético dentro de un mismo rango. Nunca busca
+ * con menos de 2 caracteres (evita listar "todo" con una tecla).
+ */
+export function buscarEscuelas(
+  featureCollection: FeatureCollection<Point, EscuelaProperties>,
+  query: string,
+  limite = 8,
+): Feature<Point, EscuelaProperties>[] {
+  const q = normalizarTextoBusqueda(query)
+  if (q.length < 2) return []
+
+  const hits: ResultadoBusquedaEscuela[] = []
+  for (const feature of featureCollection.features) {
+    const props = feature.properties
+    const nombre = normalizarTextoBusqueda(props.nombre)
+    const cue = normalizarTextoBusqueda(props.cueAnexo)
+    const localidad = normalizarTextoBusqueda(props.localidad)
+
+    let rango: number | null = null
+    if (nombre.startsWith(q)) rango = 0
+    else if (cue.startsWith(q)) rango = 1
+    else if (nombre.includes(q)) rango = 2
+    else if (cue.includes(q)) rango = 3
+    else if (localidad.includes(q)) rango = 4
+
+    if (rango != null) hits.push({ feature, rango })
+  }
+
+  hits.sort((a, b) => a.rango - b.rango || a.feature.properties.nombre.localeCompare(b.feature.properties.nombre))
+  return hits.slice(0, limite).map((hit) => hit.feature)
 }

@@ -35,7 +35,27 @@ export function SelectContent({
 }: React.ComponentProps<typeof SelectPrimitive.Popup>) {
   return (
     <SelectPrimitive.Portal>
-      <SelectPrimitive.Positioner className="ui-select-positioner" sideOffset={6}>
+      {/*
+        `alignItemWithTrigger` (default true) makes the popup align the
+        *currently selected item* over the trigger, like a native OS picker —
+        that mode positions the popup imperatively after mount by measuring
+        the selected `SelectItem`'s offset, and if that measurement doesn't
+        settle (observed inside the natalidad map overlay and the
+        Estadísticas panel: the popup opened detached at the viewport's
+        top-left corner instead of anchored under the trigger) it never
+        applies, leaving the popup at its unpositioned default. Explicit
+        `side`/`align` below make this a conventional anchored dropdown
+        (floating-ui driven, viewport-fixed via the trigger's own rect),
+        which is both more predictable across containers and the more common
+        expected behavior for this project's selects.
+      */}
+      <SelectPrimitive.Positioner
+        className="ui-select-positioner"
+        alignItemWithTrigger={false}
+        side="bottom"
+        align="start"
+        sideOffset={6}
+      >
         <SelectPrimitive.Popup className={cn('ui-select-popup', className)} {...props} />
       </SelectPrimitive.Positioner>
     </SelectPrimitive.Portal>

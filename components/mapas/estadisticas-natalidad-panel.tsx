@@ -1,16 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState, type JSX } from 'react'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import {
   construirKpis,
-  construirOfertaInicialVsCohorte,
+  construirNacidosPorSeccionCohorte,
   construirSerieProvincialNacimientos,
   construirVariacionNacimientosPorDepartamento,
   type FiltroDepartamento,
 } from '@/lib/mapas/estadisticas-natalidad'
 import type { DatosNatalidad } from '@/lib/mapas/natalidad'
 import {
-  GraficoOfertaInicialVsCohorte,
+  GraficoNacidosPorSeccion,
   GraficoSerieNacimientos,
   GraficoVariacionPorDepartamento,
 } from './estadisticas-natalidad-graficos'
@@ -60,32 +61,43 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
     () => (datos ? construirVariacionNacimientosPorDepartamento(datos) : []),
     [datos],
   )
-  const ofertaVsCohorte = useMemo(
-    () => (datos ? construirOfertaInicialVsCohorte(datos, filtro) : { anioCohorte: 0, filas: [] }),
+  const nacidosPorSeccion = useMemo(
+    () =>
+      datos
+        ? construirNacidosPorSeccionCohorte(datos, filtro)
+        : { ciclo: 0, aniosCohorte: [], filas: [], provincia: { departamento: '', nacidosCohorte: 0, secciones: 0, nacidosPorSeccion: null } },
     [datos, filtro],
   )
   const kpis = useMemo(
     () => (datos ? construirKpis(datos, filtro) : null),
     [datos, filtro],
   )
+  const itemsDepartamento = useMemo(() => {
+    if (!datos) return { Todos: 'Todos' }
+    return {
+      Todos: 'Todos',
+      ...Object.fromEntries(datos.departamentos.map((d) => [d.clave, d.nombre])),
+    }
+  }, [datos])
 
   if (error) return <div className="map-status map-status-error">{error}</div>
   if (!datos || !kpis) return <div className="map-status">Cargando estadísticas…</div>
 
   return (
     <div className="evolucion-panel">
-      <div className="natalidad-filtro-departamento">
-        <label>
-          Departamento:{' '}
-          <select value={filtro} onChange={(e) => setFiltro(e.target.value)}>
-            <option value="Todos">Todos</option>
+      <div className="natalidad-filtro-departamento map-filtro-campo">
+        <span className="map-filtro-label">Departamento</span>
+        <Select value={filtro} items={itemsDepartamento} onValueChange={(v) => v != null && setFiltro(String(v))}>
+          <SelectTrigger className="map-filtro-input" aria-label="Departamento" />
+          <SelectContent>
+            <SelectItem value="Todos">Todos</SelectItem>
             {datos.departamentos.map((d) => (
-              <option key={d.clave} value={d.clave}>
+              <SelectItem key={d.clave} value={d.clave}>
                 {d.nombre}
-              </option>
+              </SelectItem>
             ))}
-          </select>
-        </label>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="natalidad-kpis">
@@ -128,15 +140,20 @@ export function EstadisticasNatalidadPanel(): JSX.Element {
       </div>
 
       <div className="evolucion-vista">
-        <h3 className="evolucion-subtitulo">
-          Oferta de inicial vs. cohorte de Sala de 3 (nacidos en {ofertaVsCohorte.anioCohorte})
-        </h3>
+        <h3 className="evolucion-subtitulo">Nacidos por sección de Sala de 3 a 5 (ciclo {nacidosPorSeccion.ciclo})</h3>
         <p className="evolucion-descripcion">
-          Por qué importa: compara, por departamento, las secciones de nivel inicial disponibles hoy contra el
-          tamaño de la cohorte que efectivamente entra a Sala de 3 este ciclo (nacidos {ofertaVsCohorte.anioCohorte}
-          , ~3 años atrás de {datos.meta.anioFin}) — la comparación central del mapa, por departamento.
+          Por qué importa: nacidos de las cohortes que hoy ocupan Sala de 3 a 5 (
+          {nacidosPorSeccion.aniosCohorte.join(', ')}) sobre las secciones que las reciben (Sala de 3/4/5, Plurisala
+          y Sala Integrada) — pocos nacidos por sección sugieren sobreoferta o secciones muy chicas; muchos,
+          presión sobre la oferta actual.
         </p>
-        <GraficoOfertaInicialVsCohorte filas={ofertaVsCohorte.filas} />
+        <GraficoNacidosPorSeccion filas={nacidosPorSeccion.filas} provincia={nacidosPorSeccion.provincia} />
+        <p className="evolucion-descripcion natalidad-nota-metodologica">
+          Alineación de cohorte: Sala de 5 ≈ nacidos {nacidosPorSeccion.ciclo - 6}, Sala de 4 ≈ nacidos{' '}
+          {nacidosPorSeccion.ciclo - 5}, Sala de 3 ≈ nacidos {nacidosPorSeccion.ciclo - 4} (cumple la edad al 30/6 del
+          ciclo). Nacidos vivos por domicilio de la madre (DEIS), no del establecimiento. Departamentos sin
+          secciones de ese tramo quedan excluidos del gráfico (división inválida), no en 0.
+        </p>
       </div>
     </div>
   )

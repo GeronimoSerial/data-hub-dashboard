@@ -51,38 +51,122 @@ export function construirVariacionNacimientosPorDepartamento(
     })
 }
 
-// ── 3. Oferta de inicial vs. cohorte de nacidos que hoy entra a Sala de 3 ───
+// ── 3. Nacidos por sección de Sala de 3 a 5 (ciclo 2026) ────────────────────
+//
+// Bug corregido (2026-09-25, revisión visual del coordinador): la versión
+// original de este gráfico (construirOfertaInicialVsCohorte, retirada) tenía
+// dos problemas: (a) alineación de cohorte incorrecta — usaba `anioFin - 3`
+// (2020) como si fuera "la cohorte de Sala de 3", cuando en el ciclo lectivo
+// 2026 esa cohorte (nacidos que cumplen 3 años y entran a Sala de 3) nació en
+// 2022, no en 2020 — la correspondencia correcta, con la regla "cumple la
+// edad al 30 de junio del ciclo", es Sala de 5 ≈ nacidos ciclo-6, Sala de 4 ≈
+// ciclo-5, Sala de 3 ≈ ciclo-4; (b) graficaba secciones (decenas) y nacidos
+// (miles) en el mismo eje — unidades distintas, ilegible.
 
-export interface FilaOfertaInicialVsCohorte {
-  departamento: string
-  secciones: number
-  nacidosCohorte: number
+/**
+ * Ciclo lectivo del padrón de secciones (fijo al snapshot de datos —
+ * `meta.fuenteSecciones` = "padrón Gestión Educativa, ciclo 2026" — no se
+ * deriva de `meta.anioFin` porque el padrón es una fuente aparte del rango de
+ * nacidos vivos y no se re-extraen juntos).
+ */
+export const CICLO_PADRON_SECCIONES = 2026
+
+/** Sala de 3/4/5: las tres salas cuya cohorte de ingreso puede calcularse a partir de la natalidad. */
+const SALAS_COHORTE = [3, 4, 5] as const
+
+/** Cursos que efectivamente reciben esas cohortes por edad — excluye "Sala Especial" (oferta de otro tipo). */
+const CURSOS_DENOMINADOR = ['Sala de 3', 'Sala de 4', 'Sala de 5', 'Plurisala', 'Sala Integrada']
+
+/** Año de nacimiento de la cohorte de una sala, dado el ciclo lectivo (cumple la edad al 30/6 del ciclo). */
+function anioNacimientoCohorte(sala: number, ciclo: number): number {
+  return ciclo - (sala + 1)
 }
 
-export interface OfertaInicialVsCohorte {
-  /** Año de nacimiento de la cohorte que hoy tiene ~3 años (anioFin - 3, acotado a anioInicio si el rango es corto). */
-  anioCohorte: number
-  filas: FilaOfertaInicialVsCohorte[]
+/** [anioCohorteSala3, anioCohorteSala4, anioCohorteSala5], en ese orden. */
+export function aniosCohorteInicial(ciclo: number = CICLO_PADRON_SECCIONES): number[] {
+  return SALAS_COHORTE.map((sala) => anioNacimientoCohorte(sala, ciclo))
+}
+
+function sumarSerie(serie: Record<string, number>, anios: number[]): number {
+  return anios.reduce((total, anio) => total + (serie[String(anio)] ?? 0), 0)
+}
+
+function sumarSeccionesDenominador(seccionesPorCurso: Record<string, number>): number {
+  return CURSOS_DENOMINADOR.reduce((total, curso) => total + (seccionesPorCurso[curso] ?? 0), 0)
+}
+
+export interface FilaNacidosPorSeccion {
+  departamento: string
+  nacidosCohorte: number
+  secciones: number
+  /** null cuando `secciones === 0` — división inválida, excluido de la comparación pero nunca ocultado en silencio (ver `sinSecciones` en el panel). */
+  nacidosPorSeccion: number | null
+}
+
+export interface NacidosPorSeccionCohorte {
+  ciclo: number
+  /** [anioSala3, anioSala4, anioSala5]. */
+  aniosCohorte: number[]
+  filas: FilaNacidosPorSeccion[]
+  /** Valor provincial (siempre sobre los 25 departamentos, no filtrado) — referencia para el gráfico. */
+  provincia: FilaNacidosPorSeccion
 }
 
 /**
- * Compara, por departamento, la oferta actual de secciones de Inicial contra
- * los nacidos vivos de la cohorte que hoy entra a Sala de 3 (nacidos
- * `anioFin - 3` años atrás) — la comparación central del mapa (nacidos vivos
- * → oferta de inicial), llevada a la pestaña de estadísticas con la
- * alineación de cohorte explícita en el resultado (`anioCohorte`).
+ * Nacidos de las tres cohortes que hoy ocupan Sala de 3 a 5, sobre la
+ * cantidad de secciones que efectivamente las reciben (Sala de 3/4/5 +
+ * Plurisala + Sala Integrada — "Sala Especial" queda afuera, es oferta de
+ * otro tipo). `filtro` recorta las filas mostradas; `provincia` es siempre
+ * el total de los 25 departamentos, para poder dibujarse como línea de
+ * referencia sin importar el filtro activo.
  */
-export function construirOfertaInicialVsCohorte(
+export function construirNacidosPorSeccionCohorte(
   datos: DatosNatalidad,
   filtro: FiltroDepartamento,
-): OfertaInicialVsCohorte {
-  const anioCohorte = Math.max(datos.meta.anioInicio, datos.meta.anioFin - 3)
-  const filas = filtrarDepartamentos(datos, filtro).map((d) => ({
-    departamento: d.nombre,
-    secciones: d.porNivel.Inicial.secciones,
-    nacidosCohorte: d.serie[String(anioCohorte)] ?? 0,
-  }))
-  return { anioCohorte, filas }
+): NacidosPorSeccionCohorte {
+  const ciclo = CICLO_PADRON_SECCIONES
+  const aniosCohorte = aniosCohorteInicial(ciclo)
+
+  function fila(
+    nombre: string,
+    serie: Record<string, number>,
+    seccionesPorCurso: Record<string, number>,
+  ): FilaNacidosPorSeccion {
+    const nacidosCohorte = sumarSerie(serie, aniosCohorte)
+    const secciones = sumarSeccionesDenominador(seccionesPorCurso)
+    return {
+      departamento: nombre,
+      nacidosCohorte,
+      secciones,
+      nacidosPorSeccion: secciones > 0 ? nacidosCohorte / secciones : null,
+    }
+  }
+
+  const filas = filtrarDepartamentos(datos, filtro)
+    .map((d) => fila(d.nombre, d.serie, d.inicial.seccionesPorCurso))
+    .sort((a, b) => {
+      if (a.nacidosPorSeccion == null) return 1
+      if (b.nacidosPorSeccion == null) return -1
+      return b.nacidosPorSeccion - a.nacidosPorSeccion
+    })
+
+  const seccionesProvincia = datos.departamentos.reduce(
+    (total, d) => total + sumarSeccionesDenominador(d.inicial.seccionesPorCurso),
+    0,
+  )
+  const nacidosProvincia = sumarSerie(datos.provincia.serie, aniosCohorte)
+
+  return {
+    ciclo,
+    aniosCohorte,
+    filas,
+    provincia: {
+      departamento: 'Corrientes (provincia)',
+      nacidosCohorte: nacidosProvincia,
+      secciones: seccionesProvincia,
+      nacidosPorSeccion: seccionesProvincia > 0 ? nacidosProvincia / seccionesProvincia : null,
+    },
+  }
 }
 
 // ── KPIs ─────────────────────────────────────────────────────────────────────

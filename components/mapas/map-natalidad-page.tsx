@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import MapGL, {
   Layer,
   NavigationControl,
@@ -19,12 +19,13 @@ import type {
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
-import { BasemapControl } from '@/components/mapas/basemap-control'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { Checkbox } from '@/components/ui/checkbox'
-import { RadioGroup, RadioItem } from '@/components/ui/radio'
-import { BASEMAPS, type BasemapId } from '@/lib/map-types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { SegmentedGroup, SegmentedItem } from '@/components/ui/toggle-group'
+import { BASEMAPS } from '@/lib/map-types'
 import { ensureMapWorker } from '@/lib/map-worker'
 import {
   COLORES_DEPARTAMENTO,
@@ -36,16 +37,23 @@ import {
   normalizarNombreDepartamento,
 } from '@/lib/mapas/departamentos'
 import {
+  buscarEscuelas,
+  calcularVariacion,
   COLOR_SIN_DATO,
   colorSecuencial,
   colorVariacion,
   construirEscalaSecuencial,
   construirPuntosSparkline,
-  NIVELES,
+  ESCALA_VARIACION_BREAKS,
+  ESCALA_VARIACION_COLORS,
+  opcionesAnioDesde,
+  opcionesAnioHasta,
   type DatosNatalidad,
   type DepartamentoNatalidad,
   type EscuelaProperties,
   type Nivel,
+  type SerieAnual,
+  type Variacion,
 } from '@/lib/mapas/natalidad'
 
 // Feedback 2026-09-25: el popup de departamento sólo compara la natalidad
@@ -65,6 +73,7 @@ const CAPA_DEPARTAMENTO_HOVER_ID = 'natalidad-departamento-hover'
 const CAPA_ESCUELAS_ID = 'natalidad-escuelas'
 const CAPA_ESCUELAS_CLUSTER_ID = 'natalidad-escuelas-cluster'
 const CAPA_ESCUELAS_CLUSTER_COUNT_ID = 'natalidad-escuelas-cluster-count'
+const CAPA_ESCUELA_RESALTADA_ID = 'natalidad-escuela-resaltada'
 
 // Zoom al que supercluster deja de agrupar puntos individuales — mismo
 // umbral que usa el mapa de infraestructura (map-infraestructura-page.tsx)
@@ -72,7 +81,6 @@ const CAPA_ESCUELAS_CLUSTER_COUNT_ID = 'natalidad-escuelas-cluster-count'
 const CAPA_ESCUELAS_CLUSTER_MAX_ZOOM = 12
 
 type ModoMetrica = 'anio' | 'variacion'
-type FiltroNivel = 'Todos' | Nivel
 
 // Color teal (#0f766e) reservado para inicial — es la comparación central
 // del mapa (nacimientos vs. oferta de inicial), así que se mantiene
@@ -161,12 +169,131 @@ function Sparkline({ serie, anios }: { serie: DepartamentoNatalidad['serie']; an
   )
 }
 
+/** Selector de año (Select con primitivas del proyecto) reutilizado por el modo "año" y por el par "Desde/Hasta" del modo "variación". */
+function AnioSelect({
+  label,
+  anios,
+  value,
+  onChange,
+}: {
+  label: string
+  anios: number[]
+  value: number | null
+  onChange: (anio: number) => void
+}) {
+  const items = useMemo(() => Object.fromEntries(anios.map((anio) => [String(anio), String(anio)])), [anios])
+  return (
+    <div className="map-filtro-campo">
+      <span className="map-filtro-label">{label}</span>
+      <Select
+        value={value != null ? String(value) : undefined}
+        items={items}
+        onValueChange={(next) => next != null && onChange(Number(next))}
+      >
+        <SelectTrigger className="map-filtro-input" aria-label={label} />
+        <SelectContent>
+          {anios.map((anio) => (
+            <SelectItem key={anio} value={String(anio)}>
+              {anio}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
+/** "vs. {anio}: {pct}" — nunca "vs. 0%" fabricado cuando el año base no tiene dato (calcularVariacion ya devuelve pct: null en ese caso). */
+function fmtVariacionContra(anioBase: number, variacion: Variacion): string {
+  return `vs. ${anioBase}: ${fmtPct(variacion.pct)}`
+}
+
+/** Buscador de escuelas (T10, feedback 2026-09-25): por nombre, CUE-anexo o localidad,
+    insensible a mayúsculas/acentos (buscarEscuelas, lib/mapas/natalidad.ts). Navegación
+    por teclado (↑/↓/Enter/Escape) — el buscador de establecimientos existente
+    (components/mapas/search-box.tsx, usado en el mapa de matrícula) no la tenía, se
+    agrega acá porque el feedback la pidió explícitamente. Lista de resultados sin
+    scroll propio (crece con el contenedor), igual que search-box.tsx. */
+function EscuelaSearchBox({
+  escuelas,
+  onSeleccionar,
+}: {
+  escuelas: FeatureCollection<Point, EscuelaProperties>
+  onSeleccionar: (feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) => void
+}) {
+  const [query, setQuery] = useState('')
+  const [activo, setActivo] = useState(0)
+
+  const resultados = useMemo(() => buscarEscuelas(escuelas, query, 8), [escuelas, query])
+
+  function seleccionar(feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) {
+    onSeleccionar(feature)
+    setQuery('')
+    setActivo(0)
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (resultados.length === 0) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActivo((i) => (i + 1) % resultados.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActivo((i) => (i - 1 + resultados.length) % resultados.length)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      seleccionar(resultados[activo] ?? resultados[0])
+    } else if (event.key === 'Escape') {
+      setQuery('')
+    }
+  }
+
+  return (
+    <div className="map-filtro-campo natalidad-buscador">
+      <span className="map-filtro-label">Buscar escuela</span>
+      <Input
+        type="search"
+        placeholder="Nombre, CUE o localidad…"
+        value={query}
+        onChange={(event) => {
+          setQuery(event.currentTarget.value)
+          setActivo(0)
+        }}
+        onKeyDown={handleKeyDown}
+        aria-label="Buscar escuela por nombre, CUE-anexo o localidad"
+      />
+      {resultados.length > 0 && (
+        <ul className="map-search-results" role="listbox">
+          {resultados.map((feature, i) => (
+            <li key={feature.properties.cueAnexo} role="option" aria-selected={i === activo}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={`map-search-hit${i === activo ? ' natalidad-buscador-activo' : ''}`}
+                onClick={() => seleccionar(feature)}
+                onMouseEnter={() => setActivo(i)}
+              >
+                <span>
+                  <div>{feature.properties.nombre}</div>
+                  <div className="map-popup-muted">
+                    {feature.properties.cueAnexo} · {feature.properties.localidad}
+                  </div>
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 export default function MapNatalidadPage() {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
 
-  const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [datos, setDatos] = useState<DatosNatalidad | null>(null)
   const [escuelas, setEscuelas] = useState<FeatureCollection<Point, EscuelaProperties> | null>(null)
   const [departamentosGeojson, setDepartamentosGeojson] = useState<FeatureCollection<
@@ -179,8 +306,6 @@ export default function MapNatalidadPage() {
   const [anioSeleccionado, setAnioSeleccionado] = useState<number | null>(null)
   const [anioVariacionA, setAnioVariacionA] = useState<number | null>(null)
   const [anioVariacionB, setAnioVariacionB] = useState<number | null>(null)
-  const [capaEscuelasVisible, setCapaEscuelasVisible] = useState(true)
-  const [filtroNivel, setFiltroNivel] = useState<FiltroNivel>('Todos')
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<{
     clave: string
     lng: number
@@ -191,6 +316,10 @@ export default function MapNatalidadPage() {
     lng: number
     lat: number
   } | null>(null)
+  // Escuela resaltada por el buscador (T10): un círculo aparte, no un estado
+  // de la capa de clusters — el marcador buscado puede estar agrupado en un
+  // cluster hasta que el flyTo termine de acercar el zoom.
+  const [escuelaResaltada, setEscuelaResaltada] = useState<{ lng: number; lat: number } | null>(null)
 
   useEffect(() => {
     let cancelado = false
@@ -237,6 +366,15 @@ export default function MapNatalidadPage() {
     return construirEscalaSecuencial(valores)
   }, [datos, anioSeleccionado])
 
+  // Bug corregido (2026-09-25): la leyenda de "Variación %" mostraba sólo la
+  // fila "Sin dato" (siempre, incluso cuando ningún departamento la tenía) y
+  // nunca los tramos de color divergentes — se agregan abajo en el render
+  // (ESCALA_VARIACION_BREAKS/COLORS) y esta fila pasa a ser condicional.
+  const hayVariacionSinDato = useMemo(() => {
+    if (!datos || anioVariacionA == null) return false
+    return datos.departamentos.some((d) => (d.serie[String(anioVariacionA)] ?? 0) <= 0)
+  }, [datos, anioVariacionA])
+
   const departamentosConDato = useMemo(() => {
     if (!departamentosGeojson) return null
 
@@ -269,19 +407,62 @@ export default function MapNatalidadPage() {
     return { type: 'FeatureCollection' as const, features }
   }, [departamentosGeojson, departamentosPorClave, modo, anioSeleccionado, anioVariacionA, anioVariacionB, escalaAnio])
 
-  // Filtro por nivel: se resuelve en JS (no como expresión MapLibre) porque
-  // cada escuela trae su lista completa `niveles` (con secciones y cursos)
-  // en vez de una propiedad plana por nivel — más simple de mantener acá que
-  // duplicar la lógica como expresión de estilo, y a ~2000 puntos el costo
-  // de recalcular el FeatureCollection es despreciable.
-  const escuelasFiltradas = useMemo(() => {
-    if (!escuelas) return null
-    if (filtroNivel === 'Todos') return escuelas
-    const features = escuelas.features.filter((f) => f.properties.niveles.some((n) => n.nivel === filtroNivel))
-    return { type: 'FeatureCollection' as const, features }
-  }, [escuelas, filtroNivel])
+  // Rango efectivo del resumen (T10, corrección 2026-09-25): el panel de
+  // título y el popup de departamento mostraban siempre la variación fija
+  // meta.anioInicio→meta.anioFin, ignorando los controles. Ahora siguen el
+  // modo activo: en "año" es meta.anioInicio→año elegido (elegimos el primer
+  // año de la serie como base, no el año anterior, para que sea válido
+  // incluso cuando el año elegido es el primero — 0% explícito en vez de
+  // "sin dato anterior"); en "variación" es el propio par Desde/Hasta.
+  const rangoResumen =
+    datos && modo === 'anio' && anioSeleccionado != null
+      ? { desde: datos.meta.anioInicio, hasta: anioSeleccionado }
+      : datos && modo === 'variacion' && anioVariacionA != null && anioVariacionB != null
+        ? { desde: anioVariacionA, hasta: anioVariacionB }
+        : null
 
-  const mapStyle = BASEMAPS[basemap].styleUrl
+  const variacionProvincialResumen: Variacion | null =
+    datos && rangoResumen ? calcularVariacion(datos.provincia.serie, rangoResumen.desde, rangoResumen.hasta) : null
+
+  function valorSerie(serie: SerieAnual, anio: number): number {
+    return serie[String(anio)] ?? 0
+  }
+
+  // Guarda "Hasta > Desde" (T10): cambiar un extremo del par nunca deja el
+  // otro en un estado inválido — si el nuevo valor lo invalida, el otro
+  // extremo se ajusta al año válido más cercano.
+  function handleCambiarDesde(nuevoDesde: number) {
+    setAnioVariacionA(nuevoDesde)
+    if (anioVariacionB != null && anioVariacionB <= nuevoDesde) {
+      const opciones = datos ? opcionesAnioHasta(datos.meta.anios, nuevoDesde) : []
+      setAnioVariacionB(opciones[0] ?? null)
+    }
+  }
+
+  function handleCambiarHasta(nuevoHasta: number) {
+    setAnioVariacionB(nuevoHasta)
+    if (anioVariacionA != null && anioVariacionA >= nuevoHasta) {
+      const opciones = datos ? opcionesAnioDesde(datos.meta.anios, nuevoHasta) : []
+      setAnioVariacionA(opciones[opciones.length - 1] ?? null)
+    }
+  }
+
+  function handleSeleccionarEscuelaBuscada(feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) {
+    if (feature.geometry.type !== 'Point') return
+    const [lng, lat] = feature.geometry.coordinates
+    setDepartamentoSeleccionado(null)
+    setEscuelaSeleccionada({ props: feature.properties, lng, lat })
+    setEscuelaResaltada({ lng, lat })
+    // Zoom > CAPA_ESCUELAS_CLUSTER_MAX_ZOOM (12): el resultado buscado se
+    // desagrupa de su cluster antes de que termine el flyTo.
+    mapRef.current?.flyTo({ center: [lng, lat], zoom: 14, duration: 900 })
+  }
+
+  // Sin filtro de nivel (feedback 2026-09-25): el mapa siempre muestra todas
+  // las escuelas geolocalizadas, con Inicial resaltado en teal — el filtro de
+  // nivel del panel de la derecha se sacó por no aportar valor, ver
+  // odd/tasks/mapa-natalidad.md T9.
+  const mapStyle = BASEMAPS.voyager.styleUrl
 
   // Feedback 2026-09-25: el popup de departamento se muestra al pasar el
   // mouse (sigue al cursor, se cierra al salir del polígono o del mapa) en
@@ -311,6 +492,7 @@ export default function MapNatalidadPage() {
     const escuela = features.find((f) => f.layer?.id === CAPA_ESCUELAS_ID)
     if (escuela?.geometry.type === 'Point') {
       setDepartamentoSeleccionado(null)
+      setEscuelaResaltada(null)
       setEscuelaSeleccionada({
         props: escuela.properties as unknown as EscuelaProperties,
         lng: escuela.geometry.coordinates[0],
@@ -322,17 +504,16 @@ export default function MapNatalidadPage() {
     const clave = departamento?.properties?.clave
     if (typeof clave === 'string') {
       setEscuelaSeleccionada(null)
+      setEscuelaResaltada(null)
       setDepartamentoSeleccionado({ clave, lng: event.lngLat.lng, lat: event.lngLat.lat })
       return
     }
     setDepartamentoSeleccionado(null)
     setEscuelaSeleccionada(null)
+    setEscuelaResaltada(null)
   }
 
-  const capasInteractivas = [
-    CAPA_DEPARTAMENTOS_RELLENO_ID,
-    ...(capaEscuelasVisible ? [CAPA_ESCUELAS_ID] : []),
-  ]
+  const capasInteractivas = [CAPA_DEPARTAMENTOS_RELLENO_ID, CAPA_ESCUELAS_ID]
 
   const dptoSeleccionadoDatos = departamentoSeleccionado
     ? departamentosPorClave.get(departamentoSeleccionado.clave)
@@ -342,7 +523,7 @@ export default function MapNatalidadPage() {
     return <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
   }
 
-  if (!datos || !departamentosConDato || !escuelasFiltradas) {
+  if (!datos || !departamentosConDato || !escuelas) {
     return <div className={styles.status}>Cargando mapa…</div>
   }
 
@@ -380,36 +561,68 @@ export default function MapNatalidadPage() {
             />
           </Source>
 
-          {capaEscuelasVisible && (
+          {/* Feedback 2026-09-25: las escuelas ya no tienen un toggle "Mostrar
+              escuelas" — siempre visibles, Inicial resaltado en teal. */}
+          <Source
+            id="natalidad-escuelas-src"
+            type="geojson"
+            data={escuelas}
+            cluster={true}
+            clusterMaxZoom={CAPA_ESCUELAS_CLUSTER_MAX_ZOOM}
+            clusterRadius={40}
+            clusterProperties={{
+              esInicialEnCluster: ['max', ['case', ['get', 'esInicial'], 1, 0]],
+            }}
+          >
+            <Layer
+              id={CAPA_ESCUELAS_ID}
+              type="circle"
+              filter={['!', ['has', 'point_count']]}
+              paint={circlePaintEscuelas()}
+            />
+            <Layer
+              id={CAPA_ESCUELAS_CLUSTER_ID}
+              type="circle"
+              filter={['has', 'point_count']}
+              paint={circlePaintClusterEscuelas()}
+            />
+            <Layer
+              id={CAPA_ESCUELAS_CLUSTER_COUNT_ID}
+              type="symbol"
+              filter={['has', 'point_count']}
+              layout={symbolLayoutClusterCount()}
+              paint={{ 'text-color': '#ffffff' }}
+            />
+          </Source>
+
+          {/* Resalta la escuela elegida en el buscador (T10) con un anillo aparte
+              — no toca circlePaintEscuelas/circlePaintClusterEscuelas, así que se
+              ve encima tanto de un punto individual como de un cluster todavía sin
+              desagrupar mientras el flyTo llega al zoom que lo desagrupa. */}
+          {escuelaResaltada && (
             <Source
-              id="natalidad-escuelas-src"
+              id="natalidad-escuela-resaltada-src"
               type="geojson"
-              data={escuelasFiltradas}
-              cluster={true}
-              clusterMaxZoom={CAPA_ESCUELAS_CLUSTER_MAX_ZOOM}
-              clusterRadius={40}
-              clusterProperties={{
-                esInicialEnCluster: ['max', ['case', ['get', 'esInicial'], 1, 0]],
+              data={{
+                type: 'FeatureCollection',
+                features: [
+                  {
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [escuelaResaltada.lng, escuelaResaltada.lat] },
+                    properties: {},
+                  },
+                ],
               }}
             >
               <Layer
-                id={CAPA_ESCUELAS_ID}
+                id={CAPA_ESCUELA_RESALTADA_ID}
                 type="circle"
-                filter={['!', ['has', 'point_count']]}
-                paint={circlePaintEscuelas()}
-              />
-              <Layer
-                id={CAPA_ESCUELAS_CLUSTER_ID}
-                type="circle"
-                filter={['has', 'point_count']}
-                paint={circlePaintClusterEscuelas()}
-              />
-              <Layer
-                id={CAPA_ESCUELAS_CLUSTER_COUNT_ID}
-                type="symbol"
-                filter={['has', 'point_count']}
-                layout={symbolLayoutClusterCount()}
-                paint={{ 'text-color': '#ffffff' }}
+                paint={{
+                  'circle-radius': 11,
+                  'circle-color': 'transparent',
+                  'circle-stroke-color': '#f59e0b',
+                  'circle-stroke-width': 3,
+                }}
               />
             </Source>
           )}
@@ -429,13 +642,26 @@ export default function MapNatalidadPage() {
                   <b>Nacidos vivos {anioSeleccionado}:</b>{' '}
                   {fmt(dptoSeleccionadoDatos.serie[String(anioSeleccionado)] ?? 0)}
                 </div>
-                <div className={styles.popupRow}>
-                  <b>
-                    Variación {datos.meta.anioInicio}→{datos.meta.anioFin}:
-                  </b>{' '}
-                  {fmtPct(dptoSeleccionadoDatos.variacion.pct)} ({dptoSeleccionadoDatos.variacion.abs >= 0 ? '+' : ''}
-                  {fmt(dptoSeleccionadoDatos.variacion.abs)})
-                </div>
+                {rangoResumen && (
+                  <div className={styles.popupRow}>
+                    <b>
+                      Variación {rangoResumen.desde}→{rangoResumen.hasta}:
+                    </b>{' '}
+                    {(() => {
+                      const variacionRango = calcularVariacion(
+                        dptoSeleccionadoDatos.serie,
+                        rangoResumen.desde,
+                        rangoResumen.hasta,
+                      )
+                      return (
+                        <>
+                          {fmtPct(variacionRango.pct)} ({variacionRango.abs >= 0 ? '+' : ''}
+                          {fmt(variacionRango.abs)})
+                        </>
+                      )
+                    })()}
+                  </div>
+                )}
                 <Sparkline serie={dptoSeleccionadoDatos.serie} anios={datos.meta.anios} />
                 <hr className={styles.popupRule} />
                 {/* Feedback 2026-09-25: sólo Inicial y Primario, que son los
@@ -466,7 +692,10 @@ export default function MapNatalidadPage() {
               longitude={escuelaSeleccionada.lng}
               latitude={escuelaSeleccionada.lat}
               anchor="bottom"
-              onClose={() => setEscuelaSeleccionada(null)}
+              onClose={() => {
+                setEscuelaSeleccionada(null)
+                setEscuelaResaltada(null)
+              }}
               closeOnClick={false}
               maxWidth="320px"
             >
@@ -524,93 +753,71 @@ export default function MapNatalidadPage() {
           Nacidos vivos: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}. {datos.meta.fuenteSecciones}.
         </span>
         <br />
-        Total provincial {datos.meta.anioFin}: <b>{fmt(datos.provincia.serie[String(datos.meta.anioFin)] ?? 0)}</b> ·
-        variación {datos.meta.anioInicio}→{datos.meta.anioFin}: <b>{fmtPct(datos.provincia.variacion.pct)}</b>
-      </div>
+        {/* Bug corregido (2026-09-25): este resumen quedaba fijo en
+            meta.anioInicio→meta.anioFin sin importar los controles — ahora
+            sigue el modo activo (rangoResumen, calculado más arriba). */}
+        {modo === 'anio' && anioSeleccionado != null && variacionProvincialResumen && (
+          <>
+            Total provincial {anioSeleccionado}:{' '}
+            <b>{fmt(valorSerie(datos.provincia.serie, anioSeleccionado))}</b> ·{' '}
+            {fmtVariacionContra(datos.meta.anioInicio, variacionProvincialResumen)}
+          </>
+        )}
+        {modo === 'variacion' && anioVariacionA != null && anioVariacionB != null && variacionProvincialResumen && (
+          <>
+            {anioVariacionA}: <b>{fmt(valorSerie(datos.provincia.serie, anioVariacionA))}</b> → {anioVariacionB}:{' '}
+            <b>{fmt(valorSerie(datos.provincia.serie, anioVariacionB))}</b> ·{' '}
+            <b>{fmtPct(variacionProvincialResumen.pct)}</b>
+          </>
+        )}
 
-      <div className={styles.controlsStack}>
-        <div className={styles.controlCard}>
-          <h2 className={styles.controlHeading}>Métrica</h2>
-          <RadioGroup value={modo} onValueChange={(v) => setModo(v as ModoMetrica)}>
-            <RadioItem value="anio" label="Nacidos vivos en un año" />
-            <RadioItem value="variacion" label="% variación de nacidos vivos" />
-          </RadioGroup>
+        {/* Feedback 2026-09-25: el panel de la derecha (Métrica / Escuelas /
+            Mapa base) se sacó — "no lo siento útil" — y quedó un único
+            control compacto acá abajo: el switch de métrica más los años que
+            aplican a la métrica elegida. Escuelas y mapa base ya no son
+            configurables (ver comentarios en `mapStyle` y en la fuente de
+            escuelas más abajo). */}
+        <div className="natalidad-metrica-control">
+          <SegmentedGroup value={modo} onValueChange={(v) => setModo(v as ModoMetrica)}>
+            <SegmentedItem value="anio">Nacidos en el año</SegmentedItem>
+            <SegmentedItem value="variacion">Variación %</SegmentedItem>
+          </SegmentedGroup>
 
           {modo === 'anio' && (
-            <label className={styles.hint}>
-              Año:{' '}
-              <select
-                value={anioSeleccionado ?? ''}
-                onChange={(e) => setAnioSeleccionado(Number(e.target.value))}
-              >
-                {datos.meta.anios.map((anio) => (
-                  <option key={anio} value={anio}>
-                    {anio}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <AnioSelect
+              label="Año"
+              anios={datos.meta.anios}
+              value={anioSeleccionado}
+              onChange={setAnioSeleccionado}
+            />
           )}
 
           {modo === 'variacion' && (
-            <div className={styles.hint}>
-              <label>
-                Desde:{' '}
-                <select
-                  value={anioVariacionA ?? ''}
-                  onChange={(e) => setAnioVariacionA(Number(e.target.value))}
-                >
-                  {datos.meta.anios.map((anio) => (
-                    <option key={anio} value={anio}>
-                      {anio}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <br />
-              <label>
-                Hasta:{' '}
-                <select
-                  value={anioVariacionB ?? ''}
-                  onChange={(e) => setAnioVariacionB(Number(e.target.value))}
-                >
-                  {datos.meta.anios.map((anio) => (
-                    <option key={anio} value={anio}>
-                      {anio}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <div className="natalidad-anio-par">
+              <AnioSelect
+                label="Desde"
+                anios={anioVariacionB != null ? opcionesAnioDesde(datos.meta.anios, anioVariacionB) : datos.meta.anios}
+                value={anioVariacionA}
+                onChange={handleCambiarDesde}
+              />
+              <AnioSelect
+                label="Hasta"
+                anios={anioVariacionA != null ? opcionesAnioHasta(datos.meta.anios, anioVariacionA) : datos.meta.anios}
+                value={anioVariacionB}
+                onChange={handleCambiarHasta}
+              />
             </div>
           )}
         </div>
 
-        <div className={styles.controlCard}>
-          <h2 className={styles.controlHeading}>Escuelas</h2>
-          <Checkbox
-            label="Mostrar escuelas"
-            checked={capaEscuelasVisible}
-            onCheckedChange={setCapaEscuelasVisible}
-          />
-          {capaEscuelasVisible && (
-            <label className={styles.hint}>
-              Nivel:{' '}
-              <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value as FiltroNivel)}>
-                <option value="Todos">Todos</option>
-                {NIVELES.map((nivel) => (
-                  <option key={nivel} value={nivel}>
-                    {nivel}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-
-        <BasemapControl value={basemap} onChange={setBasemap} />
+        <EscuelaSearchBox escuelas={escuelas} onSeleccionar={handleSeleccionarEscuelaBuscada} />
       </div>
 
-      <details className={`${styles.panel} ${styles.legendPanel}`}>
+      {/* Feedback 2026-09-25: la leyenda ahora arranca ABIERTA — el mapa tiene
+          que leerse sin clickear nada. `<details open>` se mantiene (no un
+          div suelto) para conservar la afordancia de colapsarla si molesta,
+          consistente con el resto de los mapas del proyecto. */}
+      <details className={`${styles.panel} ${styles.legendPanel}`} open>
         <summary className={styles.legendSummary}>Referencias</summary>
         {modo === 'anio' && escalaAnio && (
           <>
@@ -627,15 +834,32 @@ export default function MapNatalidadPage() {
             ))}
           </>
         )}
+        {/* Bug corregido (2026-09-25): esta sección sólo mostraba la fila "Sin
+            dato" — los tramos divergentes (ESCALA_VARIACION_BREAKS/COLORS,
+            los mismos que pinta el mapa via colorVariacion) faltaban por
+            completo. "Sin dato" ahora sólo aparece si algún departamento
+            realmente no tiene base comparable en el año Desde. */}
         {modo === 'variacion' && (
           <>
             <div className={styles.hint}>
               % variación {anioVariacionA}→{anioVariacionB} (rojo = caída, azul = crecimiento)
             </div>
-            <div className={styles.legendItem}>
-              <span className={styles.swatch} style={{ background: COLOR_SIN_DATO }} />
-              Sin dato en {anioVariacionA}
-            </div>
+            {ESCALA_VARIACION_COLORS.map((color, i) => (
+              <div key={color + i} className={styles.legendItem}>
+                <span className={styles.swatch} style={{ background: color }} />
+                {i === 0
+                  ? `< ${ESCALA_VARIACION_BREAKS[0]}%`
+                  : i === ESCALA_VARIACION_COLORS.length - 1
+                    ? `≥ ${ESCALA_VARIACION_BREAKS[i - 1]}%`
+                    : `${ESCALA_VARIACION_BREAKS[i - 1]}% – ${ESCALA_VARIACION_BREAKS[i]}%`}
+              </div>
+            ))}
+            {hayVariacionSinDato && (
+              <div className={styles.legendItem}>
+                <span className={styles.swatch} style={{ background: COLOR_SIN_DATO }} />
+                Sin dato en {anioVariacionA}
+              </div>
+            )}
           </>
         )}
         <div className={styles.legendItem}>
