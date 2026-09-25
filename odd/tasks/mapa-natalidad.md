@@ -50,6 +50,9 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - [x] T3 Map page: choropleth (births per year / % change between two years), year controls, departamento popup with series, inicial school markers with salas/secciones, legend; recurso registration + ACL gate
 - [x] T4 Tests + checks (`pnpm test`, `tsc`, `lint`) and visual check
 - [x] T5 All schools (user request 2026-09-25): markers for every school from `data/natalidad/localizaciones-geo-2025-10-02.json` (converted from `2025-10-02_Localizaciones_(GEO).xlsx`, 2,049 active, 2,002 with coords, 4 outside Corrientes) enriched with padrón 2026 niveles/secciones from `data/natalidad/escuelas-2026-padron.json` (2,041 CUEs, all niveles); nivel filter, per-departamento aggregates by nivel; inicial stays highlighted for the births comparison
+  - [x] T5 correction (accepted 2026-09-25): the bbox check let through points far from any departamento as long as they fell inside the province's bounding rectangle. Replaced with point-in-polygon against the union of `public/data/departamentos-corrientes.geojson` (Polygon/MultiPolygon, holes handled) plus a 1km tolerance to the nearest boundary edge for near-coast schools the simplified geometry leaves just outside. New module `lib/mapas/geo.ts` (pure, no new dependency — ray-casting + point-to-segment distance) with `geo.test.ts`.
+- [x] T7 **withdrawn (user, 2026-09-25):** matrícula 2023–2026 per establishment extracted from `Mapa_Evolucion_Matricula_2023_2026 (1).html` (enrollment only: no zones, amounts or costs) into a committed snapshot; enrich schools and departamento aggregates on the map — reason: the source HTML only covers a panel of 288 small rural schools (median 6 students), so summing it per departamento/province was misleading. Fully removed from the feature (data file, script, lib module + tests, map choropleth mode/popups, Estadísticas chart) — see "Removal (T7 withdrawn)" below.
+- [x] T8 "Estadísticas" tab with recharts (births trend, variation by departamento, offer vs. births cohort — trimmed to Inicial/Primario), mirroring the infra map tabs. Adjusted 2026-09-25 after T7 withdrawal: dropped the matrícula KPI and the "births vs. matrícula"/"oferta by nivel" charts, replaced with a single "oferta de inicial vs. cohorte de Sala de 3" chart (see below) — 3 charts total, not 4.
 - [ ] T6 Visual check in `pnpm dev` (needs user login)
 
 ## Acceptance
@@ -142,3 +145,187 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - Verification (T5): `pnpm extract:natalidad` OK (see counts above) ·
   `pnpm test` 803/803 passed · `pnpm exec tsc --noEmit` clean · `pnpm lint`
   clean.
+
+## Accepted mid-task changes (2026-09-25, coordinator feedback)
+- T5 correction: bbox → point-in-polygon + 1km boundary tolerance for
+  coordinate sanitation (see checklist above and `lib/mapas/geo.ts`).
+- Departamento popup now opens on **hover** (follows the cursor, closes on
+  `mouseleave` of the polygon or of the map container), not click. Click on
+  a departamento still works too (touch fallback: no hover on touch, so a
+  tap must still open it). Escuela (school) markers stay **click-only**,
+  deliberately: ~2,000 points reclustered by MapLibre at different zoom
+  levels means "what feature is under the cursor" changes constantly: a
+  hover popup there would flicker/recompute on every `mousemove` and be
+  unreadable. Documented inline at `handleMouseMove`/`handleClick` in
+  `map-natalidad-page.tsx`.
+- Departamento popup "Escuelas por nivel" trimmed to **Inicial and Primario
+  only** (`NIVELES_POPUP_DEPARTAMENTO`) — Secundario/Superior/Servicios
+  Educativos dropped from that summary (not relevant to the births
+  comparison). The schools-layer nivel filter on the map is untouched (still
+  all 5 niveles).
+- Estadísticas tab trimmed to **4 charts** (from the original 5-chart plan):
+  dropped the "offer by nivel" chart's Secundario/Superior/Servicios bars —
+  folded into a 2-nivel-only "Oferta de inicial y primario" chart. Every
+  chart carries a title + one-line "por qué importa" caption tying it back
+  to nacidos → inicial/primario planning; nothing else survived the cut
+  (see T8 progress below for the final 4).
+- Parent applied a direct follow-up edit to `map-natalidad-page.tsx` (user
+  request): removed the "no discrimina por nivel" caveat trailer from both
+  map popups (departamento: "· N escuela(s) con dato · la fuente no
+  discrimina por nivel"; escuela: "· total del establecimiento, sin
+  desglose por nivel en la fuente"). The caveat stays only in code comments
+  and once in the Estadísticas tab's chart-3 caption. Re-verified after this
+  edit: `pnpm exec tsc --noEmit` clean, `pnpm lint` clean, `pnpm test`
+  835/835 passed.
+
+## Progress (T7 — matrícula)
+- `Mapa_Evolucion_Matricula_2023_2026 (1).html` (repo root, untracked, 823KB):
+  288 establishments, one popup per CUE-Anexo with `2023..2026` enrollment
+  (some `N/D`), `Variación absoluta/porcentual 2023-2026`, `Tendencia`, and a
+  `Costo mensual de sueldos` field — **never parsed** (out of scope, verified
+  by grep that it's the only monetary field and it's absent from every
+  parsed record). **No nivel split in the source** — a single total
+  enrollment number per establishment/year, confirmed by grepping the HTML
+  for "nivel" keywords (zero hits outside unrelated text). This is stated
+  explicitly in the map popups and the Estadísticas captions, never faked.
+- New `lib/mapas/matricula.ts` (pure, tested): `parsearMatriculaHtml` (regex
+  over the Folium `$(\`...\`)[0]` popup blocks, filtered to blocks containing
+  "CUE-Anexo"), `enriquecerEscuelasConMatricula` (join by exact CUE-Anexo
+  string, e.g. `1801605-04`), `calcularVariacionMatricula` (null-safe: an
+  `N/D` extreme yields `pct: null`, never a fabricated change from a
+  substituted 0). `lib/mapas/matricula.test.ts` (12 tests).
+- New script `scripts/extract-matricula.mjs` (`pnpm extract:matricula`):
+  reads the untracked HTML, writes the committed snapshot
+  `data/natalidad/matricula-2023-2026.json` (`[{cueAnexo, anio, matricula}]`,
+  1,152 rows = 288 establishments × 4 years, 21 `N/D` cells as `null`).
+  `scripts/extract-natalidad.mjs` reads that snapshot (if present — the
+  build never fails without it, just logs a warning and omits matrícula) and
+  calls `enriquecerEscuelasConMatricula` before building `departamentos.json`.
+- Matching: **288/288 matrícula CUEs matched** to `escuelas.geojson`'s
+  underlying escuela universe (GEO ∪ padrón) — 0 unmatched from the
+  matrícula side. From the other direction: 2,162 total escuelas, 288 with a
+  matrícula row (the rest — mostly non-inicial/primario levels and schools
+  outside this establishment set — simply have no `matricula` field, which
+  is distinct from `matricula: {}`).
+- `lib/mapas/natalidad.ts` extended: `EscuelaCompleta.matricula?` (optional,
+  so existing fixtures/tests unaffected), new `agruparMatriculaPorDepartamento`
+  (sums per departamento + provincia, `null` never treated as 0),
+  `DepartamentoNatalidad.matricula` and `DatosNatalidad.provincia.matricula` /
+  `meta.fuenteMatricula` / `meta.aniosMatricula`. `construirDatosNatalidad`
+  gained an optional `fuenteMatricula` param (defaults to `null`, fully
+  backward compatible with the one existing call site).
+  `lib/mapas/natalidad.test.ts` gained 4 new test blocks.
+- Map enrichment: school popup shows the 2023–2026 series + variación
+  (`calcularVariacionMatricula`, labelled "sin desglose por nivel en la
+  fuente"); departamento popup shows total matrícula per year + variación +
+  escuelas con dato; new choropleth mode "% variación de matrícula
+  2023→2026" (reuses the existing diverging `colorVariacion` scale); title
+  panel provenance line extended with "Matrícula: evolución 2023–2026
+  (fuente: mapa de evolución de matrícula)." when the snapshot is present.
+
+## Progress (T8 — Estadísticas tab)
+- New `lib/mapas/estadisticas-natalidad.ts` (pure, tested — no
+  React/recharts import): `construirSerieProvincialNacimientos`,
+  `construirVariacionNacimientosPorDepartamento` (sorted worst→best,
+  `pct: null` sorts last), `construirComparacionNacimientosMatricula`
+  (aligns on the first common calendar year, 2023 in practice — explicitly
+  labelled as a scale comparison, not a cohort comparison, since the source
+  has no nivel split), `construirOfertaInicialPrimario` (Inicial/Primario
+  only, never the other 3 niveles), `construirKpis`. All take an optional
+  `FiltroDepartamento` ('Todos' | clave). `estadisticas-natalidad.test.ts`
+  (10 tests).
+- New `components/mapas/estadisticas-natalidad-graficos.tsx`: 4 recharts
+  components mirroring `evolucion-graficos.tsx`'s theme (CSS-variable
+  palette read at render time, no gradients/shadows, `isAnimationActive:
+  false`, `--teal`/`--blue` reused from the map's own inicial/primario
+  colors, `--green-dark`/`--red-dark` for the diverging variación bars).
+- New `components/mapas/estadisticas-natalidad-panel.tsx`: fetches
+  `/data/natalidad/departamentos.json` (same file the map loads — no new
+  endpoint), departamento selector, 4 KPI tiles (nacidos último año,
+  variación, matrícula último año, escuelas con oferta de inicial), and the
+  4 charts each with a title + "por qué importa" line:
+  1. Nacidos vivos — tendencia provincial.
+  2. Variación de nacidos vivos por departamento.
+  3. Nacidos vivos vs. matrícula total (mismo año calendario).
+  4. Oferta de inicial y primario (secciones).
+- `app/(hub)/mapas/natalidad/map-client.tsx` rewritten with `Mapa`/
+  `Estadísticas` tabs (`@/components/ui/tabs`, hash-linkable), mirroring
+  `InfraestructuraMapClient` exactly: the map is never unmounted (only
+  `[hidden]`), Estadísticas mounts/unmounts on tab switch, recharts is
+  dynamically imported (`ssr: false`) so it doesn't inflate the map's
+  initial bundle. Reused the existing generic CSS classes
+  (`.mapa-pestanas*`, `.evolucion-panel/-vista/-subtitulo/-descripcion`,
+  `.grafico-contenedor`) — added only `.natalidad-filtro-departamento` and
+  `.natalidad-kpi*` to `app/globals.css`.
+
+## Removal (T7 withdrawn, 2026-09-25)
+User decision: matrícula data is useless for this feature — the source HTML
+(`Mapa_Evolucion_Matricula_2023_2026 (1).html`, untracked, user's, left
+untouched on disk) only covers a panel of 288 small rural establishments
+(median 6 students), so summing/averaging it per departamento or province was
+misleading. Removed entirely rather than kept behind a flag:
+- Deleted: `data/natalidad/matricula-2023-2026.json`,
+  `scripts/extract-matricula.mjs`, `lib/mapas/matricula.ts`,
+  `lib/mapas/matricula.test.ts`, and the `extract:matricula` script in
+  `package.json`.
+- `lib/mapas/natalidad.ts` + `.test.ts`: removed `EscuelaCompleta.matricula`,
+  `agruparMatriculaPorDepartamento` (+ `AgregacionMatricula`),
+  `DepartamentoNatalidad.matricula`, `DatosNatalidad.provincia.matricula`,
+  `meta.fuenteMatricula`/`meta.aniosMatricula`, and
+  `construirDatosNatalidad`'s `fuenteMatricula` param. Removed the two T7 test
+  blocks (`construirDatosNatalidad` matrícula cases) and the
+  `agruparMatriculaPorDepartamento` describe block.
+- `scripts/extract-natalidad.mjs`: dropped the `matricula.ts` import, the
+  `MATRICULA_PATH`/`FUENTE_MATRICULA` constants, and the
+  read-snapshot-if-present branch; regenerated
+  `public/data/natalidad/{departamentos.json,escuelas.geojson}` — confirmed
+  `rg -i matricula` returns nothing in either file.
+- `components/mapas/map-natalidad-page.tsx`: removed the `'matricula'`
+  `ModoMetrica`, its choropleth branch and legend entry/radio option, the
+  matrícula sections in both the departamento and school popups, and the
+  matrícula provenance clause in the title panel.
+- `lib/mapas/estadisticas-natalidad.ts`: replaced
+  `construirComparacionNacimientosMatricula` (nacidos vs. matrícula) and
+  `construirOfertaInicialPrimario` (raw escuelas/secciones by nivel, no
+  cohort) with a single `construirOfertaInicialVsCohorte`: per-departamento
+  secciones de Inicial vs. nacidos vivos del año `max(anioInicio, anioFin -
+  3)` — the cohort that turns 3 (enters Sala de 3) this cycle, cohort-year
+  alignment returned explicitly as `anioCohorte`. Dropped
+  `matriculaUltimoAnio` from `KpisNatalidad`, added `seccionesInicialTotal`.
+- `components/mapas/estadisticas-natalidad-graficos.tsx`: replaced
+  `GraficoComparacionNacimientosMatricula` + `GraficoOfertaInicialPrimario`
+  with one `GraficoOfertaInicialVsCohorte` (grouped bars: nacidos de la
+  cohorte vs. secciones de Inicial, by departamento); removed the unused
+  `matricula`/`primario` palette entries.
+- `components/mapas/estadisticas-natalidad-panel.tsx`: dropped the
+  "Matrícula" KPI tile and the two removed charts' sections; added the new
+  "Oferta de inicial vs. cohorte de Sala de 3" chart with its title
+  (includes `anioCohorte`) and "por qué importa" line.
+- Final Estadísticas chart list (3, not 4):
+  1. Nacidos vivos — tendencia provincial.
+  2. Variación de nacidos vivos por departamento.
+  3. Oferta de inicial vs. cohorte de Sala de 3 (secciones vs. nacidos del
+     año que hoy entra a Sala de 3).
+- `rg -i "matr[ií]cula"` across this feature's files (lib/mapas, components/
+  mapas map-natalidad-page/estadisticas-natalidad-*, scripts/extract-
+  natalidad.mjs, data/natalidad, public/data/natalidad, package.json) returns
+  no matches. `app/globals.css` and other repo files still mention
+  "matrícula" only for the unrelated `/mapas/matricula` map — left untouched.
+
+## Verification (removal, this session)
+- `pnpm extract:natalidad`: OK — 25 departamentos, años 2014-2023; 1,996/2,162
+  escuelas geolocated (6 discarded past the 1km boundary tolerance — T5
+  correction, unaffected by this removal); output confirmed matrícula-free.
+- `pnpm test`: 819/819 passed (100 files).
+- `pnpm exec tsc --noEmit`: clean.
+- `pnpm lint`: clean.
+- No visual check in `pnpm dev` this session (T6 unchanged, still needs
+  user login).
+
+## Gaps / follow-ups
+- No dedicated component/route test for the Estadísticas tab or the tabs
+  wiring itself (same gap flagged in T4 for the map page) — the ACL/tabs
+  pattern is a structural copy of the proven infra one, and the underlying
+  data transforms are fully unit-tested.
+- Matrícula is fully removed from this feature (see "Removal" above); the
+  unrelated `/mapas/matricula` map and its data are untouched.

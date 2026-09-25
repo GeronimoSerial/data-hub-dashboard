@@ -48,6 +48,13 @@ import {
   type Nivel,
 } from '@/lib/mapas/natalidad'
 
+// Feedback 2026-09-25: el popup de departamento sólo compara la natalidad
+// contra los niveles que efectivamente recibe esa cohorte (Inicial primero,
+// Primario después) — Secundario/Superior/Servicios Educativos no son
+// relevantes acá y se sacaron del popup (el filtro de nivel de las escuelas
+// en el mapa sigue mostrando los 5 niveles, esto sólo recorta el resumen).
+const NIVELES_POPUP_DEPARTAMENTO: Nivel[] = ['Inicial', 'Primario']
+
 ensureMapWorker()
 
 // ── IDs de capas ─────────────────────────────────────────────────────────
@@ -276,6 +283,29 @@ export default function MapNatalidadPage() {
 
   const mapStyle = BASEMAPS[basemap].styleUrl
 
+  // Feedback 2026-09-25: el popup de departamento se muestra al pasar el
+  // mouse (sigue al cursor, se cierra al salir del polígono o del mapa) en
+  // vez de requerir un click — es información de referencia rápida, no una
+  // selección persistente. `handleClick` se mantiene como fallback para
+  // touch (sin mouse no hay "hover": un tap todavía tiene que poder abrirlo).
+  //
+  // Las escuelas SIGUEN siendo por click, a propósito: son ~2000 puntos que
+  // MapLibre agrupa en clusters según el zoom, así que qué feature hay bajo
+  // el cursor cambia todo el tiempo (un cluster se separa en puntos
+  // individuales al acercarse el zoom). Recalcular y mostrar un popup en
+  // cada mousemove sobre esa capa parpadearía constantemente y sería
+  // ilegible; el click es una selección explícita y estable.
+  function handleMouseMove(event: MapLayerMouseEvent) {
+    const features = event.features ?? []
+    const departamento = features.find((f) => f.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID)
+    const clave = departamento?.properties?.clave
+    if (typeof clave === 'string') {
+      setDepartamentoSeleccionado({ clave, lng: event.lngLat.lng, lat: event.lngLat.lat })
+    } else if (departamentoSeleccionado) {
+      setDepartamentoSeleccionado(null)
+    }
+  }
+
   function handleClick(event: MapLayerMouseEvent) {
     const features = event.features ?? []
     const escuela = features.find((f) => f.layer?.id === CAPA_ESCUELAS_ID)
@@ -318,13 +348,14 @@ export default function MapNatalidadPage() {
 
   return (
     <div className={styles.shell} ref={shellRef}>
-      <div className={styles.mapRoot}>
+      <div className={styles.mapRoot} onMouseLeave={() => setDepartamentoSeleccionado(null)}>
         <MapGL
           ref={mapRef}
           mapStyle={mapStyle}
           initialViewState={{ bounds: LIMITES_CORRIENTES, fitBoundsOptions: { padding: 24 } }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
+          onMouseMove={handleMouseMove}
           onClick={handleClick}
           cursor="pointer"
         >
@@ -407,8 +438,13 @@ export default function MapNatalidadPage() {
                 </div>
                 <Sparkline serie={dptoSeleccionadoDatos.serie} anios={datos.meta.anios} />
                 <hr className={styles.popupRule} />
+                {/* Feedback 2026-09-25: sólo Inicial y Primario, que son los
+                    niveles que reciben directamente la cohorte de nacidos —
+                    Secundario/Superior/Servicios Educativos no aportan a esa
+                    comparación y se sacaron de este resumen (el filtro de
+                    nivel de las escuelas en el mapa sigue teniendo los 5). */}
                 <div className={styles.sectionTitle}>Escuelas por nivel</div>
-                {NIVELES.map((nivel) => (
+                {NIVELES_POPUP_DEPARTAMENTO.map((nivel) => (
                   <div key={nivel} className={styles.popupRow}>
                     <b>{nivel}:</b> {dptoSeleccionadoDatos.porNivel[nivel].escuelas} escuela(s) ·{' '}
                     {dptoSeleccionadoDatos.porNivel[nivel].secciones} sección(es)
@@ -497,7 +533,7 @@ export default function MapNatalidadPage() {
           <h2 className={styles.controlHeading}>Métrica</h2>
           <RadioGroup value={modo} onValueChange={(v) => setModo(v as ModoMetrica)}>
             <RadioItem value="anio" label="Nacidos vivos en un año" />
-            <RadioItem value="variacion" label="% variación entre dos años" />
+            <RadioItem value="variacion" label="% variación de nacidos vivos" />
           </RadioGroup>
 
           {modo === 'anio' && (
