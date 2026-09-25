@@ -1,0 +1,857 @@
+{
+ "meta": {
+  "fuenteNatalidad": {
+   "nombre": "DEIS / Ministerio de Capital Humano – OEI, \"Tendencias demográficas recientes e impactos en las ofertas del nivel inicial\"",
+   "url": "https://app.powerbi.com/view?r=eyJrIjoiYmEwYWM4N2EtOWViOS00MmQ2LTg1NGMtNDlmMGRmZDRmNjY1IiwidCI6ImE1YmEzMDQ2LTNmMzQtNDI0Mi1iZjc4LTk5NDY1ODk2MGI4MCJ9"
+  },
+  "fuenteInicial": "Padrón Gestión Educativa, ciclo lectivo 2026",
+  "anioInicio": 2014,
+  "anioFin": 2023,
+  "anios": [
+   2014,
+   2015,
+   2016,
+   2017,
+   2018,
+   2019,
+   2020,
+   2021,
+   2022,
+   2023
+  ],
+  "extraidoEn": "2026-09-25"
+ },
+ "provincia": {
+  "serie": {
+   "2014": 20933,
+   "2015": 20658,
+   "2016": 20033,
+   "2017": 19987,
+   "2018": 19855,
+   "2019": 18144,
+   "2020": 16547,
+   "2021": 15743,
+   "2022": 14405,
+   "2023": 14253
+  },
+  "variacion": {
+   "abs": -6680,
+   "pct": -31.911336167773374
+  }
+ },
+ "departamentos": [
+  {
+   "clave": "BELLA VISTA",
+   "nombre": "Bella Vista",
+   "coddpto": "18007",
+   "serie": {
+    "2014": 830,
+    "2015": 884,
+    "2016": 827,
+    "2017": 824,
+    "2018": 794,
+    "2019": 752,
+    "2020": 708,
+    "2021": 744,
+    "2022": 544,
+    "2023": 588
+   },
+   "variacion": {
+    "abs": -242,
+    "pct": -29.156626506024097
+   },
+   "inicial": {
+    "cues": 36,
+    "seccionesTotal": 120,
+    "seccionesPorCurso": {
+     "Plurisala": 26,
+     "Sala Integrada": 11,
+     "Sala de 5": 33,
+     "Sala de 4": 36,
+     "Sala de 3": 5,
+     "Sala Especial": 9
+    }
+   }
+  },
+  {
+   "clave": "BERON DE ASTRADA",
+   "nombre": "Berón de Astrada",
+   "coddpto": "18014",
+   "serie": {
+    "2014": 33,
+    "2015": 39,
+    "2016": 50,
+    "2017": 48,
+    "2018": 45,
+    "2019": 31,
+    "2020": 20,
+    "2021": 18,
+    "2022": 20,
+    "2023": 17
+   },
+   "variacion": {
+    "abs": -16,
+    "pct": -48.484848484848484
+   },
+   "inicial": {
+    "cues": 5,
+    "seccionesTotal": 11,
+    "seccionesPorCurso": {
+     "Sala de 4": 5,
+     "Sala de 5": 5,
+     "Sala de 3": 1
+    }
+   }
+  },
+  {
+   "clave": "CAPITAL",
+   "nombre": "Capital",
+   "coddpto": "18021",
+   "serie": {
+    "2014": 7826,
+    "2015": 7415,
+    "2016": 7093,
+    "2017": 6982,
+    "2018": 6965,
+    "2019": 6221,
+    "2020": 5404,
+    "2021": 5241,
+    "2022": 4818,
+    "2023": 4736
+   },
+   "variacion": {
+    "abs": -3090,
+    "pct": -39.48377204191157
+   },
+   "inicial": {
+    "cues": 88,
+    "seccionesTotal": 793,
+    "seccionesPorCurso": {
+     "Sala de 3": 73,
+     "Sala de 4": 285,
+     "Sala de 5": 350,
+     "Sala Integrada": 73,
+     "Plurisala": 7,
+     "Sala Especial": 3,
+     "Sala de 2": 2
+    }
+   }
+  },
+  {
+   "clave": "CONCEPCION",
+   "nombre": "Concepción",
+   "coddpto": "18028",
+   "serie": {
+    "2014": 484,
+    "2015": 372,
+    "2016": 451,
+    "2017": 474,
+    "2018": 466,
+    "2019": 375,
+    "2020": 331,
+    "2021": 357,
+    "2022": 292,
+    "2023": 319
+   },
+   "variacion": {
+    "abs": -165,
+    "pct": -34.090909090909086
+   },
+   "inicial": {
+    "cues": 30,
+    "seccionesTotal": 112,
+    "seccionesPorCurso": {
+     "Sala Integrada": 19,
+     "Sala de 4": 37,
+     "Sala de 5": 46,
+     "Sala de 3": 3,
+     "Plurisala": 6,
+     "Sala Especial": 1
+    }
+   }
+  },
+  {
+   "clave": "CURUZU CUATIA",
+   "nombre": "Curuzú Cuatiá",
+   "coddpto": "18035",
+   "serie": {
+    "2014": 886,
+    "2015": 903,
+    "2016": 911,
+    "2017": 896,
+    "2018": 852,
+    "2019": 811,
+    "2020": 746,
+    "2021": 640,
+    "2022": 642,
+    "2023": 647
+   },
+   "variacion": {
+    "abs": -239,
+    "pct": -26.975169300225733
+   },
+   "inicial": {
+    "cues": 48,
+    "seccionesTotal": 154,
+    "seccionesPorCurso": {
+     "Sala de 4": 46,
+     "Sala de 5": 82,
+     "Plurisala": 13,
+     "Sala de 3": 8,
+     "Sala de 2": 1,
+     "Sala Integrada": 4
+    }
+   }
+  },
+  {
+   "clave": "EMPEDRADO",
+   "nombre": "Empedrado",
+   "coddpto": "18042",
+   "serie": {
+    "2014": 270,
+    "2015": 295,
+    "2016": 262,
+    "2017": 265,
+    "2018": 269,
+    "2019": 248,
+    "2020": 232,
+    "2021": 210,
+    "2022": 216,
+    "2023": 218
+   },
+   "variacion": {
+    "abs": -52,
+    "pct": -19.25925925925926
+   },
+   "inicial": {
+    "cues": 35,
+    "seccionesTotal": 63,
+    "seccionesPorCurso": {
+     "Sala de 4": 17,
+     "Sala de 5": 28,
+     "Plurisala": 10,
+     "Sala Integrada": 3,
+     "Sala de 3": 5
+    }
+   }
+  },
+  {
+   "clave": "ESQUINA",
+   "nombre": "Esquina",
+   "coddpto": "18049",
+   "serie": {
+    "2014": 679,
+    "2015": 741,
+    "2016": 680,
+    "2017": 705,
+    "2018": 621,
+    "2019": 600,
+    "2020": 580,
+    "2021": 498,
+    "2022": 546,
+    "2023": 469
+   },
+   "variacion": {
+    "abs": -210,
+    "pct": -30.927835051546392
+   },
+   "inicial": {
+    "cues": 54,
+    "seccionesTotal": 184,
+    "seccionesPorCurso": {
+     "Sala Integrada": 8,
+     "Sala de 5": 68,
+     "Plurisala": 10,
+     "Sala de 4": 60,
+     "Sala de 3": 27,
+     "Sala Especial": 11
+    }
+   }
+  },
+  {
+   "clave": "GENERAL ALVEAR",
+   "nombre": "General Alvear",
+   "coddpto": "18056",
+   "serie": {
+    "2014": 114,
+    "2015": 98,
+    "2016": 147,
+    "2017": 114,
+    "2018": 139,
+    "2019": 116,
+    "2020": 149,
+    "2021": 123,
+    "2022": 108,
+    "2023": 94
+   },
+   "variacion": {
+    "abs": -20,
+    "pct": -17.543859649122805
+   },
+   "inicial": {
+    "cues": 11,
+    "seccionesTotal": 31,
+    "seccionesPorCurso": {
+     "Plurisala": 5,
+     "Sala Especial": 3,
+     "Sala de 4": 9,
+     "Sala de 5": 10,
+     "Sala Integrada": 4
+    }
+   }
+  },
+  {
+   "clave": "GENERAL PAZ",
+   "nombre": "General Paz",
+   "coddpto": "18063",
+   "serie": {
+    "2014": 221,
+    "2015": 210,
+    "2016": 212,
+    "2017": 186,
+    "2018": 222,
+    "2019": 215,
+    "2020": 183,
+    "2021": 183,
+    "2022": 183,
+    "2023": 181
+   },
+   "variacion": {
+    "abs": -40,
+    "pct": -18.099547511312217
+   },
+   "inicial": {
+    "cues": 39,
+    "seccionesTotal": 102,
+    "seccionesPorCurso": {
+     "Sala de 3": 12,
+     "Sala de 4": 29,
+     "Sala de 5": 36,
+     "Sala Integrada": 12,
+     "Plurisala": 13
+    }
+   }
+  },
+  {
+   "clave": "GOYA",
+   "nombre": "Goya",
+   "coddpto": "18070",
+   "serie": {
+    "2014": 1830,
+    "2015": 1810,
+    "2016": 1722,
+    "2017": 1672,
+    "2018": 1696,
+    "2019": 1518,
+    "2020": 1450,
+    "2021": 1289,
+    "2022": 1175,
+    "2023": 1157
+   },
+   "variacion": {
+    "abs": -673,
+    "pct": -36.775956284153004
+   },
+   "inicial": {
+    "cues": 91,
+    "seccionesTotal": 298,
+    "seccionesPorCurso": {
+     "Plurisala": 27,
+     "Sala de 5": 127,
+     "Sala de 4": 104,
+     "Sala de 3": 32,
+     "Sala Especial": 3,
+     "Sala Integrada": 3,
+     "Sala de 2": 2
+    }
+   }
+  },
+  {
+   "clave": "ITATI",
+   "nombre": "Itatí",
+   "coddpto": "18077",
+   "serie": {
+    "2014": 179,
+    "2015": 214,
+    "2016": 190,
+    "2017": 191,
+    "2018": 199,
+    "2019": 179,
+    "2020": 146,
+    "2021": 139,
+    "2022": 155,
+    "2023": 137
+   },
+   "variacion": {
+    "abs": -42,
+    "pct": -23.463687150837988
+   },
+   "inicial": {
+    "cues": 11,
+    "seccionesTotal": 42,
+    "seccionesPorCurso": {
+     "Sala de 4": 11,
+     "Sala de 5": 18,
+     "Sala de 3": 5,
+     "Sala Especial": 1,
+     "Plurisala": 5,
+     "Sala Integrada": 2
+    }
+   }
+  },
+  {
+   "clave": "ITUZAINGO",
+   "nombre": "Ituzaingó",
+   "coddpto": "18084",
+   "serie": {
+    "2014": 685,
+    "2015": 627,
+    "2016": 654,
+    "2017": 643,
+    "2018": 623,
+    "2019": 618,
+    "2020": 541,
+    "2021": 509,
+    "2022": 455,
+    "2023": 483
+   },
+   "variacion": {
+    "abs": -202,
+    "pct": -29.489051094890513
+   },
+   "inicial": {
+    "cues": 38,
+    "seccionesTotal": 131,
+    "seccionesPorCurso": {
+     "Sala de 3": 15,
+     "Sala de 4": 49,
+     "Sala de 5": 53,
+     "Plurisala": 12,
+     "Sala Integrada": 2
+    }
+   }
+  },
+  {
+   "clave": "LAVALLE",
+   "nombre": "Lavalle",
+   "coddpto": "18091",
+   "serie": {
+    "2014": 713,
+    "2015": 743,
+    "2016": 691,
+    "2017": 722,
+    "2018": 772,
+    "2019": 666,
+    "2020": 656,
+    "2021": 633,
+    "2022": 540,
+    "2023": 566
+   },
+   "variacion": {
+    "abs": -147,
+    "pct": -20.61711079943899
+   },
+   "inicial": {
+    "cues": 38,
+    "seccionesTotal": 111,
+    "seccionesPorCurso": {
+     "Sala de 3": 6,
+     "Sala de 4": 37,
+     "Sala de 5": 50,
+     "Plurisala": 15,
+     "Sala Integrada": 3
+    }
+   }
+  },
+  {
+   "clave": "MBURUCUYA",
+   "nombre": "Mburucuyá",
+   "coddpto": "18098",
+   "serie": {
+    "2014": 186,
+    "2015": 167,
+    "2016": 157,
+    "2017": 157,
+    "2018": 139,
+    "2019": 162,
+    "2020": 154,
+    "2021": 164,
+    "2022": 146,
+    "2023": 115
+   },
+   "variacion": {
+    "abs": -71,
+    "pct": -38.17204301075269
+   },
+   "inicial": {
+    "cues": 16,
+    "seccionesTotal": 46,
+    "seccionesPorCurso": {
+     "Sala de 4": 18,
+     "Sala de 5": 21,
+     "Sala de 3": 2,
+     "Plurisala": 3,
+     "Sala Integrada": 2
+    }
+   }
+  },
+  {
+   "clave": "MERCEDES",
+   "nombre": "Mercedes",
+   "coddpto": "18105",
+   "serie": {
+    "2014": 843,
+    "2015": 961,
+    "2016": 931,
+    "2017": 908,
+    "2018": 879,
+    "2019": 847,
+    "2020": 766,
+    "2021": 815,
+    "2022": 738,
+    "2023": 716
+   },
+   "variacion": {
+    "abs": -127,
+    "pct": -15.06524317912218
+   },
+   "inicial": {
+    "cues": 37,
+    "seccionesTotal": 141,
+    "seccionesPorCurso": {
+     "Plurisala": 6,
+     "Sala de 3": 11,
+     "Sala de 4": 53,
+     "Sala de 5": 63,
+     "Sala Integrada": 8
+    }
+   }
+  },
+  {
+   "clave": "MONTE CASEROS",
+   "nombre": "Monte Caseros",
+   "coddpto": "18112",
+   "serie": {
+    "2014": 674,
+    "2015": 707,
+    "2016": 658,
+    "2017": 630,
+    "2018": 611,
+    "2019": 588,
+    "2020": 490,
+    "2021": 566,
+    "2022": 454,
+    "2023": 444
+   },
+   "variacion": {
+    "abs": -230,
+    "pct": -34.124629080118694
+   },
+   "inicial": {
+    "cues": 36,
+    "seccionesTotal": 140,
+    "seccionesPorCurso": {
+     "Sala de 3": 13,
+     "Sala de 4": 48,
+     "Sala de 5": 61,
+     "Plurisala": 3,
+     "Sala Integrada": 13,
+     "Sala Especial": 2
+    }
+   }
+  },
+  {
+   "clave": "PASO DE LOS LIBRES",
+   "nombre": "Paso de los Libres",
+   "coddpto": "18119",
+   "serie": {
+    "2014": 889,
+    "2015": 1112,
+    "2016": 992,
+    "2017": 1055,
+    "2018": 1085,
+    "2019": 1017,
+    "2020": 1020,
+    "2021": 861,
+    "2022": 735,
+    "2023": 783
+   },
+   "variacion": {
+    "abs": -106,
+    "pct": -11.923509561304838
+   },
+   "inicial": {
+    "cues": 32,
+    "seccionesTotal": 149,
+    "seccionesPorCurso": {
+     "Sala de 4": 56,
+     "Sala de 5": 74,
+     "Sala Integrada": 5,
+     "Sala Especial": 3,
+     "Plurisala": 3,
+     "Sala de 3": 8
+    }
+   }
+  },
+  {
+   "clave": "SALADAS",
+   "nombre": "Saladas",
+   "coddpto": "18126",
+   "serie": {
+    "2014": 452,
+    "2015": 411,
+    "2016": 442,
+    "2017": 463,
+    "2018": 449,
+    "2019": 479,
+    "2020": 402,
+    "2021": 371,
+    "2022": 396,
+    "2023": 366
+   },
+   "variacion": {
+    "abs": -86,
+    "pct": -19.02654867256637
+   },
+   "inicial": {
+    "cues": 28,
+    "seccionesTotal": 108,
+    "seccionesPorCurso": {
+     "Sala de 5": 51,
+     "Sala de 4": 34,
+     "Plurisala": 4,
+     "Sala Especial": 1,
+     "Sala Integrada": 9,
+     "Sala de 3": 9
+    }
+   }
+  },
+  {
+   "clave": "SAN COSME",
+   "nombre": "San Cosme",
+   "coddpto": "18133",
+   "serie": {
+    "2014": 316,
+    "2015": 265,
+    "2016": 290,
+    "2017": 270,
+    "2018": 281,
+    "2019": 242,
+    "2020": 201,
+    "2021": 193,
+    "2022": 208,
+    "2023": 186
+   },
+   "variacion": {
+    "abs": -130,
+    "pct": -41.139240506329116
+   },
+   "inicial": {
+    "cues": 26,
+    "seccionesTotal": 78,
+    "seccionesPorCurso": {
+     "Sala de 5": 33,
+     "Sala Integrada": 4,
+     "Plurisala": 11,
+     "Sala de 3": 2,
+     "Sala de 4": 28
+    }
+   }
+  },
+  {
+   "clave": "SAN LUIS DEL PALMAR",
+   "nombre": "San Luis del Palmar",
+   "coddpto": "18140",
+   "serie": {
+    "2014": 316,
+    "2015": 287,
+    "2016": 300,
+    "2017": 343,
+    "2018": 313,
+    "2019": 266,
+    "2020": 287,
+    "2021": 251,
+    "2022": 154,
+    "2023": 164
+   },
+   "variacion": {
+    "abs": -152,
+    "pct": -48.10126582278481
+   },
+   "inicial": {
+    "cues": 39,
+    "seccionesTotal": 85,
+    "seccionesPorCurso": {
+     "Plurisala": 15,
+     "Sala de 3": 8,
+     "Sala de 4": 28,
+     "Sala de 5": 32,
+     "Sala Integrada": 2
+    }
+   }
+  },
+  {
+   "clave": "SAN MARTIN",
+   "nombre": "San Martín",
+   "coddpto": "18147",
+   "serie": {
+    "2014": 288,
+    "2015": 265,
+    "2016": 231,
+    "2017": 268,
+    "2018": 271,
+    "2019": 261,
+    "2020": 234,
+    "2021": 185,
+    "2022": 225,
+    "2023": 180
+   },
+   "variacion": {
+    "abs": -108,
+    "pct": -37.5
+   },
+   "inicial": {
+    "cues": 25,
+    "seccionesTotal": 76,
+    "seccionesPorCurso": {
+     "Plurisala": 7,
+     "Sala de 3": 9,
+     "Sala de 4": 23,
+     "Sala de 5": 35,
+     "Sala Integrada": 2
+    }
+   }
+  },
+  {
+   "clave": "SAN MIGUEL",
+   "nombre": "San Miguel",
+   "coddpto": "18154",
+   "serie": {
+    "2014": 249,
+    "2015": 239,
+    "2016": 214,
+    "2017": 223,
+    "2018": 228,
+    "2019": 188,
+    "2020": 184,
+    "2021": 154,
+    "2022": 146,
+    "2023": 195
+   },
+   "variacion": {
+    "abs": -54,
+    "pct": -21.686746987951807
+   },
+   "inicial": {
+    "cues": 17,
+    "seccionesTotal": 52,
+    "seccionesPorCurso": {
+     "Sala de 4": 17,
+     "Sala de 5": 23,
+     "Sala de 3": 7,
+     "Plurisala": 5
+    }
+   }
+  },
+  {
+   "clave": "SAN ROQUE",
+   "nombre": "San Roque",
+   "coddpto": "18161",
+   "serie": {
+    "2014": 295,
+    "2015": 265,
+    "2016": 336,
+    "2017": 322,
+    "2018": 337,
+    "2019": 289,
+    "2020": 267,
+    "2021": 279,
+    "2022": 253,
+    "2023": 276
+   },
+   "variacion": {
+    "abs": -19,
+    "pct": -6.440677966101695
+   },
+   "inicial": {
+    "cues": 26,
+    "seccionesTotal": 79,
+    "seccionesPorCurso": {
+     "Sala de 3": 12,
+     "Sala de 4": 27,
+     "Sala de 5": 35,
+     "Sala Integrada": 2,
+     "Plurisala": 3
+    }
+   }
+  },
+  {
+   "clave": "SANTO TOME",
+   "nombre": "Santo Tomé",
+   "coddpto": "18168",
+   "serie": {
+    "2014": 1460,
+    "2015": 1441,
+    "2016": 1402,
+    "2017": 1407,
+    "2018": 1347,
+    "2019": 1262,
+    "2020": 1218,
+    "2021": 1178,
+    "2022": 1105,
+    "2023": 1085
+   },
+   "variacion": {
+    "abs": -375,
+    "pct": -25.684931506849317
+   },
+   "inicial": {
+    "cues": 44,
+    "seccionesTotal": 179,
+    "seccionesPorCurso": {
+     "Sala de 4": 64,
+     "Sala de 5": 91,
+     "Sala de 3": 11,
+     "Sala Integrada": 8,
+     "Plurisala": 2,
+     "Sala de 2": 1,
+     "Sala de Deambuladores": 1,
+     "Sala de Lactancia": 1
+    }
+   }
+  },
+  {
+   "clave": "SAUCE",
+   "nombre": "Sauce",
+   "coddpto": "18175",
+   "serie": {
+    "2014": 159,
+    "2015": 165,
+    "2016": 163,
+    "2017": 176,
+    "2018": 174,
+    "2019": 146,
+    "2020": 131,
+    "2021": 126,
+    "2022": 133,
+    "2023": 101
+   },
+   "variacion": {
+    "abs": -58,
+    "pct": -36.477987421383645
+   },
+   "inicial": {
+    "cues": 18,
+    "seccionesTotal": 52,
+    "seccionesPorCurso": {
+     "Sala de 3": 6,
+     "Sala de 4": 17,
+     "Sala de 5": 18,
+     "Sala Especial": 4,
+     "Plurisala": 7
+    }
+   }
+  }
+ ],
+ "departamentosSinMatch": []
+}
