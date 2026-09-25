@@ -718,8 +718,10 @@ export function opcionesAnioDesde(anios: number[], hasta: number): number[] {
 
 // ── Búsqueda de escuelas (T10: buscador en el mapa) ─────────────────────────
 
-/** Minúsculas + sin diacríticos, reutilizando la misma normalización que ya usa el matching de departamentos. */
-function normalizarTextoBusqueda(texto: string): string {
+/** Minúsculas + sin diacríticos, reutilizando la misma normalización que ya usa el matching de departamentos.
+    Exportada (feedback "se ven pésimos", 2026-09-25) para que el buscador de escuelas resalte la coincidencia
+    en pantalla con la misma normalización usada acá para rankear. */
+export function normalizarTextoBusqueda(texto: string): string {
   return normalizarNombreDepartamento(texto)
 }
 
@@ -729,12 +731,31 @@ export interface ResultadoBusquedaEscuela {
   rango: number
 }
 
+/** Separa en "palabras" alfanuméricas (todo lo que no sea a-z0-9 es separador: espacios, "n°", "-", etc). */
+function tokenizar(texto: string): string[] {
+  return texto.split(/[^a-z0-9]+/).filter(Boolean)
+}
+
 /**
  * Busca escuelas por nombre, CUE-anexo o localidad — insensible a mayúsculas
- * y acentos. Ordena por calidad de match (prefijo de nombre primero, después
- * prefijo de CUE, después coincidencia en cualquier posición de nombre/CUE/
- * localidad) y por nombre alfabético dentro de un mismo rango. Nunca busca
- * con menos de 2 caracteres (evita listar "todo" con una tecla).
+ * y acentos. Nunca busca con menos de 2 caracteres (evita listar "todo" con
+ * una tecla).
+ *
+ * Orden de calidad de match (feedback "se ven pésimos", 2026-09-25 — antes
+ * "prefijo de nombre" era el rango más alto y ni distinguía CUE exacto ni
+ * palabras completas, por lo que buscar "17" rankeaba una "Escuela N° 170"
+ * (substring) igual o mejor que la "N° 17" real):
+ *   0. CUE-anexo exacto.
+ *   1. nombre o CUE empiezan con la query.
+ *   2. alguna palabra del nombre es EXACTAMENTE la query (ej. "17" contra
+ *      "Escuela N° 17" — la query es la palabra completa "17", no un prefijo
+ *      de "170"/"173").
+ *   3. alguna palabra del nombre empieza con la query pero no es igual (ej.
+ *      "17" contra "170"). Se mantiene por debajo del rango 2 a propósito:
+ *      para queries numéricas evita que "170"/"173" empate o gane contra el
+ *      match de palabra completa "17".
+ *   4. substring en cualquier posición de nombre/CUE/localidad.
+ * Dentro de un mismo rango, ordena por nombre alfabético.
  */
 export function buscarEscuelas(
   featureCollection: FeatureCollection<Point, EscuelaProperties>,
@@ -752,11 +773,14 @@ export function buscarEscuelas(
     const localidad = normalizarTextoBusqueda(props.localidad)
 
     let rango: number | null = null
-    if (nombre.startsWith(q)) rango = 0
-    else if (cue.startsWith(q)) rango = 1
-    else if (nombre.includes(q)) rango = 2
-    else if (cue.includes(q)) rango = 3
-    else if (localidad.includes(q)) rango = 4
+    if (cue === q) rango = 0
+    else if (nombre.startsWith(q) || cue.startsWith(q)) rango = 1
+    else {
+      const palabras = tokenizar(nombre)
+      if (palabras.includes(q)) rango = 2
+      else if (palabras.some((palabra) => palabra.startsWith(q))) rango = 3
+      else if (nombre.includes(q) || cue.includes(q) || localidad.includes(q)) rango = 4
+    }
 
     if (rango != null) hits.push({ feature, rango })
   }

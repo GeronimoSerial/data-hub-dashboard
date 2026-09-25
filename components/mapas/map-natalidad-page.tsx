@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import MapGL, {
   Layer,
   NavigationControl,
@@ -19,10 +19,9 @@ import type {
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
+import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { SegmentedGroup, SegmentedItem } from '@/components/ui/toggle-group'
 import { BASEMAPS } from '@/lib/map-types'
@@ -37,7 +36,6 @@ import {
   normalizarNombreDepartamento,
 } from '@/lib/mapas/departamentos'
 import {
-  buscarEscuelas,
   calcularVariacion,
   COLOR_SIN_DATO,
   colorSecuencial,
@@ -206,87 +204,6 @@ function AnioSelect({
 /** "vs. {anio}: {pct}" — nunca "vs. 0%" fabricado cuando el año base no tiene dato (calcularVariacion ya devuelve pct: null en ese caso). */
 function fmtVariacionContra(anioBase: number, variacion: Variacion): string {
   return `vs. ${anioBase}: ${fmtPct(variacion.pct)}`
-}
-
-/** Buscador de escuelas (T10, feedback 2026-09-25): por nombre, CUE-anexo o localidad,
-    insensible a mayúsculas/acentos (buscarEscuelas, lib/mapas/natalidad.ts). Navegación
-    por teclado (↑/↓/Enter/Escape) — el buscador de establecimientos existente
-    (components/mapas/search-box.tsx, usado en el mapa de matrícula) no la tenía, se
-    agrega acá porque el feedback la pidió explícitamente. Lista de resultados sin
-    scroll propio (crece con el contenedor), igual que search-box.tsx. */
-function EscuelaSearchBox({
-  escuelas,
-  onSeleccionar,
-}: {
-  escuelas: FeatureCollection<Point, EscuelaProperties>
-  onSeleccionar: (feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) => void
-}) {
-  const [query, setQuery] = useState('')
-  const [activo, setActivo] = useState(0)
-
-  const resultados = useMemo(() => buscarEscuelas(escuelas, query, 8), [escuelas, query])
-
-  function seleccionar(feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) {
-    onSeleccionar(feature)
-    setQuery('')
-    setActivo(0)
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (resultados.length === 0) return
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setActivo((i) => (i + 1) % resultados.length)
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setActivo((i) => (i - 1 + resultados.length) % resultados.length)
-    } else if (event.key === 'Enter') {
-      event.preventDefault()
-      seleccionar(resultados[activo] ?? resultados[0])
-    } else if (event.key === 'Escape') {
-      setQuery('')
-    }
-  }
-
-  return (
-    <div className="map-filtro-campo natalidad-buscador">
-      <span className="map-filtro-label">Buscar escuela</span>
-      <Input
-        type="search"
-        placeholder="Nombre, CUE o localidad…"
-        value={query}
-        onChange={(event) => {
-          setQuery(event.currentTarget.value)
-          setActivo(0)
-        }}
-        onKeyDown={handleKeyDown}
-        aria-label="Buscar escuela por nombre, CUE-anexo o localidad"
-      />
-      {resultados.length > 0 && (
-        <ul className="map-search-results" role="listbox">
-          {resultados.map((feature, i) => (
-            <li key={feature.properties.cueAnexo} role="option" aria-selected={i === activo}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={`map-search-hit${i === activo ? ' natalidad-buscador-activo' : ''}`}
-                onClick={() => seleccionar(feature)}
-                onMouseEnter={() => setActivo(i)}
-              >
-                <span>
-                  <div>{feature.properties.nombre}</div>
-                  <div className="map-popup-muted">
-                    {feature.properties.cueAnexo} · {feature.properties.localidad}
-                  </div>
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
 }
 
 export default function MapNatalidadPage() {
@@ -746,12 +663,15 @@ export default function MapNatalidadPage() {
         </MapGL>
       </div>
 
-      <div className={`${styles.panel} ${styles.titlePanel}`}>
-        <b>Nacidos vivos por departamento — Corrientes {datos.meta.anioInicio}–{datos.meta.anioFin}</b>
-        <br />
-        <span className={styles.hint}>
-          Nacidos vivos: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}. {datos.meta.fuenteSecciones}.
-        </span>
+      {/* T10a: ancho fijo (natalidad-title-panel, ~330px) para que este panel,
+          los controles de métrica/año y el buscador formen una única columna
+          alineada con la leyenda de abajo — antes crecía tanto como la línea
+          de fuentes más larga (provenía de un <span> suelto) y quedaba
+          descentrado/asimétrico frente a la leyenda. Las fuentes pasan a un
+          <details> colapsable chico ("Fuentes"), el título y el resumen
+          quedan como única línea de contexto. */}
+      <div className={`${styles.panel} ${styles.titlePanel} natalidad-title-panel`}>
+        <b>Nacidos vivos por departamento</b>
         <br />
         {/* Bug corregido (2026-09-25): este resumen quedaba fijo en
             meta.anioInicio→meta.anioFin sin importar los controles — ahora
@@ -811,13 +731,27 @@ export default function MapNatalidadPage() {
         </div>
 
         <EscuelaSearchBox escuelas={escuelas} onSeleccionar={handleSeleccionarEscuelaBuscada} />
+
+        {/* T10a: provenance de datos movida a un <details> chico y colapsado
+            por defecto — antes era un <span> siempre visible que estiraba el
+            panel de título hasta ~2-3 líneas y rompía el ancho fijo de la
+            columna. */}
+        <details className="natalidad-fuentes">
+          <summary>Fuentes</summary>
+          <span className={styles.hint}>
+            Nacidos vivos: {datos.meta.fuenteNatalidad.nombre}. {datos.meta.fuenteLocalizaciones}.{' '}
+            {datos.meta.fuenteSecciones}. Período {datos.meta.anioInicio}–{datos.meta.anioFin}.
+          </span>
+        </details>
       </div>
 
       {/* Feedback 2026-09-25: la leyenda ahora arranca ABIERTA — el mapa tiene
           que leerse sin clickear nada. `<details open>` se mantiene (no un
           div suelto) para conservar la afordancia de colapsarla si molesta,
-          consistente con el resto de los mapas del proyecto. */}
-      <details className={`${styles.panel} ${styles.legendPanel}`} open>
+          consistente con el resto de los mapas del proyecto.
+          T10a: natalidad-legend-panel iguala el ancho fijo del panel de
+          título (~330px) para que ambos paneles queden alineados. */}
+      <details className={`${styles.panel} ${styles.legendPanel} natalidad-legend-panel`} open>
         <summary className={styles.legendSummary}>Referencias</summary>
         {modo === 'anio' && escalaAnio && (
           <>

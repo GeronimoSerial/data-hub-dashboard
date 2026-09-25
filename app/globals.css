@@ -3756,6 +3756,32 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   margin-bottom: var(--s-3);
 }
 
+/* T10a: el panel de título y la leyenda comparten un ancho fijo — antes el
+   título crecía tanto como su línea de fuentes más larga (una sola línea sin
+   cortar) y quedaba más ancho y descentrado que la leyenda de abajo. Con este
+   ancho fijo, el panel de título + el control de métrica/año + el buscador
+   forman una única columna alineada de igual ancho que la leyenda. */
+.natalidad-title-panel,
+.natalidad-legend-panel {
+  width: min(330px, calc(100vw - 50px));
+  max-width: min(330px, calc(100vw - 50px));
+}
+/* Fuentes/provenance de datos (T10a): antes un <span> siempre visible que
+   estiraba el panel; ahora un <details> chico, colapsado por defecto, en
+   letra muted — no compite con el título/resumen. */
+.natalidad-fuentes {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+}
+.natalidad-fuentes summary {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+.natalidad-fuentes .map-hint { margin-top: 4px; }
+
 /* Control compacto de métrica del mapa, integrado bajo el panel de título
    (T9): reemplaza el panel de la derecha "Métrica / Escuelas / Mapa base",
    sacado por feedback ("no lo siento útil"). */
@@ -3774,17 +3800,72 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-2);
 }
 /* Buscador de escuelas (T10): mismo slot que el control de métrica, con su
-   propio separador arriba. Reusa .map-search-results/.map-search-hit
-   (genéricas, ya usadas por components/mapas/search-box.tsx) para la lista
-   de resultados — sin scroll propio, crece con el panel. */
+   propio separador arriba. */
 .natalidad-buscador {
   margin-top: var(--s-2);
   padding-top: var(--s-2);
   border-top: 1px solid var(--line-soft);
   max-width: 20rem;
 }
-.natalidad-buscador-activo {
-  background: color-mix(in srgb, var(--action) 12%, transparent);
+.natalidad-buscador > .ui-input { width: 100%; }
+
+/* Resultados en un popover flotante anclado al input (feedback "se ven
+   pésimos", 2026-09-25 — antes era una lista inline dentro de la tarjeta de
+   título, que crecía y empujaba el resto del panel). Mismo lenguaje visual
+   que .ui-select-popup/.ui-select-item: superficie, borde, radio y sombra
+   por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
+.natalidad-buscador-positioner { z-index: var(--z-popup); outline: none; }
+.natalidad-buscador-popup {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-modal);
+  overflow: hidden;
+}
+/* Único contenedor con scroll (requisito: "single scroll container") — el
+   popup en sí no scrollea, sólo esta lista, acotada a ~6 filas visibles. */
+.natalidad-buscador-lista {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+}
+.natalidad-buscador-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--r-sm);
+  cursor: default;
+  outline: none;
+  text-align: left;
+}
+.natalidad-buscador-item[data-highlighted] {
+  background: var(--ink);
+  color: var(--page);
+}
+.natalidad-buscador-item[data-highlighted] .natalidad-buscador-meta { color: inherit; opacity: 0.75; }
+.natalidad-buscador-nombre {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.natalidad-buscador-meta { color: var(--ink-soft); font-size: var(--t-micro); }
+.natalidad-buscador-match {
+  background: color-mix(in srgb, var(--action) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.natalidad-buscador-vacio {
+  padding: 0.6rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
 }
 .natalidad-kpis {
   display: grid;

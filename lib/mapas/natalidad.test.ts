@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { FeatureCollection, Polygon } from 'geojson'
+import type { Feature, Point } from 'geojson'
 import {
   agruparEscuelasPorDepartamento,
   agruparNacimientosPorDepartamento,
   agruparPadronPorCue,
+  buscarEscuelas,
   calcularVariacion,
   colorEscalonado,
   colorSecuencial,
@@ -19,8 +21,11 @@ import {
   COLOR_SIN_DATO,
   inferirNivelesDesdeOferta,
   NIVELES,
+  opcionesAnioDesde,
+  opcionesAnioHasta,
   sanearCoordenadasFueraDeLimites,
   type EscuelaCompleta,
+  type EscuelaProperties,
   type GeoEscuelaRow,
   type NacidoVivoRow,
   type PadronRow,
@@ -449,5 +454,125 @@ describe('escalas de color', () => {
         ],
       )
     }
+  })
+})
+
+// ── Rango de años seleccionable (T10a) ──────────────────────────────────────
+
+describe('opcionesAnioHasta / opcionesAnioDesde', () => {
+  const anios = [2014, 2016, 2020, 2023]
+
+  it('opcionesAnioHasta devuelve sólo los años estrictamente mayores que "desde"', () => {
+    expect(opcionesAnioHasta(anios, 2016)).toEqual([2020, 2023])
+  })
+
+  it('opcionesAnioDesde devuelve sólo los años estrictamente menores que "hasta"', () => {
+    expect(opcionesAnioDesde(anios, 2020)).toEqual([2014, 2016])
+  })
+
+  it('opcionesAnioHasta con el último año como "desde" no deja ninguna opción', () => {
+    expect(opcionesAnioHasta(anios, 2023)).toEqual([])
+  })
+
+  it('opcionesAnioDesde con el primer año como "hasta" no deja ninguna opción', () => {
+    expect(opcionesAnioDesde(anios, 2014)).toEqual([])
+  })
+})
+
+// ── Búsqueda de escuelas (T10a) ──────────────────────────────────────────────
+
+describe('buscarEscuelas', () => {
+  function escuela(overrides: Partial<EscuelaProperties>): Feature<Point, EscuelaProperties> {
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [-58.8, -27.5] },
+      properties: {
+        cueAnexo: '1800001-00',
+        nombre: 'ESCUELA GENERICA',
+        departamento: 'CAPITAL',
+        localidad: 'CORRIENTES',
+        sector: 'Estatal',
+        ofertaTipo: [],
+        domicilio: null,
+        niveles: [],
+        seccionesTotal: 0,
+        tienePadron: true,
+        esInicial: false,
+        ...overrides,
+      },
+    }
+  }
+
+  const featureCollection = {
+    type: 'FeatureCollection' as const,
+    features: [
+      escuela({ cueAnexo: '1801605-04', nombre: 'ESCUELA N° 1 SAN MARTÍN', localidad: 'GOYA' }),
+      escuela({ cueAnexo: '1802000-00', nombre: 'JARDÍN DE INFANTES N° 5', localidad: 'SANTO TOMÉ' }),
+      escuela({ cueAnexo: '1803000-00', nombre: 'ESCUELA N° 20 SARMIENTO', localidad: 'GOYA' }),
+    ],
+  }
+
+  it('menos de 2 caracteres no busca nada (evita listar todo con una tecla)', () => {
+    expect(buscarEscuelas(featureCollection, 'g')).toEqual([])
+  })
+
+  it('matchea por nombre insensible a mayúsculas/acentos, prefijo primero', () => {
+    const resultados = buscarEscuelas(featureCollection, 'jardin')
+    expect(resultados.map((f) => f.properties.cueAnexo)).toEqual(['1802000-00'])
+  })
+
+  it('matchea por CUE-anexo', () => {
+    const resultados = buscarEscuelas(featureCollection, '1801605')
+    expect(resultados.map((f) => f.properties.cueAnexo)).toEqual(['1801605-04'])
+  })
+
+  it('matchea por localidad y ordena varios resultados alfabéticamente dentro del mismo rango', () => {
+    const resultados = buscarEscuelas(featureCollection, 'goya')
+    expect(resultados.map((f) => f.properties.cueAnexo)).toEqual(['1801605-04', '1803000-00'])
+  })
+
+  it('sin coincidencias devuelve una lista vacía', () => {
+    expect(buscarEscuelas(featureCollection, 'inexistente')).toEqual([])
+  })
+
+  it('respeta el límite de resultados', () => {
+    expect(buscarEscuelas(featureCollection, 'escuela', 1)).toHaveLength(1)
+  })
+
+  describe('ranking (feedback "se ven pésimos", 2026-09-25)', () => {
+    const conCue = {
+      type: 'FeatureCollection' as const,
+      features: [
+        escuela({ cueAnexo: '1801605-04', nombre: 'JARDÍN N° 17', localidad: 'GOYA' }),
+        escuela({ cueAnexo: '1802000-00', nombre: 'ESCUELA N° 170', localidad: 'GOYA' }),
+        escuela({ cueAnexo: '1803000-00', nombre: 'ESCUELA N° 173', localidad: 'GOYA' }),
+      ],
+    }
+
+    it('CUE-anexo exacto gana contra prefijo de nombre/CUE', () => {
+      const conPrefijo = {
+        type: 'FeatureCollection' as const,
+        features: [
+          escuela({ cueAnexo: '1801605-04', nombre: '1801605 ESCUELA GENERICA' }),
+          escuela({ cueAnexo: '1801605-99', nombre: 'OTRA ESCUELA' }),
+        ],
+      }
+      const resultados = buscarEscuelas(conPrefijo, '1801605-99')
+      expect(resultados.map((f) => f.properties.cueAnexo)[0]).toBe('1801605-99')
+    })
+
+    it('una palabra completa del nombre ("17") rankea antes que "170"/"173" (match numérico completo)', () => {
+      const resultados = buscarEscuelas(conCue, '17')
+      expect(resultados.map((f) => f.properties.nombre)).toEqual([
+        'JARDÍN N° 17',
+        'ESCUELA N° 170',
+        'ESCUELA N° 173',
+      ])
+    })
+
+    it('"17" matchea "N° 17" como palabra aunque no sea prefijo del nombre completo', () => {
+      const resultados = buscarEscuelas(conCue, '17')
+      expect(resultados.map((f) => f.properties.cueAnexo)).toContain('1801605-04')
+    })
   })
 })
