@@ -8,7 +8,7 @@ import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
-import { isBleedViewerPath, scrollRestorationKey } from '@/lib/nav'
+import { decideScrollAction, isBleedViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
 import { MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
@@ -50,6 +50,20 @@ function saveScrollPosition(key: string, top: number) {
   }
 }
 
+// `.app-content` sets `scroll-behavior: smooth` (for anchor/skip-link jumps),
+// which also applies to a plain `el.scrollTop = n` assignment: the browser
+// animates toward it instead of applying it synchronously, so a read right
+// after setting it can still observe the old value. That silently broke both
+// the top-reset on forward navigation and the restore-on-back loop below
+// (each retry re-triggered a fresh animation instead of converging). Force
+// the assignment through `scroll-behavior: auto` so it always lands instantly.
+function setScrollTopInstant(el: HTMLElement, value: number) {
+  const previous = el.style.scrollBehavior
+  el.style.scrollBehavior = 'auto'
+  el.scrollTop = value
+  el.style.scrollBehavior = previous
+}
+
 // Resets the shell scroller to the top on every route change (matching
 // Next's default `router.push` behavior, which already resets `window`
 // scroll on both pathname and search-param navigations that don't pass
@@ -72,15 +86,66 @@ function saveScrollPosition(key: string, top: number) {
 // budget runs out.
 const RESTORE_BUDGET_MS = 1000
 
+// Next 16 handles back/forward through the Navigation API: the new route
+// commits *before* `popstate` fires and even before `navigation.currentEntry`
+// points at the destination entry. So a popstate flag or an entry lookup inside
+// the route effect is always stale. Where the Navigation API exists, positions
+// are stored per history entry (looked up lazily when scrolling) and restored
+// from `currententrychange` for traversals; forward navigations reset in the
+// route effect. Without the Navigation API, fall back to route key + popstate.
+type NavigationEntryLike = { key?: string }
+type NavigationLike = EventTarget & { currentEntry?: NavigationEntryLike | null }
+
+function getNavigation(): NavigationLike | null {
+  return (window as unknown as { navigation?: NavigationLike }).navigation ?? null
+}
+
+function storageKeyFor(routeKey: string): string {
+  const entry = getNavigation()?.currentEntry?.key
+  return entry ? `${routeKey}#${entry}` : routeKey
+}
+
+function currentRouteKey(): string {
+  return scrollRestorationKey(window.location.pathname, window.location.search.replace(/^\?/, ''))
+}
+
+// Applies `target` once the content is tall enough to hold it, retrying across
+// frames and resizes within a time budget. Returns a cancel function.
+function restoreScroll(el: HTMLElement, target: number): () => void {
+  let cancelled = false
+  const startedAt = performance.now()
+  const observer = new ResizeObserver(attempt)
+  observer.observe(el)
+  let rafId = requestAnimationFrame(attempt)
+
+  function attempt() {
+    if (cancelled) return
+    setScrollTopInstant(el, target)
+    if (isRestoreSettled(el.scrollTop, target, performance.now() - startedAt, RESTORE_BUDGET_MS)) {
+      cancel()
+      return
+    }
+    rafId = requestAnimationFrame(attempt)
+  }
+
+  function cancel() {
+    cancelled = true
+    cancelAnimationFrame(rafId)
+    observer.disconnect()
+  }
+
+  return cancel
+}
+
 function ScrollManager({ pathname, scrollerRef }: { pathname: string; scrollerRef: React.RefObject<Scroller> }) {
   const searchParams = useSearchParams()
   const isPopNavigation = React.useRef(false)
-  const currentKeyRef = React.useRef<string | null>(null)
+  const currentRouteRef = React.useRef<string | null>(null)
+  const cancelRestoreRef = React.useRef<(() => void) | null>(null)
 
   // `history.scrollRestoration` defaults to the browser restoring
   // `window`'s own scroll on back/forward — irrelevant now that `window`
-  // never scrolls (T12), but left on it also fights this manual restore by
-  // firing its own (no-op) adjustment mid-navigation.
+  // never scrolls (T12), and it can fight this manual restore.
   React.useEffect(() => {
     if (!('scrollRestoration' in window.history)) return
     const previous = window.history.scrollRestoration
@@ -90,25 +155,42 @@ function ScrollManager({ pathname, scrollerRef }: { pathname: string; scrollerRe
     }
   }, [])
 
+  // Traversal detection. With the Navigation API, restore as soon as the
+  // destination entry is current (it has its own saved position). Without it,
+  // flag popstate so the route effect restores instead of resetting.
   React.useEffect(() => {
+    const nav = getNavigation()
+    if (nav) {
+      function handleEntryChange(event: Event) {
+        const type = (event as Event & { navigationType?: string }).navigationType
+        if (type !== 'traverse') return
+        const el = scrollerRef.current
+        if (!el) return
+        const saved = window.sessionStorage.getItem(storageKeyFor(currentRouteKey()))
+        const decision = decideScrollAction(true, saved)
+        cancelRestoreRef.current?.()
+        if (decision.type === 'restore') cancelRestoreRef.current = restoreScroll(el, decision.target)
+        else setScrollTopInstant(el, 0)
+      }
+      nav.addEventListener('currententrychange', handleEntryChange)
+      return () => nav.removeEventListener('currententrychange', handleEntryChange)
+    }
     function handlePopState() {
       isPopNavigation.current = true
     }
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
+    window.addEventListener('popstate', handlePopState, { capture: true })
+    return () => window.removeEventListener('popstate', handlePopState, { capture: true })
+  }, [scrollerRef])
 
-  // Continuously persist the outgoing scroll position for the *current* key,
-  // so it is up to date however the next navigation is triggered — a click
-  // (React unmounts synchronously, before any cleanup runs the save) or a
-  // popstate (the pathname effect below fires before any dedicated
-  // "leaving" hook would).
+  // Continuously persist the scroll position of the current route. The storage
+  // key (route + history entry) is resolved at save time, when
+  // `navigation.currentEntry` is already the entry being scrolled.
   React.useEffect(() => {
     const maybeEl = scrollerRef.current
     if (!maybeEl) return
     const el: HTMLElement = maybeEl
-    const key = scrollRestorationKey(pathname, searchParams.toString())
-    currentKeyRef.current = key
+    const routeKey = scrollRestorationKey(pathname, searchParams.toString())
+    currentRouteRef.current = routeKey
 
     let ticking = false
     function onScroll() {
@@ -116,62 +198,49 @@ function ScrollManager({ pathname, scrollerRef }: { pathname: string; scrollerRe
       ticking = true
       window.requestAnimationFrame(() => {
         ticking = false
-        if (currentKeyRef.current === key) saveScrollPosition(key, el.scrollTop)
+        if (currentRouteRef.current === routeKey && currentRouteKey() === routeKey) {
+          saveScrollPosition(storageKeyFor(routeKey), el.scrollTop)
+        }
       })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
-      el.removeEventListener('scroll', onScroll)
-      // Final save for this key in case the last scroll frame never fired.
-      saveScrollPosition(key, el.scrollTop)
-    }
+    // No final save on cleanup: it runs after the next route has committed,
+    // when the scroller already shows the new page (scrollTop reset/clamped
+    // to 0), and would overwrite the real position saved by the listener.
+    return () => el.removeEventListener('scroll', onScroll)
   }, [pathname, searchParams, scrollerRef])
 
+  // Route change: forward navigations start at the top. Traversals are handled
+  // by `currententrychange` (Navigation API) or the popstate flag (fallback).
   React.useEffect(() => {
     const maybeEl = scrollerRef.current
     if (!maybeEl) return
     const el: HTMLElement = maybeEl
-    const key = scrollRestorationKey(pathname, searchParams.toString())
+    const routeKey = scrollRestorationKey(pathname, searchParams.toString())
+
+    if (getNavigation()) {
+      // A traversal's entry change can land before or after this effect; if a
+      // restore for this route is already running or the entry change is still
+      // pending, resetting here would clobber it. Defer one frame and reset only
+      // if no traversal restore claimed the scroller meanwhile.
+      const claimedBefore = cancelRestoreRef.current
+      const rafId = requestAnimationFrame(() => {
+        if (cancelRestoreRef.current !== claimedBefore) return
+        const saved = window.sessionStorage.getItem(storageKeyFor(routeKey))
+        if (saved === null) setScrollTopInstant(el, 0)
+      })
+      return () => cancelAnimationFrame(rafId)
+    }
+
     const wasPopNavigation = isPopNavigation.current
     isPopNavigation.current = false
-
-    if (!wasPopNavigation) {
-      el.scrollTop = 0
+    const decision = decideScrollAction(wasPopNavigation, window.sessionStorage.getItem(routeKey))
+    if (decision.type === 'reset') {
+      setScrollTopInstant(el, 0)
       return
     }
-
-    const saved = window.sessionStorage.getItem(key)
-    const target = saved ? Number(saved) : 0
-    if (target <= 0) {
-      el.scrollTop = 0
-      return
-    }
-
-    let cancelled = false
-    const startedAt = performance.now()
-    const observer = new ResizeObserver(attempt)
-    observer.observe(el)
-    let rafId = requestAnimationFrame(attempt)
-
-    function attempt() {
-      if (cancelled) return
-      el.scrollTop = target
-      const reached = el.scrollTop >= target - 1
-      const timedOut = performance.now() - startedAt > RESTORE_BUDGET_MS
-      if (reached || timedOut) {
-        cleanup()
-        return
-      }
-      rafId = requestAnimationFrame(attempt)
-    }
-
-    function cleanup() {
-      cancelled = true
-      cancelAnimationFrame(rafId)
-      observer.disconnect()
-    }
-
-    return cleanup
+    const cancel = restoreScroll(el, decision.target)
+    return cancel
   }, [pathname, searchParams, scrollerRef])
 
   return null
