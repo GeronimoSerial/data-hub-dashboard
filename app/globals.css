@@ -3709,6 +3709,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .mapa-pestanas-barra {
   flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
   padding: var(--s-2) var(--gutter) 0;
   background: var(--page);
 }
