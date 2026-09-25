@@ -7,6 +7,7 @@ import { ChevronDown, Menu as MenuIcon, Moon, Search, Sun, UserRound } from 'luc
 import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
+import type { ShellUser } from '@/lib/session'
 import { isBleedViewerPath, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
@@ -176,13 +177,21 @@ function ScrollManager({ pathname, scrollerRef }: { pathname: string; scrollerRe
   return null
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  initialUser,
+}: {
+  children: React.ReactNode
+  initialUser: ShellUser | null
+}) {
   const { mode, setMode } = useThemeMode()
   const router = useRouter()
   const pathname = usePathname()
   const session = authClient.useSession()
-  const sessionUser = session.data?.user
-  const role = (sessionUser as { role?: Role } | undefined)?.role
+  // While the client session is pending (always during SSR), fall back to the
+  // server-provided user so the header markup matches on hydration.
+  const sessionUser = session.isPending ? initialUser : session.data?.user ?? null
+  const role = (sessionUser as { role?: Role } | null)?.role
   const mapViewer = isBleedViewerPath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
   const [resourceDetailsExpanded, setResourceDetailsExpanded] = React.useState(false)

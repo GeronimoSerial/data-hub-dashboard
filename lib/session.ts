@@ -28,3 +28,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     nivelIds: rows.map((r) => r.nivelId),
   }
 }
+
+/** Name and role for chrome (header) rendered on the server, so SSR and the
+ *  first client render agree before the client session hook resolves. */
+export type ShellUser = { name: string; role: Role }
+
+export async function getShellUser(): Promise<ShellUser | null> {
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session?.user) return null
+  return {
+    name: session.user.name,
+    role: (session.user.role as Role | undefined) ?? 'consulta',
+  }
+}
