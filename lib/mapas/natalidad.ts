@@ -17,8 +17,9 @@
 //   Superior/Servicios Educativos). Supersede a inicial-2026-padron.json
 //   (sólo inicial, con alumnos_activos — ese archivo y su manejo se
 //   eliminaron). Snapshot: data/natalidad/escuelas-2026-padron.json.
-import type { FeatureCollection, Point } from 'geojson'
+import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import { normalizarNombreDepartamento } from './departamentos'
+import { distanciaMinimaAlContorno, puntoDentroDeFeatureCollection, type Punto } from './geo'
 
 // ── Escuelas (GEO + padrón, todos los niveles) ──────────────────────────────
 
@@ -127,30 +128,44 @@ export function inferirNivelesDesdeOferta(ofertaTipo: string[]): Nivel[] {
 export interface ResultadoSaneoCoordenadas {
   /** Mismas filas de entrada; a las descartadas se les pone lat/lon en null. */
   rows: GeoEscuelaRow[]
-  /** Filas con coordenadas fuera de bbox (antes de sanear) — para loguear, nunca se pierden en silencio. */
-  descartadas: GeoEscuelaRow[]
+  /** Filas descartadas (antes de sanear), con la distancia al contorno más cercano — para loguear, nunca se pierden en silencio. */
+  descartadas: (GeoEscuelaRow & { distanciaKm: number })[]
 }
 
 /**
- * Anula lat/lon de las filas del GEO cuyas coordenadas caen fuera del bbox de
- * la provincia (ver LIMITES_CORRIENTES_BBOX en lib/mapas/departamentos.ts).
- * Una fila sin lat/lon pasa intacta (no es un caso de bbox, es un caso de
+ * Anula lat/lon de las filas del GEO cuyas coordenadas caen fuera de la
+ * provincia. Corrección 2026-09-25 (T5): un bounding box dejaba pasar puntos
+ * lejos de cualquier departamento con tal de caer dentro del rectángulo que
+ * envuelve a toda la provincia. Ahora se chequea point-in-polygon contra la
+ * UNIÓN de los departamentos (`departamentos`, Polygon/MultiPolygon con
+ * huecos — ver lib/mapas/geo.ts), y un punto que cae afuera se mantiene
+ * igual si está a `toleranciaKm` o menos del contorno más cercano: la
+ * geometría de los departamentos está simplificada y deja huecos a lo largo
+ * de la costa del Paraná/Uruguay, así que una escuela ribereña real puede
+ * caer un puñado de metros del otro lado de esa línea simplificada sin que
+ * eso signifique que está fuera de la provincia.
+ *
+ * Una fila sin lat/lon pasa intacta (no es un caso de saneo, es un caso de
  * "sin dato" que maneja construirFeatureCollectionEscuelas). Las descartadas
- * quedan en `descartadas` para que el llamador las reporte (nunca se
- * descartan en silencio).
+ * quedan en `descartadas` (con su distancia al contorno) para que el
+ * llamador las reporte (nunca se descartan en silencio).
  */
 export function sanearCoordenadasFueraDeLimites(
   rows: GeoEscuelaRow[],
-  bbox: [number, number, number, number],
+  departamentos: FeatureCollection<Polygon | MultiPolygon, unknown>,
+  toleranciaKm = 1,
 ): ResultadoSaneoCoordenadas {
-  const [oeste, sur, este, norte] = bbox
-  const descartadas: GeoEscuelaRow[] = []
+  const descartadas: (GeoEscuelaRow & { distanciaKm: number })[] = []
 
   const saneadas = rows.map((row) => {
     if (row.lat == null || row.lon == null) return row
-    const dentro = row.lon >= oeste && row.lon <= este && row.lat >= sur && row.lat <= norte
-    if (dentro) return row
-    descartadas.push(row)
+    const punto: Punto = [row.lon, row.lat]
+    if (puntoDentroDeFeatureCollection(punto, departamentos)) return row
+
+    const distanciaKm = distanciaMinimaAlContorno(punto, departamentos)
+    if (distanciaKm <= toleranciaKm) return row // hueco de la geometría simplificada (costa), no un error de coordenadas
+
+    descartadas.push({ ...row, distanciaKm })
     return { ...row, lat: null, lon: null }
   })
 
@@ -543,7 +558,15 @@ export function construirDatosNatalidad(params: {
   departamentos.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
   return {
-    meta: { fuenteNatalidad, fuenteLocalizaciones, fuenteSecciones, anioInicio, anioFin, anios, extraidoEn },
+    meta: {
+      fuenteNatalidad,
+      fuenteLocalizaciones,
+      fuenteSecciones,
+      anioInicio,
+      anioFin,
+      anios,
+      extraidoEn,
+    },
     provincia: {
       serie: provincia,
       variacion: calcularVariacion(provincia, anioInicio, anioFin),

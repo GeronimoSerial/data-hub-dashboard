@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { FeatureCollection, Polygon } from 'geojson'
 import {
   agruparEscuelasPorDepartamento,
   agruparNacimientosPorDepartamento,
@@ -114,30 +115,70 @@ describe('inferirNivelesDesdeOferta', () => {
 })
 
 describe('sanearCoordenadasFueraDeLimites', () => {
-  const bbox: [number, number, number, number] = [-59.71, -30.73, -55.62, -27.25]
+  // Cuadrado 0,0 - 1,1 en (lon,lat) — geometría simple, sólo para ejercitar
+  // el saneo (el point-in-polygon real se testea a fondo en geo.test.ts).
+  const departamentos: FeatureCollection<Polygon, { nombre: string }> = {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        properties: { nombre: 'CAPITAL' },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+              [0, 1],
+              [0, 0],
+            ],
+          ],
+        },
+      },
+    ],
+  }
 
   const dentro: GeoEscuelaRow = {
     cueAnexo: '1', nombre: 'Dentro', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
-    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 1, lat: -27.49, lon: -58.83,
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 1, lat: 0.5, lon: 0.5,
   }
-  const fuera: GeoEscuelaRow = {
-    cueAnexo: '2', nombre: 'Fuera', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
-    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 2, lat: -20.17, lon: -58.05,
+  // A ~0.005° del borde (lon=1): unos 500m en el ecuador, dentro de la tolerancia de 1km.
+  const cercaDelBorde: GeoEscuelaRow = {
+    cueAnexo: '2', nombre: 'Cerca del borde', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 2, lat: 0.5, lon: 1.005,
+  }
+  const lejos: GeoEscuelaRow = {
+    cueAnexo: '3', nombre: 'Lejos', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 3, lat: 10, lon: 10,
   }
   const sinCoords: GeoEscuelaRow = {
-    cueAnexo: '3', nombre: 'Sin coords', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
-    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 3, lat: null, lon: null,
+    cueAnexo: '4', nombre: 'Sin coords', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 4, lat: null, lon: null,
   }
 
-  it('anula lat/lon de las filas fuera del bbox y las reporta en descartadas', () => {
-    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([dentro, fuera, sinCoords], bbox)
-    expect(descartadas).toEqual([fuera])
-    expect(rows.find((r) => r.cueAnexo === '2')).toEqual({ ...fuera, lat: null, lon: null })
-    expect(rows.find((r) => r.cueAnexo === '1')).toEqual(dentro)
+  it('mantiene un punto adentro del polígono', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([dentro], departamentos)
+    expect(rows).toEqual([dentro])
+    expect(descartadas).toEqual([])
   })
 
-  it('una fila ya sin coordenadas pasa intacta (no es un caso de bbox)', () => {
-    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([sinCoords], bbox)
+  it('mantiene un punto afuera pero dentro de la tolerancia (hueco de geometría simplificada)', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([cercaDelBorde], departamentos)
+    expect(rows).toEqual([cercaDelBorde])
+    expect(descartadas).toEqual([])
+  })
+
+  it('anula lat/lon de un punto lejos de todo contorno y lo reporta con su distancia', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([lejos], departamentos)
+    expect(rows).toEqual([{ ...lejos, lat: null, lon: null }])
+    expect(descartadas).toHaveLength(1)
+    expect(descartadas[0].cueAnexo).toBe('3')
+    expect(descartadas[0].distanciaKm).toBeGreaterThan(1)
+  })
+
+  it('una fila ya sin coordenadas pasa intacta', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([sinCoords], departamentos)
     expect(rows).toEqual([sinCoords])
     expect(descartadas).toEqual([])
   })

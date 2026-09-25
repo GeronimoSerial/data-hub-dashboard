@@ -61,7 +61,6 @@ const {
   construirFeatureCollectionEscuelas,
   sanearCoordenadasFueraDeLimites,
 } = await import('../lib/mapas/natalidad.ts')
-const { LIMITES_CORRIENTES_BBOX } = await import('../lib/mapas/departamentos.ts')
 
 const NACIMIENTOS_PATH = join(root, 'data', 'natalidad', 'nacidos-vivos-corrientes.json')
 const GEO_PATH = join(root, 'data', 'natalidad', 'localizaciones-geo-2025-10-02.json')
@@ -273,12 +272,15 @@ async function main() {
   const departamentosGeojson = leerJson(DEPARTAMENTOS_GEOJSON_PATH)
   const nombresDepartamentosConocidos = departamentosGeojson.features.map((f) => f.properties.nombre)
 
-  // Limpia las 4 filas del GEO con coordenadas fuera de la provincia (una
-  // lat -20.x claramente errónea, tres con lon === lat) antes de cruzar con
-  // el padrón: nunca se descartan en silencio, se loguean abajo.
+  // Limpia las filas del GEO con coordenadas fuera de la provincia:
+  // point-in-polygon contra la unión de departamentos, con 1km de tolerancia
+  // al contorno (la geometría simplificada deja huecos en la costa del
+  // Paraná/Uruguay — ver sanearCoordenadasFueraDeLimites, corrección
+  // 2026-09-25). Nunca se descartan en silencio, se loguean abajo con su
+  // distancia al contorno más cercano.
   const { rows: geo, descartadas: fueraDeLimites } = sanearCoordenadasFueraDeLimites(
     geoRaw,
-    LIMITES_CORRIENTES_BBOX,
+    departamentosGeojson,
   )
 
   const { escuelas, padronSinGeo } = construirEscuelasCompletas(geo, padron)
@@ -307,8 +309,10 @@ async function main() {
   console.log(`GEO: ${geoRaw.length} escuelas activas, ${geo.filter((r) => r.lat != null && r.lon != null).length} con coordenadas dentro de la provincia`)
   if (fueraDeLimites.length > 0) {
     console.warn(
-      `Coordenadas descartadas por estar fuera de la provincia (${fueraDeLimites.length}): ` +
-        fueraDeLimites.map((r) => `${r.cueAnexo} "${r.nombre}" (${r.lat}, ${r.lon})`).join('; '),
+      `Coordenadas descartadas por estar fuera de la provincia (${fueraDeLimites.length}, más de 1km del contorno más cercano): ` +
+        fueraDeLimites
+          .map((r) => `${r.cueAnexo} "${r.nombre}" (${r.lat}, ${r.lon}) — ${r.distanciaKm.toFixed(1)}km`)
+          .join('; '),
     )
   }
 
