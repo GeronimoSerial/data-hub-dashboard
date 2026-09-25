@@ -10,7 +10,7 @@ import {
   tags,
   tipos,
 } from '@/lib/db/schema'
-import type { Formato, Recurso } from '@/lib/model'
+import type { Categoria, Formato, Recurso, Tipo } from '@/lib/model'
 
 export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
   const db = getDb()
@@ -77,8 +77,10 @@ export async function loadHubCatalog(opts: { publishedOnly: boolean }) {
   return {
     recursos: mapped,
     niveles: nivelRows,
-    tipos: tipoRows,
-    categorias: categoriaRows,
+    // aplicaA/color se guardan como text (string) en el schema; el modelo
+    // los tipa como uniones acotadas (Formato[]/BadgeColor) por dominio real.
+    tipos: tipoRows as unknown as Tipo[],
+    categorias: categoriaRows as unknown as Categoria[],
     tags: tagRows,
   }
 }

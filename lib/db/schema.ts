@@ -104,6 +104,14 @@ export const user = sqliteTable('user', {
   banned: integer('banned', { mode: 'boolean' }).default(false),
   banReason: text('ban_reason'),
   banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
+  // 'todos' | 'seleccionados': si es 'seleccionados', el acceso de un usuario
+  // consulta se restringe a los recursos listados en user_recursos (además
+  // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir). Columna
+  // agregada por ALTER a bases ya pobladas (ver ensureAccesoRecursosColumn en
+  // lib/db/seed.ts), mismo motivo que idempotency_key: SQLite no permite
+  // agregar NOT NULL sin default a una tabla con filas, así que acá el
+  // default cubre ambos casos (fresco y ALTER).
+  accesoRecursos: text('acceso_recursos').notNull().default('todos'),
 })
 
 export const session = sqliteTable(
@@ -189,6 +197,21 @@ export const userNiveles = sqliteTable(
       .references(() => niveles.id),
   },
   (t) => [primaryKey({ columns: [t.userId, t.nivelId] })],
+)
+
+// Recursos individuales habilitados para un usuario cuando
+// user.accesoRecursos = 'seleccionados'. Mismo patrón que userNiveles: sin
+// esta fila el recurso queda fuera del alcance del usuario (independiente de
+// la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
+export const userRecursos = sqliteTable(
+  'user_recursos',
+  {
+    userId: text('user_id').notNull(),
+    recursoId: text('recurso_id')
+      .notNull()
+      .references(() => recursos.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.recursoId] })],
 )
 
 // Motivos de problemática: dato con ABM (ver app/api/infraestructura/motivos),

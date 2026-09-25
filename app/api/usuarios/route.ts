@@ -2,12 +2,16 @@ import { auth } from '@/lib/auth'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 import {
+  UNKNOWN_RECURSOS_ERROR,
   authApiError,
   listHubUsers,
   listUsuariosDenied,
   mutateUsuariosDenied,
   parseCreateUserBody,
   replaceUserNiveles,
+  replaceUserRecursos,
+  setAccesoRecursos,
+  unknownRecursoIds,
 } from '@/lib/usuarios'
 
 export const runtime = 'nodejs'
@@ -41,6 +45,10 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
 
+  if ((await unknownRecursoIds(parsed.recursoIds)).length > 0) {
+    return Response.json({ error: UNKNOWN_RECURSOS_ERROR }, { status: 400 })
+  }
+
   try {
     const created = await auth.api.createUser({
       body: {
@@ -53,6 +61,8 @@ export async function POST(request: Request) {
     })
     const id = created.user.id
     await replaceUserNiveles(id, parsed.nivelIds)
+    await setAccesoRecursos(id, parsed.accesoRecursos)
+    await replaceUserRecursos(id, parsed.recursoIds)
     return Response.json({ ok: true, id }, { status: 201 })
   } catch (err) {
     const mapped = authApiError(err)

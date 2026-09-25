@@ -1,13 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { SessionUser } from './acl'
 import {
   LAST_ADMIN_ERROR,
   authApiError,
   emailHasTld,
+  listHubUsers,
   listUsuariosDenied,
   mutateUsuariosDenied,
   parseCreateUserBody,
   parsePatchUserBody,
+  replaceUserRecursos,
+  setAccesoRecursos,
+  unknownRecursoIds,
   wouldRemoveLastAdmin,
 } from './usuarios'
 
@@ -16,6 +23,8 @@ const admin: SessionUser = {
   role: 'admin',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 const editor: SessionUser = {
@@ -23,6 +32,8 @@ const editor: SessionUser = {
   role: 'editor',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 const consulta: SessionUser = {
@@ -30,6 +41,8 @@ const consulta: SessionUser = {
   role: 'consulta',
   banned: false,
   nivelIds: ['primario'],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 describe('listUsuariosDenied', () => {
@@ -93,7 +106,11 @@ describe('parseCreateUserBody', () => {
   }
 
   it('accepts a valid body', () => {
-    expect(parseCreateUserBody(base)).toEqual(base)
+    expect(parseCreateUserBody(base)).toEqual({
+      ...base,
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
   })
 
   it('rejects localhost emails and short passwords', () => {
@@ -103,6 +120,30 @@ describe('parseCreateUserBody', () => {
 
   it('rejects unknown roles', () => {
     expect(parseCreateUserBody({ ...base, role: 'superadmin' })).toBeNull()
+  })
+
+  it('defaults accesoRecursos to todos when omitted', () => {
+    expect(parseCreateUserBody(base)?.accesoRecursos).toBe('todos')
+  })
+
+  it('accepts accesoRecursos seleccionados with recursoIds', () => {
+    expect(
+      parseCreateUserBody({
+        ...base,
+        accesoRecursos: 'seleccionados',
+        recursoIds: ['r1', 'r2'],
+      }),
+    ).toEqual({
+      ...base,
+      accesoRecursos: 'seleccionados',
+      recursoIds: ['r1', 'r2'],
+    })
+  })
+
+  it('rejects an invalid accesoRecursos value', () => {
+    expect(
+      parseCreateUserBody({ ...base, accesoRecursos: 'todo' }),
+    ).toBeNull()
   })
 })
 
@@ -131,6 +172,23 @@ describe('parsePatchUserBody', () => {
   it('rejects unknown roles and short passwords', () => {
     expect(parsePatchUserBody({ role: 'root' })).toBeNull()
     expect(parsePatchUserBody({ password: '1234567' })).toBeNull()
+  })
+
+  it('accepts accesoRecursos and recursoIds', () => {
+    expect(
+      parsePatchUserBody({
+        accesoRecursos: 'seleccionados',
+        recursoIds: ['r1'],
+      }),
+    ).toEqual({ accesoRecursos: 'seleccionados', recursoIds: ['r1'] })
+  })
+
+  it('rejects an invalid accesoRecursos value', () => {
+    expect(parsePatchUserBody({ accesoRecursos: 'algunos' })).toBeNull()
+  })
+
+  it('rejects a non-array recursoIds', () => {
+    expect(parsePatchUserBody({ recursoIds: 'r1' })).toBeNull()
   })
 })
 
@@ -182,5 +240,68 @@ describe('authApiError', () => {
     expect(
       authApiError({ statusCode: 403, message: 'FORBIDDEN' }),
     ).toEqual({ status: 403, error: 'FORBIDDEN' })
+  })
+})
+
+// Base seedeada real (mismo patrón que lib/db/seed.test.ts): getDb() memoiza
+// la conexión a nivel de módulo, así que aislamos con un DATA_DIR propio.
+describe('recursoIds contra la base', () => {
+  let dir: string
+  let prevDataDir: string | undefined
+
+  beforeAll(async () => {
+    dir = mkdtempSync(path.join(tmpdir(), 'usuarios-recursos-'))
+    prevDataDir = process.env.DATA_DIR
+    process.env.DATA_DIR = dir
+    const { ensureSeeded } = await import('./db/seed')
+    await ensureSeeded()
+  })
+
+  afterAll(() => {
+    if (prevDataDir === undefined) delete process.env.DATA_DIR
+    else process.env.DATA_DIR = prevDataDir
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('unknownRecursoIds is empty for an empty list', async () => {
+    expect(await unknownRecursoIds([])).toEqual([])
+  })
+
+  it('unknownRecursoIds is empty when all ids exist', async () => {
+    expect(await unknownRecursoIds(['r1'])).toEqual([])
+  })
+
+  it('unknownRecursoIds reports ids that do not exist in recursos', async () => {
+    expect(await unknownRecursoIds(['r1', 'no-existe'])).toEqual(['no-existe'])
+  })
+
+  it('replaceUserRecursos + listHubUsers round-trips accesoRecursos and recursoIds', async () => {
+    const { getDb } = await import('./db')
+    const { user } = await import('./db/schema')
+    const { eq } = await import('drizzle-orm')
+    const db = getDb()
+
+    const userId = 'usuarios-test-user'
+    await db.insert(user).values({
+      id: userId,
+      name: 'Test',
+      email: 'usuarios-recursos-test@example.com',
+      emailVerified: false,
+      role: 'consulta',
+    } as typeof user.$inferInsert)
+
+    await setAccesoRecursos(userId, 'seleccionados')
+    await replaceUserRecursos(userId, ['r1'])
+
+    const usuarios = await listHubUsers()
+    const found = usuarios.find((u) => u.id === userId)
+    expect(found?.accesoRecursos).toBe('seleccionados')
+    expect(found?.recursoIds).toEqual(['r1'])
+
+    await replaceUserRecursos(userId, [])
+    const afterClear = (await listHubUsers()).find((u) => u.id === userId)
+    expect(afterClear?.recursoIds).toEqual([])
+
+    await db.delete(user).where(eq(user.id, userId))
   })
 })

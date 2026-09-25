@@ -419,3 +419,59 @@ describe('ensureAccesoNominalLogAfectacionIdColumn', () => {
     expect(Number(fila.rows[0]?.cantidad)).toBe(5)
   })
 })
+
+describe('recursos-por-usuario: esquema de datos', () => {
+  it('user_recursos existe y user.acceso_recursos por defecto es "todos"', async () => {
+    const db = getDb()
+
+    const tablas = await db.$client.execute(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_recursos'",
+    )
+    expect(tablas.rows).toHaveLength(1)
+
+    const info = await db.$client.execute("PRAGMA table_info('user')")
+    const accesoRecursos = info.rows.find((r) => String(r.name) === 'acceso_recursos')
+    expect(accesoRecursos).toBeDefined()
+    expect(String(accesoRecursos?.dflt_value)).toContain('todos')
+  })
+
+  it('ensureAccesoRecursosColumn es idempotente y agrega la columna a una tabla ya poblada', async () => {
+    const db = getDb()
+    const { ensureAccesoRecursosColumn } = await import('./seed')
+
+    // Simula una base creada antes de recursos-por-usuario (sin la columna):
+    // se recrea la tabla `user` sin acceso_recursos, con una fila existente.
+    await db.$client.executeMultiple(`
+      ALTER TABLE user RENAME TO user_old_sin_acceso_recursos;
+      CREATE TABLE user (
+        id text PRIMARY KEY NOT NULL,
+        name text NOT NULL,
+        email text NOT NULL,
+        email_verified integer DEFAULT 0 NOT NULL,
+        image text,
+        created_at integer NOT NULL,
+        updated_at integer NOT NULL,
+        role text,
+        banned integer DEFAULT 0,
+        ban_reason text,
+        ban_expires integer
+      );
+      INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
+      VALUES ('migracion-usuario-1', 'Usuario Migración', 'migracion@example.com', 1, 0, 0);
+      DROP TABLE user_old_sin_acceso_recursos;
+    `)
+
+    await ensureAccesoRecursosColumn()
+    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
+    await ensureAccesoRecursosColumn()
+
+    const info = await db.$client.execute("PRAGMA table_info('user')")
+    expect(info.rows.some((r) => String(r.name) === 'acceso_recursos')).toBe(true)
+
+    const fila = await db.$client.execute({
+      sql: 'SELECT acceso_recursos FROM user WHERE id = ?',
+      args: ['migracion-usuario-1'],
+    })
+    expect(fila.rows[0]?.acceso_recursos).toBe('todos')
+  })
+})

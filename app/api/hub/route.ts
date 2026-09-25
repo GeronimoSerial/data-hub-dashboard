@@ -1,10 +1,12 @@
-import { loadHubCatalog } from '@/lib/db/hub'
+import { buildCatalogResponse } from '@/lib/db/hub-catalog-for'
 import { ensureSeeded } from '@/lib/db/seed'
+import { getSessionUser } from '@/lib/session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   await ensureSeeded()
-  return Response.json(await loadHubCatalog({ publishedOnly: true }))
+  const user = await getSessionUser()
+  return Response.json(await buildCatalogResponse(user, { publishedOnly: true }))
 }

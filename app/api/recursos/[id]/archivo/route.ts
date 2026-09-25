@@ -45,6 +45,7 @@ async function loadRecursoWithAccess(id: string) {
       .where(eq(recursoAudienciaUsuarios.recursoId, id)),
   ])
   const access: RecursoAccess = {
+    id: row.id,
     estado: row.estado as RecursoAccess['estado'],
     audienciaNivelIds: nivelRows.map((r) => r.nivelId),
     audienciaUserIds: userRows.map((r) => r.userId),
