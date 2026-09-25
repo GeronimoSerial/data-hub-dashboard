@@ -206,7 +206,14 @@ function fmtVariacionContra(anioBase: number, variacion: Variacion): string {
   return `vs. ${anioBase}: ${fmtPct(variacion.pct)}`
 }
 
-export default function MapNatalidadPage() {
+interface MapNatalidadPageProps {
+  /** Pestaña "Mapa" activa (ver app/(hub)/mapas/natalidad/map-client.tsx). El
+      mapa nunca se desmonta al cambiar de pestaña, así que esto es lo único
+      que distingue "visible" de "oculto detrás de Estadísticas". */
+  visible?: boolean
+}
+
+export default function MapNatalidadPage({ visible = true }: MapNatalidadPageProps) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
@@ -237,6 +244,9 @@ export default function MapNatalidadPage() {
   // de la capa de clusters — el marcador buscado puede estar agrupado en un
   // cluster hasta que el flyTo termine de acercar el zoom.
   const [escuelaResaltada, setEscuelaResaltada] = useState<{ lng: number; lat: number } | null>(null)
+  // Ver handleLoad/efecto de `visible` más abajo: sólo un fit hecho con el
+  // contenedor en tamaño real (no display:none) cuenta como válido.
+  const fitValidoRef = useRef(false)
 
   useEffect(() => {
     let cancelado = false
@@ -364,6 +374,58 @@ export default function MapNatalidadPage() {
     }
   }
 
+  // T11 (perf/bug): `initialViewState.bounds` sólo se evalúa una vez, al
+  // construir el mapa — si en ese momento el contenedor todavía no tiene su
+  // tamaño final (layout del shell sin asentar, montaje detrás de la pestaña
+  // "Estadísticas", etc.) MapLibre calcula el fit contra un canvas equivocado
+  // y el resultado observado es la vista abierta con toda Sudamérica en vez
+  // de Corrientes. `onLoad` corre después de que el mapa ya resolvió su
+  // tamaño real, así que repetir el fit ahí (sin animación, `duration: 0`)
+  // corrige el encuadre inicial de forma confiable sin depender de que
+  // `initialViewState` haya visto el tamaño correcto.
+  function handleLoad() {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    mapa.resize()
+    mapa.fitBounds(LIMITES_CORRIENTES, { padding: 24, duration: 0 })
+    // Si `onLoad` corrió con el contenedor oculto (deep link #estadisticas:
+    // el mapa se monta detrás de la pestaña "Mapa" desde el arranque), el
+    // `resize()`/`fitBounds()` de arriba corrieron contra un canvas 0×0 y no
+    // cuentan — el efecto de `visible` de abajo repite el fit la primera vez
+    // que el contenedor realmente se muestra.
+    fitValidoRef.current = visible
+  }
+
+  // T11 (perf): al ocultar la pestaña "Mapa" (mapa sigue montado con
+  // [hidden], nunca se desmonta) cortamos cualquier transición de cámara en
+  // curso con `map.stop()` — si el usuario buscó una escuela justo antes de
+  // cambiar de pestaña, el flyTo en curso quedaría animando sobre un
+  // contenedor sin layout visible, gastando ciclos de rAF sin ningún efecto
+  // visible hasta terminar. No se llama `.resize()` ni se reintenta el fit
+  // acá: eso se hace al volver a mostrarse (ver mapaVisible en
+  // app/(hub)/mapas/natalidad/map-client.tsx) para no resetear el
+  // pan/zoom del usuario en cada cambio de pestaña.
+  useEffect(() => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (visible) {
+      // Si el mapa arrancó montado detrás de "Estadísticas" (deep link
+      // #estadisticas), su primer `onLoad` corrió con el contenedor todavía
+      // en display:none — `resize()` le hace notar el tamaño real recién
+      // ahora que el navegador ya le dio layout. El fit sólo se repite si
+      // `fitValidoRef` sigue en false (nunca se hizo con tamaño real):
+      // evita resetear el pan/zoom del usuario en cambios de pestaña
+      // normales, donde el fit inicial ya fue válido.
+      mapa.resize()
+      if (!fitValidoRef.current) {
+        mapa.fitBounds(LIMITES_CORRIENTES, { padding: 24, duration: 0 })
+        fitValidoRef.current = true
+      }
+    } else {
+      mapa.stop()
+    }
+  }, [visible])
+
   function handleSeleccionarEscuelaBuscada(feature: FeatureCollection<Point, EscuelaProperties>['features'][number]) {
     if (feature.geometry.type !== 'Point') return
     const [lng, lat] = feature.geometry.coordinates
@@ -453,6 +515,7 @@ export default function MapNatalidadPage() {
           initialViewState={{ bounds: LIMITES_CORRIENTES, fitBoundsOptions: { padding: 24 } }}
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
+          onLoad={handleLoad}
           onMouseMove={handleMouseMove}
           onClick={handleClick}
           cursor="pointer"

@@ -70,7 +70,7 @@ export function NatalidadMapClient() {
             que infraestructura): sólo se oculta con [hidden], así MapLibre no
             pierde el encuadre ni vuelve a bajar el basemap al volver. */}
         <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-mapa">
-          <MapNatalidadPage />
+          <MapNatalidadPage visible={mapaVisible} />
         </div>
 
         {/* Estadísticas sí se monta/desmonta: es un fetch + gráficos, sin

@@ -289,6 +289,10 @@ export interface ResultadoFeatureCollectionEscuelas {
  * oferta de inicial sin tener que inspeccionar el array completo en cada
  * paint.
  */
+function redondearCoordenada(valor: number): number {
+  return Math.round(valor * 1e5) / 1e5
+}
+
 export function construirFeatureCollectionEscuelas(
   escuelas: EscuelaCompleta[],
 ): ResultadoFeatureCollectionEscuelas {
@@ -303,7 +307,10 @@ export function construirFeatureCollectionEscuelas(
     const { lat, lon, ...propiedadesBase } = escuela
     features.push({
       type: 'Feature',
-      geometry: { type: 'Point', coordinates: [lon, lat] },
+      // T11 (perf): 5 decimales (~1.1m de precisión) alcanzan de sobra para
+      // pins/popups/búsqueda; el GEO trae hasta 7 decimales (~1cm), que sólo
+      // engordan escuelas.geojson sin aportar nada visible.
+      geometry: { type: 'Point', coordinates: [redondearCoordenada(lon), redondearCoordenada(lat)] },
       properties: { ...propiedadesBase, esInicial: escuela.niveles.some((n) => n.nivel === 'Inicial') },
     })
   }
@@ -736,6 +743,49 @@ function tokenizar(texto: string): string[] {
   return texto.split(/[^a-z0-9]+/).filter(Boolean)
 }
 
+interface EntradaIndiceBusquedaEscuela {
+  feature: Feature<Point, EscuelaProperties>
+  nombre: string
+  cue: string
+  localidad: string
+  palabras: string[]
+}
+
+// T11 (perf): buscarEscuelas normalizaba nombre/CUE/localidad de las ~2000
+// escuelas EN CADA LLAMADA — con un buscador que llama a esta función en cada
+// tecleo, eso repetía el mismo trabajo de normalización miles de veces por
+// búsqueda. El feature collection que pasa el mapa es un único objeto estable
+// (useState, se carga una sola vez), así que cachear el índice normalizado
+// por identidad de ese objeto en un WeakMap construye el índice una sola vez
+// y las siguientes llamadas (mismo featureCollection, distinta query) sólo
+// normalizan la query. WeakMap evita retener el índice si el featureCollection
+// deja de estar referenciado en otro lado.
+const indicesBusquedaEscuelas = new WeakMap<
+  FeatureCollection<Point, EscuelaProperties>,
+  EntradaIndiceBusquedaEscuela[]
+>()
+
+function indiceBusquedaEscuelas(
+  featureCollection: FeatureCollection<Point, EscuelaProperties>,
+): EntradaIndiceBusquedaEscuela[] {
+  const cacheado = indicesBusquedaEscuelas.get(featureCollection)
+  if (cacheado) return cacheado
+
+  const indice = featureCollection.features.map((feature) => {
+    const props = feature.properties
+    const nombre = normalizarTextoBusqueda(props.nombre)
+    return {
+      feature,
+      nombre,
+      cue: normalizarTextoBusqueda(props.cueAnexo),
+      localidad: normalizarTextoBusqueda(props.localidad),
+      palabras: tokenizar(nombre),
+    }
+  })
+  indicesBusquedaEscuelas.set(featureCollection, indice)
+  return indice
+}
+
 /**
  * Busca escuelas por nombre, CUE-anexo o localidad — insensible a mayúsculas
  * y acentos. Nunca busca con menos de 2 caracteres (evita listar "todo" con
@@ -766,17 +816,13 @@ export function buscarEscuelas(
   if (q.length < 2) return []
 
   const hits: ResultadoBusquedaEscuela[] = []
-  for (const feature of featureCollection.features) {
-    const props = feature.properties
-    const nombre = normalizarTextoBusqueda(props.nombre)
-    const cue = normalizarTextoBusqueda(props.cueAnexo)
-    const localidad = normalizarTextoBusqueda(props.localidad)
+  for (const entrada of indiceBusquedaEscuelas(featureCollection)) {
+    const { feature, nombre, cue, localidad, palabras } = entrada
 
     let rango: number | null = null
     if (cue === q) rango = 0
     else if (nombre.startsWith(q) || cue.startsWith(q)) rango = 1
     else {
-      const palabras = tokenizar(nombre)
       if (palabras.includes(q)) rango = 2
       else if (palabras.some((palabra) => palabra.startsWith(q))) rango = 3
       else if (nombre.includes(q) || cue.includes(q) || localidad.includes(q)) rango = 4

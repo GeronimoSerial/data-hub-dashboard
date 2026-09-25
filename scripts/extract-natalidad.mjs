@@ -299,7 +299,12 @@ async function main() {
 
   mkdirSync(OUT_DIR, { recursive: true })
   writeFileSync(join(OUT_DIR, 'departamentos.json'), `${JSON.stringify(datos, null, 1)}\n`)
-  writeFileSync(join(OUT_DIR, 'escuelas.geojson'), `${JSON.stringify(featureCollection, null, 1)}\n`)
+  // T11 (perf): escuelas.geojson es un archivo servido al browser (fetch +
+  // JSON.parse en cada carga del mapa), no un artefacto pensado para diff —
+  // pretty-print con indent agregaba ~1996 features × varias líneas de
+  // espacios que sólo aumentan bytes por red sin beneficio (el pretty de
+  // departamentos.json sí vale la pena: es chico y se lee a mano seguido).
+  writeFileSync(join(OUT_DIR, 'escuelas.geojson'), `${JSON.stringify(featureCollection)}\n`)
 
   console.log(`departamentos.json: ${datos.departamentos.length} departamentos, años ${datos.meta.anioInicio}-${datos.meta.anioFin}`)
   if (datos.departamentosSinMatch.length > 0) {
