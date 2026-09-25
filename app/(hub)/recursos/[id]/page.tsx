@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db'
 import { recursos } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
-import { filtrarVisibles, puedeAbrir } from '@/lib/acl'
+import { marcarAcceso, puedeAbrir } from '@/lib/acl'
 import { loadRecursoAccess } from '@/lib/db/recurso-access'
 import { loadHubCatalog } from '@/lib/db/hub'
 import { ResourceExperience } from '@/components/resource-experience'
@@ -38,7 +38,7 @@ export default async function RecursoPage({
       categorias={catalog.categorias}
       niveles={catalog.niveles}
       tipos={catalog.tipos}
-      related={filtrarVisibles(user, catalog.recursos)}
+      related={marcarAcceso(user, catalog.recursos)}
     />
   )
 }

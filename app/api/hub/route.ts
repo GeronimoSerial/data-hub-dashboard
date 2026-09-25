@@ -1,5 +1,4 @@
-import { filtrarVisibles } from '@/lib/acl'
-import { loadHubCatalog } from '@/lib/db/hub'
+import { buildCatalogResponse } from '@/lib/db/hub-catalog-for'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
 
@@ -9,9 +8,5 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   await ensureSeeded()
   const user = await getSessionUser()
-  const catalog = await loadHubCatalog({ publishedOnly: true })
-  return Response.json({
-    ...catalog,
-    recursos: filtrarVisibles(user, catalog.recursos),
-  })
+  return Response.json(await buildCatalogResponse(user, { publishedOnly: true }))
 }

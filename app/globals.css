@@ -746,6 +746,18 @@ time {
 }
 .resource-card__access svg { color: var(--warn); }
 
+/* Restringido: no es un enlace, solo informa que existe. Menor énfasis y
+   cursor por defecto en vez del pointer de una tarjeta clickeable. */
+.resource-card--bloqueado {
+  cursor: default;
+  opacity: 0.6;
+}
+.resource-card--bloqueado:hover {
+  border-color: var(--line);
+  background: var(--card);
+}
+.resource-card--bloqueado:hover h3 { text-decoration: none; }
+
 /* Browse card: topic, level, format. The icon block is a solid square of
    palette colour — the manual's own device — not a tinted rounded chip. */
 .browse-card {

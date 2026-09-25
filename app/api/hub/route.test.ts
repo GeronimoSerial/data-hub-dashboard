@@ -67,38 +67,46 @@ function consulta(over: Partial<Awaited<ReturnType<typeof getSessionUser>>> = {}
   }
 }
 
+type MarkedRecurso = { id: string; acceso: 'abrir' | 'ingresar' | 'restringido' }
+
 describe('GET /api/hub', () => {
-  it('sin sesión no devuelve ningún recurso (no hay catálogo público sin ACL)', async () => {
+  it('sin sesión devuelve todo el catálogo publicado, marcado como ingresar', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
-    expect(data.recursos).toEqual([])
+    expect(data.recursos.length).toBeGreaterThan(0)
+    expect(
+      (data.recursos as MarkedRecurso[]).every((r) => r.acceso === 'ingresar'),
+    ).toBe(true)
   })
 
-  it('consulta+todos no ve el recurso restringido a otro nivel', async () => {
+  it('consulta+todos: el recurso restringido a otro nivel queda restringido, no se oculta', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
     const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
+    const recursos = data.recursos as MarkedRecurso[]
+    expect(recursos.some((r) => r.id === 'hub-route-restringido')).toBe(true)
     expect(
-      data.recursos.some((r: { id: string }) => r.id === 'hub-route-restringido'),
-    ).toBe(false)
+      recursos.find((r) => r.id === 'hub-route-restringido')?.acceso,
+    ).toBe('restringido')
   })
 
-  it('consulta+todos ve el recurso restringido cuando su nivel coincide', async () => {
+  it('consulta+todos: abrir cuando su nivel coincide', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ nivelIds: ['secundario'] }),
     )
     const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
+    const recursos = data.recursos as MarkedRecurso[]
     expect(
-      data.recursos.some((r: { id: string }) => r.id === 'hub-route-restringido'),
-    ).toBe(true)
+      recursos.find((r) => r.id === 'hub-route-restringido')?.acceso,
+    ).toBe('abrir')
   })
 
-  it('consulta+seleccionados solo ve los recursos listados', async () => {
+  it('consulta+seleccionados: el listado abre, el resto queda restringido', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({
         accesoRecursos: 'seleccionados',
@@ -109,20 +117,26 @@ describe('GET /api/hub', () => {
     const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
-    expect(data.recursos.map((r: { id: string }) => r.id)).toEqual([
-      'hub-route-restringido',
-    ])
+    const recursos = data.recursos as MarkedRecurso[]
+    expect(recursos.length).toBeGreaterThan(1)
+    expect(
+      recursos.find((r) => r.id === 'hub-route-restringido')?.acceso,
+    ).toBe('abrir')
+    expect(
+      recursos.filter((r) => r.id !== 'hub-route-restringido').every(
+        (r) => r.acceso === 'restringido',
+      ),
+    ).toBe(true)
   })
 
-  it('staff ve todo lo publicado sin restricción de audiencia', async () => {
+  it('staff (audiencia restringida incluida): siempre abrir', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ role: 'admin' as const }),
     )
     const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
-    expect(
-      data.recursos.some((r: { id: string }) => r.id === 'hub-route-restringido'),
-    ).toBe(true)
+    const recursos = data.recursos as MarkedRecurso[]
+    expect(recursos.every((r) => r.acceso === 'abrir')).toBe(true)
   })
 })

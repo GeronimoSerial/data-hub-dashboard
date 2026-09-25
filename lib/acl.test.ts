@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accesoDe,
   adminPageGate,
-  filtrarVisibles,
   isStaff,
+  marcarAcceso,
   puedeAbrir,
   type RecursoAccess,
   type SessionUser,
@@ -171,7 +172,32 @@ describe('adminPageGate', () => {
   })
 })
 
-describe('filtrarVisibles', () => {
+describe('accesoDe', () => {
+  it('anonymous is always ingresar, even for an otherwise-open resource', () => {
+    expect(accesoDe(null, pub)).toBe('ingresar')
+  })
+
+  it('signed-in consulta with permission is abrir', () => {
+    expect(accesoDe(consulta(), pub)).toBe('abrir')
+  })
+
+  it('signed-in consulta without permission is restringido', () => {
+    expect(
+      accesoDe(consulta({ accesoRecursos: 'seleccionados', recursoIds: ['otro'] }), pub),
+    ).toBe('restringido')
+    expect(
+      accesoDe(consulta(), { ...pub, audienciaNivelIds: ['secundario'] }),
+    ).toBe('restringido')
+  })
+
+  it('staff is always abrir, even on borrador', () => {
+    expect(accesoDe(consulta({ role: 'admin' }), { ...pub, estado: 'borrador' })).toBe(
+      'abrir',
+    )
+  })
+})
+
+describe('marcarAcceso', () => {
   const abierto = { id: 'r1', estado: 'publicado' as const }
   const borrador = { id: 'r2', estado: 'borrador' as const }
   const restringido = {
@@ -182,45 +208,53 @@ describe('filtrarVisibles', () => {
   }
   const catalogo = [abierto, borrador, restringido]
 
-  it('anonymous sees nothing (no ACL, no public catalog)', () => {
-    expect(filtrarVisibles(null, catalogo)).toEqual([])
+  it('anonymous: every item comes back marked ingresar, nothing is dropped', () => {
+    expect(marcarAcceso(null, catalogo)).toEqual([
+      { ...abierto, acceso: 'ingresar' },
+      { ...borrador, acceso: 'ingresar' },
+      { ...restringido, acceso: 'ingresar' },
+    ])
   })
 
-  it('consulta+todos sees every published open resource but not drafts or out-of-audience', () => {
-    expect(filtrarVisibles(consulta(), catalogo)).toEqual([abierto])
+  it('consulta+todos: abierto is abrir, out-of-audience/borrador are restringido', () => {
+    expect(marcarAcceso(consulta(), catalogo)).toEqual([
+      { ...abierto, acceso: 'abrir' },
+      { ...borrador, acceso: 'restringido' },
+      { ...restringido, acceso: 'restringido' },
+    ])
   })
 
-  it('consulta+todos sees restricted resources when the nivel matches', () => {
+  it('consulta+todos sees restringido become abrir when the nivel matches', () => {
+    expect(marcarAcceso(consulta({ nivelIds: ['secundario'] }), catalogo)).toEqual([
+      { ...abierto, acceso: 'abrir' },
+      { ...borrador, acceso: 'restringido' },
+      { ...restringido, acceso: 'abrir' },
+    ])
+  })
+
+  it('consulta+seleccionados: only listed ids are abrir, respecting audience', () => {
     expect(
-      filtrarVisibles(consulta({ nivelIds: ['secundario'] }), catalogo),
-    ).toEqual([abierto, restringido])
-  })
-
-  it('consulta+seleccionados sees only listed resources, respecting audience', () => {
-    expect(
-      filtrarVisibles(
+      marcarAcceso(
         consulta({ accesoRecursos: 'seleccionados', recursoIds: ['r1', 'r3'] }),
         catalogo,
       ),
-    ).toEqual([abierto])
-    expect(
-      filtrarVisibles(
-        consulta({
-          accesoRecursos: 'seleccionados',
-          recursoIds: ['r1', 'r3'],
-          nivelIds: ['secundario'],
-        }),
-        catalogo,
-      ),
-    ).toEqual([abierto, restringido])
+    ).toEqual([
+      { ...abierto, acceso: 'abrir' },
+      { ...borrador, acceso: 'restringido' },
+      { ...restringido, acceso: 'restringido' },
+    ])
   })
 
-  it('staff sees everything including drafts', () => {
-    expect(filtrarVisibles(consulta({ role: 'admin' }), catalogo)).toEqual(
-      catalogo,
-    )
-    expect(filtrarVisibles(consulta({ role: 'editor' }), catalogo)).toEqual(
-      catalogo,
-    )
+  it('staff: everything is abrir, including drafts', () => {
+    expect(marcarAcceso(consulta({ role: 'admin' }), catalogo)).toEqual([
+      { ...abierto, acceso: 'abrir' },
+      { ...borrador, acceso: 'abrir' },
+      { ...restringido, acceso: 'abrir' },
+    ])
+    expect(marcarAcceso(consulta({ role: 'editor' }), catalogo)).toEqual([
+      { ...abierto, acceso: 'abrir' },
+      { ...borrador, acceso: 'abrir' },
+      { ...restringido, acceso: 'abrir' },
+    ])
   })
 })

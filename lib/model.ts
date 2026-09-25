@@ -98,6 +98,10 @@ export interface Recurso {
   size?: number
   audienciaNivelIds?: string[]
   audienciaUserIds?: string[]
+  /** Calculado por el servidor al armar el catálogo (ver lib/acl.ts
+   *  marcarAcceso): no se persiste ni se administra. Ausente en los seeds
+   *  estáticos de este archivo, que no pasan por esa marcación. */
+  acceso?: 'abrir' | 'ingresar' | 'restringido'
 }
 
 // ── Catálogo publicado (solo recursos con archivo o visor) ─────────────────
