@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   adminPageGate,
+  filtrarVisibles,
   isStaff,
   puedeAbrir,
   type RecursoAccess,
@@ -167,5 +168,59 @@ describe('adminPageGate', () => {
   it('allows active staff', () => {
     expect(adminPageGate(consulta({ role: 'admin' }))).toBe('ok')
     expect(adminPageGate(consulta({ role: 'editor' }))).toBe('ok')
+  })
+})
+
+describe('filtrarVisibles', () => {
+  const abierto = { id: 'r1', estado: 'publicado' as const }
+  const borrador = { id: 'r2', estado: 'borrador' as const }
+  const restringido = {
+    id: 'r3',
+    estado: 'publicado' as const,
+    audienciaNivelIds: ['secundario'],
+    audienciaUserIds: [],
+  }
+  const catalogo = [abierto, borrador, restringido]
+
+  it('anonymous sees nothing (no ACL, no public catalog)', () => {
+    expect(filtrarVisibles(null, catalogo)).toEqual([])
+  })
+
+  it('consulta+todos sees every published open resource but not drafts or out-of-audience', () => {
+    expect(filtrarVisibles(consulta(), catalogo)).toEqual([abierto])
+  })
+
+  it('consulta+todos sees restricted resources when the nivel matches', () => {
+    expect(
+      filtrarVisibles(consulta({ nivelIds: ['secundario'] }), catalogo),
+    ).toEqual([abierto, restringido])
+  })
+
+  it('consulta+seleccionados sees only listed resources, respecting audience', () => {
+    expect(
+      filtrarVisibles(
+        consulta({ accesoRecursos: 'seleccionados', recursoIds: ['r1', 'r3'] }),
+        catalogo,
+      ),
+    ).toEqual([abierto])
+    expect(
+      filtrarVisibles(
+        consulta({
+          accesoRecursos: 'seleccionados',
+          recursoIds: ['r1', 'r3'],
+          nivelIds: ['secundario'],
+        }),
+        catalogo,
+      ),
+    ).toEqual([abierto, restringido])
+  })
+
+  it('staff sees everything including drafts', () => {
+    expect(filtrarVisibles(consulta({ role: 'admin' }), catalogo)).toEqual(
+      catalogo,
+    )
+    expect(filtrarVisibles(consulta({ role: 'editor' }), catalogo)).toEqual(
+      catalogo,
+    )
   })
 })

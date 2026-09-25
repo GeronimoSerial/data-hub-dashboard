@@ -40,6 +40,34 @@ export function puedeAbrir(
   return user.nivelIds.some((id) => recurso.audienciaNivelIds.includes(id))
 }
 
+// Cualquier item de catálogo (Recurso, RecursoAccess) que traiga estos campos
+// puede filtrarse con la misma regla de puedeAbrir. Las audiencias son
+// opcionales acá porque `Recurso` las declara opcionales; se normalizan a []
+// antes de delegar en puedeAbrir.
+type FiltrableAccess = {
+  id: string
+  estado: 'publicado' | 'borrador'
+  audienciaNivelIds?: string[]
+  audienciaUserIds?: string[]
+}
+
+/** Filtra una lista de recursos (catálogo, relacionados, búsqueda) dejando
+ *  solo los que el usuario puede abrir según puedeAbrir. Sin sesión, no
+ *  devuelve nada: no hay catálogo público sin ACL. */
+export function filtrarVisibles<T extends FiltrableAccess>(
+  user: SessionUser | null,
+  items: T[],
+): T[] {
+  return items.filter((item) =>
+    puedeAbrir(user, {
+      id: item.id,
+      estado: item.estado,
+      audienciaNivelIds: item.audienciaNivelIds ?? [],
+      audienciaUserIds: item.audienciaUserIds ?? [],
+    }),
+  )
+}
+
 export function isStaff(role: Role | null | undefined) {
   return role === 'admin' || role === 'editor'
 }
