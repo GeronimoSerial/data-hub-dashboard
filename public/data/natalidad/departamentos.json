@@ -4,7 +4,8 @@
    "nombre": "DEIS / Ministerio de Capital Humano – OEI, \"Tendencias demográficas recientes e impactos en las ofertas del nivel inicial\"",
    "url": "https://app.powerbi.com/view?r=eyJrIjoiYmEwYWM4N2EtOWViOS00MmQ2LTg1NGMtNDlmMGRmZDRmNjY1IiwidCI6ImE1YmEzMDQ2LTNmMzQtNDI0Mi1iZjc4LTk5NDY1ODk2MGI4MCJ9"
   },
-  "fuenteInicial": "Padrón Gestión Educativa, ciclo lectivo 2026",
+  "fuenteLocalizaciones": "Localizaciones: relevamiento GEO 2025-10-02",
+  "fuenteSecciones": "Secciones: padrón Gestión Educativa, ciclo 2026",
   "anioInicio": 2014,
   "anioFin": 2023,
   "anios": [
@@ -60,15 +61,37 @@
     "abs": -242,
     "pct": -29.156626506024097
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 37,
+     "secciones": 120
+    },
+    "Primario": {
+     "escuelas": 39,
+     "secciones": 413
+    },
+    "Secundario": {
+     "escuelas": 16,
+     "secciones": 479
+    },
+    "Superior": {
+     "escuelas": 2,
+     "secciones": 101
+    },
+    "Servicios Educativos": {
+     "escuelas": 11,
+     "secciones": 95
+    }
+   },
    "inicial": {
-    "cues": 36,
+    "cues": 37,
     "seccionesTotal": 120,
     "seccionesPorCurso": {
-     "Plurisala": 26,
-     "Sala Integrada": 11,
-     "Sala de 5": 33,
-     "Sala de 4": 36,
      "Sala de 3": 5,
+     "Sala de 4": 36,
+     "Sala de 5": 33,
+     "Sala Integrada": 11,
+     "Plurisala": 26,
      "Sala Especial": 9
     }
    }
@@ -92,6 +115,28 @@
    "variacion": {
     "abs": -16,
     "pct": -48.484848484848484
+   },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 5,
+     "secciones": 11
+    },
+    "Primario": {
+     "escuelas": 5,
+     "secciones": 39
+    },
+    "Secundario": {
+     "escuelas": 3,
+     "secciones": 67
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 28
+    },
+    "Servicios Educativos": {
+     "escuelas": 1,
+     "secciones": 2
+    }
    },
    "inicial": {
     "cues": 5,
@@ -123,17 +168,39 @@
     "abs": -3090,
     "pct": -39.48377204191157
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 127,
+     "secciones": 793
+    },
+    "Primario": {
+     "escuelas": 135,
+     "secciones": 2598
+    },
+    "Secundario": {
+     "escuelas": 115,
+     "secciones": 4278
+    },
+    "Superior": {
+     "escuelas": 25,
+     "secciones": 568
+    },
+    "Servicios Educativos": {
+     "escuelas": 61,
+     "secciones": 1589
+    }
+   },
    "inicial": {
-    "cues": 88,
+    "cues": 127,
     "seccionesTotal": 793,
     "seccionesPorCurso": {
+     "Sala Integrada": 73,
      "Sala de 3": 73,
      "Sala de 4": 285,
      "Sala de 5": 350,
-     "Sala Integrada": 73,
      "Plurisala": 7,
-     "Sala Especial": 3,
-     "Sala de 2": 2
+     "Sala de 2": 2,
+     "Sala Especial": 3
     }
    }
   },
@@ -157,15 +224,37 @@
     "abs": -165,
     "pct": -34.090909090909086
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 32,
+     "secciones": 113
+    },
+    "Primario": {
+     "escuelas": 40,
+     "secciones": 418
+    },
+    "Secundario": {
+     "escuelas": 12,
+     "secciones": 272
+    },
+    "Superior": {
+     "escuelas": 4,
+     "secciones": 62
+    },
+    "Servicios Educativos": {
+     "escuelas": 7,
+     "secciones": 73
+    }
+   },
    "inicial": {
-    "cues": 30,
-    "seccionesTotal": 112,
+    "cues": 32,
+    "seccionesTotal": 113,
     "seccionesPorCurso": {
-     "Sala Integrada": 19,
-     "Sala de 4": 37,
-     "Sala de 5": 46,
-     "Sala de 3": 3,
      "Plurisala": 6,
+     "Sala de 5": 47,
+     "Sala Integrada": 19,
+     "Sala de 3": 3,
+     "Sala de 4": 37,
      "Sala Especial": 1
     }
    }
@@ -190,16 +279,38 @@
     "abs": -239,
     "pct": -26.975169300225733
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 49,
+     "secciones": 154
+    },
+    "Primario": {
+     "escuelas": 56,
+     "secciones": 609
+    },
+    "Secundario": {
+     "escuelas": 23,
+     "secciones": 575
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 91
+    },
+    "Servicios Educativos": {
+     "escuelas": 8,
+     "secciones": 148
+    }
+   },
    "inicial": {
-    "cues": 48,
+    "cues": 49,
     "seccionesTotal": 154,
     "seccionesPorCurso": {
-     "Sala de 4": 46,
      "Sala de 5": 82,
      "Plurisala": 13,
+     "Sala de 4": 46,
+     "Sala Integrada": 4,
      "Sala de 3": 8,
-     "Sala de 2": 1,
-     "Sala Integrada": 4
+     "Sala de 2": 1
     }
    }
   },
@@ -223,15 +334,37 @@
     "abs": -52,
     "pct": -19.25925925925926
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 35,
+     "secciones": 63
+    },
+    "Primario": {
+     "escuelas": 43,
+     "secciones": 307
+    },
+    "Secundario": {
+     "escuelas": 11,
+     "secciones": 194
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 57
+    },
+    "Servicios Educativos": {
+     "escuelas": 3,
+     "secciones": 68
+    }
+   },
    "inicial": {
     "cues": 35,
     "seccionesTotal": 63,
     "seccionesPorCurso": {
-     "Sala de 4": 17,
      "Sala de 5": 28,
+     "Sala de 3": 5,
+     "Sala de 4": 17,
      "Plurisala": 10,
-     "Sala Integrada": 3,
-     "Sala de 3": 5
+     "Sala Integrada": 3
     }
    }
   },
@@ -255,15 +388,37 @@
     "abs": -210,
     "pct": -30.927835051546392
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 53,
+     "secciones": 183
+    },
+    "Primario": {
+     "escuelas": 60,
+     "secciones": 487
+    },
+    "Secundario": {
+     "escuelas": 23,
+     "secciones": 435
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 72
+    },
+    "Servicios Educativos": {
+     "escuelas": 6,
+     "secciones": 41
+    }
+   },
    "inicial": {
-    "cues": 54,
-    "seccionesTotal": 184,
+    "cues": 53,
+    "seccionesTotal": 183,
     "seccionesPorCurso": {
      "Sala Integrada": 8,
-     "Sala de 5": 68,
-     "Plurisala": 10,
-     "Sala de 4": 60,
      "Sala de 3": 27,
+     "Sala de 4": 60,
+     "Sala de 5": 68,
+     "Plurisala": 9,
      "Sala Especial": 11
     }
    }
@@ -288,14 +443,36 @@
     "abs": -20,
     "pct": -17.543859649122805
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 11,
+     "secciones": 31
+    },
+    "Primario": {
+     "escuelas": 14,
+     "secciones": 125
+    },
+    "Secundario": {
+     "escuelas": 6,
+     "secciones": 95
+    },
+    "Superior": {
+     "escuelas": 1,
+     "secciones": 37
+    },
+    "Servicios Educativos": {
+     "escuelas": 3,
+     "secciones": 47
+    }
+   },
    "inicial": {
     "cues": 11,
     "seccionesTotal": 31,
     "seccionesPorCurso": {
-     "Plurisala": 5,
-     "Sala Especial": 3,
      "Sala de 4": 9,
      "Sala de 5": 10,
+     "Plurisala": 5,
+     "Sala Especial": 3,
      "Sala Integrada": 4
     }
    }
@@ -320,15 +497,37 @@
     "abs": -40,
     "pct": -18.099547511312217
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 39,
+     "secciones": 102
+    },
+    "Primario": {
+     "escuelas": 40,
+     "secciones": 296
+    },
+    "Secundario": {
+     "escuelas": 16,
+     "secciones": 251
+    },
+    "Superior": {
+     "escuelas": 6,
+     "secciones": 115
+    },
+    "Servicios Educativos": {
+     "escuelas": 6,
+     "secciones": 144
+    }
+   },
    "inicial": {
     "cues": 39,
     "seccionesTotal": 102,
     "seccionesPorCurso": {
-     "Sala de 3": 12,
      "Sala de 4": 29,
      "Sala de 5": 36,
+     "Plurisala": 13,
      "Sala Integrada": 12,
-     "Plurisala": 13
+     "Sala de 3": 12
     }
    }
   },
@@ -352,17 +551,39 @@
     "abs": -673,
     "pct": -36.775956284153004
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 94,
+     "secciones": 299
+    },
+    "Primario": {
+     "escuelas": 103,
+     "secciones": 1100
+    },
+    "Secundario": {
+     "escuelas": 44,
+     "secciones": 1171
+    },
+    "Superior": {
+     "escuelas": 5,
+     "secciones": 208
+    },
+    "Servicios Educativos": {
+     "escuelas": 10,
+     "secciones": 301
+    }
+   },
    "inicial": {
-    "cues": 91,
-    "seccionesTotal": 298,
+    "cues": 94,
+    "seccionesTotal": 299,
     "seccionesPorCurso": {
-     "Plurisala": 27,
-     "Sala de 5": 127,
      "Sala de 4": 104,
+     "Sala de 5": 127,
      "Sala de 3": 32,
-     "Sala Especial": 3,
+     "Sala de 2": 2,
      "Sala Integrada": 3,
-     "Sala de 2": 2
+     "Plurisala": 28,
+     "Sala Especial": 3
     }
    }
   },
@@ -386,16 +607,38 @@
     "abs": -42,
     "pct": -23.463687150837988
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 11,
+     "secciones": 42
+    },
+    "Primario": {
+     "escuelas": 14,
+     "secciones": 119
+    },
+    "Secundario": {
+     "escuelas": 10,
+     "secciones": 145
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 62
+    },
+    "Servicios Educativos": {
+     "escuelas": 3,
+     "secciones": 44
+    }
+   },
    "inicial": {
     "cues": 11,
     "seccionesTotal": 42,
     "seccionesPorCurso": {
+     "Sala de 3": 5,
      "Sala de 4": 11,
      "Sala de 5": 18,
-     "Sala de 3": 5,
-     "Sala Especial": 1,
      "Plurisala": 5,
-     "Sala Integrada": 2
+     "Sala Integrada": 2,
+     "Sala Especial": 1
     }
    }
   },
@@ -419,15 +662,37 @@
     "abs": -202,
     "pct": -29.489051094890513
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 39,
+     "secciones": 131
+    },
+    "Primario": {
+     "escuelas": 39,
+     "secciones": 395
+    },
+    "Secundario": {
+     "escuelas": 22,
+     "secciones": 585
+    },
+    "Superior": {
+     "escuelas": 7,
+     "secciones": 170
+    },
+    "Servicios Educativos": {
+     "escuelas": 5,
+     "secciones": 64
+    }
+   },
    "inicial": {
-    "cues": 38,
+    "cues": 39,
     "seccionesTotal": 131,
     "seccionesPorCurso": {
      "Sala de 3": 15,
      "Sala de 4": 49,
      "Sala de 5": 53,
-     "Plurisala": 12,
-     "Sala Integrada": 2
+     "Sala Integrada": 2,
+     "Plurisala": 12
     }
    }
   },
@@ -451,13 +716,35 @@
     "abs": -147,
     "pct": -20.61711079943899
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 38,
+     "secciones": 110
+    },
+    "Primario": {
+     "escuelas": 44,
+     "secciones": 425
+    },
+    "Secundario": {
+     "escuelas": 20,
+     "secciones": 414
+    },
+    "Superior": {
+     "escuelas": 7,
+     "secciones": 87
+    },
+    "Servicios Educativos": {
+     "escuelas": 5,
+     "secciones": 88
+    }
+   },
    "inicial": {
     "cues": 38,
-    "seccionesTotal": 111,
+    "seccionesTotal": 110,
     "seccionesPorCurso": {
      "Sala de 3": 6,
      "Sala de 4": 37,
-     "Sala de 5": 50,
+     "Sala de 5": 49,
      "Plurisala": 15,
      "Sala Integrada": 3
     }
@@ -483,15 +770,37 @@
     "abs": -71,
     "pct": -38.17204301075269
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 16,
+     "secciones": 46
+    },
+    "Primario": {
+     "escuelas": 18,
+     "secciones": 144
+    },
+    "Secundario": {
+     "escuelas": 10,
+     "secciones": 174
+    },
+    "Superior": {
+     "escuelas": 1,
+     "secciones": 43
+    },
+    "Servicios Educativos": {
+     "escuelas": 6,
+     "secciones": 79
+    }
+   },
    "inicial": {
     "cues": 16,
     "seccionesTotal": 46,
     "seccionesPorCurso": {
      "Sala de 4": 18,
      "Sala de 5": 21,
+     "Sala Integrada": 2,
      "Sala de 3": 2,
-     "Plurisala": 3,
-     "Sala Integrada": 2
+     "Plurisala": 3
     }
    }
   },
@@ -515,15 +824,37 @@
     "abs": -127,
     "pct": -15.06524317912218
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 39,
+     "secciones": 141
+    },
+    "Primario": {
+     "escuelas": 46,
+     "secciones": 562
+    },
+    "Secundario": {
+     "escuelas": 21,
+     "secciones": 600
+    },
+    "Superior": {
+     "escuelas": 2,
+     "secciones": 107
+    },
+    "Servicios Educativos": {
+     "escuelas": 8,
+     "secciones": 273
+    }
+   },
    "inicial": {
-    "cues": 37,
+    "cues": 39,
     "seccionesTotal": 141,
     "seccionesPorCurso": {
-     "Plurisala": 6,
      "Sala de 3": 11,
      "Sala de 4": 53,
      "Sala de 5": 63,
-     "Sala Integrada": 8
+     "Sala Integrada": 8,
+     "Plurisala": 6
     }
    }
   },
@@ -547,14 +878,36 @@
     "abs": -230,
     "pct": -34.124629080118694
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 36,
+     "secciones": 140
+    },
+    "Primario": {
+     "escuelas": 43,
+     "secciones": 434
+    },
+    "Secundario": {
+     "escuelas": 20,
+     "secciones": 621
+    },
+    "Superior": {
+     "escuelas": 7,
+     "secciones": 165
+    },
+    "Servicios Educativos": {
+     "escuelas": 10,
+     "secciones": 218
+    }
+   },
    "inicial": {
     "cues": 36,
     "seccionesTotal": 140,
     "seccionesPorCurso": {
+     "Plurisala": 3,
      "Sala de 3": 13,
      "Sala de 4": 48,
      "Sala de 5": 61,
-     "Plurisala": 3,
      "Sala Integrada": 13,
      "Sala Especial": 2
     }
@@ -580,16 +933,38 @@
     "abs": -106,
     "pct": -11.923509561304838
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 35,
+     "secciones": 149
+    },
+    "Primario": {
+     "escuelas": 38,
+     "secciones": 507
+    },
+    "Secundario": {
+     "escuelas": 19,
+     "secciones": 734
+    },
+    "Superior": {
+     "escuelas": 3,
+     "secciones": 113
+    },
+    "Servicios Educativos": {
+     "escuelas": 8,
+     "secciones": 150
+    }
+   },
    "inicial": {
-    "cues": 32,
+    "cues": 35,
     "seccionesTotal": 149,
     "seccionesPorCurso": {
      "Sala de 4": 56,
      "Sala de 5": 74,
      "Sala Integrada": 5,
-     "Sala Especial": 3,
+     "Sala de 3": 8,
      "Plurisala": 3,
-     "Sala de 3": 8
+     "Sala Especial": 3
     }
    }
   },
@@ -613,16 +988,38 @@
     "abs": -86,
     "pct": -19.02654867256637
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 29,
+     "secciones": 108
+    },
+    "Primario": {
+     "escuelas": 31,
+     "secciones": 323
+    },
+    "Secundario": {
+     "escuelas": 14,
+     "secciones": 342
+    },
+    "Superior": {
+     "escuelas": 5,
+     "secciones": 105
+    },
+    "Servicios Educativos": {
+     "escuelas": 7,
+     "secciones": 122
+    }
+   },
    "inicial": {
-    "cues": 28,
+    "cues": 29,
     "seccionesTotal": 108,
     "seccionesPorCurso": {
      "Sala de 5": 51,
+     "Sala de 3": 9,
      "Sala de 4": 34,
-     "Plurisala": 4,
-     "Sala Especial": 1,
      "Sala Integrada": 9,
-     "Sala de 3": 9
+     "Plurisala": 4,
+     "Sala Especial": 1
     }
    }
   },
@@ -646,15 +1043,37 @@
     "abs": -130,
     "pct": -41.139240506329116
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 27,
+     "secciones": 78
+    },
+    "Primario": {
+     "escuelas": 24,
+     "secciones": 218
+    },
+    "Secundario": {
+     "escuelas": 12,
+     "secciones": 234
+    },
+    "Superior": {
+     "escuelas": 5,
+     "secciones": 42
+    },
+    "Servicios Educativos": {
+     "escuelas": 10,
+     "secciones": 135
+    }
+   },
    "inicial": {
-    "cues": 26,
+    "cues": 27,
     "seccionesTotal": 78,
     "seccionesPorCurso": {
-     "Sala de 5": 33,
-     "Sala Integrada": 4,
      "Plurisala": 11,
+     "Sala de 4": 28,
+     "Sala de 5": 33,
      "Sala de 3": 2,
-     "Sala de 4": 28
+     "Sala Integrada": 4
     }
    }
   },
@@ -678,14 +1097,36 @@
     "abs": -152,
     "pct": -48.10126582278481
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 39,
+     "secciones": 85
+    },
+    "Primario": {
+     "escuelas": 48,
+     "secciones": 345
+    },
+    "Secundario": {
+     "escuelas": 15,
+     "secciones": 299
+    },
+    "Superior": {
+     "escuelas": 1,
+     "secciones": 48
+    },
+    "Servicios Educativos": {
+     "escuelas": 3,
+     "secciones": 76
+    }
+   },
    "inicial": {
     "cues": 39,
     "seccionesTotal": 85,
     "seccionesPorCurso": {
-     "Plurisala": 15,
-     "Sala de 3": 8,
      "Sala de 4": 28,
      "Sala de 5": 32,
+     "Sala de 3": 8,
+     "Plurisala": 15,
      "Sala Integrada": 2
     }
    }
@@ -710,14 +1151,36 @@
     "abs": -108,
     "pct": -37.5
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 25,
+     "secciones": 76
+    },
+    "Primario": {
+     "escuelas": 29,
+     "secciones": 263
+    },
+    "Secundario": {
+     "escuelas": 16,
+     "secciones": 281
+    },
+    "Superior": {
+     "escuelas": 4,
+     "secciones": 98
+    },
+    "Servicios Educativos": {
+     "escuelas": 6,
+     "secciones": 82
+    }
+   },
    "inicial": {
     "cues": 25,
     "seccionesTotal": 76,
     "seccionesPorCurso": {
-     "Plurisala": 7,
      "Sala de 3": 9,
      "Sala de 4": 23,
      "Sala de 5": 35,
+     "Plurisala": 7,
      "Sala Integrada": 2
     }
    }
@@ -742,13 +1205,35 @@
     "abs": -54,
     "pct": -21.686746987951807
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 17,
+     "secciones": 52
+    },
+    "Primario": {
+     "escuelas": 21,
+     "secciones": 181
+    },
+    "Secundario": {
+     "escuelas": 9,
+     "secciones": 166
+    },
+    "Superior": {
+     "escuelas": 4,
+     "secciones": 56
+    },
+    "Servicios Educativos": {
+     "escuelas": 3,
+     "secciones": 26
+    }
+   },
    "inicial": {
     "cues": 17,
     "seccionesTotal": 52,
     "seccionesPorCurso": {
+     "Sala de 3": 7,
      "Sala de 4": 17,
      "Sala de 5": 23,
-     "Sala de 3": 7,
      "Plurisala": 5
     }
    }
@@ -773,6 +1258,28 @@
     "abs": -19,
     "pct": -6.440677966101695
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 26,
+     "secciones": 79
+    },
+    "Primario": {
+     "escuelas": 33,
+     "secciones": 276
+    },
+    "Secundario": {
+     "escuelas": 12,
+     "secciones": 265
+    },
+    "Superior": {
+     "escuelas": 5,
+     "secciones": 120
+    },
+    "Servicios Educativos": {
+     "escuelas": 5,
+     "secciones": 44
+    }
+   },
    "inicial": {
     "cues": 26,
     "seccionesTotal": 79,
@@ -780,8 +1287,8 @@
      "Sala de 3": 12,
      "Sala de 4": 27,
      "Sala de 5": 35,
-     "Sala Integrada": 2,
-     "Plurisala": 3
+     "Plurisala": 3,
+     "Sala Integrada": 2
     }
    }
   },
@@ -805,18 +1312,40 @@
     "abs": -375,
     "pct": -25.684931506849317
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 48,
+     "secciones": 179
+    },
+    "Primario": {
+     "escuelas": 60,
+     "secciones": 680
+    },
+    "Secundario": {
+     "escuelas": 29,
+     "secciones": 852
+    },
+    "Superior": {
+     "escuelas": 5,
+     "secciones": 119
+    },
+    "Servicios Educativos": {
+     "escuelas": 12,
+     "secciones": 281
+    }
+   },
    "inicial": {
-    "cues": 44,
+    "cues": 48,
     "seccionesTotal": 179,
     "seccionesPorCurso": {
+     "Sala Integrada": 8,
      "Sala de 4": 64,
      "Sala de 5": 91,
      "Sala de 3": 11,
-     "Sala Integrada": 8,
-     "Plurisala": 2,
      "Sala de 2": 1,
      "Sala de Deambuladores": 1,
-     "Sala de Lactancia": 1
+     "Sala de Lactancia": 1,
+     "Plurisala": 2
     }
    }
   },
@@ -840,14 +1369,36 @@
     "abs": -58,
     "pct": -36.477987421383645
    },
+   "porNivel": {
+    "Inicial": {
+     "escuelas": 18,
+     "secciones": 52
+    },
+    "Primario": {
+     "escuelas": 21,
+     "secciones": 169
+    },
+    "Secundario": {
+     "escuelas": 8,
+     "secciones": 138
+    },
+    "Superior": {
+     "escuelas": 1,
+     "secciones": 54
+    },
+    "Servicios Educativos": {
+     "escuelas": 6,
+     "secciones": 49
+    }
+   },
    "inicial": {
     "cues": 18,
     "seccionesTotal": 52,
     "seccionesPorCurso": {
-     "Sala de 3": 6,
      "Sala de 4": 17,
      "Sala de 5": 18,
      "Sala Especial": 4,
+     "Sala de 3": 6,
      "Plurisala": 7
     }
    }

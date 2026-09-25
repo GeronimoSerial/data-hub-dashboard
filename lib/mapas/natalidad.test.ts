@@ -1,23 +1,28 @@
 import { describe, expect, it } from 'vitest'
 import {
-  agruparInicialPorCue,
-  agruparInicialPorDepartamento,
+  agruparEscuelasPorDepartamento,
   agruparNacimientosPorDepartamento,
+  agruparPadronPorCue,
   calcularVariacion,
   colorEscalonado,
   colorSecuencial,
   colorVariacion,
   construirDatosNatalidad,
   construirEscalaSecuencial,
+  construirEscuelasCompletas,
   construirExpresionStep,
-  construirFeatureCollectionInicial,
+  construirFeatureCollectionEscuelas,
   construirPuntosSparkline,
   ESCALA_VARIACION_BREAKS,
   ESCALA_VARIACION_COLORS,
   COLOR_SIN_DATO,
-  type InicialRow,
-  type LocalizacionRow,
+  inferirNivelesDesdeOferta,
+  NIVELES,
+  sanearCoordenadasFueraDeLimites,
+  type EscuelaCompleta,
+  type GeoEscuelaRow,
   type NacidoVivoRow,
+  type PadronRow,
 } from './natalidad'
 
 describe('calcularVariacion', () => {
@@ -63,108 +68,204 @@ describe('agruparNacimientosPorDepartamento', () => {
   })
 })
 
-describe('agruparInicialPorDepartamento', () => {
-  const rows: InicialRow[] = [
-    {
-      cue_anexo: 'A',
-      nombre: 'Escuela A',
-      departamento: 'BELLA VISTA',
-      localidad: 'X',
-      curso: 'Sala de 4',
-      secciones: 2,
-      alumnos_activos: 40,
-    },
-    {
-      cue_anexo: 'A',
-      nombre: 'Escuela A',
-      departamento: 'BELLA VISTA',
-      localidad: 'X',
-      curso: 'Sala de 5',
-      secciones: 1,
-      alumnos_activos: 20,
-    },
-    {
-      cue_anexo: 'B',
-      nombre: 'Escuela B',
-      departamento: 'Bella Vista',
-      localidad: 'Y',
-      curso: 'Sala de 4',
-      secciones: 3,
-      alumnos_activos: 60,
-    },
+describe('agruparPadronPorCue', () => {
+  const rows: PadronRow[] = [
+    { cue_anexo: 'A', nombre: 'Escuela A', departamento: 'BELLA VISTA', localidad: 'X', nivel: 'Inicial', curso: 'Sala de 4', secciones: 2 },
+    { cue_anexo: 'A', nombre: 'Escuela A', departamento: 'BELLA VISTA', localidad: 'X', nivel: 'Inicial', curso: 'Sala de 5', secciones: 1 },
+    { cue_anexo: 'A', nombre: 'Escuela A', departamento: 'BELLA VISTA', localidad: 'X', nivel: 'Primario', curso: '1º', secciones: 1 },
+    { cue_anexo: 'B', nombre: 'Escuela B', departamento: 'BELLA VISTA', localidad: 'Y', nivel: 'Secundario', curso: '1º', secciones: 3 },
   ]
 
-  it('cuenta CUEs distintos y suma secciones por curso', () => {
-    const map = agruparInicialPorDepartamento(rows)
-    const entry = map.get('BELLA VISTA')
-    expect(entry?.cues.size).toBe(2)
-    expect(entry?.seccionesTotal).toBe(6)
-    expect(entry?.seccionesPorCurso).toEqual({ 'Sala de 4': 5, 'Sala de 5': 1 })
+  it('agrupa por CUE y por nivel, con desglose de cursos y total de secciones', () => {
+    const porCue = agruparPadronPorCue(rows)
+    const escuelaA = porCue.get('A')
+    expect(escuelaA).toEqual([
+      { nivel: 'Inicial', secciones: 3, cursos: [{ curso: 'Sala de 4', secciones: 2 }, { curso: 'Sala de 5', secciones: 1 }] },
+      { nivel: 'Primario', secciones: 1, cursos: [{ curso: '1º', secciones: 1 }] },
+    ])
+  })
+
+  it('respeta el orden de NIVELES aunque las filas vengan en otro orden', () => {
+    const porCue = agruparPadronPorCue(rows)
+    const nivelesA = porCue.get('A')!.map((n) => n.nivel)
+    expect(nivelesA).toEqual(['Inicial', 'Primario'])
+    expect(NIVELES.indexOf('Inicial')).toBeLessThan(NIVELES.indexOf('Primario'))
   })
 })
 
-describe('agruparInicialPorCue + construirFeatureCollectionInicial', () => {
-  const rows: InicialRow[] = [
-    {
-      cue_anexo: '1800001-00',
-      nombre: 'Escuela con coordenadas',
-      departamento: 'BELLA VISTA',
-      localidad: 'X',
-      curso: 'Sala de 4',
-      secciones: 2,
-      alumnos_activos: 40,
-    },
-    {
-      cue_anexo: '1800002-00',
-      nombre: 'Escuela sin coordenadas',
-      departamento: 'BELLA VISTA',
-      localidad: 'Y',
-      curso: 'Plurisala',
-      secciones: 1,
-      alumnos_activos: 15,
-    },
-  ]
-
-  const localizaciones: LocalizacionRow[] = [
-    {
-      cueAnexo: '1800001-00',
-      nombre: 'Escuela con coordenadas',
-      departamento: 'BELLA VISTA',
-      localidad: 'X',
-      lat: -28.5,
-      lon: -59.0,
-      geoCalidad: 'excelente',
-    },
-    {
-      cueAnexo: '1800002-00',
-      nombre: 'Escuela sin coordenadas',
-      departamento: 'BELLA VISTA',
-      localidad: 'Y',
-      lat: null,
-      lon: null,
-      geoCalidad: null,
-    },
-  ]
-
-  it('agrupa filas por CUE en salas y no incluye alumnos_activos', () => {
-    const porCue = agruparInicialPorCue(rows)
-    const escuela = porCue.get('1800001-00')
-    expect(escuela?.salas).toEqual([{ curso: 'Sala de 4', secciones: 2 }])
-    expect(escuela?.seccionesTotal).toBe(2)
-    expect(escuela).not.toHaveProperty('alumnos_activos')
-    expect(escuela).not.toHaveProperty('alumnosActivos')
+describe('inferirNivelesDesdeOferta', () => {
+  it('mapea patrones inequívocos de ofertaTipo a Nivel', () => {
+    expect(inferirNivelesDesdeOferta(['Común - Jardín de infantes'])).toEqual(['Inicial'])
+    expect(inferirNivelesDesdeOferta(['Común - Primaria de 6 años'])).toEqual(['Primario'])
+    expect(inferirNivelesDesdeOferta(['Común - Secundaria Completa req. 6 años'])).toEqual(['Secundario'])
+    expect(inferirNivelesDesdeOferta(['Común - SNU'])).toEqual(['Superior'])
+    expect(inferirNivelesDesdeOferta(['Común - Servicios complementarios'])).toEqual(['Servicios Educativos'])
   })
 
-  it('un CUE sin coordenadas no genera feature pero se cuenta como sin coordenadas', () => {
-    const porCue = agruparInicialPorCue(rows)
-    const { featureCollection, cuesSinCoordenadas, cuesTotal } =
-      construirFeatureCollectionInicial(porCue, localizaciones)
+  it('una escuela con varias ofertas devuelve varios niveles, sin duplicados y en orden NIVELES', () => {
+    expect(
+      inferirNivelesDesdeOferta(['Común - Jardín maternal', 'Común - Jardín de infantes', 'Común - Primaria de 6 años']),
+    ).toEqual(['Inicial', 'Primario'])
+  })
 
-    expect(cuesTotal).toBe(2)
-    expect(cuesSinCoordenadas).toBe(1)
-    expect(featureCollection.features).toHaveLength(1)
-    expect(featureCollection.features[0].properties.cueAnexo).toBe('1800001-00')
-    expect(featureCollection.features[0].geometry.coordinates).toEqual([-59.0, -28.5])
+  it('ofertaTipo sin patrón confiable (p. ej. artística/técnica) devuelve []', () => {
+    expect(inferirNivelesDesdeOferta(['Común - Cursos y Talleres de Artística'])).toEqual([])
+  })
+})
+
+describe('sanearCoordenadasFueraDeLimites', () => {
+  const bbox: [number, number, number, number] = [-59.71, -30.73, -55.62, -27.25]
+
+  const dentro: GeoEscuelaRow = {
+    cueAnexo: '1', nombre: 'Dentro', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 1, lat: -27.49, lon: -58.83,
+  }
+  const fuera: GeoEscuelaRow = {
+    cueAnexo: '2', nombre: 'Fuera', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 2, lat: -20.17, lon: -58.05,
+  }
+  const sinCoords: GeoEscuelaRow = {
+    cueAnexo: '3', nombre: 'Sin coords', estado: 'Activo', sector: 'Estatal', ofertaTipo: [],
+    localidad: 'X', departamento: 'CAPITAL', domicilio: '', cui: 3, lat: null, lon: null,
+  }
+
+  it('anula lat/lon de las filas fuera del bbox y las reporta en descartadas', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([dentro, fuera, sinCoords], bbox)
+    expect(descartadas).toEqual([fuera])
+    expect(rows.find((r) => r.cueAnexo === '2')).toEqual({ ...fuera, lat: null, lon: null })
+    expect(rows.find((r) => r.cueAnexo === '1')).toEqual(dentro)
+  })
+
+  it('una fila ya sin coordenadas pasa intacta (no es un caso de bbox)', () => {
+    const { rows, descartadas } = sanearCoordenadasFueraDeLimites([sinCoords], bbox)
+    expect(rows).toEqual([sinCoords])
+    expect(descartadas).toEqual([])
+  })
+})
+
+describe('construirEscuelasCompletas', () => {
+  const geo: GeoEscuelaRow[] = [
+    {
+      cueAnexo: '1800001-00', nombre: 'Con padrón', estado: 'Activo', sector: 'Estatal',
+      ofertaTipo: ['Común - Jardín de infantes'], localidad: 'X', departamento: 'BELLA VISTA',
+      domicilio: 'Calle 1', cui: 1, lat: -28.5, lon: -59.0,
+    },
+    {
+      cueAnexo: '1800002-00', nombre: 'Sin padrón, oferta inferible', estado: 'Activo', sector: 'Privado',
+      ofertaTipo: ['Común - Primaria de 6 años'], localidad: 'Y', departamento: 'BELLA VISTA',
+      domicilio: 'Calle 2', cui: 2, lat: -28.6, lon: -59.1,
+    },
+    {
+      cueAnexo: '1800003-00', nombre: 'Sin coordenadas', estado: 'Activo', sector: 'Estatal',
+      ofertaTipo: [], localidad: 'Z', departamento: 'BELLA VISTA', domicilio: 'Calle 3', cui: 3,
+      lat: null, lon: null,
+    },
+  ]
+
+  const padronRows: PadronRow[] = [
+    { cue_anexo: '1800001-00', nombre: 'Con padrón', departamento: 'BELLA VISTA', localidad: 'X', nivel: 'Inicial', curso: 'Sala de 4', secciones: 2 },
+    { cue_anexo: '1800004-00', nombre: 'Sólo en padrón', departamento: 'BELLA VISTA', localidad: 'W', nivel: 'Primario', curso: '1º', secciones: 1 },
+  ]
+
+  it('un CUE del GEO con fila de padrón usa esos niveles (tienePadron: true)', () => {
+    const { escuelas } = construirEscuelasCompletas(geo, padronRows)
+    const escuela = escuelas.find((e) => e.cueAnexo === '1800001-00')
+    expect(escuela?.tienePadron).toBe(true)
+    expect(escuela?.niveles).toEqual([{ nivel: 'Inicial', secciones: 2, cursos: [{ curso: 'Sala de 4', secciones: 2 }] }])
+    expect(escuela?.seccionesTotal).toBe(2)
+  })
+
+  it('un CUE del GEO sin fila de padrón infiere el nivel de ofertaTipo (tienePadron: false, secciones: 0)', () => {
+    const { escuelas } = construirEscuelasCompletas(geo, padronRows)
+    const escuela = escuelas.find((e) => e.cueAnexo === '1800002-00')
+    expect(escuela?.tienePadron).toBe(false)
+    expect(escuela?.niveles).toEqual([{ nivel: 'Primario', secciones: 0, cursos: [] }])
+  })
+
+  it('un CUE del padrón sin fila de GEO se reporta en padronSinGeo y queda sin coordenadas', () => {
+    const { escuelas, padronSinGeo } = construirEscuelasCompletas(geo, padronRows)
+    expect(padronSinGeo).toEqual(['1800004-00'])
+    const escuela = escuelas.find((e) => e.cueAnexo === '1800004-00')
+    expect(escuela?.lat).toBeNull()
+    expect(escuela?.lon).toBeNull()
+    expect(escuela?.tienePadron).toBe(true)
+    expect(escuela?.departamento).toBe('BELLA VISTA')
+  })
+})
+
+describe('construirFeatureCollectionEscuelas', () => {
+  const escuelas: EscuelaCompleta[] = [
+    {
+      cueAnexo: '1', nombre: 'Con coords, inicial', departamento: 'BELLA VISTA', localidad: 'X',
+      sector: 'Estatal', ofertaTipo: [], domicilio: 'D1',
+      niveles: [{ nivel: 'Inicial', secciones: 2, cursos: [{ curso: 'Sala de 4', secciones: 2 }] }],
+      seccionesTotal: 2, tienePadron: true, lat: -28.5, lon: -59.0,
+    },
+    {
+      cueAnexo: '2', nombre: 'Con coords, primario', departamento: 'BELLA VISTA', localidad: 'Y',
+      sector: 'Estatal', ofertaTipo: [], domicilio: 'D2',
+      niveles: [{ nivel: 'Primario', secciones: 1, cursos: [{ curso: '1º', secciones: 1 }] }],
+      seccionesTotal: 1, tienePadron: true, lat: -28.6, lon: -59.1,
+    },
+    {
+      cueAnexo: '3', nombre: 'Sin coords', departamento: 'BELLA VISTA', localidad: 'Z',
+      sector: 'Estatal', ofertaTipo: [], domicilio: 'D3',
+      niveles: [], seccionesTotal: 0, tienePadron: false, lat: null, lon: null,
+    },
+  ]
+
+  it('una escuela sin coordenadas no genera feature pero se cuenta en sinCoordenadas', () => {
+    const { featureCollection, sinCoordenadas } = construirFeatureCollectionEscuelas(escuelas)
+    expect(sinCoordenadas).toBe(1)
+    expect(featureCollection.features).toHaveLength(2)
+  })
+
+  it('esInicial es true sólo para escuelas con oferta de Inicial', () => {
+    const { featureCollection } = construirFeatureCollectionEscuelas(escuelas)
+    const conInicial = featureCollection.features.find((f) => f.properties.cueAnexo === '1')
+    const sinInicial = featureCollection.features.find((f) => f.properties.cueAnexo === '2')
+    expect(conInicial?.properties.esInicial).toBe(true)
+    expect(sinInicial?.properties.esInicial).toBe(false)
+    expect(conInicial?.geometry.coordinates).toEqual([-59.0, -28.5])
+  })
+})
+
+describe('agruparEscuelasPorDepartamento', () => {
+  const escuelas: EscuelaCompleta[] = [
+    {
+      cueAnexo: '1', nombre: 'A', departamento: 'BELLA VISTA', localidad: 'X', sector: 'Estatal',
+      ofertaTipo: [], domicilio: null,
+      niveles: [{ nivel: 'Inicial', secciones: 2, cursos: [{ curso: 'Sala de 4', secciones: 2 }] }],
+      seccionesTotal: 2, tienePadron: true, lat: -28.5, lon: -59.0,
+    },
+    {
+      cueAnexo: '2', nombre: 'B', departamento: 'Bella Vista', localidad: 'Y', sector: 'Estatal',
+      ofertaTipo: [], domicilio: null,
+      niveles: [
+        { nivel: 'Inicial', secciones: 1, cursos: [{ curso: 'Plurisala', secciones: 1 }] },
+        { nivel: 'Primario', secciones: 3, cursos: [{ curso: '1º', secciones: 3 }] },
+      ],
+      seccionesTotal: 4, tienePadron: true, lat: null, lon: null,
+    },
+  ]
+
+  it('cuenta escuelas y secciones por nivel, normalizando el nombre de departamento', () => {
+    const map = agruparEscuelasPorDepartamento(escuelas)
+    const entry = map.get('BELLA VISTA')
+    expect(entry?.porNivel.Inicial).toEqual({ escuelas: 2, secciones: 3 })
+    expect(entry?.porNivel.Primario).toEqual({ escuelas: 1, secciones: 3 })
+    expect(entry?.porNivel.Secundario).toEqual({ escuelas: 0, secciones: 0 })
+  })
+
+  it('desglosa secciones de Inicial por sala', () => {
+    const map = agruparEscuelasPorDepartamento(escuelas)
+    expect(map.get('BELLA VISTA')?.inicialSeccionesPorCurso).toEqual({ 'Sala de 4': 2, Plurisala: 1 })
+  })
+
+  it('usa TODAS las escuelas, con o sin coordenadas', () => {
+    const map = agruparEscuelasPorDepartamento(escuelas)
+    // La escuela '2' no tiene coordenadas y aun así entra en el agregado.
+    expect(map.get('BELLA VISTA')?.porNivel.Primario.escuelas).toBe(1)
   })
 })
 
@@ -177,30 +278,30 @@ describe('construirDatosNatalidad', () => {
     // Departamento que NO está en la lista de conocidos (typo deliberado).
     { anio: 2014, coddpto: '99999', departamento: 'Departamento Inexistente', nacidosVivos: 5 },
   ]
-  const inicial: InicialRow[] = [
+  const escuelas: EscuelaCompleta[] = [
     {
-      cue_anexo: '1800001-00',
-      nombre: 'Escuela',
-      departamento: 'BELLA VISTA',
-      localidad: 'X',
-      curso: 'Sala de 4',
-      secciones: 2,
-      alumnos_activos: 40,
+      cueAnexo: '1800001-00', nombre: 'Escuela', departamento: 'BELLA VISTA', localidad: 'X',
+      sector: 'Estatal', ofertaTipo: [], domicilio: null,
+      niveles: [{ nivel: 'Inicial', secciones: 2, cursos: [{ curso: 'Sala de 4', secciones: 2 }] }],
+      seccionesTotal: 2, tienePadron: true, lat: -28.5, lon: -59.0,
     },
   ]
 
-  it('arma departamentos con serie, variacion y oferta de inicial; separa DESCONOCIDO', () => {
+  it('arma departamentos con serie, variacion, oferta por nivel e inicial; separa DESCONOCIDO', () => {
     const datos = construirDatosNatalidad({
       nacimientos,
-      inicial,
+      escuelas,
       nombresDepartamentosConocidos: ['Bella Vista'],
       fuenteNatalidad: { nombre: 'DEIS', url: 'https://example.org' },
-      fuenteInicial: 'Padrón GE 2026',
+      fuenteLocalizaciones: 'Localizaciones: relevamiento GEO 2025-10-02',
+      fuenteSecciones: 'Secciones: padrón Gestión Educativa, ciclo 2026',
       extraidoEn: '2026-09-25',
     })
 
     expect(datos.meta.anioInicio).toBe(2014)
     expect(datos.meta.anioFin).toBe(2023)
+    expect(datos.meta.fuenteLocalizaciones).toBe('Localizaciones: relevamiento GEO 2025-10-02')
+    expect(datos.meta.fuenteSecciones).toBe('Secciones: padrón Gestión Educativa, ciclo 2026')
 
     const bellaVista = datos.departamentos.find((d) => d.clave === 'BELLA VISTA')
     expect(bellaVista?.nombre).toBe('Bella Vista')
@@ -211,6 +312,8 @@ describe('construirDatosNatalidad', () => {
       seccionesTotal: 2,
       seccionesPorCurso: { 'Sala de 4': 2 },
     })
+    expect(bellaVista?.porNivel.Inicial).toEqual({ escuelas: 1, secciones: 2 })
+    expect(bellaVista?.porNivel.Secundario).toEqual({ escuelas: 0, secciones: 0 })
 
     // DESCONOCIDO no debe aparecer como departamento del mapa.
     expect(datos.departamentos.some((d) => d.clave.includes('DESCONOCIDO'))).toBe(false)

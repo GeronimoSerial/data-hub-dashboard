@@ -7,11 +7,346 @@
 // - Nacidos vivos por departamento y año (2014–2023), Power BI público
 //   (DEIS / Ministerio de Capital Humano – OEI). Snapshot:
 //   data/natalidad/nacidos-vivos-corrientes.json.
-// - Oferta de nivel inicial (ciclo 2026), padrón Gestión Educativa, una fila
-//   por CUE×sala. Snapshot: data/natalidad/inicial-2026-padron.json.
-// - Coordenadas de CUEs: public/data/localizaciones.json.
+// - Localizaciones (T5): relevamiento GEO 2025-10-02, TODAS las escuelas de
+//   la provincia (activas), con coordenadas propias — ya no depende de
+//   public/data/localizaciones.json (que sigue usando el mapa de
+//   infraestructura, sin tocar). Snapshot:
+//   data/natalidad/localizaciones-geo-2025-10-02.json.
+// - Secciones por nivel (T5): padrón Gestión Educativa, ciclo 2026, una fila
+//   por CUE×nivel×curso, TODOS los niveles (Inicial/Primario/Secundario/
+//   Superior/Servicios Educativos). Supersede a inicial-2026-padron.json
+//   (sólo inicial, con alumnos_activos — ese archivo y su manejo se
+//   eliminaron). Snapshot: data/natalidad/escuelas-2026-padron.json.
 import type { FeatureCollection, Point } from 'geojson'
 import { normalizarNombreDepartamento } from './departamentos'
+
+// ── Escuelas (GEO + padrón, todos los niveles) ──────────────────────────────
+
+/** Niveles educativos tal como figuran en escuelas-2026-padron.json. */
+export type Nivel = 'Inicial' | 'Primario' | 'Secundario' | 'Superior' | 'Servicios Educativos'
+
+/** Orden de exhibición (filtro, leyenda, agregados) — Inicial primero por ser el eje del mapa. */
+export const NIVELES: Nivel[] = ['Inicial', 'Primario', 'Secundario', 'Superior', 'Servicios Educativos']
+
+/** Una fila de data/natalidad/localizaciones-geo-2025-10-02.json (relevamiento GEO). */
+export interface GeoEscuelaRow {
+  cueAnexo: string
+  nombre: string
+  estado: string
+  sector: string
+  ofertaTipo: string[]
+  localidad: string
+  departamento: string
+  domicilio: string
+  cui: number
+  lat: number | null
+  lon: number | null
+}
+
+/** Una fila de data/natalidad/escuelas-2026-padron.json (una por CUE×nivel×curso). */
+export interface PadronRow {
+  cue_anexo: string
+  nombre: string
+  departamento: string
+  localidad: string
+  nivel: Nivel
+  curso: string
+  secciones: number
+}
+
+export interface CursoOferta {
+  curso: string
+  secciones: number
+}
+
+/** Oferta de un nivel en una escuela: total de secciones + desglose por curso (salas de inicial, grados, años). */
+export interface NivelOferta {
+  nivel: Nivel
+  secciones: number
+  cursos: CursoOferta[]
+}
+
+/**
+ * Agrupa filas del padrón (una por CUE×nivel×curso) en niveles por CUE, cada
+ * uno con su desglose de cursos. Devuelve sólo los niveles con oferta (nunca
+ * un NivelOferta con secciones: 0 para un nivel ausente).
+ */
+export function agruparPadronPorCue(rows: PadronRow[]): Map<string, NivelOferta[]> {
+  const porCue = new Map<string, Map<Nivel, Map<string, number>>>()
+
+  for (const row of rows) {
+    let porNivel = porCue.get(row.cue_anexo)
+    if (!porNivel) {
+      porNivel = new Map()
+      porCue.set(row.cue_anexo, porNivel)
+    }
+    let porCurso = porNivel.get(row.nivel)
+    if (!porCurso) {
+      porCurso = new Map()
+      porNivel.set(row.nivel, porCurso)
+    }
+    porCurso.set(row.curso, (porCurso.get(row.curso) ?? 0) + row.secciones)
+  }
+
+  const resultado = new Map<string, NivelOferta[]>()
+  for (const [cue, porNivel] of porCue) {
+    const niveles = NIVELES.filter((nivel) => porNivel.has(nivel)).map((nivel) => {
+      const cursos = [...porNivel.get(nivel)!.entries()].map(([curso, secciones]) => ({ curso, secciones }))
+      return { nivel, secciones: cursos.reduce((total, c) => total + c.secciones, 0), cursos }
+    })
+    resultado.set(cue, niveles)
+  }
+  return resultado
+}
+
+// Mapeo best-effort de ofertaTipo (texto libre del relevamiento GEO, p. ej.
+// "Común - Jardín de infantes") a Nivel, para escuelas del GEO que no
+// aparecen en el padrón 2026 (nunca se descartan en silencio — ver
+// construirEscuelasCompletas). Sólo cubre los patrones inequívocos: oferta
+// "Especial"/"Adultos"/"Trayecto técnico"/artística no mapea a ningún nivel
+// (se documenta como gap conocido, ver odd/tasks/mapa-natalidad.md).
+const PATRONES_NIVEL_DESDE_OFERTA: [RegExp, Nivel][] = [
+  [/jard[ií]n de infantes|jard[ií]n maternal|nivel inicial/i, 'Inicial'],
+  [/primaria|egb/i, 'Primario'],
+  [/secundari|polimodal/i, 'Secundario'],
+  [/\bsnu\b/i, 'Superior'],
+  [/servicios complementarios/i, 'Servicios Educativos'],
+]
+
+/** Infiere niveles a partir de ofertaTipo (ver PATRONES_NIVEL_DESDE_OFERTA). Puede devolver [] si ningún patrón matchea. */
+export function inferirNivelesDesdeOferta(ofertaTipo: string[]): Nivel[] {
+  const niveles = new Set<Nivel>()
+  for (const oferta of ofertaTipo) {
+    for (const [patron, nivel] of PATRONES_NIVEL_DESDE_OFERTA) {
+      if (patron.test(oferta)) niveles.add(nivel)
+    }
+  }
+  return NIVELES.filter((nivel) => niveles.has(nivel))
+}
+
+export interface ResultadoSaneoCoordenadas {
+  /** Mismas filas de entrada; a las descartadas se les pone lat/lon en null. */
+  rows: GeoEscuelaRow[]
+  /** Filas con coordenadas fuera de bbox (antes de sanear) — para loguear, nunca se pierden en silencio. */
+  descartadas: GeoEscuelaRow[]
+}
+
+/**
+ * Anula lat/lon de las filas del GEO cuyas coordenadas caen fuera del bbox de
+ * la provincia (ver LIMITES_CORRIENTES_BBOX en lib/mapas/departamentos.ts).
+ * Una fila sin lat/lon pasa intacta (no es un caso de bbox, es un caso de
+ * "sin dato" que maneja construirFeatureCollectionEscuelas). Las descartadas
+ * quedan en `descartadas` para que el llamador las reporte (nunca se
+ * descartan en silencio).
+ */
+export function sanearCoordenadasFueraDeLimites(
+  rows: GeoEscuelaRow[],
+  bbox: [number, number, number, number],
+): ResultadoSaneoCoordenadas {
+  const [oeste, sur, este, norte] = bbox
+  const descartadas: GeoEscuelaRow[] = []
+
+  const saneadas = rows.map((row) => {
+    if (row.lat == null || row.lon == null) return row
+    const dentro = row.lon >= oeste && row.lon <= este && row.lat >= sur && row.lat <= norte
+    if (dentro) return row
+    descartadas.push(row)
+    return { ...row, lat: null, lon: null }
+  })
+
+  return { rows: saneadas, descartadas }
+}
+
+/** Una escuela ya cruzada (GEO + padrón), con lat/lon (puede ser null: sin coordenadas). */
+export interface EscuelaCompleta {
+  cueAnexo: string
+  nombre: string
+  departamento: string
+  localidad: string
+  /** null cuando la escuela viene sólo del padrón (sin fila GEO, ver padronSinGeo). */
+  sector: string | null
+  ofertaTipo: string[]
+  domicilio: string | null
+  /** Niveles con oferta, en orden NIVELES. Puede venir de inferirNivelesDesdeOferta si no hay fila de padrón (secciones: 0 en ese caso). */
+  niveles: NivelOferta[]
+  seccionesTotal: number
+  /** true si el CUE tiene al menos una fila real en el padrón 2026 (no inferido). */
+  tienePadron: boolean
+  lat: number | null
+  lon: number | null
+}
+
+export interface ResultadoEscuelasCompletas {
+  escuelas: EscuelaCompleta[]
+  /** CUEs del padrón sin fila en el GEO — no tienen coordenadas posibles, nunca se descartan en silencio: el llamador las loguea y quedan en `escuelas` con lat/lon null. */
+  padronSinGeo: string[]
+}
+
+/**
+ * Cruza el relevamiento GEO (todas las escuelas activas, con coordenadas) con
+ * el padrón 2026 (niveles/secciones por CUE) para producir una escuela por
+ * CUE. Un CUE del GEO sin fila de padrón se mantiene igual (tienePadron:
+ * false, niveles inferidos de ofertaTipo cuando el mapeo es confiable — ver
+ * inferirNivelesDesdeOferta) — nunca se oculta por falta de padrón. Un CUE
+ * del padrón sin fila de GEO también se mantiene (sin coordenadas, no entra
+ * al mapa pero sí a los agregados por departamento) y se reporta en
+ * `padronSinGeo`.
+ */
+export function construirEscuelasCompletas(
+  geo: GeoEscuelaRow[],
+  padronRows: PadronRow[],
+): ResultadoEscuelasCompletas {
+  const padronPorCue = agruparPadronPorCue(padronRows)
+  const metadataPadronPorCue = new Map<string, { nombre: string; departamento: string; localidad: string }>()
+  for (const row of padronRows) {
+    if (!metadataPadronPorCue.has(row.cue_anexo)) {
+      metadataPadronPorCue.set(row.cue_anexo, {
+        nombre: row.nombre,
+        departamento: row.departamento,
+        localidad: row.localidad,
+      })
+    }
+  }
+
+  const geoPorCue = new Set(geo.map((g) => g.cueAnexo))
+  const escuelas: EscuelaCompleta[] = []
+
+  for (const g of geo) {
+    const nivelesPadron = padronPorCue.get(g.cueAnexo) ?? []
+    const tienePadron = nivelesPadron.length > 0
+    const niveles = tienePadron
+      ? nivelesPadron
+      : inferirNivelesDesdeOferta(g.ofertaTipo).map((nivel) => ({ nivel, secciones: 0, cursos: [] as CursoOferta[] }))
+
+    escuelas.push({
+      cueAnexo: g.cueAnexo,
+      nombre: g.nombre,
+      departamento: g.departamento,
+      localidad: g.localidad,
+      sector: g.sector,
+      ofertaTipo: g.ofertaTipo,
+      domicilio: g.domicilio,
+      niveles,
+      seccionesTotal: niveles.reduce((total, n) => total + n.secciones, 0),
+      tienePadron,
+      lat: g.lat,
+      lon: g.lon,
+    })
+  }
+
+  const padronSinGeo: string[] = []
+  for (const [cue, niveles] of padronPorCue) {
+    if (geoPorCue.has(cue)) continue
+    padronSinGeo.push(cue)
+    const meta = metadataPadronPorCue.get(cue)!
+    escuelas.push({
+      cueAnexo: cue,
+      nombre: meta.nombre,
+      departamento: meta.departamento,
+      localidad: meta.localidad,
+      sector: null,
+      ofertaTipo: [],
+      domicilio: null,
+      niveles,
+      seccionesTotal: niveles.reduce((total, n) => total + n.secciones, 0),
+      tienePadron: true,
+      lat: null,
+      lon: null,
+    })
+  }
+
+  return { escuelas, padronSinGeo }
+}
+
+/** Propiedades de un feature de escuela: la escuela completa, sin lat/lon (van en geometry.coordinates). */
+export type EscuelaProperties = Omit<EscuelaCompleta, 'lat' | 'lon'> & { esInicial: boolean }
+
+export interface ResultadoFeatureCollectionEscuelas {
+  featureCollection: FeatureCollection<Point, EscuelaProperties>
+  /** Escuelas sin coordenadas utilizables (sin fila GEO, o con lat/lon null en el GEO) — no generan feature. */
+  sinCoordenadas: number
+}
+
+/**
+ * Construye el FeatureCollection de puntos de TODAS las escuelas con
+ * coordenadas válidas. `esInicial` es una propiedad plana (además de
+ * `niveles`) para que el mapa pueda resaltar visualmente las escuelas con
+ * oferta de inicial sin tener que inspeccionar el array completo en cada
+ * paint.
+ */
+export function construirFeatureCollectionEscuelas(
+  escuelas: EscuelaCompleta[],
+): ResultadoFeatureCollectionEscuelas {
+  const features: FeatureCollection<Point, EscuelaProperties>['features'] = []
+  let sinCoordenadas = 0
+
+  for (const escuela of escuelas) {
+    if (escuela.lat == null || escuela.lon == null) {
+      sinCoordenadas += 1
+      continue
+    }
+    const { lat, lon, ...propiedadesBase } = escuela
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lon, lat] },
+      properties: { ...propiedadesBase, esInicial: escuela.niveles.some((n) => n.nivel === 'Inicial') },
+    })
+  }
+
+  return { featureCollection: { type: 'FeatureCollection', features }, sinCoordenadas }
+}
+
+export interface AgregadoNivelDepartamento {
+  escuelas: number
+  secciones: number
+}
+
+export interface AgregadoEscuelasDepartamento {
+  porNivel: Record<Nivel, AgregadoNivelDepartamento>
+  /** Sólo para Inicial: secciones sumadas por sala (Sala de 3, Plurisala, etc.). */
+  inicialSeccionesPorCurso: Record<string, number>
+}
+
+function agregadoNivelVacio(): Record<Nivel, AgregadoNivelDepartamento> {
+  return Object.fromEntries(NIVELES.map((nivel) => [nivel, { escuelas: 0, secciones: 0 }])) as Record<
+    Nivel,
+    AgregadoNivelDepartamento
+  >
+}
+
+/**
+ * Agrupa TODAS las escuelas (con o sin coordenadas) por departamento
+ * normalizado, contando escuelas y secciones por nivel. Usa el universo
+ * completo (GEO ∪ padrón), no sólo las geolocalizadas: el agregado
+ * departamental no depende de tener coordenadas.
+ */
+export function agruparEscuelasPorDepartamento(
+  escuelas: EscuelaCompleta[],
+): Map<string, AgregadoEscuelasDepartamento> {
+  const map = new Map<string, AgregadoEscuelasDepartamento>()
+
+  for (const escuela of escuelas) {
+    const clave = normalizarNombreDepartamento(escuela.departamento)
+    let entry = map.get(clave)
+    if (!entry) {
+      entry = { porNivel: agregadoNivelVacio(), inicialSeccionesPorCurso: {} }
+      map.set(clave, entry)
+    }
+
+    for (const nivelOferta of escuela.niveles) {
+      entry.porNivel[nivelOferta.nivel].escuelas += 1
+      entry.porNivel[nivelOferta.nivel].secciones += nivelOferta.secciones
+      if (nivelOferta.nivel === 'Inicial') {
+        for (const curso of nivelOferta.cursos) {
+          entry.inicialSeccionesPorCurso[curso.curso] =
+            (entry.inicialSeccionesPorCurso[curso.curso] ?? 0) + curso.secciones
+        }
+      }
+    }
+  }
+
+  return map
+}
 
 /**
  * Código de departamento reservado para nacimientos sin departamento
@@ -25,26 +360,6 @@ export interface NacidoVivoRow {
   coddpto: string
   departamento: string
   nacidosVivos: number
-}
-
-export interface InicialRow {
-  cue_anexo: string
-  nombre: string
-  departamento: string
-  localidad: string
-  curso: string
-  secciones: number
-  alumnos_activos: number
-}
-
-export interface LocalizacionRow {
-  cueAnexo: string
-  nombre: string
-  departamento: string
-  localidad: string
-  lat: number | null
-  lon: number | null
-  geoCalidad: string | null
 }
 
 /** Serie anual, clave = año como string (para poder viajar tal cual por JSON). */
@@ -115,124 +430,6 @@ export function agruparNacimientosPorDepartamento(
   return { porDepartamento, provincia }
 }
 
-// ── Oferta de nivel inicial por departamento ────────────────────────────────
-
-export interface InicialAgregadoDepartamento {
-  cues: Set<string>
-  seccionesTotal: number
-  /** Secciones sumadas por curso (Sala de 3, Plurisala, etc.). */
-  seccionesPorCurso: Record<string, number>
-}
-
-/** Agrupa filas de inicial (una por CUE×sala) por departamento normalizado. */
-export function agruparInicialPorDepartamento(
-  rows: InicialRow[],
-): Map<string, InicialAgregadoDepartamento> {
-  const map = new Map<string, InicialAgregadoDepartamento>()
-
-  for (const row of rows) {
-    const clave = normalizarNombreDepartamento(row.departamento)
-    let entry = map.get(clave)
-    if (!entry) {
-      entry = { cues: new Set(), seccionesTotal: 0, seccionesPorCurso: {} }
-      map.set(clave, entry)
-    }
-    entry.cues.add(row.cue_anexo)
-    entry.seccionesTotal += row.secciones
-    entry.seccionesPorCurso[row.curso] =
-      (entry.seccionesPorCurso[row.curso] ?? 0) + row.secciones
-  }
-
-  return map
-}
-
-// ── Escuelas de inicial (para el GeoJSON de puntos) ─────────────────────────
-
-export interface SalaOferta {
-  curso: string
-  secciones: number
-}
-
-export interface EscuelaInicial {
-  cueAnexo: string
-  nombre: string
-  departamento: string
-  localidad: string
-  salas: SalaOferta[]
-  seccionesTotal: number
-}
-
-/**
- * Agrupa las filas de inicial (una por CUE×sala) en una escuela por CUE, con
- * su lista de salas. No incluye `alumnos_activos`: la matrícula oficial está
- * pendiente y no debe publicarse (ver odd/tasks/mapa-natalidad.md).
- */
-export function agruparInicialPorCue(rows: InicialRow[]): Map<string, EscuelaInicial> {
-  const map = new Map<string, EscuelaInicial>()
-
-  for (const row of rows) {
-    let entry = map.get(row.cue_anexo)
-    if (!entry) {
-      entry = {
-        cueAnexo: row.cue_anexo,
-        nombre: row.nombre,
-        departamento: row.departamento,
-        localidad: row.localidad,
-        salas: [],
-        seccionesTotal: 0,
-      }
-      map.set(row.cue_anexo, entry)
-    }
-    entry.salas.push({ curso: row.curso, secciones: row.secciones })
-    entry.seccionesTotal += row.secciones
-  }
-
-  return map
-}
-
-export type EscuelaInicialProperties = EscuelaInicial
-
-export interface ResultadoFeaturesInicial {
-  featureCollection: FeatureCollection<Point, EscuelaInicialProperties>
-  /** CUEs con oferta de inicial que no tienen coordenadas en localizaciones.json. */
-  cuesSinCoordenadas: number
-  cuesTotal: number
-}
-
-/**
- * Construye el FeatureCollection de puntos de escuelas de inicial, cruzando
- * contra las coordenadas de localizaciones.json por cueAnexo. Un CUE sin
- * coordenadas (o con lat/lon null) no genera feature — se cuenta en
- * `cuesSinCoordenadas`, nunca se descarta en silencio (el llamador lo loguea).
- */
-export function construirFeatureCollectionInicial(
-  escuelasPorCue: Map<string, EscuelaInicial>,
-  localizaciones: LocalizacionRow[],
-): ResultadoFeaturesInicial {
-  const coordsPorCue = new Map(localizaciones.map((l) => [l.cueAnexo, l]))
-  const features: FeatureCollection<Point, EscuelaInicialProperties>['features'] = []
-  let cuesSinCoordenadas = 0
-
-  for (const escuela of escuelasPorCue.values()) {
-    const loc = coordsPorCue.get(escuela.cueAnexo)
-    if (!loc || loc.lat == null || loc.lon == null) {
-      cuesSinCoordenadas += 1
-      continue
-    }
-    features.push({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [loc.lon, loc.lat] },
-      properties: escuela,
-    })
-  }
-
-  return {
-    featureCollection: { type: 'FeatureCollection', features },
-    cuesSinCoordenadas,
-    cuesTotal: escuelasPorCue.size,
-  }
-}
-
 // ── Combinado: departamentos.json ───────────────────────────────────────────
 
 export interface DepartamentoNatalidad {
@@ -243,6 +440,9 @@ export interface DepartamentoNatalidad {
   coddpto: string | null
   serie: SerieAnual
   variacion: Variacion
+  /** Escuelas y secciones por nivel (T5: todos los niveles, no sólo inicial). */
+  porNivel: Record<Nivel, AgregadoNivelDepartamento>
+  /** Recorte de porNivel.Inicial + desglose por sala — se mantiene aparte porque es la comparación central del mapa (nacimientos vs. oferta de inicial). */
   inicial: {
     cues: number
     seccionesTotal: number
@@ -258,7 +458,10 @@ export interface FuenteNatalidad {
 export interface DatosNatalidad {
   meta: {
     fuenteNatalidad: FuenteNatalidad
-    fuenteInicial: string
+    /** T5: "Localizaciones: relevamiento GEO 2025-10-02" (o equivalente), listo para mostrar tal cual en el panel de título. */
+    fuenteLocalizaciones: string
+    /** T5: "Secciones: padrón Gestión Educativa, ciclo 2026" (o equivalente), listo para mostrar tal cual. */
+    fuenteSecciones: string
     anioInicio: number
     anioFin: number
     anios: number[]
@@ -274,27 +477,29 @@ export interface DatosNatalidad {
 }
 
 /**
- * Combina nacimientos + oferta de inicial en la estructura pública de
- * public/data/natalidad/departamentos.json. Un departamento de la fuente que
- * no matchea ningún nombre conocido (GeoJSON) NUNCA se descarta en
+ * Combina nacimientos + escuelas (todos los niveles, T5) en la estructura
+ * pública de public/data/natalidad/departamentos.json. Un departamento de la
+ * fuente que no matchea ningún nombre conocido (GeoJSON) NUNCA se descarta en
  * silencio: queda en el resultado con su nombre de origen y se reporta en
  * `departamentosSinMatch`, igual que hace agregarEscuelasCaidasPorDepartamento
  * en lib/mapas/departamentos.ts.
  */
 export function construirDatosNatalidad(params: {
   nacimientos: NacidoVivoRow[]
-  inicial: InicialRow[]
+  escuelas: EscuelaCompleta[]
   nombresDepartamentosConocidos: string[]
   fuenteNatalidad: FuenteNatalidad
-  fuenteInicial: string
+  fuenteLocalizaciones: string
+  fuenteSecciones: string
   extraidoEn: string
 }): DatosNatalidad {
   const {
     nacimientos,
-    inicial,
+    escuelas,
     nombresDepartamentosConocidos,
     fuenteNatalidad,
-    fuenteInicial,
+    fuenteLocalizaciones,
+    fuenteSecciones,
     extraidoEn,
   } = params
 
@@ -308,7 +513,7 @@ export function construirDatosNatalidad(params: {
 
   const { porDepartamento: natalidadPorDpto, provincia } =
     agruparNacimientosPorDepartamento(nacimientos)
-  const inicialPorDpto = agruparInicialPorDepartamento(inicial)
+  const escuelasPorDpto = agruparEscuelasPorDepartamento(escuelas)
 
   const sinMatch = new Set<string>()
   const departamentos: DepartamentoNatalidad[] = []
@@ -317,7 +522,8 @@ export function construirDatosNatalidad(params: {
     const nombreConocido = conocidosPorClave.get(clave)
     if (!nombreConocido) sinMatch.add(entry.nombre)
 
-    const inicialEntry = inicialPorDpto.get(clave)
+    const escuelasEntry = escuelasPorDpto.get(clave)
+    const porNivel = escuelasEntry?.porNivel ?? agregadoNivelVacio()
 
     departamentos.push({
       clave,
@@ -325,20 +531,19 @@ export function construirDatosNatalidad(params: {
       coddpto: entry.coddpto,
       serie: entry.serie,
       variacion: calcularVariacion(entry.serie, anioInicio, anioFin),
-      inicial: inicialEntry
-        ? {
-            cues: inicialEntry.cues.size,
-            seccionesTotal: inicialEntry.seccionesTotal,
-            seccionesPorCurso: inicialEntry.seccionesPorCurso,
-          }
-        : { cues: 0, seccionesTotal: 0, seccionesPorCurso: {} },
+      porNivel,
+      inicial: {
+        cues: porNivel.Inicial.escuelas,
+        seccionesTotal: porNivel.Inicial.secciones,
+        seccionesPorCurso: escuelasEntry?.inicialSeccionesPorCurso ?? {},
+      },
     })
   }
 
   departamentos.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
 
   return {
-    meta: { fuenteNatalidad, fuenteInicial, anioInicio, anioFin, anios, extraidoEn },
+    meta: { fuenteNatalidad, fuenteLocalizaciones, fuenteSecciones, anioInicio, anioFin, anios, extraidoEn },
     provincia: {
       serie: provincia,
       variacion: calcularVariacion(provincia, anioInicio, anioFin),

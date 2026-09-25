@@ -1,10 +1,22 @@
 #!/usr/bin/env node
 /**
- * Genera public/data/natalidad/{departamentos.json,inicial.geojson} a partir
- * de los snapshots versionados (data/natalidad/*.json) y de las coordenadas
- * de public/data/localizaciones.json. Sin `--refresh-pbi` corre 100%
- * offline: nunca depende del Postgres temporario del padrón (ver
- * odd/tasks/mapa-natalidad.md, "Constraints").
+ * Genera public/data/natalidad/{departamentos.json,escuelas.geojson} a
+ * partir de los snapshots versionados (data/natalidad/*.json). Sin
+ * `--refresh-pbi` corre 100% offline: nunca depende del Postgres temporario
+ * del padrón (ver odd/tasks/mapa-natalidad.md, "Constraints").
+ *
+ * T5 (2026-09-25): las escuelas ya no salen de inicial-2026-padron.json +
+ * public/data/localizaciones.json (sólo inicial, coordenadas ajenas al
+ * mapa). Ahora usan:
+ * - data/natalidad/localizaciones-geo-2025-10-02.json — relevamiento GEO,
+ *   TODAS las escuelas activas de la provincia, con sus propias
+ *   coordenadas. Convertido a mano de
+ *   2025-10-02_Localizaciones_(GEO).xlsx (sin agregar una dependencia xlsx:
+ *   conversión puntual, no repetible por este script).
+ * - data/natalidad/escuelas-2026-padron.json — padrón Gestión Educativa,
+ *   ciclo 2026, TODOS los niveles (una fila por CUE×nivel×curso).
+ * public/data/localizaciones.json queda intacto (lo sigue usando el mapa de
+ * infraestructura); este mapa ya no lo lee.
  *
  * Usage:
  *   pnpm extract:natalidad
@@ -44,14 +56,16 @@ registerHooks({
 })
 
 const {
-  agruparInicialPorCue,
   construirDatosNatalidad,
-  construirFeatureCollectionInicial,
+  construirEscuelasCompletas,
+  construirFeatureCollectionEscuelas,
+  sanearCoordenadasFueraDeLimites,
 } = await import('../lib/mapas/natalidad.ts')
+const { LIMITES_CORRIENTES_BBOX } = await import('../lib/mapas/departamentos.ts')
 
 const NACIMIENTOS_PATH = join(root, 'data', 'natalidad', 'nacidos-vivos-corrientes.json')
-const INICIAL_PATH = join(root, 'data', 'natalidad', 'inicial-2026-padron.json')
-const LOCALIZACIONES_PATH = join(root, 'public', 'data', 'localizaciones.json')
+const GEO_PATH = join(root, 'data', 'natalidad', 'localizaciones-geo-2025-10-02.json')
+const PADRON_PATH = join(root, 'data', 'natalidad', 'escuelas-2026-padron.json')
 const DEPARTAMENTOS_GEOJSON_PATH = join(root, 'public', 'data', 'departamentos-corrientes.geojson')
 const OUT_DIR = join(root, 'public', 'data', 'natalidad')
 
@@ -60,7 +74,9 @@ const FUENTE_NATALIDAD = {
     'DEIS / Ministerio de Capital Humano – OEI, "Tendencias demográficas recientes e impactos en las ofertas del nivel inicial"',
   url: 'https://app.powerbi.com/view?r=eyJrIjoiYmEwYWM4N2EtOWViOS00MmQ2LTg1NGMtNDlmMGRmZDRmNjY1IiwidCI6ImE1YmEzMDQ2LTNmMzQtNDI0Mi1iZjc4LTk5NDY1ODk2MGI4MCJ9',
 }
-const FUENTE_INICIAL = 'Padrón Gestión Educativa, ciclo lectivo 2026'
+// T5: strings listas para mostrar tal cual en el panel de título del mapa.
+const FUENTE_LOCALIZACIONES = 'Localizaciones: relevamiento GEO 2025-10-02'
+const FUENTE_SECCIONES = 'Secciones: padrón Gestión Educativa, ciclo 2026'
 
 // ── --refresh-pbi: port mínimo de scratchpad/pbi.py ─────────────────────────
 //
@@ -252,36 +268,62 @@ async function main() {
   }
 
   const nacimientos = leerJson(NACIMIENTOS_PATH)
-  const inicial = leerJson(INICIAL_PATH)
-  const localizaciones = leerJson(LOCALIZACIONES_PATH)
+  const geoRaw = leerJson(GEO_PATH)
+  const padron = leerJson(PADRON_PATH)
   const departamentosGeojson = leerJson(DEPARTAMENTOS_GEOJSON_PATH)
   const nombresDepartamentosConocidos = departamentosGeojson.features.map((f) => f.properties.nombre)
 
+  // Limpia las 4 filas del GEO con coordenadas fuera de la provincia (una
+  // lat -20.x claramente errónea, tres con lon === lat) antes de cruzar con
+  // el padrón: nunca se descartan en silencio, se loguean abajo.
+  const { rows: geo, descartadas: fueraDeLimites } = sanearCoordenadasFueraDeLimites(
+    geoRaw,
+    LIMITES_CORRIENTES_BBOX,
+  )
+
+  const { escuelas, padronSinGeo } = construirEscuelasCompletas(geo, padron)
+
   const datos = construirDatosNatalidad({
     nacimientos,
-    inicial,
+    escuelas,
     nombresDepartamentosConocidos,
     fuenteNatalidad: FUENTE_NATALIDAD,
-    fuenteInicial: FUENTE_INICIAL,
+    fuenteLocalizaciones: FUENTE_LOCALIZACIONES,
+    fuenteSecciones: FUENTE_SECCIONES,
     extraidoEn: new Date().toISOString().slice(0, 10),
   })
 
-  const escuelasPorCue = agruparInicialPorCue(inicial)
-  const { featureCollection, cuesSinCoordenadas, cuesTotal } = construirFeatureCollectionInicial(
-    escuelasPorCue,
-    localizaciones,
-  )
+  const { featureCollection, sinCoordenadas } = construirFeatureCollectionEscuelas(escuelas)
 
   mkdirSync(OUT_DIR, { recursive: true })
   writeFileSync(join(OUT_DIR, 'departamentos.json'), `${JSON.stringify(datos, null, 1)}\n`)
-  writeFileSync(join(OUT_DIR, 'inicial.geojson'), `${JSON.stringify(featureCollection, null, 1)}\n`)
+  writeFileSync(join(OUT_DIR, 'escuelas.geojson'), `${JSON.stringify(featureCollection, null, 1)}\n`)
 
   console.log(`departamentos.json: ${datos.departamentos.length} departamentos, años ${datos.meta.anioInicio}-${datos.meta.anioFin}`)
   if (datos.departamentosSinMatch.length > 0) {
     console.warn(`Departamento(s) sin match geográfico: ${datos.departamentosSinMatch.join(', ')}`)
   }
-  console.log(`inicial.geojson: ${featureCollection.features.length} escuelas geolocalizadas de ${cuesTotal} CUEs con oferta`)
-  console.log(`CUEs sin coordenadas: ${cuesSinCoordenadas}`)
+
+  console.log(`GEO: ${geoRaw.length} escuelas activas, ${geo.filter((r) => r.lat != null && r.lon != null).length} con coordenadas dentro de la provincia`)
+  if (fueraDeLimites.length > 0) {
+    console.warn(
+      `Coordenadas descartadas por estar fuera de la provincia (${fueraDeLimites.length}): ` +
+        fueraDeLimites.map((r) => `${r.cueAnexo} "${r.nombre}" (${r.lat}, ${r.lon})`).join('; '),
+    )
+  }
+
+  const geoSoloSinPadron = escuelas.filter((e) => e.lat != null && !e.tienePadron).length
+  console.log(`Escuelas del GEO sin fila en el padrón 2026 (nivel inferido de ofertaTipo cuando fue posible): ${geoSoloSinPadron}`)
+
+  if (padronSinGeo.length > 0) {
+    console.warn(
+      `CUEs del padrón sin fila en el GEO (${padronSinGeo.length}, sin coordenadas posibles — nunca se descartan, quedan en los agregados por departamento): ` +
+        `muestra: ${padronSinGeo.slice(0, 10).join(', ')}`,
+    )
+  }
+
+  console.log(`escuelas.geojson: ${featureCollection.features.length} escuelas geolocalizadas de ${escuelas.length} escuelas totales`)
+  console.log(`Escuelas sin coordenadas utilizables: ${sinCoordenadas}`)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

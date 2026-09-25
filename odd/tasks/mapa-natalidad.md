@@ -49,6 +49,8 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - [x] T2 Extract script → `public/data/natalidad/` (departamentos series + inicial schools GeoJSON) with pure, tested transforms
 - [x] T3 Map page: choropleth (births per year / % change between two years), year controls, departamento popup with series, inicial school markers with salas/secciones, legend; recurso registration + ACL gate
 - [x] T4 Tests + checks (`pnpm test`, `tsc`, `lint`) and visual check
+- [x] T5 All schools (user request 2026-09-25): markers for every school from `data/natalidad/localizaciones-geo-2025-10-02.json` (converted from `2025-10-02_Localizaciones_(GEO).xlsx`, 2,049 active, 2,002 with coords, 4 outside Corrientes) enriched with padrón 2026 niveles/secciones from `data/natalidad/escuelas-2026-padron.json` (2,041 CUEs, all niveles); nivel filter, per-departamento aggregates by nivel; inicial stays highlighted for the births comparison
+- [ ] T6 Visual check in `pnpm dev` (needs user login)
 
 ## Acceptance
 - `/mapas/natalidad` renders the 25 departamentos colored by the selected metric, with values matching the snapshot.
@@ -82,3 +84,61 @@ Route: delegated direct (one Sonnet writer). Trigger: 2+ non-trivial files (scri
 - Verification: `pnpm extract:natalidad` OK · `pnpm test` 791/791 passed ·
   `pnpm exec tsc --noEmit` clean · `pnpm lint` clean. No visual check run
   in `pnpm dev` (not exercised in this session).
+- T5 done (all schools, all niveles): `lib/mapas/natalidad.ts` reworked —
+  `GeoEscuelaRow`/`PadronRow`/`Nivel`/`NivelOferta`, `agruparPadronPorCue`,
+  `inferirNivelesDesdeOferta` (best-effort ofertaTipo→Nivel mapping, `[]`
+  for ambiguous offers like "Artística"/"Trayecto técnico"),
+  `sanearCoordenadasFueraDeLimites` (bbox check against
+  `LIMITES_CORRIENTES_BBOX`), `construirEscuelasCompletas` (GEO⨝padrón join,
+  union of both universes — a padrón-only CUE has no coords but still
+  counts in departamento aggregates), `construirFeatureCollectionEscuelas`,
+  `agruparEscuelasPorDepartamento`. `construirDatosNatalidad` now takes
+  `escuelas: EscuelaCompleta[]` instead of inicial-only rows; each
+  departamento carries `porNivel` (escuelas+secciones per nivel) plus the
+  existing `inicial` (salas breakdown, now derived from the same join).
+  Old inicial-only types/functions (`InicialRow`, `LocalizacionRow`,
+  `EscuelaInicial`, `agruparInicialPorCue`,
+  `construirFeatureCollectionInicial`) removed, superseded.
+  `scripts/extract-natalidad.mjs` reads
+  `data/natalidad/localizaciones-geo-2025-10-02.json` +
+  `data/natalidad/escuelas-2026-padron.json` instead of
+  `inicial-2026-padron.json` + `public/data/localizaciones.json` (untouched,
+  still used by the infra map); writes `public/data/natalidad/escuelas.geojson`
+  (old `inicial.geojson` deleted). `data/natalidad/inicial-2026-padron.json`
+  deleted. `components/mapas/map-natalidad-page.tsx` rewritten: nivel
+  filter (Todos/Inicial/Primario/Secundario/Superior/Servicios Educativos,
+  resolved client-side over the fetched FeatureCollection, not a MapLibre
+  filter expression — simpler given the nested `niveles` shape), clustered
+  school layer (supercluster, `clusterMaxZoom: 12`, mirrors the infra map's
+  pattern) with inicial schools/clusters kept teal (`esInicial` /
+  `esInicialEnCluster` via `clusterProperties` max-aggregate) vs. neutral
+  gray for the rest, richer school popup (sector, ofertaTipo, domicilio,
+  niveles with secciones/cursos, "Sin datos de padrón" fallback),
+  departamento popup extended with escuelas+secciones per nivel, title
+  panel provenance now reads "… {fuenteLocalizaciones}. {fuenteSecciones}."
+  = "Localizaciones: relevamiento GEO 2025-10-02. Secciones: padrón Gestión
+  Educativa, ciclo 2026.".
+  Counts (`pnpm extract:natalidad` log): GEO 2,049 escuelas, 1,998 with
+  valid in-province coordinates (4 discarded for being outside
+  `LIMITES_CORRIENTES_BBOX` — 1 clearly wrong latitude, 3 with lon===lat,
+  all logged with CUE/nombre/coords); padrón 2,041 unique CUEs; 114 padrón
+  CUEs missing from GEO (logged, sample of 10 — kept in departamento
+  aggregates with null coords, reported, never silently dropped); 113 GEO
+  schools with valid coords and no padrón row (nivel inferred from
+  ofertaTipo where the mapping is reliable); `escuelas.geojson` has 1,998
+  features out of 2,163 total joined schools (165 without usable
+  coordinates).
+  Tests: `lib/mapas/natalidad.test.ts` rewritten for the new join
+  (`agruparPadronPorCue`, `inferirNivelesDesdeOferta`,
+  `sanearCoordenadasFueraDeLimites`, `construirEscuelasCompletas`,
+  `construirFeatureCollectionEscuelas`, `agruparEscuelasPorDepartamento`,
+  updated `construirDatosNatalidad`); old inicial-only test blocks removed.
+  Gaps: nivel inference from ofertaTipo doesn't cover every offer string
+  (Especial/Adultos/Trayecto técnico/artística stay unmapped — documented in
+  code); the test CUE `1800000-01` ("PRUEBAS POF") from the padrón is not
+  filtered out (T5 scope didn't ask for it, unlike the old
+  inicial-2026-padron.json which excluded `1800000-00`); no visual check
+  in `pnpm dev` for T5 (T6 still pending, needs user login).
+- Verification (T5): `pnpm extract:natalidad` OK (see counts above) ·
+  `pnpm test` 803/803 passed · `pnpm exec tsc --noEmit` clean · `pnpm lint`
+  clean.
