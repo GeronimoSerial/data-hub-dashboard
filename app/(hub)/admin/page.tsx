@@ -9,5 +9,5 @@ export default async function Admin() {
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin')
   if (gate === 'forbidden') redirect('/forbidden')
-  return <AdminShell role={user!.role}><AdminPage /></AdminShell>
+  return <AdminShell role={user!.role}><AdminPage role={user!.role} /></AdminShell>
 }

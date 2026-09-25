@@ -17,7 +17,6 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
-import { authClient } from '@/lib/auth-client'
 import type { Role } from '@/lib/acl'
 import { isAllowedUpload } from '@/lib/upload'
 import { Button } from '@/components/ui/button'
@@ -1397,9 +1396,9 @@ function MotivosAdmin() {
 
 // ── Admin page ─────────────────────────────────────────────────────────────
 
-export function AdminPage() {
-  const session = authClient.useSession()
-  const role = (session.data?.user as { role?: Role } | undefined)?.role
+// `role` comes from the server session so SSR and the first client render
+// agree on which tabs exist (a client-side session hook is empty during SSR).
+export function AdminPage({ role }: { role: Role }) {
   const isAdmin = role === 'admin'
   const {
     recursos,
