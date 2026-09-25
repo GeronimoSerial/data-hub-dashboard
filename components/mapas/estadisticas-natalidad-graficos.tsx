@@ -230,9 +230,20 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
 const ALTO_FILA_VARIACION = 24
 const MARGEN_VARIACION = 40
 
-export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionDepartamento[] }) {
+// Item 4 (feedback 2026-09-25): el departamento seleccionado se resalta (color
+// pleno + borde de acento) mientras el resto se atenúa (opacidad reducida),
+// en vez de recortar las barras — así el gráfico sigue sirviendo para
+// comparar entre departamentos aunque haya uno elegido.
+const OPACIDAD_ATENUADA = 0.35
+
+export function GraficoVariacionPorDepartamento(props: {
+  barras: BarraVariacionDepartamento[]
+  seleccionado?: string
+  onSeleccionar?: (clave: string) => void
+}) {
   const paleta = usePaleta()
   const alto = props.barras.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
+  const hayResaltado = props.seleccionado != null && props.seleccionado !== 'Todos'
   return (
     <GraficoContenedor etiqueta="Variación de nacidos vivos por departamento" alto={alto}>
       <BarChart
@@ -265,19 +276,54 @@ export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionD
           cursor={{ fill: paleta.resalte }}
           formatter={formatearValorTooltipPct}
         />
-        <Bar dataKey="pct" name="Variación" isAnimationActive={false}>
-          {props.barras.map((barra, i) => (
-            <Cell
-              key={`${barra.departamento}-${i}`}
-              fill={barra.pct == null ? paleta.eje : barra.pct < 0 ? paleta.negativo : paleta.positivo}
-            />
-          ))}
+        <Bar
+          dataKey="pct"
+          name="Variación"
+          isAnimationActive={false}
+          onClick={(data) => {
+            const barra = data.payload as BarraVariacionDepartamento | undefined
+            if (barra) props.onSeleccionar?.(barra.clave)
+          }}
+          cursor={props.onSeleccionar ? 'pointer' : undefined}
+        >
+          {props.barras.map((barra, i) => {
+            const esSeleccionado = barra.clave === props.seleccionado
+            const colorBase = barra.pct == null ? paleta.eje : barra.pct < 0 ? paleta.negativo : paleta.positivo
+            return (
+              <Cell
+                key={`${barra.departamento}-${i}`}
+                fill={colorBase}
+                fillOpacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA : 1}
+                stroke={esSeleccionado ? colorBase : undefined}
+                strokeWidth={esSeleccionado ? 1 : 0}
+              />
+            )
+          })}
           <LabelList
             dataKey="pct"
             position="right"
-            formatter={(v) => (typeof v === 'number' ? `${v > 0 ? '+' : ''}${v.toFixed(1)}%` : 'S/D')}
-            style={{ fill: 'currentColor', fontSize: 11 }}
-            className="natalidad-grafico-etiqueta"
+            content={(labelProps) => {
+              const { x, y, width, height, value, index } = labelProps
+              if (x == null || y == null || value == null || index == null) return undefined
+              const barra = props.barras[Number(index)]
+              const esSeleccionado = barra?.clave === props.seleccionado
+              const texto =
+                typeof value === 'number' ? `${value > 0 ? '+' : ''}${value.toFixed(1)}%` : 'S/D'
+              const cx = Number(x) + Number(width ?? 0) + 4
+              const cy = Number(y) + Number(height ?? 0) / 2 + 3
+              return (
+                <text
+                  x={cx}
+                  y={cy}
+                  fontSize={11}
+                  fontWeight={esSeleccionado ? 700 : 400}
+                  fill={hayResaltado && !esSeleccionado ? paleta.texto : 'currentColor'}
+                  opacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA + 0.3 : 1}
+                >
+                  {texto}
+                </text>
+              )
+            }}
           />
         </Bar>
       </BarChart>
@@ -292,9 +338,12 @@ export function GraficoVariacionPorDepartamento(props: { barras: BarraVariacionD
 export function GraficoNacidosPorSeccion(props: {
   filas: FilaNacidosPorSeccion[]
   provincia: FilaNacidosPorSeccion
+  seleccionado?: string
+  onSeleccionar?: (clave: string) => void
 }) {
   const paleta = usePaleta()
   const alto = props.filas.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
+  const hayResaltado = props.seleccionado != null && props.seleccionado !== 'Todos'
   return (
     <GraficoContenedor etiqueta="Nacidos por sección de Sala de 3 a 5, por departamento" alto={alto}>
       <BarChart
@@ -326,13 +375,52 @@ export function GraficoNacidosPorSeccion(props: {
           cursor={{ fill: paleta.resalte }}
           formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : 'Sin secciones (excluido)')}
         />
-        <Bar dataKey="nacidosPorSeccion" name="Nacidos por sección" fill={paleta.inicial} isAnimationActive={false}>
+        <Bar
+          dataKey="nacidosPorSeccion"
+          name="Nacidos por sección"
+          isAnimationActive={false}
+          onClick={(data) => {
+            const fila = data.payload as FilaNacidosPorSeccion | undefined
+            if (fila) props.onSeleccionar?.(fila.clave)
+          }}
+          cursor={props.onSeleccionar ? 'pointer' : undefined}
+        >
+          {props.filas.map((f, i) => {
+            const esSeleccionado = f.clave === props.seleccionado
+            return (
+              <Cell
+                key={`${f.clave}-${i}`}
+                fill={paleta.inicial}
+                fillOpacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA : 1}
+                stroke={esSeleccionado ? paleta.inicial : undefined}
+                strokeWidth={esSeleccionado ? 1 : 0}
+              />
+            )
+          })}
           <LabelList
             dataKey="nacidosPorSeccion"
             position="right"
-            formatter={(v) => (typeof v === 'number' ? v.toFixed(1) : 'S/D')}
-            style={{ fill: 'currentColor', fontSize: 11 }}
-            className="natalidad-grafico-etiqueta"
+            content={(labelProps) => {
+              const { x, y, width, height, value, index } = labelProps
+              if (x == null || y == null || value == null || index == null) return undefined
+              const fila = props.filas[Number(index)]
+              const esSeleccionado = fila?.clave === props.seleccionado
+              const texto = typeof value === 'number' ? value.toFixed(1) : 'S/D'
+              const cx = Number(x) + Number(width ?? 0) + 4
+              const cy = Number(y) + Number(height ?? 0) / 2 + 3
+              return (
+                <text
+                  x={cx}
+                  y={cy}
+                  fontSize={11}
+                  fontWeight={esSeleccionado ? 700 : 400}
+                  fill={hayResaltado && !esSeleccionado ? paleta.texto : 'currentColor'}
+                  opacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA + 0.3 : 1}
+                >
+                  {texto}
+                </text>
+              )
+            }}
           />
         </Bar>
         {props.provincia.nacidosPorSeccion != null && (

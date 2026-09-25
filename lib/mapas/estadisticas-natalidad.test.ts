@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniosCohorteInicial,
+  buscarPuestoNacidosPorSeccion,
+  buscarPuestoVariacion,
   construirKpis,
   construirNacidosPorSeccionCohorte,
+  construirSerieNacimientos,
   construirSerieProvincialNacimientos,
   construirVariacionNacimientosPorDepartamento,
 } from './estadisticas-natalidad'
@@ -92,6 +95,47 @@ describe('construirVariacionNacimientosPorDepartamento', () => {
     const resultado = construirVariacionNacimientosPorDepartamento(datosConNull)
     expect(resultado[resultado.length - 1].departamento).toBe('Capital')
   })
+
+  it('incluye la clave del departamento (para resaltar/seleccionar)', () => {
+    const resultado = construirVariacionNacimientosPorDepartamento(DATOS)
+    expect(resultado.map((r) => r.clave)).toEqual(['CAPITAL', 'GOYA'])
+  })
+})
+
+describe('buscarPuestoVariacion', () => {
+  it('devuelve el puesto (1-based) y el total', () => {
+    const barras = construirVariacionNacimientosPorDepartamento(DATOS)
+    expect(buscarPuestoVariacion(barras, 'GOYA')).toEqual({ puesto: 2, total: 2 })
+    expect(buscarPuestoVariacion(barras, 'CAPITAL')).toEqual({ puesto: 1, total: 2 })
+  })
+
+  it('null si la clave no aparece', () => {
+    const barras = construirVariacionNacimientosPorDepartamento(DATOS)
+    expect(buscarPuestoVariacion(barras, 'INEXISTENTE')).toBeNull()
+  })
+})
+
+describe('construirSerieNacimientos', () => {
+  it("'Todos': serie provincial, titulo de provincia", () => {
+    const resultado = construirSerieNacimientos(DATOS, 'Todos')
+    expect(resultado.titulo).toBe('Corrientes (provincia)')
+    expect(resultado.puntos).toEqual(construirSerieProvincialNacimientos(DATOS))
+  })
+
+  it('un departamento: su propia serie, titulo con su nombre', () => {
+    const resultado = construirSerieNacimientos(DATOS, 'GOYA')
+    expect(resultado.titulo).toBe('Goya')
+    expect(resultado.puntos).toEqual([
+      { anio: 2014, valor: 450 },
+      { anio: 2022, valor: 400 },
+      { anio: 2023, valor: 400 },
+    ])
+  })
+
+  it('clave inexistente: cae a la serie provincial', () => {
+    const resultado = construirSerieNacimientos(DATOS, 'INEXISTENTE')
+    expect(resultado.titulo).toBe('Corrientes (provincia)')
+  })
 })
 
 describe('aniosCohorteInicial', () => {
@@ -106,38 +150,50 @@ describe('aniosCohorteInicial', () => {
 
 describe('construirNacidosPorSeccionCohorte', () => {
   it('suma nacidos de las 3 cohortes sobre secciones de Sala de 3/4/5 + Plurisala + Sala Integrada', () => {
-    const { ciclo, aniosCohorte, filas } = construirNacidosPorSeccionCohorte(DATOS, 'Todos')
+    const { ciclo, aniosCohorte, filas } = construirNacidosPorSeccionCohorte(DATOS)
     expect(ciclo).toBe(2026)
     expect(aniosCohorte).toEqual([2022, 2021, 2020])
     // Capital: nacidos 600+80+90=770, secciones 3+3+3+1=10 → 77.
     // Goya: sin secciones en el denominador (sólo "Sala Especial", que no cuenta) → excluido (null), nunca 0.
     expect(filas).toEqual([
-      { departamento: 'Capital', nacidosCohorte: 770, secciones: 10, nacidosPorSeccion: 77 },
-      { departamento: 'Goya', nacidosCohorte: 440, secciones: 0, nacidosPorSeccion: null },
+      { clave: 'CAPITAL', departamento: 'Capital', nacidosCohorte: 770, secciones: 10, nacidosPorSeccion: 77 },
+      { clave: 'GOYA', departamento: 'Goya', nacidosCohorte: 440, secciones: 0, nacidosPorSeccion: null },
     ])
   })
 
   it('ordena de mayor a menor nacidosPorSeccion, null siempre al final', () => {
-    const { filas } = construirNacidosPorSeccionCohorte(DATOS, 'Todos')
+    const { filas } = construirNacidosPorSeccionCohorte(DATOS)
     expect(filas.map((f) => f.departamento)).toEqual(['Capital', 'Goya'])
   })
 
-  it('el valor provincial es siempre el total de los 25 departamentos, sin importar el filtro', () => {
-    const conFiltro = construirNacidosPorSeccionCohorte(DATOS, 'CAPITAL')
-    const sinFiltro = construirNacidosPorSeccionCohorte(DATOS, 'Todos')
+  it('el valor provincial es siempre el total de los 25 departamentos (nunca filtrado)', () => {
+    const { provincia } = construirNacidosPorSeccionCohorte(DATOS)
     // Provincia: nacidos 1000+100+110=1210, secciones 10+0=10 → 121.
-    expect(conFiltro.provincia).toEqual({
+    expect(provincia).toEqual({
+      clave: '__provincia__',
       departamento: 'Corrientes (provincia)',
       nacidosCohorte: 1210,
       secciones: 10,
       nacidosPorSeccion: 121,
     })
-    expect(conFiltro.provincia).toEqual(sinFiltro.provincia)
   })
 
-  it('filtra las filas mostradas por departamento', () => {
-    const { filas } = construirNacidosPorSeccionCohorte(DATOS, 'CAPITAL')
-    expect(filas).toEqual([{ departamento: 'Capital', nacidosCohorte: 770, secciones: 10, nacidosPorSeccion: 77 }])
+  it('mantiene todas las filas (comparación entre departamentos, no filtra por seleccionado)', () => {
+    const { filas } = construirNacidosPorSeccionCohorte(DATOS)
+    expect(filas.map((f) => f.departamento)).toEqual(['Capital', 'Goya'])
+  })
+})
+
+describe('buscarPuestoNacidosPorSeccion', () => {
+  it('devuelve el puesto entre las filas con valor válido', () => {
+    const { filas } = construirNacidosPorSeccionCohorte(DATOS)
+    expect(buscarPuestoNacidosPorSeccion(filas, 'CAPITAL')).toEqual({ puesto: 1, total: 1 })
+  })
+
+  it('null para una clave sin valor (secciones = 0) o inexistente', () => {
+    const { filas } = construirNacidosPorSeccionCohorte(DATOS)
+    expect(buscarPuestoNacidosPorSeccion(filas, 'GOYA')).toBeNull()
+    expect(buscarPuestoNacidosPorSeccion(filas, 'INEXISTENTE')).toBeNull()
   })
 })
 

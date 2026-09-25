@@ -13,12 +13,7 @@ import type { DatosNatalidad, Variacion } from './natalidad'
 
 export type FiltroDepartamento = 'Todos' | string
 
-function filtrarDepartamentos(datos: DatosNatalidad, filtro: FiltroDepartamento) {
-  if (filtro === 'Todos') return datos.departamentos
-  return datos.departamentos.filter((d) => d.clave === filtro)
-}
-
-// ── 1. Nacidos vivos — tendencia provincial ─────────────────────────────────
+// ── 1. Nacidos vivos — tendencia (provincial o de un departamento) ──────────
 
 export interface PuntoSerieAnual {
   anio: number
@@ -30,9 +25,39 @@ export function construirSerieProvincialNacimientos(datos: DatosNatalidad): Punt
   return datos.meta.anios.map((anio) => ({ anio, valor: datos.provincia.serie[String(anio)] ?? 0 }))
 }
 
+export interface SerieNacimientosFiltrada {
+  /** Nombre para el título del gráfico ("Nacidos vivos — {titulo}"). */
+  titulo: string
+  puntos: PuntoSerieAnual[]
+}
+
+/**
+ * Item 4 (feedback 2026-09-25): el selector de departamento sólo movía los
+ * KPIs, el gráfico de tendencia seguía mostrando siempre la serie
+ * provincial. Ahora reacciona al filtro: 'Todos' → provincial, un
+ * departamento → su propia serie (mismo shape, un punto por año).
+ */
+export function construirSerieNacimientos(
+  datos: DatosNatalidad,
+  filtro: FiltroDepartamento,
+): SerieNacimientosFiltrada {
+  if (filtro === 'Todos') {
+    return { titulo: 'Corrientes (provincia)', puntos: construirSerieProvincialNacimientos(datos) }
+  }
+  const dpto = datos.departamentos.find((d) => d.clave === filtro)
+  if (!dpto) {
+    return { titulo: 'Corrientes (provincia)', puntos: construirSerieProvincialNacimientos(datos) }
+  }
+  return {
+    titulo: dpto.nombre,
+    puntos: datos.meta.anios.map((anio) => ({ anio, valor: dpto.serie[String(anio)] ?? 0 })),
+  }
+}
+
 // ── 2. Variación de nacidos vivos por departamento ──────────────────────────
 
 export interface BarraVariacionDepartamento {
+  clave: string
   departamento: string
   pct: number | null
   abs: number
@@ -43,12 +68,21 @@ export function construirVariacionNacimientosPorDepartamento(
   datos: DatosNatalidad,
 ): BarraVariacionDepartamento[] {
   return [...datos.departamentos]
-    .map((d) => ({ departamento: d.nombre, pct: d.variacion.pct, abs: d.variacion.abs }))
+    .map((d) => ({ clave: d.clave, departamento: d.nombre, pct: d.variacion.pct, abs: d.variacion.abs }))
     .sort((a, b) => {
       if (a.pct == null) return 1
       if (b.pct == null) return -1
       return a.pct - b.pct
     })
+}
+
+/** Puesto (1-based) de un departamento en la lista ya ordenada, y el total de filas. `null` si no aparece. */
+export function buscarPuestoVariacion(
+  barras: BarraVariacionDepartamento[],
+  clave: string,
+): { puesto: number; total: number } | null {
+  const idx = barras.findIndex((b) => b.clave === clave)
+  return idx === -1 ? null : { puesto: idx + 1, total: barras.length }
 }
 
 // ── 3. Nacidos por sección de Sala de 3 a 5 (ciclo 2026) ────────────────────
@@ -96,6 +130,7 @@ function sumarSeccionesDenominador(seccionesPorCurso: Record<string, number>): n
 }
 
 export interface FilaNacidosPorSeccion {
+  clave: string
   departamento: string
   nacidosCohorte: number
   secciones: number
@@ -108,7 +143,7 @@ export interface NacidosPorSeccionCohorte {
   /** [anioSala3, anioSala4, anioSala5]. */
   aniosCohorte: number[]
   filas: FilaNacidosPorSeccion[]
-  /** Valor provincial (siempre sobre los 25 departamentos, no filtrado) — referencia para el gráfico. */
+  /** Valor provincial (siempre sobre los 25 departamentos) — referencia para el gráfico. */
   provincia: FilaNacidosPorSeccion
 }
 
@@ -116,18 +151,21 @@ export interface NacidosPorSeccionCohorte {
  * Nacidos de las tres cohortes que hoy ocupan Sala de 3 a 5, sobre la
  * cantidad de secciones que efectivamente las reciben (Sala de 3/4/5 +
  * Plurisala + Sala Integrada — "Sala Especial" queda afuera, es oferta de
- * otro tipo). `filtro` recorta las filas mostradas; `provincia` es siempre
- * el total de los 25 departamentos, para poder dibujarse como línea de
- * referencia sin importar el filtro activo.
+ * otro tipo).
+ *
+ * Item 4 (feedback 2026-09-25): este es uno de los "gráficos de
+ * comparación" — mantiene TODAS las filas (no filtra por departamento
+ * seleccionado); el filtro sólo resalta la fila correspondiente en el
+ * componente (ver `seleccionado` en `GraficoNacidosPorSeccion`). Antes
+ * filtraba a una sola fila cuando había un departamento elegido, lo que
+ * rompía la comparación entre departamentos.
  */
-export function construirNacidosPorSeccionCohorte(
-  datos: DatosNatalidad,
-  filtro: FiltroDepartamento,
-): NacidosPorSeccionCohorte {
+export function construirNacidosPorSeccionCohorte(datos: DatosNatalidad): NacidosPorSeccionCohorte {
   const ciclo = CICLO_PADRON_SECCIONES
   const aniosCohorte = aniosCohorteInicial(ciclo)
 
   function fila(
+    clave: string,
     nombre: string,
     serie: Record<string, number>,
     seccionesPorCurso: Record<string, number>,
@@ -135,6 +173,7 @@ export function construirNacidosPorSeccionCohorte(
     const nacidosCohorte = sumarSerie(serie, aniosCohorte)
     const secciones = sumarSeccionesDenominador(seccionesPorCurso)
     return {
+      clave,
       departamento: nombre,
       nacidosCohorte,
       secciones,
@@ -142,8 +181,8 @@ export function construirNacidosPorSeccionCohorte(
     }
   }
 
-  const filas = filtrarDepartamentos(datos, filtro)
-    .map((d) => fila(d.nombre, d.serie, d.inicial.seccionesPorCurso))
+  const filas = datos.departamentos
+    .map((d) => fila(d.clave, d.nombre, d.serie, d.inicial.seccionesPorCurso))
     .sort((a, b) => {
       if (a.nacidosPorSeccion == null) return 1
       if (b.nacidosPorSeccion == null) return -1
@@ -161,12 +200,23 @@ export function construirNacidosPorSeccionCohorte(
     aniosCohorte,
     filas,
     provincia: {
+      clave: '__provincia__',
       departamento: 'Corrientes (provincia)',
       nacidosCohorte: nacidosProvincia,
       secciones: seccionesProvincia,
       nacidosPorSeccion: seccionesProvincia > 0 ? nacidosProvincia / seccionesProvincia : null,
     },
   }
+}
+
+/** Puesto (1-based) de un departamento entre las filas con `nacidosPorSeccion` válido (los `null` no tienen puesto). */
+export function buscarPuestoNacidosPorSeccion(
+  filas: FilaNacidosPorSeccion[],
+  clave: string,
+): { puesto: number; total: number } | null {
+  const conValor = filas.filter((f) => f.nacidosPorSeccion != null)
+  const idx = conValor.findIndex((f) => f.clave === clave)
+  return idx === -1 ? null : { puesto: idx + 1, total: conValor.length }
 }
 
 // ── KPIs ─────────────────────────────────────────────────────────────────────
