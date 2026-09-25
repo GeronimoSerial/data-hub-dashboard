@@ -107,7 +107,8 @@ CREATE TABLE IF NOT EXISTS \`user\` (
   \`role\` text,
   \`banned\` integer DEFAULT 0,
   \`ban_reason\` text,
-  \`ban_expires\` integer
+  \`ban_expires\` integer,
+  \`acceso_recursos\` text DEFAULT 'todos' NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`user_email_unique\` ON \`user\` (\`email\`);
 CREATE TABLE IF NOT EXISTS \`session\` (
@@ -157,6 +158,12 @@ CREATE TABLE IF NOT EXISTS \`user_niveles\` (
   \`nivel_id\` text NOT NULL,
   PRIMARY KEY(\`user_id\`, \`nivel_id\`),
   FOREIGN KEY (\`nivel_id\`) REFERENCES \`niveles\`(\`id\`)
+);
+CREATE TABLE IF NOT EXISTS \`user_recursos\` (
+  \`user_id\` text NOT NULL,
+  \`recurso_id\` text NOT NULL,
+  PRIMARY KEY(\`user_id\`, \`recurso_id\`),
+  FOREIGN KEY (\`recurso_id\`) REFERENCES \`recursos\`(\`id\`)
 );
 CREATE TABLE IF NOT EXISTS \`infra_permiso_nominal\` (
   \`id\` text PRIMARY KEY NOT NULL,
@@ -340,6 +347,22 @@ export async function ensureAccesoNominalLogAfectacionIdColumn(): Promise<void> 
   await db.$client.execute('ALTER TABLE infra_acceso_nominal_log RENAME COLUMN problematica_id TO afectacion_id')
 }
 
+// `user.acceso_recursos` no existía antes de recursos-por-usuario: mismo
+// motivo que idempotency_key arriba, ALTER TABLE ADD COLUMN no es idempotente
+// así que se guarda detrás de un chequeo de PRAGMA table_info. Acá sí se
+// puede declarar NOT NULL con DEFAULT porque SQLite permite agregar una
+// columna NOT NULL a una tabla con filas cuando trae un DEFAULT constante.
+export async function ensureAccesoRecursosColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('user')")
+  const tieneColumna = info.rows.some((r) => String(r.name) === 'acceso_recursos')
+  if (!tieneColumna) {
+    await db.$client.execute(
+      "ALTER TABLE user ADD COLUMN acceso_recursos text NOT NULL DEFAULT 'todos'",
+    )
+  }
+}
+
 // Id fijo y estable del único período que existe en esta etapa (protocolo
 // ENOS 2026/2027, ver CONTRACT.md del batch de esquema: "la situación
 // hidrometeorológica es UN período provincial, no un episodio por
@@ -381,6 +404,7 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
   await ensureAccesoNominalLogAfectacionIdColumn()
+  await ensureAccesoRecursosColumn()
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {

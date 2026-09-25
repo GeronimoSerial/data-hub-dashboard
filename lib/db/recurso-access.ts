@@ -22,6 +22,7 @@ export async function loadRecursoAccess(
     .from(recursoAudienciaUsuarios)
     .where(eq(recursoAudienciaUsuarios.recursoId, id))
   return {
+    id: row.id,
     estado: row.estado as RecursoAccess['estado'],
     audienciaNivelIds: niveles.map((n) => n.nivelId),
     audienciaUserIds: users.map((u) => u.userId),

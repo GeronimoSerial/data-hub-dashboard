@@ -8,6 +8,7 @@ import {
 } from './acl'
 
 const pub: RecursoAccess = {
+  id: 'r1',
   estado: 'publicado',
   audienciaNivelIds: [],
   audienciaUserIds: [],
@@ -18,6 +19,8 @@ const consulta = (over: Partial<SessionUser> = {}): SessionUser => ({
   role: 'consulta',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
   ...over,
 })
 
@@ -75,6 +78,58 @@ describe('puedeAbrir', () => {
 
   it('denies banned users', () => {
     expect(puedeAbrir(consulta({ banned: true }), pub)).toBe(false)
+  })
+
+  it('allows consulta+seleccionados when the recurso is in recursoIds', () => {
+    expect(
+      puedeAbrir(
+        consulta({ accesoRecursos: 'seleccionados', recursoIds: ['r1'] }),
+        pub,
+      ),
+    ).toBe(true)
+  })
+
+  it('denies consulta+seleccionados when the recurso is not in recursoIds, even with open audience', () => {
+    expect(
+      puedeAbrir(
+        consulta({ accesoRecursos: 'seleccionados', recursoIds: ['otro'] }),
+        pub,
+      ),
+    ).toBe(false)
+  })
+
+  it('denies consulta+seleccionados listed but excluded by audience (intersection)', () => {
+    expect(
+      puedeAbrir(
+        consulta({
+          accesoRecursos: 'seleccionados',
+          recursoIds: ['r1'],
+          nivelIds: [],
+        }),
+        { ...pub, audienciaNivelIds: ['primario'] },
+      ),
+    ).toBe(false)
+  })
+
+  it('consulta+todos behaves exactly as before regardless of recursoIds', () => {
+    expect(
+      puedeAbrir(consulta({ accesoRecursos: 'todos', recursoIds: [] }), pub),
+    ).toBe(true)
+  })
+
+  it('admin and editor with seleccionados and empty recursoIds are still allowed', () => {
+    expect(
+      puedeAbrir(
+        consulta({ role: 'admin', accesoRecursos: 'seleccionados', recursoIds: [] }),
+        pub,
+      ),
+    ).toBe(true)
+    expect(
+      puedeAbrir(
+        consulta({ role: 'editor', accesoRecursos: 'seleccionados', recursoIds: [] }),
+        pub,
+      ),
+    ).toBe(true)
   })
 })
 

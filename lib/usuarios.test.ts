@@ -16,6 +16,8 @@ const admin: SessionUser = {
   role: 'admin',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 const editor: SessionUser = {
@@ -23,6 +25,8 @@ const editor: SessionUser = {
   role: 'editor',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 const consulta: SessionUser = {
@@ -30,6 +34,8 @@ const consulta: SessionUser = {
   role: 'consulta',
   banned: false,
   nivelIds: ['primario'],
+  accesoRecursos: 'todos',
+  recursoIds: [],
 }
 
 describe('listUsuariosDenied', () => {

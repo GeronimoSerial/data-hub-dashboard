@@ -69,6 +69,8 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET()
@@ -87,6 +89,8 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET()
