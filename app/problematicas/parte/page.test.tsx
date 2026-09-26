@@ -8,8 +8,7 @@ import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } 
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { getDb } from '@/lib/db'
 import { infraVerificacion } from '@/lib/db/schema'
-import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
+import { ensureSeeded } from '@/lib/db/seed'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import {
   cancelarVerificacion,
@@ -97,12 +96,7 @@ function cueUnico(): string {
 
 async function verificacionConSesion() {
   const cueAnexo = cueUnico()
-  const episodio = await crearEpisodio({
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    nombre: 'Episodio de prueba',
-  })
   const creada = await crearVerificacion({
-    episodioId: episodio.id,
     cueAnexo,
     solicitadaPorUserId: 'user-director',
   })

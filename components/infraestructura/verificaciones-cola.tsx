@@ -2,14 +2,14 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
 
-// Cola de verificaciones de un episodio (batch E1). Es el único "islote"
-// cliente de la ficha del episodio: crea solicitudes, muestra el enlace
-// público una sola vez, permite cancelar y registrar respuestas asistidas, y
-// cierra el episodio. Toda mutación va por fetch contra los endpoints ya
-// construidos (el proyecto no usa server actions).
+// Cola de verificaciones del protocolo ENOS (batch E1). El monitoreo es
+// continuo, no episódico (se descartó el episodio administrado a mano):
+// crea solicitudes ancladas al período vigente, muestra el enlace público una
+// sola vez, y permite cancelar y registrar respuestas asistidas. Toda
+// mutación va por fetch contra los endpoints ya construidos (el proyecto no
+// usa server actions).
 //
 // `tokenHash` no forma parte de lo que la UI necesita ni debe mostrar: se
 // omite del tipo para que sea imposible renderizarlo por accidente.
@@ -111,17 +111,10 @@ const notaDiscrepancia: React.CSSProperties = {
 }
 
 type Props = {
-  episodioId: string
   verificacionesIniciales: VerificacionVisible[]
-  episodioAbierto: boolean
 }
 
-export function VerificacionesCola({
-  episodioId,
-  verificacionesIniciales,
-  episodioAbierto,
-}: Props) {
-  const router = useRouter()
+export function VerificacionesCola({ verificacionesIniciales }: Props) {
   const [verificaciones, setVerificaciones] = useState(verificacionesIniciales)
   const [cue, setCue] = useState('')
   const [creando, setCreando] = useState(false)
@@ -131,16 +124,12 @@ export function VerificacionesCola({
   const [accionError, setAccionError] = useState<Record<string, string>>({})
   const [filaAbierta, setFilaAbierta] = useState<string | null>(null)
   const [cancelando, setCancelando] = useState<string | null>(null)
-  const [cerrandoEpisodio, setCerrandoEpisodio] = useState(false)
-  const [errorCerrar, setErrorCerrar] = useState<string | null>(null)
 
   // Refetch best-effort: si falla, se conserva el último listado conocido y la
   // acción ya reportó su propio resultado.
   async function refrescar() {
     try {
-      const respuesta = await fetch(
-        `/api/infraestructura/verificaciones?episodioId=${encodeURIComponent(episodioId)}`,
-      )
+      const respuesta = await fetch('/api/infraestructura/verificaciones')
       if (!respuesta.ok) return
       const cuerpo = await respuesta.json().catch(() => null)
       if (cuerpo?.verificaciones) setVerificaciones(cuerpo.verificaciones)
@@ -160,7 +149,7 @@ export function VerificacionesCola({
       const respuesta = await fetch('/api/infraestructura/verificaciones', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ episodioId, cueAnexo: cue.trim() }),
+        body: JSON.stringify({ cueAnexo: cue.trim() }),
       })
       const cuerpo = await respuesta.json().catch(() => null)
       if (!respuesta.ok) {
@@ -227,79 +216,33 @@ export function VerificacionesCola({
     setAccionError((prev) => ({ ...prev, [id]: mensaje }))
   }
 
-  async function cerrarEpisodio() {
-    if (cerrandoEpisodio) return
-    if (!window.confirm('¿Cerrar el episodio? No se podrán crear nuevas solicitudes.')) return
-    setCerrandoEpisodio(true)
-    setErrorCerrar(null)
-    try {
-      const respuesta = await fetch(`/api/infraestructura/episodios/${episodioId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'cerrar' }),
-      })
-      const cuerpo = await respuesta.json().catch(() => null)
-      if (!respuesta.ok) {
-        setErrorCerrar(cuerpo?.error ?? 'No se pudo cerrar el episodio.')
-        setCerrandoEpisodio(false)
-        return
-      }
-      setCerrandoEpisodio(false)
-      // El estado del episodio vive en el server component: refresh lo relee.
-      router.refresh()
-    } catch {
-      setErrorCerrar('No se pudo cerrar el episodio.')
-      setCerrandoEpisodio(false)
-    }
-  }
-
   return (
     <section style={panel}>
       <h2 style={{ marginTop: 0 }}>Verificaciones</h2>
 
-      {episodioAbierto && (
-        <div style={{ marginBottom: '1rem' }}>
-          <button
-            type="button"
-            style={botonSecundario}
-            onClick={cerrarEpisodio}
-            disabled={cerrandoEpisodio}
-          >
-            Cerrar episodio
-          </button>
-          {errorCerrar && (
-            <p role="alert" style={alerta}>
-              {errorCerrar}
-            </p>
-          )}
+      <form
+        onSubmit={manejarCrear}
+        style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1rem' }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <label htmlFor="verificacion-cue">CUE-anexo</label>
+          <input
+            id="verificacion-cue"
+            type="text"
+            style={input}
+            value={cue}
+            onChange={(evento) => setCue(evento.target.value)}
+            disabled={creando}
+          />
         </div>
-      )}
-
-      {episodioAbierto && (
-        <form
-          onSubmit={manejarCrear}
-          style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1rem' }}
+        <button
+          type="submit"
+          style={boton}
+          disabled={creando || cue.trim().length === 0}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <label htmlFor="verificacion-cue">CUE-anexo</label>
-            <input
-              id="verificacion-cue"
-              type="text"
-              style={input}
-              value={cue}
-              onChange={(evento) => setCue(evento.target.value)}
-              disabled={creando}
-            />
-          </div>
-          <button
-            type="submit"
-            style={boton}
-            disabled={creando || cue.trim().length === 0}
-          >
-            Crear solicitud
-          </button>
-        </form>
-      )}
+          Crear solicitud
+        </button>
+      </form>
 
       {errorCrear && (
         <p role="alert" style={alerta}>

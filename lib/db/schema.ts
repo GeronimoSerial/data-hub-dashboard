@@ -406,45 +406,10 @@ export const infraMovimiento = sqliteTable(
     // distinto en un índice único, así que las filas legacy sin clave nunca
     // colisionan entre sí.
     idempotencyKey: text('idempotency_key'),
-    // Episodio (batch E1) al que pertenece el movimiento. Nullable y sin
-    // .references() explícito por el mismo motivo que idempotencyKey: las
-    // bases pobladas la reciben por ALTER (ver
-    // ensureMovimientoEpisodioIdColumn en lib/db/seed.ts) y SQLite no permite
-    // agregar una columna NOT NULL a una tabla con filas. Sin asignación
-    // retroactiva: los movimientos históricos quedan en NULL.
-    episodioId: text('episodio_id'),
   },
   (t) => [
     index('infra_movimiento_parte_id_idx').on(t.parteId),
     uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
-  ],
-)
-
-// Episodio operativo del protocolo ENOS (batch E1): agrupa las verificaciones
-// (pedidos de confirmación a los establecimientos) bajo un período provincial.
-// `estado` sólo puede ser 'abierto' (se pueden emitir y responder pedidos) o
-// 'cerrado' (episodio terminado, ya no se emiten pedidos). `abiertoEn` y
-// `cerradoEn` registran las transiciones de ese ciclo de vida, separadas de
-// `creadaEn` (reloj de carga del sistema), misma distinción que infraPeriodo.
-export const infraEpisodio = sqliteTable(
-  'infra_episodio',
-  {
-    id: text('id').primaryKey(),
-    periodoId: text('periodo_id')
-      .notNull()
-      .references(() => infraPeriodo.id),
-    nombre: text('nombre').notNull(),
-    descripcion: text('descripcion'),
-    estado: text('estado').notNull(), // 'abierto' | 'cerrado'
-    abiertoEn: text('abierto_en').notNull(),
-    // Null mientras el episodio sigue abierto.
-    cerradoEn: text('cerrado_en'),
-    creadaEn: text('creada_en').notNull(),
-    actualizadaEn: text('actualizada_en').notNull(),
-  },
-  (t) => [
-    index('infra_episodio_periodo_id_idx').on(t.periodoId),
-    index('infra_episodio_estado_idx').on(t.estado),
   ],
 )
 
@@ -459,13 +424,20 @@ export const infraEpisodio = sqliteTable(
 // mientras existía una afectación vigente. `movimientoId` enlaza la respuesta
 // con afectación al movimiento real que se creó. `tokenHash` guarda el sha256
 // hex de la credencial, nunca el token en claro.
+//
+// El monitoreo es continuo, no episódico (decisión post-E1: se descartó el
+// concepto de "episodio" administrado a mano — nadie iba a abrirlos/cerrarlos
+// manualmente). Por eso la verificación se ancla directamente al período
+// provincial vigente (`periodoId`), resuelto en el momento de creación por
+// `obtenerPeriodoVigente` (parte-consulta.ts), en vez de a un episodio
+// intermedio.
 export const infraVerificacion = sqliteTable(
   'infra_verificacion',
   {
     id: text('id').primaryKey(),
-    episodioId: text('episodio_id')
+    periodoId: text('periodo_id')
       .notNull()
-      .references(() => infraEpisodio.id),
+      .references(() => infraPeriodo.id),
     cueAnexo: text('cue_anexo').notNull(),
     estado: text('estado').notNull(), // 'pendiente' | 'respondida' | 'cancelada'
     solicitadaEn: text('solicitada_en').notNull(),
@@ -494,7 +466,7 @@ export const infraVerificacion = sqliteTable(
     actualizadaEn: text('actualizada_en').notNull(),
   },
   (t) => [
-    index('infra_verificacion_episodio_id_idx').on(t.episodioId),
+    index('infra_verificacion_periodo_id_idx').on(t.periodoId),
     index('infra_verificacion_cue_anexo_idx').on(t.cueAnexo),
     index('infra_verificacion_estado_idx').on(t.estado),
     uniqueIndex('infra_verificacion_token_hash_uidx').on(t.tokenHash),

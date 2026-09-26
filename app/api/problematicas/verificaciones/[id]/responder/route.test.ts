@@ -2,8 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
+import { ensureSeeded } from '@/lib/db/seed'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { crearVerificacion, obtenerVerificacion } from '@/lib/infraestructura/verificaciones'
 import { POST } from './route'
@@ -35,9 +34,7 @@ function cueUnico(): string {
 }
 
 async function verificacionPendiente() {
-  const episodio = await crearEpisodio({ periodoId: PERIODO_ENOS_2026_2027_ID, nombre: 'Episodio de prueba' })
   const creada = await crearVerificacion({
-    episodioId: episodio.id,
     cueAnexo: cueUnico(),
     solicitadaPorUserId: 'user-director',
   })

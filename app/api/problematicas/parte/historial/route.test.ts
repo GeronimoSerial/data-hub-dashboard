@@ -2,10 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
+import { ensureSeeded } from '@/lib/db/seed'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import {
@@ -200,12 +199,7 @@ describe('historial con sesión acotada por CUE', () => {
   // de route.test.ts del parte). Corre después del beforeAll de módulo, que ya
   // dejó DATA_DIR y la contraseña seteados.
   beforeAll(async () => {
-    const episodio = await crearEpisodio({
-      periodoId: PERIODO_ENOS_2026_2027_ID,
-      nombre: 'Episodio de prueba del historial por CUE',
-    })
     const creada = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: CUE_SESION,
       solicitadaPorUserId: 'user-director',
     })

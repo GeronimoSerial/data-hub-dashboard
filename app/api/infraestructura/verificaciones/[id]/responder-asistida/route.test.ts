@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -22,8 +21,6 @@ vi.mock('@/lib/session', () => ({
 
 let dir: string
 let prevDataDir: string | undefined
-let periodoId: string
-let episodioId: string
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'verificaciones-responder-'))
@@ -31,12 +28,7 @@ beforeAll(async () => {
   process.env.DATA_DIR = dir
 
   const seed = await import('@/lib/db/seed')
-  periodoId = seed.PERIODO_ENOS_2026_2027_ID
   await seed.ensureSeeded()
-
-  const { crearEpisodio } = await import('@/lib/infraestructura/episodios')
-  const episodio = await crearEpisodio({ periodoId, nombre: `episodio-${randomUUID()}` })
-  episodioId = episodio.id
 })
 
 afterAll(() => {
@@ -59,7 +51,6 @@ function consulta() {
 async function crearPendiente(cueAnexo: string) {
   const { crearVerificacion } = await import('@/lib/infraestructura/verificaciones')
   const creada = await crearVerificacion({
-    episodioId,
     cueAnexo,
     solicitadaPorUserId: 'editor-1',
   })
