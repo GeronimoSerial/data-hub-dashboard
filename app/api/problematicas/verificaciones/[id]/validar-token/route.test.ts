@@ -6,8 +6,7 @@ import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import { infraVerificacion } from '@/lib/db/schema'
-import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
+import { ensureSeeded } from '@/lib/db/seed'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { crearVerificacion } from '@/lib/infraestructura/verificaciones'
 import { POST } from './route'
@@ -40,14 +39,9 @@ function cueUnico(): string {
   return `1801605-9${String(contadorCue).padStart(2, '0')}`
 }
 
-async function episodioAbierto() {
-  return crearEpisodio({ periodoId: PERIODO_ENOS_2026_2027_ID, nombre: 'Episodio de prueba' })
-}
-
 async function verificacionPendiente(ahora?: Date) {
-  const episodio = await episodioAbierto()
   const creada = await crearVerificacion(
-    { episodioId: episodio.id, cueAnexo: cueUnico(), solicitadaPorUserId: 'user-director' },
+    { cueAnexo: cueUnico(), solicitadaPorUserId: 'user-director' },
     ahora,
   )
   if (!creada.ok) throw new Error(`no se pudo crear la verificación: ${creada.motivo}`)

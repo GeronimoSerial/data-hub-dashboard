@@ -6,7 +6,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import { infraMovimiento, infraParte } from '@/lib/db/schema'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { crearVerificacion, obtenerVerificacion } from '@/lib/infraestructura/verificaciones'
 import { POST } from './route'
@@ -38,9 +37,7 @@ function cueUnico(): string {
 }
 
 async function verificacionPendiente(cueAnexo: string) {
-  const episodio = await crearEpisodio({ periodoId: PERIODO_ENOS_2026_2027_ID, nombre: 'Episodio de prueba' })
   const creada = await crearVerificacion({
-    episodioId: episodio.id,
     cueAnexo,
     solicitadaPorUserId: 'user-director',
   })
@@ -76,7 +73,6 @@ async function movimientoDePrueba(cueAnexo: string): Promise<string> {
     rigeDesde: ahora,
     creadaEn: ahora,
     idempotencyKey: null,
-    episodioId: null,
   })
   return movimientoId
 }

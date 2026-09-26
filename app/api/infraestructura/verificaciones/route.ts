@@ -15,7 +15,6 @@ export const dynamic = 'force-dynamic'
 const ESTADOS = ['pendiente', 'respondida', 'cancelada'] as const
 
 const crearVerificacionInputSchema = z.object({
-  episodioId: z.string().trim().min(1),
   cueAnexo: z.string().trim().min(1),
   // Mismo criterio UTC estricto que tiempoUtcSchema (riesgo/tipos.ts):
   // offset:false exige la marca 'Z' y rechaza strings sin zona.
@@ -40,7 +39,7 @@ export async function GET(request: Request) {
   }
 
   const params = new URL(request.url).searchParams
-  const episodioId = params.get('episodioId')?.trim() || undefined
+  const periodoId = params.get('periodoId')?.trim() || undefined
   const cueAnexo = params.get('cueAnexo')?.trim() || undefined
   const estadoRaw = params.get('estado')?.trim() || undefined
   if (estadoRaw && !ESTADOS.includes(estadoRaw as (typeof ESTADOS)[number])) {
@@ -48,7 +47,7 @@ export async function GET(request: Request) {
   }
   const estado = estadoRaw as (typeof ESTADOS)[number] | undefined
 
-  const verificaciones = await listarVerificaciones({ episodioId, cueAnexo, estado })
+  const verificaciones = await listarVerificaciones({ periodoId, cueAnexo, estado })
   return Response.json(
     { ok: true, verificaciones: verificaciones.map(sinTokenHash) },
     { status: 200, headers: NO_STORE },
@@ -79,18 +78,16 @@ export async function POST(request: Request) {
   }
 
   const resultado = await crearVerificacion({
-    episodioId: parsed.data.episodioId,
     cueAnexo: parsed.data.cueAnexo,
     solicitadaPorUserId: user!.id,
     vencimientoEn: parsed.data.vencimientoEn ?? null,
   })
 
   if (!resultado.ok) {
-    const [status, error] =
-      resultado.motivo === 'episodio_no_existe'
-        ? [404, 'El episodio no existe']
-        : [409, 'El episodio está cerrado']
-    return Response.json({ error }, { status, headers: NO_STORE })
+    return Response.json(
+      { error: 'No hay un período vigente' },
+      { status: resultado.status, headers: NO_STORE },
+    )
   }
 
   // El token en claro viaja SOLO en esta respuesta: quien llama arma el enlace

@@ -21,7 +21,7 @@ import {
   infraVerificacion,
   infraVerificacionEvento,
 } from '@/lib/db/schema'
-import { obtenerEpisodio } from '@/lib/infraestructura/episodios'
+import { obtenerPeriodoVigente } from '@/lib/infraestructura/parte-consulta'
 import {
   calcularVencimientoToken,
   generarToken,
@@ -44,7 +44,6 @@ type OrigenRespuesta =
   | { tipo: 'asistida'; actorUserId: string; canal: CanalAsistido }
 
 type CrearVerificacionInput = {
-  episodioId: string
   cueAnexo: string
   solicitadaPorUserId: string
   vencimientoEn?: string | null
@@ -77,19 +76,21 @@ type ResponderAsistidaInput = {
 // no hay forma de recuperarlo — quien lo perdió tiene que pedir otro pedido.
 //
 // No reemplaza verificaciones anteriores del mismo CUE: una nueva solicitud
-// convive con las previas (spec E1). Si el episodio no está abierto no se
-// emiten pedidos.
+// convive con las previas (spec E1). El monitoreo es continuo, no episódico
+// (se descartó el episodio administrado a mano del batch E1): la
+// verificación se ancla al período provincial vigente, resuelto acá mismo.
+// Si no hay ningún período vigente no se emiten pedidos — mismo lugar donde
+// antes se chequeaba que el episodio estuviera abierto.
 export async function crearVerificacion(
   input: CrearVerificacionInput,
   ahora: Date = new Date(),
 ): Promise<
   | { ok: true; verificacion: VerificacionRow; token: string }
-  | { ok: false; status: 404 | 409; motivo: 'episodio_no_existe' | 'episodio_cerrado' }
+  | { ok: false; status: 409; motivo: 'sin_periodo_vigente' }
 > {
   const db = getDb()
-  const episodio = await obtenerEpisodio(input.episodioId)
-  if (!episodio) return { ok: false, status: 404, motivo: 'episodio_no_existe' }
-  if (episodio.estado !== 'abierto') return { ok: false, status: 409, motivo: 'episodio_cerrado' }
+  const periodo = await obtenerPeriodoVigente()
+  if (!periodo) return { ok: false, status: 409, motivo: 'sin_periodo_vigente' }
 
   const { token, tokenHash } = generarToken()
   const ahoraIso = ahora.toISOString()
@@ -98,7 +99,7 @@ export async function crearVerificacion(
     .insert(infraVerificacion)
     .values({
       id: randomUUID(),
-      episodioId: input.episodioId,
+      periodoId: periodo.id,
       cueAnexo: input.cueAnexo,
       estado: 'pendiente',
       solicitadaEn: ahoraIso,
@@ -306,12 +307,9 @@ async function transicionarARespondida(
     }
 
     // fila.estado === 'pendiente': calcular discrepancia y escribir. La
-    // consulta de afectación vigente usa el período del episodio, que es el
-    // que ancla el parte del establecimiento.
-    const episodio = await obtenerEpisodio(fila.episodioId)
-    const hayAfectacion = episodio
-      ? await existeAfectacionVigente(fila.cueAnexo, episodio.periodoId)
-      : false
+    // consulta de afectación vigente usa el período que ancla la verificación
+    // (el mismo que ancla el parte del establecimiento).
+    const hayAfectacion = await existeAfectacionVigente(fila.cueAnexo, fila.periodoId)
     const discrepancia = resultado === 'sin_afectacion' && hayAfectacion ? 1 : 0
 
     if (resultado === 'con_afectacion' && movimientoId !== null) {
@@ -473,11 +471,11 @@ export async function obtenerVerificacion(
 }
 
 export async function listarVerificaciones(
-  input?: { episodioId?: string; cueAnexo?: string; estado?: 'pendiente' | 'respondida' | 'cancelada' },
+  input?: { periodoId?: string; cueAnexo?: string; estado?: 'pendiente' | 'respondida' | 'cancelada' },
 ): Promise<VerificacionRow[]> {
   const db = getDb()
   const condiciones = []
-  if (input?.episodioId) condiciones.push(eq(infraVerificacion.episodioId, input.episodioId))
+  if (input?.periodoId) condiciones.push(eq(infraVerificacion.periodoId, input.periodoId))
   if (input?.cueAnexo) condiciones.push(eq(infraVerificacion.cueAnexo, input.cueAnexo))
   if (input?.estado) condiciones.push(eq(infraVerificacion.estado, input.estado))
 

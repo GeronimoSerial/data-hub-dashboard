@@ -247,28 +247,13 @@ CREATE TABLE IF NOT EXISTS \`infra_movimiento\` (
   \`rige_desde\` text NOT NULL,
   \`creada_en\` text NOT NULL,
   \`idempotency_key\` text,
-  \`episodio_id\` text,
   FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
-CREATE TABLE IF NOT EXISTS \`infra_episodio\` (
-  \`id\` text PRIMARY KEY NOT NULL,
-  \`periodo_id\` text NOT NULL,
-  \`nombre\` text NOT NULL,
-  \`descripcion\` text,
-  \`estado\` text NOT NULL,
-  \`abierto_en\` text NOT NULL,
-  \`cerrado_en\` text,
-  \`creada_en\` text NOT NULL,
-  \`actualizada_en\` text NOT NULL,
-  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`)
-);
-CREATE INDEX IF NOT EXISTS \`infra_episodio_periodo_id_idx\` ON \`infra_episodio\` (\`periodo_id\`);
-CREATE INDEX IF NOT EXISTS \`infra_episodio_estado_idx\` ON \`infra_episodio\` (\`estado\`);
 CREATE TABLE IF NOT EXISTS \`infra_verificacion\` (
   \`id\` text PRIMARY KEY NOT NULL,
-  \`episodio_id\` text NOT NULL,
+  \`periodo_id\` text NOT NULL,
   \`cue_anexo\` text NOT NULL,
   \`estado\` text NOT NULL,
   \`solicitada_en\` text NOT NULL,
@@ -289,10 +274,10 @@ CREATE TABLE IF NOT EXISTS \`infra_verificacion\` (
   \`token_consumido_en\` text,
   \`creada_en\` text NOT NULL,
   \`actualizada_en\` text NOT NULL,
-  FOREIGN KEY (\`episodio_id\`) REFERENCES \`infra_episodio\`(\`id\`),
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`),
   FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
 );
-CREATE INDEX IF NOT EXISTS \`infra_verificacion_episodio_id_idx\` ON \`infra_verificacion\` (\`episodio_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_periodo_id_idx\` ON \`infra_verificacion\` (\`periodo_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_cue_anexo_idx\` ON \`infra_verificacion\` (\`cue_anexo\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_estado_idx\` ON \`infra_verificacion\` (\`estado\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_verificacion_token_hash_uidx\` ON \`infra_verificacion\` (\`token_hash\`);
@@ -402,19 +387,105 @@ export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   )
 }
 
-// `infra_movimiento.episodio_id` llega con el batch E1 (episodios): enlaza el
-// movimiento con el episodio que lo originó. Mismo motivo que idempotencyKey
-// para quedar nullable y agregarse por ALTER: SQLite no permite agregar una
-// columna NOT NULL a una tabla con filas. Sin asignación retroactiva: los
-// movimientos históricos quedan en NULL. HUB_DDL ya cubre las bases nuevas;
-// acá sólo hace falta la columna para las que ya tenían la tabla sin ella.
-export async function ensureMovimientoEpisodioIdColumn(): Promise<void> {
+// El batch E1 introdujo `infra_movimiento.episodio_id` (enlazaba el
+// movimiento con el episodio que lo originó); el producto rechazó el
+// concepto de episodio administrado a mano (ver ensureVerificacionPeriodoId
+// más abajo) y la columna se retira. Nunca se pobló (sin asignación
+// retroactiva, ver el comentario original que tenía esta columna en
+// schema.ts), así que no hay dato real que preservar. Sin FK ni índice
+// declarados sobre ella (a diferencia de infra_verificacion.episodio_id), por
+// eso el DROP COLUMN directo alcanza: SQLite lo soporta desde 3.35 siempre
+// que la columna no sea parte de una FK, un índice o una PK. IF EXISTS lo
+// hace idempotente para una base que ya se migró.
+export async function ensureMovimientoEpisodioIdColumnDropped(): Promise<void> {
   const db = getDb()
   const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
   const tieneColumna = info.rows.some((r) => String(r.name) === 'episodio_id')
-  if (!tieneColumna) {
-    await db.$client.execute('ALTER TABLE infra_movimiento ADD COLUMN episodio_id text')
+  if (tieneColumna) {
+    await db.$client.execute('ALTER TABLE infra_movimiento DROP COLUMN episodio_id')
   }
+}
+
+// El producto rechazó el episodio administrado a mano introducido en el
+// batch E1 (nadie iba a abrirlos/cerrarlos manualmente): el monitoreo es
+// continuo. `infra_verificacion.episodio_id` (NOT NULL, con FK e índice) se
+// reemplaza por `periodo_id` (NOT NULL, FK a infra_periodo): la verificación
+// se ancla directo al período provincial vigente en vez de a un episodio
+// intermedio.
+//
+// A diferencia de las columnas nullable de arriba, acá no alcanza un ALTER
+// simple: `episodio_id` tiene FK e índice propios, y SQLite no permite
+// DROP COLUMN sobre una columna así ni agregar una columna NOT NULL a una
+// tabla con filas. Se reconstruye la tabla completa (patrón estándar de
+// SQLite para cambios de esquema que ALTER TABLE no cubre): tabla nueva,
+// copia con backfill, DROP de la vieja, RENAME. El backfill toma el
+// `periodo_id` del episodio que tenía cada verificación
+// (infra_verificacion.episodio_id -> infra_episodio.periodo_id); si esa
+// referencia estuviera rota (dato de prueba huérfano), cae al período
+// vigente actual, que sembrarPeriodoEnos garantiza que exista siempre en
+// una base que ya tenía esta tabla poblada. Se ejecuta ANTES de dropear
+// infra_episodio (ver seedHub) porque necesita leerla para el backfill.
+export async function ensureVerificacionPeriodoIdColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_verificacion')")
+  const tieneEpisodioId = info.rows.some((r) => String(r.name) === 'episodio_id')
+  if (!tieneEpisodioId) return // ya migrada (o tabla nueva creada directo por HUB_DDL)
+
+  await db.$client.executeMultiple(`
+PRAGMA foreign_keys = OFF;
+CREATE TABLE \`infra_verificacion_new\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`periodo_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`estado\` text NOT NULL,
+  \`solicitada_en\` text NOT NULL,
+  \`solicitada_por_user_id\` text NOT NULL,
+  \`vencimiento_en\` text,
+  \`resultado\` text,
+  \`discrepancia\` integer DEFAULT 0 NOT NULL,
+  \`respondida_en\` text,
+  \`respondida_canal\` text,
+  \`respondida_por_user_id\` text,
+  \`movimiento_id\` text,
+  \`cancelada_en\` text,
+  \`cancelada_por_user_id\` text,
+  \`motivo_cancelacion\` text,
+  \`token_hash\` text NOT NULL,
+  \`token_expira_en\` text NOT NULL,
+  \`token_revocado_en\` text,
+  \`token_consumido_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`),
+  FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
+);
+INSERT INTO \`infra_verificacion_new\` (
+  \`id\`, \`periodo_id\`, \`cue_anexo\`, \`estado\`, \`solicitada_en\`,
+  \`solicitada_por_user_id\`, \`vencimiento_en\`, \`resultado\`, \`discrepancia\`,
+  \`respondida_en\`, \`respondida_canal\`, \`respondida_por_user_id\`,
+  \`movimiento_id\`, \`cancelada_en\`, \`cancelada_por_user_id\`,
+  \`motivo_cancelacion\`, \`token_hash\`, \`token_expira_en\`,
+  \`token_revocado_en\`, \`token_consumido_en\`, \`creada_en\`, \`actualizada_en\`
+)
+SELECT
+  v.\`id\`,
+  COALESCE(e.\`periodo_id\`, (SELECT id FROM \`infra_periodo\` WHERE estado = 'vigente' LIMIT 1)),
+  v.\`cue_anexo\`, v.\`estado\`, v.\`solicitada_en\`, v.\`solicitada_por_user_id\`,
+  v.\`vencimiento_en\`, v.\`resultado\`, v.\`discrepancia\`, v.\`respondida_en\`,
+  v.\`respondida_canal\`, v.\`respondida_por_user_id\`, v.\`movimiento_id\`,
+  v.\`cancelada_en\`, v.\`cancelada_por_user_id\`, v.\`motivo_cancelacion\`,
+  v.\`token_hash\`, v.\`token_expira_en\`, v.\`token_revocado_en\`,
+  v.\`token_consumido_en\`, v.\`creada_en\`, v.\`actualizada_en\`
+FROM \`infra_verificacion\` v
+LEFT JOIN \`infra_episodio\` e ON e.\`id\` = v.\`episodio_id\`;
+DROP TABLE \`infra_verificacion\`;
+ALTER TABLE \`infra_verificacion_new\` RENAME TO \`infra_verificacion\`;
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_periodo_id_idx\` ON \`infra_verificacion\` (\`periodo_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_cue_anexo_idx\` ON \`infra_verificacion\` (\`cue_anexo\`);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_estado_idx\` ON \`infra_verificacion\` (\`estado\`);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_verificacion_token_hash_uidx\` ON \`infra_verificacion\` (\`token_hash\`);
+PRAGMA foreign_keys = ON;
+`)
 }
 
 // infra_acceso_nominal_log.problematica_id nace apuntando al modelo
@@ -470,8 +541,16 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_seccion`')
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
-  await ensureMovimientoEpisodioIdColumn()
   await ensureAccesoNominalLogAfectacionIdColumn()
+  // Debe correr ANTES del DROP de infra_episodio: el backfill de periodo_id
+  // lee esa tabla para las verificaciones existentes.
+  await ensureVerificacionPeriodoIdColumn()
+  await ensureMovimientoEpisodioIdColumnDropped()
+  // El episodio administrado a mano del batch E1 se descartó (ver
+  // ensureVerificacionPeriodoIdColumn): el monitoreo es continuo, no
+  // episódico. IF EXISTS lo hace idempotente para bases que ya no la tengan
+  // (HUB_DDL ya no la crea).
+  await db.$client.execute('DROP TABLE IF EXISTS `infra_episodio`')
 
   const [row] = await db.select({ n: count() }).from(niveles)
   if ((row?.n ?? 0) === 0) {

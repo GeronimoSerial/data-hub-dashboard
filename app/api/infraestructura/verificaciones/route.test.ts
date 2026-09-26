@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSessionUser } from '@/lib/session'
 
@@ -51,9 +51,17 @@ function consulta() {
   return { id: 'consulta-1', role: 'consulta' as const, banned: false, nivelIds: [] }
 }
 
-async function nuevoEpisodioAbierto() {
-  const { crearEpisodio } = await import('@/lib/infraestructura/episodios')
-  return crearEpisodio({ periodoId, nombre: `episodio-${randomUUID()}` })
+// Marca el único período sembrado como 'historico' para simular "sin período
+// vigente" y lo restaura al terminar: el resto de los tests del archivo
+// comparten la misma base y necesitan el período vigente sembrado.
+async function sinPeriodoVigente(): Promise<() => Promise<void>> {
+  const { getDb } = await import('@/lib/db')
+  const { infraPeriodo } = await import('@/lib/db/schema')
+  const db = getDb()
+  await db.update(infraPeriodo).set({ estado: 'historico' }).where(eq(infraPeriodo.id, periodoId))
+  return async () => {
+    await db.update(infraPeriodo).set({ estado: 'vigente' }).where(eq(infraPeriodo.id, periodoId))
+  }
 }
 
 function getRequest(url: string) {
@@ -78,17 +86,14 @@ describe('GET /api/infraestructura/verificaciones', () => {
   })
 
   it('lista las verificaciones sin exponer tokenHash', async () => {
-    const episodio = await nuevoEpisodioAbierto()
     const { crearVerificacion, obtenerVerificacion } = await import(
       '@/lib/infraestructura/verificaciones'
     )
     const a = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: 'CUE-LISTA-A',
       solicitadaPorUserId: 'editor-1',
     })
     const b = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: 'CUE-LISTA-B',
       solicitadaPorUserId: 'editor-1',
     })
@@ -101,7 +106,7 @@ describe('GET /api/infraestructura/verificaciones', () => {
     const { GET } = await import('./route')
     const res = await GET(
       getRequest(
-        `http://localhost/api/infraestructura/verificaciones?episodioId=${episodio.id}`,
+        `http://localhost/api/infraestructura/verificaciones?periodoId=${periodoId}`,
       ),
     )
     expect(res.status).toBe(200)
@@ -109,7 +114,7 @@ describe('GET /api/infraestructura/verificaciones', () => {
 
     const data = await res.json()
     expect(data.ok).toBe(true)
-    expect(data.verificaciones).toHaveLength(2)
+    expect(data.verificaciones.length).toBeGreaterThanOrEqual(2)
     for (const v of data.verificaciones) {
       expect('tokenHash' in v).toBe(false)
     }
@@ -134,7 +139,7 @@ describe('POST /api/infraestructura/verificaciones', () => {
     const res = await POST(
       new Request('http://localhost/api/infraestructura/verificaciones', {
         method: 'POST',
-        body: JSON.stringify({ episodioId: 'x', cueAnexo: 'y' }),
+        body: JSON.stringify({ cueAnexo: 'y' }),
       }),
     )
     expect(res.status).toBe(401)
@@ -147,22 +152,20 @@ describe('POST /api/infraestructura/verificaciones', () => {
     const res = await POST(
       new Request('http://localhost/api/infraestructura/verificaciones', {
         method: 'POST',
-        body: JSON.stringify({ episodioId: 'x', cueAnexo: 'y' }),
+        body: JSON.stringify({ cueAnexo: 'y' }),
       }),
     )
     expect(res.status).toBe(403)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
-  it('crea una verificación con episodio abierto y devuelve el token una sola vez', async () => {
-    const episodio = await nuevoEpisodioAbierto()
+  it('crea una verificación anclada al período vigente y devuelve el token una sola vez', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { POST } = await import('./route')
     const res = await POST(
       new Request('http://localhost/api/infraestructura/verificaciones', {
         method: 'POST',
         body: JSON.stringify({
-          episodioId: episodio.id,
           cueAnexo: 'CUE-CREADA',
           vencimientoEn: '2026-12-31T00:00:00.000Z',
         }),
@@ -178,40 +181,27 @@ describe('POST /api/infraestructura/verificaciones', () => {
     expect(data.verificacion.tokenHash).toBeUndefined()
     expect('tokenHash' in data.verificacion).toBe(false)
     expect(data.verificacion.estado).toBe('pendiente')
+    expect(data.verificacion.periodoId).toBe(periodoId)
     expect(data.verificacion.cueAnexo).toBe('CUE-CREADA')
     expect(data.verificacion.solicitadaPorUserId).toBe('editor-1')
   })
 
-  it('devuelve 404 si el episodio no existe', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
-    const res = await POST(
-      new Request('http://localhost/api/infraestructura/verificaciones', {
-        method: 'POST',
-        body: JSON.stringify({ episodioId: 'episodio-inexistente', cueAnexo: 'CUE-X' }),
-      }),
-    )
-    expect(res.status).toBe(404)
-    const data = await res.json()
-    expect(data.error).toBe('El episodio no existe')
-  })
-
-  it('devuelve 409 si el episodio está cerrado', async () => {
-    const episodio = await nuevoEpisodioAbierto()
-    const { cerrarEpisodio } = await import('@/lib/infraestructura/episodios')
-    const cerrado = await cerrarEpisodio({ episodioId: episodio.id })
-    expect(cerrado.ok).toBe(true)
-
-    vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
-    const res = await POST(
-      new Request('http://localhost/api/infraestructura/verificaciones', {
-        method: 'POST',
-        body: JSON.stringify({ episodioId: episodio.id, cueAnexo: 'CUE-CERRADA' }),
-      }),
-    )
-    expect(res.status).toBe(409)
-    const data = await res.json()
-    expect(data.error).toBe('El episodio está cerrado')
+  it('devuelve 409 si no hay período vigente', async () => {
+    const restaurar = await sinPeriodoVigente()
+    try {
+      vi.mocked(getSessionUser).mockResolvedValue(editor())
+      const { POST } = await import('./route')
+      const res = await POST(
+        new Request('http://localhost/api/infraestructura/verificaciones', {
+          method: 'POST',
+          body: JSON.stringify({ cueAnexo: 'CUE-SIN-PERIODO' }),
+        }),
+      )
+      expect(res.status).toBe(409)
+      const data = await res.json()
+      expect(data.error).toBe('No hay un período vigente')
+    } finally {
+      await restaurar()
+    }
   })
 })

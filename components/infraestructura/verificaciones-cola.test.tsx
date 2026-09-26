@@ -7,9 +7,6 @@ import {
   type VerificacionVisible,
 } from './verificaciones-cola'
 
-const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }))
-vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshMock }) }))
-
 const fetchMock = vi.fn()
 
 function jsonResponse(body: unknown, status = 200) {
@@ -22,7 +19,7 @@ function jsonResponse(body: unknown, status = 200) {
 function verificacion(overrides: Partial<VerificacionVisible> = {}): VerificacionVisible {
   return {
     id: 'v1',
-    episodioId: 'e1',
+    periodoId: 'p1',
     cueAnexo: '12345678',
     estado: 'pendiente',
     solicitadaEn: '2026-09-01T12:00:00.000Z',
@@ -47,7 +44,6 @@ function verificacion(overrides: Partial<VerificacionVisible> = {}): Verificacio
 }
 
 beforeEach(() => {
-  refreshMock.mockReset()
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
   vi.stubGlobal('confirm', vi.fn(() => true))
@@ -111,9 +107,7 @@ describe('VerificacionesCola', () => {
         jsonResponse({ ok: true, verificaciones: [verificacion({ id: 'v9' })] }, 200),
       )
 
-    render(
-      <VerificacionesCola episodioId="e1" verificacionesIniciales={[]} episodioAbierto />,
-    )
+    render(<VerificacionesCola verificacionesIniciales={[]} />)
     fireEvent.change(screen.getByLabelText(/cue/i), { target: { value: '12345678' } })
     fireEvent.click(screen.getByRole('button', { name: /crear solicitud/i }))
 
@@ -136,13 +130,7 @@ describe('VerificacionesCola', () => {
       )
       .mockResolvedValueOnce(jsonResponse({ ok: true, verificaciones: [] }, 200))
 
-    render(
-      <VerificacionesCola
-        episodioId="e1"
-        verificacionesIniciales={[verificacion({ id: 'v1' })]}
-        episodioAbierto={false}
-      />,
-    )
+    render(<VerificacionesCola verificacionesIniciales={[verificacion({ id: 'v1' })]} />)
     fireEvent.click(screen.getByRole('button', { name: /cancelar/i }))
 
     await waitFor(() =>
@@ -154,13 +142,7 @@ describe('VerificacionesCola', () => {
   })
 
   it('el formulario de respuesta asistida no ofrece con_afectacion', () => {
-    render(
-      <VerificacionesCola
-        episodioId="e1"
-        verificacionesIniciales={[verificacion({ id: 'v1' })]}
-        episodioAbierto={false}
-      />,
-    )
+    render(<VerificacionesCola verificacionesIniciales={[verificacion({ id: 'v1' })]} />)
     fireEvent.click(screen.getByRole('button', { name: /registrar respuesta asistida/i }))
 
     expect(screen.queryByRole('option', { name: /con afectación/i })).toBeNull()

@@ -8,7 +8,6 @@ import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
 import { infraAfectacion, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { crearEpisodio } from '@/lib/infraestructura/episodios'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import {
@@ -84,7 +83,6 @@ vi.mock('@/lib/infraestructura/motivos', async (importOriginal) => {
             rigeDesde: ahora,
             creadaEn: ahora,
             idempotencyKey,
-            episodioId: null,
           })
       }
       return listarMotivosReal(...args)
@@ -563,12 +561,7 @@ describe('parte con sesión acotada por CUE', () => {
   // scopeado acá: corre después del beforeAll de módulo (que ya dejó DATA_DIR
   // y la contraseña seteados) y antes de los it de este describe.
   beforeAll(async () => {
-    const episodio = await crearEpisodio({
-      periodoId: PERIODO_ENOS_2026_2027_ID,
-      nombre: 'Episodio de prueba de la sesión por CUE',
-    })
     const creada = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: CUE_G,
       solicitadaPorUserId: 'user-director',
     })
@@ -645,12 +638,7 @@ describe('parte con sesión acotada por CUE', () => {
 // parte.
 describe('parte enlaza la verificación de origen (batch E1)', () => {
   async function verificacionPendientePara(cue: string) {
-    const episodio = await crearEpisodio({
-      periodoId: PERIODO_ENOS_2026_2027_ID,
-      nombre: 'Episodio de prueba del parte',
-    })
     const creada = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: cue,
       solicitadaPorUserId: 'user-director',
     })

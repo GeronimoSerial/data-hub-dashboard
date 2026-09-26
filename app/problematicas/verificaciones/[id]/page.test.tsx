@@ -9,7 +9,7 @@
 // Igual que app/problematicas/parte/nuevo/page.test.tsx: DATA_DIR a un tmpdir,
 // GE de test aislada con openGeDb/ensureGeSchema, hub real sembrado con
 // ensureSeeded() y filas de verificación creadas con la propia máquina de
-// estados (crearEpisodio/crearVerificacion), no con INSERTs inventados.
+// estados (crearVerificacion), no con INSERTs inventados.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -31,9 +31,8 @@ vi.mock('@/components/infraestructura/verificacion-responder', () => ({
 }))
 
 const { default: VerificacionPage } = await import('./page')
-const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
+const { ensureSeeded } = await import('@/lib/db/seed')
 const { ensureGeSchema, openGeDb } = await import('@/lib/infraestructura/ge-db')
-const { crearEpisodio } = await import('@/lib/infraestructura/episodios')
 const { crearVerificacion } = await import('@/lib/infraestructura/verificaciones')
 
 let dir: string
@@ -82,14 +81,9 @@ async function seedGe(cueAnexo: string, nombre: string): Promise<void> {
 }
 
 // Mismo mecanismo que los helpers de lib/infraestructura/verificaciones.test.ts:
-// un episodio abierto + crearVerificacion para obtener una fila real.
+// crearVerificacion (ancla al período vigente sembrado) para obtener una fila real.
 async function verificacionDePrueba(cueAnexo: string): Promise<{ id: string }> {
-  const episodio = await crearEpisodio({
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    nombre: 'Episodio de prueba',
-  })
   const creada = await crearVerificacion({
-    episodioId: episodio.id,
     cueAnexo,
     solicitadaPorUserId: 'user-director',
   })

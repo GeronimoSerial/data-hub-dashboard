@@ -13,11 +13,11 @@ import {
   infraAfectacion,
   infraMovimiento,
   infraParte,
+  infraPeriodo,
   infraVerificacion,
   infraVerificacionEvento,
 } from '@/lib/db/schema'
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { cerrarEpisodio, crearEpisodio } from '@/lib/infraestructura/episodios'
 import { hashearToken } from '@/lib/infraestructura/verificacion-token'
 import {
   cancelarVerificacion,
@@ -57,14 +57,21 @@ function cueUnico(): string {
   return `1801605-${String(contadorCue).padStart(3, '0')}`
 }
 
-async function episodioAbierto() {
-  return crearEpisodio({ periodoId: PERIODO_ENOS_2026_2027_ID, nombre: 'Episodio de prueba' })
-}
-
-async function episodioCerrado() {
-  const episodio = await episodioAbierto()
-  await cerrarEpisodio({ episodioId: episodio.id })
-  return episodio
+// Marca el único período sembrado como 'historico' para ejercitar el camino
+// "sin período vigente" y lo restaura al terminar: el resto de los tests del
+// archivo comparte la misma base y necesita el período vigente sembrado.
+async function sinPeriodoVigente(): Promise<() => Promise<void>> {
+  const db = getDb()
+  await db
+    .update(infraPeriodo)
+    .set({ estado: 'historico' })
+    .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
+  return async () => {
+    await db
+      .update(infraPeriodo)
+      .set({ estado: 'vigente' })
+      .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
+  }
 }
 
 // Inserta un parte del período vigente con una afectación vigente (retiradaEn
@@ -108,7 +115,6 @@ async function crearMovimiento(parteId: string): Promise<string> {
     rigeDesde: ahora,
     creadaEn: ahora,
     idempotencyKey: null,
-    episodioId: null,
   })
   return id
 }
@@ -125,9 +131,8 @@ async function contarEventos(verificacionId: string, tipo?: string): Promise<num
   return fila.n
 }
 
-async function verificacionPendiente(episodioId: string, cueAnexo = cueUnico()) {
+async function verificacionPendiente(cueAnexo = cueUnico()) {
   const creada = await crearVerificacion({
-    episodioId,
     cueAnexo,
     solicitadaPorUserId: 'user-director',
   })
@@ -137,9 +142,7 @@ async function verificacionPendiente(episodioId: string, cueAnexo = cueUnico()) 
 
 describe('crearVerificacion', () => {
   it('emite token en claro una sola vez y persiste sólo el hash', async () => {
-    const episodio = await episodioAbierto()
     const creada = await crearVerificacion({
-      episodioId: episodio.id,
       cueAnexo: cueUnico(),
       solicitadaPorUserId: 'user-director',
     })
@@ -148,6 +151,7 @@ describe('crearVerificacion', () => {
     if (!creada.ok) return
     expect(creada.token).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(creada.verificacion.estado).toBe('pendiente')
+    expect(creada.verificacion.periodoId).toBe(PERIODO_ENOS_2026_2027_ID)
     expect(creada.verificacion.discrepancia).toBe(0)
     expect(creada.verificacion.tokenHash).toBe(hashearToken(creada.token))
     expect(creada.verificacion.tokenHash).not.toBe(creada.token)
@@ -158,30 +162,23 @@ describe('crearVerificacion', () => {
     expect(eventos).toBe(1)
   })
 
-  it('404 cuando el episodio no existe', async () => {
-    const creada = await crearVerificacion({
-      episodioId: randomUUID(),
-      cueAnexo: cueUnico(),
-      solicitadaPorUserId: 'user-director',
-    })
-    expect(creada).toEqual({ ok: false, status: 404, motivo: 'episodio_no_existe' })
-  })
-
-  it('409 cuando el episodio está cerrado', async () => {
-    const episodio = await episodioCerrado()
-    const creada = await crearVerificacion({
-      episodioId: episodio.id,
-      cueAnexo: cueUnico(),
-      solicitadaPorUserId: 'user-director',
-    })
-    expect(creada).toEqual({ ok: false, status: 409, motivo: 'episodio_cerrado' })
+  it('409 cuando no hay período vigente', async () => {
+    const restaurar = await sinPeriodoVigente()
+    try {
+      const creada = await crearVerificacion({
+        cueAnexo: cueUnico(),
+        solicitadaPorUserId: 'user-director',
+      })
+      expect(creada).toEqual({ ok: false, status: 409, motivo: 'sin_periodo_vigente' })
+    } finally {
+      await restaurar()
+    }
   })
 
   it('no reemplaza verificaciones anteriores del mismo CUE', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
-    const primera = await verificacionPendiente(episodio.id, cue)
-    const segunda = await verificacionPendiente(episodio.id, cue)
+    const primera = await verificacionPendiente(cue)
+    const segunda = await verificacionPendiente(cue)
 
     expect(segunda.verificacion.id).not.toBe(primera.verificacion.id)
     const delCue = await listarVerificaciones({ cueAnexo: cue })
@@ -191,8 +188,7 @@ describe('crearVerificacion', () => {
 
 describe('responderPorEnlace', () => {
   it('sin afectación vigente: responde, discrepancia 0 y un solo evento respondida', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     const resultado = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -213,10 +209,9 @@ describe('responderPorEnlace', () => {
   })
 
   it('con afectación vigente: discrepancia 1 y dos eventos (respondida + discrepancia_detectada)', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
     await parteConAfectacionVigente(cue)
-    const { token, verificacion } = await verificacionPendiente(episodio.id, cue)
+    const { token, verificacion } = await verificacionPendiente(cue)
 
     const resultado = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -232,11 +227,10 @@ describe('responderPorEnlace', () => {
   })
 
   it('con_afectacion guarda el movimientoId y no marca discrepancia', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
     const parteId = await parteConAfectacionVigente(cue)
     const movimientoId = await crearMovimiento(parteId)
-    const { token, verificacion } = await verificacionPendiente(episodio.id, cue)
+    const { token, verificacion } = await verificacionPendiente(cue)
 
     const resultado = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -252,12 +246,11 @@ describe('responderPorEnlace', () => {
   })
 
   it('con_afectacion con un movimiento de OTRO CUE: 409 movimiento_cue_no_coincide y no vincula', async () => {
-    const episodio = await episodioAbierto()
     const cueA = cueUnico()
     const cueB = cueUnico()
     const parteB = await parteConAfectacionVigente(cueB)
     const movimientoAjeno = await crearMovimiento(parteB)
-    const { token, verificacion } = await verificacionPendiente(episodio.id, cueA)
+    const { token, verificacion } = await verificacionPendiente(cueA)
 
     const resultado = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -273,8 +266,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('con_afectacion sin movimientoId es un error de programación del caller', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await expect(
       responderPorEnlace({
         verificacionId: verificacion.id,
@@ -285,8 +277,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('token incorrecto: 403 y no cambia el estado', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
 
     const resultado = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -301,8 +292,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('credencial revocada: 410', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await getDb()
       .update(infraVerificacion)
       .set({ tokenRevocadoEn: new Date().toISOString() })
@@ -317,8 +307,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('credencial vencida: 410', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await getDb()
       .update(infraVerificacion)
       .set({ tokenExpiraEn: '2020-01-01T00:00:00.000Z' })
@@ -333,8 +322,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('mismo resultado dos veces: replay idempotente sin segundo evento', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     const primera = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -355,8 +343,7 @@ describe('responderPorEnlace', () => {
   })
 
   it('resultado distinto la segunda vez: 409 respuesta_contradictoria', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -384,8 +371,7 @@ describe('responderPorEnlace', () => {
 
 describe('cancelarVerificacion', () => {
   it('cancela una pendiente y deja evento cancelada', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
 
     const resultado = await cancelarVerificacion({
       verificacionId: verificacion.id,
@@ -402,8 +388,7 @@ describe('cancelarVerificacion', () => {
   })
 
   it('segunda cancelación: 409 ya_cancelada', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
     await cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' })
 
     const segunda = await cancelarVerificacion({
@@ -414,8 +399,7 @@ describe('cancelarVerificacion', () => {
   })
 
   it('no se puede cancelar una ya respondida: 409 ya_respondida', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await responderPorEnlace({ verificacionId: verificacion.id, token, resultado: 'sin_afectacion' })
 
     const resultado = await cancelarVerificacion({
@@ -426,8 +410,7 @@ describe('cancelarVerificacion', () => {
   })
 
   it('no se puede responder una cancelada: 409 solicitud_cancelada', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' })
 
     const resultado = await responderPorEnlace({
@@ -444,8 +427,7 @@ describe('cancelarVerificacion', () => {
   // otra debe informarse como conflicto y el estado final tiene que ser
   // EXACTAMENTE uno de los dos válidos, nunca ambos ni corrupto.
   it('cancelar y responder concurrentes: exactamente una transición válida', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     const [cancelacion, respuesta] = await Promise.all([
       cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' }),
@@ -475,8 +457,7 @@ describe('cancelarVerificacion', () => {
 
 describe('responderAsistida', () => {
   it('responde por teléfono, atribuye al staff y no consume la credencial de enlace', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
     const hashOriginal = verificacion.tokenHash
 
     const resultado = await responderAsistida({
@@ -496,11 +477,10 @@ describe('responderAsistida', () => {
   })
 
   it('con_afectacion con un movimiento del MISMO CUE: vincula y queda respondida', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
     const parteId = await parteConAfectacionVigente(cue)
     const movimientoId = await crearMovimiento(parteId)
-    const { verificacion } = await verificacionPendiente(episodio.id, cue)
+    const { verificacion } = await verificacionPendiente(cue)
 
     const resultado = await responderAsistida({
       verificacionId: verificacion.id,
@@ -517,12 +497,11 @@ describe('responderAsistida', () => {
   })
 
   it('con_afectacion con un movimiento de OTRO CUE: 409 movimiento_cue_no_coincide y no vincula', async () => {
-    const episodio = await episodioAbierto()
     const cueA = cueUnico()
     const cueB = cueUnico()
     const parteB = await parteConAfectacionVigente(cueB)
     const movimientoAjeno = await crearMovimiento(parteB)
-    const { verificacion } = await verificacionPendiente(episodio.id, cueA)
+    const { verificacion } = await verificacionPendiente(cueA)
 
     const resultado = await responderAsistida({
       verificacionId: verificacion.id,
@@ -541,8 +520,7 @@ describe('responderAsistida', () => {
 
 describe('validarCredencial', () => {
   it('ok sobre pendiente con token válido, sin consumir la credencial', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     const resultado = await validarCredencial({ verificacionId: verificacion.id, token })
     expect(resultado.ok).toBe(true)
@@ -555,8 +533,7 @@ describe('validarCredencial', () => {
   })
 
   it('403 con token inválido, sin cambiar el estado', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
 
     const resultado = await validarCredencial({ verificacionId: verificacion.id, token: 'malo' })
     expect(resultado).toEqual({ ok: false, status: 403, motivo: 'credencial_invalida' })
@@ -567,8 +544,7 @@ describe('validarCredencial', () => {
   })
 
   it('410 con credencial revocada, sin cambiar el estado', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await getDb()
       .update(infraVerificacion)
       .set({ tokenRevocadoEn: new Date().toISOString() })
@@ -589,15 +565,13 @@ describe('validarCredencial', () => {
 
 describe('verificacionHabilitaSesionEscritura', () => {
   it('recién creada (pendiente, token vigente, no revocado): true', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
 
     expect(await verificacionHabilitaSesionEscritura(verificacion.id)).toBe(true)
   })
 
   it('ya respondida: false', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
     await responderPorEnlace({
       verificacionId: verificacion.id,
       token,
@@ -608,8 +582,7 @@ describe('verificacionHabilitaSesionEscritura', () => {
   })
 
   it('token ya consumido por el flujo de enlace: false', async () => {
-    const episodio = await episodioAbierto()
-    const { token, verificacion } = await verificacionPendiente(episodio.id)
+    const { token, verificacion } = await verificacionPendiente()
 
     const respondida = await responderPorEnlace({
       verificacionId: verificacion.id,
@@ -628,8 +601,7 @@ describe('verificacionHabilitaSesionEscritura', () => {
   })
 
   it('token consumido pero estado todavía pendiente: false (chequeo explícito)', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
 
     // Caso hipotético que hoy no produce la máquina de estados: se fuerza por
     // UPDATE directo para aislar el chequeo explícito de tokenConsumidoEn.
@@ -646,16 +618,14 @@ describe('verificacionHabilitaSesionEscritura', () => {
   })
 
   it('cancelada: false', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
     await cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' })
 
     expect(await verificacionHabilitaSesionEscritura(verificacion.id)).toBe(false)
   })
 
   it('token revocado: false', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
     await getDb()
       .update(infraVerificacion)
       .set({ tokenRevocadoEn: new Date().toISOString() })
@@ -665,8 +635,7 @@ describe('verificacionHabilitaSesionEscritura', () => {
   })
 
   it('token vencido: false', async () => {
-    const episodio = await episodioAbierto()
-    const { verificacion } = await verificacionPendiente(episodio.id)
+    const { verificacion } = await verificacionPendiente()
     await getDb()
       .update(infraVerificacion)
       .set({ tokenExpiraEn: '2020-01-01T00:00:00.000Z' })
@@ -682,11 +651,10 @@ describe('verificacionHabilitaSesionEscritura', () => {
 
 describe('registrarIntentoVinculoFallido', () => {
   it('sobre una verificación existente inserta un evento vinculo_fallido sin tocar su estado', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
     const parteId = await parteConAfectacionVigente(cue)
     const movimientoId = await crearMovimiento(parteId)
-    const { token, verificacion } = await verificacionPendiente(episodio.id, cue)
+    const { token, verificacion } = await verificacionPendiente(cue)
 
     // Ya respondida con afectación: así los campos estado/resultado/
     // movimientoId tienen valores reales y se puede comprobar que la
@@ -744,17 +712,20 @@ describe('registrarIntentoVinculoFallido', () => {
 
 describe('listarVerificaciones', () => {
   it('filtra por estado y ordena por solicitadaEn descendente', async () => {
-    const episodio = await episodioAbierto()
     const cue = cueUnico()
-    const primera = await verificacionPendiente(episodio.id, cue)
-    const segunda = await verificacionPendiente(episodio.id, cue)
+    const primera = await verificacionPendiente(cue)
+    const segunda = await verificacionPendiente(cue)
     await responderPorEnlace({
       verificacionId: primera.verificacion.id,
       token: primera.token,
       resultado: 'sin_afectacion',
     })
 
-    const pendientes = await listarVerificaciones({ episodioId: episodio.id, estado: 'pendiente' })
+    const pendientes = await listarVerificaciones({
+      periodoId: PERIODO_ENOS_2026_2027_ID,
+      estado: 'pendiente',
+      cueAnexo: cue,
+    })
     expect(pendientes.map((v) => v.id)).toEqual([segunda.verificacion.id])
 
     const todas = await listarVerificaciones({ cueAnexo: cue })
