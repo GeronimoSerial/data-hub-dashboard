@@ -14,6 +14,14 @@ const nextConfig = {
       { source: `${path}/`, destination: `${path}/index.html` },
     ])
   },
+  async headers() {
+    return [
+      {
+        source: '/problematicas/verificaciones/:path*',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
+    ]
+  },
 }
 
 export default nextConfig

@@ -2,7 +2,10 @@ import type { Metadata } from 'next'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
-import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
+import {
+  tieneAccesoAlParteDesdeCookies,
+  tieneAccesoAlParteParaCueDesdeCookies,
+} from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, getCorteVigente, openGeDb } from '@/lib/infraestructura/ge-db'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
@@ -48,7 +51,11 @@ export default async function NuevoPartePage({
 }) {
   const { cue } = await searchParams
 
-  if (!(await tieneAccesoAlParteDesdeCookies())) {
+  const tieneAcceso = cue
+    ? await tieneAccesoAlParteParaCueDesdeCookies(cue)
+    : await tieneAccesoAlParteDesdeCookies()
+
+  if (!tieneAcceso) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />

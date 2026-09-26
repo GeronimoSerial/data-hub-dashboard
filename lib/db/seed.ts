@@ -247,10 +247,68 @@ CREATE TABLE IF NOT EXISTS \`infra_movimiento\` (
   \`rige_desde\` text NOT NULL,
   \`creada_en\` text NOT NULL,
   \`idempotency_key\` text,
+  \`episodio_id\` text,
   FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
+CREATE TABLE IF NOT EXISTS \`infra_episodio\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`periodo_id\` text NOT NULL,
+  \`nombre\` text NOT NULL,
+  \`descripcion\` text,
+  \`estado\` text NOT NULL,
+  \`abierto_en\` text NOT NULL,
+  \`cerrado_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_periodo_id_idx\` ON \`infra_episodio\` (\`periodo_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_estado_idx\` ON \`infra_episodio\` (\`estado\`);
+CREATE TABLE IF NOT EXISTS \`infra_verificacion\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`episodio_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`estado\` text NOT NULL,
+  \`solicitada_en\` text NOT NULL,
+  \`solicitada_por_user_id\` text NOT NULL,
+  \`vencimiento_en\` text,
+  \`resultado\` text,
+  \`discrepancia\` integer DEFAULT 0 NOT NULL,
+  \`respondida_en\` text,
+  \`respondida_canal\` text,
+  \`respondida_por_user_id\` text,
+  \`movimiento_id\` text,
+  \`cancelada_en\` text,
+  \`cancelada_por_user_id\` text,
+  \`motivo_cancelacion\` text,
+  \`token_hash\` text NOT NULL,
+  \`token_expira_en\` text NOT NULL,
+  \`token_revocado_en\` text,
+  \`token_consumido_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`episodio_id\`) REFERENCES \`infra_episodio\`(\`id\`),
+  FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_episodio_id_idx\` ON \`infra_verificacion\` (\`episodio_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_cue_anexo_idx\` ON \`infra_verificacion\` (\`cue_anexo\`);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_estado_idx\` ON \`infra_verificacion\` (\`estado\`);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_verificacion_token_hash_uidx\` ON \`infra_verificacion\` (\`token_hash\`);
+CREATE TABLE IF NOT EXISTS \`infra_verificacion_evento\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`verificacion_id\` text NOT NULL,
+  \`tipo\` text NOT NULL,
+  \`actor_tipo\` text NOT NULL,
+  \`actor_user_id\` text,
+  \`canal\` text,
+  \`motivo\` text,
+  \`correlacion_id\` text,
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`verificacion_id\`) REFERENCES \`infra_verificacion\`(\`id\`) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS \`infra_verificacion_evento_verificacion_id_idx\` ON \`infra_verificacion_evento\` (\`verificacion_id\`);
 CREATE TABLE IF NOT EXISTS \`infra_job_run\` (
   \`id\` text PRIMARY KEY NOT NULL,
   \`tipo\` text NOT NULL,
@@ -344,6 +402,21 @@ export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   )
 }
 
+// `infra_movimiento.episodio_id` llega con el batch E1 (episodios): enlaza el
+// movimiento con el episodio que lo originó. Mismo motivo que idempotencyKey
+// para quedar nullable y agregarse por ALTER: SQLite no permite agregar una
+// columna NOT NULL a una tabla con filas. Sin asignación retroactiva: los
+// movimientos históricos quedan en NULL. HUB_DDL ya cubre las bases nuevas;
+// acá sólo hace falta la columna para las que ya tenían la tabla sin ella.
+export async function ensureMovimientoEpisodioIdColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
+  const tieneColumna = info.rows.some((r) => String(r.name) === 'episodio_id')
+  if (!tieneColumna) {
+    await db.$client.execute('ALTER TABLE infra_movimiento ADD COLUMN episodio_id text')
+  }
+}
+
 // infra_acceso_nominal_log.problematica_id nace apuntando al modelo
 // deprecado, retirado en la Fase 4; F3.3 la repuntó a infra_afectacion.id. Es texto plano
 // SIN foreign key, así que el rename es barato — no hay índices ni
@@ -397,6 +470,7 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_seccion`')
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
+  await ensureMovimientoEpisodioIdColumn()
   await ensureAccesoNominalLogAfectacionIdColumn()
 
   const [row] = await db.select({ n: count() }).from(niveles)

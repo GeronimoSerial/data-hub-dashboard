@@ -3720,3 +3720,48 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   text-transform: none;
   white-space: normal;
 }
+
+/* === Batch E1: verificación escolar === */
+
+/* Pantalla pública del enlace de verificación. Se lee desde un teléfono,
+   a veces durante una emergencia: una columna, aire para el pulgar y la
+   pregunta antes que cualquier otra cosa. Reusa el vocabulario de avisos y
+   bloques de "Estado actual del parte" (arriba); acá sólo se agrega lo que
+   ese vocabulario no cubre. */
+.verificacion-pantalla {
+  display: grid;
+  gap: var(--s-5);
+  max-width: var(--publico-medida, 640px);
+  margin-inline: auto;
+  padding: var(--s-2) 0;
+}
+
+.verificacion-pregunta {
+  margin: 0;
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* Dos acciones directas, no un radio + submit: en el teléfono se apilan para
+   que ninguna quede a medio ancho y errarle sea difícil. */
+.verificacion-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.verificacion-boton {
+  min-height: 44px;
+  width: 100%;
+}
+
+/* Variante de .estado-actual-bloque para el comprobante: el bloque de origen
+   separa con una línea, acá se lee como tarjeta cerrada sobre fondo de relleno. */
+.verificacion-comprobante {
+  padding: var(--s-4);
+  background: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}

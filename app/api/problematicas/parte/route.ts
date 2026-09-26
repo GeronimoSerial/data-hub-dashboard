@@ -5,6 +5,7 @@
 // ES actualizar el parte. Mismo patrón de guardas que
 // app/api/problematicas/route.ts: acceso público, ensureSeeded, rate limit,
 // idempotencia, validación contra la base, transacción.
+import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -16,7 +17,7 @@ import {
   infraParte,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
+import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { getCorteVigente } from '@/lib/infraestructura/ge-db'
@@ -39,6 +40,10 @@ import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-ed
 import type { EstadoEstablecimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import { resolverCategoria, validarAlumnosPermitidos } from '@/lib/infraestructura/validacion'
 import { parseParteActualizacionInput } from '@/lib/infraestructura/validacion-trayectoria'
+import {
+  registrarIntentoVinculoFallido,
+  responderPorEnlace,
+} from '@/lib/infraestructura/verificaciones'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -55,18 +60,32 @@ const MENSAJE_SIN_SITUACION =
 // escritura. Nunca sale de este archivo.
 class RollbackDiffVacio extends Error {}
 
+// Campo hermano opcional a nivel raíz del mismo body de POST (batch E1). Vive
+// SEPARADO de parteActualizacionInputSchema para no tocar el contrato del
+// parte: si viene con forma inválida se ignora en silencio, nunca es un 400.
+const verificacionVinculoSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    token: z.string().trim().min(1),
+  })
+  .optional()
+
 export async function GET(request: Request) {
-  if (!(await tieneAccesoAlParte(request))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
-  }
-
-  await ensureSeeded()
-
   const { searchParams } = new URL(request.url)
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
   }
+
+  // El CUE tiene que conocerse ANTES de la guarda para poder validar la
+  // sesión acotada por CUE del batch E1; quien ya tenía contraseña/sesión
+  // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
+  // prueba esa vía primero.
+  if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  await ensureSeeded()
 
   const db = getDb()
   const client = db.$client
@@ -156,6 +175,7 @@ async function respuestaExito(
   tipo: TipoMovimiento,
   resumen: DiffParte,
   status: number,
+  verificacionVinculo?: { id: string; token: string },
 ) {
   const actual = await obtenerParteActual(cueAnexo, corteId)
   const snapshot: Pick<ParteActual, 'secciones'> & { servicioAlcance: ReturnType<typeof snapshotDesde>['servicioAlcance'] } =
@@ -163,6 +183,11 @@ async function respuestaExito(
       ? { secciones: actual.secciones, servicioAlcance: snapshotDesde(actual).servicioAlcance }
       : { secciones: [], servicioAlcance: [] }
   const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, snapshot.secciones)
+
+  // Best-effort, igual que en el camino de transacción nueva: un replay
+  // idempotente o la carrera de idempotencia también pueden traer el vínculo
+  // de verificación (batch E1), y nunca deben bloquear esta respuesta.
+  const { vinculado, motivo } = await intentarVincularVerificacion(verificacionVinculo, movimientoId)
 
   return Response.json(
     {
@@ -172,16 +197,44 @@ async function respuestaExito(
       tipo,
       cambios: describirMovimiento(resumen, { tipo }),
       servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+      verificacionVinculada: vinculado,
+      ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
     },
     { status },
   )
 }
 
-export async function POST(request: Request) {
-  if (!(await tieneAccesoAlParte(request))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+// Best-effort: enlazar el movimiento con la verificación de origen NUNCA
+// bloquea la respuesta del parte. Cualquier motivo de rechazo de
+// responderPorEnlace (credencial inválida/vencida/revocada, contradicción,
+// etc.) se informa en el campo `verificacionVinculada` de la respuesta para
+// que la UI pueda mostrar una advertencia si corresponde. Cuando el intento
+// falla, además se deja un evento de auditoría append-only
+// (`vinculo_fallido`) visible para el operador, y el motivo viaja en
+// `verificacionVinculoMotivo` (sólo presente cuando hay un motivo).
+async function intentarVincularVerificacion(
+  vinculo: { id: string; token: string } | undefined,
+  movimientoId: string,
+): Promise<{ vinculado: boolean; motivo?: string }> {
+  if (!vinculo) return { vinculado: false }
+  try {
+    const resultado = await responderPorEnlace({
+      verificacionId: vinculo.id,
+      token: vinculo.token,
+      resultado: 'con_afectacion',
+      movimientoId,
+    })
+    if (resultado.ok) return { vinculado: true }
+    await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo: resultado.motivo })
+    return { vinculado: false, motivo: resultado.motivo }
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : 'error_interno'
+    await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo })
+    return { vinculado: false, motivo }
   }
+}
 
+export async function POST(request: Request) {
   await ensureSeeded()
 
   const ip = getClientIp(request)
@@ -196,6 +249,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
 
+  // Enlace opcional con la verificación de origen (batch E1). Se extrae del
+  // body crudo, aparte de parseParteActualizacionInput: es un campo hermano y
+  // best-effort, una forma inválida se ignora en silencio en vez de dar 400.
+  const verificacionRaw =
+    body && typeof body === 'object' && 'verificacion' in body
+      ? (body as { verificacion?: unknown }).verificacion
+      : undefined
+  const verificacionParsed = verificacionVinculoSchema.safeParse(verificacionRaw)
+  const verificacionVinculo = verificacionParsed.success ? verificacionParsed.data : undefined
+
   const parsed = parseParteActualizacionInput(body)
   if (!parsed.ok) {
     return Response.json({ error: parsed.error }, { status: 400 })
@@ -205,6 +268,22 @@ export async function POST(request: Request) {
   const cue = normalizeCue(input.cue)
   if (!cue) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
+  }
+
+  // La guarda va después de parsear el body y normalizar el CUE por la misma
+  // razón que en GET: el CUE tiene que conocerse ANTES para poder validar la
+  // sesión acotada por CUE del batch E1; quien ya tenía contraseña/sesión
+  // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
+  // prueba esa vía primero.
+  //
+  // CONSECUENCIA DE SEGURIDAD EXPLÍCITA: un llamador sin ninguna credencial
+  // ahora recibe 400 de validación de body/CUE ANTES que 401 de autorización
+  // (antes era al revés). Esto no debilita el control de acceso real —nadie
+  // sin credencial válida logra escribir nada, la guarda sigue siendo la
+  // última puerta antes de cualquier escritura—, sólo cambia qué mensaje de
+  // error ve primero un llamador no autenticado.
+  if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
   }
 
   const db = getDb()
@@ -240,6 +319,7 @@ export async function POST(request: Request) {
       movimientoExistente.tipo as TipoMovimiento,
       movimientoExistente.resumen as unknown as DiffParte,
       200,
+      verificacionVinculo,
     )
   }
 
@@ -590,8 +670,16 @@ export async function POST(request: Request) {
         { status: 409 },
       )
     }
+    // drizzle-orm envuelve el error de SQLite en DrizzleQueryError; el texto
+    // del constraint puede venir en `err.cause.message` en vez de `err.message`
+    // según la versión — revisamos ambos.
     const msg = err instanceof Error ? err.message : String(err)
-    if (/UNIQUE constraint failed.*idempotency_key/i.test(msg)) {
+    const causaMsg =
+      err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
+    if (
+      /UNIQUE constraint failed.*idempotency_key/i.test(msg) ||
+      /UNIQUE constraint failed.*idempotency_key/i.test(causaMsg)
+    ) {
       // Carrera: otra request con la misma idempotencyKey ganó mientras se
       // procesaba ésta. Se responde como si fuera un replay, releyendo el
       // movimiento que sí se escribió.
@@ -609,11 +697,28 @@ export async function POST(request: Request) {
           race.tipo as TipoMovimiento,
           race.resumen as unknown as DiffParte,
           200,
+          verificacionVinculo,
         )
       }
     }
     return Response.json({ error: 'No se pudo guardar la actualización' }, { status: 500 })
   }
 
-  return Response.json(resultado.body, { status: resultado.status })
+  // Único punto de retorno final de POST (éxito de la transacción): acá se
+  // enlaza el movimiento con la verificación de origen, best-effort. Si no
+  // vino `verificacion`, `verificacionVinculada` es false (no undefined) para
+  // que la forma de la respuesta sea siempre la misma.
+  const bodyResultado = resultado.body as { movimientoId: string } & Record<string, unknown>
+  const { vinculado, motivo } = await intentarVincularVerificacion(
+    verificacionVinculo,
+    bodyResultado.movimientoId,
+  )
+  return Response.json(
+    {
+      ...bodyResultado,
+      verificacionVinculada: vinculado,
+      ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
+    },
+    { status: resultado.status },
+  )
 }

@@ -2,7 +2,10 @@ import type { Metadata } from 'next'
 import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { EstadoActualParte } from '@/components/infraestructura/estado-actual-parte'
-import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
+import {
+  tieneAccesoAlParteDesdeCookies,
+  tieneAccesoAlParteParaCueDesdeCookies,
+} from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
 
@@ -43,7 +46,15 @@ export default async function EstadoActualPartePage({
 }) {
   const { cue } = await searchParams
 
-  if (!(await tieneAccesoAlParteDesdeCookies())) {
+  // Con CUE en la query, una sesión de verificación canjeada desde el enlace
+  // público "Hay afectación" habilita el formulario SÓLO para ese CUE, sin la
+  // contraseña compartida. Sin CUE no hay contra qué validar esa sesión, así
+  // que se cae a la guarda de siempre (contraseña o admin).
+  const tieneAcceso = cue
+    ? await tieneAccesoAlParteParaCueDesdeCookies(cue)
+    : await tieneAccesoAlParteDesdeCookies()
+
+  if (!tieneAcceso) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />

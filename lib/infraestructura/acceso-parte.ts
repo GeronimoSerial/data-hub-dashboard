@@ -5,6 +5,12 @@ import {
   tieneAccesoPublico,
   tieneAccesoPublicoDesdeValorCookie,
 } from '@/lib/infraestructura/acceso-publico'
+import {
+  extraerCookieVerificacionSesion,
+  NOMBRE_COOKIE_SESION_VERIFICACION,
+  verificacionIdDeSesionValida,
+} from '@/lib/infraestructura/verificacion-sesion'
+import { verificacionHabilitaSesionEscritura } from '@/lib/infraestructura/verificaciones'
 
 /*
   Guarda del recorrido del parte: contraseña pública O sesión de administrador.
@@ -43,4 +49,30 @@ export async function tieneAccesoAlParteDesdeCookies(): Promise<boolean> {
   const cookieStore = await cookies()
   if (tieneAccesoPublicoDesdeValorCookie(cookieStore.get(NOMBRE_COOKIE)?.value)) return true
   return esAdministrador()
+}
+
+/**
+ * Acceso acotado al CUE exacto de una verificación (batch E1): un director
+ * que entró por el enlace de "Hay afectación" puede usar el formulario de
+ * parte SIN la contraseña compartida, pero SÓLO para ese CUE y sólo mientras
+ * la sesión canjeada del token no venció. Nunca amplía a otro CUE ni a rol
+ * admin — ver verificacion-sesion.ts para el alcance exacto.
+ */
+export async function tieneAccesoAlParteParaCue(request: Request, cueAnexo: string): Promise<boolean> {
+  if (await tieneAccesoAlParte(request)) return true
+  const cookieHeader = request.headers.get('cookie')
+  const valor = extraerCookieVerificacionSesion(cookieHeader)
+  const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
+  if (!verificacionId) return false
+  return verificacionHabilitaSesionEscritura(verificacionId)
+}
+
+/** Para Server Components (app/problematicas/parte/page.tsx). */
+export async function tieneAccesoAlParteParaCueDesdeCookies(cueAnexo: string): Promise<boolean> {
+  if (await tieneAccesoAlParteDesdeCookies()) return true
+  const cookieStore = await cookies()
+  const valor = cookieStore.get(NOMBRE_COOKIE_SESION_VERIFICACION)?.value
+  const verificacionId = verificacionIdDeSesionValida(valor, cueAnexo)
+  if (!verificacionId) return false
+  return verificacionHabilitaSesionEscritura(verificacionId)
 }
