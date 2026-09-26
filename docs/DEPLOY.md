@@ -1,7 +1,8 @@
 # Despliegue en producción (Coolify + GHCR)
 
-Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **No hay entorno de
-preview: `main` es producción.**
+Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **`main` es la rama principal
+pero no despliega nada. `prod` despliega producción y `staging` despliega
+`staging.analisis.sistemas.mec.gob.ar`.**
 
 ## Referencia
 
@@ -9,12 +10,13 @@ preview: `main` es producción.**
 | --- | --- |
 | Propietario GitHub | `GeronimoSerial` |
 | FQDN | `analisis.sistemas.mec.gob.ar` |
-| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt`, renombrada `data-hub-dashboard` (el UUID no cambió). **No hay app de preview.** |
+| App Coolify producción (UUID) | `pts681lz0kazhs1dph8wjaxt`, renombrada `data-hub-dashboard` (el UUID no cambió). |
+| App Coolify staging (UUID) | `j3zm0co4bi9iy0c70nv3vinf` (`data-hub-dashboard-staging`, entorno `staging` del proyecto `data-hub-dashboard`), FQDN `staging.analisis.sistemas.mec.gob.ar`, imagen `:staging`, límites `1024m` sin swap. |
 | Límites por contenedor | `limits_memory=1536m`, `limits_memory_swap=1536m` (swap cero a propósito), `limits_memory_reservation=256m` |
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
 | Imagen de rollback | el tag `<sha>` anterior de `ghcr.io/geronimoserial/data-hub-dashboard` |
 
-La imagen GHCR se publica automáticamente al hacer push a `main` o `master` (workflow `.github/workflows/ghcr.yml`). El nombre se fuerza a minúsculas: `ghcr.io/geronimoserial/data-hub-dashboard`.
+La imagen GHCR se publica automáticamente al hacer push a `prod` o `staging` (workflow `.github/workflows/ghcr.yml`): `prod` publica `latest` y `staging` publica `staging`, ambos además con el tag `<sha>`. Un push a `main` no publica ni despliega. El job corre en el Environment de GitHub `production` o `staging`, y cada uno solo acepta su rama (`prod` y `staging`, respectivamente). El nombre se fuerza a minúsculas: `ghcr.io/geronimoserial/data-hub-dashboard`.
 
 Repositorio GitHub: **privado** `GeronimoSerial/data-hub-dashboard`. El paquete GHCR queda privado; Coolify autentica el pull con un PAT classic `read:packages` en el `docker login` del host (los tokens `gho_` de OAuth no sirven para pull).
 
@@ -128,19 +130,31 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 | Secret | Uso |
 | --- | --- |
 | `COOLIFY_TOKEN` | Token de API Coolify con permiso de deploy. |
-| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción** (`data-hub-dashboard`). Un merge a `main` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar` directamente. |
+| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción** (`data-hub-dashboard`). Un push a `prod` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar`. |
+| `COOLIFY_STAGING_APP_UUID` | `j3zm0co4bi9iy0c70nv3vinf`, la app de **staging**. Un push a `staging` redespliega `staging.analisis.sistemas.mec.gob.ar`. Si falta, el push a `staging` publica la imagen y saltea el deploy: nunca cae a producción. |
 
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify. Cuando están seteados, el paso *Trigger Coolify deploy* no solo dispara el deploy: además consulta `GET /api/v1/deployments/<uuid>` cada 10 segundos (hasta ~10 minutos) y falla el job si Coolify termina en `failed`/`cancelled-by-user` o si se agota el tiempo de espera, así el workflow refleja el resultado real del despliegue.
 
 Además de `ghcr.yml`, el workflow **CI** (`.github/workflows/ci.yml`) corre en cada pull request: instala dependencias con pnpm y ejecuta lint, typecheck y tests. No publica imagen ni dispara deploy.
 
-## Despliegue
+## Staging
 
-Este hub **no tiene entorno de preview**. `main` es producción: un merge publica la imagen en GHCR
-y el workflow redespliega `analisis.sistemas.mec.gob.ar`. No hay escalón intermedio, así que lo que
-entra a `main` es lo que ven los directores.
+`staging` es el escalón previo a producción. Tiene su propio volumen `/data`, sus propios secretos
+(`BETTER_AUTH_SECRET`, `NOMINAL_ENCRYPTION_KEY`, `ADMIN_PASSWORD`, `PROBLEMATICAS_ACCESO_PASSWORD`)
+y **no** comparte datos con producción: arranca vacío, con las localizaciones sembradas solas. No
+tiene `PADRON_PG_URL`; si hace falta padrón en staging se importa por operador, igual que en prod.
 
-1. Merge a `main`.
+1. Mergear o pushear a la rama `staging` (por PR desde la rama de trabajo).
+2. El workflow **Publish GHCR image** publica `:staging` y redespliega la app de staging.
+3. Repetir el smoke test de abajo contra `staging.analisis.sistemas.mec.gob.ar`.
+4. Si pasa, PR de la rama de trabajo a `main`.
+
+## Despliegue a producción
+
+`main` acumula lo aprobado, pero producción solo cambia cuando se actualiza `prod`: un push a
+`prod` publica la imagen `latest` en GHCR y el workflow redespliega `analisis.sistemas.mec.gob.ar`.
+
+1. PR de `main` a `prod` (o fast-forward de `prod` a un commit de `main` ya validado en staging).
 2. Esperar el workflow **Publish GHCR image** hasta `success`. Si falla, no se despliega nada.
 3. El paso *Trigger Coolify deploy* redespliega producción solo.
 4. **Smoke test contra el FQDN de producción:**
@@ -172,7 +186,7 @@ lo vuelve a disparar.
 
 Si el cutover falla o hay regresión en producción:
 
-Sin preview, el rollback es la única red: hacelo por tag de imagen en Coolify.
+El rollback se hace por tag de imagen en Coolify.
 
 1. En Coolify, cambiar el tag de `ghcr.io/geronimoserial/data-hub-dashboard:latest` al SHA corto
    del commit anterior (el workflow publica `latest` y `<sha>` en cada build, así que el anterior

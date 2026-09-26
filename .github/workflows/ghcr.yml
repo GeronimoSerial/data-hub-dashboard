@@ -3,8 +3,8 @@ name: Publish GHCR image
 on:
   push:
     branches:
-      - main
-      - master
+      - prod
+      - staging
 
 permissions:
   contents: read
@@ -20,6 +20,9 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_name == 'prod' && 'production' || 'staging' }}
+      url: ${{ github.ref_name == 'prod' && 'https://analisis.sistemas.mec.gob.ar' || 'https://staging.analisis.sistemas.mec.gob.ar' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -46,7 +49,8 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/prod' }}
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
             type=sha,prefix=,format=short
 
       - name: Build and push
@@ -59,15 +63,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Triggers a redeploy of the production Coolify app (data-hub-dashboard,
-      # UUID in COOLIFY_APP_UUID) so it picks up the image just pushed above.
-      # There is no preview app: this always targets production.
+      # Triggers a redeploy of the Coolify app that matches the pushed branch so it
+      # picks up the image just pushed above: `staging` redeploys the staging app
+      # (COOLIFY_STAGING_APP_UUID, image tag `staging`); `prod` redeploys
+      # production (COOLIFY_APP_UUID, image tag `latest`). `main` never deploys.
       # Coolify pulls private GHCR via host `docker login ghcr.io` (PAT read:packages).
       - name: Trigger Coolify deploy
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          COOLIFY_STAGING_APP_UUID: ${{ secrets.COOLIFY_STAGING_APP_UUID }}
         run: |
+          # Resolved in shell on purpose: an `&& ||` expression would silently fall
+          # back to production when the staging secret is empty.
+          case "$GITHUB_REF" in
+            refs/heads/prod) COOLIFY_APP_UUID="$COOLIFY_PROD_APP_UUID" ;;
+            refs/heads/staging) COOLIFY_APP_UUID="$COOLIFY_STAGING_APP_UUID" ;;
+            *) echo "Unexpected ref ${GITHUB_REF}: no deploy target"; exit 1 ;;
+          esac
+
           if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP_UUID" ]; then
             echo "COOLIFY_TOKEN / COOLIFY_APP_UUID not set — skipping deploy trigger"
             exit 0
