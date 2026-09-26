@@ -7,10 +7,13 @@ import { getDb } from './index'
 import {
   categorias,
   infraAfectacion,
+  infraEpisodio,
   infraJobRun,
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
+  infraVerificacion,
+  infraVerificacionEvento,
   niveles,
   recursos,
   tags,
@@ -421,5 +424,139 @@ describe('ensureAccesoNominalLogAfectacionIdColumn', () => {
     })
     expect(fila.rows[0]?.afectacion_id).toBe('afect-migracion-1')
     expect(Number(fila.rows[0]?.cantidad)).toBe(5)
+  })
+})
+
+// E1 de la trayectoria ENOS: episodios y verificaciones. Misma garantía que
+// el resto del HUB_DDL: se instala en una base ya poblada y se reaplica sin
+// perder filas.
+describe('modelo de episodios: tablas nuevas en HUB_DDL', () => {
+  it('HUB_DDL crea infra_episodio/infra_verificacion/infra_verificacion_evento y preserva sus filas al reaplicarse dos veces', async () => {
+    const { HUB_DDL } = await import('./seed')
+    const db = getDb()
+
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-episodio-test',
+      nombre: 'Período episodio',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraEpisodio).values({
+      id: 'episodio-ddl-test',
+      periodoId: 'periodo-episodio-test',
+      nombre: 'Episodio de prueba',
+      descripcion: null,
+      estado: 'abierto',
+      abiertoEn: '2026-01-01T00:00:00.000Z',
+      cerradoEn: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraVerificacion).values({
+      id: 'verificacion-ddl-test',
+      episodioId: 'episodio-ddl-test',
+      cueAnexo: '1801605-04',
+      estado: 'pendiente',
+      solicitadaEn: '2026-01-01T00:00:00.000Z',
+      solicitadaPorUserId: 'user-1',
+      vencimientoEn: null,
+      resultado: null,
+      discrepancia: 0,
+      respondidaEn: null,
+      respondidaCanal: null,
+      respondidaPorUserId: null,
+      movimientoId: null,
+      canceladaEn: null,
+      canceladaPorUserId: null,
+      motivoCancelacion: null,
+      tokenHash: 'a'.repeat(64),
+      tokenExpiraEn: '2026-02-01T00:00:00.000Z',
+      tokenRevocadoEn: null,
+      tokenConsumidoEn: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraVerificacionEvento).values({
+      id: 'evento-ddl-test',
+      verificacionId: 'verificacion-ddl-test',
+      tipo: 'creada',
+      actorTipo: 'sistema',
+      actorUserId: null,
+      canal: null,
+      motivo: null,
+      correlacionId: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await db.$client.executeMultiple(HUB_DDL)
+    await db.$client.executeMultiple(HUB_DDL)
+
+    const episodios = await db.$client.execute(
+      "SELECT * FROM infra_episodio WHERE id = 'episodio-ddl-test'",
+    )
+    const verificaciones = await db.$client.execute(
+      "SELECT * FROM infra_verificacion WHERE id = 'verificacion-ddl-test'",
+    )
+    const eventos = await db.$client.execute(
+      "SELECT * FROM infra_verificacion_evento WHERE id = 'evento-ddl-test'",
+    )
+    expect(episodios.rows).toHaveLength(1)
+    expect(verificaciones.rows).toHaveLength(1)
+    expect(eventos.rows).toHaveLength(1)
+  })
+})
+
+describe('ensureMovimientoEpisodioIdColumn', () => {
+  it('agrega la columna a una base sin ella y preserva movimientos existentes', async () => {
+    const db = getDb()
+    const { ensureMovimientoEpisodioIdColumn } = await import('./seed')
+
+    // Simula una base vieja: recrea infra_movimiento SIN episodio_id, como la
+    // tendría una instalación anterior al batch E1.
+    await db.$client.execute('DROP TABLE IF EXISTS `infra_movimiento`')
+    await db.$client.execute(`
+      CREATE TABLE \`infra_movimiento\` (
+        \`id\` text PRIMARY KEY NOT NULL,
+        \`parte_id\` text NOT NULL,
+        \`tipo\` text NOT NULL,
+        \`rol\` text NOT NULL,
+        \`resumen\` text NOT NULL,
+        \`rige_desde\` text NOT NULL,
+        \`creada_en\` text NOT NULL,
+        \`idempotency_key\` text,
+        FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
+      )
+    `)
+    await db.$client.execute({
+      sql: `INSERT INTO infra_movimiento (id, parte_id, tipo, rol, resumen, rige_desde, creada_en)
+            VALUES ('mov-legacy-1', 'parte-ddl-test', 'reporte_inicial', 'director', '{}', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+    })
+
+    await ensureMovimientoEpisodioIdColumn()
+
+    const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas).toContain('episodio_id')
+
+    const fila = await db.$client.execute({
+      sql: 'SELECT id, episodio_id FROM infra_movimiento WHERE id = ?',
+      args: ['mov-legacy-1'],
+    })
+    expect(fila.rows).toHaveLength(1)
+    expect(fila.rows[0]?.episodio_id).toBeNull()
+  })
+
+  it('es idempotente: reejecutarla dos veces no falla', async () => {
+    const db = getDb()
+    const { ensureMovimientoEpisodioIdColumn } = await import('./seed')
+
+    await ensureMovimientoEpisodioIdColumn()
+    await ensureMovimientoEpisodioIdColumn()
+
+    const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas).toContain('episodio_id')
   })
 })

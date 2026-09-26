@@ -406,10 +406,123 @@ export const infraMovimiento = sqliteTable(
     // distinto en un índice único, así que las filas legacy sin clave nunca
     // colisionan entre sí.
     idempotencyKey: text('idempotency_key'),
+    // Episodio (batch E1) al que pertenece el movimiento. Nullable y sin
+    // .references() explícito por el mismo motivo que idempotencyKey: las
+    // bases pobladas la reciben por ALTER (ver
+    // ensureMovimientoEpisodioIdColumn en lib/db/seed.ts) y SQLite no permite
+    // agregar una columna NOT NULL a una tabla con filas. Sin asignación
+    // retroactiva: los movimientos históricos quedan en NULL.
+    episodioId: text('episodio_id'),
   },
   (t) => [
     index('infra_movimiento_parte_id_idx').on(t.parteId),
     uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
+  ],
+)
+
+// Episodio operativo del protocolo ENOS (batch E1): agrupa las verificaciones
+// (pedidos de confirmación a los establecimientos) bajo un período provincial.
+// `estado` sólo puede ser 'abierto' (se pueden emitir y responder pedidos) o
+// 'cerrado' (episodio terminado, ya no se emiten pedidos). `abiertoEn` y
+// `cerradoEn` registran las transiciones de ese ciclo de vida, separadas de
+// `creadaEn` (reloj de carga del sistema), misma distinción que infraPeriodo.
+export const infraEpisodio = sqliteTable(
+  'infra_episodio',
+  {
+    id: text('id').primaryKey(),
+    periodoId: text('periodo_id')
+      .notNull()
+      .references(() => infraPeriodo.id),
+    nombre: text('nombre').notNull(),
+    descripcion: text('descripcion'),
+    estado: text('estado').notNull(), // 'abierto' | 'cerrado'
+    abiertoEn: text('abierto_en').notNull(),
+    // Null mientras el episodio sigue abierto.
+    cerradoEn: text('cerrado_en'),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    index('infra_episodio_periodo_id_idx').on(t.periodoId),
+    index('infra_episodio_estado_idx').on(t.estado),
+  ],
+)
+
+// Pedido de verificación a un establecimiento (batch E1): confirma si sigue
+// habiendo afectación. `estado` es el estado persistido ('pendiente' |
+// 'respondida' | 'cancelada'); 'vencida' NO se persiste nunca: se deriva en
+// runtime comparando `vencimientoEn` con el reloj, porque `vencimientoEn` es
+// sólo un SLA informativo que no bloquea responder. `tokenExpiraEn` es
+// distinto y sí bloquea (HTTP 410): es el vencimiento de seguridad de la
+// credencial de acceso, independiente del SLA. `discrepancia` (boolean en
+// integer, default 0) marca el caso en que se respondió 'sin_afectacion'
+// mientras existía una afectación vigente. `movimientoId` enlaza la respuesta
+// con afectación al movimiento real que se creó. `tokenHash` guarda el sha256
+// hex de la credencial, nunca el token en claro.
+export const infraVerificacion = sqliteTable(
+  'infra_verificacion',
+  {
+    id: text('id').primaryKey(),
+    episodioId: text('episodio_id')
+      .notNull()
+      .references(() => infraEpisodio.id),
+    cueAnexo: text('cue_anexo').notNull(),
+    estado: text('estado').notNull(), // 'pendiente' | 'respondida' | 'cancelada'
+    solicitadaEn: text('solicitada_en').notNull(),
+    solicitadaPorUserId: text('solicitada_por_user_id').notNull(),
+    // SLA informativo: no bloquea responder.
+    vencimientoEn: text('vencimiento_en'),
+    resultado: text('resultado'), // 'sin_afectacion' | 'con_afectacion' | 'no_disponible'
+    // Boolean: 1 cuando se respondió 'sin_afectacion' mientras había una
+    // afectación vigente.
+    discrepancia: integer('discrepancia').notNull().default(0),
+    respondidaEn: text('respondida_en'),
+    respondidaCanal: text('respondida_canal'), // 'enlace' | 'telefono' | 'whatsapp' | 'presencial' | 'otro'
+    respondidaPorUserId: text('respondida_por_user_id'),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    canceladaEn: text('cancelada_en'),
+    canceladaPorUserId: text('cancelada_por_user_id'),
+    motivoCancelacion: text('motivo_cancelacion'),
+    // sha256 hex de la credencial de acceso; nunca el token en claro.
+    tokenHash: text('token_hash').notNull(),
+    // Vencimiento de seguridad de la credencial: sí bloquea (410). Distinto de
+    // vencimientoEn, que es el SLA informativo y no bloquea.
+    tokenExpiraEn: text('token_expira_en').notNull(),
+    tokenRevocadoEn: text('token_revocado_en'),
+    tokenConsumidoEn: text('token_consumido_en'),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    index('infra_verificacion_episodio_id_idx').on(t.episodioId),
+    index('infra_verificacion_cue_anexo_idx').on(t.cueAnexo),
+    index('infra_verificacion_estado_idx').on(t.estado),
+    uniqueIndex('infra_verificacion_token_hash_uidx').on(t.tokenHash),
+  ],
+)
+
+// Auditoría append-only de la trayectoria de una verificación (batch E1).
+// Nunca se actualiza ni se borra una fila después de insertarla: cada evento
+// agrega una fila nueva, mismo criterio que infraMovimiento. `actorTipo`
+// distingue quién disparó el evento ('usuario' | 'enlace' | 'sistema');
+// `actorUserId` sólo aplica cuando el actor es un usuario.
+export const infraVerificacionEvento = sqliteTable(
+  'infra_verificacion_evento',
+  {
+    id: text('id').primaryKey(),
+    verificacionId: text('verificacion_id')
+      .notNull()
+      .references(() => infraVerificacion.id, { onDelete: 'cascade' }),
+    tipo: text('tipo').notNull(), // 'creada' | 'cancelada' | 'respondida' | 'discrepancia_detectada' | 'vinculo_fallido'
+    actorTipo: text('actor_tipo').notNull(), // 'usuario' | 'enlace' | 'sistema'
+    actorUserId: text('actor_user_id'),
+    canal: text('canal'),
+    motivo: text('motivo'),
+    correlacionId: text('correlacion_id'),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    index('infra_verificacion_evento_verificacion_id_idx').on(t.verificacionId),
   ],
 )
 
