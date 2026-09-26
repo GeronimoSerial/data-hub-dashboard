@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - staging
 
 permissions:
   contents: read
@@ -47,6 +48,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=staging,enable=${{ github.ref == 'refs/heads/staging' }}
             type=sha,prefix=,format=short
 
       - name: Build and push
@@ -59,15 +61,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Triggers a redeploy of the production Coolify app (data-hub-dashboard,
-      # UUID in COOLIFY_APP_UUID) so it picks up the image just pushed above.
-      # There is no preview app: this always targets production.
+      # Triggers a redeploy of the Coolify app that matches the pushed branch so it
+      # picks up the image just pushed above: `staging` redeploys the staging app
+      # (COOLIFY_STAGING_APP_UUID, image tag `staging`); `main`/`master` redeploy
+      # production (COOLIFY_APP_UUID, image tag `latest`).
       # Coolify pulls private GHCR via host `docker login ghcr.io` (PAT read:packages).
       - name: Trigger Coolify deploy
         env:
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          COOLIFY_PROD_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+          COOLIFY_STAGING_APP_UUID: ${{ secrets.COOLIFY_STAGING_APP_UUID }}
         run: |
+          # Resolved in shell on purpose: an `&& ||` expression would silently fall
+          # back to production when the staging secret is empty.
+          if [ "$GITHUB_REF" = "refs/heads/staging" ]; then
+            COOLIFY_APP_UUID="$COOLIFY_STAGING_APP_UUID"
+          else
+            COOLIFY_APP_UUID="$COOLIFY_PROD_APP_UUID"
+          fi
+
           if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_APP_UUID" ]; then
             echo "COOLIFY_TOKEN / COOLIFY_APP_UUID not set — skipping deploy trigger"
             exit 0
