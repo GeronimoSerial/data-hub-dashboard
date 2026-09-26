@@ -1,7 +1,8 @@
 # Despliegue en producción (Coolify + GHCR)
 
-Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **`main` es producción;
-`staging` es el entorno intermedio en `staging.analisis.sistemas.mec.gob.ar`.**
+Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **`main` es la rama principal
+pero no despliega nada. `prod` despliega producción y `staging` despliega
+`staging.analisis.sistemas.mec.gob.ar`.**
 
 ## Referencia
 
@@ -15,7 +16,7 @@ Guía operativa del hub Next.js que sirve `analisis.sistemas.mec.gob.ar`. **`mai
 | Imagen nueva (este repo) | `ghcr.io/geronimoserial/data-hub-dashboard` |
 | Imagen de rollback | el tag `<sha>` anterior de `ghcr.io/geronimoserial/data-hub-dashboard` |
 
-La imagen GHCR se publica automáticamente al hacer push a `main`, `master` o `staging` (workflow `.github/workflows/ghcr.yml`): `main` publica `latest` y `staging` publica `staging`, ambos además con el tag `<sha>`. El nombre se fuerza a minúsculas: `ghcr.io/geronimoserial/data-hub-dashboard`.
+La imagen GHCR se publica automáticamente al hacer push a `prod` o `staging` (workflow `.github/workflows/ghcr.yml`): `prod` publica `latest` y `staging` publica `staging`, ambos además con el tag `<sha>`. Un push a `main` no publica ni despliega. El job corre en el Environment de GitHub `production` o `staging`, y cada uno solo acepta su rama (`prod` y `staging`, respectivamente). El nombre se fuerza a minúsculas: `ghcr.io/geronimoserial/data-hub-dashboard`.
 
 Repositorio GitHub: **privado** `GeronimoSerial/data-hub-dashboard`. El paquete GHCR queda privado; Coolify autentica el pull con un PAT classic `read:packages` en el `docker login` del host (los tokens `gho_` de OAuth no sirven para pull).
 
@@ -129,7 +130,7 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 | Secret | Uso |
 | --- | --- |
 | `COOLIFY_TOKEN` | Token de API Coolify con permiso de deploy. |
-| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción** (`data-hub-dashboard`). Un merge a `main` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar` directamente. |
+| `COOLIFY_APP_UUID` | `pts681lz0kazhs1dph8wjaxt`, la app de **producción** (`data-hub-dashboard`). Un push a `prod` publica en GHCR y redespliega `analisis.sistemas.mec.gob.ar`. |
 | `COOLIFY_STAGING_APP_UUID` | `j3zm0co4bi9iy0c70nv3vinf`, la app de **staging**. Un push a `staging` redespliega `staging.analisis.sistemas.mec.gob.ar`. Si falta, el push a `staging` publica la imagen y saltea el deploy: nunca cae a producción. |
 
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify. Cuando están seteados, el paso *Trigger Coolify deploy* no solo dispara el deploy: además consulta `GET /api/v1/deployments/<uuid>` cada 10 segundos (hasta ~10 minutos) y falla el job si Coolify termina en `failed`/`cancelled-by-user` o si se agota el tiempo de espera, así el workflow refleja el resultado real del despliegue.
@@ -146,15 +147,14 @@ tiene `PADRON_PG_URL`; si hace falta padrón en staging se importa por operador,
 1. Mergear o pushear a la rama `staging` (por PR desde la rama de trabajo).
 2. El workflow **Publish GHCR image** publica `:staging` y redespliega la app de staging.
 3. Repetir el smoke test de abajo contra `staging.analisis.sistemas.mec.gob.ar`.
-4. Si pasa, PR de `staging` (o de la rama de trabajo) a `main`.
+4. Si pasa, PR de la rama de trabajo a `main`.
 
 ## Despliegue a producción
 
-`main` es producción: un merge publica la imagen en GHCR y el workflow redespliega
-`analisis.sistemas.mec.gob.ar`. Validá antes en staging: lo que entra a `main` es lo que ven los
-directores.
+`main` acumula lo aprobado, pero producción solo cambia cuando se actualiza `prod`: un push a
+`prod` publica la imagen `latest` en GHCR y el workflow redespliega `analisis.sistemas.mec.gob.ar`.
 
-1. Merge a `main`.
+1. PR de `main` a `prod` (o fast-forward de `prod` a un commit de `main` ya validado en staging).
 2. Esperar el workflow **Publish GHCR image** hasta `success`. Si falla, no se despliega nada.
 3. El paso *Trigger Coolify deploy* redespliega producción solo.
 4. **Smoke test contra el FQDN de producción:**
