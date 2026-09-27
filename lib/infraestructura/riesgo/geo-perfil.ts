@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db'
 import { infraGeoProfile } from '@/lib/db/schema'
+import { normalizarNombreDepartamentoONull } from '@/lib/mapas/normalizar-departamento'
 import { asegurarGeAdjuntada } from '../impacto'
 import { celdaDeCoordenada } from './celda'
 
@@ -27,25 +28,13 @@ const LON_MIN = -61
 const LON_MAX = -54
 
 // El dato fuente trae el mismo departamento con y sin tilde
-// ("CONCEPCIÓN" vs "CONCEPCION"), lo que parte los agrupamientos por
-// departamento en dos. Normalizamos a mayúsculas sin tildes. No usamos
-// NFD + strip de diacríticos porque NFD no descompone la Ñ.
-const EQUIVALENCIAS_ACENTOS: Record<string, string> = {
-  Á: 'A',
-  É: 'E',
-  Í: 'I',
-  Ó: 'O',
-  Ú: 'U',
-  Ñ: 'N',
-}
-
-function normalizarDepartamento(departamento: string | null): string | null {
-  if (departamento == null) return null
-  return departamento
-    .toUpperCase()
-    .replace(/[ÁÉÍÓÚÑ]/g, (caracter) => EQUIVALENCIAS_ACENTOS[caracter] ?? caracter)
-    .trim()
-}
+// ("CONCEPCIÓN" vs "CONCEPCION") y a veces con espacios dobles, lo que parte
+// los agrupamientos por departamento. Normalización compartida con
+// lib/mapas/departamentos.ts y lib/mapas/georef-departamentos.ts, ver
+// lib/mapas/normalizar-departamento.ts (mayúsculas, sin diacríticos, espacios
+// colapsados; cadena vacía tras normalizar se trata como sin dato, igual que
+// lat/lon inválidas más abajo).
+const normalizarDepartamento = normalizarNombreDepartamentoONull
 
 interface FilaGeLocalizacion {
   cue_anexo: string

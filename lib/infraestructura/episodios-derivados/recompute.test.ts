@@ -302,4 +302,57 @@ describe('recomputarEpisodiosDerivados', () => {
     expect(episodios).toHaveLength(1)
     expect(miembros).toHaveLength(2)
   })
+
+  it('as-of por registro: un parte cargado después del corte no aparece en un recompute a esa fecha', async () => {
+    const CUE_REGISTRADO_TARDE = '1801605-05'
+    const REGISTRADO_EN = '2026-03-20T00:00:00.000Z' // posterior a AS_OF
+
+    const db = getDb()
+    const parteId = randomUUID()
+    await db.insert(infraParte).values({
+      id: parteId,
+      periodoId: PERIODO_ID,
+      cueAnexo: CUE_REGISTRADO_TARDE,
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: RIGE_DESDE_VALIDO,
+      corteId: 1,
+      creadaEn: REGISTRADO_EN,
+      actualizadaEn: REGISTRADO_EN,
+    })
+    await db.insert(infraAfectacion).values({
+      id: randomUUID(),
+      parteId,
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      // Rige desde antes del corte, pero se cargó (creadaEn) después: no
+      // debe aparecer en un recompute con asOf = AS_OF.
+      rigeDesde: RIGE_DESDE_VALIDO,
+      creadaEn: REGISTRADO_EN,
+      retiradaEn: null,
+    })
+    await db.insert(infraGeoProfile).values({
+      cueAnexo: CUE_REGISTRADO_TARDE,
+      departamento: DEPARTAMENTO,
+      motivoExclusion: null,
+      perfilVersion: 'geo-perfil-v1',
+      calculadoEn: RIGE_DESDE_VALIDO,
+    })
+
+    const historico = await recomputarEpisodiosDerivados({ asOf: new Date(AS_OF) })
+    const miembrosHistorico = await db.select().from(infraEpisodioMiembro)
+    expect(miembrosHistorico.map((m) => m.cueAnexo)).not.toContain(
+      CUE_REGISTRADO_TARDE,
+    )
+    expect(historico.escuelasExcluidas).toBe(2) // sin cambios: no es exclusión geográfica
+
+    const posterior = await recomputarEpisodiosDerivados({
+      asOf: new Date('2026-03-25T00:00:00.000Z'),
+    })
+    const miembrosPosterior = await db.select().from(infraEpisodioMiembro)
+    expect(miembrosPosterior.map((m) => m.cueAnexo)).toContain(
+      CUE_REGISTRADO_TARDE,
+    )
+    void posterior
+  })
 })

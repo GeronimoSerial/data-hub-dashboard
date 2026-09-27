@@ -9,6 +9,12 @@
 // de alcance (documentado para E4).
 
 import georefDepartamentos from '@/public/data/georef-departamentos-corrientes.json'
+// Implementación compartida en lib/mapas/normalizar-departamento.ts (usada
+// también por lib/mapas/departamentos.ts y
+// lib/infraestructura/riesgo/geo-perfil.ts). Se re-exporta acá para no tocar
+// ningún import existente de este módulo.
+import { normalizarNombreDepartamento } from './normalizar-departamento'
+export { normalizarNombreDepartamento }
 
 export interface DepartamentoGeoref {
   id: string
@@ -17,21 +23,6 @@ export interface DepartamentoGeoref {
 
 export const GEOREF_DEPARTAMENTOS_CORRIENTES: ReadonlyArray<DepartamentoGeoref> =
   georefDepartamentos.departamentos
-
-// Misma normalización que lib/mapas/departamentos.ts y geo-perfil.ts: mayúsculas
-// sin diacríticos. NFD descompone los acentos y se descartan las marcas
-// combinantes; Ñ se mapea explícitamente porque no siempre se descompone (el
-// comentario de geo-perfil.ts advierte justamente eso). Se agrega el colapso de
-// espacios múltiples, que los otros dos consumidores no necesitaban.
-export function normalizarNombreDepartamento(nombre: string): string {
-  return nombre
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/Ñ/g, 'N')
-    .trim()
-    .replace(/\s+/g, ' ')
-}
 
 export interface ComparacionDepartamentos {
   /** Nombres normalizados presentes tanto en Georef como en el padrón. */
