@@ -312,6 +312,39 @@ CREATE TABLE IF NOT EXISTS \`infra_job_run\` (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_job_run_clave_uidx\` ON \`infra_job_run\` (\`tipo\`, \`clave_idempotente\`);
 CREATE INDEX IF NOT EXISTS \`infra_job_run_estado_idx\` ON \`infra_job_run\` (\`estado\`);
+CREATE TABLE IF NOT EXISTS \`infra_aislamiento_osm\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`distancia_via_pavimentada_m\` real,
+  \`distancia_cabecera_departamental_m\` real,
+  \`tramos_sin_pavimentar_count\` integer,
+  \`cruces_agua_count\` integer,
+  \`cruces_agua_con_puente_count\` integer,
+  \`cruces_agua_con_vado_count\` integer,
+  \`tiene_alternativa_sin_cruce\` integer,
+  \`indice_aislamiento\` integer,
+  \`motivo_sin_datos\` text,
+  \`snap_distancia_m\` real,
+  \`fecha_extracto_osm\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_aislamiento_osm_indice_idx\` ON \`infra_aislamiento_osm\` (\`indice_aislamiento\`);
+CREATE TABLE IF NOT EXISTS \`infra_susceptibilidad_estatica\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`peligro_inundacion_fluvial\` real,
+  \`peligro_inundacion_pluvial\` real,
+  \`peligro_viento\` real,
+  \`peligro_calor\` real,
+  \`periodo_retorno_anios\` integer NOT NULL,
+  \`fuente\` text NOT NULL,
+  \`fecha_corrida\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
+);
 `
 
 let seedPromise: Promise<void> | null = null

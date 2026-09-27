@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { integer, real, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const niveles = sqliteTable('niveles', {
   id: text('id').primaryKey(),
@@ -534,3 +534,59 @@ export const infraJobRun = sqliteTable(
     index('infra_job_run_estado_idx').on(t.estado),
   ],
 )
+
+// ============================================================
+// G1: capas territoriales estáticas
+// ============================================================
+// Capas territoriales de largo plazo producidas por los jobs offline de
+// services/geo-static/ (ver docs/ejecucion-enos/G1/contrato-datos.md). Son
+// importadas por un importador aparte; ambas usan PK compuesta
+// (cue_anexo, version_job) para permitir convivencia de versiones.
+
+// Aislamiento de un anexo respecto de la red vial/OSM. Los campos de conteo y
+// distancia pueden ser null cuando el job no pudo calcularlos; en ese caso
+// `motivoSinDatos` explica por qué (por ejemplo 'sin_conexion_red') y
+// `indiceAislamiento` queda null. Nunca se asume seguro por defecto.
+export const infraAislamientoOsm = sqliteTable('infra_aislamiento_osm', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  distanciaViaPavimentadaM: real('distancia_via_pavimentada_m'),
+  distanciaCabeceraDepartamentalM: real('distancia_cabecera_departamental_m'),
+  tramosSinPavimentarCount: integer('tramos_sin_pavimentar_count'),
+  crucesAguaCount: integer('cruces_agua_count'),
+  crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
+  crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
+  tieneAlternativaSinCruce: integer('tiene_alternativa_sin_cruce', { mode: 'boolean' }),
+  indiceAislamiento: integer('indice_aislamiento'),
+  motivoSinDatos: text('motivo_sin_datos'),
+  snapDistanciaM: real('snap_distancia_m'),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+  index('infra_aislamiento_osm_indice_idx').on(t.indiceAislamiento),
+])
+
+// Susceptibilidad estática de largo plazo por período de retorno (physrisk).
+// Es riesgo estático, NUNCA un pronóstico ni dato en tiempo real. `fuente`
+// distingue 'physrisk' de 'no_disponible'; los peligros quedan null cuando no
+// hay dato.
+export const infraSusceptibilidadEstatica = sqliteTable('infra_susceptibilidad_estatica', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  peligroInundacionFluvial: real('peligro_inundacion_fluvial'),
+  peligroInundacionPluvial: real('peligro_inundacion_pluvial'),
+  peligroViento: real('peligro_viento'),
+  peligroCalor: real('peligro_calor'),
+  periodoRetornoAnios: integer('periodo_retorno_anios').notNull(),
+  fuente: text('fuente').notNull(),
+  fechaCorrida: text('fecha_corrida').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+])
+// ============================================================
+// Fin bloque G1
+// ============================================================
