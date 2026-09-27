@@ -228,6 +228,9 @@ registro de skills) quedó como untracked, sin agregar a ningún commit.
    revisar si cambió el contenido de `hazard_forecast`/`hazard_climatology`
    respecto de lo que vio este diagnóstico (ver nota en §2).
 
-## Gate
+## Gate (N1)
 
-_(Sección reservada para N1.)_
+- Revisión independiente (N2 → N3, 3 pasadas): REJECT sólo porque la rama no incluía la punta de feat/renovación (Replay de E7c); el resto de los puntos se aprobó (capa de todas las escuelas apagada por defecto, indicador de totales, "Ahora" accesible con teclado, sin UUID en el briefing, tooltip opaco).
+- N1 unió feat/renovación (96243aa) dentro de feat/enos-m2 y resolvió el único conflicto en map-infraestructura-page.tsx: se conservan las fuentes de Replay y el montaje permanente de la fuente del padrón, cuya visibilidad controlan los filtros.
+- Árbol unido: vitest 202/202 archivos y 1756/1756 tests, lint 0, tsc 0 y build 0.
+- Menores aceptados como seguimiento: el indicador de totales se oculta en modo Radar; app/api/.../route.ts:51 todavía envía el id del corte en el JSON, aunque no se muestra.
