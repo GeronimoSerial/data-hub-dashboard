@@ -15,7 +15,7 @@
 // emisión/ingesta (no tienen la semántica de corrección tardía de
 // infra_afectacion, así que no se dividen en las dos vistas).
 
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lte, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import {
   hazardClimatology,
@@ -31,6 +31,7 @@ import {
   infraRiskSnapshot,
 } from '@/lib/db/schema'
 import { VARIABLE_OBSERVADA } from '@/lib/infraestructura/riesgo/jobs/sync-imerg'
+import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import {
   MUESTRA_CLIMATOLOGIA,
   PERCENTILES_CLIMATOLOGIA,
@@ -110,17 +111,33 @@ export async function generarReplay(params: ParametrosReplay): Promise<Resultado
     hasta = p.hasta
   }
 
-  // (b) Escuelas (cueAnexo) del territorio. Normalización deliberadamente
-  // básica (UPPER + TRIM): la normalización completa de nombres de
-  // departamento (tildes, colapso de espacios, CONCEPCION/CONCEPCIÓN) vive en
-  // otros módulos (ver docs/ejecucion-enos/E2 y E3a). Acá sólo se evitan
-  // diferencias de caja y espacios sobrantes alrededor.
-  const filasGeo = await db
-    .select({ cueAnexo: infraGeoProfile.cueAnexo, geometryRef: infraGeoProfile.geometryRef })
-    .from(infraGeoProfile)
-    .where(
-      sql`UPPER(TRIM(${infraGeoProfile.departamento})) = UPPER(TRIM(${territorioId}))`,
-    )
+  // (b) Escuelas (cueAnexo) del territorio. El emparejamiento de departamento
+  // usa la normalización CANÓNICA compartida (normalizarNombreDepartamento:
+  // NFD + strip de marcas combinantes + mayúsculas + colapso de espacios), la
+  // misma que usan lib/mapas/departamentos.ts, georef-departamentos.ts y
+  // riesgo/geo-perfil.ts. Un UPPER(TRIM(...)) crudo en SQL no resuelve tildes
+  // y perdía casos reales ("CONCEPCION" vs "CONCEPCIÓN"). Como no hay una
+  // función SQL equivalente, se traen las filas y se filtra en JS.
+  //
+  // `territorioTipo` hoy es siempre 'departamento' (literal en tipos.ts); si
+  // en el futuro se amplía a otras unidades, sólo este caso lleva el filtro
+  // canónico y las demás ramas deben definir su propio criterio.
+  const filasGeo =
+    p.territorioTipo === 'departamento'
+      ? (
+          await db
+            .select({
+              cueAnexo: infraGeoProfile.cueAnexo,
+              departamento: infraGeoProfile.departamento,
+              geometryRef: infraGeoProfile.geometryRef,
+            })
+            .from(infraGeoProfile)
+        ).filter(
+          (f) =>
+            normalizarNombreDepartamento(f.departamento ?? '') ===
+            normalizarNombreDepartamento(territorioId),
+        )
+      : []
   const cueAnexos = filasGeo.map((f) => f.cueAnexo)
   // Celdas de grilla del territorio, sin duplicados y sin null (escuela sin
   // geo-perfil calculado todavía).
