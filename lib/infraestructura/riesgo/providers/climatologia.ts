@@ -48,6 +48,7 @@
 // request ya agrupada).
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { CONFIG_FUENTES } from './config-fuentes'
 import {
   agregarApiKey,
   apiKeyDesdeEntorno,
@@ -60,7 +61,7 @@ import {
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 
-const RUTA = '/v1/archive'
+const RUTA = CONFIG_FUENTES.climatologia.ruta
 const PERCENTILES = [90, 95, 99] as const
 const CANTIDAD_VARIABLES_CLIMATOLOGIA = 1
 
@@ -77,7 +78,7 @@ const UMBRAL_DIA_HUMEDO_MM = 1
 // -----------------------------------------------------------------------
 
 /** Resolución nativa asumida de ERA5, en grados (ver supuesto documentado arriba). */
-export const GRADOS_CELDA_ERA5 = 0.25
+export const GRADOS_CELDA_ERA5 = CONFIG_FUENTES.climatologia.gradosCeldaEra5
 
 /** Redondea un valor al múltiplo de `GRADOS_CELDA_ERA5` más cercano. */
 export function redondearACeldaEra5(valor: number): number {
@@ -255,7 +256,7 @@ const payloadArchivoElementoSchema = z
 // a medio calcular.
 
 /** Pocas celdas ERA5 por request: mantiene el peso de cada tramo bajo incluso con 30 años de historia. */
-export const TAMANO_LOTE_COORDENADAS = 5
+export const TAMANO_LOTE_COORDENADAS = CONFIG_FUENTES.climatologia.tamanoLote
 
 /** Margen adicional (sobre el 80% operativo ya aplicado por `limiteVentana`) para dejar lugar a los syncs de 6h y sync-seasonal que comparten el mismo minuto/bucket. */
 const MARGEN_SEGURIDAD_TRAMO = 0.5

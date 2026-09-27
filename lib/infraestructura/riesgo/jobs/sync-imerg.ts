@@ -9,7 +9,9 @@
 // de esta función: llega como parámetro `earthdataToken`. El proceso que invoca
 // este job en producción debe leer EARTHDATA_TOKEN de su propio entorno; este
 // módulo nunca lo loguea ni lo persiste. Así los tests inyectan un token fake
-// sin tocar variables de entorno.
+// sin tocar variables de entorno. (El NOMBRE de esa env var también está
+// declarado en CONFIG_FUENTES.imergCmr.envToken; su lectura sigue ocurriendo en
+// el proceso que invoca el job, no acá.)
 //
 // Idempotencia en dos capas, igual que sync-pronostico-caudal.ts:
 // 1. `infra_job_run`: la claveIdempotente es el bloque de 30 min UTC, que es la
@@ -54,6 +56,7 @@ import {
   type HazardObservationPunto,
 } from '../providers/imerg'
 import { adquirirLease, publicarResultado } from '../job-run'
+import { CONFIG_FUENTES } from '../providers/config-fuentes'
 
 const TIPO_JOB = 'sync-hazard-imerg'
 const VERSION_JOB = 'v1'
@@ -83,22 +86,22 @@ const TAMANO_CHUNK_INSERCION = 500
 // Ventana de backfill: cubre el horizonte más largo que consume
 // `peligro/observado.ts` (72h) más un margen chico para no perder cobertura
 // por gránulos que llegaron tarde (latencia típica ~4h de Early Run).
-const VENTANA_BACKFILL_HORAS = 72
-const MARGEN_BACKFILL_HORAS = 6
+const VENTANA_BACKFILL_HORAS = CONFIG_FUENTES.imergCmr.ventanaBackfillHoras
+const MARGEN_BACKFILL_HORAS = CONFIG_FUENTES.imergCmr.margenBackfillHoras
 // Presupuesto de la corrida: como mucho este número de gránulos NUEVOS se
 // descargan (subset OPeNDAP, ~6 KB c/u) por invocación del job. El resto
 // queda para la siguiente corrida (cada 30 min): en régimen estable alcanza
 // con 1 (el gránulo nuevo); recién desplegado o tras una caída, varias
 // corridas sucesivas completan la ventana de 72h (144 gránulos) sin
 // disparar 144 requests de una sola vez.
-const MAX_GRANULOS_A_PROCESAR_POR_CORRIDA = 12
+const MAX_GRANULOS_A_PROCESAR_POR_CORRIDA = CONFIG_FUENTES.imergCmr.maxGranulosPorCorrida
 // page_size de CMR para la ventana de 72h+margen: (72+6)h / 0.5h = 156,
 // redondeado hacia arriba con margen propio de paginación.
-const CMR_PAGE_SIZE_VENTANA = 170
+const CMR_PAGE_SIZE_VENTANA = CONFIG_FUENTES.imergCmr.pageSizeVentana
 
 function urlCmrVentana(desde: Date, hasta: Date): string {
   const temporal = `${desde.toISOString()},${hasta.toISOString()}`
-  return `https://cmr.earthdata.nasa.gov/search/granules.json?short_name=GPM_3IMERGHHE&temporal=${encodeURIComponent(temporal)}&sort_key=-start_date&page_size=${CMR_PAGE_SIZE_VENTANA}`
+  return `https://${CONFIG_FUENTES.imergCmr.host}/search/granules.json?short_name=GPM_3IMERGHHE&temporal=${encodeURIComponent(temporal)}&sort_key=-start_date&page_size=${CMR_PAGE_SIZE_VENTANA}`
 }
 
 type Db = ReturnType<typeof getDb>

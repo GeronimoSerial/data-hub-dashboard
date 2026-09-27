@@ -20,12 +20,13 @@
 // coordenadas separadas por coma en una sola request.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { CONFIG_FUENTES } from './config-fuentes'
 import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 import type { PuntoRio } from '../puntos-rio'
 
-const RUTA = '/v1/flood'
+const RUTA = CONFIG_FUENTES.climatologiaCaudal.ruta
 const PERCENTILES = [90, 95, 99] as const
 const CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA = 1
 
@@ -116,7 +117,7 @@ const payloadCaudalElementoSchema = z
 
 // 50 coordenadas por request: misma decisión que ERA5, URLs acotadas. Con los
 // 8 puntos actuales de `PUNTOS_RIO` todo entra en un único lote (1 request).
-export const TAMANO_LOTE_COORDENADAS_CAUDAL = 50
+export const TAMANO_LOTE_COORDENADAS_CAUDAL = CONFIG_FUENTES.climatologiaCaudal.tamanoLote
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 function agruparEnLotes<T>(items: readonly T[], tamano: number): T[][] {

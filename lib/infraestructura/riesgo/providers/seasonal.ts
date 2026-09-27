@@ -47,21 +47,22 @@ import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
 import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
+import { CONFIG_FUENTES } from './config-fuentes'
 
-const RUTA = '/v1/seasonal'
+const RUTA = CONFIG_FUENTES.seasonal.ruta
 
 // Blend EC46+SEAS5: mejor cobertura de los 30-90 días pedidos sin tener que
 // elegir entre el horizonte corto de EC46 (46 días) y el mensual de SEAS5.
-export const MODELO_SEASONAL = 'ecmwf_seasonal_seamless'
+export const MODELO_SEASONAL = CONFIG_FUENTES.seasonal.modelo
 
-export const VARIABLE_DIARIA_SEASONAL = 'precipitation_sum'
+export const VARIABLE_DIARIA_SEASONAL = CONFIG_FUENTES.seasonal.variableDiaria
 
 // 5 departamentos por request (no los 25 juntos): igual criterio que
 // ensemble.ts (TAMANO_LOTE_COORDENADAS_ENSEMBLE) — acota el payload por
 // llamada y aísla el radio de un fallo de red a 1/5 de los departamentos en
 // vez de todos. Con 25 departamentos esto da 5 llamadas por corrida (1 vez
 // al día).
-export const TAMANO_LOTE_DEPARTAMENTOS_SEASONAL = 5
+export const TAMANO_LOTE_DEPARTAMENTOS_SEASONAL = CONFIG_FUENTES.seasonal.tamanoLote
 
 // Truncar el horizonte pedido: sin este parámetro, la API devuelve el
 // horizonte completo del blend (~183-210 días observado), mucho más de lo
@@ -69,7 +70,7 @@ export const TAMANO_LOTE_DEPARTAMENTOS_SEASONAL = 5
 // segunda request real (presupuesto de cupo agotado): si Open-Meteo ignora
 // el parámetro, el parseo sigue siendo correcto (se filtra por fecha, no por
 // índice), sólo se pierde el ahorro de payload/costo — ver registro.md.
-export const FORECAST_DAYS_SOLICITADOS = 95
+export const FORECAST_DAYS_SOLICITADOS = CONFIG_FUENTES.seasonal.diasPronostico
 
 const MIEMBRO_CONTROL = VARIABLE_DIARIA_SEASONAL
 const NOMBRES_MIEMBROS_PERTURBADOS: string[] = Array.from(

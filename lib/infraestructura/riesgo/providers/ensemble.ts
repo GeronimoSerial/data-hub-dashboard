@@ -21,23 +21,24 @@ import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
 import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
+import { CONFIG_FUENTES } from './config-fuentes'
 
-const RUTA = '/v1/ensemble'
+const RUTA = CONFIG_FUENTES.ensemble.ruta
 const MS_POR_HORA = 3_600_000
 
 // Único modelo ECMWF disponible en la API Ensemble de Open-Meteo hoy.
-export const MODELO_ENSEMBLE = 'ecmwf_ifs025'
+export const MODELO_ENSEMBLE = CONFIG_FUENTES.ensemble.modelo
 
 // 20 coordenadas por request (no 50 como el determinístico): cada coordenada
 // trae 51 series horarias, así que el payload por celda es ~50x más grande.
 // Con ~387 celdas reales esto da ~20 llamadas por ciclo sin generar respuestas
 // gigantes.
-export const TAMANO_LOTE_COORDENADAS_ENSEMBLE = 20
+export const TAMANO_LOTE_COORDENADAS_ENSEMBLE = CONFIG_FUENTES.ensemble.tamanoLote
 
 // Horizonte pedido a la API. 3 días dan 3 ventanas completas de 24 h por serie
 // y mantienen acotado el peso de 51 series por coordenada (mismo horizonte que
 // el fixture real ensemble-2026-09-26.json).
-const DIAS_PRONOSTICO_ENSEMBLE = 3
+const DIAS_PRONOSTICO_ENSEMBLE = CONFIG_FUENTES.ensemble.diasPronostico
 
 const MIEMBRO_CONTROL = 'precipitation'
 const NOMBRES_MIEMBROS: string[] = [

@@ -5,6 +5,7 @@
 // posterior.
 import { z } from 'zod'
 import { celdaDeCoordenada } from '../celda'
+import { CONFIG_FUENTES } from './config-fuentes'
 
 // ---------------------------------------------------------------------------
 // Búsqueda de gránulos (CMR metadata, JSON)
@@ -132,8 +133,8 @@ export function calcularIndicesGrillaImerg(
 // URL de subsetting OPeNDAP ASCII
 // ---------------------------------------------------------------------------
 
-const HOST_DATOS_GESDISC = 'https://data.gesdisc.earthdata.nasa.gov/data/'
-const HOST_OPENDAP_GESDISC = 'https://gpm1.gesdisc.eosdis.nasa.gov/opendap/'
+const HOST_DATOS_GESDISC = `https://${CONFIG_FUENTES.imergOpendap.host}/data/`
+const HOST_OPENDAP_GESDISC = `https://${CONFIG_FUENTES.imergOpendap.hostAlterno}/opendap/`
 
 // Reemplaza host+ruta de descarga por el del servidor OPeNDAP y agrega el
 // query `.ascii` con los corchetes URL-encodeados (%5B/%5D); los dos puntos no
