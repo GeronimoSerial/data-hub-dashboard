@@ -31,6 +31,9 @@ function af(
     movimientoId: null,
     rigeDesde,
     retiradaEn: null,
+    // Default: registrado el mismo día que rige (caso más común en los
+    // tests existentes, que no ejercitan el as-of de registro).
+    registradoEn: rigeDesde,
     ...extra,
   }
 }
@@ -230,5 +233,28 @@ describe('calcularEpisodiosDerivados', () => {
     expect(resultado[0].finEn).toBe(DIA_7)
     expect(resultado[0].escuelasAfectadas).toBe(1)
     expect(resultado[0].miembros[0].recuperadoEn).toBeNull()
+  })
+
+  it('12. as-of por registro: un parte registrado después del corte no aparece aunque rija antes', () => {
+    const afectaciones: AfectacionConfirmada[] = [
+      af('A', DIA_0, { registradoEn: DIA_5 }),
+    ]
+
+    // Recompute "histórico" con asOf = DIA_1: el parte todavía no existía en
+    // el sistema en ese momento (se cargó recién en DIA_5), aunque su
+    // rigeDesde (DIA_0) sea anterior al corte.
+    const historico = calcularEpisodiosDerivados({
+      afectaciones,
+      asOf: DIA_1,
+    })
+    expect(historico).toHaveLength(0)
+
+    // Un recompute posterior al registro sí lo ve.
+    const posterior = calcularEpisodiosDerivados({
+      afectaciones,
+      asOf: DIA_6,
+    })
+    expect(posterior).toHaveLength(1)
+    expect(posterior[0].miembros.map((m) => m.cueAnexo)).toEqual(['A'])
   })
 })

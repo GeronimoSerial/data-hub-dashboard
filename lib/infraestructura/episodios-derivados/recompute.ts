@@ -60,6 +60,11 @@ export async function recomputarEpisodiosDerivados(params?: {
       parteId: infraAfectacion.parteId,
       cueAnexo: infraParte.cueAnexo,
       rigeDesde: infraAfectacion.rigeDesde,
+      // Auditoría: cuándo se confirmó/registró ESTA afectación (no el parte,
+      // no el movimiento correlacionado por rigeDesde — que ya es
+      // best-effort, ver comentario sobre movimientoIdPorParteYRige). La
+      // regla la usa como segundo as-of (follow-up del gate E7a).
+      registradoEn: infraAfectacion.creadaEn,
       retiradaEn: infraAfectacion.retiradaEn,
       departamento: infraGeoProfile.departamento,
       motivoExclusion: infraGeoProfile.motivoExclusion,
@@ -104,6 +109,7 @@ export async function recomputarEpisodiosDerivados(params?: {
       movimientoId:
         movimientoIdPorParteYRige.get(`${fila.parteId}|${fila.rigeDesde}`) ?? null,
       rigeDesde: fila.rigeDesde,
+      registradoEn: fila.registradoEn,
       retiradaEn: fila.retiradaEn,
     })
   }

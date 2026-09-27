@@ -35,6 +35,12 @@ export type AfectacionConfirmada = {
   movimientoId: string | null
   rigeDesde: string // ISO 8601
   retiradaEn: string | null // ISO 8601 o null
+  // Cuándo se registró la confirmación (infra_afectacion.creada_en), no
+  // cuándo empieza a regir. Es la variable de auditoría contra la que se
+  // aplica el segundo as-of: un parte cargado hoy pero con rigeDesde pasado
+  // no puede "aparecer" en un recompute con asOf anterior a hoy, porque ese
+  // recompute nunca pudo haberlo visto en ese momento.
+  registradoEn: string // ISO 8601
 }
 
 export type MiembroEpisodioCalculado = {
@@ -97,9 +103,14 @@ export function calcularEpisodiosDerivados(input: {
   const nMs = params.diasSinAfectacionParaCierre * MS_POR_DIA
   const asOfMs = Date.parse(input.asOf)
 
-  // As-of estricto: nunca usar un dato posterior a asOf.
+  // As-of estricto por partida doble: rigeDesde <= asOf (nunca contar una
+  // vigencia futura) Y registradoEn <= asOf (nunca contar un dato que en ese
+  // momento todavía no existía en el sistema). Un parte registrado después
+  // del corte con rigeDesde anterior al corte no debe aparecer en ese
+  // recompute histórico: sólo aparece en un recompute posterior a su
+  // registro (ver follow-up del gate E7a).
   const vistas = input.afectaciones.filter(
-    (a) => Date.parse(a.rigeDesde) <= asOfMs,
+    (a) => Date.parse(a.rigeDesde) <= asOfMs && Date.parse(a.registradoEn) <= asOfMs,
   )
 
   const porDepartamento = new Map<string, AfectacionConfirmada[]>()
