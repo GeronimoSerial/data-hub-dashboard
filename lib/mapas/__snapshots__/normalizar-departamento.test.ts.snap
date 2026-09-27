@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`normalizarNombreDepartamento > normaliza los 25 departamentos reales de Corrientes sin colisiones inesperadas 1`] = `
+[
+  "BELLA VISTA",
+  "BERON DE ASTRADA",
+  "CAPITAL",
+  "CONCEPCION",
+  "CURUZU CUATIA",
+  "EMPEDRADO",
+  "ESQUINA",
+  "GENERAL ALVEAR",
+  "GENERAL PAZ",
+  "GOYA",
+  "ITATI",
+  "ITUZAINGO",
+  "LAVALLE",
+  "MBURUCUYA",
+  "MERCEDES",
+  "MONTE CASEROS",
+  "PASO DE LOS LIBRES",
+  "SALADAS",
+  "SAN COSME",
+  "SAN LUIS DEL PALMAR",
+  "SAN MARTIN",
+  "SAN MIGUEL",
+  "SAN ROQUE",
+  "SANTO TOME",
+  "SAUCE",
+]
+`;

@@ -1,6 +1,7 @@
 // Datos estáticos de los departamentos de la provincia de Corrientes,
 // extraídos del prototipo `Alertas_climaticas_educativas_actualizado.html`.
 // Módulo puro: sin dependencias de React ni de MapLibre.
+import { normalizarNombreDepartamento } from './normalizar-departamento'
 
 /** Ruta pública del GeoJSON con los polígonos de los 25 departamentos. */
 export const DEPARTAMENTOS_URL = '/data/departamentos-corrientes.geojson'
@@ -58,28 +59,11 @@ export const COLORES_DEPARTAMENTO = {
 
 // ── Normalización de nombre de departamento ─────────────────────────────────
 //
-// GOTCHA CONFIRMADO EN LA BASE REAL (public/data/localizaciones.json): el
-// GeoJSON de los 25 departamentos usa capitalización de título con tildes
-// ("Bella Vista", "Concepción", "Ituzaingó"), mientras que la base trae
-// mayúsculas con tildes INCONSISTENTES — "CONCEPCION" y "CONCEPCIÓN" conviven
-// como dos valores de texto distintos para el mismo departamento, e
-// "ITUZAINGO" nunca lleva tilde. Comparar los strings tal cual, en cualquier
-// dirección, pierde partes.
-//
-// La normalización es mayúsculas + sin diacríticos (NFD y se descartan los
-// caracteres de la clase Unicode "combining diacritical marks", que es donde
-// caen los acentos al descomponer). Verificado a mano contra los 25 nombres
-// del GeoJSON y los 26 valores distintos de `departamento` en
-// localizaciones.json: normalizados, ambos lados colapsan a las mismas 25
-// claves — confirma que esta normalización (y no, por ejemplo, un mapeo
-// manual de sinónimos) alcanza para este dataset.
-export function normalizarNombreDepartamento(nombre: string): string {
-  return nombre
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toUpperCase()
-    .trim()
-}
+// Implementación compartida en lib/mapas/normalizar-departamento.ts (usada
+// también por lib/mapas/georef-departamentos.ts y
+// lib/infraestructura/riesgo/geo-perfil.ts). Se re-exporta acá para no tocar
+// ningún import existente de este módulo.
+export { normalizarNombreDepartamento }
 
 /** Una escuela con servicio caído (suspendido o parcial), a los fines de la agregación departamental. */
 export interface EscuelaServicioCaido {
