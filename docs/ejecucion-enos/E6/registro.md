@@ -118,9 +118,15 @@ alternativa conocida (sin peligro alto) queda en nivel bajo; sin
   - `bajo`: 1099
   - `alto`: 886
   - sin dato (`null`, sin cobertura o `sin_datos_red`): 16
-  - `moderado`: 0 (no apareció en esta corrida — artefacto del dataset real de
-    G1, que en esta muestra concentra el aislamiento en niveles 1 y 3; no es
-    un defecto de la regla, ver umbrales arriba)
+  - `moderado`: 0 (no apareció en esta corrida — verificado matemáticamente
+    contra el CSV real de G1: las 114 filas de nivel 2 tienen TODAS
+    `cruceDeRiesgo=true` (vado>0), así que 45+25=70→alto y nunca quedan en el
+    "near miss" moderado; nivel 0/1 no tienen agravantes en este dataset (dev
+    sin peligro/historial de E3a sembrados) y quedan en bajo. La causa real es
+    la correlación nivel↔cruce del dataset de G1 combinada con la ausencia de
+    insumos E3a en esta corrida de desarrollo, no un defecto de la regla ni un
+    problema de mapeo/umbral: en cuanto se siembre peligro/historial de E3a,
+    `nivel 1 + peligroAlto` (20+25=45) SÍ caerá en "moderado")
   - confianza: 1985 `alta`, 16 `baja` (las 16 sin cobertura)
 
   El score de acceso se calculó igual para las 2001 escuelas aunque
@@ -136,11 +142,77 @@ alternativa conocida (sin peligro alto) queda en nivel bajo; sin
   batch — requiere inspección visual de imagen satelital, fuera del alcance
   de un agente automatizado sin esa herramienta. Queda como acción pendiente
   antes de confiar en el índice en producción.
-- Renderizado de la capa "Riesgo de acceso" en el mapa del modo Radar (el
-  toggle existe, el dibujo geoespacial no — ver punto 4).
 - Copernicus GFM y E6b (cuencas/topografía offline, anomalías de lluvia,
   caudal GloFAS) quedan fuera de alcance de E6a por diseño del plan.
+
+## 6. Correcciones del gate N1
+
+Revisión independiente en `docs/ejecucion-enos/E6/revision.md` (veredicto
+REJECT), corregida punto por punto en la rama `feat/enos-e6`:
+
+- **Bloqueante 1 — doble/triple conteo del KPI de acceso**
+  (`kpi-acceso.ts:33-38` + `radar/route.ts:223-226,287-298`):
+  `calcularMatriculaCondicionadaPorAcceso` deduplicaba sólo contra
+  afectación confirmada, no por `cueAnexo` dentro de `snapshots`. Con
+  `?horizonte=` sin fijar (estado inicial real de la UI,
+  `horizonteSeleccionado: 'ahora'`), una escuela con acceso alto en los 3
+  horizontes se sumaba hasta 3 veces. Fix: dedup por `cueAnexo` dentro de la
+  función pura, criterio "peor caso" (si alguna fila del cueAnexo es 'alto',
+  esa escuela cuenta como 'alto'; el acceso no depende del horizonte, así que
+  la fila elegida entre horizontes es indistinta cuando ninguna es 'alto').
+  Tests: caso nuevo en `kpi-acceso.test.ts` (3 filas mismo cueAnexo → 1
+  escuela) y test de integración en `radar/route.test.ts` que reproduce el
+  request sin `?horizonte=` con 3 filas reales en DB para el mismo cueAnexo.
+- **Bloqueante 2 — toggle "Riesgo de acceso" inerte** (`layer-control.tsx` +
+  `map-infraestructura-page.tsx`): implementado (decisión de N1). Capa de
+  círculos por escuela en `lib/mapas/peligro-capas.ts`
+  (`construirPuntosRiesgoAcceso`/`paintPuntosRiesgoAcceso`), coloreada por
+  `riesgoAcceso.nivel` (bajo=verde, moderado=amarillo, alto=naranja,
+  sin cobertura=gris neutro), con trazo más ancho/opaco para 'alto' (marca
+  que no depende sólo del color). Apagada por defecto
+  (`CAPAS_RADAR_VISIBLES_DEFECTO`), oculta en modo Replay
+  (`radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']`),
+  leyenda breve en `InfraLegendPanel` ("Riesgo de acceso (caminos y cruces),
+  no del edificio"). Sin consultas nuevas: reusa los datos que ya carga el
+  radar. Tests: paint por nivel (unitario), y de integración (monta/desmonta
+  con el toggle, apagada por defecto, oculta en Replay).
+- **Menor — `indiceAislamiento` fuera de 0-3**: guard defensivo en
+  `nivelDeFila` (`adaptadores/aislamiento.ts`) — un entero fuera de 0-3
+  (dato corrupto, la columna no tiene `CHECK`) se trata como
+  `'sin_datos_red'` (sin cobertura), nunca como nivel válido ni cae en
+  'alto' por descarte de `NaN`. Test con `indiceAislamiento: 4`.
+- **Menor — adapters sin `try/catch` para tabla inexistente**: `cargar()` en
+  `adaptadores/aislamiento.ts` y `adaptadores/susceptibilidad.ts` ahora
+  encadena `.catch`: si la query falla, loguea con `console.error` y degrada
+  a Map vacío (sin cobertura) en vez de propagar la excepción. Test por
+  archivo con `cargarFilas` que lanza.
+- **Menor — endpoint de detalle de accesos con `SELECT *`**: agregada
+  `obtenerIndiceAislamientoDeCue` (`adaptadores/aislamiento.ts`), que
+  consulta sólo el `cueAnexo` pedido (`WHERE`) en vez de traer toda la
+  tabla; `crearAdapterAislamiento` (usado por el job de batch) queda
+  intacto. `route.ts` del endpoint de detalle usa la nueva función.
+- **Menor — nota de `registro.md` sobre "0 moderado"**: corregida (§4 de
+  este documento) con la causa real verificada (correlación nivel↔cruce del
+  dataset de G1 + ausencia de insumos E3a en esta corrida de desarrollo),
+  no "concentración en niveles 1 y 3".
+
+Verificación: tests focalizados de cada fix (verdes), suite completa
+(`npx vitest run`, bajo `flock`): **205 archivos, 1805 tests, todos verdes**
+(2 errores no manejados reportados por Vitest en
+`ficha-parte-modal.test.tsx`, un `ReferenceError: window is not defined` por
+un `setTimeout` que sobrevive al desmonte del entorno jsdom de ESE archivo —
+preexistente, ajeno a este batch, no afecta el resultado de los tests).
+`npx eslint .`: sin salida. `npx tsc --noEmit`: sin errores. `npx next
+build` (bajo `flock`): compila sin errores, todas las rutas listadas.
 
 ## Gate
 
 (reservado para N1)
+
+## Gate (N1)
+
+- Revisión independiente (N2 → N3, docs/ejecucion-enos/E6/revision.md): REJECT con 2 bloqueantes. Uno era el KPI de matrícula condicionada triplicado cuando el request no trae horizonte. El otro, el toggle "Riesgo de acceso" sin capa. N1 decidió implementar la capa en lugar de ocultarla.
+- Correcciones verificadas por N1: deduplicación por cueAnexo con criterio de peor caso, con test de integración del request sin horizonte; capa de círculos por nivel de acceso, apagada por defecto y oculta en Replay; guard de índice 0–3; degradación de los adaptadores; WHERE por cueAnexo en el detalle.
+- El "0 moderado" no es un bug: el nivel 2 siempre tiene vado en el dataset de G1 y faltan insumos de E3a en la corrida de desarrollo.
+- Árbol con feat/renovación unida: vitest 205/205 archivos y 1805/1805 tests, lint 0 y tsc 0.
+- Pendiente fuera de este batch: validación satelital de la muestra de 20–30 escuelas (opcional, no está en el camino crítico).
