@@ -2,10 +2,15 @@
 // endpoint `/v1/ecmwf` al contrato `HazardForecastPunto` del dominio.
 //
 // Decisiones clave:
-// - Cada celda (geometryRef) se resuelve con `ejecutarConReintentos`, que ya
-//   aporta timeout/backoff/429/cuarentena. Un fallo en una celda no tumba al
-//   resto: `obtenerPronosticoConDiagnostico` acumula el motivo por celda y
-//   devuelve los puntos de las celdas que sí respondieron.
+// - Las celdas se consultan por LOTES de `TAMANO_LOTE_COORDENADAS` en UNA sola
+//   request (latitude/longitude separadas por coma): Open-Meteo devuelve un
+//   array de objetos, uno por coordenada y EN EL MISMO ORDEN en que se
+//   enviaron, así que el parseo empareja por índice. Con ~387 celdas esto baja
+//   de ~387 requests a ~8 por ciclo.
+// - Cada lote se resuelve con `ejecutarConReintentos`, que ya aporta
+//   timeout/backoff/429/cuarentena. Un fallo en un lote no tumba al resto: sus
+//   celdas quedan en `erroresPorCelda` y se devuelven los puntos de los lotes
+//   que sí respondieron.
 // - El paso horario NO es fijo: Open-Meteo entrega 1h, 3h y 6h según el
 //   horizonte, así que se deriva de la diferencia real entre timestamps
 //   consecutivos (primer punto usa el paso del segundo respecto al primero).
@@ -23,11 +28,26 @@ const VARIABLES_HOURLY = [
 ] as const
 const MS_POR_HORA = 3_600_000
 
+// 50 coordenadas por request: mantiene la URL lejos del límite práctico del
+// servidor y a la vez reduce ~387 celdas reales a ~8 llamadas por ciclo.
+export const TAMANO_LOTE_COORDENADAS = 50
+
+/** Parte un array en lotes contiguos de `tamano` sin reordenar. */
+function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
+  const lotes: T[][] = []
+  for (let i = 0; i < items.length; i += tamano) {
+    lotes.push(items.slice(i, i + tamano))
+  }
+  return lotes
+}
+
 // Open-Meteo puede devolver nulls en el borde del horizonte: se modelan como
 // nullable y luego se descartan punto a punto (NO se convierten a 0).
 const serieNumerica = z.array(z.number().nullable())
 
-const payloadEcmwfSchema = z
+// Un objeto por ubicación. Con una sola coordenada Open-Meteo responde un
+// objeto suelto; con varias, un array de estos objetos en el orden pedido.
+const payloadEcmwfElementoSchema = z
   .object({
     hourly: z.object({
       time: z.array(z.string()),
@@ -51,7 +71,7 @@ const payloadEcmwfSchema = z
     }
   })
 
-type PayloadEcmwf = z.infer<typeof payloadEcmwfSchema>
+type PayloadEcmwfElemento = z.infer<typeof payloadEcmwfElementoSchema>
 
 type VariablesPunto = Array<{
   variable: HazardForecastPunto['variable']
@@ -59,7 +79,7 @@ type VariablesPunto = Array<{
   unidad: string
 }>
 
-function mapearVariables(hourly: PayloadEcmwf['hourly']): VariablesPunto {
+function mapearVariables(hourly: PayloadEcmwfElemento['hourly']): VariablesPunto {
   return [
     { variable: 'precipitacion', valores: hourly.precipitation, unidad: 'mm' },
     { variable: 'cape', valores: hourly.cape, unidad: 'J/kg' },
@@ -68,6 +88,9 @@ function mapearVariables(hourly: PayloadEcmwf['hourly']): VariablesPunto {
     { variable: 'viento', valores: hourly.wind_speed_10m, unidad: 'km/h' },
   ]
 }
+
+/** Celda resuelta de un geometryRef, lista para entrar en un lote. */
+type CeldaEcmwf = { geometryRef: string; lat: number; lon: number }
 
 /** Parsea "lat_lon" (ej. "-27.5_-58.8") a sus componentes numéricos. */
 function parsearGeometryRef(geometryRef: string): { lat: number; lon: number } {
@@ -80,15 +103,30 @@ function parsearGeometryRef(geometryRef: string): { lat: number; lon: number } {
   return { lat, lon }
 }
 
-function construirUrl(lat: number, lon: number): string {
-  const params = new URLSearchParams({
-    latitude: String(lat),
-    longitude: String(lon),
-    hourly: VARIABLES_HOURLY.join(','),
-    forecast_days: '10',
-    timezone: 'UTC',
-  })
-  return `${BASE_URL}?${params.toString()}`
+function construirUrlLote(celdas: CeldaEcmwf[]): string {
+  const latitudes = celdas.map((celda) => String(celda.lat)).join(',')
+  const longitudes = celdas.map((celda) => String(celda.lon)).join(',')
+  return `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}&hourly=${VARIABLES_HOURLY.join(
+    ',',
+  )}&forecast_days=10&timezone=UTC`
+}
+
+/**
+ * Valida el payload de un lote. Acepta tanto el objeto suelto (una sola
+ * coordenada) como el array (varias) y exige que la cantidad de objetos
+ * coincida con la cantidad de coordenadas enviadas: si no, todas las celdas
+ * del lote caen como `payload_invalido` en vez de quedar desalineadas.
+ */
+function crearParserLote(cantidad: number) {
+  return (json: unknown): PayloadEcmwfElemento[] => {
+    const bruto = Array.isArray(json) ? json : [json]
+    if (bruto.length !== cantidad) {
+      throw new Error(
+        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
+      )
+    }
+    return bruto.map((elemento) => payloadEcmwfElementoSchema.parse(elemento))
+  }
 }
 
 /** Interpreta el timestamp de Open-Meteo como UTC (viene sin sufijo 'Z'). */
@@ -106,7 +144,7 @@ function horasEntre(desde: string, hasta: string): number {
 
 function puntosDeCelda(
   geometryRef: string,
-  hourly: PayloadEcmwf['hourly'],
+  hourly: PayloadEcmwfElemento['hourly'],
   ahora: Date,
 ): HazardForecastPunto[] {
   const { time } = hourly
@@ -147,6 +185,10 @@ function puntosDeCelda(
 export type ResultadoPronosticoEcmwf = {
   puntos: HazardForecastPunto[]
   erroresPorCelda: Record<string, string>
+  /** Cantidad de requests HTTP efectivamente disparadas (una por lote). */
+  llamadasRealizadas: number
+  /** Tamaño de cada lote, en el mismo orden en que se hicieron las llamadas. */
+  celdasPorLlamada: number[]
 }
 
 export interface HazardProviderEcmwf extends HazardProvider {
@@ -165,34 +207,46 @@ export function crearProviderEcmwf(opts?: { fetchImpl?: typeof fetch }): HazardP
   }): Promise<ResultadoPronosticoEcmwf> {
     const puntos: HazardForecastPunto[] = []
     const erroresPorCelda: Record<string, string> = {}
+    const celdasValidas: CeldaEcmwf[] = []
 
     for (const geometryRef of params.geometryRefs) {
-      let url: string
       try {
         const { lat, lon } = parsearGeometryRef(geometryRef)
-        url = construirUrl(lat, lon)
+        celdasValidas.push({ geometryRef, lat, lon })
       } catch (error) {
         erroresPorCelda[geometryRef] = `geometry_ref_invalido: ${
           error instanceof Error ? error.message : String(error)
         }`
-        continue
       }
+    }
 
-      const resultado = await ejecutarConReintentos<PayloadEcmwf>({
-        url,
+    const lotes = agruparEnLotes(celdasValidas, TAMANO_LOTE_COORDENADAS)
+    const celdasPorLlamada: number[] = []
+
+    for (const lote of lotes) {
+      celdasPorLlamada.push(lote.length)
+      const resultado = await ejecutarConReintentos<PayloadEcmwfElemento[]>({
+        url: construirUrlLote(lote),
         fetchImpl,
-        parsearPayload: (json) => payloadEcmwfSchema.parse(json),
+        parsearPayload: crearParserLote(lote.length),
       })
 
       if (!resultado.ok) {
-        erroresPorCelda[geometryRef] = `${resultado.motivo}: ${resultado.detalle}`
+        const detalle = `${resultado.motivo}: ${resultado.detalle}`
+        for (const celda of lote) {
+          erroresPorCelda[celda.geometryRef] = detalle
+        }
         continue
       }
 
-      puntos.push(...puntosDeCelda(geometryRef, resultado.datos.hourly, params.ahora))
+      // El array de respuesta viene en el mismo orden que las coordenadas
+      // enviadas: se empareja por índice, no por el lat/lon de la respuesta.
+      lote.forEach((celda, indice) => {
+        puntos.push(...puntosDeCelda(celda.geometryRef, resultado.datos[indice].hourly, params.ahora))
+      })
     }
 
-    return { puntos, erroresPorCelda }
+    return { puntos, erroresPorCelda, llamadasRealizadas: lotes.length, celdasPorLlamada }
   }
 
   return {

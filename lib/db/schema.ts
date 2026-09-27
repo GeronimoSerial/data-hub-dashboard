@@ -735,3 +735,86 @@ export const infraRiskFactor = sqliteTable(
   },
   (t) => [index('infra_risk_factor_snapshot_id_idx').on(t.snapshotId)],
 )
+
+// E3a: señales v2 y capa de peligro estimado (batch E3a, ver
+// docs/ejecucion-enos/E3a/registro.md). Bloque propio para que N1 resuelva el
+// merge con los batches hermanos E3b/G1 sin tocar las tablas de E2 arriba.
+
+// Asociación escuela → punto de río más cercano (lib/infraestructura/riesgo/puntos-rio.ts)
+// dentro de un radio máximo documentado. Tabla propia en vez de columna nueva en
+// `infra_geo_profile` para no competir por ese archivo con otros batches en la
+// misma ola: `infra_geo_profile` sigue siendo propiedad exclusiva de E2/E3b.
+// `puntoRioId` null y `distanciaKm` null significan "fuera de radio", nunca el
+// punto más lejano encontrado.
+export const infraGeoRio = sqliteTable('infra_geo_rio', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  puntoRioId: text('punto_rio_id'),
+  distanciaKm: real('distancia_km'),
+  radioMaximoKm: real('radio_maximo_km').notNull(),
+  version: text('version').notNull(),
+  calculadoEn: text('calculado_en').notNull(),
+})
+
+// Probabilidad de superar la climatología (P95/P99) por celda y horizonte,
+// calculada sobre los miembros de la API Ensemble de Open-Meteo (~51 miembros
+// ECMWF IFS). `dispersion` es la base del nivel de confianza reportado en
+// `nivel.ts`. Índice único por corrida para que repetir el sync no duplique.
+export const hazardEnsembleProb = sqliteTable(
+  'hazard_ensemble_prob',
+  {
+    id: text('id').primaryKey(),
+    geometryRef: text('geometry_ref').notNull(),
+    variable: text('variable').notNull(),
+    corridaEn: text('corrida_en').notNull(),
+    validoEn: text('valido_en').notNull(),
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    miembrosTotal: integer('miembros_total').notNull(),
+    miembrosValidos: integer('miembros_validos').notNull(),
+    probabilidadP95: real('probabilidad_p95').notNull(),
+    probabilidadP99: real('probabilidad_p99').notNull(),
+    dispersion: real('dispersion').notNull(),
+    version: text('version').notNull(),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_ensemble_prob_uidx').on(
+      t.geometryRef,
+      t.variable,
+      t.corridaEn,
+      t.validoEn,
+    ),
+    index('hazard_ensemble_prob_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Precipitación observada estimada por satélite (NASA GPM IMERG Early Run),
+// modelo canónico §9.2 del plan base — E2 omitió esta tabla a propósito por no
+// existir entonces una fuente observacional; E3a la crea. `validoDesde`/
+// `validoHasta` son la ventana de 30 min del producto; `calidad` guarda
+// `precipitationQualityIndex` cuando el granulo lo trae.
+export const hazardObservation = sqliteTable(
+  'hazard_observation',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    variable: text('variable').notNull(),
+    geometryRef: text('geometry_ref').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    observadoEn: text('observado_en').notNull(),
+    validoDesde: text('valido_desde').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+    calidad: real('calidad'),
+    rawRef: text('raw_ref'),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_observation_uidx').on(
+      t.provider,
+      t.variable,
+      t.geometryRef,
+      t.observadoEn,
+    ),
+    index('hazard_observation_geometry_ref_idx').on(t.geometryRef),
+  ],
+)

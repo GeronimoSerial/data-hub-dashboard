@@ -1,9 +1,18 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
-import { hazardClimatology, hazardForecast } from '@/lib/db/schema'
+import {
+  hazardClimatology,
+  hazardForecast,
+  hazardObservation,
+} from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { obtenerAcumuladosObservados } from '@/lib/infraestructura/riesgo/peligro/observado'
+import {
+  obtenerNivelCaudal,
+  obtenerNivelesPeligro,
+} from '@/lib/infraestructura/riesgo/peligro/nivel'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -32,6 +41,14 @@ export async function GET(request: Request) {
     return Response.json({ error: 'geometryRef inválido' }, { status: 400 })
   }
   const geometryRef = parsed.data
+
+  const parsedPunto = geometryRefSchema.safeParse(
+    searchParams.get('puntoRioId') ?? undefined,
+  )
+  if (!parsedPunto.success) {
+    return Response.json({ error: 'puntoRioId inválido' }, { status: 400 })
+  }
+  const puntoRioId = parsedPunto.data
 
   const db = getDb()
   const forecastBase = db.select().from(hazardForecast)
@@ -71,8 +88,47 @@ export async function GET(request: Request) {
     periodoHasta: r.periodoHasta,
   }))
 
+  // La capa de nivel se calcula sólo para la celda pedida: sin geometryRef no
+  // se recorre todo el padrón acá (sería una consulta cara ajena a este
+  // endpoint puntual), así que el arreglo va vacío.
+  const niveles =
+    geometryRef === undefined
+      ? []
+      : await obtenerNivelesPeligro({ geometryRefs: [geometryRef] })
+
+  const caudal =
+    puntoRioId === undefined ? null : await obtenerNivelCaudal(puntoRioId)
+
+  // Sólo las 5 lecturas satelitales más recientes de la celda: un endpoint de
+  // lectura puntual no necesita el histórico completo.
+  const observado =
+    geometryRef === undefined
+      ? []
+      : await db
+          .select({
+            geometryRef: hazardObservation.geometryRef,
+            provider: hazardObservation.provider,
+            variable: hazardObservation.variable,
+            valor: hazardObservation.valor,
+            unidad: hazardObservation.unidad,
+            observadoEn: hazardObservation.observadoEn,
+            validoDesde: hazardObservation.validoDesde,
+            validoHasta: hazardObservation.validoHasta,
+          })
+          .from(hazardObservation)
+          .where(eq(hazardObservation.geometryRef, geometryRef))
+          .orderBy(desc(hazardObservation.observadoEn))
+          .limit(5)
+
+  // MAJOR de la revisión de gate N1 (docs/ejecucion-enos/E3a/registro.md,
+  // §"Correcciones del gate N1"): acumulados 24h/72h de lluvia observada por
+  // celda, con cobertura explícita. Campo additivo, no rompe el contrato
+  // existente de `observado` (las 5 lecturas puntuales más recientes).
+  const observadoAcumulado =
+    geometryRef === undefined ? [] : await obtenerAcumuladosObservados({ geometryRef })
+
   return Response.json(
-    { pronostico, climatologia },
+    { pronostico, climatologia, niveles, caudal, observado, observadoAcumulado },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
 }

@@ -6,8 +6,11 @@
 // Se separa en dos piezas deliberadamente:
 // - `calcularPercentilesPrecipitacion`: función pura, sin red, testeable con
 //   series sintéticas conocidas.
-// - `obtenerSerieHistorica`: arma la solicitud real, valida el payload con Zod
-//   y descarta los días sin dato (null) en vez de imputarlos como 0 mm.
+// - `obtenerSeriesHistoricas`: arma la solicitud real por LOTES de coordenadas,
+//   valida el payload con Zod y descarta los días sin dato (null) en vez de
+//   imputarlos como 0 mm.
+// - `obtenerSerieHistorica`: envoltura de un solo punto sobre la anterior, para
+//   la firma que ya consume el job de climatología.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
@@ -84,7 +87,9 @@ export function calcularPercentilesPrecipitacion(params: {
 // nullable y luego se descarta (NO se convierte a 0 mm).
 const seriePrecipitacion = z.array(z.number().nullable())
 
-const payloadArchivoSchema = z
+// Un objeto por punto. Con una sola coordenada Open-Meteo responde un objeto
+// suelto; con varias, un array de estos objetos en el orden pedido.
+const payloadArchivoElementoSchema = z
   .object({
     daily: z.object({
       time: z.array(z.string()),
@@ -101,20 +106,112 @@ const payloadArchivoSchema = z
     }
   })
 
-function construirUrl(params: {
-  lat: number
-  lon: number
+// 50 coordenadas por request: misma decisión que ECMWF — URLs acotadas y
+// ~387 celdas reales pasan de ~387 requests a ~8 por cálculo histórico.
+export const TAMANO_LOTE_COORDENADAS = 50
+
+/** Parte un array en lotes contiguos de `tamano` sin reordenar. */
+function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
+  const lotes: T[][] = []
+  for (let i = 0; i < items.length; i += tamano) {
+    lotes.push(items.slice(i, i + tamano))
+  }
+  return lotes
+}
+
+export type PuntoClimatologia = { geometryRef: string; lat: number; lon: number }
+
+export type ResultadoSeriesHistoricas = {
+  /** Serie diaria (sin nulls) por geometryRef; sólo de los puntos que respondieron. */
+  seriesPorCelda: Record<string, number[]>
+  /** Fallo por geometryRef con el motivo/detalle de `ejecutarConReintentos`. */
+  erroresPorCelda: Record<string, { motivo: string; detalle: string }>
+  /** Cantidad de requests HTTP efectivamente disparadas (una por lote). */
+  llamadasRealizadas: number
+  /** Tamaño de cada lote, en el mismo orden en que se hicieron las llamadas. */
+  celdasPorLlamada: number[]
+}
+
+function construirUrlLote(
+  puntos: PuntoClimatologia[],
+  periodoDesde: string,
+  periodoHasta: string,
+): string {
+  const latitudes = puntos.map((punto) => String(punto.lat)).join(',')
+  const longitudes = puntos.map((punto) => String(punto.lon)).join(',')
+  return `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=precipitation_sum&timezone=UTC`
+}
+
+/**
+ * Valida el payload de un lote. Acepta objeto suelto (una coordenada) o array
+ * (varias) y exige que la cantidad coincida con las coordenadas enviadas: si
+ * no, el lote entero cae como `payload_invalido` en vez de quedar desalineado.
+ */
+function crearParserLoteClima(cantidad: number) {
+  return (json: unknown): Array<z.infer<typeof payloadArchivoElementoSchema>> => {
+    const bruto = Array.isArray(json) ? json : [json]
+    if (bruto.length !== cantidad) {
+      throw new Error(
+        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
+      )
+    }
+    return bruto.map((elemento) => payloadArchivoElementoSchema.parse(elemento))
+  }
+}
+
+/**
+ * Obtiene la serie histórica diaria de precipitación de VARIOS puntos en una
+ * sola pasada, consultando por lotes de `TAMANO_LOTE_COORDENADAS`. Open-Meteo
+ * devuelve un array en el mismo orden que las coordenadas enviadas, así que el
+ * parseo empareja por índice. Un lote caído no tumba a los demás: sus puntos
+ * quedan en `erroresPorCelda` y el resto devuelve datos.
+ */
+export async function obtenerSeriesHistoricas(params: {
+  puntos: PuntoClimatologia[]
   periodoDesde: string
   periodoHasta: string
-}): string {
-  const { lat, lon, periodoDesde, periodoHasta } = params
-  return `${BASE_URL}?latitude=${lat}&longitude=${lon}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=precipitation_sum&timezone=UTC`
+  fetchImpl?: typeof fetch
+}): Promise<ResultadoSeriesHistoricas> {
+  const seriesPorCelda: Record<string, number[]> = {}
+  const erroresPorCelda: Record<string, { motivo: string; detalle: string }> = {}
+  const celdasPorLlamada: number[] = []
+
+  const lotes = agruparEnLotes(params.puntos, TAMANO_LOTE_COORDENADAS)
+
+  for (const lote of lotes) {
+    celdasPorLlamada.push(lote.length)
+    const resultado = await ejecutarConReintentos<Array<z.infer<typeof payloadArchivoElementoSchema>>>({
+      url: construirUrlLote(lote, params.periodoDesde, params.periodoHasta),
+      fetchImpl: params.fetchImpl,
+      parsearPayload: crearParserLoteClima(lote.length),
+    })
+
+    if (!resultado.ok) {
+      const fallo = { motivo: resultado.motivo, detalle: resultado.detalle }
+      for (const punto of lote) {
+        erroresPorCelda[punto.geometryRef] = fallo
+      }
+      continue
+    }
+
+    lote.forEach((punto, indice) => {
+      seriesPorCelda[punto.geometryRef] = resultado.datos[indice].daily.precipitation_sum.filter(
+        (valor): valor is number => valor !== null,
+      )
+    })
+  }
+
+  return { seriesPorCelda, erroresPorCelda, llamadasRealizadas: lotes.length, celdasPorLlamada }
 }
 
 /**
  * Obtiene la serie histórica diaria de precipitación de un punto. Los días sin
  * dato (`null`) se descartan, no se imputan. Devuelve `ok:false` propagando el
  * motivo/detalle de `ejecutarConReintentos` ante cualquier fallo.
+ *
+ * Es una envoltura de un solo punto sobre `obtenerSeriesHistoricas` (mismo
+ * camino de red, mismo batching): mantiene la firma que ya consume el job de
+ * climatología, que todavía itera celda por celda.
  */
 export async function obtenerSerieHistorica(params: {
   lat: number
@@ -123,18 +220,18 @@ export async function obtenerSerieHistorica(params: {
   periodoHasta: string
   fetchImpl?: typeof fetch
 }): Promise<{ ok: true; valoresDiarios: number[] } | { ok: false; motivo: string; detalle: string }> {
-  const resultado = await ejecutarConReintentos<z.infer<typeof payloadArchivoSchema>>({
-    url: construirUrl(params),
+  const geometryRef = `${params.lat}_${params.lon}`
+  const resultado = await obtenerSeriesHistoricas({
+    puntos: [{ geometryRef, lat: params.lat, lon: params.lon }],
+    periodoDesde: params.periodoDesde,
+    periodoHasta: params.periodoHasta,
     fetchImpl: params.fetchImpl,
-    parsearPayload: (json) => payloadArchivoSchema.parse(json),
   })
 
-  if (!resultado.ok) {
-    return { ok: false, motivo: resultado.motivo, detalle: resultado.detalle }
+  const fallo = resultado.erroresPorCelda[geometryRef]
+  if (fallo) {
+    return { ok: false, motivo: fallo.motivo, detalle: fallo.detalle }
   }
 
-  const valoresDiarios = resultado.datos.daily.precipitation_sum.filter(
-    (valor): valor is number => valor !== null,
-  )
-  return { ok: true, valoresDiarios }
+  return { ok: true, valoresDiarios: resultado.seriesPorCelda[geometryRef] ?? [] }
 }

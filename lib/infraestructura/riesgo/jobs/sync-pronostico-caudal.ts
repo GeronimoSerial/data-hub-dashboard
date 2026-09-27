@@ -27,7 +27,7 @@ import {
   obtenerPronosticoConDiagnostico as pronosticoFloodConDiagnostico,
 } from '../providers/flood'
 import type { HazardForecastPunto } from '../tipos-hazard'
-import { adquirirLease, publicarResultado } from '../job-run'
+import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
 
 // Ambigüedad resuelta: el contrato `HazardProvider` de tipos-hazard.ts sólo
 // declara `obtenerPronostico`; el método con diagnóstico por celda lo agrega
@@ -40,7 +40,15 @@ export interface ProveedorConDiagnostico {
   obtenerPronosticoConDiagnostico(params: {
     geometryRefs: string[]
     ahora: Date
-  }): Promise<{ puntos: HazardForecastPunto[]; erroresPorCelda: Record<string, string> }>
+  }): Promise<{
+    puntos: HazardForecastPunto[]
+    erroresPorCelda: Record<string, string>
+    // Corrección de revisión (hallazgo B): opcional para no romper un fake de
+    // test más viejo que no lo declare; si falta, el job asume 1 request por
+    // geometryRef pedido (comportamiento previo, conservador pero potencialmente
+    // inflado si el provider en realidad batchea).
+    llamadasRealizadas?: number
+  }>
 }
 
 export type ResultadoSyncPronosticoCaudal = {
@@ -51,9 +59,35 @@ export type ResultadoSyncPronosticoCaudal = {
   proveedoresConError: string[]
 }
 
+// Extensión compatible del contrato de retorno: se agrega el caso en que el
+// job perdió el lease durante la ejecución (otro proceso lo recuperó). Conserva
+// `ok:false` y el estilo de `motivo` ya usado por `lease_no_disponible`, y
+// adjunta el parcial procesado hasta el corte para observabilidad.
+export type ResultadoEjecucionSyncPronosticoCaudal =
+  | { ok: true; resultado: ResultadoSyncPronosticoCaudal }
+  | { ok: false; motivo: 'lease_no_disponible' }
+  | {
+      ok: false
+      motivo: 'lease_perdido_durante_ejecucion'
+      resultado: ResultadoSyncPronosticoCaudal
+    }
+
 const TIPO_JOB = 'sync-hazard-pronostico-caudal'
 const VERSION_JOB = 'v1'
 const DURACION_LEASE_MS = 5 * 60 * 1000
+// Renovación activa del lease durante el loop de consultas (hallazgo H2 del
+// batch E2): con ~387 celdas reales la fase de consultas puede durar más que
+// los 5 min del lease, y otra invocación recuperaría el lease vencido y
+// correría en paralelo. En vez de agrandar estáticamente el lease, procesamos
+// las consultas en tandas de `RENOVAR_LEASE_CADA_N_CELDAS` y renovamos después
+// de cada tanda que todavía tenga trabajo por delante. Por qué 25: cada celda
+// es una consulta HTTP que en el peor caso razonable ronda unos pocos
+// segundos, así que una tanda de 25 celdas queda en el orden de ~25-125s,
+// holgadamente por debajo de los 300s del lease; con ~387 celdas eso da ~16
+// renovaciones, overhead despreciable frente a las consultas. El bloque de
+// puntos de río usa el mismo tamaño de tanda porque es la misma clase de
+// invocación al provider.
+const RENOVAR_LEASE_CADA_N_CELDAS = 25
 const TTL_MINUTOS = 360
 const LICENCIA = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
 const LARGO_MAX_ERROR = 300
@@ -103,16 +137,25 @@ async function consultarProveedor(
   provider: ProveedorConDiagnostico,
   geometryRefs: string[],
   ahora: Date,
-): Promise<{ puntos: HazardForecastPunto[]; erroresPorCelda: Record<string, string> }> {
+): Promise<{
+  puntos: HazardForecastPunto[]
+  erroresPorCelda: Record<string, string>
+  llamadasRealizadas: number
+}> {
   try {
-    return await provider.obtenerPronosticoConDiagnostico({ geometryRefs, ahora })
+    const resultado = await provider.obtenerPronosticoConDiagnostico({ geometryRefs, ahora })
+    // Fallback conservador si el provider no reporta su conteo real (ver
+    // comentario del campo opcional en `ProveedorConDiagnostico`).
+    return { ...resultado, llamadasRealizadas: resultado.llamadasRealizadas ?? geometryRefs.length }
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : String(error)
     const erroresPorCelda: Record<string, string> = {}
     for (const ref of geometryRefs) {
       erroresPorCelda[ref] = `proveedor_throw: ${mensaje}`
     }
-    return { puntos: [], erroresPorCelda }
+    // Un throw no permite saber cuántas requests HTTP reales se dispararon
+    // antes de fallar: 0 es la aproximación conservadora (no infla el conteo).
+    return { puntos: [], erroresPorCelda, llamadasRealizadas: 0 }
   }
 }
 
@@ -206,10 +249,10 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   ahora?: Date
   ecmwfProvider?: ProveedorConDiagnostico
   floodProvider?: ProveedorConDiagnostico
-}): Promise<
-  | { ok: true; resultado: ResultadoSyncPronosticoCaudal }
-  | { ok: false; motivo: 'lease_no_disponible' }
-> {
+  // Seam de test: permite inyectar un `renovarLease` fake sin mockear todo el
+  // módulo job-run (que además aporta adquirirLease/publicarResultado).
+  renovarLease?: typeof renovarLeaseReal
+}): Promise<ResultadoEjecucionSyncPronosticoCaudal> {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
@@ -245,56 +288,110 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   // `corridaEn` (dentro de los providers) se deriva de este `inicioBloque`,
   // no del wall-clock `ahora` — ver comentario de `inicioDeBloqueUtc`.
   const inicioBloque = inicioDeBloqueUtc(ahora)
-  const diagnosticoEcmwf = await consultarProveedor(ecmwfProvider, celdas, inicioBloque)
-  const diagnosticoFlood = await consultarProveedor(floodProvider, puntosRio, inicioBloque)
+  const renovar = params?.renovarLease ?? renovarLeaseReal
 
-  const filasEcmwf = await persistirPuntos(
-    db,
-    ecmwfProvider.nombreProveedor,
-    diagnosticoEcmwf.puntos,
-    ahoraIso,
-  )
-  const filasFlood = await persistirPuntos(
-    db,
-    floodProvider.nombreProveedor,
-    diagnosticoFlood.puntos,
-    ahoraIso,
-  )
+  // Armar las tandas de consulta: todo el trabajo de proveedor (celdas ECMWF y
+  // puntos de río) se agrupa de a `RENOVAR_LEASE_CADA_N_CELDAS` para poder
+  // renovar el lease entre tandas. Persistimos cada tanda en cuanto llega: si
+  // el lease se pierde, no seguimos escribiendo filas de `hazard_forecast`.
+  const tandas: Array<{ provider: ProveedorConDiagnostico; refs: string[]; esCeldas: boolean }> =
+    []
+  for (let indice = 0; indice < celdas.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
+    tandas.push({
+      provider: ecmwfProvider,
+      refs: celdas.slice(indice, indice + RENOVAR_LEASE_CADA_N_CELDAS),
+      esCeldas: true,
+    })
+  }
+  for (let indice = 0; indice < puntosRio.length; indice += RENOVAR_LEASE_CADA_N_CELDAS) {
+    tandas.push({
+      provider: floodProvider,
+      refs: puntosRio.slice(indice, indice + RENOVAR_LEASE_CADA_N_CELDAS),
+      esCeldas: false,
+    })
+  }
+
+  const erroresEcmwf: Record<string, string> = {}
+  const erroresFlood: Record<string, string> = {}
+  let celdasConsultadas = 0
+  let puntosRioConsultados = 0
+  let filasInsertadas = 0
+  // Corrección de revisión (hallazgo B): desde que ecmwf.ts batchea varias
+  // celdas en una sola request HTTP, "una llamada por celda/punto consultado"
+  // ya no es el conteo real. Se suma lo que cada provider reporta haber
+  // disparado de verdad (`consultarProveedor` ya rellena un fallback si el
+  // provider no lo expone).
+  let llamadasReales = 0
+  let leasePerdido = false
+
+  for (let indice = 0; indice < tandas.length; indice++) {
+    const tanda = tandas[indice]
+    const diagnostico = await consultarProveedor(tanda.provider, tanda.refs, inicioBloque)
+    Object.assign(tanda.esCeldas ? erroresEcmwf : erroresFlood, diagnostico.erroresPorCelda)
+    filasInsertadas += await persistirPuntos(
+      db,
+      tanda.provider.nombreProveedor,
+      diagnostico.puntos,
+      ahoraIso,
+    )
+    if (tanda.esCeldas) celdasConsultadas += tanda.refs.length
+    else puntosRioConsultados += tanda.refs.length
+    llamadasReales += diagnostico.llamadasRealizadas
+
+    // La última tanda ya no tiene trabajo posterior que proteger: no renovamos
+    // después de ella.
+    if (indice >= tandas.length - 1) continue
+
+    // Fencing: renovamos SÓLO si seguimos siendo el owner. Si devuelve `false`,
+    // otro proceso recuperó el lease: cortamos el loop sin consultar ni
+    // escribir más. No publicamos resultado porque `publicarResultado` también
+    // fallaría el fencing y el nuevo owner es quien manda.
+    // Nota: NO pasamos el `ahora` anclado al inicio del job. Con ese valor,
+    // `leaseExpiraEn` volvería a quedar en `inicio + duracion` (el mismo valor
+    // de la adquisición inicial) y la renovación no extendería el lease; sin
+    // `ahora`, `renovarLease` usa el reloj actual y sí corre el vencimiento.
+    const renovado = await renovar({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      duracionLeaseMs: DURACION_LEASE_MS,
+    })
+    if (!renovado) {
+      leasePerdido = true
+      break
+    }
+  }
 
   const proveedoresConError: string[] = []
-  if (Object.keys(diagnosticoEcmwf.erroresPorCelda).length > 0) {
-    proveedoresConError.push(ecmwfProvider.nombreProveedor)
-  }
-  if (Object.keys(diagnosticoFlood.erroresPorCelda).length > 0) {
-    proveedoresConError.push(floodProvider.nombreProveedor)
+  if (Object.keys(erroresEcmwf).length > 0) proveedoresConError.push(ecmwfProvider.nombreProveedor)
+  if (Object.keys(erroresFlood).length > 0) proveedoresConError.push(floodProvider.nombreProveedor)
+
+  // Conteo real de requests HTTP disparadas (no de celdas/puntos consultados):
+  // ecmwf.ts agrupa hasta 50 coordenadas por request, así que "una por celda"
+  // ya no aplica desde el batching de este batch. Los adapters pueden
+  // reintentar internamente (backoff/429), pero ese detalle queda encapsulado
+  // en cliente-http.ts; acá contamos la unidad de consulta del job.
+  const resultado: ResultadoSyncPronosticoCaudal = {
+    celdasConsultadas,
+    puntosRioConsultados,
+    llamadasRealizadas: llamadasReales,
+    filasInsertadas,
+    proveedoresConError,
   }
 
-  await actualizarSalud(db, ecmwfProvider.nombreProveedor, diagnosticoEcmwf.erroresPorCelda, ahoraIso)
-  await actualizarSalud(db, floodProvider.nombreProveedor, diagnosticoFlood.erroresPorCelda, ahoraIso)
+  if (leasePerdido) {
+    return { ok: false, motivo: 'lease_perdido_durante_ejecucion', resultado }
+  }
 
-  // Aproximación del conteo de llamadas HTTP: una por celda ECMWF y una por
-  // punto de río. Los adapters pueden reintentar internamente (backoff/429),
-  // pero ese detalle queda encapsulado en cliente-http.ts; acá contamos la
-  // unidad de consulta del job.
-  const llamadasRealizadas = celdas.length + puntosRio.length
-  const filasInsertadas = filasEcmwf + filasFlood
+  await actualizarSalud(db, ecmwfProvider.nombreProveedor, erroresEcmwf, ahoraIso)
+  await actualizarSalud(db, floodProvider.nombreProveedor, erroresFlood, ahoraIso)
 
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
     estado: 'completado',
-    contadores: { llamadas: llamadasRealizadas, filas: filasInsertadas },
+    contadores: { llamadas: resultado.llamadasRealizadas, filas: filasInsertadas },
     ahora,
   })
 
-  return {
-    ok: true,
-    resultado: {
-      celdasConsultadas: celdas.length,
-      puntosRioConsultados: puntosRio.length,
-      llamadasRealizadas,
-      filasInsertadas,
-      proveedoresConError,
-    },
-  }
+  return { ok: true, resultado }
 }

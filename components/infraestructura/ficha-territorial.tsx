@@ -23,6 +23,9 @@ interface PerfilGeografico {
   motivoExclusion: string | null
   perfilVersion?: number | string
   calculadoEn?: string | null
+  // `null` = todavía no corrió el job de asociación; con fila pero
+  // `puntoRioId: null` = corrió y la escuela quedó fuera del radio de 40 km.
+  rioAsociacion?: { puntoRioId: string | null; distanciaKm: number | null } | null
 }
 
 interface PuntoPronostico {
@@ -37,9 +40,60 @@ interface PuntoPronostico {
   pasoHoras?: number
 }
 
+type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
+type BaseNivel = 'ensemble' | 'deterministico' | 'sin_dato'
+type HorizontePeligro = 24 | 72 | 240
+
+interface NivelHorizonte {
+  geometryRef: string
+  horizonteHoras: HorizontePeligro
+  nivel: NivelPeligro
+  base: BaseNivel
+  probabilidadP95: number | null
+  probabilidadP99: number | null
+  precipitacionMm: number | null
+  percentilReferencia: 'P90' | 'P95' | 'P99' | null
+  emitidoEn: string
+  validoHasta: string
+  versionRegla: string
+}
+
+interface CaudalPeligro {
+  puntoId: string
+  percentilActual: number | null
+  nivel: NivelPeligro
+  emitidoEn: string
+  validoHasta: string
+}
+
+interface ObservadoPeligro {
+  geometryRef: string
+  provider: string
+  variable: string
+  valor: number
+  unidad: string
+  observadoEn: string
+  validoDesde: string
+  validoHasta: string
+}
+
+interface ObservadoAcumulado {
+  geometryRef: string
+  horizonteHoras: 24 | 72
+  acumuladoMm: number | null
+  granulosEncontrados: number
+  granulosEsperados: number
+  cobertura: number
+  masRecienteEn: string | null
+}
+
 interface RespuestaPeligro {
   pronostico?: PuntoPronostico[]
   climatologia?: unknown[]
+  niveles?: NivelHorizonte[]
+  caudal?: CaudalPeligro | null
+  observado?: ObservadoPeligro[]
+  observadoAcumulado?: ObservadoAcumulado[]
 }
 
 interface FuenteInfraestructura {
@@ -103,6 +157,51 @@ function formatearFecha(iso: string | null | undefined): string | null {
 }
 
 /**
+ * Texto explícito del nivel: el color es un refuerzo, nunca la única señal.
+ * "alerta" y el SMN quedan deliberadamente afuera: esto es una estimación
+ * propia, no un aviso oficial.
+ */
+function etiquetaNivel(nivel: NivelPeligro): string {
+  if (nivel === 'verde') return 'Verde'
+  if (nivel === 'amarillo') return 'Amarillo'
+  if (nivel === 'naranja') return 'Naranja'
+  if (nivel === 'rojo') return 'Rojo'
+  return 'Sin dato'
+}
+
+function etiquetaHorizonte(horas: number): string {
+  if (horas === 24) return 'Próximas 24h (riesgo inmediato)'
+  if (horas === 72) return 'Próximas 72h (riesgo probable)'
+  if (horas === 240) return '7-10 días (tendencia)'
+  return `Próximas ${horas}h`
+}
+
+function etiquetaBase(base: BaseNivel): string | null {
+  if (base === 'ensemble') return '(ensemble)'
+  if (base === 'deterministico') return '(determinístico)'
+  return null
+}
+
+/**
+ * Texto de un acumulado observado 24h/72h: siempre incluye la cobertura
+ * (gránulos encontrados / esperados), y "sin dato" explícito cuando la
+ * cobertura no alcanzó el umbral mínimo — nunca se muestra un acumulado
+ * numérico sin decir qué tan completo está.
+ */
+function textoAcumuladoObservado(fila: {
+  acumuladoMm: number | null
+  granulosEncontrados: number
+  granulosEsperados: number
+  cobertura: number
+}): string {
+  const coberturaPct = Math.round(fila.cobertura * 100)
+  if (fila.acumuladoMm === null) {
+    return `sin dato (cobertura ${coberturaPct}%, ${fila.granulosEncontrados}/${fila.granulosEsperados} lecturas)`
+  }
+  return `${formatearValor(fila.acumuladoMm)} mm (cobertura ${coberturaPct}%)`
+}
+
+/**
  * Ficha territorial compacta (E2): contexto del departamento/celda, calidad de
  * la coordenada, resumen de las próximas 72h de lluvia/ráfagas, caudal del
  * punto de río asociado (si lo hay) y frescura de la fuente.
@@ -148,8 +247,13 @@ export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Eleme
           return
         }
 
+        const puntoRioId = perfil.rioAsociacion?.puntoRioId
+        const urlPeligro = `/api/infraestructura/peligro?geometryRef=${encodeURIComponent(
+          perfil.geometryRef,
+        )}${puntoRioId ? `&puntoRioId=${encodeURIComponent(puntoRioId)}` : ''}`
+
         const [respuestaPeligro, respuestaFuentes] = await Promise.all([
-          fetch(`/api/infraestructura/peligro?geometryRef=${encodeURIComponent(perfil.geometryRef)}`),
+          fetch(urlPeligro),
           fetch('/api/infraestructura/fuentes'),
         ])
         if (!respuestaPeligro.ok || !respuestaFuentes.ok) {
@@ -239,6 +343,53 @@ export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Eleme
     .at(-1)
   const antiguedad = formatearFecha(corridaMasReciente)
 
+  // --- Peligro estimado por horizonte (estimación propia, sin color solo) ---
+  const niveles = peligro.niveles ?? []
+  const nivelesTodosSinDato = niveles.length > 0 && niveles.every((fila) => fila.nivel === 'sin_dato')
+
+  // --- Caudal con percentil ---
+  // El bug que esto corrige: la línea vieja buscaba `variable === 'caudal'`
+  // dentro de `pronostico`, que la ruta nunca devuelve. El caudal real llega
+  // ahora en `peligro.caudal`, con su percentil y nivel.
+  const caudal: JSX.Element | null = (() => {
+    if (peligro.caudal) {
+      const percentil = peligro.caudal.percentilActual ?? 'sin dato'
+      return (
+        <p className="ficha-territorial__dato" data-testid="ficha-territorial-caudal">
+          Caudal del río (percentil {percentil}): nivel {etiquetaNivel(peligro.caudal.nivel)}
+        </p>
+      )
+    }
+    if (perfil.rioAsociacion?.puntoRioId) {
+      return (
+        <p className="ficha-territorial__dato" data-testid="ficha-territorial-caudal">
+          Caudal del río: sin dato
+        </p>
+      )
+    }
+    // `rioAsociacion` ausente (no `null`) = backend sin el campo todavía: se
+    // cae al resumen viejo de `pronostico` para no perder el dato si existiera.
+    if (perfil.rioAsociacion === undefined && caudalMasProximo) {
+      return (
+        <p className="ficha-territorial__dato" data-testid="ficha-territorial-caudal">
+          Caudal del punto de río: {formatearValor(caudalMasProximo.valor)} {caudalMasProximo.unidad}
+        </p>
+      )
+    }
+    return null
+  })()
+
+  // --- Lluvia observada satelital (NASA GPM IMERG, no pluviómetro) ---
+  const lluviaObservada = (peligro.observado ?? []).find(
+    (fila) => fila.variable === 'precipitacion_observada_satelital',
+  )
+  const fechaLluviaObservada = formatearFecha(lluviaObservada?.observadoEn)
+
+  // --- Acumulado observado 24h/72h (MAJOR de la revisión de gate N1) ---
+  const acumulados = peligro.observadoAcumulado ?? []
+  const acumulado24h = acumulados.find((fila) => fila.horizonteHoras === 24) ?? null
+  const acumulado72h = acumulados.find((fila) => fila.horizonteHoras === 72) ?? null
+
   // Corrección de revisión (hallazgo H6, docs/ejecucion-enos/E2/registro.md
   // §5): "vencida" es sobre FRESCURA real (frescuraMinutos > ttlMinutos), no
   // sobre `estado`. Antes: un provider 'degradado' con dato fresco se
@@ -275,6 +426,36 @@ export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Eleme
         </p>
       )}
 
+      <div className="ficha-territorial__peligro">
+        <p className="ficha-territorial__subtitulo">
+          <strong>Peligro estimado</strong>
+        </p>
+        {niveles.length === 0 || nivelesTodosSinDato ? (
+          <p className="ficha-territorial__dato" data-testid="ficha-territorial-nivel-peligro">
+            Peligro estimado: sin dato
+          </p>
+        ) : (
+          niveles.map((fila) => {
+            const base = etiquetaBase(fila.base)
+            return (
+              <p
+                key={fila.horizonteHoras}
+                className="ficha-territorial__dato"
+                data-testid="ficha-territorial-nivel-peligro"
+              >
+                {etiquetaHorizonte(fila.horizonteHoras)}:{' '}
+                <span
+                  className={`ficha-territorial__nivel ficha-territorial__nivel--${fila.nivel}`}
+                >
+                  {etiquetaNivel(fila.nivel)}
+                </span>
+                {base ? ` ${base}` : ''}
+              </p>
+            )
+          })
+        )}
+      </div>
+
       {sinPeligro ? (
         <p
           className="ficha-territorial__estado"
@@ -295,16 +476,44 @@ export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Eleme
               Ráfagas máximas próximas 72h: {formatearValor(rafagaMaxima)} {rafagas[0].unidad}
             </p>
           )}
-          {caudalMasProximo && (
-            <p className="ficha-territorial__dato">
-              Caudal del punto de río: {formatearValor(caudalMasProximo.valor)}{' '}
-              {caudalMasProximo.unidad}
-            </p>
-          )}
           {proveedores.length > 0 && (
             <p className="ficha-territorial__fuente">
               Fuente: {proveedores.join(', ')}
               {antiguedad ? ` · ${antiguedad}` : ''}
+            </p>
+          )}
+        </div>
+      )}
+
+      {caudal}
+
+      {lluviaObservada && (
+        <p className="ficha-territorial__dato" data-testid="ficha-territorial-lluvia-observada">
+          Lluvia observada estimada por satélite: {formatearValor(lluviaObservada.valor)}{' '}
+          {lluviaObservada.unidad}
+          {fechaLluviaObservada ? ` (${fechaLluviaObservada})` : ''}
+        </p>
+      )}
+
+      {(acumulado24h || acumulado72h) && (
+        <div className="ficha-territorial__observado-acumulado">
+          <p className="ficha-territorial__subtitulo">
+            <strong>Lluvia observada estimada por satélite (últimas 24 h / 72 h)</strong>
+          </p>
+          {acumulado24h && (
+            <p
+              className="ficha-territorial__dato"
+              data-testid="ficha-territorial-observado-24h"
+            >
+              24 h: {textoAcumuladoObservado(acumulado24h)}
+            </p>
+          )}
+          {acumulado72h && (
+            <p
+              className="ficha-territorial__dato"
+              data-testid="ficha-territorial-observado-72h"
+            >
+              72 h: {textoAcumuladoObservado(acumulado72h)}
             </p>
           )}
         </div>
