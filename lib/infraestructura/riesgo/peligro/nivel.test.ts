@@ -847,6 +847,53 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
   it('con geometryRefs vacío no consulta y devuelve lista vacía', async () => {
     expect(await obtenerNivelesPeligro({ geometryRefs: [], horizontes, ahora })).toEqual([])
   })
+
+  // Regresión M2: en el radar (mapa de infraestructura), 72 h y 7-10 días
+  // aparecían en gris ("sin dato") mientras 24 h mostraba un nivel real.
+  // Diagnóstico (DB de demo): el pronóstico determinístico cubre las 228 horas
+  // (0..227) de la corrida, pero `hazard_climatology` estaba VACÍA para todas
+  // las celdas. Antes del batch P1 (umbrales provisorios), sin climatología el
+  // resultado era 'sin_dato' para cualquier horizonte que no tomara el camino
+  // del ensemble — y el ensemble tampoco tenía filas en la demo, así que 72h y
+  // 240h caían siempre a sin_dato mientras 24h podía colarse por otro camino.
+  // P1 ya solucionó la causa de fondo (agrega el fallback 'umbral_provisorio'
+  // cuando hay pronóstico pero no climatología, ver umbrales-provisorios.ts) y
+  // este test la fija como regresión: con pronóstico horario completo y CERO
+  // climatología/ensemble, los tres horizontes tienen que resolver a un nivel
+  // concreto, nunca a 'sin_dato' mudo.
+  it('regresión: sin climatología ni ensemble pero con pronóstico horario completo, 24/72/240 nunca son sin_dato', async () => {
+    const geometryRef = 'celda-demo-m2'
+    const corridaEn = '2026-09-27T12:00:00.000Z'
+    // Pronóstico horario 0..227h (mismo rango que la corrida real de la demo),
+    // todas las lecturas bajas (0mm) salvo un pico a las 48h — no importa el
+    // valor exacto para esta regresión, sólo que exista una fila por hora.
+    const filas = []
+    for (let h = 0; h <= 227; h += 1) {
+      filas.push(
+        filaPronostico({
+          geometryRef,
+          variable: 'precipitacion',
+          corridaEn,
+          validoEn: new Date(Date.parse(corridaEn) + h * 60 * 60 * 1000).toISOString(),
+          horizonteHoras: h,
+          valor: h === 48 ? 2.8 : 0,
+        }),
+      )
+    }
+    await db.insert(hazardForecast).values(filas)
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: [geometryRef],
+      horizontes: [24, 72, 240],
+      ahora: new Date(corridaEn),
+    })
+
+    expect(resultado).toHaveLength(3)
+    for (const fila of resultado) {
+      expect(fila.nivel).not.toBe('sin_dato')
+      expect(fila.metodo).toBe('umbral_provisorio')
+    }
+  })
 })
 
 describe('obtenerNivelCaudal', () => {

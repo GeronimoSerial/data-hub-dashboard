@@ -427,7 +427,7 @@ describe('reconstruirBriefingDesdeCorte', () => {
     expect(briefingReconstruido.length).toBeGreaterThan(0)
   })
 
-  it('sin corte anterior devuelve la línea de "primer corte disponible"', async () => {
+  it('sin corte anterior devuelve la línea de "primer resumen del día", sin exponer el id interno', async () => {
     await insertarRunVigente()
     const corte1 = await generarCorte({ ahora: new Date(AHORA), jobRunId: null })
     const ultimo = (await obtenerUltimoCorte())!
@@ -435,6 +435,7 @@ describe('reconstruirBriefingDesdeCorte', () => {
 
     const briefing = reconstruirBriefingDesdeCorte(ultimo, null)
     expect(briefing).toHaveLength(1)
-    expect(briefing[0]).toMatch(/primer corte disponible/)
+    expect(briefing[0]).toMatch(/Primer resumen del día/)
+    expect(briefing[0]).not.toContain(ultimo.id)
   })
 })
