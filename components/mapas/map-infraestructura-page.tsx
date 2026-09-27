@@ -1462,6 +1462,7 @@ export default function MapInfraestructuraPage(props: {
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
             mostrarLeyendaPeligro={radarActivo}
+            hayNivelProvisorio={radarData?.hayNivelProvisorio ?? false}
           />
         </div>
       )}
