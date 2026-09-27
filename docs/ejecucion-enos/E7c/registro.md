@@ -249,3 +249,12 @@ a esa interfaz para que coincida con el contrato real.
   reemplaza todo el panel izquierdo (hoy Replay reemplaza el panel, igual
   que antes del merge).
 - Revisión y merge del batch integrado a `feat/renovación`.
+
+## Gate (N1)
+
+**Decisión: aceptado tras correcciones (2026-09-27).**
+
+- Verificaciones de N1 sobre la rama integrada: `pnpm exec vitest run --maxWorkers=2` 199 archivos / 1695 tests, `pnpm lint` y `pnpm exec tsc --noEmit` con exit 0.
+- Revisión independiente (N2 → N3): dos hallazgos mayores, corregidos. (1) Salir del Replay con el conmutador no detenía la reproducción; ahora se detiene por cualquier vía y nunca arranca sola al volver. (2) Las coordenadas del replay salían del departamento elegido en "Situación actual"; ahora salen del padrón completo de M1.
+- Integración con M1 (padrón, buscador, hover) y P1 (nivel provisorio) resuelta en la misma rama.
+- Pendiente: walkthrough con operadores.
