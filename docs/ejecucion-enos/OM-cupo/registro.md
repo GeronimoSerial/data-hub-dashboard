@@ -580,3 +580,13 @@ Ninguno funcional. Queda pendiente la revisión y el merge del batch, y la
 decisión operativa de habilitar los dos timers nuevos en el ambiente real
 (`systemctl enable --now enos-ops1-climatologia-precipitacion.timer` /
 `enos-ops1-climatologia-caudal.timer`, ver runbook).
+
+## Gate (N1)
+
+**Decisión: aceptado tras dos rondas de correcciones (2026-09-27).**
+
+- Primera revisión (N2 → N3): bloqueante porque los reintentos del cliente HTTP no reservaban cupo por cada intento real; corregido (66c4ebc).
+- Segunda revisión (N2 → N3): bloqueante porque la climatología de precipitación nunca avanzaba (una celda de 30 años pesa ~783 llamadas ponderadas, más que el tope de 600 por minuto); corregido (a4d9421): requests troceados por celdas y por período, la ventana por minuto espera hasta el minuto siguiente y reintenta, hora/día/mes cortan dejando la corrida en 'fallido' para retomar, un único conjunto de motivos de corte y guard también en sync-seasonal.
+- N1 verificó la lógica de espera por minuto en el código y corrió la suite de la rama: 193 archivos / 1649 tests y lint con exit 0.
+- Límites duros del usuario respetados como techos: 600/min, 5.000/h, 10.000/día, 300.000/mes (la configuración sólo puede bajarlos).
+- Estimación: la climatología completa tarda unos 7–9 días de corridas diarias dentro del cupo, dejando lugar a los syncs de 6 h.
