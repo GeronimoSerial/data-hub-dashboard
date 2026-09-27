@@ -2,6 +2,11 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { obtenerEstadoOperativo } from '@/lib/infraestructura/riesgo/salud'
+import {
+  estadoAtrasoJob,
+  proximaCorridaEsperada,
+  TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB,
+} from '@/lib/infraestructura/riesgo/cadencias'
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -53,6 +58,7 @@ export default async function OperacionSalud() {
           <li>riskRadarEnabled: {String(estado.flags.riskRadarEnabled)}</li>
           <li>aiBriefingEnabled: {String(estado.flags.aiBriefingEnabled)}</li>
           <li>riskMode: {estado.flags.riskMode}</li>
+          <li>enosJobsEnabled: {String(estado.flags.enosJobsEnabled)}</li>
         </ul>
       </section>
 
@@ -69,11 +75,31 @@ export default async function OperacionSalud() {
                 <th style={celda}>intento</th>
                 <th style={celda}>actualizadaEn</th>
                 <th style={celda}>errorSaneado</th>
+                <th style={celda}>última corrida</th>
+                <th style={celda}>próxima esperada</th>
+                <th style={celda}>atrasado</th>
               </tr>
             </thead>
             <tbody>
               {estado.jobs.map((job) => {
-                const resaltado = job.leaseVencido || job.estado === 'fallido'
+                // job.tipo es el TIPO_JOB interno de infra_job_run, no el
+                // nombre CLI de scripts/jobs.mjs: hay que traducirlo primero
+                // (ver cadencias.ts). Jobs de otros batches (p. ej.
+                // 'diagnostico') no están en el mapeo y muestran '—'.
+                const nombreJob = TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB[job.tipo]
+                const ultimaCorridaExitosaEn = job.ultimaCompletadaEn
+                  ? new Date(job.ultimaCompletadaEn)
+                  : null
+                const { texto: textoAtraso, atrasado, desactivadoPorConfig } = estadoAtrasoJob({
+                  nombre: nombreJob,
+                  ultimaCorridaExitosaEn,
+                  enosJobsEnabled: estado.flags.enosJobsEnabled,
+                })
+                const proxima = nombreJob
+                  ? proximaCorridaEsperada({ nombre: nombreJob, ultimaCorridaExitosaEn })
+                  : null
+                const resaltado =
+                  !desactivadoPorConfig && (job.leaseVencido || job.estado === 'fallido' || atrasado)
                 const estilo = resaltado ? alerta : celda
                 return (
                   <tr key={job.tipo}>
@@ -82,6 +108,9 @@ export default async function OperacionSalud() {
                     <td style={estilo}>{job.intento}</td>
                     <td style={estilo}>{job.actualizadaEn}</td>
                     <td style={estilo}>{job.errorSaneado ?? '—'}</td>
+                    <td style={estilo}>{nombreJob ? (job.ultimaCompletadaEn ?? '—') : '—'}</td>
+                    <td style={estilo}>{proxima ? proxima.toISOString() : '—'}</td>
+                    <td style={estilo}>{textoAtraso}</td>
                   </tr>
                 )
               })}

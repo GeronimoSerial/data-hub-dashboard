@@ -2,6 +2,7 @@
 // último run conocido por tipo de job. Sólo lectura — nunca dispara jobs.
 import { getDb } from '@/lib/db'
 import { infraJobRun } from '@/lib/db/schema'
+import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
 import { aiBriefingEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
 
 export type EstadoJobRun = {
@@ -13,14 +14,21 @@ export type EstadoJobRun = {
   actualizadaEn: string
   errorSaneado: string | null
   leaseVencido: boolean
+  ultimaCompletadaEn: string | null
 }
 
 export type EstadoOperativo = {
   flags: {
+    // Flags de UI (ocultan/muestran pantallas), no de ejecución de jobs.
     riskEngineEnabled: boolean
     riskRadarEnabled: boolean
     aiBriefingEnabled: boolean
     riskMode: 'shadow' | 'advisory'
+    // Flag maestro de ejecución de los jobs batch OPS1 (ver
+    // lib/infraestructura/jobs/flags.ts). Encendido por defecto: en false
+    // significa que los 8 jobs están en pausa operativa deliberada, no que
+    // estén "atrasados".
+    enosJobsEnabled: boolean
   }
   jobs: EstadoJobRun[]
   generadoEn: string
@@ -35,6 +43,17 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
   // claveIdempotente distinta): ordenar por actualizadaEn desc y quedarse con
   // la primera vista de cada tipo.
   const ordenadas = [...filas].sort((a, b) => b.actualizadaEn.localeCompare(a.actualizadaEn))
+
+  // Última fila COMPLETADA por tipo: `ordenadas` ya está desc por actualizadaEn,
+  // así que la primera fila completada que se ve por tipo es la más reciente. No
+  // reusa `vistos` (ese cubre la última fila cualquiera sea su estado).
+  const completadasPorTipo = new Map<string, string>()
+  for (const fila of ordenadas) {
+    if (fila.estado !== 'completado') continue
+    if (completadasPorTipo.has(fila.tipo)) continue
+    completadasPorTipo.set(fila.tipo, fila.actualizadaEn)
+  }
+
   const vistos = new Set<string>()
   const jobs: EstadoJobRun[] = []
   for (const fila of ordenadas) {
@@ -53,6 +72,7 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
       actualizadaEn: fila.actualizadaEn,
       errorSaneado: fila.errorSaneado,
       leaseVencido,
+      ultimaCompletadaEn: completadasPorTipo.get(fila.tipo) ?? null,
     })
   }
 
@@ -62,6 +82,7 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
       riskRadarEnabled: riskRadarEnabled(),
       aiBriefingEnabled: aiBriefingEnabled(),
       riskMode: riskMode(),
+      enosJobsEnabled: enosJobsEnabled(),
     },
     jobs,
     generadoEn: ahora.toISOString(),
