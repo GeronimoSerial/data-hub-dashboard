@@ -203,6 +203,68 @@ describe('ejecutarConReintentos — integración con OM-cupo', () => {
     expect(registrar429).toHaveBeenCalledWith(30_000)
   })
 
+  it('BLOCKER: timeout dos veces y éxito a la 3ra reserva peso UNA vez por intento HTTP real (3x en total)', async () => {
+    const { cupo, reservar } = controladorCupoFake({ ok: true, esperoMs: 0 })
+    let llamada = 0
+    const fetchImpl = vi.fn(() => {
+      llamada++
+      if (llamada < 3) {
+        return new Promise<Response>(() => {
+          /* nunca resuelve: fuerza timeout */
+        })
+      }
+      return Promise.resolve(respuestaOk({ valor: 9 }))
+    })
+    const r = await ejecutarConReintentos({
+      url: 'https://example.test',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      cupo,
+      timeoutMs: 5,
+      maxIntentos: 3,
+      backoffBaseMs: 1,
+      backoffMaxMs: 1,
+      parsearPayload: (json) => (json as { valor: number }).valor,
+    })
+    expect(r).toEqual({ ok: true, datos: 9 })
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    // Un intento lógico con 2 timeouts + 1 éxito son 3 requests HTTP reales:
+    // cada uno reserva su propio peso, nunca se reserva una sola vez para
+    // los 3.
+    expect(reservar).toHaveBeenCalledTimes(3)
+  })
+
+  it('BLOCKER: si la reserva falla a mitad de los reintentos, se detiene sin más intentos HTTP', async () => {
+    let llamada = 0
+    const reservar = vi.fn(async (): Promise<ResultadoReservaCupo> => {
+      llamada++
+      if (llamada === 1) return { ok: true, esperoMs: 0 }
+      return {
+        ok: false,
+        motivo: 'cupo_agotado',
+        ventana: 'hora',
+        detalle: 'cupo agotado en ventana "hora" a mitad de los reintentos',
+      }
+    })
+    const registrar429 = vi.fn(async () => {})
+    const cupo: ControladorCupoOM = { reservar, registrar429 }
+    const fetchImpl = vi.fn(async () => new Response('error', { status: 500 }))
+    const r = await ejecutarConReintentos({
+      url: 'https://example.test',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      cupo,
+      maxIntentos: 5,
+      backoffBaseMs: 1,
+      backoffMaxMs: 1,
+      parsearPayload: (json) => json,
+    })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.motivo).toBe('cupo_agotado')
+    // 1 request real (500, reintentable) + 1 reserva que bloquea antes del
+    // 2do fetch: nunca se dispara un 2do fetch.
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(reservar).toHaveBeenCalledTimes(2)
+  })
+
   it('429 SIN Retry-After no registra cooldown (no sabemos cuánto durar)', async () => {
     const { cupo, registrar429 } = controladorCupoFake({ ok: true, esperoMs: 0 })
     const fetchImpl = vi.fn(async () => new Response('rate limited', { status: 429 }))

@@ -22,6 +22,7 @@
 // env `_PAGO` explícito de la ventana correspondiente.
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { omCupoContador, omCupoCooldown } from '@/lib/db/schema'
 
 export type VentanaCupo = 'minuto' | 'hora' | 'dia' | 'mes'
@@ -258,26 +259,18 @@ function esperarReal(ms: number): Promise<void> {
 // al mismo archivo SQLite pueden chocar con `SQLITE_BUSY`/"database is
 // locked" si el segundo llega mientras el primero todavía tiene la
 // transacción abierta — es un detalle de implementación del driver, no una
-// decisión de negocio, así que se reintenta acotado (backoff corto fijo, no
-// configurable, no expuesto en el contrato público de `reservarCupo`) en vez
-// de burbujear el error o esperar el minuto entero por una colisión de
-// milisegundos.
+// decisión de negocio. Se reutiliza `conReintentoPorBloqueo` (lib/db/reintento.ts,
+// extraído de fix/parte-alta-concurrente) en vez de mantener una segunda
+// implementación local del mismo reintento: mismo criterio de "reintentar el
+// bloque completo", pero con backoff+jitter fijo (10–30ms) para no esperar de
+// más frente a una colisión de milisegundos, con un techo alto de intentos
+// (25) porque `intentarReservarTodasLasVentanas` puede competir con muchos
+// escritores concurrentes en test.
 async function conReintentoSiOcupado<T>(fn: () => Promise<T>): Promise<T> {
-  const MAX_INTENTOS = 25
-  for (let intento = 0; intento < MAX_INTENTOS; intento++) {
-    try {
-      return await fn()
-    } catch (error) {
-      const mensaje = error instanceof Error ? error.message : String(error)
-      const esBusy =
-        mensaje.includes('SQLITE_BUSY') ||
-        mensaje.includes('database is locked') ||
-        (error instanceof Error && 'code' in error && (error as { code?: unknown }).code === 'SQLITE_BUSY')
-      if (!esBusy || intento === MAX_INTENTOS - 1) throw error
-      await esperarReal(10 + Math.random() * 20)
-    }
-  }
-  throw new Error('inalcanzable: conReintentoSiOcupado agotó MAX_INTENTOS sin retornar ni lanzar')
+  return conReintentoPorBloqueo(() => fn(), {
+    maxIntentos: 25,
+    calcularEsperaMs: () => 10 + Math.random() * 20,
+  })
 }
 
 /**
@@ -469,7 +462,10 @@ export function crearControladorCupo(params: {
 
 // Nombres de host tal como los usan los adapters (sin protocolo ni sufijo de
 // dominio) — coinciden con el prefijo real de cada endpoint de Open-Meteo.
-export type HostOpenMeteo = 'api' | 'ensemble-api' | 'archive-api' | 'flood-api'
+// `seasonal-api` (SEASONAL, ver providers/seasonal.ts) gasta del MISMO bucket
+// compartido que los otros 4 (ver `bucketCupo` arriba): el techo de
+// Open-Meteo es de cuenta/IP, no por subdominio.
+export type HostOpenMeteo = 'api' | 'ensemble-api' | 'archive-api' | 'flood-api' | 'seasonal-api'
 
 /**
  * Arma la URL base según haya o no API key. Fuente:

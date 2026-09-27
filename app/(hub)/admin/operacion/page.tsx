@@ -11,6 +11,7 @@ import { getDb } from '@/lib/db'
 import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
+import { obtenerAvanceClimatologia } from '@/lib/infraestructura/riesgo/avance-climatologia'
 
 const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 const bloque: React.CSSProperties = {
@@ -48,6 +49,7 @@ export default async function OperacionSalud() {
   const estado = await obtenerEstadoOperativo()
   const fuentes = await getDb().select().from(hazardSourceHealth)
   const cupo = await obtenerResumenCupo({ apiKeyPresente: Boolean(apiKeyDesdeEntorno()) })
+  const avanceClimatologia = await obtenerAvanceClimatologia()
 
   return (
     <div style={contenedor}>
@@ -162,6 +164,45 @@ export default async function OperacionSalud() {
         <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
           Datos meteorológicos: Open-Meteo.com (CC BY 4.0), ECMWF.
         </p>
+      </section>
+
+      <section style={bloque}>
+        <h2>Avance de climatología (cursor resumable de cupo)</h2>
+        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem', marginTop: 0 }}>
+          El cálculo completo excede el cupo diario/mensual de Open-Meteo en una
+          sola corrida: el timer diario avanza el cursor hasta el tope de cupo
+          disponible ese día, sin recomputar lo ya hecho. Ver
+          docs/ejecucion-enos/OM-cupo/registro.md.
+        </p>
+        <table style={tabla}>
+          <thead>
+            <tr>
+              <th style={celda}>climatología</th>
+              <th style={celda}>celdas/puntos completos</th>
+              <th style={celda}>total</th>
+              <th style={celda}>%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(
+              [
+                ['Precipitación (ERA5, ~387 celdas)', avanceClimatologia.precipitacion],
+                ['Caudal (GloFAS, 8 puntos fijos)', avanceClimatologia.caudal],
+              ] as const
+            ).map(([etiqueta, avance]) => {
+              const porcentaje = avance.total === 0 ? 0 : Math.round((avance.completas / avance.total) * 100)
+              const completo = avance.total > 0 && avance.completas >= avance.total
+              return (
+                <tr key={etiqueta}>
+                  <td style={celda}>{etiqueta}</td>
+                  <td style={celda}>{avance.completas}</td>
+                  <td style={celda}>{avance.total}</td>
+                  <td style={completo ? celda : alerta}>{porcentaje}%{completo ? ' (completo)' : ''}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </section>
 
       <section style={bloque}>

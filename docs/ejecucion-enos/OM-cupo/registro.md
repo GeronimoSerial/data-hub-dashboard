@@ -265,3 +265,169 @@ completar, sin exceder nunca los techos duros documentados en la sección 3.
    por `cupo_agotado` progresa mes a mes sin recomputar trabajo ya hecho. El
    job-run queda `fallido` (no `completado`) cuando el corte fue por cupo,
    para que `adquirirLease` autorice el reintento del mismo período+version.
+
+## 7. Merge con `feat/renovación` (2026-09-27)
+
+Esta rama (`feat/open-meteo-cupo`) traía un commit local `805ba18` sin
+mergear contra `feat/renovación` (E4/E5/E7b/E7c/seasonal/situación, ~25
+archivos nuevos y varios modificados). El merge quedó con conflictos textuales
+sin resolver en tres archivos, ya resueltos en una sesión anterior (verificado
+en esta sesión, sin markers `<<<<<<<`/`=======`/`>>>>>>>` remanentes,
+`git diff --check` limpio) y sólo pendiente de `git add` + `git commit
+--no-edit` para cerrar el merge — completado en esta sesión:
+
+- **`lib/db/schema.ts` / `lib/db/seed.ts`**: ambos bandos agregaban bloques
+  independientes al final del archivo (`OM-cupo:` con `om_cupo_contador`/
+  `om_cupo_cooldown`, vs. `Seasonal`/`E7b`/`E5` de `feat/renovación`) — la
+  resolución conserva los dos, uno seguido del otro, sin pisarse (ningún
+  índice ni tabla se perdió de ninguno de los dos lados).
+- **`lib/infraestructura/riesgo/jobs/calcular-climatologia.ts`**: el conflicto
+  era el mismo archivo modificado por dos motivos distintos en cada rama
+  (batching+optimización de card lote vs. reintento por bloqueo); la
+  resolución conserva ambos: inserción por lotes envuelta en
+  `conReintentoPorBloqueo` (`lib/db/reintento.ts`, extraído de
+  `fix/parte-alta-concurrente`), el guard de cupo (`crearControladorCupo`,
+  `MOTIVOS_CUPO_SIN_RED`), y la deduplicación por celda ERA5 con cursor
+  resumable (sección 4.5/6.8).
+- **Reemplazo de `conReintentoSiOcupado`**: `cupo-om.ts` mantiene una función
+  local `conReintentoSiOcupado` que es un wrapper delgado de
+  `conReintentoPorBloqueo` con opciones propias (backoff/máx. intentos
+  ajustados al caso de escritura de cupo) — no una reimplementación paralela;
+  el reintento real es el mismo compartido de `lib/db/reintento.ts` en los dos
+  casos.
+- **Type fix post-merge**: `sync-seasonal.test.ts` (agregado por
+  `feat/renovación`) no compilaba contra el `EstadisticaEstacionalDepartamento`/
+  retorno de `obtenerTendenciaEstacional` real (le faltaba el campo
+  `llamadasRealizadas`, agregado por el fix de la sección 8 más abajo) — se
+  corrigió el fixture del test, sin tocar el contrato real.
+- Commit de merge: `git commit --no-edit` (mensaje generado por Git,
+  "Merge branch 'feat/renovación' into feat/open-meteo-cupo").
+
+## 8. Fix bloqueante de revisión: reserva de cupo por cada intento HTTP real
+
+**Hallazgo (review de N1):** `ejecutarConReintentos` (`cliente-http.ts`)
+reservaba cupo UNA sola vez por llamada lógica, antes del loop de reintentos
+internos — pero un timeout/5xx/429 que dispara un reintento interno es una
+request HTTP real nueva contra Open-Meteo, que también gasta cupo real. Con
+`maxIntentos=3` y 2 timeouts + 1 éxito, la reserva contaba 1× el peso pero la
+red gastaba 3×: el cupo real quedaba subestimado en ~3x en el peor caso,
+exactamente el escenario que este batch existe para prevenir.
+
+**Fix:** la reserva de cupo (`params.cupo.reservar()`) se movió DENTRO del
+loop `for (intento = 1; intento <= maxIntentos; intento++)`, ejecutándose en
+cada intento HTTP real antes de disparar el `fetch`. Si la reserva falla en
+cualquier intento (cupo agotado o host en cooldown), se corta inmediatamente
+sin más reintentos — la fuente queda degradada con el motivo real
+(`cupo_agotado`/`host_en_cooldown`) en vez de seguir golpeando la red.
+
+Tests nuevos (`cliente-http.test.ts`, marcados `BLOCKER` en el nombre para
+trazabilidad con el hallazgo):
+
+- "timeout dos veces y éxito a la 3ra reserva peso UNA vez por intento HTTP
+  real (3x en total)": simula 2 timeouts + 1 éxito con un `fetchImpl` fixture
+  y un `cupo` fake que cuenta llamadas a `reservar()`; verifica exactamente 3
+  reservas.
+- "si la reserva falla a mitad de los reintentos, se detiene sin más
+  intentos HTTP": la 2da reserva devuelve `ok:false`; verifica que el
+  `fetchImpl` NO se llamó una 3ra vez y que el resultado propaga el motivo de
+  la guarda, no un error HTTP genérico.
+
+**Proveedor estacional (`providers/seasonal.ts`) pasado por el guard:** ya
+routeaba por `ejecutarConReintentos`, pero sin `cupo` (sin `controladorCupoFactory`
+ni consumo del bucket `archive-api`/similar). Se agregó `controladorCupoFactory`
+al llamado de `ejecutarConReintentos` en `obtenerTendenciaEstacional`, con el
+mismo criterio de corte que `ecmwf.ts`/`ensemble.ts`: un motivo de
+`MOTIVOS_CUPO_SIN_RED` en un lote corta TODOS los lotes restantes de una vez
+(mismo bucket compartido, no tiene sentido seguir intentando). También se
+migró la construcción de URL de `seasonal.ts` de una constante `BASE_URL`
+hardcodeada a `construirBaseUrl`/`agregarApiKey` de `cupo-om.ts`, para que
+respete `OPEN_METEO_API_KEY` (host `customer-*`) igual que el resto de los
+adapters.
+
+**Todos los puntos de fetch a Open-Meteo del árbol** (verificado con
+`grep -rl "ejecutarConReintentos"` sobre `lib/infraestructura/riesgo/providers/`):
+`ecmwf.ts`, `ensemble.ts`, `flood.ts`, `climatologia.ts`,
+`climatologia-caudal.ts`, `seasonal.ts` — los 6 pasan por
+`ejecutarConReintentos` con `cupo`/`controladorCupoFactory`. Ningún adapter
+llama a `fetch` directamente (0 coincidencias de `await fetch(` fuera de
+`cliente-http.ts`, que es el único que efectivamente dispara la red).
+`providers/imerg.ts` es NASA GPM IMERG (Earthdata, no Open-Meteo): fuera de
+alcance de OM-cupo a propósito, no le falta el guard.
+
+## 9. Timers diarios de climatología + avance en `/admin/operacion` (pedido de N1)
+
+El usuario aprobó calcular la climatología completa "de a poco" en vez de
+bajo demanda manual. Cambios:
+
+- **Timers systemd nuevos** (`deploy/systemd/ops1/`):
+  `enos-ops1-climatologia-precipitacion.timer` (05:00 UTC) y
+  `enos-ops1-climatologia-caudal.timer` (06:00 UTC) — diarios, sin overlap
+  con los syncs de 6h (02,08,14,20:00 UTC), `geo-perfiles` (03:00) ni
+  `sync-seasonal` (09:00). Reusan el `.service` template genérico
+  (`enos-ops1@.service`, ya parametrizado por `%i`), sin unit nuevo.
+- **`lib/infraestructura/riesgo/cadencias.ts`**: ambos jobs pasan de
+  `minutos: 0` ("bajo demanda") a `minutos: 1440` (diario) — ya corren solos
+  por el timer. El cursor resumable hace que el job-run quede `fallido` a
+  propósito mientras queden celdas pendientes (ver sección 4.5/6.8), así que
+  la columna "atrasado" de `/admin/operacion` (basada en la última corrida
+  EXITOSA) no es indicador útil durante la rampa inicial — por eso el avance
+  real se muestra aparte (punto siguiente).
+- **`lib/infraestructura/riesgo/avance-climatologia.ts`** (nuevo): cuenta
+  celdas/puntos con al menos una fila persistida en `hazard_climatology` para
+  el período+version exacto de cada job, contra el total candidato
+  (`infra_geo_profile` distinto para precipitación, `PUNTOS_RIO.length` fijo
+  para caudal). Tests en `avance-climatologia.test.ts` (3 casos: conteo
+  básico, no cuenta filas de una version/período vieja, caudal contra el
+  total fijo).
+- **`/admin/operacion`**: nueva sección "Avance de climatología (cursor
+  resumable de cupo)" con celdas/puntos completos, total y % (resaltado
+  visualmente hasta llegar a 100%).
+- **Estimación de tiempo hasta completarse** (registrada también en
+  `docs/ejecucion-enos/OPS1/runbook-scheduler.md`): con el caso esperado de
+  deduplicación por celda ERA5 (sección 4.5, ~62 celdas únicas), el peso
+  total de precipitación es ≈48.500 llamadas ponderadas; descontando lo que
+  ya consumen los syncs de 6h y `sync-seasonal` del mismo bucket, quedan
+  ≈7.000 llamadas ponderadas de cupo diario disponibles ⇒ **≈7 días** de
+  corridas diarias hasta que `climatologia-precipitacion` complete las ~387
+  celdas. `climatologia-caudal` (8 puntos, ~2.087 de peso total, sección 4.4)
+  se completa en su primera corrida.
+
+## 10. Verificación final (esta sesión, tras el merge + fix + timers)
+
+| Verificación | Comando | Resultado |
+|---|---|---|
+| Merge | `git commit --no-edit` | completado, sin conflictos remanentes |
+| Suite completa | `pnpm exec vitest run --maxWorkers=2` | verde — 193 archivos, 1640 tests |
+| Test focalizado (fix bloqueante) | `pnpm exec vitest run --maxWorkers=2 lib/infraestructura/riesgo/providers/cliente-http.test.ts` | verde, incluye los 2 tests `BLOCKER` |
+| Test focalizado (avance) | `pnpm exec vitest run --maxWorkers=2 lib/infraestructura/riesgo/avance-climatologia.test.ts` | verde — 3/3 |
+| Test focalizado (cadencias) | `pnpm exec vitest run --maxWorkers=2 lib/infraestructura/riesgo/cadencias.test.ts` | verde — 14/14 (2 actualizados por el cambio de cadencia de las climatologías) |
+| Lint | `pnpm lint` | verde |
+| Types | `pnpm exec tsc --noEmit` | verde |
+| Build | `pnpm build` | verde |
+
+## Archivos tocados en esta sesión (post-merge)
+
+- `lib/infraestructura/riesgo/jobs/sync-seasonal.test.ts`: fix de tipo
+  (fixture sin `llamadasRealizadas`).
+- `lib/infraestructura/riesgo/cadencias.ts` / `cadencias.test.ts`: cadencia
+  diaria para ambas climatologías.
+- `deploy/systemd/ops1/enos-ops1-climatologia-precipitacion.timer`,
+  `enos-ops1-climatologia-caudal.timer`: nuevos.
+- `docs/ejecucion-enos/OPS1/runbook-scheduler.md`: sección de timers de
+  climatología, tabla de cadencias, estimación de días.
+- `lib/infraestructura/riesgo/avance-climatologia.ts` /
+  `avance-climatologia.test.ts`: nuevos.
+- `app/(hub)/admin/operacion/page.tsx`: sección de avance de climatología.
+- `docs/ejecucion-enos/OM-cupo/registro.md`: este documento (secciones 7-10).
+
+Sin cambios en el resto de lo ya resuelto por la sesión anterior
+(`cliente-http.ts`, `cupo-om.ts`, `seasonal.ts`, `reintento.ts`,
+`calcular-climatologia.ts`, `schema.ts`, `seed.ts`): ya estaba correcto,
+verificado en esta sesión antes de commitear.
+
+## Pendientes explícitos para N1
+
+Ninguno funcional. Queda pendiente la revisión y el merge del batch, y la
+decisión operativa de habilitar los dos timers nuevos en el ambiente real
+(`systemctl enable --now enos-ops1-climatologia-precipitacion.timer` /
+`enos-ops1-climatologia-caudal.timer`, ver runbook).

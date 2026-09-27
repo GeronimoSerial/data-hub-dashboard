@@ -78,18 +78,6 @@ export async function ejecutarConReintentos<T>(
   const backoffBaseMs = params.backoffBaseMs ?? BACKOFF_BASE_MS_DEFAULT
   const backoffMaxMs = params.backoffMaxMs ?? BACKOFF_MAX_MS_DEFAULT
 
-  // OM-cupo: se reserva UNA vez por llamada lógica (no por intento de
-  // reintento interno) — el peso representa el request real que se va a
-  // disparar, no cuántas veces cliente-http lo reintenta puertas adentro.
-  // Si la guarda bloquea (cupo agotado o host en cooldown), se corta ACÁ,
-  // sin tocar la red ni una vez.
-  if (params.cupo) {
-    const reserva = await params.cupo.reservar()
-    if (!reserva.ok) {
-      return { ok: false, motivo: reserva.motivo, detalle: reserva.detalle }
-    }
-  }
-
   let ultimoError: ResultadoHttp<T> = {
     ok: false,
     motivo: 'http_error',
@@ -97,6 +85,24 @@ export async function ejecutarConReintentos<T>(
   }
 
   for (let intento = 1; intento <= maxIntentos; intento++) {
+    // OM-cupo: se reserva peso ANTES DE CADA intento HTTP real (no una sola
+    // vez por llamada lógica) — un timeout/5xx/429 que dispara un reintento
+    // interno de cliente-http es una request real nueva contra Open-Meteo,
+    // así que también gasta cupo real. Reservar una sola vez arriba del loop
+    // subestimaba el consumo: una llamada lógica con 2 reintentos internos
+    // terminaba gastando 1x el peso reservado pero 3x el peso real (bug
+    // encontrado en review, ver docs/ejecucion-enos/OM-cupo/registro.md). Si
+    // la guarda bloquea (cupo agotado o host en cooldown) en cualquier
+    // intento, se corta ACÁ, sin reintentar más — la fuente se marca
+    // degradada (`cupo_agotado`/`host_en_cooldown`) en vez de seguir
+    // golpeando la red.
+    if (params.cupo) {
+      const reserva = await params.cupo.reservar()
+      if (!reserva.ok) {
+        return { ok: false, motivo: reserva.motivo, detalle: reserva.detalle }
+      }
+    }
+
     const controller = new AbortController()
     let timer: ReturnType<typeof setTimeout> | undefined
     // Se corre contra una promesa de timeout propia (no sólo el AbortSignal)

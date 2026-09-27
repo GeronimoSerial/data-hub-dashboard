@@ -98,6 +98,8 @@ systemctl enable --now enos-ops1-episodios-derivados.timer
 systemctl enable --now enos-ops1-geo-perfiles.timer
 systemctl enable --now enos-ops1-sync-seasonal.timer
 systemctl enable --now enos-ops1-situacion-corte.timer
+systemctl enable --now enos-ops1-climatologia-precipitacion.timer
+systemctl enable --now enos-ops1-climatologia-caudal.timer
 ```
 
 `sync-seasonal` es una capa OPCIONAL (Open-Meteo Seasonal, tendencia ENOS a
@@ -106,13 +108,40 @@ docs/ejecucion-enos/SEASONAL/registro.md). El job corre igual con el flag de
 UI apagado (el flag sólo oculta la tarjeta en el mapa); habilitar este timer
 es opcional y depende de si se decide activar esa capa en el ambiente.
 
-Las climatologías no se habilitan como timer (bajo demanda, ver tabla): se
-corren manualmente con
-`docker exec <CONTENEDOR> node scripts/jobs.mjs climatologia-precipitacion`
-(o `climatologia-caudal`). Si en el futuro se decide una cadencia periódica
-para alguna, crear un `.timer` explícito con el mismo patrón que los de
-arriba (`Unit=enos-ops1@climatologia-precipitacion.service`, `OnCalendar=...
-UTC`) en vez de reintroducir drop-ins.
+### Climatologías: timer diario con cursor resumable de cupo (OM-cupo)
+
+`climatologia-precipitacion` (ERA5, ~387 celdas × 30 años) y
+`climatologia-caudal` (GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) ya NO son
+puramente "bajo demanda": el cálculo completo de precipitación por sí solo
+excede el cupo MENSUAL de Open-Meteo en una sola corrida (ver
+docs/ejecucion-enos/OM-cupo/registro.md, "Climatología de precipitación"), así
+que corren en un timer DIARIO que avanza el cursor resumable hasta el tope de
+cupo disponible ese día — nunca recomputa una celda ya persistida en
+`hazard_climatology` para el mismo período+version (ver el comentario "CURSOR
+RESUMABLE" en `lib/infraestructura/riesgo/jobs/calcular-climatologia.ts`).
+Mientras queden celdas pendientes el job termina 'fallido' A PROPÓSITO en
+`infra_job_run` (para que el lease permita reintentar el día siguiente sin
+bloquearse) — esto es esperado y NO es un incidente; el avance real (celdas
+completas / total) se ve en `/admin/operacion`, no en la columna "atrasado".
+
+Estimación de tiempo hasta completarse (precipitación, el más pesado de los
+dos): ~48.500 llamadas ponderadas totales contra `archive-api`
+(~387 celdas × 30 años, ver la fórmula de peso en
+docs/ejecucion-enos/OM-cupo/registro.md) contra un cupo diario de ~7.000
+llamadas ponderadas disponibles después de reservar lo que ya consumen los
+syncs de 6h (`sync-pronostico-caudal`/`sync-ensemble`) y `sync-seasonal` del
+mismo bucket ⇒ **~7 días** de corridas diarias hasta que
+`climatologia-precipitacion` termine todas las celdas. `climatologia-caudal`
+(8 puntos, otro bucket/host `flood-api`) se completa en su primera corrida.
+Una vez que ambas quedan completas (100% en `/admin/operacion`), el timer
+sigue corriendo diariamente pero no gasta cupo (el cursor resumable no
+encuentra celdas pendientes).
+
+`climatologia-precipitacion` corre a las 05:00 UTC y `climatologia-caudal` una
+hora después (06:00 UTC, para no competir por cupo si alguna vez comparten
+bucket, aunque hoy usan hosts/buckets distintos) — ambas horas sin overlap con
+los syncs de 6h (02,08,14,20:00), `geo-perfiles` (03:00) ni `sync-seasonal`
+(09:00).
 
 ## Tabla de cadencias por job
 
@@ -125,8 +154,8 @@ UTC`) en vez de reintroducir drop-ins.
 | episodios-derivados | 1h | `*-*-* *:00:00 UTC` | `enos-ops1-episodios-derivados.timer` | recomputo barato, sin llamadas externas |
 | geo-perfiles | diario | `*-*-* 03:00:00 UTC` | `enos-ops1-geo-perfiles.timer` | recompute barato de perfiles geográficos, sin llamadas externas; horario de baja carga |
 | situacion-corte | 1h, alineado tras calcular-riesgo | `*-*-* *:20:00 UTC` | `enos-ops1-situacion-corte.timer` | corre poco después de calcular-riesgo (`:15` en 08,14,20,02 UTC) para que el corte del Centro de Situación (E5) refleje el riesgo recién calculado lo antes posible; en las demás horas corre con su propia cadencia horaria |
-| climatologia-precipitacion | bajo demanda | sin timer | — | ejecución manual (`docker exec <CONTENEDOR> node scripts/jobs.mjs climatologia-precipitacion`); cálculo pesado de serie histórica, no cambia seguido |
-| climatologia-caudal | bajo demanda | sin timer | — | ídem anterior |
+| climatologia-precipitacion | diario, cursor resumable de cupo | `*-*-* 05:00:00 UTC` | `enos-ops1-climatologia-precipitacion.timer` | el cálculo completo (~387 celdas × 30 años) excede el cupo mensual en una sola corrida; el timer diario avanza el cursor resumable hasta el tope de cupo del día (~7 días para completarse la primera vez, ver sección arriba), sin recomputar celdas ya persistidas |
+| climatologia-caudal | diario, cursor resumable de cupo | `*-*-* 06:00:00 UTC` | `enos-ops1-climatologia-caudal.timer` | mismo esquema, otra fuente (GloFAS, 8 `PUNTOS_RIO` fijos); se completa en la primera corrida |
 | sync-seasonal | diario (opcional) | `*-*-* 09:00:00 UTC` | `enos-ops1-sync-seasonal.timer` | Open-Meteo Seasonal (EC46+SEAS5): EC46 actualiza a diario (20:30Z), SEAS5 mensual; una corrida diaria alcanza. Capa opcional detrás de `SEASONAL_ENABLED` (UI); el job corre igual, sólo la tarjeta queda oculta con el flag apagado |
 
 ### Caveat de secuencia entre jobs distintos (sin cola/orquestador)

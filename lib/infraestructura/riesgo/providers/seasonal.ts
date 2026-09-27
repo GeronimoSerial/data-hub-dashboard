@@ -45,8 +45,10 @@
 // ("regional, probabilístico, nunca valor por escuela").
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import type { ControladorCupoOM } from './cupo-om'
 
-const BASE_URL = 'https://seasonal-api.open-meteo.com/v1/seasonal'
+const RUTA = '/v1/seasonal'
 
 // Blend EC46+SEAS5: mejor cobertura de los 30-90 días pedidos sin tener que
 // elegir entre el horizonte corto de EC46 (46 días) y el mensual de SEAS5.
@@ -138,14 +140,18 @@ function serieDeMiembro(
   return (daily as unknown as Record<string, Array<number | null>>)[nombre]
 }
 
-function construirUrlLote(centroides: CentroideDepartamentoConsulta[]): string {
+function construirUrlLote(
+  centroides: CentroideDepartamentoConsulta[],
+  apiKey: string | undefined,
+): string {
   const latitudes = centroides.map((c) => String(c.lat)).join(',')
   const longitudes = centroides.map((c) => String(c.lon)).join(',')
-  return (
-    `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}` +
+  const base = construirBaseUrl('seasonal-api', RUTA, apiKey)
+  const url =
+    `${base}?latitude=${latitudes}&longitude=${longitudes}` +
     `&daily=${VARIABLE_DIARIA_SEASONAL}&models=${MODELO_SEASONAL}` +
     `&forecast_days=${FORECAST_DAYS_SOLICITADOS}&timezone=UTC`
-  )
+  return agregarApiKey(url, apiKey)
 }
 
 /**
@@ -270,11 +276,26 @@ function estadisticaDeDepartamento(params: {
   }
 }
 
+// OM-cupo: motivos que significan que la guarda de cupo cortó ANTES de tocar
+// la red (ver providers/cupo-om.ts) — mismo criterio que ecmwf.ts/ensemble.ts:
+// si esto pasa en un lote, TODOS los lotes restantes van a fallar por la
+// misma razón (mismo bucket compartido), así que se cortan de una sin gastar
+// más intentos.
+const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
+
 /**
  * Obtiene la tendencia estacional (30-90 días por defecto) por LOTES de
  * `TAMANO_LOTE_DEPARTAMENTOS_SEASONAL` departamentos. Un lote que falla
  * (red, timeout, payload inválido) no tumba a los demás: sus departamentos
- * quedan en `erroresPorDepartamento` y el resto sigue procesándose.
+ * quedan en `erroresPorDepartamento` y el resto sigue procesándose — salvo
+ * que el motivo sea de cupo (ver `MOTIVOS_CUPO_SIN_RED`), en cuyo caso se
+ * corta todo el resto de una vez (no tiene sentido seguir intentando contra
+ * el mismo bucket agotado).
+ *
+ * `variables=1` en `pesoLlamada` porque acá `daily=` sólo pide
+ * `precipitation_sum` (ver VARIABLE_DIARIA_SEASONAL): los 51 miembros vienen
+ * como columnas del mismo payload, Open-Meteo no los cuenta como variables
+ * adicionales (ver cita de la fórmula en cupo-om.ts).
  */
 export async function obtenerTendenciaEstacional(params: {
   centroides: CentroideDepartamentoConsulta[]
@@ -282,9 +303,13 @@ export async function obtenerTendenciaEstacional(params: {
   horizonteDesdeDias?: number
   horizonteHastaDias?: number
   fetchImpl?: typeof fetch
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
 }): Promise<{
   estadisticas: EstadisticaEstacionalDepartamento[]
   erroresPorDepartamento: Record<string, string>
+  llamadasRealizadas: number
 }> {
   const {
     centroides,
@@ -292,27 +317,48 @@ export async function obtenerTendenciaEstacional(params: {
     horizonteDesdeDias = 30,
     horizonteHastaDias = 90,
     fetchImpl,
+    controladorCupoFactory,
   } = params
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
 
   const estadisticas: EstadisticaEstacionalDepartamento[] = []
   const erroresPorDepartamento: Record<string, string> = {}
+  let llamadasRealizadas = 0
 
   const lotes = agruparEnLotes(centroides, TAMANO_LOTE_DEPARTAMENTOS_SEASONAL)
 
-  for (const lote of lotes) {
+  for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
+    const lote = lotes[indiceLote]
+    const peso = pesoLlamada({
+      ubicaciones: lote.length,
+      variables: 1,
+      dias: FORECAST_DAYS_SOLICITADOS,
+    })
+    const cupo = controladorCupoFactory?.(peso)
     const resultado = await ejecutarConReintentos<PayloadSeasonalElemento[]>({
-      url: construirUrlLote(lote),
+      url: construirUrlLote(lote, apiKey),
       fetchImpl,
+      cupo,
       parsearPayload: crearParserLoteSeasonal(lote.length),
     })
 
     if (!resultado.ok) {
       const detalle = `${resultado.motivo}: ${resultado.detalle}`
+      if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) llamadasRealizadas += 1
+      if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+        for (const loteRestante of lotes.slice(indiceLote + 1)) {
+          for (const centroide of loteRestante) erroresPorDepartamento[centroide.departamento] = detalle
+        }
+        for (const centroide of lote) erroresPorDepartamento[centroide.departamento] = detalle
+        break
+      }
       for (const centroide of lote) {
         erroresPorDepartamento[centroide.departamento] = detalle
       }
       continue
     }
+
+    llamadasRealizadas += 1
 
     // El array de respuesta viene en el mismo orden que las coordenadas
     // enviadas: se empareja por índice, no por el lat/lon de la respuesta
@@ -330,5 +376,5 @@ export async function obtenerTendenciaEstacional(params: {
     })
   }
 
-  return { estadisticas, erroresPorDepartamento }
+  return { estadisticas, erroresPorDepartamento, llamadasRealizadas }
 }
