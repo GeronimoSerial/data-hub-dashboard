@@ -26,10 +26,15 @@ export type HorizontePeligroPanel = 24 | 72 | 240
 
 export type ConfianzaNivel = 'baja' | 'media' | 'alta'
 
+export type MetodoNivelPanel = 'percentiles' | 'umbral_provisorio' | 'sin_dato'
+
 export interface NivelHorizontePanel {
   horizonteHoras: HorizontePeligroPanel
   nivel: NivelPeligroPanel
   base: BaseNivelPanel
+  // P1: método que produjo el nivel (mirror de NivelPeligroCelda.metodo).
+  // Opcional para no romper a los callers previos a este batch.
+  metodo?: MetodoNivelPanel
   precipitacionMm: number | null
   percentilReferencia: string | null
   emitidoEn: string
@@ -137,6 +142,12 @@ const ETIQUETA_CONFIANZA: Record<ConfianzaNivel, string> = {
 // Rótulo fijo y no negociable: esto es una estimación propia, nunca un aviso
 // oficial. "alerta" y el SMN quedan deliberadamente afuera del copy.
 export const TITULO_PELIGRO = 'Peligro meteorológico estimado'
+
+// P1: rótulo fijo del puente de umbrales provisorios (mismo texto que la
+// leyenda del Radar, ver components/mapas/peligro-legend.tsx). "alerta" y el
+// SMN quedan deliberadamente afuera acá también.
+export const ROTULO_NIVEL_PROVISORIO =
+  'Nivel provisorio (umbrales fijos de lluvia) mientras se calcula la climatología de la zona.'
 
 function etiquetaHorizonte(horas: HorizontePeligroPanel): string {
   if (horas === 24) return 'Próximas 24h (riesgo inmediato)'
@@ -263,6 +274,11 @@ function PanelDepartamento(
                 {etiquetaNivel(fila.nivel)}
               </span>{' '}
               <span className="risk-explanation-panel__base">({etiquetaBase(fila.base)})</span>
+              {fila.metodo === 'umbral_provisorio' && (
+                <span className="risk-explanation-panel__provisorio">
+                  {ROTULO_NIVEL_PROVISORIO}
+                </span>
+              )}
               {fila.precipitacionMm !== null && (
                 <span className="risk-explanation-panel__detalle">
                   {' '}

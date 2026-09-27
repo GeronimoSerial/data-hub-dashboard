@@ -40,6 +40,7 @@ import {
   nivelDesdeDeterministico,
   nivelDesdeEnsemble,
 } from '@/lib/infraestructura/riesgo/peligro/nivel'
+import { nivelDesdeUmbralProvisorio } from '@/lib/infraestructura/riesgo/peligro/umbrales-provisorios'
 import {
   parametrosReplaySchema,
   type AfectacionConfirmadaReplay,
@@ -271,13 +272,17 @@ async function consultarSnapshot(
 // el peligro no tiene semántica de corrección tardía documentada, así que se
 // aplica un único as-of por `corridaEn` (cuándo se emitió la corrida).
 //
-// Reusa las funciones puras de traducción de lib/infraestructura/riesgo/peligro/nivel.ts
-// (nivelDesdeEnsemble, nivelDesdeDeterministico) para no bifurcar la regla de
-// umbrales; NO reusa `obtenerNivelesPeligro` porque esa función no acepta un
-// corte temporal (usa siempre la fila más reciente, sin importar el instante).
+// Reusa las funciones puras de traducción de lib/infraestructura/riesgo/peligro/
+// nivel.ts y umbrales-provisorios.ts (nivelDesdeEnsemble,
+// nivelDesdeDeterministico, nivelDesdeUmbralProvisorio) para no bifurcar la
+// regla de umbrales; NO reusa `obtenerNivelesPeligro` porque esa función no
+// acepta un corte temporal (usa siempre la fila más reciente, sin importar el
+// instante).
 //
-// Si una celda no resuelve ni ensemble ni fallback determinístico, se omite
-// del arreglo (nunca 'sin_dato' inventado ni el nivel de un instante anterior).
+// Si una celda tiene pronóstico pero no climatología completa, se resuelve con
+// el umbral provisorio (metodo 'umbral_provisorio'). Sólo se omite del arreglo
+// cuando no hay ni ensemble ni pronóstico (nunca 'sin_dato' inventado ni el
+// nivel de un instante anterior).
 async function consultarNivelesPeligro(
   geometryRefs: string[],
   instante: string,
@@ -315,6 +320,8 @@ async function consultarNivelesPeligro(
         geometryRef,
         nivel: nivelDesdeEnsemble(filaEnsemble.probabilidadP95, filaEnsemble.probabilidadP99),
         emitidoEn: filaEnsemble.corridaEn,
+        // La fila de ensemble sólo existe si hubo climatología en la ingesta.
+        metodo: 'percentiles',
       })
       continue
     }
@@ -358,10 +365,25 @@ async function consultarNivelesPeligro(
     const p90 = porPercentil.get('p90')
     const p95 = porPercentil.get('p95')
     const p99 = porPercentil.get('p99')
-    if (p90 === undefined || p95 === undefined || p99 === undefined) continue
+    if (p90 === undefined || p95 === undefined || p99 === undefined) {
+      // Sin climatología completa pero CON pronóstico: puente provisorio. La
+      // celda ya no se omite; se resuelve con los umbrales fijos documentados.
+      resultado.push({
+        geometryRef,
+        nivel: nivelDesdeUmbralProvisorio(filaPronostico.valor, HORIZONTE_PELIGRO_REPLAY_HORAS),
+        emitidoEn: filaPronostico.corridaEn,
+        metodo: 'umbral_provisorio',
+      })
+      continue
+    }
 
     const { nivel } = nivelDesdeDeterministico(filaPronostico.valor, p90, p95, p99)
-    resultado.push({ geometryRef, nivel, emitidoEn: filaPronostico.corridaEn })
+    resultado.push({
+      geometryRef,
+      nivel,
+      emitidoEn: filaPronostico.corridaEn,
+      metodo: 'percentiles',
+    })
   }
 
   return resultado

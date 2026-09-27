@@ -55,7 +55,7 @@ export function LayerControl({ overlays, onChange }: Props) {
 export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinReportar'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Escuelas con afectación vigente',
+  escuelas: 'Escuelas (padrón completo)',
   // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
   // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
   // responden a la misma pregunta operativa ("¿hay algo pasando con el
@@ -80,8 +80,14 @@ export function InfraLayerControl({
   const styles = useOverlayStyles()
 
   return (
-    <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Capas</h2>
+    <div
+      className={styles.controlCard}
+      role="group"
+      aria-labelledby="infra-layer-control-heading"
+    >
+      <h2 className={styles.controlHeading} id="infra-layer-control-heading">
+        Capas
+      </h2>
       {ORDEN_CAPAS_INFRAESTRUCTURA.map((capa) => (
         <Checkbox
           key={capa}
@@ -122,8 +128,14 @@ export function RadarLayerControl({
   const styles = useOverlayStyles()
 
   return (
-    <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Capas del radar</h2>
+    <div
+      className={styles.controlCard}
+      role="group"
+      aria-labelledby="radar-layer-control-heading"
+    >
+      <h2 className={styles.controlHeading} id="radar-layer-control-heading">
+        Capas del radar
+      </h2>
       {ORDEN_CAPAS_RADAR.map((capa) => (
         <Checkbox
           key={capa}

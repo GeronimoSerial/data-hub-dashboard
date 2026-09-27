@@ -26,7 +26,13 @@ const ICONO_NIVEL_PELIGRO: Record<NivelPeligro, LucideIcon> = {
   sin_dato: CircleHelp,
 }
 
-export function PeligroLegend({ className }: { className?: string }) {
+export function PeligroLegend({
+  className,
+  hayNivelProvisorio = false,
+}: {
+  className?: string
+  hayNivelProvisorio?: boolean
+}) {
   return (
     <div className={className}>
       <p className="peligro-legend__titulo">Peligro meteorológico estimado</p>
@@ -48,6 +54,13 @@ export function PeligroLegend({ className }: { className?: string }) {
           )
         })}
       </ul>
+      {hayNivelProvisorio ? (
+        <p className="peligro-legend__provisorio">
+          <TriangleAlert size={16} aria-hidden="true" />
+          Nivel provisorio (umbrales fijos de lluvia) mientras se calcula la
+          climatología de la zona.
+        </p>
+      ) : null}
     </div>
   )
 }

@@ -12,6 +12,7 @@ export type NombreJob =
   | 'calcular-riesgo'
   | 'episodios-derivados'
   | 'sync-seasonal'
+  | 'situacion-corte'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -26,6 +27,9 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
   'calcular-riesgo': { minutos: 360, descripcion: 'Calcula el riesgo encadenado a los sync de 6h' },
   // Derivaciones ligeras que acompañan al ciclo horario de IMERG.
   'episodios-derivados': { minutos: 60, descripcion: 'Deriva episodios a partir de los datos recientes' },
+  // Corte del Centro de Situación: cadencia horaria, también encadenado tras
+  // calcular-riesgo (la cadencia base declarada es 1h).
+  'situacion-corte': { minutos: 60, descripcion: 'Genera el corte del Centro de Situación (cada hora, y encadenado tras calcular-riesgo)' },
   // Proceso pesado de agregación: alcanza con una corrida diaria.
   'geo-perfiles': { minutos: 1440, descripcion: 'Reconstruye los perfiles geográficos (diario)' },
   // Open-Meteo Seasonal (EC46+SEAS5): capa opcional de tendencia a 30-90 días
@@ -58,6 +62,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'calcular-riesgo-v0': 'calcular-riesgo',
   'episodios-derivados-v0': 'episodios-derivados',
   'sync-hazard-seasonal': 'sync-seasonal',
+  'situacion-corte-v1': 'situacion-corte',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su

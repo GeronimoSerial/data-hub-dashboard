@@ -11,6 +11,7 @@ import MapGL, {
   Layer,
   Marker,
   NavigationControl,
+  Popup,
   Source,
   type MapLayerMouseEvent,
   type MapRef,
@@ -28,6 +29,7 @@ import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
+import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
@@ -75,7 +77,12 @@ import {
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
 import { filtrarDepartamentoMapa } from '@/lib/infraestructura/filtrar-departamento-mapa'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
+import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
+import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
+import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
+import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
@@ -370,8 +377,14 @@ const ANILLO_COLOR = '#1c1c1c'
 // una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
 // mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
 // no el mayor es Alta (>=2), y así hasta Baja (default).
+//
+// Antes de mirar la severidad se chequea `escuelasAfectadas === 0`: un cluster
+// que agrupa SÓLO escuelas sin afectación reportada (severidadRango = 0, el
+// mismo 0 que 'Baja') se pinta con el gris neutro COLOR_SIN_AFECTACION, nunca
+// con una severidad real. Sólo si hay al menos una afectada se usa la
+// severidad más alta (`severidadRango`, agregado por max).
 export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
-  const expresion: unknown[] = ['case']
+  const expresion: unknown[] = ['case', ['==', ['get', 'escuelasAfectadas'], 0], COLOR_SIN_AFECTACION]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
     expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
   }
@@ -526,6 +539,7 @@ export default function MapInfraestructuraPage(props: {
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   replayEnabled?: boolean
+  visible?: boolean
 }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -549,6 +563,8 @@ export default function MapInfraestructuraPage(props: {
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
+  const [departamentoHover, setDepartamentoHover] = useState<{ nombre: string; lng: number; lat: number } | null>(null)
+  const [escuelaResaltada, setEscuelaResaltada] = useState<{ cueAnexo: string; lng: number; lat: number } | null>(null)
   const [puntosVisibles, setPuntosVisibles] = useState(true)
   const entradaPuntosPendiente = useRef(false)
   // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
@@ -691,6 +707,42 @@ export default function MapInfraestructuraPage(props: {
     return () => clearTimeout(id)
   }, [data])
 
+  const { data: dataEscuelasMapa } = useEscuelasMapa(filtros)
+  const { data: dataTotalesMapa } = useTotalesMapa(filtros)
+  const totalesPorDepartamento = useMemo(() => {
+    const mapa = new Map<string, TotalesDepartamento>()
+    for (const d of dataTotalesMapa?.departamentos ?? []) mapa.set(d.departamento, d)
+    return mapa
+  }, [dataTotalesMapa])
+  const dataEscuelasMapaVisible = useMemo(
+    () => dataEscuelasMapa ? filtrarDepartamentoEscuelasMapa(dataEscuelasMapa, departamentoSeleccionado) : null,
+    [dataEscuelasMapa, departamentoSeleccionado],
+  )
+  // Padrón completo (afectadas y sin afectación reportada), reemplaza a
+  // featureCollection (que sólo tenía las afectadas) como fuente de la
+  // capa de puntos. Requisito no negociable: el mapa muestra TODAS las
+  // escuelas siempre, no depende de si hay partes cargados.
+  const featureCollectionPadron = useMemo(
+    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? [], ahoraMs),
+    [dataEscuelasMapaVisible, ahoraMs],
+  )
+
+  // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
+  // con `hidden`), cortar cualquier flyTo en curso con `.stop()` para no
+  // gastar rAF sobre un contenedor sin layout. Al volver a mostrarse,
+  // `.resize()` + `.fitBounds()` corrigen el encuadre si MapLibre calculó
+  // mal el tamaño mientras estaba oculto (mismo patrón que
+  // map-natalidad-page.tsx en la rama main).
+  useEffect(() => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (props.visible ?? true) {
+      mapa.resize()
+    } else {
+      mapa.stop()
+    }
+  }, [props.visible])
+
   const dataVisible = useMemo(
     () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
     [data, departamentoSeleccionado, ahoraMs],
@@ -711,11 +763,6 @@ export default function MapInfraestructuraPage(props: {
   // mouse no debe recalcular ni parpadear el halo). Antes de que corra el
   // primer efecto, `ahoraMs` es null y el halo simplemente no dibuja nada
   // (mejor eso que fechar con un valor inventado).
-  const featureCollection = useMemo(
-    () => construirFeatureCollection(dataVisible?.partes ?? [], ahoraMs),
-    [dataVisible, ahoraMs],
-  )
-
   const partesEvacuacion = useMemo(
     () =>
       (dataVisible?.partes ?? []).filter(
@@ -1075,7 +1122,10 @@ export default function MapInfraestructuraPage(props: {
       return
     }
     if (feature?.properties?.cueAnexo) {
-      setSeleccionCue(String(feature.properties.cueAnexo))
+      const cue = String(feature.properties.cueAnexo)
+      // Sin afectación reportada: no hay ParteMapa que mostrar en la ficha,
+      // así que el click no abre nada (evita abrir un modal vacío/roto).
+      if (partesPorCue.has(cue)) setSeleccionCue(cue)
       return
     }
     const departamento = features.find((item) =>
@@ -1088,6 +1138,33 @@ export default function MapInfraestructuraPage(props: {
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
     }
+  }
+
+  function handleMouseMove(event: MapLayerMouseEvent) {
+    const features = event.features ?? []
+    const departamento = features.find(
+      (item) => item.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID || item.layer?.id === 'infra-departamentos-etiqueta',
+    )
+    const nombre = departamento?.properties?.nombre
+    if (typeof nombre === 'string') {
+      setDepartamentoHover({ nombre, lng: event.lngLat.lng, lat: event.lngLat.lat })
+    } else if (departamentoHover) {
+      setDepartamentoHover(null)
+    }
+  }
+
+  function handleMouseLeave() {
+    setDepartamentoHover(null)
+  }
+
+  // Seleccionar una escuela desde el buscador: mismo criterio que el click
+  // sobre un punto del mapa — vuela al punto y resalta el anillo; sólo abre
+  // ficha si hay un ParteMapa (afectación reportada) para ese cueAnexo.
+  function handleSeleccionarEscuelaBuscada(escuela: EscuelaMapa) {
+    if (escuela.lat === null || escuela.lon === null) return
+    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
+    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
+    if (partesPorCue.has(escuela.cueAnexo)) setSeleccionCue(escuela.cueAnexo)
   }
 
   // T1.1c: lee del mapa (querySourceFeatures) qué features de
@@ -1221,6 +1298,8 @@ export default function MapInfraestructuraPage(props: {
           cursor="pointer"
           onLoad={actualizarCuesNoAgrupados}
           onMoveEnd={actualizarCuesNoAgrupados}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
           onIdle={() => {
             if (entradaPuntosPendiente.current) {
               entradaPuntosPendiente.current = false
@@ -1368,7 +1447,7 @@ export default function MapInfraestructuraPage(props: {
             <Source
               id="infra-partes-src"
               type="geojson"
-              data={featureCollection}
+              data={featureCollectionPadron}
               cluster={true}
               clusterMaxZoom={CAPA_PARTES_CLUSTER_MAX_ZOOM}
               clusterRadius={40}
@@ -1386,6 +1465,12 @@ export default function MapInfraestructuraPage(props: {
                 // establecimiento evacuado/centro de evacuados (semántica
                 // OR), igual que `sinReportar`.
                 esEvacuado: ['max', ['case', ['get', 'esEvacuado'], 1, 0]],
+                // Cuenta de escuelas REALMENTE afectadas en el cluster: suma 1
+                // por cada punto con `estado === 'afectada'`. Distingue un
+                // cluster de puras escuelas sin afectación (0) de uno con al
+                // menos una afectada, para no pintar el primero con el color
+                // de severidad 'Baja' (su severidadRango también es 0).
+                escuelasAfectadas: ['+', ['case', ['==', ['get', 'estado'], 'afectada'], 1, 0]],
               }}
             >
               {/*
@@ -1524,6 +1609,57 @@ export default function MapInfraestructuraPage(props: {
                   />
                 </Marker>
               ))}
+
+          {departamentoHover && (() => {
+            const clave = normalizarNombreDepartamento(departamentoHover.nombre)
+            const totales = totalesPorDepartamento.get(clave)
+            if (!totales) return null
+            return (
+              <Popup
+                longitude={departamentoHover.lng}
+                latitude={departamentoHover.lat}
+                closeButton={false}
+                closeOnClick={false}
+                anchor="bottom"
+                className="map-departamento-hover-popup"
+              >
+                <p>
+                  En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                  <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
+                </p>
+              </Popup>
+            )
+          })()}
+
+          {/* Resalta la escuela elegida en el buscador con un anillo aparte,
+              sin tocar circlePaintPartes: se ve encima tanto de un punto
+              individual como de un cluster todavía sin desagrupar mientras
+              el flyTo llega al zoom que lo desagrupa. */}
+          {escuelaResaltada && (
+            <Source
+              id="infra-escuela-resaltada-src"
+              type="geojson"
+              data={{
+                type: 'FeatureCollection',
+                features: [{
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: [escuelaResaltada.lng, escuelaResaltada.lat] },
+                  properties: {},
+                }],
+              }}
+            >
+              <Layer
+                id="infra-escuela-resaltada"
+                type="circle"
+                paint={{
+                  'circle-radius': 11,
+                  'circle-color': 'transparent',
+                  'circle-stroke-color': '#f59e0b',
+                  'circle-stroke-width': 3,
+                }}
+              />
+            </Source>
+          )}
 
 
         </MapGL>
@@ -1705,6 +1841,10 @@ export default function MapInfraestructuraPage(props: {
             </div>
           ) : (
             <>
+              <EscuelaSearchBox
+                escuelas={dataEscuelasMapa?.escuelas ?? []}
+                onSeleccionar={handleSeleccionarEscuelaBuscada}
+              />
               <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
               {departamentoSeleccionado && (
                 <div className={`${styles.panel} map-departamento-seleccionado`}>
@@ -1728,6 +1868,13 @@ export default function MapInfraestructuraPage(props: {
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
             mostrarLeyendaPeligro={radarActivo || replayActivo}
+            hayNivelProvisorio={
+              radarActivo
+                ? (radarData?.hayNivelProvisorio ?? false)
+                : (cuadroReplayActual?.nivelesPeligro.some(
+                    (n) => n.metodo === 'umbral_provisorio',
+                  ) ?? false)
+            }
           />
         </div>
       )}

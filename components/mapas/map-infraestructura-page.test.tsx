@@ -2,10 +2,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { JSX } from 'react'
+import { forwardRef, useImperativeHandle, type JSX } from 'react'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
 const CUE = '1801605-04'
+
+// M1: el buscador de escuelas llama a `mapRef.current?.getMap()?.flyTo(...)`
+// al seleccionar un resultado. `vi.hoisted` porque el factory de
+// `vi.mock('react-map-gl/maplibre', ...)` lo referencia y ese factory se
+// hoistea por encima del resto del archivo.
+const { FLY_TO_MOCK } = vi.hoisted(() => ({ FLY_TO_MOCK: vi.fn() }))
 
 const PARTE: ParteMapa = {
   parteId: 'p1',
@@ -109,6 +115,63 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
   useAlertas: () => ({ data: FIXTURE_RESPUESTA, loading: false, error: null }),
 }))
 
+// M1: el mapa ahora se alimenta del padrón completo vía useEscuelasMapa
+// (afectadas + sin afectación reportada), no sólo de las escuelas con parte.
+// El mock global de `fetch` devuelve un FeatureCollection (no la forma
+// EscuelasMapaResultado), así que este hook también se dobla acá — mismo
+// patrón que useAlertas: objeto ESTABLE para no re-disparar efectos.
+const FIXTURE_ESCUELAS_MAPA = {
+  escuelas: [
+    {
+      cueAnexo: CUE,
+      nombre: 'Escuela 1',
+      departamento: 'Capital',
+      localidad: 'Corrientes',
+      lat: -27.47,
+      lon: -58.83,
+      estado: 'afectada' as const,
+      parte: PARTE,
+    },
+    {
+      cueAnexo: '1801605-99',
+      nombre: 'Escuela sin afectación',
+      departamento: 'Capital',
+      localidad: 'Corrientes',
+      lat: -27.5,
+      lon: -58.8,
+      estado: 'sin_afectacion_reportada' as const,
+    },
+  ],
+  sinUbicacion: [],
+  totalPadron: 2,
+}
+
+vi.mock('@/lib/infraestructura/use-escuelas-mapa', () => ({
+  useEscuelasMapa: () => ({ data: FIXTURE_ESCUELAS_MAPA, loading: false, error: null }),
+}))
+
+// M1: totales por departamento que alimentan el popup de hover. La clave
+// `departamento` va NORMALIZADA (`normalizarNombreDepartamento('Capital')` =
+// 'CAPITAL') porque así es como el componente indexa el Map de totales y
+// busca al hacer hover. Objeto ESTABLE (mismo patrón que el resto de los
+// mocks de datos) para no re-disparar memos/efectos.
+const FIXTURE_TOTALES_MAPA = {
+  departamentos: [
+    {
+      departamento: 'CAPITAL',
+      departamentoOriginal: 'Capital',
+      totalEscuelas: 10,
+      escuelasAfectadas: 3,
+      porcentajeAfectadas: 30,
+    },
+  ],
+  provincia: { totalEscuelas: 10, escuelasAfectadas: 3, porcentajeAfectadas: 30 },
+}
+
+vi.mock('@/lib/infraestructura/use-totales-mapa', () => ({
+  useTotalesMapa: () => ({ data: FIXTURE_TOTALES_MAPA, loading: false, error: null }),
+}))
+
 // Mock del hook del radar (E4). Registra cada invocación con su flag `activo`
 // para poder afirmar que NO se dispara en modo "Situación actual" ni con el
 // flag apagado: el componente puede llamar al hook siempre (regla de hooks),
@@ -208,10 +271,37 @@ vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
 // del componente real) y deja pasar el resto de los hijos sin más.
 vi.mock('react-map-gl/maplibre', () => {
-  function MapGL(props: {
-    children?: React.ReactNode
-    onClick?: (event: { features: Array<{ layer?: { id: string }; properties: Record<string, string> }> }) => void
-  }) {
+  type FeatureMock = { layer?: { id: string }; properties: Record<string, string> }
+  type MouseEventMock = { features: FeatureMock[] }
+  type HoverEventMock = { features: FeatureMock[]; lngLat: { lng: number; lat: number } }
+
+  // M1: el componente guarda `mapRef` con `useRef<MapRef>(null)` y lo pasa
+  // como `ref` a <MapGL>. El doble tiene que exponer `getMap()` (el
+  // componente lo usa para `.resize()`/`.stop()` al cambiar de pestaña y para
+  // `.flyTo()` al seleccionar una escuela del buscador). `FLY_TO_MOCK` vive
+  // en una variable de test (vi.hoisted) para poder afirmar sus argumentos.
+  const MapGL = forwardRef<
+    unknown,
+    {
+      children?: React.ReactNode
+      onClick?: (event: MouseEventMock) => void
+      onMouseMove?: (event: HoverEventMock) => void
+      onMouseLeave?: () => void
+    }
+  >(function MapGL(props, ref) {
+    useImperativeHandle(
+      ref,
+      () => ({
+        getMap: () => ({
+          flyTo: FLY_TO_MOCK,
+          resize: vi.fn(),
+          stop: vi.fn(),
+          getSource: () => undefined,
+          querySourceFeatures: () => [],
+        }),
+      }),
+      [],
+    )
     return (
       <div data-testid="mock-maplibre">
         <button
@@ -230,10 +320,20 @@ vi.mock('react-map-gl/maplibre', () => {
           data-testid="mock-click-riesgo"
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-riesgo-circle' }, properties: { cueAnexo: CUE } }] })}
         />
+        <button
+          data-testid="mock-hover-departamento"
+          onClick={() =>
+            props.onMouseMove?.({
+              features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        <button data-testid="mock-mouse-leave" onClick={() => props.onMouseLeave?.()} />
         {props.children}
       </div>
     )
-  }
+  })
   return {
     __esModule: true,
     default: MapGL,
@@ -289,14 +389,26 @@ afterEach(() => {
 })
 
 describe('MapInfraestructuraPage — orquestación de modales', () => {
-  it('filtra por departamento al hacer click y permite quitar el filtro', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-    await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(screen.getByText('Departamento:')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
-    await userEvent.click(screen.getByText('Quitar filtro'))
-    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-  })
+  // E5 Ola 0: intermitente detectado (1/3 corridas completas de `pnpm test`
+  // falló acá con "Test timed out in 5000ms"). No es una condición de carrera
+  // real del componente — no hay estado que dependa del fetch de
+  // departamentosRaw para este flujo (el filtro se setea directo en el click
+  // handler) — sino el timeout por defecto de Vitest (5s) quedando corto bajo
+  // carga de máquina para un test con dos userEvent.click reales sobre un
+  // árbol con varios efectos/mocks async encadenados. Se sube el timeout de
+  // ESTE test puntual en vez de tocar el default global.
+  it(
+    'filtra por departamento al hacer click y permite quitar el filtro',
+    async () => {
+      await renderMapa({ mostrarEnlaceNominal: true })
+      await userEvent.click(screen.getByTestId('mock-click-departamento'))
+      expect(screen.getByText('Departamento:')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
+      await userEvent.click(screen.getByText('Quitar filtro'))
+      expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    },
+    15000,
+  )
 
   it('abre la ficha al hacer click en un parte del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
@@ -469,7 +581,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     // El checkbox de la capa de partes sigue presente: no se desmontó.
     expect(
-      screen.getByRole('checkbox', { name: /escuelas con afectación vigente/i }),
+      screen.getByRole('checkbox', { name: /escuelas \(padrón completo\)/i }),
     ).toBeInTheDocument()
   })
 })
@@ -491,5 +603,54 @@ describe('MapInfraestructuraPage — modo Replay', () => {
     await userEvent.click(botonVolver)
     expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
+  })
+})
+
+describe('M1: hover de departamento y buscador de escuelas', () => {
+  // El popup de hover arma su texto con <strong> intercalados ("En
+  // <strong>Capital</strong> hay <strong>10</strong> escuelas…"), así que el
+  // matcher por defecto de getByText (que sólo mira los text nodes DIRECTOS)
+  // no lo ve. Se matchea por tagName + textContent completo del <p>.
+  const esParrafoHover = (element: Element | null): boolean =>
+    element?.tagName === 'P' &&
+    /En Capital hay 10 escuelas/.test(element.textContent ?? '')
+
+  it('hover de departamento muestra total, afectadas y porcentaje, y desaparece al salir', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    expect(
+      screen.queryByText((_contenido, element) => esParrafoHover(element)),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('mock-hover-departamento'))
+
+    const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
+    expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
+    expect(popup).toHaveTextContent('3 están afectadas')
+    expect(popup).toHaveTextContent('30%')
+
+    await userEvent.click(screen.getByTestId('mock-mouse-leave'))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y no abre ficha', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    // El aria-label completo distingue el buscador de escuelas del filtro
+    // homónimo del panel de leyenda ("Buscar escuela" + placeholder corto).
+    const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
+    await userEvent.type(input, 'Escuela sin afectación')
+
+    await userEvent.click(await screen.findByText(/Escuela sin afectación/i))
+
+    expect(FLY_TO_MOCK).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-58.8, -27.5] }),
+    )
+    // Sin afectación reportada: no hay ParteMapa, por lo tanto no se abre la ficha.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
   })
 })

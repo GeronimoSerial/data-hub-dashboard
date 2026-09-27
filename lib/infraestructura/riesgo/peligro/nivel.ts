@@ -10,6 +10,7 @@ import {
   hazardForecast,
   infraGeoProfile,
 } from '@/lib/db/schema'
+import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
 
 export type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
 
@@ -20,6 +21,11 @@ export interface NivelPeligroCelda {
   horizonteHoras: HorizontePeligro
   nivel: NivelPeligro
   base: 'ensemble' | 'deterministico' | 'sin_dato'
+  // Método que produjo el nivel: percentiles de climatología, umbral provisorio
+  // (puente mientras no hay climatología) o sin_dato. Aditivo y opcional para
+  // no romper a los consumidores que construyen el tipo; nivel.ts SIEMPRE lo
+  // emite.
+  metodo?: 'percentiles' | 'umbral_provisorio' | 'sin_dato'
   probabilidadP95: number | null
   probabilidadP99: number | null
   precipitacionMm: number | null
@@ -42,7 +48,7 @@ export interface NivelCaudalPunto {
 // el contrato fijo que ejecutará E3b; estas son las funciones que consume.
 // ---------------------------------------------------------------------------
 
-export const VERSION_REGLA_PELIGRO = 'peligro-v0.1'
+export const VERSION_REGLA_PELIGRO = 'peligro-v0.2'
 
 // Nombres de `variable`/`muestra` tal como los escriben los jobs de ingesta
 // (providers/ensemble.ts, ecmwf.ts, flood.ts, climatologia*.ts). La consulta
@@ -170,43 +176,6 @@ function elegirMasRecienteYHorizonte<T extends FilaConHorizonte>(
   })
 }
 
-async function cargarFilaEnsemble(
-  db: Db,
-  geometryRef: string,
-  horizontePedido: HorizontePeligro,
-): Promise<{
-  corridaEn: string
-  validoEn: string
-  horizonteHoras: number
-  probabilidadP95: number
-  probabilidadP99: number
-  miembrosValidos: number
-} | null> {
-  const filas = await db
-    .select({
-      corridaEn: hazardEnsembleProb.corridaEn,
-      validoEn: hazardEnsembleProb.validoEn,
-      horizonteHoras: hazardEnsembleProb.horizonteHoras,
-      probabilidadP95: hazardEnsembleProb.probabilidadP95,
-      probabilidadP99: hazardEnsembleProb.probabilidadP99,
-      miembrosValidos: hazardEnsembleProb.miembrosValidos,
-    })
-    .from(hazardEnsembleProb)
-    .where(
-      and(
-        eq(hazardEnsembleProb.geometryRef, geometryRef),
-        eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
-      ),
-    )
-  const fila = elegirMasRecienteYHorizonte(filas, horizontePedido)
-  // Hallazgo de revisión (docs/ejecucion-enos/E3a/registro.md, ola de
-  // revisión, #A): 0 miembros válidos es "sin dato", nunca "0% de
-  // probabilidad" — `nivelDesdeEnsemble(0,0)` daría 'verde' por defecto, que
-  // es exactamente el camino prohibido de falta de dato pintada de verde.
-  if (fila !== null && fila.miembrosValidos === 0) return null
-  return fila
-}
-
 async function cargarPronostico(
   db: Db,
   geometryRef: string,
@@ -276,6 +245,142 @@ async function cargarUmbralesClimatologia(
   return { p90, p95, p99 }
 }
 
+// ---------------------------------------------------------------------------
+// Lecturas por lote: una sola consulta para TODOS los geometryRefs en vez de
+// una consulta por celda (evita el N+1 de obtenerNivelesPeligro). El
+// agrupamiento por celda se hace en memoria; el conjunto de filas y el orden
+// de `elegirMasRecienteYHorizonte`/`cargarUmbralesClimatologia` no cambian, así
+// que el resultado es idéntico al de la versión celda por celda.
+// ---------------------------------------------------------------------------
+
+type FilaEnsemble = {
+  corridaEn: string
+  validoEn: string
+  horizonteHoras: number
+  probabilidadP95: number
+  probabilidadP99: number
+  miembrosValidos: number
+}
+
+type FilaPronostico = {
+  corridaEn: string
+  validoEn: string
+  horizonteHoras: number
+  valor: number
+}
+
+async function cargarFilasEnsemblePorLote(
+  db: Db,
+  geometryRefs: string[],
+): Promise<Map<string, FilaEnsemble[]>> {
+  const porCelda = new Map<string, FilaEnsemble[]>()
+  if (geometryRefs.length === 0) return porCelda
+  const filas = await db
+    .select({
+      geometryRef: hazardEnsembleProb.geometryRef,
+      corridaEn: hazardEnsembleProb.corridaEn,
+      validoEn: hazardEnsembleProb.validoEn,
+      horizonteHoras: hazardEnsembleProb.horizonteHoras,
+      probabilidadP95: hazardEnsembleProb.probabilidadP95,
+      probabilidadP99: hazardEnsembleProb.probabilidadP99,
+      miembrosValidos: hazardEnsembleProb.miembrosValidos,
+    })
+    .from(hazardEnsembleProb)
+    .where(
+      and(
+        inArray(hazardEnsembleProb.geometryRef, geometryRefs),
+        eq(hazardEnsembleProb.variable, VARIABLE_ENSEMBLE),
+      ),
+    )
+  for (const fila of filas) {
+    const lista = porCelda.get(fila.geometryRef)
+    if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
+    else lista.push(fila)
+  }
+  return porCelda
+}
+
+async function cargarPronosticosPorLote(
+  db: Db,
+  geometryRefs: string[],
+  variable: 'precipitacion' | 'caudal',
+): Promise<Map<string, FilaPronostico[]>> {
+  const porCelda = new Map<string, FilaPronostico[]>()
+  if (geometryRefs.length === 0) return porCelda
+  const filas = await db
+    .select({
+      geometryRef: hazardForecast.geometryRef,
+      corridaEn: hazardForecast.corridaEn,
+      validoEn: hazardForecast.validoEn,
+      horizonteHoras: hazardForecast.horizonteHoras,
+      valor: hazardForecast.valor,
+    })
+    .from(hazardForecast)
+    .where(
+      and(inArray(hazardForecast.geometryRef, geometryRefs), eq(hazardForecast.variable, variable)),
+    )
+  for (const fila of filas) {
+    const lista = porCelda.get(fila.geometryRef)
+    if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
+    else lista.push(fila)
+  }
+  return porCelda
+}
+
+async function cargarUmbralesPorLote(
+  db: Db,
+  geometryRefs: string[],
+  variable: 'precipitacion_diaria' | 'caudal_diario',
+): Promise<Map<string, { p90: number; p95: number; p99: number } | null>> {
+  const porCelda = new Map<string, { p90: number; p95: number; p99: number } | null>()
+  if (geometryRefs.length === 0) return porCelda
+  const filas = await db
+    .select({
+      geometryRef: hazardClimatology.geometryRef,
+      percentil: hazardClimatology.percentil,
+      valor: hazardClimatology.valor,
+    })
+    .from(hazardClimatology)
+    .where(
+      and(
+        inArray(hazardClimatology.geometryRef, geometryRefs),
+        eq(hazardClimatology.variable, variable),
+        eq(hazardClimatology.muestra, MUESTRA_CLIMATOLOGIA),
+        inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
+      ),
+    )
+    .orderBy(desc(hazardClimatology.periodoHasta), desc(hazardClimatology.version))
+
+  // El orderBy global ordena TODAS las filas del lote; dentro de cada celda la
+  // primera aparición por percentil es la más reciente, igual que la consulta
+  // celda por celda.
+  const porPercentilPorCelda = new Map<string, Map<string, number>>()
+  for (const fila of filas) {
+    let porPercentil = porPercentilPorCelda.get(fila.geometryRef)
+    if (porPercentil === undefined) {
+      porPercentil = new Map<string, number>()
+      porPercentilPorCelda.set(fila.geometryRef, porPercentil)
+    }
+    if (!porPercentil.has(fila.percentil)) porPercentil.set(fila.percentil, fila.valor)
+  }
+
+  for (const geometryRef of geometryRefs) {
+    const porPercentil = porPercentilPorCelda.get(geometryRef)
+    if (porPercentil === undefined) {
+      porCelda.set(geometryRef, null)
+      continue
+    }
+    const p90 = porPercentil.get('p90')
+    const p95 = porPercentil.get('p95')
+    const p99 = porPercentil.get('p99')
+    porCelda.set(
+      geometryRef,
+      p90 === undefined || p95 === undefined || p99 === undefined ? null : { p90, p95, p99 },
+    )
+  }
+  return porCelda
+}
+
 async function listarGeometryRefs(db: Db): Promise<string[]> {
   const filas = await db
     .selectDistinct({ geometryRef: infraGeoProfile.geometryRef })
@@ -287,24 +392,29 @@ async function listarGeometryRefs(db: Db): Promise<string[]> {
     .sort()
 }
 
-async function calcularNivelCelda(
-  db: Db,
+function calcularNivelCeldaSync(
   geometryRef: string,
   horizonte: HorizontePeligro,
   ahora: Date,
-): Promise<NivelPeligroCelda> {
+  filasEnsemble: FilaEnsemble[] | undefined,
+  filasPronostico: FilaPronostico[] | undefined,
+  umbrales: { p90: number; p95: number; p99: number } | null | undefined,
+): NivelPeligroCelda {
   // El ensemble sólo alimenta 24 y 72 h: produce ventanas de 24 h hasta 3 días
   // y NUNCA es la fuente de la vigilancia de 7-10 días. Para 240 se salta
   // directo al fallback determinístico (menor resolución temporal).
   if (horizonte !== 240) {
-    const fila = await cargarFilaEnsemble(db, geometryRef, horizonte)
-    if (fila !== null) {
+    const fila = elegirMasRecienteYHorizonte(filasEnsemble ?? [], horizonte)
+    if (fila !== null && fila.miembrosValidos !== 0) {
       const nivel = nivelDesdeEnsemble(fila.probabilidadP95, fila.probabilidadP99)
       return {
         geometryRef,
         horizonteHoras: horizonte,
         nivel,
         base: 'ensemble',
+        // La fila de hazardEnsembleProb sólo existe cuando hubo climatología al
+        // momento de la ingesta: el ensemble siempre es percentiles.
+        metodo: 'percentiles',
         probabilidadP95: fila.probabilidadP95,
         probabilidadP99: fila.probabilidadP99,
         // El ensemble reporta proporción de miembros, no un acumulado puntual:
@@ -325,35 +435,52 @@ async function calcularNivelCelda(
   // tolerancia documentada arriba; si la corrida no llega a la semana, es
   // sin_dato, no se extrapola el último horizonte disponible.
   const tolerancia = horizonte === 240 ? TOLERANCIA_HORIZONTE_240_HORAS : undefined
-  const pronostico = await cargarPronostico(
-    db,
-    geometryRef,
-    VARIABLE_PRONOSTICO_PRECIPITACION,
-    horizonte,
-    tolerancia,
-  )
-  const umbrales = await cargarUmbralesClimatologia(
-    db,
-    geometryRef,
-    VARIABLE_CLIMATOLOGIA_PRECIPITACION,
-  )
+  const candidato = elegirMasRecienteYHorizonte(filasPronostico ?? [], horizonte)
+  const pronostico =
+    candidato !== null &&
+    !(tolerancia !== undefined && Math.abs(candidato.horizonteHoras - horizonte) > tolerancia)
+      ? candidato
+      : null
+  const umbralesEfectivos = umbrales ?? null
 
-  if (pronostico !== null && umbrales !== null) {
+  if (pronostico !== null && umbralesEfectivos !== null) {
     const { nivel, percentilReferencia } = nivelDesdeDeterministico(
       pronostico.valor,
-      umbrales.p90,
-      umbrales.p95,
-      umbrales.p99,
+      umbralesEfectivos.p90,
+      umbralesEfectivos.p95,
+      umbralesEfectivos.p99,
     )
     return {
       geometryRef,
       horizonteHoras: horizonte,
       nivel,
       base: 'deterministico',
+      metodo: 'percentiles',
       probabilidadP95: null,
       probabilidadP99: null,
       precipitacionMm: pronostico.valor,
       percentilReferencia,
+      emitidoEn: pronostico.corridaEn,
+      validoHasta: pronostico.validoEn,
+      versionRegla: VERSION_REGLA_PELIGRO,
+    }
+  }
+
+  // Hay pronóstico pero NO climatología: puente provisorio mientras se calcula
+  // la climatología ERA5. base sigue siendo 'deterministico' (la fuente es el
+  // pronóstico determinístico); el nivel sale de umbrales fijos, no de
+  // percentiles. Si hubiera climatología, este camino NUNCA se toma.
+  if (pronostico !== null) {
+    return {
+      geometryRef,
+      horizonteHoras: horizonte,
+      nivel: nivelDesdeUmbralProvisorio(pronostico.valor, horizonte),
+      base: 'deterministico',
+      metodo: 'umbral_provisorio',
+      probabilidadP95: null,
+      probabilidadP99: null,
+      precipitacionMm: pronostico.valor,
+      percentilReferencia: null,
       emitidoEn: pronostico.corridaEn,
       validoHasta: pronostico.validoEn,
       versionRegla: VERSION_REGLA_PELIGRO,
@@ -369,6 +496,7 @@ async function calcularNivelCelda(
     horizonteHoras: horizonte,
     nivel: 'sin_dato',
     base: 'sin_dato',
+    metodo: 'sin_dato',
     probabilidadP95: null,
     probabilidadP99: null,
     precipitacionMm: null,
@@ -390,8 +518,10 @@ async function calcularNivelCelda(
  *   fallback determinístico (pronóstico `precipitacion` + climatología
  *   `precipitacion_diaria`).
  * - Horizonte 240: siempre fallback determinístico; el ensemble no participa.
- * - Si falta el pronóstico o la climatología, `base`/`nivel` son 'sin_dato'
- *   (nunca 'verde' inventado).
+ * - Si hay pronóstico pero NO climatología completa, se usa el umbral
+ *   provisorio (metodo 'umbral_provisorio'; puente mientras se calcula ERA5).
+ * - Si falta el pronóstico, `base`/`nivel` son 'sin_dato' (nunca 'verde'
+ *   inventado).
  */
 export async function obtenerNivelesPeligro(opts?: {
   geometryRefs?: string[]
@@ -403,10 +533,39 @@ export async function obtenerNivelesPeligro(opts?: {
   const horizontes: HorizontePeligro[] = opts?.horizontes ?? [24, 72, 240]
   const geometryRefs = opts?.geometryRefs ?? (await listarGeometryRefs(db))
 
+  // Con 0 celdas no se toca la DB: `inArray` con array vacío no es confiable.
+  if (geometryRefs.length === 0) return []
+
+  // Lecturas por lote: a lo sumo 3 consultas para TODAS las celdas, en vez de
+  // hasta `celdas * horizontes * 3` consultas individuales.
+  const usaEnsemble = horizontes.some((horizonte) => horizonte !== 240)
+  const filasEnsemblePorCelda = usaEnsemble
+    ? await cargarFilasEnsemblePorLote(db, geometryRefs)
+    : new Map<string, FilaEnsemble[]>()
+  const pronosticosPorCelda = await cargarPronosticosPorLote(
+    db,
+    geometryRefs,
+    VARIABLE_PRONOSTICO_PRECIPITACION,
+  )
+  const umbralesPorCelda = await cargarUmbralesPorLote(
+    db,
+    geometryRefs,
+    VARIABLE_CLIMATOLOGIA_PRECIPITACION,
+  )
+
   const celdas: NivelPeligroCelda[] = []
   for (const geometryRef of geometryRefs) {
     for (const horizonte of horizontes) {
-      celdas.push(await calcularNivelCelda(db, geometryRef, horizonte, ahora))
+      celdas.push(
+        calcularNivelCeldaSync(
+          geometryRef,
+          horizonte,
+          ahora,
+          filasEnsemblePorCelda.get(geometryRef),
+          pronosticosPorCelda.get(geometryRef),
+          umbralesPorCelda.get(geometryRef) ?? null,
+        ),
+      )
     }
   }
   return celdas

@@ -349,6 +349,34 @@ describe('calcularRiesgoEscuela', () => {
     expect(resultado.confianza).toBe('media')
   })
 
+  it('T-UP1: peligro con metodo umbral_provisorio baja la confianza un escalón (evidencia menos confiable, no ausencia)', async () => {
+    const conPercentiles = escenarioBase()
+    const conProvisorio: EscenarioFake = {
+      ...escenarioBase(),
+      peligro: { [GEOM]: [celda('naranja', { metodo: 'umbral_provisorio' })] },
+    }
+
+    const percentiles = await calcularRiesgoEscuela({
+      cueAnexo: CUE,
+      horizonte: 24,
+      asOf: AS_OF,
+      puertos: crearPuertosFake(conPercentiles),
+    })
+    const provisorio = await calcularRiesgoEscuela({
+      cueAnexo: CUE,
+      horizonte: 24,
+      asOf: AS_OF,
+      puertos: crearPuertosFake(conProvisorio),
+    })
+
+    // El factor de amenaza se agrega igual al score...
+    expect(provisorio.scoreAmenaza).not.toBeNull()
+    expect(provisorio.factores.some((factor) => factor.fuente === 'peligro-celda')).toBe(true)
+    // ...pero la confianza cae un escalón frente al mismo escenario con percentiles.
+    expect(percentiles.confianza).toBe('alta')
+    expect(provisorio.confianza).toBe('media')
+  })
+
   it('T-H1: un antecedente con rigeDesde posterior a asOf no aporta nada a duracionTotalHoras ni al score', async () => {
     const asOfViejo = '2026-03-01T00:00:00.000Z'
     const escenario: EscenarioFake = {

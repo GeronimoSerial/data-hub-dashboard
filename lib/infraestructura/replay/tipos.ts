@@ -119,6 +119,8 @@ export const nivelPeligroReplaySchema = z.object({
   geometryRef: z.string().min(1),
   nivel: z.string().min(1),
   emitidoEn: instanteReplaySchema,
+  // Método que produjo el nivel. Opcional para no romper payloads previos.
+  metodo: z.enum(['percentiles', 'umbral_provisorio']).optional(),
 })
 
 export type NivelPeligroReplay = z.infer<typeof nivelPeligroReplaySchema>

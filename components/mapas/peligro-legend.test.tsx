@@ -35,4 +35,20 @@ describe('PeligroLegend', () => {
       expect(item.textContent?.trim().length).toBeGreaterThan(0)
     }
   })
+
+  it('con hayNivelProvisorio muestra el aviso de nivel provisorio', () => {
+    render(<PeligroLegend hayNivelProvisorio />)
+
+    expect(
+      screen.getByText(
+        'Nivel provisorio (umbrales fijos de lluvia) mientras se calcula la climatología de la zona.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('sin hayNivelProvisorio no muestra el aviso de nivel provisorio', () => {
+    render(<PeligroLegend />)
+
+    expect(screen.queryByText(/Nivel provisorio/)).not.toBeInTheDocument()
+  })
 })

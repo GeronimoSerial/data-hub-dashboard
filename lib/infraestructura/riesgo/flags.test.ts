@@ -7,6 +7,7 @@ import {
   riskMode,
   riskRadarEnabled,
   seasonalEnabled,
+  situacionEnabled,
 } from './flags'
 
 const CLAVES = [
@@ -17,6 +18,7 @@ const CLAVES = [
   'HAZARD_CONTEXT_ENABLED',
   'SEASONAL_ENABLED',
   'REPLAY_ENABLED',
+  'SITUACION_ENABLED',
 ] as const
 
 const originales = new Map<string, string | undefined>()
@@ -121,6 +123,27 @@ describe('seasonalEnabled', () => {
   it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
     process.env.SEASONAL_ENABLED = '1'
     expect(seasonalEnabled()).toBe(false)
+    process.env.SEASONAL_ENABLED = 'yes'
+    expect(seasonalEnabled()).toBe(false)
+  })
+})
+
+describe('situacionEnabled', () => {
+  it('devuelve false sin la variable seteada', () => {
+    delete process.env.SITUACION_ENABLED
+    expect(situacionEnabled()).toBe(false)
+  })
+
+  it('devuelve true con el valor exacto "true"', () => {
+    process.env.SITUACION_ENABLED = 'true'
+    expect(situacionEnabled()).toBe(true)
+  })
+
+  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
+    process.env.SITUACION_ENABLED = '1'
+    expect(situacionEnabled()).toBe(false)
+    process.env.SITUACION_ENABLED = 'yes'
+    expect(situacionEnabled()).toBe(false)
   })
 })
 

@@ -54,3 +54,11 @@ export function replayEnabled(): boolean {
 export function riskMode(): 'shadow' | 'advisory' {
   return process.env.RISK_MODE === ES_ADVISORY ? 'advisory' : 'shadow'
 }
+
+// Gobierna sólo la UI nueva del Centro de Situación (E5, ruta /situacion) y
+// nada más: las APIs /api/infraestructura/situacion* existen siempre,
+// protegidas por adminPageGate/ACL, este flag sólo oculta el frontend. Apagado
+// por defecto, como todos los flags de este módulo.
+export function situacionEnabled(): boolean {
+  return esTrue(process.env.SITUACION_ENABLED)
+}
