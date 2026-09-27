@@ -15,7 +15,8 @@ pasos se validan con fakes inyectados (`fetchImpl`, `obtenerProbabilidades`,
 
 | Zona | Rutas | Por qué está aislada |
 |---|---|---|
-| Jobs de ingesta | `lib/infraestructura/riesgo/jobs/` (`sync-ensemble.ts`, `sync-seasonal.ts`, `sync-imerg.ts`, `calcular-climatologia*.ts`, `sync-pronostico-caudal.ts`) | Consumen **la forma normalizada** de los puertos (`PuertoPronosticoEnsemble`, `PuertoTendenciaEstacional`, `PuertoObservacionSatelital`) o la firma del provider; no conocen host, URL, modelo ni token. Un cambio de proveedor no altera su contrato. |
+| Jobs de ingesta con puerto | `lib/infraestructura/riesgo/jobs/sync-ensemble.ts`, `sync-seasonal.ts`, `sync-imerg.ts` | Ya cableados (ABS1, segunda parte): consumen **sólo** la forma normalizada de `PuertoPronosticoEnsemble`/`PuertoTendenciaEstacional`/`PuertoObservacionSatelital` (`lib/infraestructura/riesgo/adaptadores-ingesta/`). No importan ningún `provider` ni arman ninguna URL; no conocen host, modelo ni token. Un cambio de proveedor real se resuelve en el adaptador o en `CONFIG_FUENTES`, nunca en el job. |
+| Jobs de ingesta SIN puerto (fuera de alcance) | `calcular-climatologia.ts`, `calcular-climatologia-caudal.ts`, `sync-pronostico-caudal.ts` | Siguen importando su provider directo (`providers/climatologia*.ts`, `providers/ecmwf.ts`, `providers/flood.ts`). No existe todavía un puerto normalizado de climatología ni de pronóstico determinístico en `adaptadores-ingesta/` (sólo hay 3: ensemble, seasonal, imerg). Cambiar esas fuentes hoy sí implica tocar el job — está documentado como pendiente, no como excepción silenciosa. |
 | Motor de cálculo | `lib/infraestructura/riesgo/motor/calculo.ts` | El núcleo **nunca llama a los providers ni a la red**: lee de la base (Capa 1 / `hazard_*`) a través de `PuertosMotor`. Cambiar la fuente de ingesta no cambia el cálculo. |
 | UI | Componentes bajo `app/` y `components/` | Consumen endpoints/datos persistidos, no providers. El fetch externo vive aguas arriba de la DB. |
 | Cliente HTTP compartido | `providers/cliente-http.ts`, `providers/cupo-om.ts` | Es el gateway común de Open-Meteo (timeout, backoff, 429, cuarentena, cupo). Cambiar un proveedor **no** debe tocar el gateway; si necesitás otro transporte, va en el adaptador nuevo. |
@@ -189,13 +190,17 @@ No se edita `adaptadores-ingesta/ensemble.ts`: sólo se pasa otra función por
 obligatoria para todo adaptador nuevo (o parte de su puerto). Verificá que el
 provider alterno cumpla: forma normalizada en el caso `normal`, ausencia como
 `sinDato`/`sinDato` con puntos vacíos en `vacio`, degradación parcial con mezcla
-dato/sin-dato, y **rechazo limpio** (propaga el `throw`) en `error`. Sólo cuando la
-suite pasa se cablea el adaptador en el flujo del job (ese cableado es un cambio
-aparte y no forma parte de este runbook).
+dato/sin-dato, y **rechazo limpio** (propaga el `throw`) en `error`.
 
-> Nota de estado: hoy `sync-ensemble.ts` importa el provider directo. La ruta
-> puerto/adaptador es la frontera objetivo; el reemplazo de proveedor se prepara y
-> valida en el adaptador antes de tocar el cableado del job.
+**Paso 5 — No hace falta tocar el job.** Desde ABS1 (segunda parte),
+`sync-ensemble.ts` ya consume `PuertoPronosticoEnsemble` por inyección
+(`crearAdaptadorEnsemble` es sólo el valor por defecto). Reemplazar el
+provider real por `ensembleAlterno` es cambiar **qué función recibe**
+`crearAdaptadorEnsemble({ obtenerProbabilidades: ... })` dentro de
+`sync-ensemble.ts` (una sola línea, la construcción del `puerto` por
+defecto) — el resto del job (loop de tandas, persistencia, salud) no cambia.
+Mismo patrón para `sync-seasonal.ts` (`crearAdaptadorSeasonal`) y
+`sync-imerg.ts` (`crearAdaptadorImerg`).
 
 ---
 

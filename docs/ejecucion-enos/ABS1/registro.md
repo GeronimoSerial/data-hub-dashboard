@@ -525,6 +525,145 @@ lista: `lib/infraestructura/riesgo/providers/config-fuentes.ts`,
   se documenta como **flake preexistente NO resuelto en este batch**, fuera de
   alcance.
 
+## Segunda parte: jobs por inyección
+
+Cierre del pendiente principal de la primera parte: los 3 jobs con puerto
+normalizado ya no importan su provider directo, consumen el puerto por
+inyección (adaptador real como valor por defecto).
+
+### Alcance revisado y jobs fuera de alcance
+
+`rg "from ['\"]\.\./providers/" lib/infraestructura/riesgo/jobs/` (excluyendo
+tests) muestra 6 jobs con import directo de `providers/` antes de este batch:
+`sync-ensemble.ts`, `sync-seasonal.ts`, `sync-imerg.ts`,
+`calcular-climatologia.ts`, `calcular-climatologia-caudal.ts`,
+`sync-pronostico-caudal.ts`. Sólo los primeros 3 tienen puerto normalizado en
+`adaptadores-ingesta/` (`PuertoPronosticoEnsemble`, `PuertoTendenciaEstacional`,
+`PuertoObservacionSatelital`); climatología y el pronóstico determinístico
+(ECMWF/Flood, ya contrato de adaptador vía `HazardProvider`) no tienen puerto
+de ingesta propuesto en este documento, así que quedan **fuera de alcance**
+de este cableado (no es una omisión: no hay puerto que cablear). Documentado
+también en `como-cambiar-una-fuente.md`.
+
+### Cableado por job
+
+- **`sync-ensemble.ts`**: reemplaza el import directo de
+  `obtenerProbabilidadesEnsemble` por `crearAdaptadorEnsemble(...)` (puerto
+  `PuertoPronosticoEnsemble`), construido una vez por corrida con el mismo
+  `apiKey`/`controladorCupoFactory` (`host: 'ensemble-api'`) que antes se
+  pasaba por tanda — semántica idéntica, el provider real se sigue invocando
+  por lote. `persistirPuntos` traduce nombres del puerto a las columnas de
+  `hazard_ensemble_prob` (`validoHasta`→`validoEn`,
+  `probabilidadSuperaP95/P99`→`probabilidadP95/P99`, `dispersionMm`→
+  `dispersion`) sin tocar valores. El puerto ahora expone
+  `llamadasRealizadas` real (antes PENDIENTE del adaptador; el job la
+  necesitaba para `contadores.llamadas` de `infra_job_run` y ya no usa el
+  fallback `?? 1`). Como `hazard_ensemble_prob.probabilidad_p95/p99/dispersion`
+  son NOT NULL y el tipo del puerto admite `number | null` (aspiracional,
+  para cuando se corrija la discrepancia semántica de `miembrosValidos === 0`
+  documentada en la primera parte), se agregó un guard `valorPresente()` que
+  hace explícita esa tensión de tipos en vez de esconder un futuro `null`
+  real detrás de un `?? 0`.
+- **`sync-seasonal.ts`**: reemplaza el import directo de
+  `obtenerTendenciaEstacional` por `crearAdaptadorSeasonal(...)`. El puerto no
+  tiene defaults propios para `horizonteDesdeDias`/`horizonteHastaDias`, así
+  que el job los pasa explícitos (`30`/`90`, los mismos defaults que ya tenía
+  el provider). El guard de cupo (`asegurarPesoAlcanzable`/`pesoLlamada`)
+  sigue viviendo en el job, antes de invocar al puerto — no se movió al
+  adaptador. `llamadasRealizadas` del job sigue siendo su propio contador por
+  tanda (nunca usó el del provider), así que el puerto de seasonal NO
+  necesitó exponerlo (asimetría documentada en el adaptador).
+- **`sync-imerg.ts`**: el más grande de los tres. Reemplaza el fetch inline de
+  CMR + OPeNDAP por `crearAdaptadorImerg({ fetchImpl, token })` (puerto
+  `PuertoObservacionSatelital`): `listarGranulos` sustituye al fetch+parseo de
+  CMR (mismo host/short_name/page_size, ahora armados en el adaptador) y
+  `obtenerObservacion` sustituye a `procesarGranulo` (mismo armado de índices
+  de grilla y de URL de subset). El resuelve PENDIENTE que dejó el adaptador
+  en la primera parte ("el job queda SIN TOCAR"). La columna
+  `hazard_observation.unidad` sigue siendo el literal `'mm/30min'`: el puerto
+  no lo expone (siempre mm), así que el job lo reconstituye con una constante
+  local en vez de perder el valor.
+
+### Test por job con puerto fake (sin red)
+
+Se agregó un test por job (`sync-ensemble.test.ts`, `sync-seasonal.test.ts`,
+`sync-imerg.test.ts`) que inyecta el **puerto completo** directamente
+(`puerto: PuertoXxx`), sin pasar por `crearAdaptadorXxx` ni por ningún
+provider — demuestra la inyección real, no sólo la del provider crudo (que ya
+existía). Los tests preexistentes que inyectaban la función cruda del
+provider (`obtenerProbabilidades`/`obtenerTendenciaEstacional`) NO se
+tocaron en su lógica de negocio; sólo se corrigió un fixture de ensemble
+(`ensembleFake`) que no declaraba `llamadasRealizadas` (el provider real
+siempre lo hace) — un gap preexistente del fake que quedó expuesto al dejar
+de usar el fallback `?? 1`.
+
+### Grep final (item 3 del alcance)
+
+`rg "fetch\(" lib/infraestructura/riesgo/jobs/ --glob '!*.test.ts'` → vacío.
+`rg "open-meteo\.com|gesdisc|earthdata\.nasa|openrouter\.ai" lib/ app/ scripts/ --glob '!*.test.ts' --glob '!*.test.tsx' | rg -v "providers/|adaptadores-ingesta/|briefing-ia/"` → sólo un fixture JSON de test (`__fixtures__/hazard/imerg-cmr-granulos-2026-09-26.json`), ningún código. Ningún `fetch(` ni URL de proveedor vive fuera de `providers/`, `adaptadores-ingesta/` o `briefing-ia/`.
+
+### Flake de `ficha-parte-modal.test.tsx` — diagnosticado y corregido
+
+Causa raíz confirmada: el `afterEach` hacía
+`document.body.innerHTML = ''` en vez de `cleanup()` de
+`@testing-library/react`. Eso deja el root de React de cada `render()` sin
+desmontar: su fiber sigue con trabajo pendiente (efectos del fetch
+asíncrono) referenciando nodos DOM arrancados a mano; ese trabajo se
+reprograma vía el scheduler y puede ejecutarse cuando el entorno jsdom de
+OTRO archivo de test ya fue destruido, produciendo
+`Uncaught Exception: window is not defined`. Sólo reproduce corriendo la
+suite COMPLETA (no el archivo aislado), consistente con lo que ya había
+observado la primera parte. Fix: importar `cleanup` de
+`@testing-library/react` y llamarlo en el `afterEach` en vez de manipular
+`innerHTML` a mano. Cambio de 2 líneas, sólo en el archivo de test; ninguna
+aserción de negocio se tocó. Confirmado: 2 corridas completas de la suite
+después del fix, cero `Unhandled Errors`.
+
+### Verificación
+
+- `pnpm exec vitest run --maxWorkers=2` corrido **2 veces completas** después
+  del fix del flake (además de corridas parciales durante el desarrollo):
+  218 archivos, 1932 tests, todos pasando, **0 Unhandled Errors** en ambas
+  corridas (antes del fix había 2, ver arriba).
+- `pnpm exec tsc --noEmit` verde.
+- `pnpm lint` verde (0 errores, 0 warnings; se corrigieron 3 warnings propios
+  del cableado — imports type-only y una constante que quedó sin uso).
+- `pnpm build` verde (compila y genera las 70 rutas).
+- Revisión independiente por un N3 distinto del implementador (sólo lectura,
+  sin ejecutar tests): **sin hallazgos críticos**. Hallazgos menores: (1) el
+  fallback de `llamadasRealizadas` pasó de `?? 1` (job) a `?? 0` (adaptador)
+  — indistinto con el provider real, que siempre declara el campo, sólo
+  afecta a un fake de test que lo omita; (2) `celdasSinDato` de IMERG queda
+  siempre `[]` (mismo comportamiento que antes, documentado como PENDIENTE,
+  no regresión); (3) el armado de la URL de CMR sigue duplicado entre el
+  adaptador y `CONFIG_FUENTES` (ya documentado en la primera parte, no
+  afecta valores).
+
+### Pendiente (no se hizo, fuera de alcance de esta tarea)
+
+- `calcular-climatologia.ts`, `calcular-climatologia-caudal.ts` y
+  `sync-pronostico-caudal.ts` siguen importando su provider directo: no
+  existe puerto de ingesta normalizado para climatología ni para el
+  pronóstico determinístico ECMWF/Flood en este documento.
+- La discrepancia semántica de ensemble (`probabilidadSuperaP95/P99` debería
+  ser `null` con `miembrosValidos === 0`, hoy preserva el `0` literal del
+  provider) sigue **deliberadamente sin corregir** (mismo motivo que la
+  primera parte: cambiaría valores persistidos).
+- `adaptadores-ingesta/imerg.ts` sigue teniendo su propia copia de
+  `urlCmrVentana` (ya no duplicada con el job, sólo con la constante
+  `CONFIG_FUENTES.imergCmr`): consolidar ese builder en `providers/imerg.ts`
+  queda fuera de alcance.
+
 ## Gate
 
 <!-- reservado para N1 -->
+
+## Gate (N1)
+
+- ABS1 se hizo en dos N2 sobre el mismo worktree.
+  - Primera parte: configuración única de las 8 fuentes, puertos y adaptadores con suite de contrato, y los 3 seguimientos.
+  - Segunda parte: sync-ensemble, sync-imerg y sync-seasonal reciben el puerto por inyección, con un test de puerto fake por job, y se corrigió el flake de ficha-parte-modal (cleanup de RTL).
+- Revisión independiente por N3 en ambas partes, sin bloqueantes abiertos.
+- Verificación de N1: vitest 218/218 archivos y 1932/1932 tests sin unhandled errors, lint 0, tsc 0 y build 0.
+- Grep de N1: los únicos `fetch(` fuera de providers, adaptadores-ingesta y briefing-ia son hooks de cliente contra la API interna. Ninguna URL de proveedor queda fuera de los adaptadores.
+- Seguimiento aceptado: calcular-climatologia*.ts y sync-pronostico-caudal.ts todavía importan su provider, que ya implementa HazardProvider. Queda pasarlos también por inyección.
