@@ -27,6 +27,7 @@ import {
   crearProviderFlood,
   obtenerPronosticoConDiagnostico as pronosticoFloodConDiagnostico,
 } from '../providers/flood'
+import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
 
@@ -140,11 +141,20 @@ function inicioDeBloqueUtc(ahora: Date): Date {
 
 // La factory de flood no expone el diagnóstico por punto; se lo agregamos
 // apoyándonos en la función suelta que ella misma usa internamente.
-function crearProviderFloodConDiagnostico(): ProveedorConDiagnostico {
+function crearProviderFloodConDiagnostico(opts: {
+  db: Db
+  apiKey: string | undefined
+}): ProveedorConDiagnostico {
   const base = crearProviderFlood()
   return {
     nombreProveedor: base.nombreProveedor,
-    obtenerPronosticoConDiagnostico: (params) => pronosticoFloodConDiagnostico(params),
+    obtenerPronosticoConDiagnostico: (params) =>
+      pronosticoFloodConDiagnostico({
+        ...params,
+        apiKey: opts.apiKey,
+        controladorCupoFactory: (peso) =>
+          crearControladorCupo({ host: 'flood-api', peso, apiKeyPresente: Boolean(opts.apiKey), db: opts.db }),
+      }),
   }
 }
 
@@ -358,8 +368,15 @@ async function ejecutarCuerpoDelJob(ctx: {
 
   const puntosRio = PUNTOS_RIO.map((punto) => punto.id)
 
-  const ecmwfProvider = params?.ecmwfProvider ?? crearProviderEcmwf()
-  const floodProvider = params?.floodProvider ?? crearProviderFloodConDiagnostico()
+  const apiKey = apiKeyDesdeEntorno()
+  const ecmwfProvider =
+    params?.ecmwfProvider ??
+    crearProviderEcmwf({
+      apiKey,
+      controladorCupoFactory: (peso) =>
+        crearControladorCupo({ host: 'api', peso, apiKeyPresente: Boolean(apiKey), db }),
+    })
+  const floodProvider = params?.floodProvider ?? crearProviderFloodConDiagnostico({ db, apiKey })
 
   // `corridaEn` (dentro de los providers) se deriva de `inicioBloque`, no del
   // wall-clock `ahora` — ver comentario de `inicioDeBloqueUtc` (calculado por

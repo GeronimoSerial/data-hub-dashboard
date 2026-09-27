@@ -483,6 +483,26 @@ CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
+-- OM-cupo: guarda de cupo compartida de Open-Meteo (ver lib/db/schema.ts y
+-- lib/infraestructura/riesgo/providers/cupo-om.ts). \`host\` guarda el BUCKET
+-- compartido ('open-meteo-free'/'open-meteo-pago'), no el subdominio literal:
+-- los techos de Open-Meteo son de cuenta/IP, no por host.
+CREATE TABLE IF NOT EXISTS \`om_cupo_contador\` (
+  \`host\` text NOT NULL,
+  \`ventana\` text NOT NULL,
+  \`clave_ventana\` text NOT NULL,
+  \`peso_acumulado\` real NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  PRIMARY KEY (\`host\`, \`ventana\`, \`clave_ventana\`)
+);
+CREATE TABLE IF NOT EXISTS \`om_cupo_cooldown\` (
+  \`host\` text PRIMARY KEY NOT NULL,
+  \`host_origen\` text NOT NULL,
+  \`hasta_en\` text NOT NULL,
+  \`motivo_saneado\` text NOT NULL,
+  \`retry_after_segundos\` integer,
+  \`actualizada_en\` text NOT NULL
+);
 -- Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal), ver
 -- lib/db/schema.ts (hazardSeasonalTrend) y
 -- lib/infraestructura/riesgo/providers/seasonal.ts.
@@ -530,6 +550,39 @@ CREATE TABLE IF NOT EXISTS \`infra_situacion_corte\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_generado_en_idx\` ON \`infra_situacion_corte\` (\`generado_en\`);
 CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_risk_run_id_idx\` ON \`infra_situacion_corte\` (\`risk_run_id\`);
+CREATE TABLE IF NOT EXISTS \`infra_aislamiento_osm\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`distancia_via_pavimentada_m\` real,
+  \`distancia_cabecera_departamental_m\` real,
+  \`tramos_sin_pavimentar_count\` integer,
+  \`cruces_agua_count\` integer,
+  \`cruces_agua_con_puente_count\` integer,
+  \`cruces_agua_con_vado_count\` integer,
+  \`tiene_alternativa_sin_cruce\` integer,
+  \`indice_aislamiento\` integer,
+  \`motivo_sin_datos\` text,
+  \`snap_distancia_m\` real,
+  \`fecha_extracto_osm\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_aislamiento_osm_indice_idx\` ON \`infra_aislamiento_osm\` (\`indice_aislamiento\`);
+CREATE TABLE IF NOT EXISTS \`infra_susceptibilidad_estatica\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`peligro_inundacion_fluvial\` real,
+  \`peligro_inundacion_pluvial\` real,
+  \`peligro_viento\` real,
+  \`peligro_calor\` real,
+  \`periodo_retorno_anios\` integer NOT NULL,
+  \`fuente\` text NOT NULL,
+  \`fecha_corrida\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
+);
 `
 
 let seedPromise: Promise<void> | null = null
