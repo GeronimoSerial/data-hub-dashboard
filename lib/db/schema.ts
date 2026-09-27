@@ -996,6 +996,7 @@ export const infraBriefing = sqliteTable(
     costoUsd: real('costo_usd'),
     latenciaMs: integer('latencia_ms'),
     validacion: text('validacion', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    auditoriaFallback: text('auditoria_fallback', { mode: 'json' }).$type<Record<string, unknown> | null>(),
     creadaEn: text('creada_en').notNull(),
   },
   (t) => [
@@ -1003,3 +1004,15 @@ export const infraBriefing = sqliteTable(
     index('infra_briefing_creada_en_idx').on(t.creadaEn),
   ],
 )
+
+// Reserva atómica del presupuesto mensual de E8: el costo de una corrida no
+// se conoce hasta después de llamar al modelo, así que se reserva una
+// estimación conservadora ANTES de llamar (UPDATE/INSERT condicionado, nunca
+// select-then-compare) y se ajusta con el costo real al terminar. Evita que
+// dos corridas casi simultáneas lean el mismo acumulado y juntas superen el
+// techo (mismo defecto de clase que infraJobRun, ver job-run.ts).
+export const infraBriefingPresupuestoMes = sqliteTable('infra_briefing_presupuesto_mes', {
+  mes: text('mes').primaryKey(), // inicio de mes UTC en ISO, ej '2026-09-01T00:00:00.000Z'
+  acumuladoUsd: real('acumulado_usd').notNull(),
+  actualizadaEn: text('actualizada_en').notNull(),
+})

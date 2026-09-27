@@ -548,11 +548,17 @@ CREATE TABLE IF NOT EXISTS \`infra_briefing\` (
   \`costo_usd\` real,
   \`latencia_ms\` integer,
   \`validacion\` text,
+  \`auditoria_fallback\` text,
   \`creada_en\` text NOT NULL,
   FOREIGN KEY (\`corte_id\`) REFERENCES \`infra_situacion_corte\`(\`id\`)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_briefing_corte_uidx\` ON \`infra_briefing\` (\`corte_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_briefing_creada_en_idx\` ON \`infra_briefing\` (\`creada_en\`);
+CREATE TABLE IF NOT EXISTS \`infra_briefing_presupuesto_mes\` (
+  \`mes\` text PRIMARY KEY NOT NULL,
+  \`acumulado_usd\` real NOT NULL,
+  \`actualizada_en\` text NOT NULL
+);
 `
 
 let seedPromise: Promise<void> | null = null
@@ -759,6 +765,23 @@ export async function ensureAccesoNominalLogAfectacionIdColumn(): Promise<void> 
   await db.$client.execute('ALTER TABLE infra_acceso_nominal_log RENAME COLUMN problematica_id TO afectacion_id')
 }
 
+// E8 sumó 'auditoria_fallback' (json, nullable) a la CREATE TABLE de
+// infra_briefing en HUB_DDL para guardar el resumen de auditoría cuando la
+// IA falla la trazabilidad (ver generar-briefing-asistido.ts). Una base que
+// ya tenía infra_briefing creada ANTES de esa columna (CREATE TABLE IF NOT
+// EXISTS no la agrega retroactivamente) necesita el ALTER acá, mismo patrón
+// que ensureMovimientoIdempotencyKeyColumn. No tiene índice propio (ver
+// schema.ts: infraBriefing sólo indexa corte_id y creada_en), así que no hay
+// nada que crear después del ALTER.
+export async function ensureBriefingAuditoriaFallbackColumn(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_briefing')")
+  const tieneColumna = info.rows.some((r) => String(r.name) === 'auditoria_fallback')
+  if (!tieneColumna) {
+    await db.$client.execute('ALTER TABLE infra_briefing ADD COLUMN auditoria_fallback text')
+  }
+}
+
 // Id fijo y estable del único período que existe en esta etapa (protocolo
 // ENOS 2026/2027, ver CONTRACT.md del batch de esquema: "la situación
 // hidrometeorológica es UN período provincial, no un episodio por
@@ -814,6 +837,7 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
   await ensureAccesoNominalLogAfectacionIdColumn()
+  await ensureBriefingAuditoriaFallbackColumn()
   // Debe correr ANTES del DROP de infra_episodio: el backfill de periodo_id
   // lee esa tabla para las verificaciones existentes.
   await ensureVerificacionPeriodoIdColumn()

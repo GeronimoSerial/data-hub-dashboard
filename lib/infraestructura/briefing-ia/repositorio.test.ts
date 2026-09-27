@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
-import { infraBriefing } from '@/lib/db/schema'
+import { infraBriefing, infraSituacionCorte } from '@/lib/db/schema'
 import type { DatosNuevoBriefing } from './repositorio'
 import {
   insertarBriefingSiNoExiste,
@@ -37,7 +37,31 @@ afterAll(() => {
 
 beforeEach(async () => {
   await getDb().delete(infraBriefing)
+  await getDb().delete(infraSituacionCorte)
 })
+
+// infra_briefing.corte_id referencia infra_situacion_corte(id) (E5, ya
+// mergeada): cada corteId usado en un test necesita su fila mínima antes de
+// insertar el briefing, o la FK rechaza el insert.
+async function crearCorte(id: string): Promise<void> {
+  await getDb().insert(infraSituacionCorte).values({
+    id,
+    generadoEn: '2026-01-01T00:00:00.000Z',
+    riskRunId: null,
+    cobertura: null,
+    conteosPorNivelRiesgo: {},
+    kpis: {
+      escuelasAfectacionConfirmadaVigente: 0,
+      escuelasRiesgoAlto24h: 0,
+      fuentesVencidas: 0,
+    },
+    fuentesSalud: [],
+    episodiosAbiertos: 0,
+    episodiosCerradosDesdeAnterior: 0,
+    generadoPorJobRunId: null,
+    creadaEn: '2026-01-01T00:00:00.000Z',
+  })
+}
 
 function datos(
   overrides: Partial<DatosNuevoBriefing> & { id: string; corteId: string },
@@ -55,6 +79,7 @@ function datos(
     costoUsd: 0.01,
     latenciaMs: 100,
     validacion: { valida: true },
+    auditoriaFallback: null,
     creadaEn: '2026-01-01T00:00:00.000Z',
     ...overrides,
   }
@@ -62,6 +87,7 @@ function datos(
 
 describe('insertarBriefingSiNoExiste / obtenerBriefingPorId', () => {
   it('inserta un briefing nuevo y permite leerlo por id', async () => {
+    await crearCorte('c-1')
     const creado = await insertarBriefingSiNoExiste(datos({ id: 'b-1', corteId: 'c-1' }))
 
     expect(creado.id).toBe('b-1')
@@ -76,6 +102,7 @@ describe('insertarBriefingSiNoExiste / obtenerBriefingPorId', () => {
   })
 
   it('con el mismo corteId no pisa el briefing previo y devuelve el original', async () => {
+    await crearCorte('c-repetido')
     const primero = await insertarBriefingSiNoExiste(
       datos({ id: 'b-original', corteId: 'c-repetido', textoFinal: 'primero' }),
     )
@@ -98,6 +125,9 @@ describe('obtenerUltimoBriefing', () => {
   })
 
   it('devuelve el de creadaEn más reciente', async () => {
+    await crearCorte('c-ene')
+    await crearCorte('c-mar')
+    await crearCorte('c-feb')
     await insertarBriefingSiNoExiste(
       datos({ id: 'b-ene', corteId: 'c-ene', creadaEn: '2026-01-15T00:00:00.000Z' }),
     )
@@ -119,6 +149,11 @@ describe('sumarCostoUsdMesVigente', () => {
   })
 
   it('suma sólo los costoUsd del mes UTC indicado e ignora otros meses y los nulos', async () => {
+    await crearCorte('cm-1')
+    await crearCorte('cm-2')
+    await crearCorte('cm-3')
+    await crearCorte('cm-4')
+    await crearCorte('cm-5')
     await insertarBriefingSiNoExiste(
       datos({ id: 'm-1', corteId: 'cm-1', creadaEn: '2030-05-01T00:00:00.000Z', costoUsd: 1.5 }),
     )

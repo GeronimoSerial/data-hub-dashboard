@@ -22,6 +22,7 @@ export interface BriefingPersistido {
   costoUsd: number | null
   latenciaMs: number | null
   validacion: Record<string, unknown> | null
+  auditoriaFallback: Record<string, unknown> | null
   creadaEn: string
 }
 
@@ -40,6 +41,7 @@ export interface DatosNuevoBriefing {
   costoUsd: number | null
   latenciaMs: number | null
   validacion: Record<string, unknown> | null
+  auditoriaFallback: Record<string, unknown> | null
   creadaEn: string
 }
 
@@ -63,6 +65,7 @@ function mapearFila(fila: FilaBriefing): BriefingPersistido {
     costoUsd: fila.costoUsd ?? null,
     latenciaMs: fila.latenciaMs ?? null,
     validacion: fila.validacion ?? null,
+    auditoriaFallback: fila.auditoriaFallback ?? null,
     creadaEn: fila.creadaEn,
   }
 }
@@ -100,6 +103,7 @@ async function insertarBriefingSiNoExisteIntento(
       costoUsd: datos.costoUsd,
       latenciaMs: datos.latenciaMs,
       validacion: datos.validacion,
+      auditoriaFallback: datos.auditoriaFallback,
       creadaEn: datos.creadaEn,
     })
     .onConflictDoNothing({ target: infraBriefing.corteId })
