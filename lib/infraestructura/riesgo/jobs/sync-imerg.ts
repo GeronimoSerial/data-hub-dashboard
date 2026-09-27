@@ -37,6 +37,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardObservation, hazardSourceHealth } from '@/lib/db/schema'
 import { celdaDeCoordenada } from '../celda'
 import {
@@ -139,33 +140,37 @@ async function actualizarSalud(
   ahoraIso: string,
 ): Promise<void> {
   const hayExito = estado === 'ok'
-  await db
-    .insert(hazardSourceHealth)
-    .values({
-      provider: PROVIDER,
-      // Un insert degradado/no disponible no conoce un éxito previo: null.
-      ultimoExitoEn: hayExito ? ahoraIso : null,
-      ultimoIntentoEn: ahoraIso,
-      estado,
-      ultimoErrorSaneado,
-      ttlMinutos: TTL_MINUTOS,
-      licencia: LICENCIA,
-      actualizadaEn: ahoraIso,
-    })
-    .onConflictDoUpdate({
-      target: hazardSourceHealth.provider,
-      set: {
-        estado,
+  // Upsert único: seguro de reintentar ante SQLITE_BUSY (job, no request
+  // path), el statement no deja nada aplicado si no llega a correr.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardSourceHealth)
+      .values({
+        provider: PROVIDER,
+        // Un insert degradado/no disponible no conoce un éxito previo: null.
+        ultimoExitoEn: hayExito ? ahoraIso : null,
         ultimoIntentoEn: ahoraIso,
+        estado,
         ultimoErrorSaneado,
         ttlMinutos: TTL_MINUTOS,
         licencia: LICENCIA,
         actualizadaEn: ahoraIso,
-        // En degradado/no disponible se preserva el último éxito conocido; en
-        // ok se actualiza.
-        ...(hayExito ? { ultimoExitoEn: ahoraIso } : {}),
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: hazardSourceHealth.provider,
+        set: {
+          estado,
+          ultimoIntentoEn: ahoraIso,
+          ultimoErrorSaneado,
+          ttlMinutos: TTL_MINUTOS,
+          licencia: LICENCIA,
+          actualizadaEn: ahoraIso,
+          // En degradado/no disponible se preserva el último éxito conocido; en
+          // ok se actualiza.
+          ...(hayExito ? { ultimoExitoEn: ahoraIso } : {}),
+        },
+      }),
+  )
 }
 
 // Deduplicación a nivel de todo el batch por `geometryRef`. `mapearAsciiImergACeldas`
@@ -231,25 +236,28 @@ async function persistirObservaciones(
     ingeridoEn,
   }))
 
-  await db
-    .insert(hazardObservation)
-    .values(filas)
-    .onConflictDoUpdate({
-      target: [
-        hazardObservation.provider,
-        hazardObservation.variable,
-        hazardObservation.geometryRef,
-        hazardObservation.observadoEn,
-      ],
-      set: {
-        valor: sql`excluded.valor`,
-        unidad: sql`excluded.unidad`,
-        validoDesde: sql`excluded.valido_desde`,
-        validoHasta: sql`excluded.valido_hasta`,
-        calidad: sql`excluded.calidad`,
-        ingeridoEn: sql`excluded.ingerido_en`,
-      },
-    })
+  // Upsert único de todo el batch: mismo motivo de reintento que actualizarSalud.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardObservation)
+      .values(filas)
+      .onConflictDoUpdate({
+        target: [
+          hazardObservation.provider,
+          hazardObservation.variable,
+          hazardObservation.geometryRef,
+          hazardObservation.observadoEn,
+        ],
+        set: {
+          valor: sql`excluded.valor`,
+          unidad: sql`excluded.unidad`,
+          validoDesde: sql`excluded.valido_desde`,
+          validoHasta: sql`excluded.valido_hasta`,
+          calidad: sql`excluded.calidad`,
+          ingeridoEn: sql`excluded.ingerido_en`,
+        },
+      }),
+  )
 
   return filas.length
 }

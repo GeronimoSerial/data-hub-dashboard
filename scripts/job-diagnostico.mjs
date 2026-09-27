@@ -53,6 +53,14 @@ const TIPO = 'diagnostico'
 const DURACION_LEASE_MS = 5 * 60 * 1000
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
+// Busy timeout nativo, sólo seguro acá (ver el comentario largo de
+// lib/db/index.ts#getDb): este script es su PROPIO proceso de Node con una
+// única conexión a hub.sqlite, así que el busy-wait sincrónico del binding
+// nativo no puede congelar un segundo escritor DEL MISMO proceso — sólo
+// espera a que el proceso web (u otro job) suelte el lock cruzado. 5s es
+// modesto frente al lease de 5 minutos de este job.
+const BUSY_TIMEOUT_MS_JOB = 5_000
+
 export async function correrDiagnostico({ claveIdempotente } = {}) {
   // Imports diferidos a la llamada (no al top-level del módulo): getDb() de
   // lib/db/index.ts memoiza la conexión en el primer uso, y los tests
@@ -63,6 +71,11 @@ export async function correrDiagnostico({ claveIdempotente } = {}) {
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   const { getDb } = await import('../lib/db/index.ts')
   const { getSqlitePath, getDataDir } = await import('../lib/data-dir.ts')
+
+  // Tiene que ser la PRIMERA llamada a getDb() de este proceso: getDb()
+  // memoiza la conexión y sólo la llamada que la crea puede fijar el busy
+  // timeout nativo (ver lib/db/index.ts).
+  getDb({ busyTimeoutMs: BUSY_TIMEOUT_MS_JOB })
 
   await ensureSeeded()
 

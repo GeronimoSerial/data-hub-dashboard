@@ -50,14 +50,27 @@ registerHooks({
   },
 })
 
+// Busy timeout nativo, sólo seguro acá (ver el comentario largo de
+// lib/db/index.ts#getDb): este script es su PROPIO proceso de Node con una
+// única conexión a hub.sqlite, así que el busy-wait sincrónico del binding
+// nativo no puede congelar un segundo escritor DEL MISMO proceso — sólo
+// espera a que el proceso web (u otro job) suelte el lock cruzado.
+const BUSY_TIMEOUT_MS_JOB = 5_000
+
 export async function correrEpisodiosDerivados() {
   // Imports diferidos a la llamada (no al top-level del módulo): getDb() de
   // lib/db/index.ts memoiza la conexión en el primer uso, y los tests
   // necesitan poder fijar DATA_DIR antes de que eso ocurra.
+  const { getDb } = await import('../lib/db/index.ts')
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   const { correrJobEpisodiosDerivados } = await import(
     '../lib/infraestructura/episodios-derivados/job.ts'
   )
+
+  // Tiene que ser la PRIMERA llamada a getDb() de este proceso: getDb()
+  // memoiza la conexión y sólo la llamada que la crea puede fijar el busy
+  // timeout nativo (ver lib/db/index.ts).
+  getDb({ busyTimeoutMs: BUSY_TIMEOUT_MS_JOB })
 
   await ensureSeeded()
 

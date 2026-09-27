@@ -25,6 +25,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import {
   hazardClimatology,
   hazardEnsembleProb,
@@ -180,27 +181,32 @@ async function persistirPuntos(
     ingeridoEn,
   }))
 
-  await db
-    .insert(hazardEnsembleProb)
-    .values(filas)
-    .onConflictDoUpdate({
-      target: [
-        hazardEnsembleProb.geometryRef,
-        hazardEnsembleProb.variable,
-        hazardEnsembleProb.corridaEn,
-        hazardEnsembleProb.validoEn,
-      ],
-      set: {
-        horizonteHoras: sql`excluded.horizonte_horas`,
-        miembrosTotal: sql`excluded.miembros_total`,
-        miembrosValidos: sql`excluded.miembros_validos`,
-        probabilidadP95: sql`excluded.probabilidad_p95`,
-        probabilidadP99: sql`excluded.probabilidad_p99`,
-        dispersion: sql`excluded.dispersion`,
-        version: sql`excluded.version`,
-        ingeridoEn: sql`excluded.ingerido_en`,
-      },
-    })
+  // Upsert único de todo el batch: seguro de reintentar ante SQLITE_BUSY
+  // (job, no request path), el statement no deja nada aplicado si no llega a
+  // correr.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardEnsembleProb)
+      .values(filas)
+      .onConflictDoUpdate({
+        target: [
+          hazardEnsembleProb.geometryRef,
+          hazardEnsembleProb.variable,
+          hazardEnsembleProb.corridaEn,
+          hazardEnsembleProb.validoEn,
+        ],
+        set: {
+          horizonteHoras: sql`excluded.horizonte_horas`,
+          miembrosTotal: sql`excluded.miembros_total`,
+          miembrosValidos: sql`excluded.miembros_validos`,
+          probabilidadP95: sql`excluded.probabilidad_p95`,
+          probabilidadP99: sql`excluded.probabilidad_p99`,
+          dispersion: sql`excluded.dispersion`,
+          version: sql`excluded.version`,
+          ingeridoEn: sql`excluded.ingerido_en`,
+        },
+      }),
+  )
 
   return filas.length
 }
@@ -214,32 +220,35 @@ async function actualizarSalud(
   const hayError = mensajes.length > 0
   const primerError = hayError ? mensajes[0].slice(0, LARGO_MAX_ERROR) : null
 
-  await db
-    .insert(hazardSourceHealth)
-    .values({
-      provider: PROVIDER,
-      // Un insert degradado no conoce un éxito previo: null.
-      ultimoExitoEn: hayError ? null : ahoraIso,
-      ultimoIntentoEn: ahoraIso,
-      estado: hayError ? 'degradado' : 'ok',
-      ultimoErrorSaneado: primerError,
-      ttlMinutos: TTL_MINUTOS,
-      licencia: LICENCIA,
-      actualizadaEn: ahoraIso,
-    })
-    .onConflictDoUpdate({
-      target: hazardSourceHealth.provider,
-      set: {
-        estado: hayError ? 'degradado' : 'ok',
+  // Upsert único: mismo motivo de reintento que persistirPuntos.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardSourceHealth)
+      .values({
+        provider: PROVIDER,
+        // Un insert degradado no conoce un éxito previo: null.
+        ultimoExitoEn: hayError ? null : ahoraIso,
         ultimoIntentoEn: ahoraIso,
+        estado: hayError ? 'degradado' : 'ok',
         ultimoErrorSaneado: primerError,
         ttlMinutos: TTL_MINUTOS,
         licencia: LICENCIA,
         actualizadaEn: ahoraIso,
-        // En degradado se preserva el último éxito conocido; en ok se actualiza.
-        ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: hazardSourceHealth.provider,
+        set: {
+          estado: hayError ? 'degradado' : 'ok',
+          ultimoIntentoEn: ahoraIso,
+          ultimoErrorSaneado: primerError,
+          ttlMinutos: TTL_MINUTOS,
+          licencia: LICENCIA,
+          actualizadaEn: ahoraIso,
+          // En degradado se preserva el último éxito conocido; en ok se actualiza.
+          ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
+        },
+      }),
+  )
 }
 
 export async function ejecutarSyncEnsemble(params?: {

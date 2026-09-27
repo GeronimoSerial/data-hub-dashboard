@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraGeoProfile } from '@/lib/db/schema'
 import { normalizarNombreDepartamentoONull } from '@/lib/mapas/normalizar-departamento'
 import { asegurarGeAdjuntada } from '../impacto'
@@ -61,11 +62,18 @@ export async function calcularGeoPerfiles(
   )
   const filas = res.rows as unknown as FilaGeLocalizacion[]
 
-  let conPerfilValido = 0
-  let excluidos = 0
-
-  await db.transaction(async (tx) => {
-    for (const fila of filas) {
+  // Job (no request path): sin BEGIN IMMEDIATE propio, así que db.transaction
+  // (BEGIN DEFERRED) puede toparse con SQLITE_BUSY si compite con un escritor
+  // concurrente sobre el mismo hub.sqlite. Reintento seguro: la transacción
+  // se revierte entera si falla a mitad de camino y el upsert por cueAnexo es
+  // plenamente re-ejecutable desde cero. Los contadores se llevan DENTRO del
+  // intento para no duplicarse si un intento anterior alcanzó a correr parte
+  // del loop antes de fallar.
+  const { conPerfilValido, excluidos } = await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
+      let conPerfilValidoIntento = 0
+      let excluidosIntento = 0
+      for (const fila of filas) {
       const lat = fila.lat == null ? null : Number(fila.lat)
       const lon = fila.lon == null ? null : Number(fila.lon)
 
@@ -114,10 +122,12 @@ export async function calcularGeoPerfiles(
           },
         })
 
-      if (motivoExclusion === null) conPerfilValido += 1
-      else excluidos += 1
-    }
-  })
+      if (motivoExclusion === null) conPerfilValidoIntento += 1
+      else excluidosIntento += 1
+      }
+      return { conPerfilValido: conPerfilValidoIntento, excluidos: excluidosIntento }
+    }),
+  )
 
   return {
     procesados: filas.length,
