@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-ensemble (cada 6h, alineado a Open-Meteo Ensemble/ECMWF)
+
+[Timer]
+# Mismo motivo que enos-ops1-sync-pronostico-caudal.timer: misma ventana de
+# corridas, otra fuente (Open-Meteo Ensemble).
+OnCalendar=*-*-* 08,14,20,02:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@sync-ensemble.service
+
+[Install]
+WantedBy=timers.target

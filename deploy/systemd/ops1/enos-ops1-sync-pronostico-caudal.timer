@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-pronostico-caudal (cada 6h, alineado a ECMWF con margen de publicación)
+
+[Timer]
+# Corridas ECMWF 00/06/12/18 UTC + ~8h de margen (6h de latencia real-time
+# habitual + 2h adicionales documentados por Open-Meteo para su distribución
+# open-data; ajustar si se confirma otro valor — ver registro.md decisión 5).
+OnCalendar=*-*-* 08,14,20,02:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@sync-pronostico-caudal.service
+
+[Install]
+WantedBy=timers.target
