@@ -67,18 +67,43 @@ export interface PuertoTerritorio {
   listarCuesConPerfil(): Promise<string[]>
 }
 
-// Índice de aislamiento OSM (G1, infra_aislamiento_osm — aún no mergeado).
+// Índice de aislamiento OSM (G1, infra_aislamiento_osm).
 // 0 = sin aislamiento conocido, 3 = aislamiento severo; 'sin_datos_red' si G1
 // no pudo calcular una ruta (no es lo mismo que 0).
 export type NivelAislamiento = 0 | 1 | 2 | 3 | 'sin_datos_red'
 
-export interface PuertoAislamiento {
-  obtenerIndice(cueAnexo: string): Promise<NivelAislamiento | null>
+// Por qué un objeto y no devolver sólo el `NivelAislamiento`: el índice
+// compuesto 0-3 por sí solo no alcanza para la regla de riesgo de acceso
+// (tarea 2), que necesita distinguir explícitamente "cruce de agua sin
+// puente/vado" y "alternativa sin cruce DESCONOCIDA" de "alternativa conocida
+// y segura". Esos dos casos pueden compartir el mismo nivel resumido y, sin
+// los conteos, serían indistinguibles.
+//
+// `nivel` se conserva como resumen, pero los conteos viajan junto a su
+// procedencia (`versionJob`, `fechaExtractoOsm`, `licencia`) para poder
+// auditar el dato. `null` en `tieneAlternativaSinCruce` significa
+// DESCONOCIDO: nunca se interpreta como `true` (seguro).
+export interface IndiceAislamiento {
+  cueAnexo: string
+  nivel: NivelAislamiento
+  crucesAguaCount: number | null
+  crucesAguaConPuenteCount: number | null
+  crucesAguaConVadoCount: number | null
+  tieneAlternativaSinCruce: boolean | null
+  versionJob: string
+  fechaExtractoOsm: string
+  licencia: string
 }
 
-// Indicadores physrisk estáticos (G1, infra_susceptibilidad_estatica — aún no
-// mergeado). Estructura abierta (Record) porque G1 define el catálogo final
-// de indicadores; el motor v0 sólo necesita poder promediarlos 0..1.
+export interface PuertoAislamiento {
+  obtenerIndice(cueAnexo: string): Promise<IndiceAislamiento | null>
+}
+
+// Indicadores physrisk estáticos (G1, infra_susceptibilidad_estatica).
+// Estructura abierta (Record) porque G1 define el catálogo final de
+// indicadores (las claves espejan las columnas del CSV de G1, p. ej.
+// 'peligro_inundacion_fluvial'); el motor v0 sólo necesita poder promediarlos
+// 0..1. Un indicador ausente NO entra al Record: nunca se imputa 0.
 export interface IndicadoresSusceptibilidad {
   cueAnexo: string
   indicadores: Record<string, number>

@@ -700,6 +700,13 @@ export const infraRiskSnapshot = sqliteTable(
     scoreVulnerabilidad: real('score_vulnerabilidad'),
     // 'baja' | 'media' | 'alta'.
     confianza: text('confianza').notNull(),
+    // Dimensión aparte 'riesgo de acceso' (aislamiento OSM x peligro del
+    // horizonte x accesos interrumpidos): NUNCA se mezcla en el IRO compuesto.
+    scoreRiesgoAcceso: real('score_riesgo_acceso'),
+    // 'bajo' | 'moderado' | 'alto' (null = riesgo de acceso desconocido).
+    nivelRiesgoAcceso: text('nivel_riesgo_acceso'),
+    // 'baja' | 'media' | 'alta'.
+    confianzaAcceso: text('confianza_acceso'),
     exposicionMatricula: integer('exposicion_matricula'),
     exposicionSecciones: integer('exposicion_secciones'),
     calculadoEn: text('calculado_en').notNull(),
@@ -722,7 +729,7 @@ export const infraRiskFactor = sqliteTable(
     snapshotId: text('snapshot_id')
       .notNull()
       .references(() => infraRiskSnapshot.id, { onDelete: 'cascade' }),
-    // 'amenaza' | 'vulnerabilidad' | 'exposicion' | 'urgencia'.
+    // 'amenaza' | 'vulnerabilidad' | 'acceso' | 'exposicion' | 'urgencia'.
     tipo: text('tipo').notNull(),
     fuente: text('fuente').notNull(),
     variable: text('variable').notNull(),

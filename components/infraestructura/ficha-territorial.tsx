@@ -4,6 +4,17 @@ import { useEffect, useState, type JSX } from 'react'
 
 export interface FichaTerritorialProps {
   cueAnexo: string
+  // Dimensión SEPARADA "acceso territorial" (aislamiento OSM x peligro). No es
+  // parte del estado del edificio: son dos estados que pueden coexistir.
+  // Opcional para no romper al caller actual: `undefined` = no se renderiza.
+  riesgoAcceso?: {
+    nivel: 'bajo' | 'moderado' | 'alto' | null
+    explicacion: string
+  } | null
+  // Estado del EDIFICIO (daño/afectación confirmada), deliberadamente separado
+  // del acceso. Mismo vocabulario que EscuelaMapa.estado. Opcional: si no viene,
+  // la ficha no inventa un estado de edificio.
+  estadoEdificio?: 'afectada' | 'sin_afectacion_reportada'
 }
 
 // --- Formas de las rutas de infraestructura (ver README de las rutas) ---
@@ -182,6 +193,20 @@ function etiquetaBase(base: BaseNivel): string | null {
   return null
 }
 
+// Estado del EDIFICIO, vocabulario separado del acceso. Nunca se colapsa uno
+// en el otro: un edificio sin daño puede tener el acceso en riesgo.
+function etiquetaEstadoEdificio(estado: 'afectada' | 'sin_afectacion_reportada'): string {
+  return estado === 'afectada' ? 'Afectación confirmada' : 'Sin afectación reportada'
+}
+
+// Nivel de acceso como TEXTO; `null` es "sin datos", NUNCA "bajo".
+function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
+  if (nivel === null) return 'Sin datos de acceso'
+  if (nivel === 'bajo') return 'Bajo'
+  if (nivel === 'moderado') return 'Moderado'
+  return 'Alto'
+}
+
 /**
  * Texto de un acumulado observado 24h/72h: siempre incluye la cobertura
  * (gránulos encontrados / esperados), y "sin dato" explícito cuando la
@@ -214,7 +239,11 @@ function textoAcumuladoObservado(fila: {
  * peligro estimado». «Fuente vencida» es un aviso ADICIONAL: nunca oculta el
  * dato viejo, lo muestra rotulado como posiblemente desactualizado.
  */
-export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Element {
+export function FichaTerritorial({
+  cueAnexo,
+  riesgoAcceso,
+  estadoEdificio,
+}: FichaTerritorialProps): JSX.Element {
   const [estado, setEstado] = useState<EstadoFichaTerritorial>({ fase: 'cargando' })
 
   useEffect(() => {
@@ -514,6 +543,51 @@ export function FichaTerritorial({ cueAnexo }: FichaTerritorialProps): JSX.Eleme
               data-testid="ficha-territorial-observado-72h"
             >
               72 h: {textoAcumuladoObservado(acumulado72h)}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Estado del edificio y acceso: dos dimensiones SEPARADAS. Se muestran
+          a la vez cuando ambos datos existen, nunca una en lugar de la otra. */}
+      {estadoEdificio !== undefined && (
+        <div
+          className="ficha-territorial__estado-edificio"
+          data-testid="ficha-territorial-estado-edificio"
+        >
+          <p className="ficha-territorial__subtitulo">
+            <strong>Estado del edificio</strong>
+          </p>
+          <p className="ficha-territorial__dato">
+            {etiquetaEstadoEdificio(estadoEdificio)}
+          </p>
+        </div>
+      )}
+
+      {riesgoAcceso !== undefined && (
+        <div
+          className="ficha-territorial__acceso"
+          data-testid="ficha-territorial-riesgo-acceso"
+        >
+          <p className="ficha-territorial__subtitulo">
+            <strong>Acceso</strong>
+          </p>
+          <p className="ficha-territorial__dato" data-testid="ficha-territorial-acceso-nivel">
+            Riesgo de acceso: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
+          </p>
+          {riesgoAcceso === null || riesgoAcceso.nivel === null ? (
+            <p
+              className="ficha-territorial__dato"
+              data-testid="ficha-territorial-acceso-sin-dato"
+            >
+              Sin datos de acceso
+            </p>
+          ) : (
+            <p
+              className="ficha-territorial__dato"
+              data-testid="ficha-territorial-acceso-explicacion"
+            >
+              {riesgoAcceso.explicacion}
             </p>
           )}
         </div>

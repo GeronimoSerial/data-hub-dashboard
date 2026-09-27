@@ -3,7 +3,7 @@
 // subir MOTOR_VERSION: un snapshot persiste la versión que lo produjo
 // (infra_risk_run.modeloVersion) para que "mismos inputs/misma versión →
 // mismo score" sea verificable después de que la configuración cambie.
-export const MOTOR_VERSION = 'motor-v0.1'
+export const MOTOR_VERSION = 'motor-v0.2'
 
 // Escala de nivel de riesgo (documento base §5.1). Límites inclusivos por el
 // borde inferior de cada tramo: score < 25 → bajo, etc.
@@ -22,13 +22,20 @@ export const PESOS_AMENAZA = {
   lluviaAntecedente: 0.2,
 } as const
 
-// Vulnerabilidad = combinación ponderada de historial de partes confirmados,
-// aislamiento OSM y susceptibilidad estática (physrisk). Misma regla de
-// redistribución de pesos ante ausencia.
+// Vulnerabilidad = combinación ponderada de historial de partes confirmados y
+// susceptibilidad estática (physrisk). Misma regla de redistribución de pesos
+// ante ausencia.
+//
+// CAMBIO (batch de riesgo de acceso, MOTOR_VERSION motor-v0.1 -> motor-v0.2):
+// el aislamiento OSM SALIÓ de esta dimensión. Ya no entra a scoreVulnerabilidad
+// ni al IRO compuesto; pasó a ser insumo de la dimensión separada `riesgoAcceso`
+// (ver REGLA_ACCESO_VERSION / motor/riesgo-acceso.ts), que el núcleo calcula y
+// persiste pero NUNCA mezcla en el score. Los dos pesos restantes se
+// renormalizan para repartirse todo el peso (antes 0.5/0.2, ahora 0.7/0.3),
+// conservando el orden historial > susceptibilidad.
 export const PESOS_VULNERABILIDAD = {
-  historial: 0.5,
-  aislamiento: 0.3,
-  susceptibilidad: 0.2,
+  historial: 0.7,
+  susceptibilidad: 0.3,
 } as const
 
 // Mapeo determinista de NivelPeligro a un número 0..100 para poder combinarlo
@@ -65,3 +72,43 @@ export const HISTORIAL_TOPE_ACCESO_INTERRUMPIDO = 3
 // 'media' tolera hasta este número de componentes faltantes por dimensión,
 // 'baja' en cualquier otro caso (ver motor/calculo.ts, calcularConfianza()).
 export const CONFIANZA_MEDIA_MAX_FALTANTES = 1
+
+// Regla de RIESGO DE ACCESO (dimensión separada del IRO). Versionada aparte de
+// MOTOR_VERSION a propósito: puede evolucionar sin tocar los pesos del score
+// compuesto. Cambiar cualquier valor de BASE_ACCESO_POR_NIVEL_AISLAMIENTO o
+// AGRAVANTES_ACCESO exige subir REGLA_ACCESO_VERSION, porque un mismo
+// aislamiento debe poder auditarse contra la versión de regla que lo puntuó.
+export const REGLA_ACCESO_VERSION = 'acceso-v1'
+
+// Punto de partida del score de acceso 0..100 según el nivel de aislamiento
+// OSM 0..3 (resumen del `IndiceAislamiento`). NO son los umbrales de
+// clasificación (esos siguen siendo UMBRAL_MODERADO/UMBRAL_ALTO): son la
+// posición base antes de agravantes. Nivel 0 = sin aislamiento conocido = 0.
+// Nivel 3 = aislamiento severo = 70, dejando margen para que los agravantes
+// (cruce sin puente, peligro alto) lo puedan llevar hasta 100.
+export const BASE_ACCESO_POR_NIVEL_AISLAMIENTO: Record<0 | 1 | 2 | 3, number> = {
+  0: 0,
+  1: 20,
+  2: 45,
+  3: 70,
+}
+
+// Agravantes aditivos de la regla de acceso. `sinAlternativa` (false) y
+// `alternativaDesconocida` (null) son MUTUAMENTE EXCLUYENTES; la desconocida
+// pesa MÁS que la ausencia confirmada, porque un dato faltante nunca puede
+// abaratar el riesgo (regla "alternativa desconocida nunca baja el riesgo").
+export const AGRAVANTES_ACCESO = {
+  // Hay al menos un cruce de agua sin puente/vado conocido (derivación
+  // documentada en motor/riesgo-acceso.ts).
+  cruceDeRiesgo: 25,
+  // Lluvia/celda o caudal del horizonte en nivel naranja o rojo (>= 66 en
+  // NIVEL_PELIGRO_A_NUMERO).
+  peligroAlto: 25,
+  // No hay alternativa sin cruce (tieneAlternativaSinCruce === false).
+  sinAlternativa: 15,
+  // Alternativa sin cruce DESCONOCIDA (null): igual o peor que false.
+  alternativaDesconocida: 20,
+  // Antecedentes confirmados con motivo 'Acceso interrumpido' (> 0). Agravante
+  // SOLO de esta dimensión: no le resta su rol en historial/vulnerabilidad.
+  accesoInterrumpido: 15,
+} as const

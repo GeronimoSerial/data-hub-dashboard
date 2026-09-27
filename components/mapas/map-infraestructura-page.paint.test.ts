@@ -5,6 +5,7 @@ import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { RADIO_DOT_BASE, rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
   circlePaintPartes,
   circlePaintSinReportar,
@@ -291,5 +292,47 @@ describe('filtroClusterPartes', () => {
 
   it('con el padrón encendido no filtra por escuelas afectadas', () => {
     expect(filtroClusterPartes(true)).toEqual(['has', 'point_count'])
+  })
+})
+
+describe('paintPuntosRiesgoAcceso', () => {
+  // Evalúa una expresión `match` de MapLibre:
+  // ['match', ['get', k], v1, r1, v2, r2, ..., default] — recorre los pares
+  // (valor, resultado) desde el índice 2 y devuelve el resultado del primer
+  // valor que matchea; si ninguno matchea, devuelve el default (último).
+  function evaluarMatch(expresion: unknown[], valor: string): unknown {
+    for (let i = 2; i < expresion.length - 1; i += 2) {
+      if (expresion[i] === valor) return expresion[i + 1]
+    }
+    return expresion[expresion.length - 1]
+  }
+
+  it('el circle-color es una expresión `match` sobre nivelAcceso', () => {
+    const paint = paintPuntosRiesgoAcceso()!
+    const expresion = paint['circle-color'] as unknown[]
+    expect(expresion[0]).toBe('match')
+    expect(expresion[1]).toEqual(['get', 'nivelAcceso'])
+  })
+
+  it('usa el color real de cada nivel y cae en el gris de fallback ante cualquier otro valor', () => {
+    const paint = paintPuntosRiesgoAcceso()!
+    const expresion = paint['circle-color'] as unknown[]
+    expect(evaluarMatch(expresion, 'bajo')).toBe('#719c29')
+    expect(evaluarMatch(expresion, 'moderado')).toBe('#facd05')
+    expect(evaluarMatch(expresion, 'alto')).toBe('#f68e13')
+    // 'sin_cobertura' (el `null` crudo nunca llega acá) y valores inesperados.
+    expect(evaluarMatch(expresion, 'sin_cobertura')).toBe('#8a8886')
+    expect(evaluarMatch(expresion, 'valor-inesperado')).toBe('#8a8886')
+  })
+
+  it('el nivel alto lleva un trazo más ancho que el resto (marca que no depende sólo del color)', () => {
+    const paint = paintPuntosRiesgoAcceso()!
+    const grosor = paint['circle-stroke-width'] as unknown[]
+    expect(grosor[0]).toBe('match')
+    expect(grosor[1]).toEqual(['get', 'nivelAcceso'])
+    const grosorAlto = evaluarMatch(grosor, 'alto') as number
+    expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'bajo') as number)
+    expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'moderado') as number)
+    expect(grosorAlto).toBeGreaterThan(evaluarMatch(grosor, 'sin_cobertura') as number)
   })
 })

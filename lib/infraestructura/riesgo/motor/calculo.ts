@@ -19,6 +19,7 @@ import {
   VENTANA_HISTORIAL_DIAS,
 } from './config'
 import type { Confianza, FactorRiesgo, NivelRiesgo, ResultadoRiesgoEscuela } from './tipos'
+import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
 
 const clamp0a100 = (valor: number): number => Math.min(100, Math.max(0, valor))
 const redondear2 = (valor: number): number => Math.round(valor * 100) / 100
@@ -150,6 +151,12 @@ export async function calcularRiesgoEscuela(params: {
       factores: [factorTerritorio],
       exposicion: { matricula: null, secciones: null },
       urgenciaVerificacion: { horasDesdeUltimaVerificacion: null },
+      riesgoAcceso: {
+        score: null,
+        nivel: null,
+        confianza: 'baja',
+        explicacion: 'Sin perfil territorial valido: no se evaluo el riesgo de acceso',
+      },
       modeloVersion: MOTOR_VERSION,
       calculadoEn: asOf,
       validoHasta: asOf,
@@ -204,9 +211,14 @@ export async function calcularRiesgoEscuela(params: {
   if (!peligroCeldaPresente) cantidadFaltantes += 1
 
   // PASO 2b - Caudal en el punto de río asociado (sólo si existe punto).
+  // `nivelPeligroCaudal` se conserva para reusarlo tal cual en el riesgo de
+  // acceso (PASO 3d): el nivel ya quedó mapeado a 0..100 para el score, así que
+  // la dimensión de acceso no vuelve a pedir el puerto.
+  let nivelPeligroCaudal: NivelPeligro | null = null
   let caudalPresente = false
   if (puntoRioId !== null) {
     const caudal = await puertos.peligro.obtenerNivelCaudal({ puntoId: puntoRioId, asOf })
+    nivelPeligroCaudal = caudal?.nivel ?? null
     if (caudal !== null && caudal.nivel !== 'sin_dato') {
       const valorNumerico = nivelPeligroANumero(caudal.nivel)
       if (valorNumerico !== null) {
@@ -292,31 +304,16 @@ export async function calcularRiesgoEscuela(params: {
     pesoBase: PESOS_VULNERABILIDAD.historial,
   })
 
-  // PASO 3b - Aislamiento OSM. `null` (puerto no implementado) y
-  // 'sin_datos_red' (G1 no pudo calcular ruta) son AMBOS ausencia, nunca 0.
+  // PASO 3b - Aislamiento OSM. YA NO es un componente de vulnerabilidad (salió
+  // de componentesVulnerabilidad / PESOS_VULNERABILIDAD en este batch): pasa a
+  // ser insumo de la dimensión SEPARADA de riesgo de acceso (PASO 3d). El
+  // puerto devuelve el `IndiceAislamiento` completo (nivel + conteos de cruces
+  // + alternativa). `null` (sin fila) y 'sin_datos_red' (G1 no pudo calcular
+  // ruta) son AMBOS ausencia, nunca 0. Su ausencia sigue contando como insumo
+  // faltante para la confianza global del resultado, pero no entra al IRO.
   const indiceAislamiento = await puertos.aislamiento.obtenerIndice(cueAnexo)
-  let aislamientoPresente = false
-  if (indiceAislamiento !== null && indiceAislamiento !== 'sin_datos_red') {
-    const valorNumerico = (indiceAislamiento / 3) * 100
-    const factor: FactorRiesgo = {
-      tipo: 'vulnerabilidad',
-      fuente: 'aislamiento-osm',
-      variable: 'indice_aislamiento',
-      valor: indiceAislamiento,
-      unidad: 'indice_0_3',
-      contribucion: 0,
-      peso: 0,
-      explicacion: `Indice de aislamiento OSM ${indiceAislamiento}/3`,
-      observadoEn: asOf,
-    }
-    factores.push(factor)
-    componentesVulnerabilidad.push({
-      factor,
-      valorNumerico,
-      pesoBase: PESOS_VULNERABILIDAD.aislamiento,
-    })
-    aislamientoPresente = true
-  }
+  const nivelAislamiento = indiceAislamiento?.nivel ?? null
+  const aislamientoPresente = nivelAislamiento !== null && nivelAislamiento !== 'sin_datos_red'
   if (!aislamientoPresente) cantidadFaltantes += 1
 
   // PASO 3c - Susceptibilidad estática (physrisk), catálogo abierto. Un
@@ -350,6 +347,28 @@ export async function calcularRiesgoEscuela(params: {
     susceptibilidadPresente = true
   }
   if (!susceptibilidadPresente) cantidadFaltantes += 1
+
+  // PASO 3d - Riesgo de acceso (dimensión SEPARADA del IRO; ver
+  // motor/riesgo-acceso.ts). Reusa el peligro YA leído en 2a/2b (nivelCelda /
+  // nivelPeligroCaudal) y el accesoInterrumpidoCantidad YA derivado en 3a:
+  // nunca vuelve a pedir un puerto. Nunca entra a scoreRiesgo/scoreVulnerabilidad.
+  const riesgoAcceso: ResultadoRiesgoAcceso = calcularRiesgoAcceso({
+    indice: indiceAislamiento,
+    nivelPeligroCelda: nivelCelda?.nivel ?? null,
+    nivelPeligroCaudal,
+    accesoInterrumpidoCantidad,
+  })
+  factores.push({
+    tipo: 'acceso',
+    fuente: 'riesgo-acceso',
+    variable: 'riesgo_acceso',
+    valor: riesgoAcceso.score,
+    unidad: riesgoAcceso.score === null ? null : 'indice_0_100',
+    peso: 0,
+    contribucion: 0,
+    explicacion: riesgoAcceso.explicacion,
+    observadoEn: asOf,
+  })
 
   // Historial siempre presente => suma de pesos > 0 => nunca null.
   const scoreVulnerabilidad = cerrarDimension(componentesVulnerabilidad)
@@ -420,6 +439,7 @@ export async function calcularRiesgoEscuela(params: {
       secciones: exposicionResumen?.secciones ?? null,
     },
     urgenciaVerificacion: { horasDesdeUltimaVerificacion: null },
+    riesgoAcceso,
     modeloVersion: MOTOR_VERSION,
     calculadoEn: asOf,
     validoHasta: validoHastaMasTemprano(validecesPeligro, asOf),

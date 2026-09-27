@@ -5,7 +5,7 @@
 import type {
   HorizontePeligro,
   IndicadoresSusceptibilidad,
-  NivelAislamiento,
+  IndiceAislamiento,
   NivelCaudalPunto,
   NivelPeligroCelda,
   PerfilTerritorio,
@@ -20,7 +20,7 @@ export type EscenarioFake = {
   lluvia72h?: Record<string, number | null> // key: geometryRef
   lluvia24h?: Record<string, number | null>
   territorio?: Record<string, PerfilTerritorio>
-  aislamiento?: Record<string, NivelAislamiento>
+  aislamiento?: Record<string, IndiceAislamiento>
   susceptibilidad?: Record<string, IndicadoresSusceptibilidad>
   historial?: Record<string, ResumenHistorial>
   exposicion?: Record<string, ResumenExposicion>

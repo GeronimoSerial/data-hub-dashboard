@@ -1,8 +1,8 @@
 // Job de cálculo y publicación atómica del motor de riesgo v0 (E3b). Integra
 // piezas ya existentes: el núcleo puro (motor/calculo.ts), los adapters reales
-// (territorio/historial/exposición) y los stubs explícitos de "no disponible"
-// (peligro/lluvia/aislamiento/susceptibilidad), y persiste snapshots/factores
-// en las tablas de dominio infra_risk_*.
+// (territorio/historial/exposición/aislamiento/susceptibilidad) y los stubs
+// explícitos de "no disponible" (peligro/lluvia), y persiste
+// snapshots/factores en las tablas de dominio infra_risk_*.
 //
 // Idempotencia y atomicidad:
 // 1. `infra_job_run` (job-run.ts): la claveIdempotente es el bloque de 6h UTC,
@@ -20,12 +20,12 @@ import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
-import { crearAdapterAislamientoNoDisponible } from '../motor/adaptadores/aislamiento'
+import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
 import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
 import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
-import { crearAdapterSusceptibilidadNoDisponible } from '../motor/adaptadores/susceptibilidad'
+import { crearAdapterSusceptibilidad } from '../motor/adaptadores/susceptibilidad'
 import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
 import { calcularRiesgoEscuela } from '../motor/calculo'
 import { MOTOR_VERSION } from '../motor/config'
@@ -33,7 +33,7 @@ import type {
   HorizontePeligro,
   IndicadoresSusceptibilidad,
   LluviaObservadaCelda,
-  NivelAislamiento,
+  IndiceAislamiento,
   NivelCaudalPunto,
   NivelPeligroCelda,
   PerfilTerritorio,
@@ -104,8 +104,8 @@ function construirPuertosReales(): PuertosMotor {
     peligro: crearAdapterPeligro(),
     lluviaObservada: crearAdapterLluvia(),
     territorio: crearAdapterTerritorio(),
-    aislamiento: crearAdapterAislamientoNoDisponible(),
-    susceptibilidad: crearAdapterSusceptibilidadNoDisponible(),
+    aislamiento: crearAdapterAislamiento(),
+    susceptibilidad: crearAdapterSusceptibilidad(),
     historial: crearAdapterHistorial(),
     exposicion: crearAdapterExposicion(),
   }
@@ -132,7 +132,7 @@ function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
   const nivelesCaudal = new Map<string, Promise<NivelCaudalPunto | null>>()
   const lluvia = new Map<string, Promise<LluviaObservadaCelda>>()
   const historiales = new Map<string, Promise<ResumenHistorial>>()
-  const aislamientos = new Map<string, Promise<NivelAislamiento | null>>()
+  const aislamientos = new Map<string, Promise<IndiceAislamiento | null>>()
   const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
   const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
 
@@ -318,6 +318,9 @@ export async function calcularYPublicarRiesgo(params?: {
             scoreAmenaza: resultado.scoreAmenaza,
             scoreVulnerabilidad: resultado.scoreVulnerabilidad,
             confianza: resultado.confianza,
+            scoreRiesgoAcceso: resultado.riesgoAcceso.score,
+            nivelRiesgoAcceso: resultado.riesgoAcceso.nivel,
+            confianzaAcceso: resultado.riesgoAcceso.confianza,
             exposicionMatricula: resultado.exposicion.matricula,
             exposicionSecciones: resultado.exposicion.secciones,
             calculadoEn: resultado.calculadoEn,

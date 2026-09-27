@@ -202,6 +202,7 @@ const RADAR_DATA = {
         evidenciaValida: true,
         scoreRiesgo: 0.8,
         nivelRiesgo: 'alto',
+        nivelRiesgoAcceso: 'alto',
         scoreAmenaza: 0.7,
         scoreVulnerabilidad: 0.6,
         confianza: 'media',
@@ -784,5 +785,39 @@ describe('M2: capa de padrón apagada por defecto', () => {
     const despues = screen.getByTestId('infra-totales-indicador')
     expect(despues).toBeInTheDocument()
     expect(despues.textContent).toBe(antes)
+  })
+})
+
+describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
+  it('apagada por defecto: el checkbox existe sin marcar y la fuente de la capa no está montada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    expect(checkbox).not.toBeChecked()
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
+  })
+
+  it('el toggle monta y desmonta la capa', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    await userEvent.click(checkbox)
+    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
+
+    await userEvent.click(checkbox)
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
+  })
+
+  it('oculta en modo Replay aunque el toggle esté prendido', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /riesgo de acceso/i }))
+    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
 })
