@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useImperativeHandle, type JSX } from 'react'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 
 const CUE = '1801605-04'
 
@@ -228,7 +229,7 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
 }))
 
 const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[] }))
-const FIXTURE_REPLAY = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
+const FIXTURE_REPLAY: RespuestaReplay = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
 vi.mock('@/lib/infraestructura/use-replay', () => ({
   useReplay: (_filtros: unknown, activo: boolean) => {
     llamadasReplay.activos.push(activo)
@@ -341,7 +342,16 @@ vi.mock('react-map-gl/maplibre', () => {
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
     NavigationControl: () => null,
     Popup: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
-    Source: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
+    // `data` no se renderiza en el DOM real (MapLibre lo consume vía WebGL),
+    // pero se expone acá como atributo serializado: es la única forma de
+    // inspeccionar, desde un test de integración, qué features terminan en
+    // el GeoJSON de cada fuente (p. ej. `infra-replay-riesgo-src`) sin
+    // depender del click handler (que para Replay ni siquiera está cableado).
+    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => (
+      <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-geojson={JSON.stringify(props.data)}>
+        {props.children ?? null}
+      </div>
+    ),
   }
 })
 
@@ -593,16 +603,107 @@ describe('MapInfraestructuraPage — modo Replay', () => {
     expect(llamadasReplay.activos.every((activo) => activo === false)).toBe(true)
   })
 
-  it('al volver del modo Replay se restaura el modo Radar previo, no Situación actual', async () => {
+  // MENOR (revisión N1): el test original sólo probaba que se restauraba el
+  // MODO (a), sin ninguna aserción de que también volvieran el horizonte (b)
+  // y la selección de departamento (c) — las tres cosas que
+  // `volverDeReplay`/`estadoPrevioReplayRef` prometen restaurar.
+  it('al volver del modo Replay se restauran modo, horizonte y selección de departamento previos', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await userEvent.click(screen.getByRole('button', { name: '72 h' }))
     await userEvent.click(screen.getByTestId('mock-click-peligro'))
+    expect(await screen.findByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+
     await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
     expect(llamadasReplay.activos.at(-1)).toBe(true)
+
     const botonVolver = screen.getByRole('button', { name: /volver a la situación actual/i })
     await userEvent.click(botonVolver)
+
     expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '72 h' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+  })
+
+  // MAYOR 1 (revisión N1): `cambiarModo` no reseteaba `playingReplay` al
+  // salir de Replay por el CONMUTADOR (a diferencia de "Volver", que sí lo
+  // hacía). Sin el fix, reproducir un cuadro, salir por el conmutador y
+  // volver a entrar dejaba `playing=true` heredado de la visita anterior, y
+  // el intervalo de auto-avance arrancaba solo sin que el usuario tocara
+  // "Reproducir" de nuevo.
+  it('salir de Replay por el conmutador detiene la reproducción (no sólo "Volver")', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reproducir' }))
+    expect(screen.getByRole('button', { name: 'Pausar' })).toHaveAttribute('aria-pressed', 'true')
+
+    // Sale por el conmutador, NO por "Volver a la situación actual".
+    await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+    expect(screen.getByRole('button', { name: 'Reproducir' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  // MAYOR 2 (revisión N1): las coordenadas de los puntos de riesgo/afectación
+  // del replay salían de `dataVisible` (filtrado por el departamento elegido
+  // en "Situación actual"), no del padrón completo de M1 (`useEscuelasMapa`).
+  // Una escuela sin parte vigente hoy — y por lo tanto ausente de
+  // `dataVisible.partes` — no se dibujaba en Replay aunque el cuadro
+  // reproducido tuviera snapshot de riesgo para su cueAnexo. El fix usa
+  // `dataEscuelasMapa` (padrón completo, sin ese filtro) como fuente de
+  // coordenadas para Replay.
+  it('las coordenadas de Replay salen del padrón completo, no de dataVisible filtrado', async () => {
+    const CUE_OTRO_DEPTO = '1801699-01'
+    FIXTURE_ESCUELAS_MAPA.escuelas.push({
+      cueAnexo: CUE_OTRO_DEPTO,
+      nombre: 'Escuela de Empedrado',
+      departamento: 'Empedrado',
+      localidad: 'Empedrado',
+      lat: -27.9,
+      lon: -58.8,
+      estado: 'sin_afectacion_reportada' as const,
+    })
+    FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.push({
+      cueAnexo: CUE_OTRO_DEPTO,
+      nivelRiesgo: 'alto',
+      horizonteHoras: 24,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { nombre: 'Capital' }, geometry: null },
+            { type: 'Feature', properties: { nombre: 'Empedrado' }, geometry: null },
+          ],
+        }),
+      }),
+    )
+
+    try {
+      await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
+      await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+      const selectDepartamento = await screen.findByLabelText('Departamento')
+      await userEvent.selectOptions(selectDepartamento, 'Empedrado')
+
+      const fuenteRiesgo = await screen.findByTestId('mock-source-infra-replay-riesgo-src')
+      const geojson = JSON.parse(fuenteRiesgo.getAttribute('data-geojson') ?? '{}')
+      const cues = (geojson.features ?? []).map(
+        (feature: { properties: { cueAnexo: string } }) => feature.properties.cueAnexo,
+      )
+      // La escuela de Empedrado nunca tuvo un ParteMapa (no está en
+      // dataVisible.partes), pero SÍ está en el padrón completo con
+      // coordenadas: tiene que aparecer.
+      expect(cues).toContain(CUE_OTRO_DEPTO)
+    } finally {
+      FIXTURE_ESCUELAS_MAPA.escuelas.pop()
+      FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.pop()
+    }
   })
 })
 

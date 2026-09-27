@@ -116,8 +116,136 @@ Sin cambios en `replay-panel.tsx`, `replay-panel.test.tsx`, `use-replay.test.tsx
 ni `map-client.tsx`: ya estaban terminados y verificados por la sesión
 anterior.
 
+## Correcciones del gate N1 e integración
+
+Sesión posterior: revisión N1 (vía N3) marcó **ACCEPT WITH FOLLOW-UPS** con 2
+hallazgos MAYOR y 5 MENOR, y pidió integrar con `feat/renovación` (M1: padrón
+completo/totales/buscador; P1: nivel de peligro provisorio). Se hizo commit
+local del trabajo pendiente (`wip(e7c): interfaz del replay antes de
+integrar`) y luego `git merge feat/renovación`.
+
+### Merge con `feat/renovación`
+
+Conflictos en 4 archivos, todos resueltos conservando ambos lados (ningún
+lado se descartó):
+
+- `app/(hub)/mapas/infraestructura/map-client.tsx`: prop `replayEnabled` (E7c)
+  + prop `visible` (M1, pausa el mapa al ocultar la pestaña) coexisten en la
+  llamada a `MapInfraestructuraPage`.
+- `components/mapas/map-infraestructura-page.tsx`: mismo par de props en la
+  firma del componente; y en `<InfraLegendPanel>`, `mostrarLeyendaPeligro`
+  ahora es `radarActivo || replayActivo` (no sólo radar) y
+  `hayNivelProvisorio` se calcula por modo activo — de `radarData` en Radar,
+  de `cuadroReplayActual.nivelesPeligro.some(n => n.metodo ===
+  'umbral_provisorio')` en Replay (nuevo, ver MAYOR 2 más abajo: P1 agregó
+  `metodo` al contrato de `nivelPeligroReplaySchema`
+  (`lib/infraestructura/replay/tipos.ts:123`), que E7c no leía).
+- `lib/infraestructura/riesgo/flags.test.ts`: array `CLAVES` con
+  `REPLAY_ENABLED` (E7c) y `SITUACION_ENABLED` (P1).
+- `components/mapas/map-infraestructura-page.test.tsx`: los dos `describe`
+  nuevos al final (`MapInfraestructuraPage — modo Replay` de E7c y
+  `M1: hover de departamento y buscador de escuelas` de renovación)
+  concatenados, ninguno reemplazó al otro.
+
+`app/globals.css`, `risk-explanation-panel.tsx`, `legend-panel.tsx` y
+`lib/infraestructura/replay/*` (`tipos.ts` con el nuevo campo `metodo`)
+mergearon automáticamente sin conflicto de texto.
+
+### MAYOR 1 — `cambiarModo` no reseteaba `playingReplay`
+
+Sólo `volverDeReplay` (botón "Volver a la situación actual") detenía la
+reproducción; salir de Replay por el CONMUTADOR (botones "Radar"/"Situación
+actual") no tocaba `playingReplay`, así que al volver a entrar a Replay el
+cuadro avanzaba solo con el estado de play heredado de la visita anterior.
+Fix en `cambiarModo` (`map-infraestructura-page.tsx`): al salir de `'replay'`
+hacia cualquier otro modo (por cualquier vía del conmutador), se llama
+`setPlayingReplay(false)`. Test nuevo cubre la salida por conmutador
+(la salida por "Volver" ya estaba cubierta por el test existente, que se
+extendió además para probar horizonte y selección — ver MENOR 3).
+
+### MAYOR 2 — coordenadas del replay salían de `dataVisible`, no del padrón completo
+
+`escuelasConCoordenadas` (usada para los puntos de riesgo/afectación de
+Replay) derivaba de `dataVisible.partes`, que se filtra por
+`departamentoSeleccionado` — la selección de "Situación actual", ajena al
+territorio elegido DENTRO de Replay (`territorioIdReplay`). Una escuela sin
+parte vigente hoy (por lo tanto ausente de `dataVisible.partes`) no se
+dibujaba en Replay aunque el cuadro reproducido tuviera snapshot de riesgo
+para su cueAnexo; elegir en Replay un departamento distinto al filtrado en
+"Situación actual" podía dejar el mapa vacío o con puntos incorrectos.
+
+Fix: nuevo memo `escuelasConCoordenadasReplay`, derivado de
+`dataEscuelasMapa` (el padrón completo de M1, `useEscuelasMapa`, sin el
+filtro de `departamentoSeleccionado`), usado en `puntosRiesgoGeojsonReplay` y
+`afectacionesGeojsonReplay`. Se quitó el comentario que decía que la
+limitación estaba "documentada en el registro del batch" (no lo estaba —
+grep sin resultados antes de este documento).
+
+Test nuevo: agrega una escuela de otro departamento al padrón (sin parte
+vigente) y un snapshot de riesgo para su cueAnexo en el cuadro reproducido;
+inspecciona el GeoJSON servido a la fuente `infra-replay-riesgo-src` (vía un
+mock de `Source` que expone `data` como atributo serializado, ya que
+`react-map-gl` no renderiza nada inspeccionable en jsdom) y confirma que esa
+escuela aparece. Ambos tests nuevos (MAYOR 1 y 2) se verificaron a mano
+revirtiendo cada fix por separado: fallan sin el fix, pasan con él.
+
+### Menores corregidos
+
+- **`siguienteDesde` nunca se leía en la UI** (cursor de paginación, tope 120
+  cuadros por consulta; una ventana de más de 30 días se truncaba en
+  silencio). Fix: `replay-panel.tsx` muestra un aviso (`role="status"`) con
+  el instante hasta donde llegó la consulta cuando `data.siguienteDesde` no
+  es `null`. Dos tests nuevos en `replay-panel.test.tsx` (con y sin aviso).
+- **Clases `map-replay-panel__*` sin CSS** (el panel dependía sólo de
+  estilos heredados). Fix: bloque de layout en `app/globals.css` para
+  `.map-replay-panel` y sus `__seleccion`/`__vista`/`__timeline`/
+  `__contador`/`__truncado`/`__vacios`/`__export`, mismo patrón que
+  `.map-radar-panel`.
+- **Test de "Volver" sin aserción real de horizonte/selección restaurados**
+  (sólo probaba que volvía el modo). Fix: el test ahora selecciona horizonte
+  "72 h" y confirma su restauración además de la del departamento
+  (`risk-explanation-departamento`) y el modo.
+
+### Menor no corregido (queda para N1/backend)
+
+- **Posible mismatch de nombre de departamento entre el `<select>` del
+  replay y la API**: las opciones salen de `departamentosRaw` (GeoJSON,
+  nombre tal cual), pero `lib/infraestructura/replay/consulta.ts` matchea
+  contra `infra_geo_profile.departamento` con normalización sólo
+  `UPPER+TRIM` (E7b). Un nombre con tilde distinta podría seleccionar un
+  departamento que devuelve 0 filas sin error visible. No se tocó: es un
+  problema de normalización en la capa de datos de E7b, no de la interfaz de
+  E7c, y corregirlo a ciegas sin ver el catálogo real de nombres de
+  `infra_geo_profile` arriesga introducir una normalización incorrecta.
+
+### Type fix adicional (post-merge)
+
+`lib/infraestructura/use-replay.ts` mantiene una interfaz `NivelPeligroReplay`
+propia (espejo manual del contrato, no importado de
+`lib/infraestructura/replay/tipos.ts`) que no se había actualizado cuando P1
+agregó `metodo` al schema real — `tsc --noEmit` lo marcó al usar ese campo en
+el fix de MAYOR 2. Se agregó `metodo?: 'percentiles' | 'umbral_provisorio'`
+a esa interfaz para que coincida con el contrato real.
+
+## Verificaciones finales (post-integración)
+
+| Verificación | Comando | Resultado |
+|---|---|---|
+| Tests focalizados | `pnpm exec vitest run --maxWorkers=2 components/mapas/map-infraestructura-page.test.tsx components/mapas/replay-panel.test.tsx lib/infraestructura/riesgo/flags.test.ts` | verde |
+| Suite completa | `flock heavy.lock pnpm exec vitest run --maxWorkers=2` | verde — 199 archivos, 1695 tests |
+| Lint | `flock heavy.lock pnpm lint` | verde |
+| Types | `flock heavy.lock pnpm exec tsc --noEmit` | verde |
+| Build | `flock heavy.lock pnpm build` | verde |
+
 ## Pendientes explícitos para N1
 
-Ninguno funcional. Queda pendiente la decisión de producto/UX de si el modo
-Replay necesita algo más allá de lo ya cubierto por los tests pedidos, y la
-revisión y el merge del batch.
+- Mismatch de nombre de departamento entre el `<select>` de Replay y la
+  normalización de `infra_geo_profile` (ver menor no corregido arriba):
+  decidir si se corrige acá o en una capa de normalización compartida de
+  E7b/M1.
+- Decisión de producto (ya señalada por N3, sin resolver: no bloquea el
+  merge de esta rama pero sí el diseño futuro): si el buscador/padrón
+  completo de M1 debe seguir disponible dentro del modo Replay o si Replay
+  reemplaza todo el panel izquierdo (hoy Replay reemplaza el panel, igual
+  que antes del merge).
+- Revisión y merge del batch integrado a `feat/renovación`.

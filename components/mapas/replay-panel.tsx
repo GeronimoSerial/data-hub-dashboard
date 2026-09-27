@@ -291,6 +291,14 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
             Cuadro {frameIndex + 1} de {totalCuadros}
           </p>
 
+          {data?.siguienteDesde && (
+            <p className="map-replay-panel__truncado" role="status">
+              La ventana elegida supera el máximo de cuadros por consulta: se
+              muestra sólo hasta {formatearInstante(data.siguienteDesde)}.
+              Elegí una ventana más corta para ver el resto.
+            </p>
+          )}
+
           {vacioActual && (vacioActual.snapshotRiesgo || vacioActual.peligro || vacioActual.lluvia) && (
             <ul className="map-replay-panel__vacios" data-testid="replay-vacios">
               {vacioActual.snapshotRiesgo && <li>Sin dato de riesgo para este período.</li>}

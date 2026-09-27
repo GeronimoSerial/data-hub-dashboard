@@ -60,6 +60,7 @@ export interface NivelPeligroReplay {
   geometryRef: string
   nivel: string
   emitidoEn: string
+  metodo?: 'percentiles' | 'umbral_provisorio'
 }
 
 export interface LluviaObservadaReplay {

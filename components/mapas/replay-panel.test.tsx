@@ -147,6 +147,21 @@ describe('ReplayPanel', () => {
     expect(vacios).toHaveTextContent('Sin dato de lluvia observada para este período.')
   })
 
+  // MENOR (revisión N1): `siguienteDesde` (cursor de paginación, tope 120
+  // cuadros por consulta) llegaba en la respuesta pero nunca se leía en la
+  // UI — una ventana de más de 30 días se truncaba en silencio.
+  it('con siguienteDesde avisa que la ventana se truncó y hasta cuándo', () => {
+    const datos = respuestaConCuadros(2)
+    datos.siguienteDesde = '2026-01-03T00:00:00Z'
+    render(<ReplayPanel {...props({ data: datos })} />)
+    expect(screen.getByText(/supera el máximo de cuadros/i)).toBeInTheDocument()
+  })
+
+  it('sin siguienteDesde no muestra el aviso de ventana truncada', () => {
+    render(<ReplayPanel {...props({ data: respuestaConCuadros(2) })} />)
+    expect(screen.queryByText(/supera el máximo de cuadros/i)).not.toBeInTheDocument()
+  })
+
   it('con un resultado sin cuadros no muestra el bloque de timeline y avisa "sin datos"', () => {
     render(<ReplayPanel {...props({ data: { cuadros: [], vacios: [], siguienteDesde: null } })} />)
     expect(screen.queryByRole('group', { name: /línea de tiempo/i })).not.toBeInTheDocument()

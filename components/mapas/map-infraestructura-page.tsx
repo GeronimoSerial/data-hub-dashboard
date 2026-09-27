@@ -928,13 +928,28 @@ export default function MapInfraestructuraPage(props: {
     ])
   }, [departamentosRaw, territorioIdReplay, cuadroReplayActual])
 
+  // Coordenadas para Replay: el padrón COMPLETO de M1 (`useEscuelasMapa`, sin
+  // filtrar por el departamento elegido en "Situación actual"), no
+  // `dataVisible`/`escuelasConCoordenadas`. Replay tiene su PROPIO territorio
+  // (`territorioIdReplay`), independiente del filtro de "Situación actual";
+  // reusar ese filtro dejaba sin puntos cualquier departamento de Replay que
+  // no coincidiera con el elegido en el otro modo.
+  const escuelasConCoordenadasReplay = useMemo(
+    () =>
+      (dataEscuelasMapa?.escuelas ?? [])
+        .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
+        .map((escuela) => ({
+          cueAnexo: escuela.cueAnexo,
+          lat: escuela.lat as number,
+          lon: escuela.lon as number,
+        })),
+    [dataEscuelasMapa],
+  )
+
   // Puntos de riesgo del cuadro reproducido: cruzan `snapshotRiesgo.porEscuela`
-  // (por cueAnexo) con las MISMAS coordenadas que ya resuelve "Situación
-  // actual" (limitación documentada en el registro del batch: una escuela sin
-  // parte vigente hoy no tiene coordenada acá y no se dibuja, aunque el
-  // replay tenga snapshot para su cueAnexo). `confianza` no viaja en el
-  // contrato de replay: se fija en 'media' como valor neutro, nunca inventando
-  // 'alta'.
+  // (por cueAnexo) con las coordenadas del padrón completo. `confianza` no
+  // viaja en el contrato de replay: se fija en 'media' como valor neutro,
+  // nunca inventando 'alta'.
   const riesgoPorCueReplay = useMemo(() => {
     const map = new Map<string, RiesgoEscuela>()
     for (const escuela of cuadroReplayActual?.snapshotRiesgo?.porEscuela ?? []) {
@@ -944,15 +959,16 @@ export default function MapInfraestructuraPage(props: {
   }, [cuadroReplayActual])
 
   const puntosRiesgoGeojsonReplay = useMemo(
-    () => construirPuntosRiesgo(escuelasConCoordenadas, riesgoPorCueReplay),
-    [escuelasConCoordenadas, riesgoPorCueReplay],
+    () => construirPuntosRiesgo(escuelasConCoordenadasReplay, riesgoPorCueReplay),
+    [escuelasConCoordenadasReplay, riesgoPorCueReplay],
   )
 
   // Afectaciones confirmadas del cuadro reproducido: mismo criterio de
-  // coordenadas que arriba. El color reusa `colorSeveridad`, la MISMA escala
-  // que "Situación actual" — el replay no inventa una paleta propia.
+  // coordenadas que arriba (padrón completo). El color reusa `colorSeveridad`,
+  // la MISMA escala que "Situación actual" — el replay no inventa una paleta
+  // propia.
   const afectacionesGeojsonReplay = useMemo(() => {
-    const coordsPorCue = new Map(escuelasConCoordenadas.map((e) => [e.cueAnexo, e]))
+    const coordsPorCue = new Map(escuelasConCoordenadasReplay.map((e) => [e.cueAnexo, e]))
     const features = (cuadroReplayActual?.afectacionesConfirmadas ?? [])
       .map((afectacion) => {
         const coords = coordsPorCue.get(afectacion.cueAnexo)
@@ -968,7 +984,7 @@ export default function MapInfraestructuraPage(props: {
       })
       .filter((f): f is NonNullable<typeof f> => f !== null)
     return { type: 'FeatureCollection' as const, features }
-  }, [cuadroReplayActual, escuelasConCoordenadas])
+  }, [cuadroReplayActual, escuelasConCoordenadasReplay])
 
   // Briefing: `generarBriefing` necesita el run ANTERIOR y los conteos por
   // nivel, y la API sólo entrega el corte VIGENTE (no el anterior). GAP
@@ -1222,6 +1238,12 @@ export default function MapInfraestructuraPage(props: {
         departamentoRadarSeleccionado,
         cueRadarSeleccionado,
       }
+    }
+    // Salir de Replay por el conmutador (no por "Volver") también debe
+    // detener la reproducción: si no, al volver a entrar arranca sola con
+    // el estado de play que quedó de la visita anterior.
+    if (modo === 'replay' && siguiente !== 'replay') {
+      setPlayingReplay(false)
     }
     setModo(siguiente)
     setCueRadarSeleccionado(null)
