@@ -152,7 +152,7 @@ describe('RiskExplanationPanel — variante escuela', () => {
     expect(screen.queryByTestId('risk-explanation-factores')).toBeNull()
   })
 
-  it('con factores provistos los lista con fuente y fecha', () => {
+  it('con factores provistos los lista con fuente, valor, contribución y fecha', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
@@ -163,10 +163,12 @@ describe('RiskExplanationPanel — variante escuela', () => {
         scoreVulnerabilidad={null}
         factores={[
           {
-            tipo: 'lluvia',
+            tipo: 'Amenaza',
             fuente: 'ensemble ECMWF',
-            fecha: '2026-09-26T06:00:00Z',
-            detalle: 'Precipitación sobre P95',
+            valor: 42,
+            unidad: 'mm',
+            contribucion: 0.35,
+            observadoEn: '2026-09-26T06:00:00Z',
           },
         ]}
       />,
@@ -174,9 +176,96 @@ describe('RiskExplanationPanel — variante escuela', () => {
 
     const factores = screen.getByTestId('risk-explanation-factores')
     expect(within(factores).getByText(/ensemble ECMWF/)).toBeInTheDocument()
-    expect(within(factores).getByText(/2026-09-26T06:00:00Z/)).toBeInTheDocument()
+    expect(within(factores).getByText(/42 mm/)).toBeInTheDocument()
+    // formatearNumero redondea a 1 decimal, mismo criterio que el resto del panel.
+    expect(within(factores).getByText(/contribución: 0.4/)).toBeInTheDocument()
     // Un score nulo se lee como "sin dato", nunca como 0.
     expect(screen.getByTestId('risk-explanation-vulnerabilidad')).toHaveTextContent('sin dato')
+  })
+
+  it('un valor de factor ausente se lee "sin dato", nunca 0', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="media"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        factores={[
+          {
+            tipo: 'Vulnerabilidad',
+            fuente: 'padrón',
+            valor: null,
+            unidad: null,
+            contribucion: 0.1,
+            observadoEn: null,
+          },
+        ]}
+      />,
+    )
+
+    const factores = screen.getByTestId('risk-explanation-factores')
+    expect(within(factores).getByText(/valor: sin dato/)).toBeInTheDocument()
+    expect(within(factores).getByText(/observado en: sin dato/)).toBeInTheDocument()
+  })
+
+  it('mientras carga muestra un estado accesible role=status y no la lista', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="media"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        factoresCargando
+      />,
+    )
+
+    expect(screen.getByTestId('risk-explanation-factores-cargando')).toHaveAttribute(
+      'role',
+      'status',
+    )
+    expect(screen.queryByTestId('risk-explanation-factores')).toBeNull()
+  })
+
+  it('si el pedido de factores falla muestra un estado accesible role=alert', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="media"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        factoresError="No se pudo cargar el detalle del riesgo."
+      />,
+    )
+
+    const error = screen.getByTestId('risk-explanation-factores-error')
+    expect(error).toHaveAttribute('role', 'alert')
+    expect(error).toHaveTextContent('No se pudo cargar el detalle del riesgo.')
+  })
+
+  it('un array de factores vacío (ya consultado) muestra "Sin dato" explícito, no en silencio ni en verde', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="media"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        factores={[]}
+      />,
+    )
+
+    const sinDato = screen.getByTestId('risk-explanation-factores-sin-dato')
+    expect(sinDato).toHaveTextContent('Sin dato')
+    // Nunca lleva una clase de nivel (esas son sólo `risk-explanation-panel__nivel--*`,
+    // reservadas al peligro por horizonte del panel de departamento).
+    expect(sinDato.className).not.toMatch(/nivel--/)
   })
 
   it('nivel de riesgo nulo se muestra como "Sin dato"', () => {

@@ -164,6 +164,36 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
   },
 }))
 
+// Mock del hook de detalle por snapshot (follow-up 4 del Gate de E4): el
+// hook real haría un fetch real que este archivo no necesita ejercitar (ya
+// está cubierto por `use-riesgo-snapshot.test.tsx`); acá sólo se verifica que
+// el componente pase los 3 estados (factores/cargando/error) al panel.
+const llamadasSnapshot = vi.hoisted(() => ({ snapshotIds: [] as (string | null)[] }))
+const SNAPSHOT_DETALLE = vi.hoisted(() => ({
+  factores: [
+    {
+      tipo: 'amenaza',
+      fuente: 'ensemble ECMWF',
+      variable: 'precipitacion_72h',
+      valor: 45,
+      unidad: 'mm',
+      contribucion: 0.3,
+      peso: 0.5,
+      explicacion: 'Precipitación sobre P95',
+      observadoEn: '2026-09-26T06:00:00Z',
+    },
+  ],
+}))
+
+vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
+  useRiesgoSnapshot: (snapshotId: string | null) => {
+    llamadasSnapshot.snapshotIds.push(snapshotId)
+    return snapshotId === null
+      ? { data: null, loading: false, error: null }
+      : { data: SNAPSHOT_DETALLE, loading: false, error: null }
+  },
+}))
+
 // react-map-gl/maplibre necesita WebGL, que no existe en jsdom: se reemplaza
 // por un doble mínimo que expone un botón para simular el click sobre el
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
@@ -231,6 +261,7 @@ async function renderMapa(props: {
 beforeEach(() => {
   vi.restoreAllMocks()
   llamadasRadar.activos.length = 0
+  llamadasSnapshot.snapshotIds.length = 0
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -392,6 +423,26 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(await screen.findByTestId('risk-explanation-cue')).toHaveTextContent(CUE)
     // Estado independiente del modo actual: sin ficha de partes abierta.
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+
+  it('al seleccionar una escuela del radar pide el detalle por snapshotId y muestra sus factores', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
+    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
+
+    await userEvent.click(screen.getByTestId('mock-click-riesgo'))
+    await screen.findByTestId('risk-explanation-cue')
+
+    // El snapshotId de la escuela del radar (RADAR_DATA.escuelas.items[0]),
+    // no un id inventado por la integración.
+    expect(llamadasSnapshot.snapshotIds).toContain('s1')
+
+    const factores = screen.getByTestId('risk-explanation-factores')
+    expect(factores).toHaveTextContent('Amenaza')
+    expect(factores).toHaveTextContent('ensemble ECMWF')
+    expect(factores).toHaveTextContent('45 mm')
   })
 
   it('en modo Radar las capas base del mapa siguen montadas (decisión: sumar, no reemplazar)', async () => {

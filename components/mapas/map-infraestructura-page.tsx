@@ -46,7 +46,9 @@ import { InfraLegendPanel } from '@/components/mapas/legend-panel'
 import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
+import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
+import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
   construirCoropletaPeligro,
   construirPuntosRiesgo,
@@ -793,6 +795,36 @@ export default function MapInfraestructuraPage(props: {
     [radarData, cueRadarSeleccionado],
   )
 
+  // Follow-up 4 del Gate de E4: el detalle por factor (tipo, fuente, valor,
+  // contribución, observado en) vive en `infra_risk_factor` y no lo trae
+  // `/api/infraestructura/radar` — se pide aparte, por `snapshotId`, contra
+  // `/api/infraestructura/riesgo/[snapshotId]` (mismo endpoint que ya usa
+  // `/admin/riesgo`). Se llama siempre (regla de hooks) con `null` cuando no
+  // hay escuela seleccionada; el hook no dispara ningún request en ese caso.
+  const {
+    data: snapshotDetalle,
+    loading: snapshotLoading,
+    error: snapshotError,
+  } = useRiesgoSnapshot(escuelaRadarSeleccionada?.snapshotId ?? null)
+
+  // Factores ya resueltos a la forma que espera el panel: la etiqueta legible
+  // (`ETIQUETA_TIPO_FACTOR`, la misma que usa `/admin/riesgo`) se aplica acá
+  // porque el panel no conoce el enum crudo (mismo criterio que el resto de
+  // sus props). `undefined` mientras no llegó respuesta (el panel no inventa
+  // "Sin dato" hasta que el fetch resolvió, aunque sea con 0 factores).
+  const factoresPanel = useMemo(
+    () =>
+      snapshotDetalle?.factores.map((factor) => ({
+        tipo: etiqueta(ETIQUETA_TIPO_FACTOR, factor.tipo),
+        fuente: factor.fuente,
+        valor: factor.valor,
+        unidad: factor.unidad,
+        contribucion: factor.contribucion,
+        observadoEn: factor.observadoEn,
+      })),
+    [snapshotDetalle],
+  )
+
   // Niveles por horizonte del departamento elegido en el radar, para el panel
   // de explicación. La API entrega el peor nivel por (departamento, horizonte),
   // pero NO el detalle de caudal/precipitación/base ensemble por departamento:
@@ -1374,6 +1406,9 @@ export default function MapInfraestructuraPage(props: {
                   }
                   scoreAmenaza={escuelaRadarSeleccionada.scoreAmenaza}
                   scoreVulnerabilidad={escuelaRadarSeleccionada.scoreVulnerabilidad}
+                  factores={factoresPanel}
+                  factoresCargando={snapshotLoading}
+                  factoresError={snapshotError}
                 />
               )}
             </div>

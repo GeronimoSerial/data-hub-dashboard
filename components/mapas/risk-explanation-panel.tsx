@@ -48,11 +48,18 @@ export interface LluviaObservadaPanel {
   observadoEn: string | null
 }
 
+// Espejo (sin importar) de `FactorRiesgoSnapshot` de
+// `lib/infraestructura/use-riesgo-snapshot.ts`, con `tipo` ya resuelto a su
+// etiqueta legible por el caller (vía `ETIQUETA_TIPO_FACTOR` de
+// `lib/infraestructura/riesgo/etiquetas.ts`): el panel no conoce el enum
+// crudo, sólo formatea número/fecha, igual que hace con caudal/lluvia.
 export interface FactorRiesgoPanel {
   tipo: string
   fuente: string
-  fecha: string
-  detalle: string
+  valor: number | null
+  unidad: string | null
+  contribucion: number
+  observadoEn: string | null
 }
 
 interface BaseProps {
@@ -76,10 +83,20 @@ export type RiskExplanationPanelProps =
       confianza: ConfianzaNivel
       scoreAmenaza: number | null
       scoreVulnerabilidad: number | null
-      // Opcional a propósito: los factores individuales con fuente y fecha
-      // viven en `infra_risk_factor` y NO los trae `/api/infraestructura/radar`
-      // (ver gap documentado en el resumen). Si no vienen, no se inventan.
+      // Factores individuales con fuente/valor/contribución/fecha, resueltos
+      // desde `infra_risk_factor` vía `/api/infraestructura/riesgo/[snapshotId]`
+      // (follow-up 4 del Gate de E4: `/api/infraestructura/radar` no los trae).
+      // Semántica de los 3 estados:
+      //   - `factores === undefined` (y sin cargando/error): el caller no
+      //     pidió factores (comportamiento previo, no se inventa nada).
+      //   - `factoresCargando === true`: el caller está pidiéndolos.
+      //   - `factoresError` presente: el pedido falló.
+      //   - `factores` es un array (incluso vacío): el pedido resolvió; un
+      //     array vacío se muestra como "Sin dato" explícito, nunca en
+      //     silencio y nunca con la semántica visual de "nivel bajo/verde".
       factores?: FactorRiesgoPanel[]
+      factoresCargando?: boolean
+      factoresError?: string | null
     })
 
 // Etiquetas replicadas de `lib/mapas/peligro-capas.ts` (ver nota de cabecera).
@@ -241,6 +258,8 @@ function PanelEscuela(
     scoreAmenaza,
     scoreVulnerabilidad,
     factores,
+    factoresCargando,
+    factoresError,
   } = props
 
   return (
@@ -263,21 +282,41 @@ function PanelEscuela(
         Vulnerabilidad: {scoreVulnerabilidad === null ? 'sin dato' : formatearNumero(scoreVulnerabilidad)}
       </p>
 
-      {factores !== undefined && factores.length > 0 && (
-        <div className="risk-explanation-panel__factores" data-testid="risk-explanation-factores">
-          <p className="risk-explanation-panel__subtitulo">
-            <strong>Factores considerados</strong>
+      {factoresCargando ? (
+        <p role="status" data-testid="risk-explanation-factores-cargando">
+          Cargando factores…
+        </p>
+      ) : factoresError ? (
+        <p role="alert" data-testid="risk-explanation-factores-error">
+          {factoresError}
+        </p>
+      ) : factores !== undefined ? (
+        factores.length > 0 ? (
+          <div className="risk-explanation-panel__factores" data-testid="risk-explanation-factores">
+            <p className="risk-explanation-panel__subtitulo">
+              <strong>Factores considerados</strong>
+            </p>
+            <ul>
+              {factores.map((factor, indice) => (
+                <li key={`${factor.tipo}-${indice}`}>
+                  <strong>{factor.tipo}</strong> · fuente: {factor.fuente} · valor:{' '}
+                  {factor.valor === null
+                    ? 'sin dato'
+                    : `${formatearNumero(factor.valor)}${factor.unidad ? ` ${factor.unidad}` : ''}`}{' '}
+                  · contribución: {formatearNumero(factor.contribucion)} · observado en:{' '}
+                  {formatearFecha(factor.observadoEn) ?? 'sin dato'}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          // Explícito y nunca verde: un array vacío significa "se consultó y
+          // no hay factores registrados", distinto de "no se consultó".
+          <p data-testid="risk-explanation-factores-sin-dato">
+            Factores considerados: Sin dato
           </p>
-          <ul>
-            {factores.map((factor, indice) => (
-              <li key={`${factor.tipo}-${indice}`}>
-                <strong>{factor.tipo}</strong> — {factor.detalle} · fuente: {factor.fuente} ·{' '}
-                {factor.fecha}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        )
+      ) : null}
     </section>
   )
 }
