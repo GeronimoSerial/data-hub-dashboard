@@ -46,6 +46,7 @@ import { InfraLegendPanel } from '@/components/mapas/legend-panel'
 import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
+import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import {
   construirCoropletaPeligro,
@@ -492,6 +493,7 @@ export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
+  seasonalEnabled?: boolean
 }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -562,6 +564,16 @@ export default function MapInfraestructuraPage(props: {
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
     radarActivo,
+  )
+
+  // Capa opcional SEASONAL (E5+, Off por defecto): sólo consulta cuando el
+  // flag está prendido, estamos en modo Radar Y hay un departamento
+  // seleccionado — nunca dispara sola con sólo el flag encendido.
+  const seasonalActivo =
+    (props.seasonalEnabled ?? false) && radarActivo && departamentoRadarSeleccionado !== null
+  const { data: tendenciaEstacionalData } = useTendenciaEstacional(
+    departamentoRadarSeleccionado,
+    seasonalActivo,
   )
 
   const filtros = useMemo(
@@ -1362,6 +1374,19 @@ export default function MapInfraestructuraPage(props: {
                   niveles={nivelesDepartamentoRadar}
                   caudal={null}
                   lluviaObservada={null}
+                  tendenciaEstacional={
+                    seasonalActivo
+                      ? tendenciaEstacionalData && {
+                          emisionEn: tendenciaEstacionalData.emisionEn,
+                          validoDesde: tendenciaEstacionalData.validoDesde,
+                          validoHasta: tendenciaEstacionalData.validoHasta,
+                          miembrosTotal: tendenciaEstacionalData.miembrosTotal,
+                          miembrosValidos: tendenciaEstacionalData.miembrosValidos,
+                          probabilidadSobreNormal: tendenciaEstacionalData.probabilidadSobreNormal,
+                          mediaMm: tendenciaEstacionalData.mediaMm,
+                        }
+                      : undefined
+                  }
                 />
               )}
               {escuelaRadarSeleccionada && (

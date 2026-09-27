@@ -55,6 +55,22 @@ export interface FactorRiesgoPanel {
   detalle: string
 }
 
+// Tarjeta opcional "Perspectiva 30-90 días" (Open-Meteo Seasonal, batch
+// SEASONAL): SIEMPRE una tendencia REGIONAL por departamento, nunca un valor
+// por escuela — el rótulo lo deja explícito en el título y en el texto, no
+// sólo con un color. `probabilidadSobreNormal` es una simplificación v0 (ver
+// providers/seasonal.ts): fracción de miembros perturbados que superan al
+// miembro de control, NO un percentil climatológico independiente.
+export interface TendenciaEstacionalPanel {
+  emisionEn: string
+  validoDesde: string
+  validoHasta: string
+  miembrosTotal: number
+  miembrosValidos: number
+  probabilidadSobreNormal: number | null
+  mediaMm: number | null
+}
+
 interface BaseProps {
   // El padre puede pasar `cargando` mientras resuelve los datos. Como el panel
   // no hace fetch, no hay loading implícito: este flag es la única señal.
@@ -68,6 +84,10 @@ export type RiskExplanationPanelProps =
       niveles: NivelHorizontePanel[]
       caudal: CaudalPanel | null
       lluviaObservada: LluviaObservadaPanel | null
+      // Opcional a propósito, detrás de SEASONAL_ENABLED (E5+): si el llamador
+      // no pasa nada, la tarjeta no se muestra (ni cargando ni vacía). `undefined`
+      // = capa apagada/no consultada; `null` = consultada, sin datos todavía.
+      tendenciaEstacional?: TendenciaEstacionalPanel | null
     })
   | (BaseProps & {
       tipo: 'escuela'
@@ -161,10 +181,46 @@ function textoAcumulado(valor: number | null): string {
   return valor === null ? 'sin dato' : `${formatearNumero(valor)} mm`
 }
 
+/** Porcentaje entero, siempre con signo "%"; null cuando no hay miembros válidos. */
+function textoPorcentaje(valor: number | null): string {
+  return valor === null ? 'sin dato' : `${Math.round(valor * 100)}%`
+}
+
+function TarjetaTendenciaEstacional({
+  tendencia,
+}: {
+  tendencia: TendenciaEstacionalPanel
+}): JSX.Element {
+  return (
+    <section
+      className="risk-explanation-panel__seasonal"
+      data-testid="risk-explanation-seasonal"
+      aria-label="Perspectiva 30-90 días (pronóstico probabilístico regional)"
+    >
+      <p className="risk-explanation-panel__subtitulo">
+        <strong>Perspectiva 30–90 días (pronóstico probabilístico regional)</strong>
+      </p>
+      <p className="risk-explanation-panel__dato" data-testid="risk-explanation-seasonal-aviso">
+        Tendencia REGIONAL estimada, no es un valor por escuela.
+      </p>
+      <p className="risk-explanation-panel__dato" data-testid="risk-explanation-seasonal-emision">
+        Emitido el {formatearFecha(tendencia.emisionEn) ?? tendencia.emisionEn} · válido{' '}
+        {formatearFecha(tendencia.validoDesde) ?? tendencia.validoDesde} a{' '}
+        {formatearFecha(tendencia.validoHasta) ?? tendencia.validoHasta}
+      </p>
+      <p className="risk-explanation-panel__dato" data-testid="risk-explanation-seasonal-probabilidad">
+        Probabilidad de precipitación por encima del escenario de control:{' '}
+        <strong>{textoPorcentaje(tendencia.probabilidadSobreNormal)}</strong> (
+        {tendencia.miembrosValidos} de {tendencia.miembrosTotal} miembros del ensamble)
+      </p>
+    </section>
+  )
+}
+
 function PanelDepartamento(
   props: Extract<RiskExplanationPanelProps, { tipo: 'departamento' }>,
 ): JSX.Element {
-  const { departamento, niveles, caudal, lluviaObservada } = props
+  const { departamento, niveles, caudal, lluviaObservada, tendenciaEstacional } = props
 
   return (
     <section className="risk-explanation-panel" data-testid="risk-explanation-panel">
@@ -227,6 +283,10 @@ function PanelDepartamento(
           ? ` · observado el ${formatearFecha(lluviaObservada.observadoEn)}`
           : ''}
       </p>
+
+      {tendenciaEstacional !== undefined && tendenciaEstacional !== null && (
+        <TarjetaTendenciaEstacional tendencia={tendenciaEstacional} />
+      )}
     </section>
   )
 }

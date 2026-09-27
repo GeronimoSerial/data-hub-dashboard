@@ -34,6 +34,7 @@ export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
+  seasonalEnabled?: boolean
 }) {
   const [tab, setTab] = React.useState<PestanaMapa>('operativa')
 
@@ -92,6 +93,7 @@ export function InfraestructuraMapClient(props: {
             mostrarEnlaceNominal={props.mostrarEnlaceNominal}
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
+            seasonalEnabled={props.seasonalEnabled ?? false}
           />
         </div>
 

@@ -193,3 +193,91 @@ describe('RiskExplanationPanel — variante escuela', () => {
     expect(screen.getByTestId('risk-explanation-nivel-riesgo')).toHaveTextContent('Sin dato')
   })
 })
+
+describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)', () => {
+  it('no se muestra si tendenciaEstacional no se pasa (flag apagado)', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+    expect(screen.queryByTestId('risk-explanation-seasonal')).not.toBeInTheDocument()
+  })
+
+  it('no se muestra si tendenciaEstacional es null (consultada, sin datos)', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+        tendenciaEstacional={null}
+      />,
+    )
+    expect(screen.queryByTestId('risk-explanation-seasonal')).not.toBeInTheDocument()
+  })
+
+  it('etiqueta explícitamente como pronóstico regional, con fecha de emisión y "no es un valor por escuela"', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+        tendenciaEstacional={{
+          emisionEn: '2026-09-27',
+          validoDesde: '2026-10-27',
+          validoHasta: '2026-12-26',
+          miembrosTotal: 51,
+          miembrosValidos: 51,
+          probabilidadSobreNormal: 0.42,
+          mediaMm: 120.5,
+        }}
+      />,
+    )
+
+    const tarjeta = screen.getByTestId('risk-explanation-seasonal')
+    expect(tarjeta).toHaveTextContent('Perspectiva 30–90 días')
+    expect(tarjeta).toHaveTextContent('pronóstico probabilístico regional')
+    expect(screen.getByTestId('risk-explanation-seasonal-aviso')).toHaveTextContent(
+      'no es un valor por escuela',
+    )
+    // El nivel/valor siempre se lee como texto: probabilidad numérica + conteo
+    // de miembros, nunca sólo un color/badge.
+    expect(screen.getByTestId('risk-explanation-seasonal-probabilidad')).toHaveTextContent('42%')
+    expect(screen.getByTestId('risk-explanation-seasonal-probabilidad')).toHaveTextContent(
+      '51 de 51 miembros',
+    )
+    expect(screen.getByTestId('risk-explanation-seasonal-emision')).toHaveTextContent('Emitido el')
+  })
+
+  it('probabilidadSobreNormal null se muestra como "sin dato", nunca como 0%', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+        tendenciaEstacional={{
+          emisionEn: '2026-09-27',
+          validoDesde: '2026-10-27',
+          validoHasta: '2026-12-26',
+          miembrosTotal: 51,
+          miembrosValidos: 0,
+          probabilidadSobreNormal: null,
+          mediaMm: null,
+        }}
+      />,
+    )
+    expect(screen.getByTestId('risk-explanation-seasonal-probabilidad')).toHaveTextContent(
+      'sin dato',
+    )
+  })
+})
