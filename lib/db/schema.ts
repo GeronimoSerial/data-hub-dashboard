@@ -918,3 +918,37 @@ export const hazardSeasonalTrend = sqliteTable(
     index('hazard_seasonal_trend_departamento_idx').on(t.departamento),
   ],
 )
+
+// E8: briefing narrativo asistido por IA (batch E8, ver plan-ejecucion §6-E8).
+// `corteId` es espejo de infra_situacion_corte de E5 (tabla que aún no existe
+// en este worktree): por ahora es un string suelto, sin FK, para no bloquear el
+// merge entre batches. Un briefing por corte (`infra_briefing_corte_uidx` da la
+// idempotencia) y `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del
+// mes vigente.
+export const infraBriefing = sqliteTable(
+  'infra_briefing',
+  {
+    id: text('id').primaryKey(),
+    corteId: text('corte_id').notNull(),
+    modelo: text('modelo').notNull(),
+    versionPrompt: text('version_prompt').notNull(),
+    parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>(),
+    salidaIa: text('salida_ia', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    textoFinal: text('texto_final').notNull(),
+    // 'ia' | 'plantilla'.
+    fuente: text('fuente').notNull(),
+    // 'json_invalido' | 'cifra_no_trazable' | 'timeout' | 'http_error' |
+    // 'presupuesto_agotado' | 'sin_api_key' | null (si fue directo a IA).
+    motivoFallback: text('motivo_fallback'),
+    tokensEntrada: integer('tokens_entrada'),
+    tokensSalida: integer('tokens_salida'),
+    costoUsd: real('costo_usd'),
+    latenciaMs: integer('latencia_ms'),
+    validacion: text('validacion', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_briefing_corte_uidx').on(t.corteId),
+    index('infra_briefing_creada_en_idx').on(t.creadaEn),
+  ],
+)

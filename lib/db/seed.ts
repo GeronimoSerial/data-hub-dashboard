@@ -508,6 +508,28 @@ CREATE TABLE IF NOT EXISTS \`hazard_seasonal_trend\` (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_seasonal_trend_uidx\` ON \`hazard_seasonal_trend\` (\`departamento\`, \`variable\`, \`emision_en\`, \`horizonte_desde_dias\`, \`horizonte_hasta_dias\`);
 CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazard_seasonal_trend\` (\`departamento\`);
+-- E8: briefing narrativo asistido por IA (infra_briefing), ver lib/db/schema.ts
+-- (infraBriefing). Un briefing por corte (corte_id espejo de E5) e índice por
+-- creada_en para sumar el costo_usd del mes vigente.
+CREATE TABLE IF NOT EXISTS \`infra_briefing\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`corte_id\` text NOT NULL,
+  \`modelo\` text NOT NULL,
+  \`version_prompt\` text NOT NULL,
+  \`parametros\` text,
+  \`salida_ia\` text,
+  \`texto_final\` text NOT NULL,
+  \`fuente\` text NOT NULL,
+  \`motivo_fallback\` text,
+  \`tokens_entrada\` integer,
+  \`tokens_salida\` integer,
+  \`costo_usd\` real,
+  \`latencia_ms\` integer,
+  \`validacion\` text,
+  \`creada_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_briefing_corte_uidx\` ON \`infra_briefing\` (\`corte_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_briefing_creada_en_idx\` ON \`infra_briefing\` (\`creada_en\`);
 `
 
 let seedPromise: Promise<void> | null = null
