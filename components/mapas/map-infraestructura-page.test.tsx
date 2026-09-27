@@ -109,6 +109,61 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
   useAlertas: () => ({ data: FIXTURE_RESPUESTA, loading: false, error: null }),
 }))
 
+// Mock del hook del radar (E4). Registra cada invocación con su flag `activo`
+// para poder afirmar que NO se dispara en modo "Situación actual" ni con el
+// flag apagado: el componente puede llamar al hook siempre (regla de hooks),
+// pero con activo=false el hook real no hace fetch — acá se verifica el
+// contrato del lado del componente (el activo que recibe) y del hook
+// (devolver null/vacío sin datos).
+const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[] }))
+
+const RADAR_DATA = {
+  corte: {
+    runId: 'run-1',
+    publicadoEn: '2026-09-26T06:00:00Z',
+    modeloVersion: 'v0',
+  },
+  cobertura: { procesadas: 100, conEvidencia: 90, sinEvidencia: 10 },
+  departamentos: [
+    { departamento: 'CAPITAL', peorNivel: 'rojo', horizonteHoras: 24, celdas: 2 },
+    { departamento: 'CAPITAL', peorNivel: 'verde', horizonteHoras: 72, celdas: 2 },
+  ],
+  escuelas: {
+    items: [
+      {
+        snapshotId: 's1',
+        cueAnexo: CUE,
+        departamento: 'CAPITAL',
+        horizonteHoras: 24,
+        evidenciaValida: true,
+        scoreRiesgo: 0.8,
+        nivelRiesgo: 'alto',
+        scoreAmenaza: 0.7,
+        scoreVulnerabilidad: 0.6,
+        confianza: 'media',
+        exposicionMatricula: 0,
+        exposicionSecciones: 0,
+        calculadoEn: '2026-09-26T06:00:00Z',
+        validoHasta: '2026-09-27T06:00:00Z',
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    total: 1,
+    totalPages: 1,
+  },
+  kpis: { riesgoAltoTotal: 1, sinEvidenciaTotal: 0 },
+}
+
+vi.mock('@/lib/infraestructura/use-radar', () => ({
+  useRadar: (_filtros: unknown, activo: boolean) => {
+    llamadasRadar.activos.push(activo)
+    return activo
+      ? { data: RADAR_DATA, loading: false, error: null }
+      : { data: null, loading: false, error: null }
+  },
+}))
+
 // react-map-gl/maplibre necesita WebGL, que no existe en jsdom: se reemplaza
 // por un doble mínimo que expone un botón para simular el click sobre el
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
@@ -127,6 +182,14 @@ vi.mock('react-map-gl/maplibre', () => {
         <button
           data-testid="mock-click-departamento"
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }] })}
+        />
+        <button
+          data-testid="mock-click-peligro"
+          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-peligro-fill' }, properties: { nombre: 'CAPITAL' } }] })}
+        />
+        <button
+          data-testid="mock-click-riesgo"
+          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-riesgo-circle' }, properties: { cueAnexo: CUE } }] })}
         />
         {props.children}
       </div>
@@ -156,7 +219,10 @@ async function cargar() {
 // próximo `render()` lo reemplace.
 let desmontarMapa: (() => void) | null = null
 
-async function renderMapa(props: { mostrarEnlaceNominal: boolean }) {
+async function renderMapa(props: {
+  mostrarEnlaceNominal: boolean
+  riskRadarEnabled?: boolean
+}) {
   const MapInfraestructuraPage = await cargar()
   const { unmount } = render(<MapInfraestructuraPage {...props} />)
   desmontarMapa = unmount
@@ -164,6 +230,7 @@ async function renderMapa(props: { mostrarEnlaceNominal: boolean }) {
 
 beforeEach(() => {
   vi.restoreAllMocks()
+  llamadasRadar.activos.length = 0
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -238,5 +305,109 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
     // La capa que se activó antes de abrir los modales sigue activa.
     expect(screen.getByRole('checkbox', { name: /sin reportar/i })).toBeChecked()
+  })
+})
+
+describe('MapInfraestructuraPage — modo Radar', () => {
+  it('con el flag ausente NO monta el conmutador ni el selector, y el hook queda inactivo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    // Ni un elemento nuevo del modo Radar en el DOM.
+    expect(screen.queryByRole('button', { name: 'Radar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Situación actual' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('group', { name: /horizonte temporal del radar/i }),
+    ).not.toBeInTheDocument()
+
+    // El hook se llamó (regla de hooks) pero SIEMPRE con activo=false.
+    expect(llamadasRadar.activos.length).toBeGreaterThan(0)
+    expect(llamadasRadar.activos.every((activo) => activo === false)).toBe(true)
+  })
+
+  it('con el flag en false tampoco monta el conmutador', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: false })
+    expect(screen.queryByRole('button', { name: 'Radar' })).not.toBeInTheDocument()
+    expect(llamadasRadar.activos.every((activo) => activo === false)).toBe(true)
+  })
+
+  it('con el flag en true muestra el conmutador, arranca en Situación actual y no dispara el radar', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    const botonRadar = screen.getByRole('button', { name: 'Radar' })
+    const botonActual = screen.getByRole('button', { name: 'Situación actual' })
+    expect(botonActual).toHaveAttribute('aria-pressed', 'true')
+    expect(botonRadar).toHaveAttribute('aria-pressed', 'false')
+
+    // Aún en Radar desactivado: hook inactivo y sin selector de horizonte.
+    expect(
+      screen.queryByRole('group', { name: /horizonte temporal del radar/i }),
+    ).not.toBeInTheDocument()
+    expect(llamadasRadar.activos.at(-1)).toBe(false)
+  })
+
+  it('al activar Radar consulta el hook, muestra horizonte, KPIs y briefing', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
+    expect(
+      screen.getByRole('group', { name: /horizonte temporal del radar/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('radar-kpi-riesgo-alto')).toHaveTextContent('1')
+    expect(screen.getByTestId('radar-briefing')).toBeInTheDocument()
+    // Sin run anterior, el briefing es la línea honesta de primer corte.
+    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/primer corte disponible/i)
+  })
+
+  it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
+    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(
+      screen.queryByRole('group', { name: /horizonte temporal del radar/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('click en un departamento del radar abre el panel de explicación por departamento', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    expect(screen.queryByTestId('risk-explanation-panel')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mock-click-peligro'))
+    expect(await screen.findByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+    // La ficha de partes NO se abrió: son estados independientes.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+
+  it('click en una escuela del radar abre el panel de explicación por escuela, sin mezclar con seleccionCue', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    await userEvent.click(screen.getByTestId('mock-click-riesgo'))
+    expect(await screen.findByTestId('risk-explanation-cue')).toHaveTextContent(CUE)
+    // Estado independiente del modo actual: sin ficha de partes abierta.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+
+  it('en modo Radar las capas base del mapa siguen montadas (decisión: sumar, no reemplazar)', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    // En "Situación actual" la leyenda de peligro no aparece; en Radar sí.
+    expect(
+      screen.queryByRole('list', { name: /niveles de peligro meteorológico/i }),
+    ).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    expect(
+      screen.getByRole('list', { name: /niveles de peligro meteorológico/i }),
+    ).toBeInTheDocument()
+    // El checkbox de la capa de partes sigue presente: no se desmontó.
+    expect(
+      screen.getByRole('checkbox', { name: /escuelas con afectación vigente/i }),
+    ).toBeInTheDocument()
   })
 })

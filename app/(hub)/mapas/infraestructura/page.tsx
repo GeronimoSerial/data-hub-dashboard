@@ -4,7 +4,7 @@ import { puedeAbrir } from '@/lib/acl'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
-import { hazardContextEnabled } from '@/lib/infraestructura/riesgo/flags'
+import { hazardContextEnabled, riskRadarEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { InfraestructuraMapClient } from './map-client'
 
 export const runtime = 'nodejs'
@@ -20,6 +20,7 @@ export default async function InfraestructuraMapRoute() {
     <InfraestructuraMapClient
       mostrarEnlaceNominal={mostrarEnlaceNominal}
       hazardContextEnabled={hazardContextEnabled()}
+      riskRadarEnabled={riskRadarEnabled()}
     />
   )
 }
