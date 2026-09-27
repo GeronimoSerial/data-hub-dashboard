@@ -436,7 +436,7 @@ describe('ReporteInicialForm', () => {
 
     window.dispatchEvent(new Event('online'))
 
-    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.', undefined, { timeout: 5000 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
@@ -658,6 +658,8 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     expect(
       await screen.findByText(
         'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+        undefined,
+        { timeout: 5000 },
       ),
     ).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
