@@ -645,3 +645,93 @@ export const hazardSourceHealth = sqliteTable('hazard_source_health', {
   licencia: text('licencia').notNull(),
   actualizadaEn: text('actualizada_en').notNull(),
 })
+
+// E3b: motor de riesgo v0 (infra_risk_run, infra_risk_snapshot, infra_risk_factor)
+
+// Corrida del motor de riesgo: el "puntero" que se publica atómicamente. No
+// confundir con infraJobRun, que es el lease genérico de ejecución de jobs de
+// E0 — esta es la entidad de dominio. `infra_risk_run_vigente_unico` garantiza
+// a nivel DB que exista a lo sumo UN run `vigente`, así publicar uno nuevo y
+// marcar vencido el anterior es atómico sin depender de la disciplina de la
+// app (mismo patrón de índice único parcial que infraPeriodo).
+export const infraRiskRun = sqliteTable(
+  'infra_risk_run',
+  {
+    id: text('id').primaryKey(),
+    periodoId: text('periodo_id')
+      .notNull()
+      .references(() => infraPeriodo.id),
+    modeloVersion: text('modelo_version').notNull(),
+    iniciadoEn: text('iniciado_en').notNull(),
+    publicadoEn: text('publicado_en'),
+    // 'preparando' | 'vigente' | 'vencido' | 'fallido'.
+    estado: text('estado').notNull(),
+    // p. ej. { procesadas: 2005, conEvidencia: 1800, sinEvidencia: 205 }.
+    cobertura: text('cobertura', { mode: 'json' }).$type<Record<string, number>>(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_risk_run_vigente_unico')
+      .on(t.estado)
+      .where(sql`${t.estado} = 'vigente'`),
+    index('infra_risk_run_periodo_id_idx').on(t.periodoId),
+  ],
+)
+
+// Un score de riesgo por (run, escuela, horizonte). `evidenciaValida` indica
+// si el score se calculó con evidencia suficiente; `nivelRiesgo` y `confianza`
+// son texto validado en la capa de dominio. El índice único evita duplicar el
+// mismo cálculo al reintentar la corrida.
+export const infraRiskSnapshot = sqliteTable(
+  'infra_risk_snapshot',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => infraRiskRun.id),
+    cueAnexo: text('cue_anexo').notNull(),
+    // 24 | 72 | 240.
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    evidenciaValida: integer('evidencia_valida', { mode: 'boolean' }).notNull(),
+    scoreRiesgo: real('score_riesgo'),
+    // 'bajo' | 'moderado' | 'alto' | 'muy_alto'.
+    nivelRiesgo: text('nivel_riesgo'),
+    scoreAmenaza: real('score_amenaza'),
+    scoreVulnerabilidad: real('score_vulnerabilidad'),
+    // 'baja' | 'media' | 'alta'.
+    confianza: text('confianza').notNull(),
+    exposicionMatricula: integer('exposicion_matricula'),
+    exposicionSecciones: integer('exposicion_secciones'),
+    calculadoEn: text('calculado_en').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_risk_snapshot_uidx').on(t.runId, t.cueAnexo, t.horizonteHoras),
+    index('infra_risk_snapshot_cue_anexo_idx').on(t.cueAnexo),
+    index('infra_risk_snapshot_run_id_idx').on(t.runId),
+  ],
+)
+
+// Factores que explican un snapshot (N por snapshot): cada fila aporta una
+// variable con su contribución y su peso al score. `onDelete: 'cascade'`
+// limpia los factores cuando se borra el snapshot.
+export const infraRiskFactor = sqliteTable(
+  'infra_risk_factor',
+  {
+    id: text('id').primaryKey(),
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => infraRiskSnapshot.id, { onDelete: 'cascade' }),
+    // 'amenaza' | 'vulnerabilidad' | 'exposicion' | 'urgencia'.
+    tipo: text('tipo').notNull(),
+    fuente: text('fuente').notNull(),
+    variable: text('variable').notNull(),
+    valor: real('valor'),
+    unidad: text('unidad'),
+    contribucion: real('contribucion').notNull(),
+    peso: real('peso').notNull(),
+    explicacion: text('explicacion').notNull(),
+    observadoEn: text('observado_en'),
+  },
+  (t) => [index('infra_risk_factor_snapshot_id_idx').on(t.snapshotId)],
+)

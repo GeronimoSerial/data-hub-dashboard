@@ -365,6 +365,55 @@ CREATE TABLE IF NOT EXISTS \`hazard_source_health\` (
   \`licencia\` text NOT NULL,
   \`actualizada_en\` text NOT NULL
 );
+-- E3b: motor de riesgo v0 (infra_risk_run, infra_risk_snapshot, infra_risk_factor)
+CREATE TABLE IF NOT EXISTS \`infra_risk_run\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`periodo_id\` text NOT NULL,
+  \`modelo_version\` text NOT NULL,
+  \`iniciado_en\` text NOT NULL,
+  \`publicado_en\` text,
+  \`estado\` text NOT NULL,
+  \`cobertura\` text,
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_risk_run_vigente_unico\` ON \`infra_risk_run\` (\`estado\`) WHERE \`estado\` = 'vigente';
+CREATE INDEX IF NOT EXISTS \`infra_risk_run_periodo_id_idx\` ON \`infra_risk_run\` (\`periodo_id\`);
+CREATE TABLE IF NOT EXISTS \`infra_risk_snapshot\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`run_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`horizonte_horas\` integer NOT NULL,
+  \`evidencia_valida\` integer NOT NULL,
+  \`score_riesgo\` real,
+  \`nivel_riesgo\` text,
+  \`score_amenaza\` real,
+  \`score_vulnerabilidad\` real,
+  \`confianza\` text NOT NULL,
+  \`exposicion_matricula\` integer,
+  \`exposicion_secciones\` integer,
+  \`calculado_en\` text NOT NULL,
+  \`valido_hasta\` text NOT NULL,
+  FOREIGN KEY (\`run_id\`) REFERENCES \`infra_risk_run\`(\`id\`)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_risk_snapshot_uidx\` ON \`infra_risk_snapshot\` (\`run_id\`, \`cue_anexo\`, \`horizonte_horas\`);
+CREATE INDEX IF NOT EXISTS \`infra_risk_snapshot_cue_anexo_idx\` ON \`infra_risk_snapshot\` (\`cue_anexo\`);
+CREATE INDEX IF NOT EXISTS \`infra_risk_snapshot_run_id_idx\` ON \`infra_risk_snapshot\` (\`run_id\`);
+CREATE TABLE IF NOT EXISTS \`infra_risk_factor\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`snapshot_id\` text NOT NULL,
+  \`tipo\` text NOT NULL,
+  \`fuente\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`valor\` real,
+  \`unidad\` text,
+  \`contribucion\` real NOT NULL,
+  \`peso\` real NOT NULL,
+  \`explicacion\` text NOT NULL,
+  \`observado_en\` text,
+  FOREIGN KEY (\`snapshot_id\`) REFERENCES \`infra_risk_snapshot\`(\`id\`) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS \`infra_risk_factor_snapshot_id_idx\` ON \`infra_risk_factor\` (\`snapshot_id\`);
 `
 
 let seedPromise: Promise<void> | null = null
