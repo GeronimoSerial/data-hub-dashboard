@@ -5,9 +5,13 @@
 // ES actualizar el parte. Mismo patrón de guardas que
 // app/api/problematicas/route.ts: acceso público, ensureSeeded, rate limit,
 // idempotencia, validación contra la base, transacción.
+import type { Client, Transaction as LibsqlTransaction } from '@libsql/client'
 import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/libsql'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
+import * as schema from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   infraAfectacion,
@@ -37,7 +41,12 @@ import {
 } from '@/lib/infraestructura/parte-consulta'
 import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
-import type { EstadoEstablecimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type {
+  Afectacion,
+  EstadoEstablecimiento,
+  Severidad,
+  TipoMovimiento,
+} from '@/lib/infraestructura/trayectoria-tipos'
 import { resolverCategoria, validarAlumnosPermitidos } from '@/lib/infraestructura/validacion'
 import { parseParteActualizacionInput } from '@/lib/infraestructura/validacion-trayectoria'
 import {
@@ -59,6 +68,95 @@ const MENSAJE_SIN_SITUACION =
 // POST, un rollback deliberado (diff vacío, spec §17) de un error real de
 // escritura. Nunca sale de este archivo.
 class RollbackDiffVacio extends Error {}
+
+// Corrección de la carrera cross-device del gate N1 (ver
+// docs/ejecucion-enos/E1b/registro.md, "Correcciones del gate N1" → riesgo
+// residual): dos dispositivos que mandan la primera alta del mismo CUE+
+// período casi al mismo tiempo, cada uno con su propia idempotencyKey, no
+// deben terminar duplicando la afectación que describe el mismo evento. Acá
+// se compara el contenido de una entrada de `afectacionesNuevas` contra una
+// afectación YA vigente en el parte (releída dentro de la transacción, con
+// el lock de escritura tomado) para decidir si hay que insertarla de nuevo o
+// si ya está cubierta. La comparación reconstruye el mismo alcance por
+// sección que arma cargarAfectaciones (parte-consulta.ts) para que sea
+// exacta, no una aproximación.
+function motivoCategoriaSeveridadDescripcionCoinciden(
+  existente: Afectacion,
+  entrada: { motivo: string; severidad: Severidad; descripcion?: string | null },
+  categoria: CategoriaAfectacion,
+): boolean {
+  return (
+    existente.motivo === entrada.motivo &&
+    existente.categoria === categoria &&
+    existente.severidad === entrada.severidad &&
+    (existente.descripcion ?? null) === (entrada.descripcion ?? null)
+  )
+}
+
+async function seccionesEsperadas(
+  client: Client,
+  corteId: number,
+  geSectionIds: number[],
+  alumnosSeleccionados: number[] | undefined,
+): Promise<Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>> {
+  const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
+  const seleccionados = new Set(alumnosSeleccionados ?? [])
+  const resultado = new Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>()
+  for (const geSectionId of geSectionIds) {
+    const matriculados = membresia.get(geSectionId) ?? new Set<number>()
+    const interseccion = [...matriculados].filter((id) => seleccionados.has(id))
+    resultado.set(
+      geSectionId,
+      interseccion.length > 0
+        ? { seccionCompleta: false, alumnos: new Set(interseccion) }
+        : { seccionCompleta: true, alumnos: matriculados },
+    )
+  }
+  return resultado
+}
+
+function seccionesCoincidenConEsperadas(
+  existente: Afectacion,
+  esperadas: Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>,
+): boolean {
+  if (existente.secciones.length !== esperadas.size) return false
+  for (const seccion of existente.secciones) {
+    const esperada = esperadas.get(seccion.geSectionId)
+    if (!esperada) return false
+    if (esperada.seccionCompleta !== seccion.seccionCompleta) return false
+    if (esperada.alumnos.size !== seccion.alumnos.length) return false
+    for (const id of seccion.alumnos) {
+      if (!esperada.alumnos.has(id)) return false
+    }
+  }
+  return true
+}
+
+// Busca, entre las afectaciones vigentes ya persistidas, una que describa
+// EXACTAMENTE el mismo evento que `entrada` (mismo motivo/categoría/
+// severidad/descripción y el mismo alcance de secciones+alumnos). El chequeo
+// barato (campos escalares) va primero para no pagar la consulta de
+// membresía en el caso común de una afectación genuinamente nueva.
+async function buscarAfectacionEquivalente(
+  client: Client,
+  corteId: number,
+  candidatas: Afectacion[],
+  entrada: {
+    motivo: string
+    severidad: Severidad
+    descripcion?: string | null
+    secciones: number[]
+    alumnos?: number[]
+  },
+  categoria: CategoriaAfectacion,
+): Promise<Afectacion | undefined> {
+  const posibles = candidatas.filter((existente) =>
+    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria),
+  )
+  if (posibles.length === 0) return undefined
+  const esperadas = await seccionesEsperadas(client, corteId, entrada.secciones, entrada.alumnos)
+  return posibles.find((existente) => seccionesCoincidenConEsperadas(existente, esperadas))
+}
 
 // Campo hermano opcional a nivel raíz del mismo body de POST (batch E1). Vive
 // SEPARADO de parteActualizacionInputSchema para no tocar el contrato del
@@ -453,27 +551,55 @@ export async function POST(request: Request) {
     }
   }
 
-  // --- Fotografía "antes" (spec §12: referencia = rigeDesde del envío) ---
-
-  const actualAntes: ParteActual = parteExistente
-    ? {
-        periodo,
-        parte: { ...parteExistente, estadoEstablecimiento: parteExistente.estadoEstablecimiento as EstadoEstablecimiento },
-        ...(await obtenerAfectacionesYServicio(db, client, parteExistente.id, corteId)),
-        secciones,
-      }
-    : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
-  const antes = snapshotDesde(actualAntes, input.rigeDesde)
-
   const ahora = new Date().toISOString()
-  const esNuevoParte = !parteExistente
-  let resultado: { status: number; body: unknown }
+  // Definite assignment: cada iteración del loop de reintentos de más abajo
+  // o bien asigna `resultado` y hace `break`, o bien `return`-ea antes de
+  // salir del bloque — TypeScript no puede seguir esa garantía a través del
+  // `for` + `break`.
+  let resultado!: { status: number; body: unknown }
 
+  // Transacción manejada a mano con BEGIN IMMEDIATE (modo 'write' del cliente
+  // de libsql), NO con db.transaction() de Drizzle: para el driver de libsql,
+  // db.transaction() siempre abre BEGIN DEFERRED e ignora cualquier config de
+  // `behavior` que se le pase (ver drizzle-orm/libsql/session.cjs — su
+  // `transaction()` nunca reenvía `_config` a `client.transaction()`). Con
+  // DEFERRED, esta transacción podría arrancar su snapshot de lectura ANTES
+  // de tomar el lock de escritura, dejando la misma ventana de carrera que
+  // esto corrige. Con IMMEDIATE, el lock se toma desde el arranque: si otra
+  // request ya está escribiendo el mismo parte, ésta se entera al toque (ver
+  // esErrorLockOcupado) y reintenta en vez de leer un estado viejo.
+  //
+  // `tx` sigue siendo un LibSQLDatabase de Drizzle (mismo query builder de
+  // siempre) construido sobre la Transaction cruda: LibSQLSession sólo llama
+  // `.execute()`/`.batch()` sobre el objeto "client" que recibe cuando no hay
+  // una transacción de Drizzle activa (ver session.cjs), que es exactamente
+  // lo que expone `Transaction` — de ahí el cast, ninguno de los métodos que
+  // le faltan a `Transaction` respecto de `Client` (close, sync, migrate,
+  // transaction anidada) se invoca en este camino.
+  //
+  // Todo el bloque vive dentro de un reintento manual (no el `timeout`
+  // nativo — ver esErrorLockOcupado más arriba): si esta request pierde la
+  // carrera por el lock de escritura contra otra, se entera al toque
+  // (SQLITE_BUSY) y reintenta el bloque COMPLETO tras una espera corta con
+  // jitter, releyendo el estado real bajo el nuevo lock — nunca sólo el
+  // BEGIN, porque toda la lógica de "¿existe ya el parte?" de más abajo
+  // depende de ese estado fresco. Reintento delegado a
+  // lib/db/reintento.ts#conReintentoPorBloqueo (misma lógica que tenía esta
+  // ruta antes de la extracción); `alFallarIntento` reproduce el
+  // rollback+close que antes vivía en el catch/finally del for de más abajo.
+  let rawTx: LibsqlTransaction | undefined
   try {
-    resultado = await db.transaction(async (tx) => {
+    resultado = await conReintentoPorBloqueo(
+      async () => {
+        rawTx = await client.transaction('write')
+        const tx = drizzle(rawTx as unknown as Client, { schema })
+
+        const resultadoIntento = await (async () => {
       let parteId: string
+      let esNuevoParte: boolean
       if (parteExistente) {
         parteId = parteExistente.id
+        esNuevoParte = false
       } else {
         const nuevoId = crypto.randomUUID()
         await tx
@@ -489,8 +615,8 @@ export async function POST(request: Request) {
             actualizadaEn: ahora,
           })
           // Carrera en (cue_anexo, periodo_id): si otra request ya creó el
-          // parte, no hace falta el regex-catch de la ruta de problemáticas
-          // porque este insert simplemente no hace nada y releemos abajo.
+          // parte mientras ésta esperaba el lock de escritura, este insert
+          // simplemente no hace nada y releemos abajo.
           .onConflictDoNothing()
         const [fila] = await tx
           .select({ id: infraParte.id })
@@ -499,9 +625,45 @@ export async function POST(request: Request) {
           .limit(1)
         if (!fila) throw new Error('No se pudo crear ni leer el parte')
         parteId = fila.id
+        // Si `fila.id` no es el id que generamos, otra transacción ganó la
+        // carrera del alta y ya creó el parte: esta request pasa a tratarse
+        // como una actualización, no como un segundo "reporte_inicial" del
+        // mismo parte (riesgo residual de E1b).
+        esNuevoParte = fila.id === nuevoId
       }
 
+      // --- Fotografía "antes" (spec §12), releída DENTRO de la transacción
+      // con el lock de escritura ya tomado — nunca la `parteExistente` de
+      // más arriba, que pudo quedar desactualizada por la misma carrera.
+      const [parteFilaActual] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      const { afectaciones: afectacionesActuales, servicioAlcance: servicioAlcanceActual } =
+        await obtenerAfectacionesYServicio(tx, client, parteId, corteId)
+      const actualAntesReal: ParteActual = parteFilaActual
+        ? {
+            periodo,
+            parte: { ...parteFilaActual, estadoEstablecimiento: parteFilaActual.estadoEstablecimiento as EstadoEstablecimiento },
+            afectaciones: afectacionesActuales,
+            servicioAlcance: servicioAlcanceActual,
+            secciones,
+          }
+        : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
+      const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
+      const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
+
       for (const { input: entrada, categoria } of nuevasConCategoria) {
+        // Nunca duplicar una afectación que otro dispositivo ya insertó para
+        // el mismo evento (misma carrera de alta cross-device): si el
+        // contenido coincide exactamente con una ya vigente, esta entrada es
+        // un no-op.
+        const equivalente = await buscarAfectacionEquivalente(
+          client,
+          corteId,
+          afectacionesVigentesActuales,
+          entrada,
+          categoria,
+        )
+        if (equivalente) continue
+
         const id = crypto.randomUUID()
         await tx.insert(infraAfectacion).values({
           id,
@@ -632,8 +794,8 @@ export async function POST(request: Request) {
 
       const diff = diffParte(antes, despues)
       if (esDiffVacio(diff)) {
-        // Revierte todo lo escrito en este callback: Drizzle hace ROLLBACK
-        // cuando el callback de transaction() lanza.
+        // Revierte todo lo escrito en esta función: el catch de más abajo
+        // hace rollback de `rawTx` cuando esto lanza.
         throw new RollbackDiffVacio()
       }
 
@@ -662,7 +824,34 @@ export async function POST(request: Request) {
           servicio: { estadoGeneral, alcanceVigente: despues.servicioAlcance },
         },
       }
-    })
+    })()
+
+        await rawTx.commit()
+        // Red de seguridad incondicional: `close()` es sincrónico, seguro de
+        // llamar más de una vez (Transaction.closed lo hace un no-op) y hace
+        // ROLLBACK si hiciera falta — nunca puede quedar el lock de escritura
+        // de esta conexión nativa colgado más allá de este intento, ni
+        // siquiera si el propio commit() de arriba lanzó por su cuenta.
+        rawTx.close()
+        return resultadoIntento
+      },
+      {
+        alFallarIntento: async () => {
+          if (rawTx) {
+            try {
+              await rawTx.rollback()
+            } catch {
+              // noop: si el commit ya cerró la transacción (no debería pasar
+              // acá, porque el commit sólo se llama después de que la IIFE
+              // resuelve sin lanzar), el error original manda. `close()` de
+              // acá abajo es la red de seguridad real para no dejar el lock
+              // de escritura colgado.
+            }
+            rawTx.close()
+          }
+        },
+      },
+    )
   } catch (err) {
     if (err instanceof RollbackDiffVacio) {
       return Response.json(

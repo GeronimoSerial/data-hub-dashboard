@@ -13,6 +13,7 @@ import {
   shouldReplaceWithSeedFile,
 } from '@/lib/seed-files'
 import { getDb } from './index'
+import { conReintentoPorBloqueo } from './reintento'
 import {
   categorias,
   infraPeriodo,
@@ -718,6 +719,20 @@ export async function sembrarPeriodoEnos(): Promise<void> {
 
 async function seedHub() {
   const db = getDb()
+  // WAL en vez del rollback journal por default: app/api/problematicas/parte/route.ts
+  // abre transacciones de escritura con BEGIN IMMEDIATE en su propia conexión
+  // nativa (cada `client.transaction()` de @libsql/client abre una conexión
+  // nueva) mientras OTRAS conexiones del mismo proceso siguen leyendo (ge.sqlite
+  // adjuntada, `obtenerAfectacionesYServicio`, etc.) — en rollback journal mode
+  // un escritor con lock reservado/pendiente puede dejar sin lectura a esas
+  // otras conexiones el tiempo suficiente para que la propia liberación del
+  // lock quede bloqueada esperando un lector, un patrón que en la práctica
+  // dejaba el lock colgado indefinidamente entre tests con dos escritores
+  // concurrentes reales (Promise.all). WAL permite lectores concurrentes con
+  // un único escritor sin ese bloqueo cruzado. `journal_mode` es una
+  // propiedad del ARCHIVO (persiste en el header), así que basta con
+  // pedirlo acá, una vez por proceso.
+  await db.$client.execute('PRAGMA journal_mode=WAL')
   await db.$client.executeMultiple(HUB_DDL)
   // F4.6: las tres tablas del modelo deprecado ya no se crean en HUB_DDL; se
   // dropean acá, donde antes vivían sus helpers ensure/backfill, para que una
@@ -739,31 +754,44 @@ async function seedHub() {
   // (HUB_DDL ya no la crea).
   await db.$client.execute('DROP TABLE IF EXISTS `infra_episodio`')
 
-  const [row] = await db.select({ n: count() }).from(niveles)
-  if ((row?.n ?? 0) === 0) {
-    const seeded = seedRecursos.map(withSeedFile)
-    const tagJoins = seeded.flatMap((r) =>
-      r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
-    )
-
-    await db.transaction(async (tx) => {
-      await tx.insert(niveles).values(seedNiveles)
-      await tx.insert(tipos).values(seedTipos)
-      await tx.insert(categorias).values(seedCategorias)
-      await tx.insert(tags).values(seedTags)
-      await tx.insert(recursos).values(
-        seeded.map(
-          ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
-            row,
-        ),
+  // Reintento ante SQLITE_BUSY (lib/db/reintento.ts): TODO el bloque —el
+  // conteo Y la decisión de sembrar vs. convertir— vive DENTRO del intento,
+  // nunca sólo la transacción de siembra. Si dos procesos corren seedHub()
+  // casi al mismo tiempo (p. ej. el proceso web y un job de scripts/, cada
+  // uno con su propia conexión) y éste pierde la carrera por el lock,
+  // reintentar sólo la transacción con el `row.n === 0` viejo insertaría la
+  // siembra dos veces (violando los UNIQUE de niveles/tipos/categorias/tags)
+  // si el otro proceso ya la completó entre medio. Releer `count()` en cada
+  // intento evita ese duplicado: un reintento que encuentra la base ya
+  // sembrada simplemente pasa a `convertExistingSeedFiles()`, como si nunca
+  // hubiera hecho falta sembrar.
+  await conReintentoPorBloqueo(async () => {
+    const [row] = await db.select({ n: count() }).from(niveles)
+    if ((row?.n ?? 0) === 0) {
+      const seeded = seedRecursos.map(withSeedFile)
+      const tagJoins = seeded.flatMap((r) =>
+        r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
       )
-      if (tagJoins.length > 0) {
-        await tx.insert(recursoTags).values(tagJoins)
-      }
-    })
-  } else {
-    await convertExistingSeedFiles()
-  }
+
+      await db.transaction(async (tx) => {
+        await tx.insert(niveles).values(seedNiveles)
+        await tx.insert(tipos).values(seedTipos)
+        await tx.insert(categorias).values(seedCategorias)
+        await tx.insert(tags).values(seedTags)
+        await tx.insert(recursos).values(
+          seeded.map(
+            ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
+              row,
+          ),
+        )
+        if (tagJoins.length > 0) {
+          await tx.insert(recursoTags).values(tagJoins)
+        }
+      })
+    } else {
+      await convertExistingSeedFiles()
+    }
+  })
 
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
