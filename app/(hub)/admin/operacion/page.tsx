@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { obtenerEstadoOperativo } from '@/lib/infraestructura/riesgo/salud'
+import { getDb } from '@/lib/db'
+import { hazardSourceHealth } from '@/lib/db/schema'
+import { ensureSeeded } from '@/lib/db/seed'
 
 const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 const bloque: React.CSSProperties = {
@@ -19,13 +22,25 @@ const celda: React.CSSProperties = {
 }
 const alerta: React.CSSProperties = { ...celda, color: 'var(--danger)' }
 
+// Fuera del componente a propósito: `react-hooks/purity` marca `Date.now()`
+// llamado directamente en el cuerpo de un componente, aun siendo un Server
+// Component async — mismo patrón que ya usa `obtenerEstadoOperativo()`
+// (calcula `generadoEn` puertas adentro, no en el JSX).
+function calcularFrescuraMinutos(ultimoExitoEn: string | null): number | null {
+  if (ultimoExitoEn === null) return null
+  return Math.round((Date.now() - new Date(ultimoExitoEn).getTime()) / 60000)
+}
+
 export default async function OperacionSalud() {
   const user = await getSessionUser()
   const gate = adminPageGate(user)
   if (gate === 'login') redirect('/login?callbackUrl=/admin/operacion')
   if (gate === 'forbidden') redirect('/forbidden')
 
+  await ensureSeeded()
+
   const estado = await obtenerEstadoOperativo()
+  const fuentes = await getDb().select().from(hazardSourceHealth)
 
   return (
     <div style={contenedor}>
@@ -73,6 +88,49 @@ export default async function OperacionSalud() {
             </tbody>
           </table>
         )}
+      </section>
+
+      <section style={bloque}>
+        <h2>Fuentes de amenazas</h2>
+        {fuentes.length === 0 ? (
+          <p>Sin proveedores registrados todavía</p>
+        ) : (
+          <table style={tabla}>
+            <thead>
+              <tr>
+                <th style={celda}>provider</th>
+                <th style={celda}>estado</th>
+                <th style={celda}>ultimoExitoEn</th>
+                <th style={celda}>frescura</th>
+                <th style={celda}>ttlMinutos</th>
+                <th style={celda}>licencia</th>
+                <th style={celda}>aviso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fuentes.map((fuente) => {
+                const frescura = calcularFrescuraMinutos(fuente.ultimoExitoEn)
+                const vencida = frescura !== null && frescura > fuente.ttlMinutos
+                const resaltado = fuente.estado !== 'ok' || vencida
+                const estilo = resaltado ? alerta : celda
+                return (
+                  <tr key={fuente.provider}>
+                    <td style={estilo}>{fuente.provider}</td>
+                    <td style={estilo}>{fuente.estado}</td>
+                    <td style={estilo}>{fuente.ultimoExitoEn ?? '—'}</td>
+                    <td style={estilo}>{frescura === null ? '—' : `${frescura} min`}</td>
+                    <td style={estilo}>{fuente.ttlMinutos}</td>
+                    <td style={estilo}>{fuente.licencia}</td>
+                    <td style={estilo}>{vencida ? 'vencida' : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+          Datos meteorológicos: Open-Meteo.com (CC BY 4.0), ECMWF.
+        </p>
       </section>
 
       <p style={{ color: 'var(--ink-soft)' }}>Generado en: {estado.generadoEn}</p>

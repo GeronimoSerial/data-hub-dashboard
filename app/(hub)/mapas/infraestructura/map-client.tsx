@@ -30,7 +30,10 @@ function esPestana(valor: string): valor is PestanaMapa {
   return PESTANAS.includes(valor)
 }
 
-export function InfraestructuraMapClient(props: { mostrarEnlaceNominal: boolean }) {
+export function InfraestructuraMapClient(props: {
+  mostrarEnlaceNominal: boolean
+  hazardContextEnabled?: boolean
+}) {
   const [tab, setTab] = React.useState<PestanaMapa>('operativa')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
@@ -84,7 +87,10 @@ export function InfraestructuraMapClient(props: { mostrarEnlaceNominal: boolean 
           toca.
         */}
         <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-operativa">
-          <MapInfraestructuraPage mostrarEnlaceNominal={props.mostrarEnlaceNominal} />
+          <MapInfraestructuraPage
+            mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+            hazardContextEnabled={props.hazardContextEnabled ?? false}
+          />
         </div>
 
         {/*

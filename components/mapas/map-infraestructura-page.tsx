@@ -419,7 +419,10 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
 // listener 'change' además hace que el mapa reaccione en vivo si el usuario
 // cambia el ajuste de reduced-motion del sistema operativo, cosa que el
 // efecto one-shot viejo no hacía.
-export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: boolean }) {
+export default function MapInfraestructuraPage(props: {
+  mostrarEnlaceNominal: boolean
+  hazardContextEnabled?: boolean
+}) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
@@ -958,6 +961,7 @@ export default function MapInfraestructuraPage(props: { mostrarEnlaceNominal: bo
         mostrarEnlaceNominal={props.mostrarEnlaceNominal}
         onVerAlumnosAlcanzados={setNominalAfectacionId}
         onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+        habilitado={props.hazardContextEnabled ?? false}
       />
 
       <AlcanceNominalModal
