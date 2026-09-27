@@ -78,7 +78,17 @@ function calcularCosto(tokensEntrada: number | null, tokensSalida: number | null
   )
 }
 
-function leerRespuestaExito(datos: unknown): LecturaRespuesta | null {
+// Estimación de respaldo (no un conteo real) cuando OpenRouter no devuelve
+// tokens en usage: 4 caracteres por token es una aproximación razonable para
+// que el costo nunca quede en null y el presupuesto pueda agotarse.
+function estimarTokensDesdeTexto(texto: string): number {
+  return Math.ceil(texto.length / 4)
+}
+
+function leerRespuestaExito(
+  datos: unknown,
+  mensajes: MensajeChat[],
+): LecturaRespuesta | null {
   if (!esObjeto(datos)) {
     return null
   }
@@ -102,6 +112,24 @@ function leerRespuestaExito(datos: unknown): LecturaRespuesta | null {
   const tokensEntrada = usage === null ? null : leerNumero(usage.prompt_tokens)
   const tokensSalida = usage === null ? null : leerNumero(usage.completion_tokens)
   const costoExpuesto = usage === null ? null : leerNumero(usage.cost)
+
+  if (costoExpuesto === null && (tokensEntrada === null || tokensSalida === null)) {
+    // Estimación de respaldo: 'estimarTokensDesdeTexto' siempre devuelve un
+    // número (nunca null), así que 'calcularCosto' con estos dos argumentos
+    // nunca devuelve null. No existe un caso real de "no hay forma de
+    // estimar": por eso no hay un piso de costo máximo configurable acá (ver
+    // docs/ejecucion-enos/E8/registro.md, corrección del gate N1).
+    const tokensEntradaEstimados =
+      tokensEntrada ?? estimarTokensDesdeTexto(mensajes.map((m) => m.content).join('\n'))
+    const tokensSalidaEstimados = tokensSalida ?? estimarTokensDesdeTexto(mensaje.content)
+
+    return {
+      contenido: mensaje.content,
+      tokensEntrada: tokensEntrada ?? tokensEntradaEstimados,
+      tokensSalida: tokensSalida ?? tokensSalidaEstimados,
+      costo: costoExpuesto ?? calcularCosto(tokensEntradaEstimados, tokensSalidaEstimados),
+    }
+  }
 
   return {
     contenido: mensaje.content,
@@ -148,7 +176,7 @@ export async function generarConOpenRouter(
     }
 
     const datos: unknown = await respuesta.json()
-    const lectura = leerRespuestaExito(datos)
+    const lectura = leerRespuestaExito(datos, mensajes)
 
     if (lectura === null) {
       return fallo('http_error', Date.now() - inicio)

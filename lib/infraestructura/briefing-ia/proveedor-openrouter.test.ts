@@ -79,6 +79,45 @@ describe('generarConOpenRouter', () => {
     expect(resultado.costoUsd).toBeCloseTo(0.035 + 0.29, 10)
   })
 
+  it('respuesta 2xx sin campo usage estima tokens del texto y no deja el costo en null', async () => {
+    const fetchEspia = vi.fn<typeof fetch>().mockResolvedValue(
+      respuestaJson({
+        choices: [{ message: { content: '{"frases":[]}' } }],
+      }),
+    )
+
+    const resultado = await generarConOpenRouter(MENSAJES, {
+      apiKey: 'clave',
+      fetchImpl: fetchEspia,
+    })
+
+    expect(resultado.ok).toBe(true)
+    expect(resultado.costoUsd).not.toBeNull()
+    expect(resultado.costoUsd).toBeGreaterThan(0)
+    expect(resultado.tokensEntrada).not.toBeNull()
+    expect(resultado.tokensSalida).not.toBeNull()
+  })
+
+  it('respuesta 2xx con usage vacío estima tokens del texto y no deja el costo en null', async () => {
+    const fetchEspia = vi.fn<typeof fetch>().mockResolvedValue(
+      respuestaJson({
+        choices: [{ message: { content: '{"frases":[]}' } }],
+        usage: {},
+      }),
+    )
+
+    const resultado = await generarConOpenRouter(MENSAJES, {
+      apiKey: 'clave',
+      fetchImpl: fetchEspia,
+    })
+
+    expect(resultado.ok).toBe(true)
+    expect(resultado.costoUsd).not.toBeNull()
+    expect(resultado.costoUsd).toBeGreaterThan(0)
+    expect(resultado.tokensEntrada).not.toBeNull()
+    expect(resultado.tokensSalida).not.toBeNull()
+  })
+
   it('respuesta 429 devuelve http_error', async () => {
     const fetchEspia = vi
       .fn<typeof fetch>()
