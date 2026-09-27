@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   ejecutarCalculoClimatologiaCaudal: vi.fn(),
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
+  generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
   publicarResultado: vi.fn(),
@@ -37,6 +38,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/calcular-riesgo.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
   correrJobEpisodiosDerivados: mocks.correrJobEpisodiosDerivados,
+}))
+vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
+  generarCorte: mocks.generarCorte,
 }))
 vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
   enosJobsEnabled: mocks.enosJobsEnabled,
@@ -128,10 +132,10 @@ describe('sync-imerg — token de Earthdata', () => {
 })
 
 describe('gating por ENOS_JOBS_ENABLED', () => {
-  // Los 8 jobs comparten un único flag maestro (lib/infraestructura/jobs/flags.ts),
+  // Los 9 jobs comparten un único flag maestro (lib/infraestructura/jobs/flags.ts),
   // deliberadamente distinto de riskEngineEnabled()/episodiosDerivadosEnabled()
   // (esos son flags de UI, ver el módulo de flags): se verifica que con
-  // ENOS_JOBS_ENABLED=false ninguno de los 8 importa ni llama al job real.
+  // ENOS_JOBS_ENABLED=false ninguno de los 9 importa ni llama al job real.
   const casos: Array<[string, keyof typeof mocks]> = [
     ['geo-perfiles', 'calcularGeoPerfiles'],
     ['sync-pronostico-caudal', 'ejecutarSyncPronosticoCaudal'],
@@ -141,6 +145,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['climatologia-caudal', 'ejecutarCalculoClimatologiaCaudal'],
     ['calcular-riesgo', 'calcularYPublicarRiesgo'],
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
+    ['situacion-corte', 'generarCorte'],
   ]
 
   it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {
@@ -175,5 +180,59 @@ describe('geo-perfiles — lease externo', () => {
     expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
     expect(mocks.calcularGeoPerfiles).not.toHaveBeenCalled()
     expect(codigoSalida('geo-perfiles', resultado)).toBe(0)
+  })
+})
+
+describe('situacion-corte — lease externo', () => {
+  it('si el lease no se adquiere, no llama al corte y sale con 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: false, motivo: 'ya_completado' })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('situacion-corte')
+    expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
+    expect(mocks.generarCorte).not.toHaveBeenCalled()
+    expect(codigoSalida('situacion-corte', resultado)).toBe(0)
+  })
+
+  it('con el lease adquirido genera el corte y publica los contadores', async () => {
+    const ahora = new Date('2026-01-01T00:00:00.000Z')
+    mocks.adquirirLease.mockResolvedValue({
+      adquirido: true,
+      jobRunId: 'job-run-1',
+      leaseOwner: 'owner-1',
+    })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.generarCorte.mockResolvedValue({
+      corteId: 'corte-1',
+      generadoEn: '2026-01-01T00:00:00.000Z',
+      riskRunId: null,
+      kpis: {
+        escuelasAfectacionConfirmadaVigente: 1,
+        escuelasRiesgoAlto24h: 2,
+        fuentesVencidas: 0,
+      },
+      conteosPorNivelRiesgo: {},
+      episodiosAbiertos: 3,
+      episodiosCerradosDesdeAnterior: 1,
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('situacion-corte', { ahora })
+
+    expect(mocks.generarCorte).toHaveBeenCalledWith({ ahora, jobRunId: 'job-run-1' })
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobRunId: 'job-run-1',
+        leaseOwner: 'owner-1',
+        estado: 'completado',
+        contadores: {
+          episodiosAbiertos: 3,
+          episodiosCerradosDesdeAnterior: 1,
+          escuelasRiesgoAlto24h: 2,
+        },
+      }),
+    )
+    expect(resultado).toMatchObject({ ejecutado: true, corteId: 'corte-1', leasePerdido: false })
+    expect(codigoSalida('situacion-corte', resultado)).toBe(0)
   })
 })
