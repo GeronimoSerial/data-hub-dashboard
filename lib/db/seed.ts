@@ -482,6 +482,10 @@ CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
+-- E7b: índices temporales para replay (no modifica tablas existentes)
+CREATE INDEX IF NOT EXISTS infra_afectacion_creada_en_idx_e7b ON infra_afectacion(creada_en);
+CREATE INDEX IF NOT EXISTS infra_afectacion_rige_desde_idx_e7b ON infra_afectacion(rige_desde);
+CREATE INDEX IF NOT EXISTS infra_risk_run_publicado_en_idx_e7b ON infra_risk_run(publicado_en);
 `
 
 let seedPromise: Promise<void> | null = null
