@@ -58,10 +58,13 @@ import { ReplayPanel } from '@/components/mapas/replay-panel'
 import {
   construirCoropletaPeligro,
   construirPuntosRiesgo,
+  construirPuntosRiesgoAcceso,
   paintCoropletaPeligro,
   paintPuntosRiesgo,
+  paintPuntosRiesgoAcceso,
   peorNivelEntre,
   type NivelPorDepartamento,
+  type RiesgoAccesoEscuela,
   type RiesgoEscuela,
 } from '@/lib/mapas/peligro-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
@@ -197,6 +200,7 @@ export function circlePaintHaloRiesgo(): CircleLayerSpecification['paint'] {
 }
 
 const CAPA_HALO_RIESGO_ID = 'infra-riesgo-halo'
+const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
 
 // ── Modo Replay (E7c) ────────────────────────────────────────────────────────
 //
@@ -947,6 +951,25 @@ export default function MapInfraestructuraPage(props: {
     [escuelasConCoordenadas, riesgoPorCue],
   )
 
+  // Riesgo de acceso (E6): mismo patrón que riesgoPorCue/puntosRiesgoGeojson
+  // de arriba, pero leyendo `nivelRiesgoAcceso` del item del radar en vez de
+  // `nivelRiesgo`. Dimensión separada, no una variante de color de la capa
+  // existente.
+  const riesgoAccesoPorCue = useMemo(() => {
+    const map = new Map<string, RiesgoAccesoEscuela>()
+    for (const escuela of radarData?.escuelas.items ?? []) {
+      map.set(escuela.cueAnexo, {
+        nivel: (escuela.nivelRiesgoAcceso ?? null) as 'bajo' | 'moderado' | 'alto' | null,
+      })
+    }
+    return map
+  }, [radarData])
+
+  const puntosRiesgoAccesoGeojson = useMemo(
+    () => construirPuntosRiesgoAcceso(escuelasConCoordenadas, riesgoAccesoPorCue),
+    [escuelasConCoordenadas, riesgoAccesoPorCue],
+  )
+
   // ── Capas del cuadro reproducido (Replay, E7c) ────────────────────────────
   //
   // El replay entrega el peligro por CELDA de grilla (geometryRef), no por
@@ -1478,6 +1501,24 @@ export default function MapInfraestructuraPage(props: {
           )}
 
           {/*
+            Riesgo de acceso (E6): capa HERMANA de infra-riesgo-src, apagada
+            por defecto (capasRadarVisibles['riesgo-acceso'] arranca en
+            false). Gateada explícitamente por `!modoReplay` además de
+            `radarActivo` (aunque ya son mutuamente excluyentes por
+            construcción de `modo`): la regla de aceptación es que esta capa
+            NUNCA se muestre en Replay, sin depender de un efecto indirecto.
+          */}
+          {radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso'] && (
+            <Source id="infra-riesgo-acceso-src" type="geojson" data={puntosRiesgoAccesoGeojson}>
+              <Layer
+                id={CAPA_RIESGO_ACCESO_CIRCLE_ID}
+                type="circle"
+                paint={paintPuntosRiesgoAcceso()}
+              />
+            </Source>
+          )}
+
+          {/*
             Replay (E7c): fuentes/layers PROPIOS del cuadro reproducido,
             namespaced aparte del Radar (ver comentario de los ids arriba).
             Se montan SÓLO con replayActivo Y un cuadro resuelto — un vacío
@@ -1962,6 +2003,7 @@ export default function MapInfraestructuraPage(props: {
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
             mostrarLeyendaPeligro={radarActivo || replayActivo}
+            mostrarLeyendaAcceso={radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']}
             hayNivelProvisorio={
               radarActivo
                 ? (radarData?.hayNivelProvisorio ?? false)
