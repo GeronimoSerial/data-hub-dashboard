@@ -20,6 +20,7 @@ import type {
   CircleLayerSpecification,
   DataDrivenPropertyValueSpecification,
   FillLayerSpecification,
+  FilterSpecification,
   GeoJSONSource,
   LineLayerSpecification,
   MapGeoJSONFeature,
@@ -383,6 +384,28 @@ export function circlePaintPartes(): CircleLayerSpecification['paint'] {
   }
 }
 
+// Filtro de los puntos individuales (no clusterizados) según el toggle del
+// padrón completo: apagado (default) sólo muestra escuelas con
+// `estado === 'afectada'`; encendido muestra TODAS (afectadas y sin
+// afectación, esta última en gris neutro vía el campo `color` que ya
+// asigna construirEscuelasMapaFeatureCollection).
+export function filtroPuntosPartes(mostrarPadron: boolean): FilterSpecification {
+  const base = ['!', ['has', 'point_count']]
+  if (mostrarPadron) return base as unknown as FilterSpecification
+  return ['all', base, ['==', ['get', 'estado'], 'afectada']] as unknown as FilterSpecification
+}
+
+// Mismo criterio para los clusters: apagado sólo muestra clusters con al
+// menos una escuela afectada (escuelasAfectadas > 0, agregado ya existente
+// en clusterProperties); encendido muestra todos, incluidos los clusters
+// de puras escuelas sin afectación (pintados en gris por
+// colorPorSeveridadRango, que ya cubre ese caso).
+export function filtroClusterPartes(mostrarPadron: boolean): FilterSpecification {
+  const base = ['has', 'point_count']
+  if (mostrarPadron) return base as unknown as FilterSpecification
+  return ['all', base, ['>', ['get', 'escuelasAfectadas'], 0]] as unknown as FilterSpecification
+}
+
 type PropiedadesParte = {
   cueAnexo: string
   color: string
@@ -490,7 +513,7 @@ function estiloSimboloCentroEvacuados(): CSSProperties {
 }
 
 const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
-  escuelas: true,
+  escuelas: false,
   // Capas informativas nuevas: apagadas por defecto para no sumar ruido
   // visual al encuadre inicial. El director las prende cuando las necesita.
   evacuacion: false,
@@ -761,15 +784,23 @@ export default function MapInfraestructuraPage(props: {
   // pasan a <SelectorHorizonte> para deshabilitar los que no tienen datos; el
   // selector siempre ofrece los 4 y el resto queda visible pero inactivo.
   const horizontesDisponibles = useMemo<HorizonteRadar[]>(() => {
-    if (!radarData) return []
+    // 'ahora' es cualitativo y no depende de ninguna corrida del radar (no
+    // manda query, ver use-radar.ts): siempre está disponible, aunque
+    // `radarData` todavía no haya llegado o el resto de los horizontes no
+    // tengan evidencia. Sin esto, el botón "Ahora" queda permanentemente
+    // deshabilitado y no hay forma de volver a la situación actual.
+    if (!radarData) return ['ahora']
     const horas = new Set<number>()
     for (const fila of radarData.departamentos) {
       if (fila.peorNivel !== 'sin_dato') horas.add(fila.horizonteHoras)
     }
     for (const escuela of radarData.escuelas.items) horas.add(escuela.horizonteHoras)
-    return ([24, 72, 240] as HorizonteRadar[]).filter(
-      (h) => typeof h === 'number' && horas.has(h),
-    )
+    return [
+      'ahora',
+      ...([24, 72, 240] as HorizonteRadar[]).filter(
+        (h) => typeof h === 'number' && horas.has(h),
+      ),
+    ]
   }, [radarData])
 
   // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
@@ -912,7 +943,8 @@ export default function MapInfraestructuraPage(props: {
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
-    ...(capasVisibles.escuelas ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID] : []),
+    CAPA_PARTES_ID,
+    CAPA_PARTES_CLUSTER_ID,
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
     // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
@@ -1212,7 +1244,7 @@ export default function MapInfraestructuraPage(props: {
             </Source>
           )}
 
-          {capasVisibles.escuelas && (
+          {(
             <Source
               id="infra-partes-src"
               type="geojson"
@@ -1305,7 +1337,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
-                filter={['!', ['has', 'point_count']]}
+                filter={filtroPuntosPartes(capasVisibles.escuelas)}
                 paint={{
                   ...circlePaintPartes(),
                   'circle-opacity': puntosVisibles ? 0.9 : 0,
@@ -1325,7 +1357,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
-                filter={['has', 'point_count']}
+                filter={filtroClusterPartes(capasVisibles.escuelas)}
                 paint={{
                   'circle-color': colorPorSeveridadRango(),
                   'circle-radius': expresionRadioCluster(),
@@ -1338,7 +1370,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
-                filter={['has', 'point_count']}
+                filter={filtroClusterPartes(capasVisibles.escuelas)}
                 layout={{
                   'text-field': ['get', 'point_count_abbreviated'],
                   'text-size': 12,
@@ -1390,7 +1422,7 @@ export default function MapInfraestructuraPage(props: {
                 closeButton={false}
                 closeOnClick={false}
                 anchor="bottom"
-                className="map-departamento-hover-popup"
+                className="mapa-tooltip-departamento"
               >
                 <p>
                   En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
@@ -1579,6 +1611,19 @@ export default function MapInfraestructuraPage(props: {
                 escuelas={dataEscuelasMapa?.escuelas ?? []}
                 onSeleccionar={handleSeleccionarEscuelaBuscada}
               />
+              {(() => {
+                const totales = departamentoSeleccionado
+                  ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
+                  : dataTotalesMapa?.provincia
+                if (!totales) return null
+                return (
+                  <p className={styles.hint} data-testid="infra-totales-indicador">
+                    <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                    <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
+                    {totales.porcentajeAfectadas}%
+                  </p>
+                )
+              })()}
               <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
               {departamentoSeleccionado && (
                 <div className={`${styles.panel} map-departamento-seleccionado`}>

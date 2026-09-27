@@ -12,6 +12,8 @@ import {
   construirFeatureCollection,
   esSinReportar,
   expresionRadioCluster,
+  filtroClusterPartes,
+  filtroPuntosPartes,
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
   RADIO_CLUSTER_MENOR,
@@ -261,5 +263,33 @@ describe('construirFeatureCollection', () => {
     ]
     const { features } = construirFeatureCollection(partes, ahoraMs)
     expect(features.map((f) => f.properties.cueAnexo)).toEqual([baseFixture.cueAnexo])
+  })
+})
+
+describe('filtroPuntosPartes', () => {
+  it('con el padrón apagado sólo muestra escuelas afectadas', () => {
+    expect(filtroPuntosPartes(false)).toEqual([
+      'all',
+      ['!', ['has', 'point_count']],
+      ['==', ['get', 'estado'], 'afectada'],
+    ])
+  })
+
+  it('con el padrón encendido no filtra por estado', () => {
+    expect(filtroPuntosPartes(true)).toEqual(['!', ['has', 'point_count']])
+  })
+})
+
+describe('filtroClusterPartes', () => {
+  it('con el padrón apagado sólo muestra clusters con al menos una escuela afectada', () => {
+    expect(filtroClusterPartes(false)).toEqual([
+      'all',
+      ['has', 'point_count'],
+      ['>', ['get', 'escuelasAfectadas'], 0],
+    ])
+  })
+
+  it('con el padrón encendido no filtra por escuelas afectadas', () => {
+    expect(filtroClusterPartes(true)).toEqual(['has', 'point_count'])
   })
 })

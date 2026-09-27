@@ -499,8 +499,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('radar-kpi-riesgo-alto')).toHaveTextContent('1')
     expect(screen.getByTestId('radar-briefing')).toBeInTheDocument()
-    // Sin run anterior, el briefing es la línea honesta de primer corte.
-    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/primer corte disponible/i)
+    // Sin run anterior, el briefing es la línea honesta de primer resumen.
+    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/Primer resumen del día/i)
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
@@ -570,7 +570,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     // El checkbox de la capa de partes sigue presente: no se desmontó.
     expect(
-      screen.getByRole('checkbox', { name: /escuelas \(padrón completo\)/i }),
+      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
     ).toBeInTheDocument()
   })
 })
@@ -621,5 +621,36 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     )
     // Sin afectación reportada: no hay ParteMapa, por lo tanto no se abre la ficha.
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+})
+
+describe('M2: capa de padrón apagada por defecto', () => {
+  it('el indicador de totales se ve aunque la capa de padrón esté apagada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const indicador = screen.getByTestId('infra-totales-indicador')
+    expect(indicador).toHaveTextContent(/10 escuelas/)
+    expect(indicador).toHaveTextContent(/3 afectadas/)
+    expect(indicador).toHaveTextContent(/30%/)
+  })
+
+  it('la casilla de "Todas las escuelas (padrón)" arranca destildada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const checkbox = screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i })
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('tildar la casilla no hace desaparecer el indicador de totales', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const antes = screen.getByTestId('infra-totales-indicador').textContent
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
+    )
+
+    const despues = screen.getByTestId('infra-totales-indicador')
+    expect(despues).toBeInTheDocument()
+    expect(despues.textContent).toBe(antes)
   })
 })
