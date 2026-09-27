@@ -129,6 +129,7 @@ afterEach(() => {
   // fuera del DOM) y olvida el borrador: cada test arranca limpio.
   cleanup()
   sessionStorage.clear()
+  localStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -268,8 +269,8 @@ describe('ActualizacionForm', () => {
     expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
   })
 
-  it('si falla la conexión al guardar, la información ingresada se mantiene y se muestra el error de la sección 17', async () => {
-    const fetchMock = vi.fn(async (url: string) => {
+  it('si falla la conexión al guardar, el envío queda pendiente y la información ingresada se mantiene', async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
       throw new Error('network')
     })
@@ -283,9 +284,7 @@ describe('ActualizacionForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
 
     expect(
-      await screen.findByText(
-        'No pudimos guardar la actualización. La información ingresada se mantiene para que pueda volver a intentar.',
-      ),
+      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
     ).toBeInTheDocument()
 
     expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
@@ -296,6 +295,139 @@ describe('ActualizacionForm', () => {
     // resumen ya corregido; abrirla muestra el dato intacto.
     await editarAfectacionVigente()
     expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
+  // contrato esperado (sin `movimientoId`) no puede tratarse como éxito.
+  it('un 2xx con cuerpo inesperado NO confirma la actualización y reintenta con la misma clave', async () => {
+    let posteos = 0
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
+      posteos += 1
+      if (posteos === 1) return jsonResponse({ algo: 'inesperado' }, 200)
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 200)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    expect(
+      await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
+    ).toBeInTheDocument()
+    expect(posteos).toBe(1)
+
+    // Reintento manual: reutiliza la MISMA idempotencyKey.
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    expect(
+      await screen.findByText(
+        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+      ),
+    ).toBeInTheDocument()
+    expect(posteos).toBe(2)
+
+    const claves = fetchMock.mock.calls
+      .filter(
+        ([url, init]) =>
+          String(url) === '/api/problematicas/parte' &&
+          (init as RequestInit | undefined)?.method === 'POST',
+      )
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
+    expect(claves).toHaveLength(2)
+    expect(claves[0]).toBe(claves[1])
+  })
+
+  it('un 422 no se reintenta: muestra el error y el borrador queda editable', async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
+      return jsonResponse({ error: 'dato inválido' }, 422)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
+
+    const posteos = fetchMock.mock.calls.filter(
+      ([url, init]) =>
+        String(url) === '/api/problematicas/parte' &&
+        (init as RequestInit | undefined)?.method === 'POST',
+    )
+    expect(posteos).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /volver y corregir/i }))
+    await editarAfectacionVigente()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
+      return jsonResponse({ error: 'unauthorized' }, 401)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+
+    // El borrador no se pierde: el cambio cargado sigue visible y editable.
+    expect(screen.getByText(/Media.*Alta/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /volver y corregir/i }))
+    await editarAfectacionVigente()
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('un 5xx queda pendiente de envío y se reintenta solo al volver la conexión, con un único parte', async () => {
+    let posteos = 0
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
+      posteos += 1
+      if (posteos === 1) return jsonResponse({ error: 'sin servicio' }, 503)
+      return jsonResponse({ ok: true, movimientoId: 'm1' }, 200)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    await editarAfectacionVigente()
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+
+    expect(
+      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
+    ).toBeInTheDocument()
+    expect(posteos).toBe(1)
+
+    fireEvent(window, new Event('online'))
+
+    expect(
+      await screen.findByText(
+        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+      ),
+    ).toBeInTheDocument()
+    expect(posteos).toBe(2)
+
+    const claves = fetchMock.mock.calls
+      .filter(
+        ([url, init]) =>
+          String(url) === '/api/problematicas/parte' &&
+          (init as RequestInit | undefined)?.method === 'POST',
+      )
+      .map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
+    expect(claves).toHaveLength(2)
+    expect(claves[0]).toBe(claves[1])
   })
 })
 describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar', () => {
@@ -450,7 +582,7 @@ describe('ActualizacionForm — una situación en blanco no es un cambio', () =>
   })
 })
 
-describe('ActualizacionForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+describe('ActualizacionForm — borrador local (#32) e historial del navegador (#31)', () => {
   const clave = `parte-actualizacion:draft:${props.cue}`
 
   it('guarda el borrador con la pantalla activa y lo restaura al remontar (#32)', async () => {
@@ -461,7 +593,9 @@ describe('ActualizacionForm — borrador en sessionStorage (#32) e historial del
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
 
     expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
-    expect(sessionStorage.getItem(clave)).not.toBeNull()
+    await waitFor(() => {
+      expect(localStorage.getItem(clave)).not.toBeNull()
+    })
 
     // Recarga simulada: el formulario vuelve a montar con el mismo storage.
     primero.unmount()
@@ -500,7 +634,9 @@ describe('ActualizacionForm — borrador en sessionStorage (#32) e historial del
     await screen.findByText(
       'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
     )
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await waitFor(() => {
+      expect(localStorage.getItem(clave)).toBeNull()
+    })
   })
 
   it('"Registrar otra incidencia" limpia el borrador de la actualización', async () => {
@@ -517,6 +653,75 @@ describe('ActualizacionForm — borrador en sessionStorage (#32) e historial del
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
     expect(await screen.findByRole('button', { name: /revisar cambios/i })).toBeDisabled()
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await waitFor(() => {
+      expect(localStorage.getItem(clave)).toBeNull()
+    })
+  })
+})
+
+describe('ActualizacionForm — envío pendiente restaurado de la cola offline', () => {
+  /*
+    Mismo requisito que en el reporte inicial: un envío en cola debe
+    restaurarse al montar aunque no haya borrador activo, para que el
+    reintento automático al recuperar la conexión dispare sin click manual.
+  */
+  it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
+    const fetchMock = stubFetchInicial()
+
+    // Cola de envío dejada pendiente por una sesión anterior.
+    localStorage.setItem(
+      `parte:actualizar:${props.cue}`,
+      JSON.stringify({
+        tipo: 'actualizar',
+        cue: props.cue,
+        idempotencyKey: 'idem-offline',
+        datos: {},
+        estado: 'pendiente-envio',
+        intentos: 1,
+        actualizadoEn: new Date().toISOString(),
+      }),
+    )
+    // El formulario quedó en la pantalla de resumen, listo para reintentar.
+    localStorage.setItem(
+      `parte-actualizacion:draft:${props.cue}`,
+      JSON.stringify({
+        generacion: 'g-offline',
+        paso: 'resumen',
+        afectaciones: [],
+        servicioEstado: '',
+        servicioAlcanceTipo: '',
+        servicioTurnos: [],
+        servicioSecciones: [],
+        estadoEstablecimiento: '',
+        rigeDesde: new Date().toISOString(),
+        idempotencyKey: 'idem-offline',
+        tocadas: [],
+      }),
+    )
+
+    renderFormulario()
+
+    const posteos = () =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) =>
+          String(url) === '/api/problematicas/parte' &&
+          (init as RequestInit | undefined)?.method === 'POST',
+      )
+
+    // El texto de estado sólo se muestra en el resumen, así que verlo prueba
+    // que la cola y la pantalla se restauraron sin ninguna acción previa.
+    expect(
+      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
+    ).toBeInTheDocument()
+    expect(posteos()).toHaveLength(0)
+
+    window.dispatchEvent(new Event('online'))
+
+    expect(
+      await screen.findByText(
+        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
+      ),
+    ).toBeInTheDocument()
+    expect(posteos()).toHaveLength(1)
   })
 })

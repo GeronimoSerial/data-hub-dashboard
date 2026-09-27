@@ -87,6 +87,7 @@ afterEach(() => {
   // fuera del DOM) y olvida el borrador: cada test arranca limpio.
   cleanup()
   sessionStorage.clear()
+  localStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -377,7 +378,7 @@ describe('ReporteInicialForm', () => {
   })
 
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 500))
+    const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 422))
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
@@ -385,12 +386,12 @@ describe('ReporteInicialForm', () => {
     llegarAConfirmar()
     fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
 
-    expect(await screen.findByText('boom')).toBeInTheDocument()
+    expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
   })
 
-  it('un error de red muestra el mensaje genérico del reporte y conserva lo ingresado', async () => {
+  it('un error de red deja el envío pendiente y conserva lo ingresado', async () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('network')
     })
@@ -402,14 +403,12 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
 
     expect(
-      await screen.findByText(
-        'No pudimos guardar el reporte. La información ingresada se mantiene para que pueda volver a intentar.',
-      ),
+      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
     ).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
 
-  it('muestra Guardando mientras se envía', () => {
+  it('muestra Enviando… mientras se envía', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
 
     renderFormulario()
@@ -417,27 +416,111 @@ describe('ReporteInicialForm', () => {
     llegarAConfirmar()
     fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
 
-    expect(screen.getByRole('status')).toHaveTextContent('Guardando…')
+    expect(await screen.findByRole('status')).toHaveTextContent('Enviando…')
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+  })
+
+  it('un 5xx queda pendiente de envío y se reintenta solo al volver la conexión, con un único parte', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    expect(await screen.findByText('Pendiente de envío — se enviará al recuperar conexión')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new Event('online'))
+
+    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+    const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
+    const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
+    expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
+  // contrato esperado (sin `movimientoId`) no puede tratarse como éxito.
+  it('un 2xx con cuerpo inesperado NO confirma el reporte y conserva el borrador con la misma clave', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ algo: 'inesperado' }, 200))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    expect(
+      await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
+    ).toBeInTheDocument()
+    // No confirmó nada: el asistente sigue en pie con lo cargado.
+    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+
+    // Un reintento manual reutiliza la MISMA idempotencyKey: el cuerpo
+    // inesperado no hizo que se acuñara una nueva.
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await screen.findByText(
+      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+    const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
+    const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
+    expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  it('un 422 no se reintenta: muestra el error y el borrador queda editable', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ error: 'dato inválido' }, 422))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+  })
+
+  it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}, 401))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+
+    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
 })
 
-describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+describe('ReporteInicialForm — borrador persistente (#32) e historial del navegador (#31)', () => {
   const clave = `parte-nuevo:draft:${props.cue}`
 
-  it('guarda el borrador con su paso y lo restaura al remontar (#32)', () => {
+  it('guarda el borrador con su paso y lo restaura al remontar (#32)', async () => {
     const primero = renderFormulario()
     completarQuePaso()
     continuar()
 
     expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
-    expect(sessionStorage.getItem(clave)).not.toBeNull()
+    await waitFor(() => expect(localStorage.getItem(clave)).not.toBeNull())
 
     // Recarga simulada: el asistente vuelve a montar con el mismo storage.
     primero.unmount()
     renderFormulario()
 
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
     volver()
@@ -491,7 +574,7 @@ describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial de
     await screen.findByText(
       'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
     )
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
   })
 
   it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
@@ -507,6 +590,76 @@ describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial de
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
+  })
+})
+
+describe('ReporteInicialForm — envío pendiente restaurado de la cola offline', () => {
+  /*
+    Requisito de producto: si la app se cierra con un envío en cola, al
+    reabrirla el reintento automático al recuperar la conexión debe dispararse
+    sin que el director haga click en nada. Antes, `estadoEnvio` arrancaba en
+    null y el guard del reintento lo bloqueaba hasta un guardado manual.
+  */
+  it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    // Cola de envío dejada pendiente por una sesión anterior.
+    localStorage.setItem(
+      `parte:nuevo:${props.cue}`,
+      JSON.stringify({
+        tipo: 'nuevo',
+        cue: props.cue,
+        idempotencyKey: 'idem-offline',
+        datos: {},
+        estado: 'pendiente-envio',
+        intentos: 1,
+        actualizadoEn: new Date().toISOString(),
+      }),
+    )
+    // El asistente quedó en el último paso, para que el reintento tenga qué
+    // enviar. La restauración de la cola no depende de este borrador.
+    localStorage.setItem(
+      `parte-nuevo:draft:${props.cue}`,
+      JSON.stringify({
+        generacion: 'g-offline',
+        paso: 4,
+        afectacion: {
+          clientId: 'c-offline',
+          categoria: 'establecimiento',
+          motivo: 'Inundación',
+          severidad: 'Alta',
+          descripcion: '',
+          secciones: [10],
+          alumnos: [],
+        },
+        servicioEstado: '',
+        servicioAlcanceTipo: '',
+        servicioTurnos: [],
+        servicioSecciones: [],
+        estadoEstablecimiento: 'habitual',
+        rigeDesde: new Date().toISOString(),
+        idempotencyKey: 'idem-offline',
+      }),
+    )
+
+    renderFormulario()
+
+    // Restauró el paso 4 y el estado de la cola, sin ninguna acción previa.
+    expect(await screen.findByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Pendiente de envío — se enviará al recuperar conexión'),
+    ).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    window.dispatchEvent(new Event('online'))
+
+    expect(
+      await screen.findByText(
+        'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+      ),
+    ).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

@@ -119,6 +119,9 @@ const CUE_K = '1801605-53'
 const CUE_L = '1801605-54'
 const CUE_M = '1801605-55'
 const CUE_N = '1801605-56'
+// CUE exclusivo del test de N reintentos secuenciales con la misma clave de
+// idempotencia: arranca sin parte para que el primer POST sea el que lo crea.
+const CUE_IDEM = '1801605-57'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -137,7 +140,7 @@ beforeAll(async () => {
     await ge.execute(
       "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
     )
-    for (const cue of [CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N]) {
+    for (const cue of [CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N, CUE_IDEM]) {
       await ge.execute(
         `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
       )
@@ -397,6 +400,39 @@ describe('POST /api/problematicas/parte', () => {
       .from(infraMovimiento)
       .where(eq(infraMovimiento.idempotencyKey, idempotencyKey))
     expect(movimientos).toHaveLength(1)
+  })
+
+  it('N reintentos secuenciales con la misma idempotencyKey producen un único parte/movimiento', async () => {
+    const idempotencyKey = crypto.randomUUID()
+    const payload = {
+      cue: CUE_IDEM,
+      idempotencyKey,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [seccionId(CUE_IDEM, '10')] }],
+    }
+
+    const respuestas: Response[] = []
+    for (let intento = 0; intento < 5; intento++) {
+      respuestas.push(await POST(postReq(payload)))
+    }
+
+    expect(respuestas[0]!.status).toBe(201)
+    const cuerpoPrimero = await respuestas[0]!.json()
+    for (let intento = 1; intento < respuestas.length; intento++) {
+      expect(respuestas[intento]!.status).toBe(200)
+      const cuerpo = await respuestas[intento]!.json()
+      expect(cuerpo.movimientoId).toBe(cuerpoPrimero.movimientoId)
+    }
+
+    const db = getDb()
+    const movimientos = await db
+      .select()
+      .from(infraMovimiento)
+      .where(eq(infraMovimiento.idempotencyKey, idempotencyKey))
+    expect(movimientos).toHaveLength(1)
+
+    const partes = await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_IDEM))
+    expect(partes).toHaveLength(1)
   })
 
   it('el segundo POST (actualización) escribe tipo actualizacion y no crea un segundo parte', async () => {
