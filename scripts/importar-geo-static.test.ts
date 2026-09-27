@@ -93,6 +93,51 @@ describe('importarAislamiento', () => {
     expect(resultado).toEqual({ procesadas: 2, ok: 1, fallidas: 1 })
     expect(llamadas).toHaveLength(1)
   })
+
+  it('rechaza indice_aislamiento no numerico sin llamar a la db', async () => {
+    const csv = [
+      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+      '1801605-07,1500.5,1500.5,2,0,0,0,1,no-es-numero,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+    ].join('\n')
+    const path = join(dir, 'aislamiento-indice-invalido.csv')
+    writeFileSync(path, csv)
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('rechaza cue_anexo vacio sin llamar a la db', async () => {
+    const csv = [
+      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+      ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+    ].join('\n')
+    const path = join(dir, 'aislamiento-cue-vacio.csv')
+    writeFileSync(path, csv)
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('rechaza fecha_extracto_osm con formato no ISO sin llamar a la db', async () => {
+    const csv = [
+      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+      '1801605-08,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,26-09-2026,"© OpenStreetMap contributors, ODbL"',
+    ].join('\n')
+    const path = join(dir, 'aislamiento-fecha-invalida.csv')
+    writeFileSync(path, csv)
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
 })
 
 describe('importarSusceptibilidad', () => {
@@ -112,5 +157,35 @@ describe('importarSusceptibilidad', () => {
     expect(fila.peligroInundacionFluvial).toBeNull()
     expect(fila.fuente).toBe('no_disponible')
     expect(fila.periodoRetornoAnios).toBe(100)
+  })
+
+  it('rechaza periodo_retorno_anios no numerico sin llamar a la db', async () => {
+    const csv = [
+      'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia',
+      '1801605-09,,,,,abc,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
+    ].join('\n')
+    const path = join(dir, 'susceptibilidad-periodo-invalido.csv')
+    writeFileSync(path, csv)
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarSusceptibilidad(path, { db: db as never, tabla: tablaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('rechaza periodo_retorno_anios vacio (null) sin llamar a la db', async () => {
+    const csv = [
+      'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia',
+      '1801605-10,,,,,,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
+    ].join('\n')
+    const path = join(dir, 'susceptibilidad-periodo-vacio.csv')
+    writeFileSync(path, csv)
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarSusceptibilidad(path, { db: db as never, tabla: tablaFalsa as never })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
   })
 })

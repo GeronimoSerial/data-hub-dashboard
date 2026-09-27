@@ -16,9 +16,9 @@ import { insertarBriefingSiNoExiste } from './repositorio'
 import type { BriefingPersistido, DatosNuevoBriefing } from './repositorio'
 import { ajustarPresupuestoMes, reservarPresupuestoMes } from './presupuesto'
 import type { PuertoCorteSituacion } from './puertos'
+import { CONFIG_FUENTES } from '../riesgo/providers/config-fuentes'
 
 export const VERSION_PROMPT = 'v1'
-export const MODELO_POR_DEFECTO = 'deepseek/deepseek-v4.1-flash'
 const MONTO_RESERVA_USD_POR_DEFECTO = 0.01
 
 export interface OpcionesBriefingAsistido {
@@ -97,7 +97,7 @@ export async function generarBriefingAsistido(
     opciones.montoReservaUsd ??
     (Number(process.env.E8_COSTO_MAXIMO_USD_LLAMADA) || MONTO_RESERVA_USD_POR_DEFECTO)
 
-  const modelo = opciones.modelo ?? MODELO_POR_DEFECTO
+  const modelo = opciones.modelo ?? process.env.OPENROUTER_MODEL ?? CONFIG_FUENTES.openrouter.modeloPorDefecto
 
   const estado: EstadoBriefing = {
     textoFinal: textoPlantilla,

@@ -32,13 +32,12 @@ import {
   hazardSourceHealth,
   infraGeoProfile,
 } from '@/lib/db/schema'
-import {
-  obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal,
-  TAMANO_LOTE_COORDENADAS_ENSEMBLE,
-} from '../providers/ensemble'
-import type { HazardEnsembleProbPunto } from '../providers/ensemble'
+import { TAMANO_LOTE_COORDENADAS_ENSEMBLE } from '../providers/ensemble'
+import type { obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal } from '../providers/ensemble'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
+import { crearAdaptadorEnsemble } from '../adaptadores-ingesta/ensemble'
+import type { PuertoPronosticoEnsemble, PuntoEnsembleProbabilistico } from '../adaptadores-ingesta/puertos'
 
 export type ResultadoSyncEnsemble = {
   celdasConsultadas: number
@@ -84,8 +83,10 @@ const VARIABLE_ENSEMBLE = 'precipitacion_24h'
 const VERSION_ENSEMBLE = 'ensemble-v0.1'
 // La Capa 1 usa siempre el acumulado de 24 h; los horizontes de 24 h y 72 h
 // se derivan de qué ventana de 24 h cae dentro de cada horizonte desde
-// `corridaEn`, y eso lo resuelve el provider.
-const ACUMULADO_HORAS = 24 as const
+// `corridaEn`. Antes el job pasaba `acumuladoHoras: 24` directo al provider;
+// ahora ese fijo vive en el adaptador (`ACUMULADO_HORAS` en
+// adaptadores-ingesta/ensemble.ts), el puerto normalizado no lo recibe como
+// parámetro.
 
 const VARIABLE_CLIMATOLOGIA = 'precipitacion_diaria'
 // Denominador fijado por N1 para el acumulado de 24 h: TODOS los días, no
@@ -168,25 +169,47 @@ async function cargarUmbralesPorCelda(
   return { p95, p99 }
 }
 
+// `hazard_ensemble_prob.probabilidad_p95/p99/dispersion` son NOT NULL (ver
+// schema.ts): coincide con que el adaptador PRESERVA hoy el `0` literal del
+// provider cuando `miembrosValidos === 0` (documentado como PENDIENTE en
+// adaptadores-ingesta/ensemble.ts; el `null` que tipa el puerto es aspiracional
+// para cuando se resuelva esa discrepancia semántica, algo fuera de alcance de
+// este cableado — ver registro.md). Este guard hace explícita esa tensión de
+// tipos en vez de esconder un futuro `null` real detrás de un `?? 0` silencioso.
+function valorPresente(valor: number | null, campo: string): number {
+  if (valor === null) {
+    throw new Error(
+      `persistirPuntos: ${campo} llegó null; hazard_ensemble_prob.${campo} es NOT NULL y el adaptador de ensemble hoy no debería emitir null (ver PENDIENTE en adaptadores-ingesta/ensemble.ts)`,
+    )
+  }
+  return valor
+}
+
 async function persistirPuntos(
   db: Db,
-  puntos: HazardEnsembleProbPunto[],
+  puntos: PuntoEnsembleProbabilistico[],
   ingeridoEn: string,
 ): Promise<number> {
   if (puntos.length === 0) return 0
 
+  // Traducción de FORMA únicamente (nombres del puerto -> columnas de
+  // `hazard_ensemble_prob`): `validoHasta` es el mismo instante que antes
+  // exponía `validoEn` (ver adaptadores-ingesta/ensemble.ts), y
+  // `probabilidadSuperaP95/P99`/`dispersionMm` preservan el valor crudo del
+  // provider (incluido el `0` literal cuando `miembrosValidos === 0`; ver
+  // PENDIENTE documentado en el adaptador). Ningún valor cambia acá.
   const filas = puntos.map((punto) => ({
     id: randomUUID(),
     geometryRef: punto.geometryRef,
     variable: VARIABLE_ENSEMBLE,
     corridaEn: punto.corridaEn,
-    validoEn: punto.validoEn,
+    validoEn: punto.validoHasta,
     horizonteHoras: punto.horizonteHoras,
     miembrosTotal: punto.miembrosTotal,
     miembrosValidos: punto.miembrosValidos,
-    probabilidadP95: punto.probabilidadP95,
-    probabilidadP99: punto.probabilidadP99,
-    dispersion: punto.dispersion,
+    probabilidadP95: valorPresente(punto.probabilidadSuperaP95, 'probabilidadP95'),
+    probabilidadP99: valorPresente(punto.probabilidadSuperaP99, 'probabilidadP99'),
+    dispersion: valorPresente(punto.dispersionMm, 'dispersion'),
     version: VERSION_ENSEMBLE,
     ingeridoEn,
   }))
@@ -270,8 +293,14 @@ async function actualizarSalud(
 export async function ejecutarSyncEnsemble(params?: {
   ahora?: Date
   // Seam de test: permite inyectar el provider sin red, mismo patrón que
-  // `ecmwfProvider`/`floodProvider` en sync-pronostico-caudal.ts.
+  // `ecmwfProvider`/`floodProvider` en sync-pronostico-caudal.ts. Se reenvía
+  // tal cual a `crearAdaptadorEnsemble` cuando no se inyecta `puerto`
+  // directamente.
   obtenerProbabilidades?: typeof obtenerProbabilidadesEnsembleReal
+  // Seam de test: inyecta el PUERTO completo (sin red), saltea la
+  // construcción del adaptador real. Demuestra la inyección por puerto (ver
+  // sync-ensemble.test.ts).
+  puerto?: PuertoPronosticoEnsemble
   // Seam de test: permite inyectar un `renovarLease` fake sin mockear todo el
   // módulo job-run (que además aporta adquirirLease/publicarResultado).
   renovarLease?: typeof renovarLeaseReal
@@ -320,6 +349,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   params?: {
     ahora?: Date
     obtenerProbabilidades?: typeof obtenerProbabilidadesEnsembleReal
+    puerto?: PuertoPronosticoEnsemble
     renovarLease?: typeof renovarLeaseReal
   }
 }): Promise<ResultadoEjecucionSyncEnsemble> {
@@ -340,9 +370,22 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
 
   const { p95: umbralP95PorCelda, p99: umbralP99PorCelda } = await cargarUmbralesPorCelda(db)
 
-  const obtener = params?.obtenerProbabilidades ?? obtenerProbabilidadesEnsembleReal
   const renovar = params?.renovarLease ?? renovarLeaseReal
   const apiKey = apiKeyDesdeEntorno()
+  // Puerto normalizado (ABS1, segunda parte): por defecto el adaptador real,
+  // que envuelve `obtenerProbabilidadesEnsemble` sin cambiar ningún valor. El
+  // guard de cupo OM (`crearControladorCupo`) se mantiene igual que antes,
+  // sólo que ahora vive detrás del puerto en vez de pasarse directo por
+  // llamada; se construye una sola vez porque `apiKey`/`db` no cambian entre
+  // tandas.
+  const puerto: PuertoPronosticoEnsemble =
+    params?.puerto ??
+    crearAdaptadorEnsemble({
+      apiKey,
+      controladorCupoFactory: (peso) =>
+        crearControladorCupo({ host: 'ensemble-api', peso, apiKeyPresente: Boolean(apiKey), db }),
+      obtenerProbabilidades: params?.obtenerProbabilidades,
+    })
 
   // `corridaEn` se deriva del INICIO del bloque, no del wall-clock `ahora`.
   const corridaEn = inicioDeBloqueUtc(ahora).toISOString()
@@ -358,21 +401,22 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     const tanda = celdasConCoordenada.slice(indice, indice + TAMANO_TANDA_CELDAS)
 
     let diagnostico: {
-      puntos: HazardEnsembleProbPunto[]
+      puntos: PuntoEnsembleProbabilistico[]
       erroresPorCelda: Record<string, string>
-      llamadasRealizadas?: number
+      llamadasRealizadas: number
     }
     try {
-      diagnostico = await obtener({
-        geometryRefsConCoordenada: tanda,
-        corridaEn,
-        acumuladoHoras: ACUMULADO_HORAS,
-        umbralP95PorCelda,
-        umbralP99PorCelda,
-        apiKey,
-        controladorCupoFactory: (peso) =>
-          crearControladorCupo({ host: 'ensemble-api', peso, apiKeyPresente: Boolean(apiKey), db }),
+      const resultadoPuerto = await puerto.obtenerProbabilidades({
+        geometryRefs: tanda.map((celda) => celda.geometryRef),
+        asOf: corridaEn,
+        umbralesP95Mm: umbralP95PorCelda,
+        umbralesP99Mm: umbralP99PorCelda,
       })
+      diagnostico = {
+        puntos: resultadoPuerto.puntos,
+        erroresPorCelda: resultadoPuerto.sinDato,
+        llamadasRealizadas: resultadoPuerto.llamadasRealizadas,
+      }
     } catch (error) {
       // Un provider que lanza (no sólo que reporta errores por celda) no debe
       // tumbar el job: se traduce a error en todas sus celdas y se sigue.
@@ -387,10 +431,10 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
     Object.assign(erroresPorCelda, diagnostico.erroresPorCelda)
     filasInsertadas += await persistirPuntos(db, diagnostico.puntos, ahoraIso)
     celdasConsultadas += tanda.length
-    // OM-cupo (hallazgo de este mismo batch): igual que ecmwf.ts, si el
-    // provider no reporta su conteo real se asume conservadoramente 1
-    // llamada por tanda (comportamiento previo).
-    llamadasRealizadas += diagnostico.llamadasRealizadas ?? 1
+    // El puerto siempre expone el conteo real de llamadas (ver
+    // adaptadores-ingesta/ensemble.ts); ya no hace falta el fallback a 1 por
+    // tanda que usaba el import directo del provider.
+    llamadasRealizadas += diagnostico.llamadasRealizadas
 
     // La última tanda ya no tiene trabajo posterior que proteger: no renovamos
     // después de ella.

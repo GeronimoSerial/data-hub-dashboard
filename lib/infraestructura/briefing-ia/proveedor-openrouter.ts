@@ -6,6 +6,8 @@
 // usage.include=true. Si no viene, se recalcula con la tarifa fija verificada
 // del modelo deepseek-v4.1-flash para no dejar el costo en null.
 
+import { CONFIG_FUENTES } from '../riesgo/providers/config-fuentes'
+
 export interface MensajeChat {
   role: 'system' | 'user'
   content: string
@@ -28,12 +30,12 @@ export interface OpcionesProveedorIA {
   fetchImpl?: typeof fetch
 }
 
-const URL_OPENROUTER = 'https://openrouter.ai/api/v1/chat/completions'
-const MODELO_POR_DEFECTO = 'deepseek/deepseek-v4.1-flash'
-const TIMEOUT_MS_POR_DEFECTO = 15000
+const URL_OPENROUTER = CONFIG_FUENTES.openrouter.url
+const MODELO_POR_DEFECTO = CONFIG_FUENTES.openrouter.modeloPorDefecto
+const TIMEOUT_MS_POR_DEFECTO = CONFIG_FUENTES.openrouter.timeoutMs
 
-const COSTO_POR_MILLON_ENTRADA_USD = 0.035
-const COSTO_POR_MILLON_SALIDA_USD = 0.29
+const COSTO_POR_MILLON_ENTRADA_USD = CONFIG_FUENTES.openrouter.costoPorMillonEntradaUsd
+const COSTO_POR_MILLON_SALIDA_USD = CONFIG_FUENTES.openrouter.costoPorMillonSalidaUsd
 
 type MotivoFallo = ResultadoProveedorIA['motivoFallo']
 

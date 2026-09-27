@@ -6,6 +6,7 @@ import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-ce
 import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
 import type { obtenerTendenciaEstacional as ObtenerTendenciaEstacionalReal } from '../providers/seasonal'
 import type { ejecutarSyncSeasonal as EjecutarSyncSeasonal } from './sync-seasonal'
+import type { PuertoTendenciaEstacional } from '../adaptadores-ingesta/puertos'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -209,5 +210,61 @@ describe('ejecutarSyncSeasonal', () => {
     const seasonal = salud.find((f) => f.provider === 'open-meteo-seasonal')
     expect(seasonal?.estado).toBe('degradado')
     expect(seasonal?.ultimoErrorSaneado).toBe('timeout: fixture de test')
+  })
+
+  // Cableado por PUERTO (ABS1, segunda parte): a diferencia de los demás
+  // tests (que inyectan `obtenerTendenciaEstacional`, la función cruda del
+  // provider), acá se inyecta el PUERTO completo (`PuertoTendenciaEstacional`)
+  // directamente, sin adaptador ni provider real. Cero red.
+  it('con un puerto fake inyectado directamente (sin adaptador, sin red) persiste sus estadísticas', async () => {
+    const ahora = new Date('2026-09-30T09:00:00.000Z')
+    const llamadas: Parameters<PuertoTendenciaEstacional['obtenerTendencia']>[0][] = []
+
+    const puertoFake: PuertoTendenciaEstacional = {
+      async obtenerTendencia(params) {
+        llamadas.push(params)
+        return {
+          estadisticas: params.centroides.map((centroide) => ({
+            departamento: centroide.departamento,
+            variable: 'precipitacion_acumulada' as const,
+            emisionEn: params.emisionEn,
+            validoDesde: params.emisionEn,
+            validoHasta: params.emisionEn,
+            horizonteDesdeDias: params.horizonteDesdeDias,
+            horizonteHastaDias: params.horizonteHastaDias,
+            miembrosTotal: 51,
+            miembrosValidos: 51,
+            mediaMm: 33.3,
+            medianaMm: 30,
+            dispersionMm: 4.4,
+            probabilidadSobreNormal: 0.6,
+          })),
+          sinDato: {},
+        }
+      },
+    }
+
+    const resultado = await ejecutarSyncSeasonal({ ahora, puerto: puertoFake })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) throw new Error('unreachable')
+    expect(resultado.resultado.filasInsertadas).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    // El job sigue pasando los defaults 30/90 explícitos al puerto (ver
+    // sync-seasonal.ts): mismo horizonte que usaba el provider por default.
+    expect(llamadas.every((l) => l.horizonteDesdeDias === 30 && l.horizonteHastaDias === 90)).toBe(
+      true,
+    )
+
+    const { getDb } = await import('@/lib/db')
+    const { hazardSeasonalTrend } = await import('@/lib/db/schema')
+    const emisionesVistas = [...new Set(llamadas.map((l) => l.emisionEn))]
+    const filas = await getDb()
+      .select()
+      .from(hazardSeasonalTrend)
+      .where(
+        (await import('drizzle-orm')).inArray(hazardSeasonalTrend.emisionEn, emisionesVistas),
+      )
+    expect(filas.length).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
+    expect(filas.every((fila) => fila.mediaMm === 33.3)).toBe(true)
   })
 })

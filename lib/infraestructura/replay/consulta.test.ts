@@ -364,4 +364,63 @@ describe('generarReplay', () => {
       metodo: 'umbral_provisorio',
     })
   })
+
+  it('Caso 11: el departamento matchea aunque difieran las tildes (CONCEPCIÓN en la base vs CONCEPCION consultado)', async () => {
+    const db = getDb()
+    const cueTilde = '008888'
+    const celdaTilde = 'celda-concepcion'
+    const parteTilde = 'parte-tilde-001'
+    const afectacionTilde = 'afectacion-tilde-001'
+
+    // Perfil guardado CON tilde; la consulta va SIN tilde. Con el viejo
+    // UPPER(TRIM(...)) de SQL ambas strings no colapsaban y la escuela
+    // quedaba fuera del territorio, perdiendo su afectación.
+    await db.insert(infraGeoProfile).values({
+      cueAnexo: cueTilde,
+      lat: -31.4,
+      lon: -60.2,
+      geoCalidad: 'alta',
+      departamento: 'CONCEPCIÓN',
+      geometryRef: celdaTilde,
+      motivoExclusion: null,
+      perfilVersion: 'geo-perfil-v1',
+      calculadoEn: fx.T0,
+    })
+    await db.insert(infraParte).values({
+      id: parteTilde,
+      periodoId: fx.periodoId,
+      cueAnexo: cueTilde,
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: fx.rigeDesde,
+      corteId: 2,
+      creadaEn: fx.creadaEn,
+      actualizadaEn: fx.creadaEn,
+    })
+    await db.insert(infraAfectacion).values({
+      id: afectacionTilde,
+      parteId: parteTilde,
+      motivo: 'Inundación',
+      categoria: 'establecimiento',
+      severidad: 'Alta',
+      descripcion: null,
+      rigeDesde: fx.rigeDesde,
+      creadaEn: fx.creadaEn,
+      retiradaEn: null,
+    })
+
+    const resultado = await generarReplay({
+      territorioTipo: 'departamento',
+      territorioId: 'CONCEPCION',
+      desde: DESDE_ANTES_DE_T0,
+      hasta: fx.T1,
+      paso: 6,
+      vista: 'reconstruido',
+    })
+
+    // Sólo la escuela de CONCEPCIÓN cae en el territorio: el fixture base
+    // ('Paraná') no debe colarse.
+    for (const cuadro of resultado.cuadros) {
+      expect(cuadro.afectacionesConfirmadas.map((a) => a.cueAnexo)).toEqual([cueTilde])
+    }
+  })
 })

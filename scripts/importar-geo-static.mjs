@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { registerHooks } from 'node:module'
+import { z } from 'zod'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -127,17 +128,55 @@ function mapearFilaSusceptibilidad(fila) {
   }
 }
 
-function validarFilaAislamiento(fila) {
-  if (!fila.cueAnexo || !fila.versionJob) return 'cue_anexo/version_job faltante'
-  if (!fila.fechaExtractoOsm || !fila.licencia) return 'fecha_extracto_osm/licencia faltante'
-  return null
-}
+const fechaIsoSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'fecha invalida: se espera formato ISO YYYY-MM-DD')
 
-function validarFilaSusceptibilidad(fila) {
-  if (!fila.cueAnexo || !fila.versionJob) return 'cue_anexo/version_job faltante'
-  if (fila.periodoRetornoAnios === null) return 'periodo_retorno_anios faltante'
-  if (!fila.fuente || !fila.fechaCorrida || !fila.licencia) return 'fuente/fecha_corrida/licencia faltante'
-  return null
+const numeroONullSchema = z.number().nullable()
+
+/** Esquema de una fila de aislamiento ya mapeada (camelCase). Valida tipo y
+ * forma: strings no vacios, numeros finitos o null (NaN queda fuera), booleano
+ * o null y fechas ISO YYYY-MM-DD. */
+const schemaFilaAislamiento = z.object({
+  cueAnexo: z.string().min(1, 'cue_anexo no puede estar vacio'),
+  versionJob: z.string().min(1, 'version_job no puede estar vacio'),
+  distanciaViaPavimentadaM: numeroONullSchema,
+  distanciaCabeceraDepartamentalM: numeroONullSchema,
+  tramosSinPavimentarCount: numeroONullSchema,
+  crucesAguaCount: numeroONullSchema,
+  crucesAguaConPuenteCount: numeroONullSchema,
+  crucesAguaConVadoCount: numeroONullSchema,
+  tieneAlternativaSinCruce: z.boolean().nullable(),
+  indiceAislamiento: numeroONullSchema,
+  motivoSinDatos: z.string().nullable(),
+  snapDistanciaM: numeroONullSchema,
+  fechaExtractoOsm: fechaIsoSchema,
+  licencia: z.string().min(1, 'licencia no puede estar vacia'),
+  importadoEn: z.string(),
+})
+
+/** Esquema de una fila de susceptibilidad ya mapeada (camelCase). */
+const schemaFilaSusceptibilidad = z.object({
+  cueAnexo: z.string().min(1, 'cue_anexo no puede estar vacio'),
+  versionJob: z.string().min(1, 'version_job no puede estar vacio'),
+  peligroInundacionFluvial: numeroONullSchema,
+  peligroInundacionPluvial: numeroONullSchema,
+  peligroViento: numeroONullSchema,
+  peligroCalor: numeroONullSchema,
+  periodoRetornoAnios: z.number(),
+  fuente: z.string().min(1, 'fuente no puede estar vacia'),
+  fechaCorrida: fechaIsoSchema,
+  licencia: z.string().min(1, 'licencia no puede estar vacia'),
+  importadoEn: z.string(),
+})
+
+function formatearIssues(error) {
+  return error.issues
+    .map((issue) => {
+      const campo = issue.path.length > 0 ? issue.path.join('.') : '(fila)'
+      return `${campo}: ${issue.message}`
+    })
+    .join('; ')
 }
 
 export async function importarAislamiento(path, { db, tabla }) {
@@ -145,16 +184,18 @@ export async function importarAislamiento(path, { db, tabla }) {
   let ok = 0
   let fallidas = 0
   for (const fila of filas) {
-    const error = validarFilaAislamiento(fila)
-    if (error) {
-      console.warn(`[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${error}`)
+    const parseo = schemaFilaAislamiento.safeParse(fila)
+    if (!parseo.success) {
+      console.warn(
+        `[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${formatearIssues(parseo.error)}`,
+      )
       fallidas++
       continue
     }
     await db
       .insert(tabla)
-      .values(fila)
-      .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: fila })
+      .values(parseo.data)
+      .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: parseo.data })
     ok++
   }
   console.log(`[importar-geo-static] aislamiento: procesadas ${filas.length}, ok ${ok}, fallidas ${fallidas}`)
@@ -166,16 +207,18 @@ export async function importarSusceptibilidad(path, { db, tabla }) {
   let ok = 0
   let fallidas = 0
   for (const fila of filas) {
-    const error = validarFilaSusceptibilidad(fila)
-    if (error) {
-      console.warn(`[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${error}`)
+    const parseo = schemaFilaSusceptibilidad.safeParse(fila)
+    if (!parseo.success) {
+      console.warn(
+        `[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${formatearIssues(parseo.error)}`,
+      )
       fallidas++
       continue
     }
     await db
       .insert(tabla)
-      .values(fila)
-      .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: fila })
+      .values(parseo.data)
+      .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: parseo.data })
     ok++
   }
   console.log(`[importar-geo-static] susceptibilidad: procesadas ${filas.length}, ok ${ok}, fallidas ${fallidas}`)

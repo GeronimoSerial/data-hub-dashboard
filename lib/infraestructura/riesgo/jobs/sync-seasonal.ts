@@ -25,12 +25,22 @@ import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departament
 import {
   FORECAST_DAYS_SOLICITADOS,
   MODELO_SEASONAL,
-  obtenerTendenciaEstacional as obtenerTendenciaEstacionalReal,
   TAMANO_LOTE_DEPARTAMENTOS_SEASONAL,
 } from '../providers/seasonal'
-import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
+import type { obtenerTendenciaEstacional as obtenerTendenciaEstacionalReal } from '../providers/seasonal'
 import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
 import { apiKeyDesdeEntorno, asegurarPesoAlcanzable, pesoLlamada } from '../providers/cupo-om'
+import { crearAdaptadorSeasonal } from '../adaptadores-ingesta/seasonal'
+import type {
+  EstadisticaEstacionalNormalizada,
+  PuertoTendenciaEstacional,
+} from '../adaptadores-ingesta/puertos'
+
+// Mismos defaults que providers/seasonal.ts (`obtenerTendenciaEstacional`):
+// el job los pasa explícitos porque el puerto normalizado no tiene default
+// propio (ver adaptadores-ingesta/puertos.ts). Ningún cambio de valor.
+const HORIZONTE_DESDE_DIAS = 30
+const HORIZONTE_HASTA_DIAS = 90
 
 // Variables de `daily=` en la request Seasonal (ver providers/seasonal.ts,
 // `VARIABLE_DIARIA_SEASONAL`): sólo `precipitation_sum`, los 51 miembros
@@ -90,7 +100,7 @@ function inicioDeDiaUtc(ahora: Date): Date {
 
 async function persistirEstadisticas(
   db: Db,
-  estadisticas: EstadisticaEstacionalDepartamento[],
+  estadisticas: EstadisticaEstacionalNormalizada[],
   ingeridoEn: string,
 ): Promise<number> {
   if (estadisticas.length === 0) return 0
@@ -188,8 +198,13 @@ async function actualizarSalud(
 
 export async function ejecutarSyncSeasonal(params?: {
   ahora?: Date
-  // Seam de test: permite inyectar el provider sin red.
+  // Seam de test: permite inyectar el provider sin red. Se reenvía tal cual a
+  // `crearAdaptadorSeasonal` cuando no se inyecta `puerto` directamente.
   obtenerTendenciaEstacional?: typeof obtenerTendenciaEstacionalReal
+  // Seam de test: inyecta el PUERTO completo (sin red), saltea la
+  // construcción del adaptador real. Demuestra la inyección por puerto (ver
+  // sync-seasonal.test.ts).
+  puerto?: PuertoTendenciaEstacional
   // Seam de test: permite inyectar un `renovarLease` fake.
   renovarLease?: typeof renovarLeaseReal
 }): Promise<ResultadoEjecucionSyncSeasonal> {
@@ -234,13 +249,19 @@ async function ejecutarCuerpoDelJobSeasonal(ctx: {
   params?: {
     ahora?: Date
     obtenerTendenciaEstacional?: typeof obtenerTendenciaEstacionalReal
+    puerto?: PuertoTendenciaEstacional
     renovarLease?: typeof renovarLeaseReal
   }
 }): Promise<ResultadoEjecucionSyncSeasonal> {
   const { db, ahora, ahoraIso, lease, params } = ctx
 
-  const obtener = params?.obtenerTendenciaEstacional ?? obtenerTendenciaEstacionalReal
   const renovar = params?.renovarLease ?? renovarLeaseReal
+  // Puerto normalizado (ABS1, segunda parte): por defecto el adaptador real,
+  // que envuelve `obtenerTendenciaEstacional` sin cambiar ningún valor. Sin
+  // `apiKey`/`fetchImpl` propios: igual que antes, el provider real resuelve
+  // `apiKeyDesdeEntorno()` internamente cuando no se le pasa una.
+  const puerto: PuertoTendenciaEstacional =
+    params?.puerto ?? crearAdaptadorSeasonal({ obtenerTendencia: params?.obtenerTendenciaEstacional })
 
   const emisionEn = inicioDeDiaUtc(ahora)
   const centroides = CENTROIDES_DEPARTAMENTOS_CORRIENTES
@@ -256,22 +277,32 @@ async function ejecutarCuerpoDelJobSeasonal(ctx: {
     const tanda = centroides.slice(indice, indice + TAMANO_TANDA_DEPARTAMENTOS)
 
     let diagnostico: {
-      estadisticas: EstadisticaEstacionalDepartamento[]
+      estadisticas: EstadisticaEstacionalNormalizada[]
       erroresPorDepartamento: Record<string, string>
     }
     try {
       // Guard #3 del batch OM-cupo (requisito 4: "conectá el guard también en
       // el job, no sólo en el proveedor"): valida ACÁ, antes de llamar al
-      // provider, que el peso de la tanda no supere el límite de minuto por sí
+      // puerto, que el peso de la tanda no supere el límite de minuto por sí
       // solo. Hoy (95 días, 5 departamentos por tanda) el peso es chico y esto
       // nunca dispara; si el horizonte o el tamaño de tanda crecen a futuro,
       // corta con un error explícito en vez de dejar que el provider entre en
-      // un loop de `cupo_minuto_agotado` imposible de satisfacer.
+      // un loop de `cupo_minuto_agotado` imposible de satisfacer. El guard
+      // sigue viviendo en el job, no en el puerto/adaptador.
       asegurarPesoAlcanzable({
         peso: pesoLlamada({ ubicaciones: tanda.length, variables: VARIABLES_SEASONAL, dias: FORECAST_DAYS_SOLICITADOS }),
         apiKeyPresente: Boolean(apiKeyDesdeEntorno()),
       })
-      diagnostico = await obtener({ centroides: tanda, emisionEn })
+      const resultadoPuerto = await puerto.obtenerTendencia({
+        centroides: tanda,
+        emisionEn: emisionEn.toISOString(),
+        horizonteDesdeDias: HORIZONTE_DESDE_DIAS,
+        horizonteHastaDias: HORIZONTE_HASTA_DIAS,
+      })
+      diagnostico = {
+        estadisticas: resultadoPuerto.estadisticas,
+        erroresPorDepartamento: resultadoPuerto.sinDato,
+      }
     } catch (error) {
       // Un provider que lanza (o el guard de arriba) no debe tumbar el job:
       // se traduce a error en todos sus departamentos y se sigue (mismo
