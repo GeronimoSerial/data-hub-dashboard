@@ -12,6 +12,7 @@ export default [
       '.atl/**',
       'public/**',
       'scripts/**',
+      'services/geo-static/.venv/**',
       'next-env.d.ts',
       'tsconfig.tsbuildinfo',
       'pnpm-lock.yaml',
