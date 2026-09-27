@@ -289,3 +289,16 @@ Repetidas al cierre, sobre el estado íntegro (todas las olas + correcciones de 
 ## 8. Gate
 
 (N1 completa esta sección — N2 no la completa)
+
+## Gate (N1)
+
+**Decisión: aceptado con follow-ups (2026-09-26).**
+
+- Verificaciones globales repetidas por N1: `pnpm test` 134 archivos / 1083 tests OK; `pnpm lint`, `pnpm exec tsc --noEmit` y `pnpm build` con exit 0.
+- Revisión independiente: confirma H1, H3 y H6 corregidos; ACL excluye al director; DDL aditivo seguro; adapters fijan UTC; tests sin red.
+- Caudal del río Uruguay (12.700–14.300 m³/s): contrastado por N1 contra la serie GloFAS 2015–2024 en Paso de los Libres (mediana 2.903, P90 9.119, máx. 37.496 m³/s). Es una crecida real por encima del P90, no un error del punto.
+- Follow-ups obligatorios, asignados como primeras tareas de E3:
+  1. La ficha no puede mostrar caudal: `geometryRef` del perfil es la celda atmosférica y el caudal se indexa por punto de río. Falta asociar cada escuela a su punto de río (por ejemplo, el más cercano sobre la misma cuenca) y consultar `/peligro` con ese id.
+  2. H2: renovar el lease durante el sync (o dimensionarlo por cantidad de celdas) antes de programar el job cada 6 h en producción.
+  3. Consultas multi-coordenada a Open-Meteo para reducir llamadas (hoy una por celda, ~387 por ciclo, dentro del límite).
+- Pendientes que se arrastran: afluentes sin trazado, gate UX con operadores reales, convención H5 y licencia de Open-Meteo para producción.
