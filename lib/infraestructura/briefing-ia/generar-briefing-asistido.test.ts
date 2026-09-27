@@ -409,9 +409,9 @@ describe('generarBriefingAsistido', () => {
     const briefing = esperarEjecutado(resultado)
     expect(briefing.fuente).toBe('plantilla')
     expect(briefing.motivoFallback).toBe('http_error')
-    expect(briefing.textoFinal).toContain('Es el primer corte disponible, sin comparación.')
+    expect(briefing.textoFinal).toContain('Primer resumen del día; todavía no hay un corte anterior para comparar.')
     expect(guardados[0]?.textoFinal).toContain(
-      'Es el primer corte disponible, sin comparación.',
+      'Primer resumen del día; todavía no hay un corte anterior para comparar.',
     )
   })
 })
