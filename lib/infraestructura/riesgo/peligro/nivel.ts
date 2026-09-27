@@ -47,13 +47,16 @@ export const VERSION_REGLA_PELIGRO = 'peligro-v0.1'
 // Nombres de `variable`/`muestra` tal como los escriben los jobs de ingesta
 // (providers/ensemble.ts, ecmwf.ts, flood.ts, climatologia*.ts). La consulta
 // es por igualdad exacta: no inventar variantes de mayúsculas ni de número.
-const VARIABLE_ENSEMBLE = 'precipitacion_24h'
-const VARIABLE_PRONOSTICO_PRECIPITACION = 'precipitacion'
-const VARIABLE_CLIMATOLOGIA_PRECIPITACION = 'precipitacion_diaria'
+// E7b: exportadas (cambio aditivo, sin tocar valores) para que el replay
+// (lib/infraestructura/replay/consulta.ts) arme la MISMA consulta as-of sin
+// duplicar los literales de `variable`/`muestra` a mano.
+export const VARIABLE_ENSEMBLE = 'precipitacion_24h'
+export const VARIABLE_PRONOSTICO_PRECIPITACION = 'precipitacion'
+export const VARIABLE_CLIMATOLOGIA_PRECIPITACION = 'precipitacion_diaria'
 const VARIABLE_PRONOSTICO_CAUDAL = 'caudal'
 const VARIABLE_CLIMATOLOGIA_CAUDAL = 'caudal_diario'
-const MUESTRA_CLIMATOLOGIA = 'todos_los_dias'
-const PERCENTILES_CLIMATOLOGIA = ['p90', 'p95', 'p99'] as const
+export const MUESTRA_CLIMATOLOGIA = 'todos_los_dias'
+export const PERCENTILES_CLIMATOLOGIA = ['p90', 'p95', 'p99'] as const
 
 // Tolerancia para aceptar el pronóstico determinístico que representa el
 // horizonte de 240 h (tendencia 7-10 días). El determinístico de ECMWF se pide

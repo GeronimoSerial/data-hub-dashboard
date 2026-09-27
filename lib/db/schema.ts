@@ -918,3 +918,8 @@ export const hazardSeasonalTrend = sqliteTable(
     index('hazard_seasonal_trend_departamento_idx').on(t.departamento),
   ],
 )
+
+// E7b: índices temporales para replay (no modifica tablas existentes)
+export const infraAfectacionCreadaEnIdxE7b = index('infra_afectacion_creada_en_idx_e7b').on(infraAfectacion.creadaEn)
+export const infraAfectacionRigeDesdeIdxE7b = index('infra_afectacion_rige_desde_idx_e7b').on(infraAfectacion.rigeDesde)
+export const infraRiskRunPublicadoEnIdxE7b = index('infra_risk_run_publicado_en_idx_e7b').on(infraRiskRun.publicadoEn)

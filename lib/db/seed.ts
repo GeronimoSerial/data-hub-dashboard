@@ -508,6 +508,10 @@ CREATE TABLE IF NOT EXISTS \`hazard_seasonal_trend\` (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_seasonal_trend_uidx\` ON \`hazard_seasonal_trend\` (\`departamento\`, \`variable\`, \`emision_en\`, \`horizonte_desde_dias\`, \`horizonte_hasta_dias\`);
 CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazard_seasonal_trend\` (\`departamento\`);
+-- E7b: índices temporales para replay (no modifica tablas existentes)
+CREATE INDEX IF NOT EXISTS infra_afectacion_creada_en_idx_e7b ON infra_afectacion(creada_en);
+CREATE INDEX IF NOT EXISTS infra_afectacion_rige_desde_idx_e7b ON infra_afectacion(rige_desde);
+CREATE INDEX IF NOT EXISTS infra_risk_run_publicado_en_idx_e7b ON infra_risk_run(publicado_en);
 `
 
 let seedPromise: Promise<void> | null = null
