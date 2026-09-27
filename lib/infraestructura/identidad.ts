@@ -1,10 +1,9 @@
 import { createDecipheriv } from 'node:crypto'
-import type { Client } from '@libsql/client'
 import {
   asegurarGeAdjuntada,
   obtenerCorteYSeccionesDeAfectacion,
-  type EjecutorSql,
 } from './impacto'
+import type { EjecutorSql } from './ge-db'
 import {
   ALGORITMO,
   AUTH_TAG_BYTES,
@@ -55,26 +54,25 @@ function descifrarIdentidad(
   return JSON.parse(plano.toString('utf8'))
 }
 
-// Cifra e inserta/actualiza la identidad de un alumno en ge_alumno_identidad.
-// `client` debe ser una conexión directa a ge.sqlite (openGeDb()): esta tabla
-// nunca se escribe a través del ATTACH de sólo lectura.
+// Cifra e inserta/actualiza la identidad de un alumno en ge.ge_alumno_identidad,
+// dentro del schema `ge` de la misma base del hub.
 export async function importarIdentidad(
-  client: Client,
+  client: EjecutorSql,
   gePersonId: number,
   nombre: string,
   apellido: string,
 ): Promise<void> {
   const payloadCifrado = cifrarIdentidad(nombre, apellido)
   await client.execute({
-    sql: `INSERT INTO ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?, ?)
+    sql: `INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?, ?)
           ON CONFLICT(ge_person_id) DO UPDATE SET payload_cifrado = excluded.payload_cifrado`,
     args: [gePersonId, payloadCifrado],
   })
 }
 
-// Descifra los nombres de un conjunto de alumnos. `hostClient` es la conexión
-// del Hub con ge.sqlite adjuntada de sólo lectura (mismo patrón que
-// impacto.ts). El llamador es responsable de haber verificado
+// Descifra los nombres de un conjunto de alumnos. `hostClient` es una
+// conexión al Hub (mismo patrón que impacto.ts) que lee el schema `ge` de la
+// misma base. El llamador es responsable de haber verificado
 // puedeVerNominal(user, ahora) === true antes de invocar esta función: acá no
 // se repite esa verificación, así que nunca la expongas detrás de una ruta
 // que no la haya hecho.
@@ -96,18 +94,18 @@ export async function listarIdentidadesPorPersonas(
 }
 
 // Variante de listarIdentidadesPorPersonas para llamadores que ya tienen una
-// conexión directa a ge.sqlite (openGeDb()), como
-// lib/infraestructura/contexto.ts para el formulario público: no hace ATTACH
-// ni antepone el esquema "ge.", lee ge_alumno_identidad directo porque ya es
-// la base en la que corre.
+// conexión al schema `ge` de la misma base del hub (como
+// lib/infraestructura/contexto.ts para el formulario público): no hace ATTACH
+// ni asume un search_path particular, lee ge.ge_alumno_identidad con el
+// prefijo de schema explícito.
 export async function listarIdentidadesPorPersonasDesdeGeDb(
-  client: Client,
+  client: EjecutorSql,
   gePersonIds: number[],
 ): Promise<Array<{ gePersonId: number; nombre: string; apellido: string }>> {
   if (gePersonIds.length === 0) return []
   const placeholders = gePersonIds.map(() => '?').join(',')
   const res = await client.execute({
-    sql: `SELECT ge_person_id, payload_cifrado FROM ge_alumno_identidad WHERE ge_person_id IN (${placeholders})`,
+    sql: `SELECT ge_person_id, payload_cifrado FROM ge.ge_alumno_identidad WHERE ge_person_id IN (${placeholders})`,
     args: gePersonIds,
   })
   return res.rows.map((r) => {
@@ -186,12 +184,11 @@ export async function listarAfectadosNominal(
 
 // Procedimiento de rotación de clave (ver docs/rotacion-clave-nominal.md):
 // descifra cada fila con la clave vieja y la recifra con la nueva, dentro de
-// una única transacción sobre ge.sqlite. `client` debe ser una conexión
-// directa a ge.sqlite (openGeDb()), igual que importarIdentidad. Vive en este
+// una única transacción sobre ge.ge_alumno_identidad. Vive en este
 // módulo porque es, junto a listarIdentidadesPorPersonas, la única función
 // autorizada a invocar descifrarIdentidad.
 export async function rotarClaveIdentidad(
-  client: Client,
+  client: EjecutorSql,
   claveViejaBase64: string,
   claveNuevaBase64: string,
 ): Promise<{ filasRotadas: number }> {
@@ -202,23 +199,23 @@ export async function rotarClaveIdentidad(
   }
 
   const filas = await client.execute(
-    'SELECT ge_person_id, payload_cifrado FROM ge_alumno_identidad',
+    'SELECT ge_person_id, payload_cifrado FROM ge.ge_alumno_identidad',
   )
 
-  const tx = await client.transaction('write')
+  await client.execute('BEGIN')
   try {
     for (const r of filas.rows) {
       const { nombre, apellido } = descifrarIdentidad(String(r.payload_cifrado), claveVieja)
       const payloadNuevo = cifrarIdentidad(nombre, apellido, claveNueva)
-      await tx.execute({
-        sql: 'UPDATE ge_alumno_identidad SET payload_cifrado = ? WHERE ge_person_id = ?',
+      await client.execute({
+        sql: 'UPDATE ge.ge_alumno_identidad SET payload_cifrado = ? WHERE ge_person_id = ?',
         args: [payloadNuevo, r.ge_person_id],
       })
     }
-    await tx.commit()
+    await client.execute('COMMIT')
   } catch (err) {
     try {
-      await tx.rollback()
+      await client.execute('ROLLBACK')
     } catch {
       // noop: si el commit ya cerró la transacción, el error original manda
     }
@@ -238,31 +235,31 @@ export async function rotarClaveIdentidad(
 // se retiró en F3.3 frontend. Este caller verifica puedeVerNominal() por su
 // cuenta antes de llamar acá; esta función no repite esa verificación.
 export async function consultarYRegistrarAfectados(
-  client: Client,
+  client: EjecutorSql,
   userId: string,
   afectacionId: string,
   ahora: Date,
 ): Promise<AfectadosNominal | null> {
-  const tx = await client.transaction('write')
+  await client.execute('BEGIN')
   try {
-    const resultado = await listarAfectadosNominal(tx, afectacionId)
+    const resultado = await listarAfectadosNominal(client, afectacionId)
     if (!resultado) {
-      await tx.rollback()
+      await client.execute('ROLLBACK')
       return null
     }
 
-    await tx.execute({
+    await client.execute({
       sql: `INSERT INTO infra_acceso_nominal_log
               (id, user_id, afectacion_id, cantidad, consultado_en)
             VALUES (?, ?, ?, ?, ?)`,
       args: [crypto.randomUUID(), userId, afectacionId, resultado.cantidad, ahora.toISOString()],
     })
 
-    await tx.commit()
+    await client.execute('COMMIT')
     return resultado
   } catch (err) {
     try {
-      await tx.rollback()
+      await client.execute('ROLLBACK')
     } catch {
       // noop: si el commit ya cerró la transacción, el error original manda
     }

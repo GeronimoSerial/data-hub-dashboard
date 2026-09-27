@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -202,7 +202,10 @@ export default async function RiesgoModoEvaluacionPage({
       eq(infraRiskSnapshot.cueAnexo, infraGeoProfile.cueAnexo),
     )
     .where(where)
-    .orderBy(desc(infraRiskSnapshot.scoreRiesgo))
+    // NULLS LAST explícito: mismo ranking que la API (peor score primero,
+    // escuelas sin evidencia — scoreRiesgo null — al final), sin depender del
+    // default de Postgres.
+    .orderBy(sql`${infraRiskSnapshot.scoreRiesgo} desc nulls last`)
     .limit(PAGE_SIZE)
     .offset((page - 1) * PAGE_SIZE)
 

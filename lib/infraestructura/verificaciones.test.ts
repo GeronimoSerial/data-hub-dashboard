@@ -152,7 +152,7 @@ describe('crearVerificacion', () => {
     expect(creada.token).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(creada.verificacion.estado).toBe('pendiente')
     expect(creada.verificacion.periodoId).toBe(PERIODO_ENOS_2026_2027_ID)
-    expect(creada.verificacion.discrepancia).toBe(0)
+    expect(creada.verificacion.discrepancia).toBe(false)
     expect(creada.verificacion.tokenHash).toBe(hashearToken(creada.token))
     expect(creada.verificacion.tokenHash).not.toBe(creada.token)
     expect(creada.verificacion.tokenConsumidoEn).toBeNull()
@@ -200,7 +200,7 @@ describe('responderPorEnlace', () => {
     if (!resultado.ok) return
     expect(resultado.verificacion.estado).toBe('respondida')
     expect(resultado.verificacion.resultado).toBe('sin_afectacion')
-    expect(resultado.verificacion.discrepancia).toBe(0)
+    expect(resultado.verificacion.discrepancia).toBe(false)
     expect(resultado.verificacion.respondidaCanal).toBe('enlace')
     expect(resultado.verificacion.respondidaPorUserId).toBeNull()
     expect(resultado.verificacion.tokenConsumidoEn).not.toBeNull()
@@ -221,7 +221,7 @@ describe('responderPorEnlace', () => {
 
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) return
-    expect(resultado.verificacion.discrepancia).toBe(1)
+    expect(resultado.verificacion.discrepancia).toBe(true)
     expect(await contarEventos(verificacion.id, 'respondida')).toBe(1)
     expect(await contarEventos(verificacion.id, 'discrepancia_detectada')).toBe(1)
   })
@@ -242,7 +242,7 @@ describe('responderPorEnlace', () => {
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) return
     expect(resultado.verificacion.movimientoId).toBe(movimientoId)
-    expect(resultado.verificacion.discrepancia).toBe(0)
+    expect(resultado.verificacion.discrepancia).toBe(false)
   })
 
   it('con_afectacion con un movimiento de OTRO CUE: 409 movimiento_cue_no_coincide y no vincula', async () => {

@@ -12,9 +12,8 @@
 // afectación (secciones/alumnos) por IN. Todo lo demás (vigencia, alcance,
 // estado general de servicio, dedupe de alumnos) se resuelve en memoria con
 // las funciones puras que ya existen — nunca una consulta por parte.
-import type { Client } from '@libsql/client'
-import { getDb } from '@/lib/db'
-import { getCorteVigente } from './ge-db'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarSeccionesDeCues } from './secciones-cue'
@@ -162,7 +161,7 @@ function filtrosParteSql(filtros: FiltrosMapa): { clausulas: string[]; args: (st
 }
 
 async function cargarPartes(
-  client: Client,
+  client: EjecutorSql,
   periodoId: string,
   corteId: number,
   filtros: FiltrosMapa,
@@ -210,7 +209,7 @@ async function cargarPartes(
 // batcheado para TODOS los partes en una sola tanda de queries en vez de una
 // tanda por parte.
 async function cargarAfectacionesDeVariosPartes(
-  client: Client,
+  client: EjecutorSql,
   corteId: number,
   parteIds: string[],
 ): Promise<Afectacion[]> {
@@ -291,7 +290,7 @@ async function cargarAfectacionesDeVariosPartes(
 }
 
 async function cargarServicioAlcanceDeVariosPartes(
-  client: Client,
+  client: EjecutorSql,
   parteIds: string[],
 ): Promise<ServicioAlcance[]> {
   if (parteIds.length === 0) return []
@@ -328,8 +327,7 @@ export async function listarPartesVigentes(
   const periodo = await obtenerPeriodoVigente()
   if (!periodo) return resultadoVacio
 
-  const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
@@ -509,7 +507,7 @@ interface EscuelaPadronRow {
 // localidad); cueAnexo y nivel se aplican igual que en cargarPartes, sólo
 // que nivel se resuelve vía EXISTS contra las secciones del corte vigente.
 async function cargarPadronEscuelas(
-  client: Client,
+  client: EjecutorSql,
   filtros: FiltrosMapa,
   corteId: number | null,
 ): Promise<EscuelaPadronRow[]> {
@@ -569,7 +567,7 @@ async function cargarPadronEscuelas(
 export async function listarEscuelasMapa(
   filtros: FiltrosMapa = {},
 ): Promise<EscuelasMapaResultado> {
-  const client = getDb().$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   // El padrón NO depende de período/corte: la consulta base va sin esos

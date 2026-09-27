@@ -5,13 +5,10 @@
 // ES actualizar el parte. Mismo patrón de guardas que
 // app/api/problematicas/route.ts: acceso público, ensureSeeded, rate limit,
 // idempotencia, validación contra la base, transacción.
-import type { Client, Transaction as LibsqlTransaction } from '@libsql/client'
 import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/libsql'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
-import * as schema from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   infraAfectacion,
@@ -24,7 +21,7 @@ import {
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { getCorteVigente } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
@@ -94,7 +91,7 @@ function motivoCategoriaSeveridadDescripcionCoinciden(
 }
 
 async function seccionesEsperadas(
-  client: Client,
+  client: EjecutorSql,
   corteId: number,
   geSectionIds: number[],
   alumnosSeleccionados: number[] | undefined,
@@ -138,7 +135,7 @@ function seccionesCoincidenConEsperadas(
 // barato (campos escalares) va primero para no pagar la consulta de
 // membresía en el caso común de una afectación genuinamente nueva.
 async function buscarAfectacionEquivalente(
-  client: Client,
+  client: EjecutorSql,
   corteId: number,
   candidatas: Afectacion[],
   entrada: {
@@ -185,8 +182,7 @@ export async function GET(request: Request) {
 
   await ensureSeeded()
 
-  const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
@@ -385,7 +381,7 @@ export async function POST(request: Request) {
   }
 
   const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
 
   // Idempotencia: antes de cualquier escritura. Deliberadamente NO se aplica
   // CUE_MAX_ALERTAS_ACTIVAS acá (ver docs/trayectoria-contrato-implementacion.md
@@ -558,43 +554,35 @@ export async function POST(request: Request) {
   // `for` + `break`.
   let resultado!: { status: number; body: unknown }
 
-  // Transacción manejada a mano con BEGIN IMMEDIATE (modo 'write' del cliente
-  // de libsql), NO con db.transaction() de Drizzle: para el driver de libsql,
-  // db.transaction() siempre abre BEGIN DEFERRED e ignora cualquier config de
-  // `behavior` que se le pase (ver drizzle-orm/libsql/session.cjs — su
-  // `transaction()` nunca reenvía `_config` a `client.transaction()`). Con
-  // DEFERRED, esta transacción podría arrancar su snapshot de lectura ANTES
-  // de tomar el lock de escritura, dejando la misma ventana de carrera que
-  // esto corrige. Con IMMEDIATE, el lock se toma desde el arranque: si otra
-  // request ya está escribiendo el mismo parte, ésta se entera al toque (ver
-  // esErrorLockOcupado) y reintenta en vez de leer un estado viejo.
+  // Transacción real de Postgres vía db.transaction() de Drizzle
+  // (drizzle-orm/node-postgres, o drizzle-orm/pglite en tests): a diferencia
+  // del driver de libsql, acá db.transaction() abre un BEGIN real sobre una
+  // única conexión reservada del pool y hace COMMIT/ROLLBACK automáticamente.
+  // Ese es justamente el comportamiento que el workaround manual con BEGIN
+  // IMMEDIATE de SQLite intentaba conseguir; en Postgres el problema que lo
+  // forzaba no existe, así que se usa la transacción nativa de Drizzle (mismo
+  // query builder `tx`) y se elimina la ventana de carrera que motivaba el
+  // BEGIN IMMEDIATE.
   //
-  // `tx` sigue siendo un LibSQLDatabase de Drizzle (mismo query builder de
-  // siempre) construido sobre la Transaction cruda: LibSQLSession sólo llama
-  // `.execute()`/`.batch()` sobre el objeto "client" que recibe cuando no hay
-  // una transacción de Drizzle activa (ver session.cjs), que es exactamente
-  // lo que expone `Transaction` — de ahí el cast, ninguno de los métodos que
-  // le faltan a `Transaction` respecto de `Client` (close, sync, migrate,
-  // transaction anidada) se invoca en este camino.
-  //
-  // Todo el bloque vive dentro de un reintento manual (no el `timeout`
-  // nativo — ver esErrorLockOcupado más arriba): si esta request pierde la
-  // carrera por el lock de escritura contra otra, se entera al toque
-  // (SQLITE_BUSY) y reintenta el bloque COMPLETO tras una espera corta con
-  // jitter, releyendo el estado real bajo el nuevo lock — nunca sólo el
-  // BEGIN, porque toda la lógica de "¿existe ya el parte?" de más abajo
-  // depende de ese estado fresco. Reintento delegado a
-  // lib/db/reintento.ts#conReintentoPorBloqueo (misma lógica que tenía esta
-  // ruta antes de la extracción); `alFallarIntento` reproduce el
-  // rollback+close que antes vivía en el catch/finally del for de más abajo.
-  let rawTx: LibsqlTransaction | undefined
+  // Todo el bloque sigue viviendo dentro de un reintento manual
+  // (lib/db/reintento.ts#conReintentoPorBloqueo): si esta request pierde la
+  // carrera por el lock de escritura contra otra, se entera y reintenta el
+  // bloque COMPLETO tras una espera corta con jitter, releyendo el estado
+  // real dentro de la nueva transacción — nunca sólo el BEGIN, porque toda la
+  // lógica de "¿existe ya el parte?" de más abajo depende de ese estado
+  // fresco. Cada reintento vuelve a llamar a db.transaction() de cero, con
+  // una conexión y un BEGIN nuevos.
   try {
-    resultado = await conReintentoPorBloqueo(
-      async () => {
-        rawTx = await client.transaction('write')
-        const tx = drizzle(rawTx as unknown as Client, { schema })
-
-        const resultadoIntento = await (async () => {
+    resultado = await conReintentoPorBloqueo(async () => {
+      return await db.transaction(async (tx) => {
+      // Ejecutor de GE ligado a la MISMA conexión que sostiene esta
+      // transacción. Nunca se usa `client` (el pool/raw separado) dentro del
+      // callback: bajo PGlite, emitir una query por el cliente raw mientras la
+      // transacción tiene la única sesión ocupada esperando el COMMIT produce
+      // un deadlock real (la query raw queda encolada detrás del COMMIT y la
+      // transacción no puede cerrar hasta que el callback —que espera esa
+      // query— termine). Ver crearEjecutorSql en ge-db.ts.
+      const clienteGeEnTx = crearEjecutorSql(tx)
       let parteId: string
       let esNuevoParte: boolean
       if (parteExistente) {
@@ -637,7 +625,7 @@ export async function POST(request: Request) {
       // más arriba, que pudo quedar desactualizada por la misma carrera.
       const [parteFilaActual] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
       const { afectaciones: afectacionesActuales, servicioAlcance: servicioAlcanceActual } =
-        await obtenerAfectacionesYServicio(tx, client, parteId, corteId)
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
       const actualAntesReal: ParteActual = parteFilaActual
         ? {
             periodo,
@@ -656,7 +644,7 @@ export async function POST(request: Request) {
         // contenido coincide exactamente con una ya vigente, esta entrada es
         // un no-op.
         const equivalente = await buscarAfectacionEquivalente(
-          client,
+          clienteGeEnTx,
           corteId,
           afectacionesVigentesActuales,
           entrada,
@@ -777,7 +765,7 @@ export async function POST(request: Request) {
       // Fotografía "después", dentro de la misma transacción: si el diff
       // resulta vacío hay que poder revertir todo lo anterior.
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
-        await obtenerAfectacionesYServicio(tx, client, parteId, corteId)
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
       const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
       const despues = snapshotDesde(
         {
@@ -794,8 +782,9 @@ export async function POST(request: Request) {
 
       const diff = diffParte(antes, despues)
       if (esDiffVacio(diff)) {
-        // Revierte todo lo escrito en esta función: el catch de más abajo
-        // hace rollback de `rawTx` cuando esto lanza.
+        // Revierte todo lo escrito en la transacción: al lanzar desde el
+        // callback, db.transaction() hace ROLLBACK real y relanza este mismo
+        // error, que el catch de más abajo reconoce.
         throw new RollbackDiffVacio()
       }
 
@@ -824,34 +813,8 @@ export async function POST(request: Request) {
           servicio: { estadoGeneral, alcanceVigente: despues.servicioAlcance },
         },
       }
-    })()
-
-        await rawTx.commit()
-        // Red de seguridad incondicional: `close()` es sincrónico, seguro de
-        // llamar más de una vez (Transaction.closed lo hace un no-op) y hace
-        // ROLLBACK si hiciera falta — nunca puede quedar el lock de escritura
-        // de esta conexión nativa colgado más allá de este intento, ni
-        // siquiera si el propio commit() de arriba lanzó por su cuenta.
-        rawTx.close()
-        return resultadoIntento
-      },
-      {
-        alFallarIntento: async () => {
-          if (rawTx) {
-            try {
-              await rawTx.rollback()
-            } catch {
-              // noop: si el commit ya cerró la transacción (no debería pasar
-              // acá, porque el commit sólo se llama después de que la IIFE
-              // resuelve sin lanzar), el error original manda. `close()` de
-              // acá abajo es la red de seguridad real para no dejar el lock
-              // de escritura colgado.
-            }
-            rawTx.close()
-          }
-        },
-      },
-    )
+      })
+    })
   } catch (err) {
     if (err instanceof RollbackDiffVacio) {
       return Response.json(
@@ -859,15 +822,32 @@ export async function POST(request: Request) {
         { status: 409 },
       )
     }
-    // drizzle-orm envuelve el error de SQLite en DrizzleQueryError; el texto
-    // del constraint puede venir en `err.cause.message` en vez de `err.message`
-    // según la versión — revisamos ambos.
+    // Violación del constraint único de idempotency_key. En SQLite (driver
+    // libsql, fallback para entornos que aún no migraron) el texto es
+    // "UNIQUE constraint failed: infra_movimiento.idempotency_key", envuelto
+    // por drizzle-orm en DrizzleQueryError — según la versión el texto puede
+    // caer en `err.message` o en `err.cause.message`, así que se revisan
+    // ambos. En Postgres el error trae `code === '23505'` y el nombre de la
+    // constraint (o el mensaje "duplicate key value violates unique
+    // constraint ...") menciona la columna; `code`/`constraint` pueden venir
+    // en el error envuelto por Drizzle, dentro de `err.cause`.
     const msg = err instanceof Error ? err.message : String(err)
     const causaMsg =
       err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
+    const causa = (err as { cause?: unknown }).cause
+    const errCode =
+      (err as { code?: string }).code ??
+      (causa && typeof causa === 'object' ? (causa as { code?: string }).code : undefined)
+    const constraint =
+      (err as { constraint?: string }).constraint ??
+      (causa && typeof causa === 'object' ? (causa as { constraint?: string }).constraint : undefined) ??
+      ''
+    const duplicadoIdempotencyKeyPostgres =
+      errCode === '23505' && /idempotency_key/i.test(`${msg} ${causaMsg} ${constraint}`)
     if (
       /UNIQUE constraint failed.*idempotency_key/i.test(msg) ||
-      /UNIQUE constraint failed.*idempotency_key/i.test(causaMsg)
+      /UNIQUE constraint failed.*idempotency_key/i.test(causaMsg) ||
+      duplicadoIdempotencyKeyPostgres
     ) {
       // Carrera: otra request con la misma idempotencyKey ganó mientras se
       // procesaba ésta. Se responde como si fuera un replay, releyendo el

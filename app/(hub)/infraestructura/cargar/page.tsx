@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
+import { getRawClient } from '@/lib/db'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,13 +52,9 @@ export default async function CargarParteEscuelaPage({
   let resultado = null
   if (buscado) {
     await ensureLocalizacionesSeeded()
-    const client = openGeDb()
-    try {
-      await ensureGeSchema(client)
-      resultado = await resolverContextoPorCue(client, cue)
-    } finally {
-      client.close()
-    }
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    resultado = await resolverContextoPorCue(client, cue)
   }
 
   const escuela = resultado?.ok ? resultado.contexto.escuela : null

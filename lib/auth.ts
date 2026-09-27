@@ -17,7 +17,7 @@ function crearInstanciaAuth() {
   return betterAuth({
     baseURL: process.env.BETTER_AUTH_URL,
     database: drizzleAdapter(getDb(), {
-      provider: 'sqlite',
+      provider: 'pg',
       schema,
     }),
     emailAndPassword: {
@@ -43,7 +43,7 @@ type Auth = ReturnType<typeof crearInstanciaAuth>
 // memoiza la conexión. Si `betterAuth(...)` corriera acá arriba, a nivel de
 // módulo, cualquier `import { auth } from '@/lib/auth'` -aunque sea
 // transitivo- congelaría la conexión a lo que DATA_DIR resuelva en ese
-// instante (típicamente `.data/hub.sqlite` de un checkout de dev), sin
+// instante (típicamente `.data/pg` de un checkout de dev), sin
 // importar qué DATA_DIR se setee después en un `beforeAll` de test. Se
 // construye una sola vez, en el primer acceso real (auth.api.*, auth.$context,
 // etc.), nunca en el import.

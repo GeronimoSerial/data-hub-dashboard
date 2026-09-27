@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import {
@@ -135,9 +135,10 @@ export async function GET(request: Request) {
     .where(where)
   const total = Number(countRow?.count ?? 0)
 
-  // SQLite ordena NULL como el menor valor, por lo que DESC deja al final las
-  // escuelas sin evidencia (scoreRiesgo null). Es el comportamiento buscado:
-  // el ranking arranca por el riesgo más alto.
+  // Orden explícito con NULLS LAST para no depender del default de cada motor:
+  // en Postgres, DESC deja los NULL al principio, pero acá las escuelas sin
+  // evidencia (scoreRiesgo null) deben quedar al final — el ranking arranca por
+  // el riesgo más alto.
   const items = await db
     .select(itemsFields)
     .from(infraRiskSnapshot)
@@ -146,7 +147,7 @@ export async function GET(request: Request) {
       eq(infraRiskSnapshot.cueAnexo, infraGeoProfile.cueAnexo),
     )
     .where(where)
-    .orderBy(desc(infraRiskSnapshot.scoreRiesgo))
+    .orderBy(sql`${infraRiskSnapshot.scoreRiesgo} desc nulls last`)
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 

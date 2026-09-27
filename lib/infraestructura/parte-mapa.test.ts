@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import {
   infraAfectacion,
@@ -11,7 +11,7 @@ import {
   infraParte,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { ensureGeSchema, openGeDb } from './ge-db'
+import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
 import { listarEscuelasMapa, listarPartesVigentes, type FiltrosMapa } from './parte-mapa'
@@ -37,46 +37,42 @@ let prevAdminPassword: string | undefined
 // 3 alumnos, tarde con 2 alumnos), suficiente para ejercitar servicio
 // parcial (turno) y dedupe de alumnos entre afectaciones.
 async function sembrarGe(): Promise<void> {
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-01-01T00:00:00Z', 'vigente')",
-    )
-    // CUE-11 se reserva sin coordenadas (n === 11) para el test dedicado —
-    // separado de CUE-1 para no chocar con la unicidad (cueAnexo, periodoId)
-    // de infra_parte entre tests distintos.
-    for (let n = 1; n <= 11; n++) {
-      const cue = `CUE-${n}`
-      await ge.execute({
-        sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-        args: [cue, `Escuela ${n}`, 'Paraná', 'Paraná', n === 11 ? null : -31.7, n === 11 ? null : -60.5],
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-01-01T00:00:00Z', 'vigente')",
+  )
+  // CUE-11 se reserva sin coordenadas (n === 11) para el test dedicado —
+  // separado de CUE-1 para no chocar con la unicidad (cueAnexo, periodoId)
+  // de infra_parte entre tests distintos.
+  for (let n = 1; n <= 11; n++) {
+    const cue = `CUE-${n}`
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+      args: [cue, `Escuela ${n}`, 'Paraná', 'Paraná', n === 11 ? null : -31.7, n === 11 ? null : -60.5],
+    })
+    const seccionManiana = n * 100 + 1
+    const seccionTarde = n * 100 + 2
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      args: [seccionManiana, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+    })
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      args: [seccionTarde, cue, '1', 'B', 'PRIMARIA', 'TARDE'],
+    })
+    for (let i = 0; i < 3; i++) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [seccionManiana, seccionManiana * 1000 + i],
       })
-      const seccionManiana = n * 100 + 1
-      const seccionTarde = n * 100 + 2
-      await ge.execute({
-        sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
-        args: [seccionManiana, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
-      })
-      await ge.execute({
-        sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
-        args: [seccionTarde, cue, '1', 'B', 'PRIMARIA', 'TARDE'],
-      })
-      for (let i = 0; i < 3; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
-          args: [seccionManiana, seccionManiana * 1000 + i],
-        })
-      }
-      for (let i = 0; i < 2; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
-          args: [seccionTarde, seccionTarde * 1000 + i],
-        })
-      }
     }
-  } finally {
-    ge.close()
+    for (let i = 0; i < 2; i++) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [seccionTarde, seccionTarde * 1000 + i],
+      })
+    }
   }
 }
 
@@ -183,21 +179,18 @@ async function crearServicioAlcance(params: {
 
 describe('listarPartesVigentes', () => {
   it('filtra un departamento del GeoJSON aunque GE use mayúsculas y tildes distintas', async () => {
-    const ge = openGeDb()
-    try {
-      for (const [cue, departamento] of [
-        ['CUE-DEP-1', 'CONCEPCION'],
-        ['CUE-DEP-2', 'CONCEPCIÓN'],
-      ]) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-          args: [cue, `Escuela ${cue}`, departamento, 'Otro lugar', -28, -58],
-        })
-        const parteId = await crearParte(cue)
-        await crearAfectacion({ parteId, secciones: [] })
-      }
-    } finally {
-      ge.close()
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    for (const [cue, departamento] of [
+      ['CUE-DEP-1', 'CONCEPCION'],
+      ['CUE-DEP-2', 'CONCEPCIÓN'],
+    ]) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+        args: [cue, `Escuela ${cue}`, departamento, 'Otro lugar', -28, -58],
+      })
+      const parteId = await crearParte(cue)
+      await crearAfectacion({ parteId, secciones: [] })
     }
 
     const { partes, indicadores } = await listarPartesVigentes({ territorio: 'Concepción' })
@@ -305,20 +298,24 @@ describe('listarPartesVigentes', () => {
       const parteUnicoId = await crearParte('CUE-9')
       await crearAfectacion({ parteId: parteUnicoId, secciones: [901] })
 
-      const client = getDb().$client
-      const original = client.execute.bind(client)
+      // La producción crea su propio envoltorio con
+      // crearEjecutorSql(getRawClient()) en cada llamada, así que el punto de
+      // intercepción compartido es el cliente crudo: todo envoltorio delega en
+      // raw.query(...).
+      const raw = getRawClient() as unknown as {
+        query: (...args: unknown[]) => Promise<{ rows: unknown[] }>
+      }
+      const original = raw.query.bind(raw)
       let contador = 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      client.execute = (async (...args: any[]) => {
+      raw.query = async (...args: unknown[]) => {
         contador++
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (original as any)(...args)
-      }) as typeof client.execute
+        return original(...args)
+      }
 
       await listarPartesVigentes({ cueAnexo: 'CUE-9' })
       const queriesConUnParte = contador
 
-      client.execute = original
+      raw.query = original
       expect(queriesConUnParte).toBeGreaterThan(0)
 
       // Ahora 10 partes distintos (CUE-1..CUE-10, ya sembrados en el
@@ -333,15 +330,13 @@ describe('listarPartesVigentes', () => {
       }
 
       let contador2 = 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      client.execute = (async (...args: any[]) => {
+      raw.query = async (...args: unknown[]) => {
         contador2++
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (original as any)(...args)
-      }) as typeof client.execute
+        return original(...args)
+      }
 
       await listarPartesVigentes({})
-      client.execute = original
+      raw.query = original
 
       expect(contador2).toBe(queriesConUnParte)
     })
@@ -352,20 +347,17 @@ describe('listarPartesVigentes', () => {
 // una afectación vigente: usado sólo por el guard anti N+1, que necesita
 // escuelas adicionales sin tocar el fixture principal de sembrarGe().
 async function sembrarGeParaCueExtra(cue: string, n: number): Promise<void> {
-  const ge = openGeDb()
-  try {
-    const seccionId = 5000 + n
-    await ge.execute({
-      sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-      args: [cue, `Escuela extra ${n}`, 'Paraná', 'Paraná', -31.7, -60.5],
-    })
-    await ge.execute({
-      sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
-      args: [seccionId, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
-    })
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  const seccionId = 5000 + n
+  await client.execute({
+    sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+    args: [cue, `Escuela extra ${n}`, 'Paraná', 'Paraná', -31.7, -60.5],
+  })
+  await client.execute({
+    sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+    args: [seccionId, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+  })
 }
 
 // Siembra una escuela suelta en ge.ge_localizacion con un departamento/
@@ -378,22 +370,19 @@ async function sembrarEscuelaPadron(params: {
   lat: number | null
   lon: number | null
 }): Promise<void> {
-  const ge = openGeDb()
-  try {
-    await ge.execute({
-      sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-      args: [
-        params.cue,
-        `Escuela ${params.cue}`,
-        params.departamento,
-        params.localidad,
-        params.lat,
-        params.lon,
-      ],
-    })
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute({
+    sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+    args: [
+      params.cue,
+      `Escuela ${params.cue}`,
+      params.departamento,
+      params.localidad,
+      params.lat,
+      params.lon,
+    ],
+  })
 }
 
 describe('listarEscuelasMapa', () => {

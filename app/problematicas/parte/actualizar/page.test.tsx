@@ -5,10 +5,10 @@ import path from 'node:path'
 import { eq } from 'drizzle-orm'
 import { render, screen } from '@testing-library/react'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraAfectacion, infraAfectacionSeccion, infraParte, infraVerificacion } from '@/lib/db/schema'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { crearVerificacion, responderPorEnlace } from '@/lib/infraestructura/verificaciones'
 
@@ -98,27 +98,23 @@ async function sesionDeVerificacionParaCue(cueAnexo: string) {
 }
 
 async function seedEscuelaConSeccion() {
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    await client.execute(
-      "INSERT OR IGNORE INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
-    )
-    await client.execute({
-      sql: `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad)
-            VALUES ('1801605-04', NULL, 'Escuela 4', 'Entre Rios', 'Parana')
-            ON CONFLICT(cue_anexo) DO UPDATE SET nombre = excluded.nombre`,
-      args: [],
-    })
-    await client.execute(
-      "INSERT OR IGNORE INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '1801605-04', '1', 'A', 'Primario', 'Mañana')",
-    )
-    await client.execute(
-      'INSERT OR IGNORE INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 900001)',
-    )
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente') ON CONFLICT DO NOTHING",
+  )
+  await client.execute({
+    sql: `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad)
+          VALUES ('1801605-04', NULL, 'Escuela 4', 'Entre Rios', 'Parana')
+          ON CONFLICT(cue_anexo) DO UPDATE SET nombre = excluded.nombre`,
+    args: [],
+  })
+  await client.execute(
+    "INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '1801605-04', '1', 'A', 'Primario', 'Mañana') ON CONFLICT DO NOTHING",
+  )
+  await client.execute(
+    'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 900001) ON CONFLICT DO NOTHING',
+  )
 }
 
 // La pantalla de actualización se corrige sola si al CUE no le toca actualizar

@@ -16,6 +16,20 @@ describe('esErrorLockOcupado', () => {
     expect(esErrorLockOcupado(err)).toBe(true)
   })
 
+  it('reconoce los códigos de lock de Postgres directos (40001, 40P01, 55P03)', () => {
+    expect(esErrorLockOcupado({ code: '40001' })).toBe(true)
+    expect(esErrorLockOcupado({ code: '40P01' })).toBe(true)
+    expect(esErrorLockOcupado({ code: '55P03' })).toBe(true)
+  })
+
+  it('reconoce el caso drizzle-orm: el código de Postgres está anidado en err.cause', () => {
+    for (const code of ['40001', '40P01', '55P03']) {
+      const err = new Error('DrizzleQueryError: Failed query')
+      err.cause = Object.assign(new Error('postgres error'), { code })
+      expect(esErrorLockOcupado(err)).toBe(true)
+    }
+  })
+
   it('no reconoce otros errores (constraint, genérico)', () => {
     expect(esErrorLockOcupado(new Error('UNIQUE constraint failed: infra_movimiento.idempotency_key'))).toBe(
       false,

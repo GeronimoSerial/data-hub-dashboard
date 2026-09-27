@@ -16,14 +16,14 @@ describe('resolveDriver', () => {
     }
   })
 
-  it('devuelve sqlite cuando DATABASE_URL no está definida', () => {
+  it('devuelve pglite cuando DATABASE_URL no está definida', () => {
     delete process.env.DATABASE_URL
-    expect(resolveDriver()).toBe('sqlite')
+    expect(resolveDriver()).toBe('pglite')
   })
 
-  it('devuelve sqlite cuando DATABASE_URL está vacía', () => {
+  it('devuelve pglite cuando DATABASE_URL está vacía', () => {
     process.env.DATABASE_URL = ''
-    expect(resolveDriver()).toBe('sqlite')
+    expect(resolveDriver()).toBe('pglite')
   })
 
   it('devuelve postgres cuando DATABASE_URL empieza con postgres://', () => {
@@ -36,8 +36,8 @@ describe('resolveDriver', () => {
     expect(resolveDriver()).toBe('postgres')
   })
 
-  it('devuelve sqlite cuando DATABASE_URL es un archivo SQLite', () => {
-    process.env.DATABASE_URL = 'file:./algo.sqlite'
-    expect(resolveDriver()).toBe('sqlite')
+  it('devuelve pglite cuando DATABASE_URL es un valor no reconocido (p. ej. un archivo)', () => {
+    process.env.DATABASE_URL = 'file:./hub.db'
+    expect(resolveDriver()).toBe('pglite')
   })
 })

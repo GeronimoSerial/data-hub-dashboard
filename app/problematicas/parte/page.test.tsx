@@ -6,10 +6,10 @@ import { eq } from 'drizzle-orm'
 import { render, screen } from '@testing-library/react'
 import { afterAll, beforeAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraVerificacion } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import {
   cancelarVerificacion,
   crearVerificacion,
@@ -111,21 +111,17 @@ async function verificacionConSesion() {
 }
 
 async function seedEscuela(cueAnexo: string, nombre: string) {
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    await client.execute(
-      "INSERT OR IGNORE INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
-    )
-    await client.execute({
-      sql: `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad)
-            VALUES (?, NULL, ?, 'Entre Rios', 'Parana', NULL, NULL, NULL)
-            ON CONFLICT(cue_anexo) DO UPDATE SET nombre = excluded.nombre`,
-      args: [cueAnexo, nombre],
-    })
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente') ON CONFLICT DO NOTHING",
+  )
+  await client.execute({
+    sql: `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad)
+          VALUES (?, NULL, ?, 'Entre Rios', 'Parana', NULL, NULL, NULL)
+          ON CONFLICT(cue_anexo) DO UPDATE SET nombre = excluded.nombre`,
+    args: [cueAnexo, nombre],
+  })
 }
 
 describe('EstadoActualPartePage — acceso por sesión de verificación', () => {

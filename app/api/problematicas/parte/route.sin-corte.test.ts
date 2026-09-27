@@ -1,14 +1,14 @@
 // Caso 503 "sin corte vigente" aislado en su propio archivo a propósito:
-// getDb() y el ATTACH de ge.sqlite (asegurarGeAdjuntada) son singletons por
-// instancia de módulo — una vez adjuntada una base a la conexión cacheada,
-// cambiar DATA_DIR a mitad de archivo no vuelve a adjuntar nada distinto.
-// Vitest sí aísla el registro de módulos por archivo, así que este escenario
-// necesita su propio archivo para arrancar con un getDb() nuevo.
+// getDb()/getRawClient() memoizan una única instancia PGlite por archivo
+// (Vitest aísla el registro de módulos), así que este escenario necesita su
+// propio archivo para arrancar con una base GE vacía, sin el corte vigente
+// que siembran los demás tests.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { GET, POST } from './route'
@@ -27,13 +27,9 @@ beforeAll(async () => {
   process.env.DATA_DIR = dir
   process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
 
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    // A propósito: ningún ge_corte insertado, ningún corte vigente.
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  // A propósito: ningún ge_corte insertado, ningún corte vigente.
 })
 
 afterAll(() => {

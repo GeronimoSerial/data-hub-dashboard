@@ -2,11 +2,11 @@
 // Mismo pipeline de guardas que GET /api/problematicas/parte (acceso
 // público, ensureSeeded, CUE válido, corte vigente) — la ausencia de parte o
 // de período vigente no es un error acá tampoco, es un historial vacío.
-import { getDb } from '@/lib/db'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { getCorteVigente } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { listarMovimientosDescritos } from '@/lib/infraestructura/parte-consulta'
 
@@ -32,8 +32,7 @@ export async function GET(request: Request) {
 
   await ensureSeeded()
 
-  const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)

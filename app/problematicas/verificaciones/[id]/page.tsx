@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { VerificacionResponder } from '@/components/infraestructura/verificacion-responder'
+import { getRawClient } from '@/lib/db'
 import { resolverContextoPorCue } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { obtenerVerificacion } from '@/lib/infraestructura/verificaciones'
 
 export const runtime = 'nodejs'
@@ -50,15 +51,13 @@ export default async function VerificacionPage({
   const fila = await obtenerVerificacion(id).catch(() => null)
   let escuelaNombre: string | undefined
   if (fila) {
-    const client = openGeDb()
+    const client = crearEjecutorSql(getRawClient())
     try {
       await ensureGeSchema(client)
       const resultado = await resolverContextoPorCue(client, fila.cueAnexo)
       if (resultado.ok) escuelaNombre = resultado.contexto.escuela.nombre
     } catch {
       // GE no disponible: se sigue con el CUE.
-    } finally {
-      client.close()
     }
   }
 

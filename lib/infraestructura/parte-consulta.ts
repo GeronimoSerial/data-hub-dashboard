@@ -1,12 +1,12 @@
 // Capa de lectura del parte (spec §6, §7, §8): tanto GET /parte como
 // POST /parte la necesitan — POST para armar la fotografía "antes" contra la
-// que diffParte compara. Framework-free salvo por el acceso a Drizzle y a
-// ge.sqlite (a diferencia de trayectoria-tipos.ts y el resto del batch 2, que
-// son puros): esta capa SÍ hace I/O, a propósito, porque es la que arma los
-// snapshots que consume la capa pura.
-import type { Client } from '@libsql/client'
+// que diffParte compara. Framework-free salvo por el acceso a Drizzle y al
+// schema `ge` de Postgres (a diferencia de trayectoria-tipos.ts y el resto del
+// batch 2, que son puros): esta capa SÍ hace I/O, a propósito, porque es la
+// que arma los snapshots que consume la capa pura.
+import { crearEjecutorSql, type EjecutorSql } from './ge-db'
 import { and, desc, eq, inArray } from 'drizzle-orm'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import {
   infraAfectacion,
   infraAfectacionAlumno,
@@ -87,7 +87,7 @@ export async function obtenerPeriodoVigente(
 // no se infiere de la fila persistida.
 async function cargarAfectaciones(
   dbEjecutor: DbEjecutor,
-  client: Client,
+  client: EjecutorSql,
   parteId: string,
   corteId: number,
 ): Promise<Afectacion[]> {
@@ -193,7 +193,7 @@ async function cargarServicioAlcance(
 // cargarAfectaciones/cargarServicioAlcance en el route handler.
 export async function obtenerAfectacionesYServicio(
   dbEjecutor: DbEjecutor,
-  client: Client,
+  client: EjecutorSql,
   parteId: string,
   corteId: number,
 ): Promise<{ afectaciones: Afectacion[]; servicioAlcance: ServicioAlcance[] }> {
@@ -210,7 +210,7 @@ export async function obtenerParteActual(
   const periodo = await obtenerPeriodoVigente(db)
   if (!periodo) return null
 
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
   const secciones = await listarSeccionesDelCue(client, corteId, cueAnexo)
 

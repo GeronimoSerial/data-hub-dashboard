@@ -1,6 +1,7 @@
-import { getDb } from '@/lib/db'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Falta el parámetro afectacionId' }, { status: 400 })
   }
 
-  const client = getDb().$client
+  const client = crearEjecutorSql(getRawClient())
   const resultado = await consultarYRegistrarAfectados(client, acceso.user.id, afectacionId, ahora)
   if (!resultado) {
     return Response.json({ error: 'Afectación no encontrada' }, { status: 404 })

@@ -7,9 +7,9 @@
 // resuelve el nombre desde GE y cae silenciosamente al CUE si no puede.
 //
 // Igual que app/problematicas/parte/nuevo/page.test.tsx: DATA_DIR a un tmpdir,
-// GE de test aislada con openGeDb/ensureGeSchema, hub real sembrado con
-// ensureSeeded() y filas de verificación creadas con la propia máquina de
-// estados (crearVerificacion), no con INSERTs inventados.
+// schema GE sobre el cliente PGlite compartido (crearEjecutorSql/getRawClient),
+// hub real sembrado con ensureSeeded() y filas de verificación creadas con la
+// propia máquina de estados (crearVerificacion), no con INSERTs inventados.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -31,8 +31,9 @@ vi.mock('@/components/infraestructura/verificacion-responder', () => ({
 }))
 
 const { default: VerificacionPage } = await import('./page')
+const { getRawClient } = await import('@/lib/db')
 const { ensureSeeded } = await import('@/lib/db/seed')
-const { ensureGeSchema, openGeDb } = await import('@/lib/infraestructura/ge-db')
+const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
 const { crearVerificacion } = await import('@/lib/infraestructura/verificaciones')
 
 let dir: string
@@ -47,13 +48,9 @@ beforeAll(async () => {
   // ensureSeeded() siembra ge_localizacion desde el JSON versionado (miles de
   // escuelas reales). Para que estos tests controlen exactamente qué CUE
   // existe, se vacía y se siembra sólo lo que cada caso necesita.
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    await client.execute('DELETE FROM ge_localizacion')
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute('DELETE FROM ge.ge_localizacion')
 })
 
 afterAll(() => {
@@ -68,16 +65,12 @@ afterEach(() => {
 })
 
 async function seedGe(cueAnexo: string, nombre: string): Promise<void> {
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    await client.execute({
-      sql: "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES (?, NULL, ?, 'Entre Rios', 'Parana')",
-      args: [cueAnexo, nombre],
-    })
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute({
+    sql: "INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES (?, NULL, ?, 'Entre Rios', 'Parana')",
+    args: [cueAnexo, nombre],
+  })
 }
 
 // Mismo mecanismo que los helpers de lib/infraestructura/verificaciones.test.ts:

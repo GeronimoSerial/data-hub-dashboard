@@ -57,33 +57,31 @@ beforeAll(async () => {
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
 
-  // ge.sqlite se puebla ANTES de ensureSeeded(): ensureLocalizacionesSeeded()
-  // siembra el padrón real desde public/data/localizaciones.json sólo si la
-  // tabla está vacía, así que cargar las filas de prueba primero lo hace no-op.
-  const { ensureGeSchema, openGeDb } = await import('@/lib/infraestructura/ge-db')
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    for (const fila of FILAS) {
-      await ge.execute({
-        sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
-        args: [
-          fila.cueAnexo,
-          null,
-          fila.nombre,
-          fila.departamento,
-          fila.localidad,
-          fila.lat,
-          fila.lon,
-          null,
-        ],
-      })
-    }
-  } finally {
-    ge.close()
+  // El schema `ge` de la base PGlite compartida se puebla ANTES de
+  // ensureSeeded(): ensureLocalizacionesSeeded() siembra el padrón real desde
+  // public/data/localizaciones.json sólo si la tabla está vacía, así que cargar
+  // las filas de prueba primero lo hace no-op.
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  for (const fila of FILAS) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
+      args: [
+        fila.cueAnexo,
+        null,
+        fila.nombre,
+        fila.departamento,
+        fila.localidad,
+        fila.lat,
+        fila.lon,
+        null,
+      ],
+    })
   }
 
-  // Crea hub.sqlite (incluida infra_geo_profile) e idempotentemente evita
+  // Crea la base hub (incluida infra_geo_profile) e idempotentemente evita
   // sembrar ge_localizacion desde el JSON.
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()

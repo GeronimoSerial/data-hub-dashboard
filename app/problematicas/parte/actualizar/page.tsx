@@ -7,10 +7,11 @@ import {
   tieneAccesoAlParteParaCueDesdeCookies,
 } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, getCorteVigente, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, getCorteVigente, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 
@@ -63,19 +64,14 @@ export default async function ActualizarPartePage({
     )
   }
 
-  const clienteGe = openGeDb()
-  let resultado
-  // El corte se lee con el mismo cliente, antes de cerrarlo: la guarda de
-  // abajo lo necesita y abrir una segunda conexión sólo para eso sería otra
-  // ida a disco por cada carga de la pantalla.
+  const clienteGe = crearEjecutorSql(getRawClient())
+  // El corte se lee con el mismo cliente: la guarda de abajo lo necesita y
+  // abrir una segunda conexión sólo para eso sería otro viaje innecesario por
+  // cada carga de la pantalla.
   let corteId: number | null = null
-  try {
-    await ensureGeSchema(clienteGe)
-    resultado = await resolverContextoPorCue(clienteGe, cue ?? null)
-    corteId = (await getCorteVigente(clienteGe))?.id ?? null
-  } finally {
-    clienteGe.close()
-  }
+  await ensureGeSchema(clienteGe)
+  const resultado = await resolverContextoPorCue(clienteGe, cue ?? null)
+  corteId = (await getCorteVigente(clienteGe))?.id ?? null
 
   if (!resultado.ok) {
     return (

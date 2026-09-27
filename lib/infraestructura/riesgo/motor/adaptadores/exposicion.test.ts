@@ -11,13 +11,10 @@ const CUE_SIN_SECCIONES = '1800999-00'
 const AS_OF = '2026-09-01T00:00:00.000Z'
 
 async function setEstadoCorte(estado: 'vigente' | 'historico'): Promise<void> {
-  const { openGeDb } = await import('@/lib/infraestructura/ge-db')
-  const ge = openGeDb()
-  try {
-    await ge.execute({ sql: 'UPDATE ge_corte SET estado = ? WHERE id = ?', args: [estado, 1] })
-  } finally {
-    ge.close()
-  }
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await client.execute({ sql: 'UPDATE ge.ge_corte SET estado = ? WHERE id = ?', args: [estado, 1] })
 }
 
 beforeAll(async () => {
@@ -25,49 +22,46 @@ beforeAll(async () => {
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
 
-  const { ensureGeSchema, openGeDb } = await import('@/lib/infraestructura/ge-db')
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
 
-    // ge_localizacion con una fila dummy: hace no-op la siembra desde el JSON
-    // versionado (ensureLocalizacionesSeeded sólo siembra si la tabla está vacía).
-    await ge.execute({
-      sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
-      args: [CUE_CON_SECCIONES, null, 'Escuela Con Secciones', 'CAPITAL', 'CORRIENTES', null, null, null],
-    })
+  // ge_localizacion con una fila dummy: hace no-op la siembra desde el JSON
+  // versionado (ensureLocalizacionesSeeded sólo siembra si la tabla está vacía).
+  await client.execute({
+    sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
+    args: [CUE_CON_SECCIONES, null, 'Escuela Con Secciones', 'CAPITAL', 'CORRIENTES', null, null, null],
+  })
 
-    // Corte arranca 'historico': el caso "sin corte vigente -> null" no depende
-    // del orden de los tests.
-    await ge.execute({
-      sql: "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (?,?,?,?)",
-      args: [1, 2026, '2026-08-01T00:00:00.000Z', 'historico'],
-    })
+  // Corte arranca 'historico': el caso "sin corte vigente -> null" no depende
+  // del orden de los tests.
+  await client.execute({
+    sql: "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (?,?,?,?)",
+    args: [1, 2026, '2026-08-01T00:00:00.000Z', 'historico'],
+  })
 
-    await ge.execute({
-      sql: "INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)",
-      args: [1, 101, CUE_CON_SECCIONES, '1', 'A', 'primario', 'manana'],
-    })
-    await ge.execute({
-      sql: "INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)",
-      args: [1, 102, CUE_CON_SECCIONES, '2', 'B', 'primario', 'tarde'],
-    })
+  await client.execute({
+    sql: "INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)",
+    args: [1, 101, CUE_CON_SECCIONES, '1', 'A', 'primario', 'manana'],
+  })
+  await client.execute({
+    sql: "INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)",
+    args: [1, 102, CUE_CON_SECCIONES, '2', 'B', 'primario', 'tarde'],
+  })
 
-    // Sección 101: alumnos 1 y 2. Sección 102: alumnos 2 y 3 (2 repetido) ->
-    // matrícula distinta = 3.
-    for (const [seccion, alumno] of [
-      [101, 1],
-      [101, 2],
-      [102, 2],
-      [102, 3],
-    ]) {
-      await ge.execute({
-        sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
-        args: [1, seccion, alumno],
-      })
-    }
-  } finally {
-    ge.close()
+  // Sección 101: alumnos 1 y 2. Sección 102: alumnos 2 y 3 (2 repetido) ->
+  // matrícula distinta = 3.
+  for (const [seccion, alumno] of [
+    [101, 1],
+    [101, 2],
+    [102, 2],
+    [102, 3],
+  ]) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
+      args: [1, seccion, alumno],
+    })
   }
 
   const { ensureSeeded } = await import('@/lib/db/seed')

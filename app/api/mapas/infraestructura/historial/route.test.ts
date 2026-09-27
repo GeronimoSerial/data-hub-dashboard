@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraMovimiento, infraParte, recursoAudienciaNiveles } from '@/lib/db/schema'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
 
 vi.mock('@/lib/session', () => ({
@@ -21,21 +21,17 @@ beforeAll(async () => {
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
 
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE}', NULL, 'Escuela', 'ER', 'Parana')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-62', NULL, 'Escuela sin parte', 'ER', 'Parana')`,
-    )
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE}', NULL, 'Escuela', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-62', NULL, 'Escuela sin parte', 'ER', 'Parana')`,
+  )
 
   const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
   await ensureSeeded()

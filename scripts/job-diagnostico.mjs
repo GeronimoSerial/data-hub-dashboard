@@ -69,8 +69,9 @@ export async function correrDiagnostico({ claveIdempotente } = {}) {
     '../lib/infraestructura/riesgo/job-run.ts'
   )
   const { ensureSeeded } = await import('../lib/db/seed.ts')
-  const { getDb } = await import('../lib/db/index.ts')
+  const { getDb, getRawClient } = await import('../lib/db/index.ts')
   const { getSqlitePath, getDataDir } = await import('../lib/data-dir.ts')
+  const { crearEjecutorSql } = await import('../lib/infraestructura/ge-db.ts')
 
   // Tiene que ser la PRIMERA llamada a getDb() de este proceso: getDb()
   // memoiza la conexión y sólo la llamada que la crea puede fijar el busy
@@ -94,8 +95,7 @@ export async function correrDiagnostico({ claveIdempotente } = {}) {
   try {
     const chequeos = { db: false, dataDir: false }
 
-    const db = getDb()
-    await db.$client.execute('SELECT 1')
+    await crearEjecutorSql(getRawClient()).execute('SELECT 1')
     chequeos.db = true
 
     accessSync(getDataDir(), constants.W_OK)

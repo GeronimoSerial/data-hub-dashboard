@@ -39,9 +39,10 @@ registerHooks({
   },
 })
 
-const { openGeDb, ensureGeSchema, activarCorte } = await import(
+const { ensureGeSchema, activarCorte, crearEjecutorSql } = await import(
   '../lib/infraestructura/ge-db.ts'
 )
+const { getRawClient } = await import('../lib/db/index.ts')
 
 export function parseLocalizacionesJson(jsonText) {
   let data
@@ -124,7 +125,7 @@ export function reconciliarLocalizaciones(indexHtmlResult, geojsonResult) {
   }
 }
 
-const UPSERT_LOCALIZACION_SQL = `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(cue_anexo) DO UPDATE SET cui=excluded.cui, nombre=excluded.nombre, departamento=excluded.departamento, localidad=excluded.localidad, lat=excluded.lat, lon=excluded.lon, geo_calidad=excluded.geo_calidad`
+const UPSERT_LOCALIZACION_SQL = `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(cue_anexo) DO UPDATE SET cui=excluded.cui, nombre=excluded.nombre, departamento=excluded.departamento, localidad=excluded.localidad, lat=excluded.lat, lon=excluded.lon, geo_calidad=excluded.geo_calidad`
 
 export async function upsertLocalizaciones(client, registros) {
   for (const r of registros) {
@@ -164,22 +165,22 @@ export function buildFixtureSecciones(corteId, cuesDisponibles) {
 
 export async function insertFixtureCorte(client, cuesDisponibles) {
   const res = await client.execute({
-    sql: "INSERT INTO ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (2026, ?, 'importando')",
+    sql: "INSERT INTO ge.ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (2026, ?, 'importando') RETURNING id",
     args: [new Date().toISOString()],
   })
-  const corteId = Number(res.lastInsertRowid)
+  const corteId = Number(res.rows[0].id)
 
   const { secciones, membresias } = buildFixtureSecciones(corteId, cuesDisponibles)
 
   for (const s of secciones) {
     await client.execute({
-      sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
       args: [s.corteId, s.geSectionId, s.cueAnexo, s.curso, s.division, s.nivel, s.turno],
     })
   }
   for (const m of membresias) {
     await client.execute({
-      sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
       args: [m.corteId, m.geSectionId, m.gePersonId],
     })
   }
@@ -189,45 +190,41 @@ export async function insertFixtureCorte(client, cuesDisponibles) {
 }
 
 async function runFixture() {
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
 
-    const localizacionesJsonPath = join(root, 'public', 'data', 'localizaciones.json')
-    let localizacionesResult = { registros: [], descartados: [] }
-    if (existsSync(localizacionesJsonPath)) {
-      localizacionesResult = parseLocalizacionesJson(readFileSync(localizacionesJsonPath, 'utf8'))
-    } else {
-      console.warn('localizaciones.json no encontrado, localizaciones del fixture seran minimas')
-    }
-
-    const geojsonPath = join(root, 'public', 'data', 'establishments.geojson')
-    let geojsonResult = { registros: [], descartados: [] }
-    if (existsSync(geojsonPath)) {
-      geojsonResult = parseGeojsonLocalizaciones(readFileSync(geojsonPath, 'utf8'))
-    } else {
-      console.warn('establishments.geojson no encontrado, localizaciones del fixture seran minimas')
-    }
-
-    const { registros, descartados } = reconciliarLocalizaciones(localizacionesResult, geojsonResult)
-    await upsertLocalizaciones(client, registros)
-
-    const cuesDisponibles = registros.map((r) => r.cueAnexo)
-    const corteId = await insertFixtureCorte(client, cuesDisponibles)
-
-    const sinCoordenadas = registros.filter((r) => r.lat == null || r.lon == null).length
-    const sinCui = registros.filter((r) => r.cui == null).length
-
-    console.log(`Localizaciones cargadas: ${registros.length}`)
-    console.log(
-      `Descartados: ${descartados.length}${descartados.length > 0 && descartados.length <= 20 ? ` -> ${descartados.join(', ')}` : ''}`,
-    )
-    console.log(`Sin lat/lon: ${sinCoordenadas}`)
-    console.log(`Sin cui: ${sinCui}`)
-    console.log(`Corte activado: ${corteId}`)
-  } finally {
-    client.close()
+  const localizacionesJsonPath = join(root, 'public', 'data', 'localizaciones.json')
+  let localizacionesResult = { registros: [], descartados: [] }
+  if (existsSync(localizacionesJsonPath)) {
+    localizacionesResult = parseLocalizacionesJson(readFileSync(localizacionesJsonPath, 'utf8'))
+  } else {
+    console.warn('localizaciones.json no encontrado, localizaciones del fixture seran minimas')
   }
+
+  const geojsonPath = join(root, 'public', 'data', 'establishments.geojson')
+  let geojsonResult = { registros: [], descartados: [] }
+  if (existsSync(geojsonPath)) {
+    geojsonResult = parseGeojsonLocalizaciones(readFileSync(geojsonPath, 'utf8'))
+  } else {
+    console.warn('establishments.geojson no encontrado, localizaciones del fixture seran minimas')
+  }
+
+  const { registros, descartados } = reconciliarLocalizaciones(localizacionesResult, geojsonResult)
+  await upsertLocalizaciones(client, registros)
+
+  const cuesDisponibles = registros.map((r) => r.cueAnexo)
+  const corteId = await insertFixtureCorte(client, cuesDisponibles)
+
+  const sinCoordenadas = registros.filter((r) => r.lat == null || r.lon == null).length
+  const sinCui = registros.filter((r) => r.cui == null).length
+
+  console.log(`Localizaciones cargadas: ${registros.length}`)
+  console.log(
+    `Descartados: ${descartados.length}${descartados.length > 0 && descartados.length <= 20 ? ` -> ${descartados.join(', ')}` : ''}`,
+  )
+  console.log(`Sin lat/lon: ${sinCoordenadas}`)
+  console.log(`Sin cui: ${sinCui}`)
+  console.log(`Corte activado: ${corteId}`)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
