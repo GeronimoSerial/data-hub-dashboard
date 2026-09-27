@@ -38,6 +38,16 @@ export function seasonalEnabled(): boolean {
   return esTrue(process.env.SEASONAL_ENABLED)
 }
 
+// Gobierna sólo la UI del modo "Replay" del mapa de infraestructura (batch
+// E7c): el conmutador de modo, el panel de línea de tiempo y las capas del
+// cuadro reproducido. Apagado por defecto. Las APIs de sólo lectura
+// /api/infraestructura/replay y /replay/export (batch E7b) existen siempre,
+// protegidas por ACL staff; este flag sólo oculta el frontend, mismo criterio
+// que hazardContextEnabled/seasonalEnabled.
+export function replayEnabled(): boolean {
+  return esTrue(process.env.REPLAY_ENABLED)
+}
+
 // Modo de operación del motor: 'advisory' solo si el valor es exactamente
 // 'advisory'; cualquier otro valor (incluido undefined o inválido) cae al
 // default seguro 'shadow'. No lanza excepción ante valor inválido.

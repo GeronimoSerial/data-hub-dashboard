@@ -164,6 +164,15 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
   },
 }))
 
+const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[] }))
+const FIXTURE_REPLAY = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
+vi.mock('@/lib/infraestructura/use-replay', () => ({
+  useReplay: (_filtros: unknown, activo: boolean) => {
+    llamadasReplay.activos.push(activo)
+    return activo ? { data: FIXTURE_REPLAY, loading: false, error: null } : { data: null, loading: false, error: null }
+  },
+}))
+
 // Mock del hook de detalle por snapshot (follow-up 4 del Gate de E4): el
 // hook real haría un fetch real que este archivo no necesita ejercitar (ya
 // está cubierto por `use-riesgo-snapshot.test.tsx`); acá sólo se verifica que
@@ -252,6 +261,7 @@ let desmontarMapa: (() => void) | null = null
 async function renderMapa(props: {
   mostrarEnlaceNominal: boolean
   riskRadarEnabled?: boolean
+  replayEnabled?: boolean
 }) {
   const MapInfraestructuraPage = await cargar()
   const { unmount } = render(<MapInfraestructuraPage {...props} />)
@@ -261,6 +271,7 @@ async function renderMapa(props: {
 beforeEach(() => {
   vi.restoreAllMocks()
   llamadasRadar.activos.length = 0
+  llamadasReplay.activos.length = 0
   llamadasSnapshot.snapshotIds.length = 0
   vi.stubGlobal(
     'fetch',
@@ -460,5 +471,25 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(
       screen.getByRole('checkbox', { name: /escuelas con afectación vigente/i }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('MapInfraestructuraPage — modo Replay', () => {
+  it('con el flag apagado no muestra el botón Replay y el hook nunca recibe activo=true', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    expect(screen.queryByRole('button', { name: 'Replay' })).not.toBeInTheDocument()
+    expect(llamadasReplay.activos.every((activo) => activo === false)).toBe(true)
+  })
+
+  it('al volver del modo Replay se restaura el modo Radar previo, no Situación actual', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await userEvent.click(screen.getByTestId('mock-click-peligro'))
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+    expect(llamadasReplay.activos.at(-1)).toBe(true)
+    const botonVolver = screen.getByRole('button', { name: /volver a la situación actual/i })
+    await userEvent.click(botonVolver)
+    expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
   })
 })
