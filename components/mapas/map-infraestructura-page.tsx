@@ -201,6 +201,11 @@ type ModoMapa = 'actual' | 'radar'
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
   riesgo: true,
+  // Apagada por defecto: el acceso es contexto adicional, no el encuadre base.
+  // TODO(E6): consumir este toggle en map-infraestructura-page.tsx (dibujar la
+  // capa de acceso sobre los puntos de riesgo). Hoy sólo existe la definición
+  // del control; el estado ya viaja a <RadarLayerControl>.
+  'riesgo-acceso': false,
 }
 
 // Máscara: tapa todo lo que no es Corrientes. Va primera en el árbol, apenas
@@ -883,6 +888,27 @@ export default function MapInfraestructuraPage(props: {
       })),
     [snapshotDetalle],
   )
+
+  // Dimensión SEPARADA "riesgo de acceso" para el panel de la escuela
+  // seleccionada. El nivel/confianza vienen del item del radar (tarea 1); la
+  // explicación se toma del factor 'acceso' del detalle del snapshot cuando
+  // está disponible. `undefined` (sin escuela seleccionada) = no se renderiza.
+  const riesgoAccesoPanel = useMemo(() => {
+    if (!escuelaRadarSeleccionada) return undefined
+    const factorAcceso = snapshotDetalle?.factores.find((factor) => factor.tipo === 'acceso')
+    return {
+      nivel: (escuelaRadarSeleccionada.nivelRiesgoAcceso ?? null) as
+        | 'bajo'
+        | 'moderado'
+        | 'alto'
+        | null,
+      confianza: (escuelaRadarSeleccionada.confianzaAcceso ?? 'baja') as
+        | 'baja'
+        | 'media'
+        | 'alta',
+      explicacion: factorAcceso?.explicacion ?? 'Sin detalle de acceso disponible.',
+    }
+  }, [escuelaRadarSeleccionada, snapshotDetalle])
 
   // Niveles por horizonte del departamento elegido en el radar, para el panel
   // de explicación. La API entrega el peor nivel por (departamento, horizonte),
@@ -1567,6 +1593,7 @@ export default function MapInfraestructuraPage(props: {
                   }
                   scoreAmenaza={escuelaRadarSeleccionada.scoreAmenaza}
                   scoreVulnerabilidad={escuelaRadarSeleccionada.scoreVulnerabilidad}
+                  riesgoAcceso={riesgoAccesoPanel}
                   factores={factoresPanel}
                   factoresCargando={snapshotLoading}
                   factoresError={snapshotError}

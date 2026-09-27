@@ -109,14 +109,18 @@ export function InfraLayerControl({
 // y 'riesgo' haría que ambos controles tuvieran que ignorarse mutuamente las
 // claves que no les corresponden. Los dos controles conviven en el mismo
 // `controlsStack` y el radar sólo se monta si el flag está prendido.
-export type CapaRadar = 'peligro' | 'riesgo'
+export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 
 export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = {
   peligro: 'Peligro meteorológico estimado (por departamento)',
   riesgo: 'Riesgo pronosticado por escuela',
+  // Dimensión SEPARADA del riesgo compuesto: el acceso no es una severidad ni
+  // un estado del edificio, por eso es una capa propia y no una codificación
+  // de color de una capa existente.
+  'riesgo-acceso': 'Riesgo de acceso',
 }
 
-const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo']
+const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo', 'riesgo-acceso']
 
 export function RadarLayerControl({
   capas,

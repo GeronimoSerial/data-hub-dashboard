@@ -122,6 +122,15 @@ export type RiskExplanationPanelProps =
       factores?: FactorRiesgoPanel[]
       factoresCargando?: boolean
       factoresError?: string | null
+      // Dimensión SEPARADA "riesgo de acceso": espejo del resultado del motor
+      // (motor/riesgo-acceso.ts), sin importar sus tipos. NUNCA es parte del
+      // estado del edificio. `undefined` = el caller no la pasa y no se
+      // renderiza; `null` o un objeto = sí se renderiza la sección "Acceso".
+      riesgoAcceso?: {
+        nivel: 'bajo' | 'moderado' | 'alto' | null
+        confianza: ConfianzaNivel
+        explicacion: string
+      } | null
     })
 
 // Etiquetas replicadas de `lib/mapas/peligro-capas.ts` (ver nota de cabecera).
@@ -184,6 +193,14 @@ function etiquetaNivelRiesgo(nivelRiesgo: string): string {
   if (nivelRiesgo === 'alto') return 'Alto'
   if (nivelRiesgo === 'muy_alto') return 'Muy alto'
   return nivelRiesgo
+}
+
+// Etiqueta de la dimensión "Acceso". `null` es "sin datos", NUNCA "bajo".
+function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
+  if (nivel === null) return 'Sin datos de acceso'
+  if (nivel === 'bajo') return 'Bajo'
+  if (nivel === 'moderado') return 'Moderado'
+  return 'Alto'
 }
 
 function formatearNumero(valor: number): string {
@@ -336,6 +353,7 @@ function PanelEscuela(
     factores,
     factoresCargando,
     factoresError,
+    riesgoAcceso,
   } = props
 
   return (
@@ -357,6 +375,35 @@ function PanelEscuela(
       <p className="risk-explanation-panel__dato" data-testid="risk-explanation-vulnerabilidad">
         Vulnerabilidad: {scoreVulnerabilidad === null ? 'sin dato' : formatearNumero(scoreVulnerabilidad)}
       </p>
+
+      {riesgoAcceso !== undefined && (
+        <section
+          className="risk-explanation-panel__acceso"
+          data-testid="risk-explanation-acceso"
+          aria-label="Riesgo de acceso"
+        >
+          <p className="risk-explanation-panel__subtitulo">
+            <strong>Acceso</strong>
+          </p>
+          <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-nivel">
+            Riesgo de acceso: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
+          </p>
+          {riesgoAcceso === null || riesgoAcceso.nivel === null ? (
+            <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-sin-dato">
+              Sin datos de acceso
+            </p>
+          ) : (
+            <>
+              <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-confianza">
+                Confianza: {ETIQUETA_CONFIANZA[riesgoAcceso.confianza]}
+              </p>
+              <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-explicacion">
+                {riesgoAcceso.explicacion}
+              </p>
+            </>
+          )}
+        </section>
+      )}
 
       {factoresCargando ? (
         <p role="status" data-testid="risk-explanation-factores-cargando">

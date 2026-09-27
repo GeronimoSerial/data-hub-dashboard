@@ -322,6 +322,70 @@ describe('RiskExplanationPanel — variante escuela', () => {
     )
     expect(screen.getByTestId('risk-explanation-nivel-riesgo')).toHaveTextContent('Sin dato')
   })
+
+  it('sin la prop riesgoAcceso no renderiza la sección "Acceso"', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="alta"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+      />,
+    )
+    expect(screen.queryByTestId('risk-explanation-acceso')).toBeNull()
+  })
+
+  it('con riesgoAcceso definido muestra una sección "Acceso" propia con nivel en texto y explicación', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="alta"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        riesgoAcceso={{
+          nivel: 'alto',
+          confianza: 'media',
+          explicacion: 'aislamiento OSM 3/3, sin alternativa sin cruce',
+        }}
+      />,
+    )
+
+    const acceso = screen.getByTestId('risk-explanation-acceso')
+    expect(acceso).toHaveTextContent('Acceso')
+    expect(screen.getByTestId('risk-explanation-acceso-nivel')).toHaveTextContent(
+      'Riesgo de acceso: Alto',
+    )
+    expect(screen.getByTestId('risk-explanation-acceso-explicacion')).toHaveTextContent(
+      'aislamiento OSM 3/3',
+    )
+    expect(screen.getByTestId('risk-explanation-acceso-confianza')).toHaveTextContent(
+      'Confianza: Media',
+    )
+  })
+
+  it('un riesgoAcceso con nivel null muestra "Sin datos de acceso", nunca "Bajo"', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="alta"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={0.2}
+        riesgoAcceso={{ nivel: null, confianza: 'baja', explicacion: 'sin índice OSM' }}
+      />,
+    )
+
+    const acceso = screen.getByTestId('risk-explanation-acceso')
+    expect(screen.getByTestId('risk-explanation-acceso-nivel')).toHaveTextContent(
+      'Sin datos de acceso',
+    )
+    expect(acceso).not.toHaveTextContent('Bajo')
+  })
 })
 
 describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)', () => {
