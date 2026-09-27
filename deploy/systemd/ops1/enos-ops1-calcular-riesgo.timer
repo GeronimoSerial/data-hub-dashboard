@@ -1,0 +1,23 @@
+[Unit]
+Description=Timer OPS1 ENOS: calcular-riesgo (cada 6h, offset +15min sobre los sync)
+
+[Timer]
+# Encadenado por offset (no por cola/orquestador: no hay Redis ni colas en
+# este repo, fuera de alcance) sobre sync-pronostico-caudal y sync-ensemble,
+# que corren en :00. El lease de job-run.ts impide que dos corridas se pisen
+# aunque el offset no alcance a que termine el sync.
+#
+# CAVEAT DE SECUENCIA (ver runbook): calcular-riesgo también debería reflejar
+# los datos de sync-imerg (cadencia horaria, no de 6h) y de
+# episodios-derivados. No hay un mecanismo de encadenamiento entre timers
+# independientes más allá de este offset fijo: es posible que
+# calcular-riesgo corra con datos de sync-imerg de hasta ~1h de antigüedad.
+# Ver "Decisión abierta" en el runbook antes de asumir que esto es
+# encadenamiento estricto.
+OnCalendar=*-*-* 08,14,20,02:15:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@calcular-riesgo.service
+
+[Install]
+WantedBy=timers.target
