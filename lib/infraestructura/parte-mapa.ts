@@ -463,3 +463,155 @@ export async function listarPartesVigentes(
 
   return { partes, indicadores }
 }
+
+// Proyección del PADRÓN COMPLETO de escuelas para el mapa. A diferencia de
+// listarPartesVigentes (que sólo conoce las escuelas con al menos una
+// afectación vigente), esta parte de TODO ge_localizacion, autosembrado e
+// independiente de si existe período/corte, para poder mostrar también las
+// escuelas que no reportaron nada. Las escuelas sin coordenadas nunca se
+// descartan en silencio: se separan en `sinUbicacion`.
+export interface EscuelaMapa {
+  cueAnexo: string
+  nombre: string
+  departamento: string
+  localidad: string
+  lat: number | null
+  lon: number | null
+  estado: 'afectada' | 'sin_afectacion_reportada'
+  // Presente sólo si estado === 'afectada'; mismo shape que ParteMapa.
+  parte?: ParteMapa
+}
+
+export interface EscuelasMapaResultado {
+  escuelas: EscuelaMapa[]
+  sinUbicacion: Array<{
+    cueAnexo: string
+    nombre: string
+    departamento: string
+    localidad: string
+  }>
+  totalPadron: number
+}
+
+interface EscuelaPadronRow {
+  cueAnexo: string
+  nombre: string
+  departamento: string
+  localidad: string
+  lat: number | null
+  lon: number | null
+}
+
+// Filtros de ESTABLECIMIENTO (territorio, cueAnexo, nivel) aplicados al
+// padrón completo, contra ge.ge_localizacion. Territorio reusa el MISMO
+// criterio SQL que filtrosParteSql (plegado explícito de acentos +
+// normalizarNombreDepartamento, comparación contra departamento O
+// localidad); cueAnexo y nivel se aplican igual que en cargarPartes, sólo
+// que nivel se resuelve vía EXISTS contra las secciones del corte vigente.
+async function cargarPadronEscuelas(
+  client: Client,
+  filtros: FiltrosMapa,
+  corteId: number | null,
+): Promise<EscuelaPadronRow[]> {
+  const clausulas: string[] = []
+  const args: (string | number)[] = []
+
+  if (activo(filtros.territorio)) {
+    // Mismo plegado de acentos que filtrosParteSql: SQLite NOCASE sólo
+    // resuelve ASCII, así que "Concepción" y "CONCEPCION" no colapsan solos.
+    const acentos = [
+      ['Á', 'A'], ['É', 'E'], ['Í', 'I'], ['Ó', 'O'], ['Ú', 'U'], ['Ü', 'U'], ['Ñ', 'N'],
+      ['á', 'A'], ['é', 'E'], ['í', 'I'], ['ó', 'O'], ['ú', 'U'], ['ü', 'U'], ['ñ', 'N'],
+    ]
+    const departamentoNormalizado = acentos.reduce(
+      (sql, [acento, base]) => `REPLACE(${sql}, '${acento}', '${base}')`,
+      'UPPER(l.departamento)',
+    )
+    clausulas.push(`(${departamentoNormalizado} = ? OR l.localidad = ?)`)
+    args.push(normalizarNombreDepartamento(filtros.territorio!), filtros.territorio!)
+  }
+  if (activo(filtros.cueAnexo)) {
+    clausulas.push('l.cue_anexo = ?')
+    args.push(filtros.cueAnexo!)
+  }
+  if (activo(filtros.nivel)) {
+    // El nivel es un atributo de las secciones del corte vigente, no del
+    // padrón: sin corte no hay contra qué resolverlo, así que el filtro no
+    // matchea ninguna escuela.
+    if (corteId === null) return []
+    clausulas.push(
+      `EXISTS (
+        SELECT 1 FROM ge.ge_seccion s
+        WHERE s.corte_id = ? AND s.cue_anexo = l.cue_anexo AND s.nivel = ?
+      )`,
+    )
+    args.push(corteId, filtros.nivel!)
+  }
+
+  const where = clausulas.length > 0 ? `WHERE ${clausulas.join('\n  AND ')}` : ''
+  const res = await client.execute({
+    sql: `SELECT l.cue_anexo, l.cui, l.nombre, l.departamento, l.localidad, l.lat, l.lon
+          FROM ge.ge_localizacion l
+          ${where}`,
+    args,
+  })
+
+  return res.rows.map((r) => ({
+    cueAnexo: stringValor(r.cue_anexo),
+    nombre: stringValor(r.nombre),
+    departamento: stringValor(r.departamento),
+    localidad: stringValor(r.localidad),
+    lat: coordenada(r.lat),
+    lon: coordenada(r.lon),
+  }))
+}
+
+export async function listarEscuelasMapa(
+  filtros: FiltrosMapa = {},
+): Promise<EscuelasMapaResultado> {
+  const client = getDb().$client
+  await asegurarGeAdjuntada(client)
+
+  // El padrón NO depende de período/corte: la consulta base va sin esos
+  // filtros. El nivel sí depende del corte vigente (vive en ge_seccion), así
+  // que sólo se pide el corte cuando el filtro lo necesita.
+  const corte = activo(filtros.nivel) ? await getCorteVigente(client) : null
+  const padron = await cargarPadronEscuelas(client, filtros, corte?.id ?? null)
+
+  // listarPartesVigentes ya resuelve período/corte, vigencia, dedupe y TODOS
+  // los filtros de afectación (motivo/severidad/categoría/servicio); se usa
+  // su salida como mapa por CUE para no duplicar esa lógica. Si no hay
+  // período/corte vigente devuelve [], y entonces TODO el padrón queda
+  // 'sin_afectacion_reportada' (nunca lista vacía por falta de corte).
+  const { partes } = await listarPartesVigentes(filtros)
+  const partePorCue = new Map(partes.map((parte) => [parte.cueAnexo, parte]))
+
+  const escuelas: EscuelaMapa[] = []
+  const sinUbicacion: EscuelasMapaResultado['sinUbicacion'] = []
+
+  for (const fila of padron) {
+    if (fila.lat === null || fila.lon === null) {
+      sinUbicacion.push({
+        cueAnexo: fila.cueAnexo,
+        nombre: fila.nombre,
+        departamento: fila.departamento,
+        localidad: fila.localidad,
+      })
+      continue
+    }
+
+    const parte = partePorCue.get(fila.cueAnexo)
+    escuelas.push({
+      cueAnexo: fila.cueAnexo,
+      nombre: fila.nombre,
+      departamento: fila.departamento,
+      localidad: fila.localidad,
+      lat: fila.lat,
+      lon: fila.lon,
+      estado: parte ? 'afectada' : 'sin_afectacion_reportada',
+      ...(parte ? { parte } : {}),
+    })
+  }
+
+  return { escuelas, sinUbicacion, totalPadron: escuelas.length + sinUbicacion.length }
+}

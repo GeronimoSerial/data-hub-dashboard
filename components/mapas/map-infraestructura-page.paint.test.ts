@@ -4,6 +4,7 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { RADIO_DOT_BASE, rangoSeveridad } from '@/lib/mapas/severidad-visual'
+import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import {
   circlePaintPartes,
   circlePaintSinReportar,
@@ -42,19 +43,24 @@ const baseFixture: ParteMapa = {
 }
 
 describe('colorPorSeveridadRango', () => {
-  it('es una expresión `case` con pares condición/color y el color de Baja como default', () => {
+  it('es una expresión `case` con la guarda de sin afectación, los pares condición/color y el color de Baja como default', () => {
     const expresion = colorPorSeveridadRango() as unknown[]
     expect(expresion[0]).toBe('case')
-    // 'case' + (n-1) pares [condición, color] + 1 default: para n severidades
-    // la longitud es 2n (par), no impar.
-    expect(expresion.length).toBe(2 * SEVERIDADES.length)
+    // 'case' + 1 par [condición, color] para "sin afectación" + (n-1) pares
+    // [condición, color] de severidad + 1 default. Para n severidades la
+    // longitud es 2 + 2n (par, no impar).
+    expect(expresion.length).toBe(2 + 2 * SEVERIDADES.length)
+    expect(expresion[1]).toEqual(['==', ['get', 'escuelasAfectadas'], 0])
+    expect(expresion[2]).toBe(COLOR_SIN_AFECTACION)
     expect(expresion[expresion.length - 1]).toBe(colorSeveridad('Baja'))
   })
 
   it('la severidad más alta presente gana: pares condición/color en el orden real de SEVERIDADES', () => {
     const expresion = colorPorSeveridadRango() as unknown[]
     for (let i = 1; i < SEVERIDADES.length; i++) {
-      const indiceCondicion = 1 + (i - 1) * 2
+      // Los pares de severidad arrancan en el índice 3 (después de la guarda
+      // de "sin afectación", que ocupa los índices 1 y 2).
+      const indiceCondicion = 3 + (i - 1) * 2
       expect(expresion[indiceCondicion]).toEqual([
         '>=',
         ['get', 'severidadRango'],
@@ -64,6 +70,49 @@ describe('colorPorSeveridadRango', () => {
         colorSeveridad(SEVERIDADES[SEVERIDADES.length - i]),
       )
     }
+  })
+
+  function evaluarColorCluster(
+    expresion: unknown[],
+    props: { escuelasAfectadas: number; severidadRango: number },
+  ): string {
+    // ['case', cond1, out1, cond2, out2, ..., default]
+    for (let i = 1; i < expresion.length - 1; i += 2) {
+      const [op, ...args] = expresion[i] as [string, ...unknown[]]
+      let cumple = false
+      if (op === '==') {
+        const valor = props[(args[0] as unknown[])[1] as keyof typeof props]
+        cumple = valor === args[1]
+      } else if (op === '>=') {
+        const valor = props[(args[0] as unknown[])[1] as keyof typeof props]
+        cumple = (valor as number) >= (args[1] as number)
+      }
+      if (cumple) return expresion[i + 1] as string
+    }
+    return expresion[expresion.length - 1] as string
+  }
+
+  it('con 0 escuelas afectadas en el cluster el color es el gris neutro, sin importar severidadRango', () => {
+    const expresion = colorPorSeveridadRango() as unknown[]
+    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, severidadRango: 0 })).toBe(
+      COLOR_SIN_AFECTACION,
+    )
+  })
+
+  it('con al menos una escuela afectada el color es el de su severidad', () => {
+    const expresion = colorPorSeveridadRango() as unknown[]
+    expect(
+      evaluarColorCluster(expresion, {
+        escuelasAfectadas: 1,
+        severidadRango: rangoSeveridad('Alta'),
+      }),
+    ).toBe(colorSeveridad('Alta'))
+    expect(
+      evaluarColorCluster(expresion, {
+        escuelasAfectadas: 1,
+        severidadRango: rangoSeveridad('Baja'),
+      }),
+    ).toBe(colorSeveridad('Baja'))
   })
 })
 

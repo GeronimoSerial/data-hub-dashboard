@@ -7,6 +7,7 @@ import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { PeligroLegend } from '@/components/mapas/peligro-legend'
 
 type Props = {
@@ -144,6 +145,11 @@ export function InfraLegendPanel({
           {severidad}
         </div>
       ))}
+
+      <div className={styles.legendItem}>
+        <span className={styles.swatch} style={{ background: COLOR_SIN_AFECTACION }} />
+        Sin afectación reportada
+      </div>
 
       <br />
       {/*
