@@ -13,7 +13,7 @@ export type Confianza = z.infer<typeof confianzaSchema>
 // un mismo `tipo` reproduce el sub-score de esa dimensión (aceptación
 // "factores reconstruyen el score").
 export const factorRiesgoSchema = z.object({
-  tipo: z.enum(['amenaza', 'vulnerabilidad', 'exposicion', 'urgencia']),
+  tipo: z.enum(['amenaza', 'vulnerabilidad', 'acceso', 'exposicion', 'urgencia']),
   fuente: z.string(),
   variable: z.string(),
   valor: z.number().nullable(),
@@ -24,6 +24,17 @@ export const factorRiesgoSchema = z.object({
   observadoEn: z.string().nullable(),
 })
 export type FactorRiesgo = z.infer<typeof factorRiesgoSchema>
+
+// Dimensión aparte "riesgo de acceso": combina aislamiento OSM, peligro del
+// horizonte y accesos interrumpidos confirmados. NUNCA se mezcla en el IRO
+// compuesto (scoreRiesgo/scoreVulnerabilidad); se calcula y persiste como el
+// resto de dimensiones separadas. Ver motor/riesgo-acceso.ts.
+export interface RiesgoAcceso {
+  score: number | null
+  nivel: 'bajo' | 'moderado' | 'alto' | null
+  confianza: Confianza
+  explicacion: string
+}
 
 // Resultado de evaluar una escuela para un horizonte. `evidenciaValida` en
 // false significa que no hay evidencia de amenaza para este horizonte (ni
@@ -45,6 +56,11 @@ export interface ResultadoRiesgoEscuela {
   // se persisten como factores tipo 'exposicion'/'urgencia' informativos.
   exposicion: { matricula: number | null; secciones: number | null }
   urgenciaVerificacion: { horasDesdeUltimaVerificacion: number | null }
+  // Riesgo de acceso: dimensión aparte, nunca mezclada en el IRO compuesto.
+  // A diferencia de exposicion/urgencia, SÍ tiene nivel propio ('bajo' |
+  // 'moderado' | 'alto' | null) y confianza propia. Se persiste además como
+  // factor informativo tipo 'acceso'.
+  riesgoAcceso: RiesgoAcceso
   modeloVersion: string
   calculadoEn: string
   validoHasta: string

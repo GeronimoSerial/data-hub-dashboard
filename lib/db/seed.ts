@@ -389,6 +389,9 @@ CREATE TABLE IF NOT EXISTS \`infra_risk_snapshot\` (
   \`score_amenaza\` real,
   \`score_vulnerabilidad\` real,
   \`confianza\` text NOT NULL,
+  \`score_riesgo_acceso\` real,
+  \`nivel_riesgo_acceso\` text,
+  \`confianza_acceso\` text,
   \`exposicion_matricula\` integer,
   \`exposicion_secciones\` integer,
   \`calculado_en\` text NOT NULL,
@@ -643,6 +646,29 @@ export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   )
 }
 
+// Dimensión "riesgo de acceso": el batch E6 agregó tres columnas a
+// infra_risk_snapshot (score/nivel/confianza de acceso). HUB_DDL ya las crea
+// para una base nueva, pero una base de desarrollo ya poblada no las tiene:
+// `ALTER TABLE ADD COLUMN` no es idempotente, así que se comprueba con
+// `PRAGMA table_info` antes de alterar (mismo patrón que
+// ensureMovimientoIdempotencyKeyColumn). Las tres son nullable — un snapshot
+// sin riesgo de acceso (p. ej. sin IndiceAislamiento) es un valor válido — así
+// que el ALTER sí puede correr sobre una tabla con filas.
+export async function ensureRiesgoAccesoColumns(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_risk_snapshot')")
+  const columnas = new Set(info.rows.map((r) => String(r.name)))
+  if (!columnas.has('score_riesgo_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN score_riesgo_acceso real')
+  }
+  if (!columnas.has('nivel_riesgo_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN nivel_riesgo_acceso text')
+  }
+  if (!columnas.has('confianza_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN confianza_acceso text')
+  }
+}
+
 // El batch E1 introdujo `infra_movimiento.episodio_id` (enlazaba el
 // movimiento con el episodio que lo originó); el producto rechazó el
 // concepto de episodio administrado a mano (ver ensureVerificacionPeriodoId
@@ -823,6 +849,7 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_seccion`')
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
+  await ensureRiesgoAccesoColumns()
   await ensureAccesoNominalLogAfectacionIdColumn()
   // Debe correr ANTES del DROP de infra_episodio: el backfill de periodo_id
   // lee esa tabla para las verificaciones existentes.
