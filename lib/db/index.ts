@@ -1,6 +1,7 @@
 import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { getSqlitePath } from '@/lib/data-dir'
+import { resolveDriver } from './driver'
 import * as schema from './schema'
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null
@@ -16,6 +17,11 @@ export interface OpcionesGetDb {
 }
 
 export function getDb(opciones?: OpcionesGetDb) {
+  if (resolveDriver() === 'postgres') {
+    throw new Error(
+      'Driver postgres seleccionado por DATABASE_URL pero aún no implementado (ver docs/ejecucion-enos/DB1/plan.md, fase F2)',
+    )
+  }
   if (_db) return _db
   const url = `file:${getSqlitePath()}`
   // Deliberadamente SIN `timeout` (busy timeout) por default: ese
