@@ -12,6 +12,7 @@ import {
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
+  infraSituacionCorte,
   infraVerificacion,
   infraVerificacionEvento,
   niveles,
@@ -884,5 +885,52 @@ PRAGMA foreign_keys = ON;
       else process.env.DATA_DIR = prevDataDirLocal
       rmSync(e1Dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('ensureBriefingAuditoriaFallbackColumn', () => {
+  it('agrega auditoria_fallback a una infra_briefing creada sin esa columna y preserva las filas existentes', async () => {
+    const db = getDb()
+    const { ensureBriefingAuditoriaFallbackColumn } = await import('./seed')
+
+    // Simula una base creada con el DDL viejo (sin auditoria_fallback):
+    // primero se vuelve atrás para partir del estado pre-migración.
+    await db.$client.execute('ALTER TABLE infra_briefing DROP COLUMN auditoria_fallback')
+    await db.insert(infraSituacionCorte).values({
+      id: 'corte-migracion-auditoria',
+      generadoEn: '2026-01-01T00:00:00.000Z',
+      riskRunId: null,
+      cobertura: null,
+      conteosPorNivelRiesgo: {},
+      kpis: {
+        escuelasAfectacionConfirmadaVigente: 0,
+        escuelasRiesgoAlto24h: 0,
+        fuentesVencidas: 0,
+      },
+      fuentesSalud: [],
+      episodiosAbiertos: 0,
+      episodiosCerradosDesdeAnterior: 0,
+      generadoPorJobRunId: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.$client.execute({
+      sql: `INSERT INTO infra_briefing (id, corte_id, modelo, version_prompt, texto_final, fuente, creada_en)
+            VALUES ('briefing-migracion-1', 'corte-migracion-auditoria', 'modelo-x', 'v1', 'texto', 'plantilla', '2026-01-01T00:00:00Z')`,
+    })
+
+    await ensureBriefingAuditoriaFallbackColumn()
+    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
+    await ensureBriefingAuditoriaFallbackColumn()
+
+    const info = await db.$client.execute("PRAGMA table_info('infra_briefing')")
+    const columnas = info.rows.map((r) => String(r.name))
+    expect(columnas).toContain('auditoria_fallback')
+
+    const fila = await db.$client.execute({
+      sql: 'SELECT texto_final, auditoria_fallback FROM infra_briefing WHERE id = ?',
+      args: ['briefing-migracion-1'],
+    })
+    expect(fila.rows[0]?.texto_final).toBe('texto')
+    expect(fila.rows[0]?.auditoria_fallback).toBeNull()
   })
 })

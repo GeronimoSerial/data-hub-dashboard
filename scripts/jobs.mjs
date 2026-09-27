@@ -62,6 +62,7 @@ const NOMBRES_VALIDOS = [
   'episodios-derivados',
   'sync-seasonal',
   'situacion-corte',
+  'briefing-ia',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -285,7 +286,33 @@ async function correrEpisodiosDerivados() {
   return correrJobEpisodiosDerivados()
 }
 
+// briefing-ia gestiona su propio lease internamente (igual que
+// episodios-derivados): jobs.mjs sólo lo invoca.
+async function correrBriefingIA() {
+  if (!(await jobsActivos())) return flagDeshabilitado('briefing-ia')
+  const { correrJobBriefingIA } = await import('../lib/infraestructura/briefing-ia/job.ts')
+  return correrJobBriefingIA()
+}
+
 export async function correrJob(nombre, opts) {
+  if (!NOMBRES_VALIDOS.includes(nombre)) {
+    throw new JobDesconocidoError(nombre)
+  }
+
+  if (!(await jobsActivos())) {
+    return flagDeshabilitado(nombre)
+  }
+
+  // El job programado corre en su PROPIO proceso Node (systemd timer ->
+  // scripts/jobs.mjs -> job.ts), así que NO comparte el `seedPromise`
+  // memoizado del proceso web: la migración de esquema nunca corrió en este
+  // proceso y hay que dispararla acá, una sola vez, antes de tocar la DB.
+  // Sin esto, una base legacy sin la columna `auditoria_fallback` de
+  // infra_briefing hace fallar al job al persistir (ver
+  // docs/ejecucion-enos/E8/revision-3.md, Tarea 3c).
+  const { ensureSeeded } = await import('../lib/db/seed.ts')
+  await ensureSeeded()
+
   switch (nombre) {
     case 'geo-perfiles':
       return correrGeoPerfiles(opts)
@@ -307,6 +334,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncSeasonal()
     case 'situacion-corte':
       return correrSituacionCorte(opts)
+    case 'briefing-ia':
+      return correrBriefingIA()
     default:
       throw new JobDesconocidoError(nombre)
   }

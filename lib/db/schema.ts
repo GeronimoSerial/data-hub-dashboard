@@ -1025,6 +1025,51 @@ export const infraSituacionCorte = sqliteTable(
   ],
 )
 
+// E8: briefing narrativo asistido por IA (batch E8, ver plan-ejecucion §6-E8).
+// `corteId` referencia infra_situacion_corte de E5 (ya mergeada). Un briefing
+// por corte (`infra_briefing_corte_uidx` da la idempotencia) y
+// `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del mes vigente.
+export const infraBriefing = sqliteTable(
+  'infra_briefing',
+  {
+    id: text('id').primaryKey(),
+    corteId: text('corte_id').notNull().references(() => infraSituacionCorte.id),
+    modelo: text('modelo').notNull(),
+    versionPrompt: text('version_prompt').notNull(),
+    parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>(),
+    salidaIa: text('salida_ia', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    textoFinal: text('texto_final').notNull(),
+    // 'ia' | 'plantilla'.
+    fuente: text('fuente').notNull(),
+    // 'json_invalido' | 'cifra_no_trazable' | 'timeout' | 'http_error' |
+    // 'presupuesto_agotado' | 'sin_api_key' | null (si fue directo a IA).
+    motivoFallback: text('motivo_fallback'),
+    tokensEntrada: integer('tokens_entrada'),
+    tokensSalida: integer('tokens_salida'),
+    costoUsd: real('costo_usd'),
+    latenciaMs: integer('latencia_ms'),
+    validacion: text('validacion', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    auditoriaFallback: text('auditoria_fallback', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_briefing_corte_uidx').on(t.corteId),
+    index('infra_briefing_creada_en_idx').on(t.creadaEn),
+  ],
+)
+
+// Reserva atómica del presupuesto mensual de E8: el costo de una corrida no
+// se conoce hasta después de llamar al modelo, así que se reserva una
+// estimación conservadora ANTES de llamar (UPDATE/INSERT condicionado, nunca
+// select-then-compare) y se ajusta con el costo real al terminar. Evita que
+// dos corridas casi simultáneas lean el mismo acumulado y juntas superen el
+// techo (mismo defecto de clase que infraJobRun, ver job-run.ts).
+export const infraBriefingPresupuestoMes = sqliteTable('infra_briefing_presupuesto_mes', {
+  mes: text('mes').primaryKey(), // inicio de mes UTC en ISO, ej '2026-09-01T00:00:00.000Z'
+  acumuladoUsd: real('acumulado_usd').notNull(),
+  actualizadaEn: text('actualizada_en').notNull(),
+})
+
 // ============================================================
 // G1: capas territoriales estáticas
 // ============================================================
