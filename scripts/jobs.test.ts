@@ -9,10 +9,16 @@ const mocks = vi.hoisted(() => ({
   ejecutarCalculoClimatologiaCaudal: vi.fn(),
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
+  correrJobBriefingIA: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
   publicarResultado: vi.fn(),
+  ensureSeeded: vi.fn(),
+}))
+
+vi.mock('../lib/db/seed.ts', () => ({
+  ensureSeeded: mocks.ensureSeeded,
 }))
 
 vi.mock('../lib/infraestructura/riesgo/geo-perfil.ts', () => ({
@@ -42,6 +48,9 @@ vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
 }))
+vi.mock('../lib/infraestructura/briefing-ia/job.ts', () => ({
+  correrJobBriefingIA: mocks.correrJobBriefingIA,
+}))
 vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
   enosJobsEnabled: mocks.enosJobsEnabled,
 }))
@@ -61,6 +70,7 @@ describe('correrJob — despacho por nombre', () => {
     const { correrJob, JobDesconocidoError } = await import('./jobs.mjs')
 
     await expect(correrJob('nombre-invalido')).rejects.toThrow(/desconocido/)
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
 
     let codigo = 0
     try {
@@ -156,6 +166,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
     expect(mocks[mockKey]).not.toHaveBeenCalled()
     expect(mocks.adquirirLease).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
   })
 
   it('imprime un WARN a stderr con el nombre del job cuando lo salta el flag', async () => {
@@ -180,6 +191,46 @@ describe('geo-perfiles — lease externo', () => {
     expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
     expect(mocks.calcularGeoPerfiles).not.toHaveBeenCalled()
     expect(codigoSalida('geo-perfiles', resultado)).toBe(0)
+  })
+})
+
+describe('briefing-ia — lease interno (jobs.mjs sólo lo invoca)', () => {
+  it('con el flag activo importa y devuelve lo que devuelve correrJobBriefingIA', async () => {
+    const esperado = {
+      ejecutado: true,
+      corteId: 'corte-1',
+      fuente: 'ia',
+      motivoFallback: null,
+    }
+    mocks.correrJobBriefingIA.mockResolvedValue(esperado)
+    const { correrJob } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('briefing-ia')
+
+    expect(mocks.correrJobBriefingIA).toHaveBeenCalledTimes(1)
+    expect(resultado).toEqual(esperado)
+  })
+
+  it('con enosJobsEnabled=false no importa ni llama al job real', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('briefing-ia')
+
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks.correrJobBriefingIA).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensureSeeded — migración antes de despachar', () => {
+  it('corre ensureSeeded una sola vez antes de despachar el job (proceso propio sin la migración web)', async () => {
+    mocks.ejecutarSyncImerg.mockResolvedValue({ ok: true, resultado: {} })
+    const { correrJob } = await import('./jobs.mjs')
+
+    await correrJob('sync-imerg')
+
+    expect(mocks.ensureSeeded).toHaveBeenCalledTimes(1)
   })
 })
 

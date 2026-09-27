@@ -13,6 +13,7 @@ export type NombreJob =
   | 'episodios-derivados'
   | 'sync-seasonal'
   | 'situacion-corte'
+  | 'briefing-ia'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -30,6 +31,9 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
   // Corte del Centro de Situación: cadencia horaria, también encadenado tras
   // calcular-riesgo (la cadencia base declarada es 1h).
   'situacion-corte': { minutos: 60, descripcion: 'Genera el corte del Centro de Situación (cada hora, y encadenado tras calcular-riesgo)' },
+  // Briefing narrativo asistido por IA a partir del corte ya persistido; corre
+  // 10min después de situacion-corte para asegurar que el corte esté listo.
+  'briefing-ia': { minutos: 60, descripcion: 'Genera el briefing narrativo asistido por IA a partir del corte del Centro de Situación (cada hora)' },
   // Proceso pesado de agregación: alcanza con una corrida diaria.
   'geo-perfiles': { minutos: 1440, descripcion: 'Reconstruye los perfiles geográficos (diario)' },
   // Open-Meteo Seasonal (EC46+SEAS5): capa opcional de tendencia a 30-90 días
@@ -63,6 +67,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'episodios-derivados-v0': 'episodios-derivados',
   'sync-hazard-seasonal': 'sync-seasonal',
   'situacion-corte-v1': 'situacion-corte',
+  'briefing-ia-v0': 'briefing-ia',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
