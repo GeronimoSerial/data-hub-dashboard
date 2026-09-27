@@ -1,0 +1,309 @@
+// Job de cálculo y publicación atómica del motor de riesgo v0 (E3b). Integra
+// piezas ya existentes: el núcleo puro (motor/calculo.ts), los adapters reales
+// (territorio/historial/exposición) y los stubs explícitos de "no disponible"
+// (peligro/lluvia/aislamiento/susceptibilidad), y persiste snapshots/factores
+// en las tablas de dominio infra_risk_*.
+//
+// Idempotencia y atomicidad:
+// 1. `infra_job_run` (job-run.ts): la claveIdempotente es el bloque de 6h UTC,
+//    así dos invocaciones dentro de la misma ventana compiten por el MISMO job
+//    run y sólo una calcula. Repetir devuelve 'ya_completado'.
+// 2. Publicación atómica por run: los snapshots/factores se escriben desde el
+//    principio pero ETIQUETADOS a un run en estado 'preparando', invisible para
+//    cualquier lector que filtre por 'vigente'. Una transacción corta final es
+//    la ÚNICA que decide qué run es el vigente.
+// Una escuela/horizonte que falla no debería tumbar el job; el manejo de
+// errores global re-publica el infra_job_run como 'fallido' antes de re-lanzar.
+import { randomUUID } from 'node:crypto'
+import { eq } from 'drizzle-orm'
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import { getDb } from '@/lib/db'
+import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
+import { crearAdapterAislamientoNoDisponible } from '../motor/adaptadores/aislamiento'
+import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
+import { crearAdapterHistorial } from '../motor/adaptadores/historial'
+import { crearAdapterLluviaNoDisponible } from '../motor/adaptadores/lluvia'
+import { crearAdapterPeligroNoDisponible } from '../motor/adaptadores/peligro'
+import { crearAdapterSusceptibilidadNoDisponible } from '../motor/adaptadores/susceptibilidad'
+import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
+import { calcularRiesgoEscuela } from '../motor/calculo'
+import { MOTOR_VERSION } from '../motor/config'
+import type { HorizontePeligro, PuertosMotor } from '../motor/puertos'
+import { adquirirLease, publicarResultado, renovarLease } from '../job-run'
+
+const TIPO_JOB = 'calcular-riesgo-v0'
+const VERSION_JOB = 'v1'
+
+// 15 minutos: el job recorre ~2005 escuelas x 3 horizontes y persiste en
+// lotes; más generoso que el lease de sync-pronostico-caudal.ts, que consulta
+// mucho menos volumen.
+const DURACION_LEASE_MS = 15 * 60 * 1000
+
+// Escuelas por lote de inserción bulk.
+const TAMANO_LOTE = 200
+
+// SQLite limita la cantidad de variables ("binds") por sentencia
+// (SQLITE_MAX_VARIABLE_NUMBER; 32766 en builds recientes, 999 en viejos). Un
+// único INSERT de un lote completo (TAMANO_LOTE=200 escuelas x 3 horizontes x
+// hasta ~8 factores/snapshot con más fuentes reales conectadas) puede superarlo
+// y reventar el job. Por eso cada lote se sub-trocea en INSERTs más chicos:
+// infraRiskFactor tiene 11 columnas, así que 500 filas = 5500 binds, holgado.
+const TAMANO_CHUNK_INSERCION = 500
+
+type DbMotor = ReturnType<typeof getDb>
+
+// Inserta `filas` en `tabla` partiéndolas en chunks de a lo sumo
+// `tamanoChunk`, para no exceder el límite de binds de SQLite.
+async function insertarEnChunks<TSchema extends SQLiteTable>(
+  db: DbMotor,
+  tabla: TSchema,
+  filas: TSchema['$inferInsert'][],
+  tamanoChunk: number,
+): Promise<void> {
+  for (let inicio = 0; inicio < filas.length; inicio += tamanoChunk) {
+    const chunk = filas.slice(inicio, inicio + tamanoChunk)
+    if (chunk.length > 0) await db.insert(tabla).values(chunk)
+  }
+}
+
+const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240] as const
+
+export type ResultadoJobCalcularRiesgo =
+  | { ejecutado: true; runId: string; escuelasProcesadas: number; conEvidencia: number; sinEvidencia: number }
+  | { ejecutado: false; motivo: 'en_progreso_vigente' | 'ya_completado' | 'cobertura_insuficiente' }
+
+// Mismo criterio de bloque de 6h UTC (00, 06, 12, 18) que
+// sync-pronostico-caudal.ts: dos corridas dentro del mismo bloque comparten
+// claveIdempotente y por lo tanto son la MISMA corrida.
+function inicioDeBloqueUtc(ahora: Date): Date {
+  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
+  return new Date(
+    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), bloqueHoras, 0, 0, 0),
+  )
+}
+
+function construirPuertosReales(): PuertosMotor {
+  return {
+    peligro: crearAdapterPeligroNoDisponible(),
+    lluviaObservada: crearAdapterLluviaNoDisponible(),
+    territorio: crearAdapterTerritorio(),
+    aislamiento: crearAdapterAislamientoNoDisponible(),
+    susceptibilidad: crearAdapterSusceptibilidadNoDisponible(),
+    historial: crearAdapterHistorial(),
+    exposicion: crearAdapterExposicion(),
+  }
+}
+
+export async function calcularYPublicarRiesgo(params?: {
+  ahora?: Date
+  puertos?: PuertosMotor
+}): Promise<ResultadoJobCalcularRiesgo> {
+  const ahora = params?.ahora ?? new Date()
+  const asOf = ahora.toISOString()
+  const claveIdempotente = inicioDeBloqueUtc(ahora).toISOString()
+
+  const lease = await adquirirLease({
+    tipo: TIPO_JOB,
+    claveIdempotente,
+    version: VERSION_JOB,
+    duracionLeaseMs: DURACION_LEASE_MS,
+    ahora,
+  })
+  // No adquirir el lease no es un fallo de esta invocación: otra ya lo tiene o
+  // ya terminó. No se publica nada (mismo patrón que sync-pronostico-caudal.ts).
+  if (!lease.adquirido) {
+    return { ejecutado: false, motivo: lease.motivo }
+  }
+
+  const { jobRunId, leaseOwner } = lease
+  const puertos = params?.puertos ?? construirPuertosReales()
+  const db = getDb()
+
+  // `runId` se asigna recién después de insertar la fila 'preparando'. Se
+  // declara fuera del try para que el catch pueda marcarla 'fallido' si el
+  // proceso se interrumpe a mitad de camino (H5); si la excepción ocurre antes
+  // del insert (p. ej. buscando el período vigente) queda `undefined` y el
+  // catch simplemente no toca la tabla.
+  let runId: string | undefined
+
+  try {
+    // Un período vigente siempre existe en una instalación sembrada; su
+    // ausencia es un error de datos, no una salida silenciosa.
+    const [periodo] = await db
+      .select()
+      .from(infraPeriodo)
+      .where(eq(infraPeriodo.estado, 'vigente'))
+      .limit(1)
+    if (!periodo) {
+      await publicarResultado({
+        jobRunId,
+        leaseOwner,
+        estado: 'fallido',
+        errorSaneado: 'sin periodo vigente',
+        ahora,
+      })
+      throw new Error('calcular-riesgo: no hay periodo vigente')
+    }
+
+    // El run nace en 'preparando': sus snapshots/factores existen pero no son
+    // visibles como vigentes hasta la transacción de publicación del final.
+    // Este insert es INDEPENDIENTE del de snapshots/factores.
+    runId = randomUUID()
+    const idRun = runId
+    await db.insert(infraRiskRun).values({
+      id: idRun,
+      periodoId: periodo.id,
+      modeloVersion: MOTOR_VERSION,
+      iniciadoEn: asOf,
+      publicadoEn: null,
+      estado: 'preparando',
+      cobertura: null,
+      creadaEn: asOf,
+    })
+
+    const cueAnexos = await puertos.territorio.listarCuesConPerfil()
+
+    const filasSnapshot: (typeof infraRiskSnapshot.$inferInsert)[] = []
+    const filasFactor: (typeof infraRiskFactor.$inferInsert)[] = []
+    let procesadas = 0
+    let conEvidencia = 0
+    let sinEvidencia = 0
+
+    for (let inicio = 0; inicio < cueAnexos.length; inicio += TAMANO_LOTE) {
+      const lote = cueAnexos.slice(inicio, inicio + TAMANO_LOTE)
+      filasSnapshot.length = 0
+      filasFactor.length = 0
+
+      for (const cueAnexo of lote) {
+        for (const horizonte of HORIZONTES) {
+          const resultado = await calcularRiesgoEscuela({ cueAnexo, horizonte, asOf, puertos })
+          const snapshotId = randomUUID()
+
+          filasSnapshot.push({
+            id: snapshotId,
+            runId: idRun,
+            cueAnexo,
+            horizonteHoras: horizonte,
+            evidenciaValida: resultado.evidenciaValida,
+            scoreRiesgo: resultado.scoreRiesgo,
+            nivelRiesgo: resultado.nivelRiesgo,
+            scoreAmenaza: resultado.scoreAmenaza,
+            scoreVulnerabilidad: resultado.scoreVulnerabilidad,
+            confianza: resultado.confianza,
+            exposicionMatricula: resultado.exposicion.matricula,
+            exposicionSecciones: resultado.exposicion.secciones,
+            calculadoEn: resultado.calculadoEn,
+            validoHasta: resultado.validoHasta,
+          })
+
+          for (const factor of resultado.factores) {
+            filasFactor.push({
+              id: randomUUID(),
+              snapshotId,
+              tipo: factor.tipo,
+              fuente: factor.fuente,
+              variable: factor.variable,
+              valor: factor.valor,
+              unidad: factor.unidad,
+              contribucion: factor.contribucion,
+              peso: factor.peso,
+              explicacion: factor.explicacion,
+              observadoEn: factor.observadoEn,
+            })
+          }
+
+          // Contadores por snapshot (una escuela cuenta una vez por horizonte),
+          // no por escuela.
+          procesadas += 1
+          if (resultado.evidenciaValida) conEvidencia += 1
+          else sinEvidencia += 1
+        }
+      }
+
+      // Inserts normales fuera de transacción: el run sigue 'preparando', así
+      // que un lote lento no bloquea a ningún lector. Se trocea para no
+      // exceder SQLITE_MAX_VARIABLE_NUMBER (ver TAMANO_CHUNK_INSERCION).
+      await insertarEnChunks(db, infraRiskSnapshot, filasSnapshot, TAMANO_CHUNK_INSERCION)
+      await insertarEnChunks(db, infraRiskFactor, filasFactor, TAMANO_CHUNK_INSERCION)
+
+      // Renovar el lease tras cada lote para no repetir el bug de E2 (H2: un
+      // lease que nunca se renueva y expira en volúmenes reales).
+      await renovarLease({
+        jobRunId,
+        leaseOwner,
+        duracionLeaseMs: DURACION_LEASE_MS,
+        ahora: new Date(),
+      })
+    }
+
+    // Guard explícito de completitud. En JS síncrono una excepción ya habría
+    // cortado antes de llegar acá; se deja igual para no publicar un run
+    // parcial si en el futuro el procesamiento se vuelve concurrente.
+    if (procesadas !== cueAnexos.length * HORIZONTES.length) {
+      await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, idRun))
+      await publicarResultado({
+        jobRunId,
+        leaseOwner,
+        estado: 'fallido',
+        errorSaneado: 'cobertura insuficiente',
+        ahora,
+      })
+      return { ejecutado: false, motivo: 'cobertura_insuficiente' }
+    }
+
+    // PUBLICACIÓN ATÓMICA POR RUN: los datos (snapshots/factores) ya estaban
+    // escritos desde el bucle pero ETIQUETADOS a un run en 'preparando',
+    // invisible para cualquier lector que filtre por vigente. Esta transacción
+    // corta es la ÚNICA que cambia qué run es el vigente, y el índice único
+    // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
+    // que nunca haya dos vigentes a la vez. Sólo estas 2 actualizaciones: los
+    // inserts masivos ya se hicieron fuera de la transacción.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(infraRiskRun)
+        .set({ estado: 'vencido' })
+        .where(eq(infraRiskRun.estado, 'vigente'))
+      await tx
+        .update(infraRiskRun)
+        .set({
+          estado: 'vigente',
+          publicadoEn: new Date().toISOString(),
+          cobertura: { procesadas, conEvidencia, sinEvidencia },
+        })
+        .where(eq(infraRiskRun.id, idRun))
+    })
+
+    await publicarResultado({
+      jobRunId,
+      leaseOwner,
+      estado: 'completado',
+      contadores: { procesadas, conEvidencia, sinEvidencia },
+      ahora,
+    })
+
+    return { ejecutado: true, runId: idRun, escuelasProcesadas: procesadas, conEvidencia, sinEvidencia }
+  } catch (error) {
+    // H5: si el run llegó a crearse, no dejarlo colgado en 'preparando' para
+    // siempre. Sólo se toca la tabla si `runId` ya fue asignado (una excepción
+    // anterior al insert, p. ej. sin período vigente, no tiene fila que marcar)
+    // y el update va en su propio try para que un fallo de esta limpieza no
+    // reemplace ni oculte el error original.
+    if (runId !== undefined) {
+      try {
+        await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, runId))
+      } catch {
+        // Limpieza best-effort: se prioriza propagar el error original.
+      }
+    }
+    // No dejar el infra_job_run colgado 'en_progreso', pero tampoco tragarse
+    // la excepción. Mensaje corto y sin datos nominales.
+    await publicarResultado({
+      jobRunId,
+      leaseOwner,
+      estado: 'fallido',
+      errorSaneado: 'fallo al ejecutar calcular-riesgo-v0',
+      ahora,
+    })
+    throw error
+  }
+}
