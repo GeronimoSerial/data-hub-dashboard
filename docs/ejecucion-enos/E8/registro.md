@@ -151,3 +151,15 @@ Tercera revisión independiente (`docs/ejecucion-enos/E8/revision-3.md`) devolvi
 | `npx next build` | 0 | limpio; todas las rutas de briefings siguen apareciendo en la tabla de rutas |
 
 Sin commits de esta corrección (instrucción explícita del brief): el worktree queda con todos los cambios sin commitear, listo para que N1 commitee y mergee.
+
+## Gate (N1)
+
+- Tres revisiones independientes (N2 → N3):
+  - 1 y 2, REJECT: el filtro léxico se evadía con separadores y homoglifos y la validación no cubría el texto final unido.
+  - 3, REJECT: los jobs programados no migraban el esquema antes de correr.
+  - Todo corregido por N2 y verificado por N1.
+- El fix de jobs.mjs llama a ensureSeeded() una vez antes de cada job. Es la misma siembra idempotente que hace la app web al arrancar: el admin se crea sólo si no hay usuarios y no se cargan datos de demo. Lo cubre el test E2E scripts/jobs.migracion-legacy.test.ts.
+- Unión con feat/renovación (M2 y E6): se resolvieron por unión schema.ts, seed.ts (infra_briefing y las tablas G1) y .gitignore. Se ajustó un test al texto de primer corte de M2.
+- Árbol unido: vitest 217/217 archivos y 1910/1910 tests, lint 0, tsc 0 y build 0. Sin claves en el árbol.
+- Queda como riesgo residual aceptado: el mapa de homoglifos es fijo, así que un confusable fuera de MAPA_CONFUSABLES puede evadirlo. Una posible mitigación futura es la lista completa de confusables de Unicode (TR39).
+- Pendiente: la decisión del punto de montaje de BriefingPanel (propuesto: /situacion detrás de AI_BRIEFING_ENABLED) y una prueba real con OpenRouter una vez mergeado. El flag queda apagado por defecto.
