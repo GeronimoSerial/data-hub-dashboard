@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PUNTOS_RIO } from '../puntos-rio'
 import type { HazardForecastPunto } from '../tipos-hazard'
@@ -347,5 +347,156 @@ describe('ejecutarSyncPronosticoCaudal — conteo real de llamadas (regresión h
     // puntos de río en otra), cada una reportando 1 sola llamada real: el
     // total real es 2, MUY por debajo de CELDAS.length + PUNTOS_RIO.length.
     expect(resultado.resultado.llamadasRealizadas).toBe(2)
+  })
+})
+
+// --- Regresión: RangeError con volumen real (bug observado en corrida local) ---
+//
+// Reproduce el volumen real reportado: ~387 celdas ECMWF x ~240 pasos horarios
+// x 5 variables (más los puntos de río), a través del camino real del job
+// (`ejecutarSyncPronosticoCaudal` -> `persistirPuntos` -> `db.insert(...)
+// .values(...)`), sin red (providers fake). Antes del fix, un único
+// `.values(hugeArray)` por tanda de 25 celdas (25 x 240 x 5 = 30.000 filas)
+// hacía que drizzle-orm reventara el stack con "RangeError: Maximum call
+// stack size exceeded" (confirmado con un repro aislado: el umbral está entre
+// 10.000 y 15.000 filas en una sola sentencia). Se usan 400 celdas (> 387)
+// para igualar o superar el volumen real observado.
+const CANTIDAD_CELDAS_VOLUMEN_REAL = 400
+const PASOS_HORARIOS_VOLUMEN_REAL = 240
+const VARIABLES_VOLUMEN_REAL = 5
+
+const CELDAS_VOLUMEN_REAL = Array.from({ length: CANTIDAD_CELDAS_VOLUMEN_REAL }, (_, indice) => ({
+  cueAnexo: `198${String(indice).padStart(4, '0')}-00`,
+  geometryRef: `-29.${String(indice % 100).padStart(2, '0')}_-59.${String(Math.floor(indice / 100)).padStart(2, '0')}`,
+}))
+
+/** Provider fake que emite el volumen real por celda: 240 pasos x 5 variables. */
+function ecmwfFakeVolumenReal(): ProveedorConDiagnostico {
+  return {
+    nombreProveedor: 'open-meteo-ecmwf',
+    async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
+      const puntos: HazardForecastPunto[] = []
+      for (const ref of geometryRefs) {
+        for (let paso = 0; paso < PASOS_HORARIOS_VOLUMEN_REAL; paso++) {
+          for (let variable = 0; variable < VARIABLES_VOLUMEN_REAL; variable++) {
+            puntos.push({
+              variable: (['precipitacion', 'cape', 'rafagas', 'temperatura', 'viento'] as const)[
+                variable
+              ],
+              geometryRef: ref,
+              corridaEn: ahora.toISOString(),
+              validoEn: new Date(ahora.getTime() + paso * 3_600_000).toISOString(),
+              horizonteHoras: paso,
+              valor: 1.5,
+              unidad: 'mm',
+              pasoHoras: 1,
+            })
+          }
+        }
+      }
+      return { puntos, erroresPorCelda: {}, llamadasRealizadas: 1 }
+    },
+  }
+}
+
+describe('ejecutarSyncPronosticoCaudal — volumen realista (regresión RangeError)', () => {
+  beforeAll(async () => {
+    const { getDb } = await import('@/lib/db')
+    const { infraGeoProfile } = await import('@/lib/db/schema')
+    await getDb()
+      .insert(infraGeoProfile)
+      .values(
+        CELDAS_VOLUMEN_REAL.map(({ cueAnexo, geometryRef }) => ({
+          cueAnexo,
+          geometryRef,
+          motivoExclusion: null,
+          perfilVersion: 'geo-perfil-v1',
+          calculadoEn: '2026-09-26T00:00:00.000Z',
+        })),
+      )
+  })
+
+  afterAll(async () => {
+    const { getDb } = await import('@/lib/db')
+    const { infraGeoProfile } = await import('@/lib/db/schema')
+    await getDb()
+      .delete(infraGeoProfile)
+      .where(
+        inArray(
+          infraGeoProfile.cueAnexo,
+          CELDAS_VOLUMEN_REAL.map(({ cueAnexo }) => cueAnexo),
+        ),
+      )
+  })
+
+  it('procesa ~400 celdas x 240 pasos x 5 variables sin RangeError y mide tiempo/memoria', async () => {
+    const ahora = new Date('2026-09-28T01:00:00.000Z') // bloque propio, lease libre
+
+    if (global.gc) global.gc()
+    const memoriaAntes = process.memoryUsage().heapUsed
+    const inicio = performance.now()
+
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora,
+      ecmwfProvider: ecmwfFakeVolumenReal(),
+      floodProvider: floodFake(),
+    })
+
+    const duracionMs = performance.now() - inicio
+    const memoriaDespues = process.memoryUsage().heapUsed
+    console.log(
+      `[medición volumen real] duración=${duracionMs.toFixed(0)}ms ` +
+        `heapUsed antes=${(memoriaAntes / 1024 / 1024).toFixed(1)}MB ` +
+        `heapUsed después=${(memoriaDespues / 1024 / 1024).toFixed(1)}MB`,
+    )
+
+    if (!resultado.ok) throw new Error(`unreachable: ${JSON.stringify(resultado)}`)
+    // `celdasConsultadas` incluye las celdas de otras suites del mismo archivo
+    // (comparten `infra_geo_profile`, ya que `selectDistinct` no filtra por
+    // origen), así que el conteo esperado se deriva de lo realmente
+    // consultado en vez de un literal fijo — lo que importa acá es que NO
+    // reviente y que el conteo de filas sea consistente con el volumen real.
+    expect(resultado.resultado.celdasConsultadas).toBeGreaterThanOrEqual(
+      CANTIDAD_CELDAS_VOLUMEN_REAL,
+    )
+    const esperadas =
+      resultado.resultado.celdasConsultadas * PASOS_HORARIOS_VOLUMEN_REAL * VARIABLES_VOLUMEN_REAL +
+      PUNTOS_RIO.length
+    expect(resultado.resultado.filasInsertadas).toBe(esperadas)
+  }, 120_000)
+})
+
+// --- Regresión: el job-run se marca 'fallido' si algo revienta con el lease
+// ya adquirido (antes del fix, cualquier excepción posterior al lease escapaba
+// sin publicar resultado y la fila quedaba 'en_progreso' hasta el vencimiento).
+describe('ejecutarSyncPronosticoCaudal — marca fallido ante una excepción con el lease ya adquirido', () => {
+  it('si renovarLease lanza, el job-run queda fallido y la excepción se relanza', async () => {
+    const ahora = new Date('2026-09-28T07:00:00.000Z') // bloque propio, lease libre
+    const errorOriginal = new Error('boom: fallo simulado durante la renovación')
+    const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => {
+      throw errorOriginal
+    })
+
+    await expect(
+      ejecutarSyncPronosticoCaudal({
+        ahora,
+        ecmwfProvider: ecmwfFake(),
+        floodProvider: floodFake(),
+        renovarLease,
+      }),
+    ).rejects.toThrow(errorOriginal)
+
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const db = getDb()
+    const claveIdempotente = '2026-09-28T06' // bloque 06-12
+    const [fila] = await db
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, claveIdempotente))
+
+    expect(fila?.estado).toBe('fallido')
+    expect(fila?.leaseOwner).toBeNull()
+    expect(fila?.leaseExpiraEn).toBeNull()
   })
 })

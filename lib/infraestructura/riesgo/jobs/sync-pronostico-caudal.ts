@@ -92,6 +92,22 @@ const TTL_MINUTOS = 360
 const LICENCIA = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
 const LARGO_MAX_ERROR = 300
 
+// Corrección de bug real (corrida local contra DB de dev, ~387 celdas x ~240
+// pasos horarios x varias variables): un único `insert(hazardForecast)
+// .values(hugeArray)` con decenas de miles de filas hace que drizzle-orm
+// arme el INSERT recorriendo recursivamente cada fila (`mergeQueries` en
+// drizzle-orm/sql/sql.ts) y revienta el stack con "RangeError: Maximum call
+// stack size exceeded" ANTES de que SQLite llegue siquiera a validar la
+// cantidad de binds. Confirmado con un repro: una sola sentencia con 10.000
+// filas ya falla por límite de variables de SQLite (error normal, catcheable)
+// y con 15.000+ filas el RangeError aparece de forma síncrona-en-microtask,
+// escapando cualquier catch que envuelva sólo el `await`. hazardForecast
+// tiene 12 columnas; 500 filas = 6.000 binds, muy por debajo del límite de
+// SQLite (32766 en builds recientes, 999 en viejos) y de la profundidad de
+// recursión que dispara el RangeError. Se trocea dentro de una transacción
+// para que la escritura de una tanda completa siga siendo atómica.
+const TAMANO_CHUNK_INSERCION = 500
+
 type Db = ReturnType<typeof getDb>
 
 // Bloque de 6h UTC: 00, 06, 12, 18. Dos corridas dentro del mismo bloque
@@ -185,24 +201,31 @@ async function persistirPuntos(
     ingeridoEn,
   }))
 
-  await db
-    .insert(hazardForecast)
-    .values(filas)
-    .onConflictDoUpdate({
-      target: [
-        hazardForecast.provider,
-        hazardForecast.variable,
-        hazardForecast.geometryRef,
-        hazardForecast.corridaEn,
-        hazardForecast.validoEn,
-      ],
-      set: {
-        valor: sql`excluded.valor`,
-        unidad: sql`excluded.unidad`,
-        pasoHoras: sql`excluded.paso_horas`,
-        ingeridoEn: sql`excluded.ingerido_en`,
-      },
-    })
+  // Ver comentario de `TAMANO_CHUNK_INSERCION`: nunca un solo `.values()` con
+  // todas las filas de la tanda, siempre en chunks dentro de una transacción.
+  await db.transaction(async (tx) => {
+    for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
+      const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
+      await tx
+        .insert(hazardForecast)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [
+            hazardForecast.provider,
+            hazardForecast.variable,
+            hazardForecast.geometryRef,
+            hazardForecast.corridaEn,
+            hazardForecast.validoEn,
+          ],
+          set: {
+            valor: sql`excluded.valor`,
+            unidad: sql`excluded.unidad`,
+            pasoHoras: sql`excluded.paso_horas`,
+            ingeridoEn: sql`excluded.ingerido_en`,
+          },
+        })
+    }
+  })
 
   return filas.length
 }
@@ -269,6 +292,51 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
     return { ok: false, motivo: 'lease_no_disponible' }
   }
 
+  // Corrección de bug real: antes de este cambio no había ningún try/catch
+  // acá abajo, así que CUALQUIER excepción posterior a adquirir el lease
+  // (el RangeError de `persistirPuntos` con volumen real, o cualquier otra)
+  // escapaba sin publicar resultado, y `infra_job_run` quedaba 'en_progreso'
+  // hasta que el lease venciera solo. Se envuelve todo el cuerpo (mismo
+  // patrón que calcular-riesgo.ts) para que un fallo siempre marque
+  // 'fallido' antes de relanzar la excepción original.
+  try {
+    return await ejecutarCuerpoDelJob({
+      db,
+      ahora,
+      ahoraIso,
+      lease,
+      params,
+      inicioBloque: inicioDeBloqueUtc(ahora),
+    })
+  } catch (error) {
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      // Mensaje corto y sin datos nominales; el error original se relanza
+      // para quien invoque el job (logs, tests) y no queda enmascarado.
+      errorSaneado: 'fallo al ejecutar sync-hazard-pronostico-caudal',
+      ahora,
+    })
+    throw error
+  }
+}
+
+async function ejecutarCuerpoDelJob(ctx: {
+  db: Db
+  ahora: Date
+  ahoraIso: string
+  lease: { adquirido: true; jobRunId: string; leaseOwner: string }
+  params?: {
+    ahora?: Date
+    ecmwfProvider?: ProveedorConDiagnostico
+    floodProvider?: ProveedorConDiagnostico
+    renovarLease?: typeof renovarLeaseReal
+  }
+  inicioBloque: Date
+}): Promise<ResultadoEjecucionSyncPronosticoCaudal> {
+  const { db, ahora, ahoraIso, lease, params, inicioBloque } = ctx
+
   // El selectDistinct ya entrega las celdas deduplicadas: geo-perfil.ts agrupó
   // por celdaDeCoordenada al calcular el perfil, así que acá no hace falta
   // volver a agrupar.
@@ -285,9 +353,9 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   const ecmwfProvider = params?.ecmwfProvider ?? crearProviderEcmwf()
   const floodProvider = params?.floodProvider ?? crearProviderFloodConDiagnostico()
 
-  // `corridaEn` (dentro de los providers) se deriva de este `inicioBloque`,
-  // no del wall-clock `ahora` — ver comentario de `inicioDeBloqueUtc`.
-  const inicioBloque = inicioDeBloqueUtc(ahora)
+  // `corridaEn` (dentro de los providers) se deriva de `inicioBloque`, no del
+  // wall-clock `ahora` — ver comentario de `inicioDeBloqueUtc` (calculado por
+  // el caller y recibido en `ctx`).
   const renovar = params?.renovarLease ?? renovarLeaseReal
 
   // Armar las tandas de consulta: todo el trabajo de proveedor (celdas ECMWF y

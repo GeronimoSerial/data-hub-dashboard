@@ -67,6 +67,15 @@ const PROVIDER = 'nasa-imerg'
 const VARIABLE_OBSERVADA = 'precipitacion_observada_satelital'
 const LARGO_MAX_ERROR = 300
 
+// Mismo bug de clase que sync-pronostico-caudal.ts (ver su comentario junto a
+// `TAMANO_CHUNK_INSERCION`): un único `insert(...).values(hugeArray)` hace que
+// drizzle-orm arme el INSERT recorriendo recursivamente cada fila y puede
+// reventar el stack con "RangeError: Maximum call stack size exceeded" antes
+// de que SQLite valide el bind count. hazardObservation tiene 12 columnas;
+// 500 filas = 6.000 binds, muy por debajo del límite de SQLite y de la
+// profundidad de recursión que dispara el RangeError.
+const TAMANO_CHUNK_INSERCION = 500
+
 // Ventana de backfill: cubre el horizonte más largo que consume
 // `peligro/observado.ts` (72h) más un margen chico para no perder cobertura
 // por gránulos que llegaron tarde (latencia típica ~4h de Early Run).
@@ -231,25 +240,32 @@ async function persistirObservaciones(
     ingeridoEn,
   }))
 
-  await db
-    .insert(hazardObservation)
-    .values(filas)
-    .onConflictDoUpdate({
-      target: [
-        hazardObservation.provider,
-        hazardObservation.variable,
-        hazardObservation.geometryRef,
-        hazardObservation.observadoEn,
-      ],
-      set: {
-        valor: sql`excluded.valor`,
-        unidad: sql`excluded.unidad`,
-        validoDesde: sql`excluded.valido_desde`,
-        validoHasta: sql`excluded.valido_hasta`,
-        calidad: sql`excluded.calidad`,
-        ingeridoEn: sql`excluded.ingerido_en`,
-      },
-    })
+  // Ver comentario de `TAMANO_CHUNK_INSERCION`: nunca un solo `.values()` con
+  // todas las filas, siempre en chunks dentro de una transacción.
+  await db.transaction(async (tx) => {
+    for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
+      const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
+      await tx
+        .insert(hazardObservation)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [
+            hazardObservation.provider,
+            hazardObservation.variable,
+            hazardObservation.geometryRef,
+            hazardObservation.observadoEn,
+          ],
+          set: {
+            valor: sql`excluded.valor`,
+            unidad: sql`excluded.unidad`,
+            validoDesde: sql`excluded.valido_desde`,
+            validoHasta: sql`excluded.valido_hasta`,
+            calidad: sql`excluded.calidad`,
+            ingeridoEn: sql`excluded.ingerido_en`,
+          },
+        })
+    }
+  })
 
   return filas.length
 }
@@ -325,6 +341,39 @@ export async function ejecutarSyncImerg(params?: {
   if (!lease.adquirido) {
     return { ok: false, motivo: 'lease_no_disponible' }
   }
+
+  // Corrección de bug real (mismo hallazgo que sync-pronostico-caudal.ts): sin
+  // este try/catch, cualquier excepción posterior a adquirir el lease escapa
+  // sin publicar resultado y `infra_job_run` queda 'en_progreso' hasta que el
+  // lease venza solo. Se envuelve todo el cuerpo para que un fallo siempre
+  // marque 'fallido' antes de relanzar la excepción original.
+  try {
+    return await ejecutarCuerpoDelJobImerg({ db, ahora, ahoraIso, token, lease, params })
+  } catch (error) {
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      errorSaneado: 'fallo al ejecutar sync-hazard-imerg',
+      ahora,
+    })
+    throw error
+  }
+}
+
+async function ejecutarCuerpoDelJobImerg(ctx: {
+  db: Db
+  ahora: Date
+  ahoraIso: string
+  token: string
+  lease: { adquirido: true; jobRunId: string; leaseOwner: string }
+  params?: {
+    ahora?: Date
+    fetchImpl?: typeof fetch
+    earthdataToken?: string
+  }
+}): Promise<ResultadoEjecucionSyncImerg> {
+  const { db, ahora, ahoraIso, token, lease, params } = ctx
 
   const fetchImpl = params?.fetchImpl ?? fetch
   const autorizacion = { Authorization: `Bearer ${token}` }

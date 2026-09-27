@@ -68,6 +68,49 @@ export async function ejecutarCalculoClimatologia(params?: {
     return { ok: false, motivo: 'lease_no_disponible' }
   }
 
+  // Corrección de bug real (mismo hallazgo que sync-pronostico-caudal.ts): sin
+  // este try/catch, cualquier excepción posterior a adquirir el lease escapa
+  // sin publicar resultado y `infra_job_run` queda 'en_progreso' hasta que el
+  // lease venza solo. Se envuelve todo el cuerpo para que un fallo siempre
+  // marque 'fallido' antes de relanzar la excepción original.
+  try {
+    return await ejecutarCuerpoDelJobClimatologia({
+      db,
+      ahora,
+      ahoraIso,
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSerie,
+      lease,
+    })
+  } catch (error) {
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      errorSaneado: 'fallo al ejecutar calculo-climatologia',
+      ahora,
+    })
+    throw error
+  }
+}
+
+async function ejecutarCuerpoDelJobClimatologia(ctx: {
+  db: ReturnType<typeof getDb>
+  ahora: Date
+  ahoraIso: string
+  periodoDesde: string
+  periodoHasta: string
+  version: string
+  obtenerSerie: typeof obtenerSerieHistorica
+  lease: { adquirido: true; jobRunId: string; leaseOwner: string }
+}): Promise<
+  | { ok: true; resultado: ResultadoCalcularClimatologia }
+  | { ok: false; motivo: 'lease_no_disponible' }
+> {
+  const { db, ahora, ahoraIso, periodoDesde, periodoHasta, version, obtenerSerie, lease } = ctx
+
   // selectDistinct ya entrega las celdas deduplicadas; el filtro de nulos
   // reafirma el tipo para el resto del bucle.
   const filasGeo = await db

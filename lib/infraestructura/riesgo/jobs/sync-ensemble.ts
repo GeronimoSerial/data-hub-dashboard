@@ -68,6 +68,15 @@ const TTL_MINUTOS = 360
 const LICENCIA = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
 const LARGO_MAX_ERROR = 300
 
+// Mismo bug de clase que sync-pronostico-caudal.ts (ver su comentario junto a
+// `TAMANO_CHUNK_INSERCION`): un único `insert(...).values(hugeArray)` hace que
+// drizzle-orm arme el INSERT recorriendo recursivamente cada fila y puede
+// reventar el stack con "RangeError: Maximum call stack size exceeded" antes
+// de que SQLite valide el bind count. hazardEnsembleProb tiene 12 columnas;
+// 500 filas = 6.000 binds, muy por debajo del límite de SQLite y de la
+// profundidad de recursión que dispara el RangeError.
+const TAMANO_CHUNK_INSERCION = 500
+
 const PROVIDER = 'open-meteo-ensemble'
 const VARIABLE_ENSEMBLE = 'precipitacion_24h'
 const VERSION_ENSEMBLE = 'ensemble-v0.1'
@@ -180,27 +189,34 @@ async function persistirPuntos(
     ingeridoEn,
   }))
 
-  await db
-    .insert(hazardEnsembleProb)
-    .values(filas)
-    .onConflictDoUpdate({
-      target: [
-        hazardEnsembleProb.geometryRef,
-        hazardEnsembleProb.variable,
-        hazardEnsembleProb.corridaEn,
-        hazardEnsembleProb.validoEn,
-      ],
-      set: {
-        horizonteHoras: sql`excluded.horizonte_horas`,
-        miembrosTotal: sql`excluded.miembros_total`,
-        miembrosValidos: sql`excluded.miembros_validos`,
-        probabilidadP95: sql`excluded.probabilidad_p95`,
-        probabilidadP99: sql`excluded.probabilidad_p99`,
-        dispersion: sql`excluded.dispersion`,
-        version: sql`excluded.version`,
-        ingeridoEn: sql`excluded.ingerido_en`,
-      },
-    })
+  // Ver comentario de `TAMANO_CHUNK_INSERCION`: nunca un solo `.values()` con
+  // todas las filas, siempre en chunks dentro de una transacción.
+  await db.transaction(async (tx) => {
+    for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
+      const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
+      await tx
+        .insert(hazardEnsembleProb)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [
+            hazardEnsembleProb.geometryRef,
+            hazardEnsembleProb.variable,
+            hazardEnsembleProb.corridaEn,
+            hazardEnsembleProb.validoEn,
+          ],
+          set: {
+            horizonteHoras: sql`excluded.horizonte_horas`,
+            miembrosTotal: sql`excluded.miembros_total`,
+            miembrosValidos: sql`excluded.miembros_validos`,
+            probabilidadP95: sql`excluded.probabilidad_p95`,
+            probabilidadP99: sql`excluded.probabilidad_p99`,
+            dispersion: sql`excluded.dispersion`,
+            version: sql`excluded.version`,
+            ingeridoEn: sql`excluded.ingerido_en`,
+          },
+        })
+    }
+  })
 
   return filas.length
 }
@@ -266,6 +282,39 @@ export async function ejecutarSyncEnsemble(params?: {
   if (!lease.adquirido) {
     return { ok: false, motivo: 'lease_no_disponible' }
   }
+
+  // Corrección de bug real (mismo hallazgo que sync-pronostico-caudal.ts): sin
+  // este try/catch, cualquier excepción posterior a adquirir el lease (el
+  // RangeError de `persistirPuntos` con volumen real, o cualquier otra)
+  // escapa sin publicar resultado y `infra_job_run` queda 'en_progreso' hasta
+  // que el lease venza solo. Se envuelve todo el cuerpo para que un fallo
+  // siempre marque 'fallido' antes de relanzar la excepción original.
+  try {
+    return await ejecutarCuerpoDelJobEnsemble({ db, ahora, ahoraIso, lease, params })
+  } catch (error) {
+    await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'fallido',
+      errorSaneado: 'fallo al ejecutar sync-hazard-ensemble',
+      ahora,
+    })
+    throw error
+  }
+}
+
+async function ejecutarCuerpoDelJobEnsemble(ctx: {
+  db: Db
+  ahora: Date
+  ahoraIso: string
+  lease: { adquirido: true; jobRunId: string; leaseOwner: string }
+  params?: {
+    ahora?: Date
+    obtenerProbabilidades?: typeof obtenerProbabilidadesEnsembleReal
+    renovarLease?: typeof renovarLeaseReal
+  }
+}): Promise<ResultadoEjecucionSyncEnsemble> {
+  const { db, ahora, ahoraIso, lease, params } = ctx
 
   const filasGeo = await db
     .selectDistinct({ geometryRef: infraGeoProfile.geometryRef })

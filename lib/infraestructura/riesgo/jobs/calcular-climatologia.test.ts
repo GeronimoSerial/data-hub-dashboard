@@ -131,4 +131,35 @@ describe('ejecutarCalculoClimatologia', () => {
     // 12 de la versión v1 + 6 de la v2 (sólo la celda que respondió ok)
     expect(filas).toHaveLength(18)
   })
+
+  // Regresión: antes del fix, una excepción posterior a adquirir el lease
+  // (no un `{ ok: false }` reportado por el provider, sino un throw real)
+  // escapaba sin publicar resultado y `infra_job_run` quedaba 'en_progreso'
+  // hasta el vencimiento del lease.
+  it('si obtenerSerie lanza, el job-run queda fallido y la excepción se relanza', async () => {
+    const errorOriginal = new Error('boom: fallo simulado de red')
+    const obtenerSerie: typeof ObtenerSerieHistorica = async () => {
+      throw errorOriginal
+    }
+
+    await expect(
+      ejecutarCalculoClimatologia({
+        periodoDesde: '1971-01-01',
+        periodoHasta: '2000-12-31',
+        version: 'climatologia-v3-fallido',
+        obtenerSerie,
+      }),
+    ).rejects.toThrow(errorOriginal)
+
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [fila] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, '1971-01-01_2000-12-31_climatologia-v3-fallido'))
+
+    expect(fila?.estado).toBe('fallido')
+    expect(fila?.leaseOwner).toBeNull()
+  })
 })
