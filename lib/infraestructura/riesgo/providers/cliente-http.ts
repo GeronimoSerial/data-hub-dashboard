@@ -8,9 +8,25 @@
 // nunca golpean la red real. Las pruebas reales fechadas son manuales,
 // documentadas en docs/ejecucion-enos/E2/registro.md §3.
 
+import type { ControladorCupoOM } from './cupo-om'
+
 export type ResultadoHttp<T> =
   | { ok: true; datos: T }
-  | { ok: false; motivo: 'timeout' | 'rate_limited' | 'http_error' | 'payload_invalido'; detalle: string }
+  | {
+      ok: false
+      motivo:
+        | 'timeout'
+        | 'rate_limited'
+        | 'http_error'
+        | 'payload_invalido'
+        // OM-cupo: la guarda de cupo bloqueó la request ANTES de tocar la
+        // red (ver providers/cupo-om.ts). Ninguno de estos tres implica que
+        // se haya disparado un fetch real.
+        | 'cupo_agotado'
+        | 'cupo_minuto_agotado'
+        | 'host_en_cooldown'
+      detalle: string
+    }
 
 type FetchImpl = typeof fetch
 
@@ -23,6 +39,13 @@ export type ParametrosSolicitud<T> = {
   backoffBaseMs?: number
   backoffMaxMs?: number
   parsearPayload: (json: unknown) => T
+  /**
+   * Guarda de cupo de Open-Meteo (OM-cupo, ver providers/cupo-om.ts). Si se
+   * omite, esta función se comporta EXACTAMENTE igual que antes de OM-cupo
+   * (sin reservar ni registrar nada) — así los tests de adapters que no
+   * integran cupo (ecmwf.test.ts, flood.test.ts, etc.) no cambian.
+   */
+  cupo?: ControladorCupoOM
 }
 
 const TIMEOUT_MS_DEFAULT = 10_000
@@ -55,6 +78,18 @@ export async function ejecutarConReintentos<T>(
   const backoffBaseMs = params.backoffBaseMs ?? BACKOFF_BASE_MS_DEFAULT
   const backoffMaxMs = params.backoffMaxMs ?? BACKOFF_MAX_MS_DEFAULT
 
+  // OM-cupo: se reserva UNA vez por llamada lógica (no por intento de
+  // reintento interno) — el peso representa el request real que se va a
+  // disparar, no cuántas veces cliente-http lo reintenta puertas adentro.
+  // Si la guarda bloquea (cupo agotado o host en cooldown), se corta ACÁ,
+  // sin tocar la red ni una vez.
+  if (params.cupo) {
+    const reserva = await params.cupo.reservar()
+    if (!reserva.ok) {
+      return { ok: false, motivo: reserva.motivo, detalle: reserva.detalle }
+    }
+  }
+
   let ultimoError: ResultadoHttp<T> = {
     ok: false,
     motivo: 'http_error',
@@ -83,6 +118,15 @@ export async function ejecutarConReintentos<T>(
       if (respuesta.status === 429) {
         const retryAfterHeader = respuesta.headers.get('retry-after')
         const retryAfterMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : NaN
+        // OM-cupo (requisito 2): un 429 con Retry-After pone al HOST entero
+        // en cooldown (persistido, ver cupo-om.ts) para que otras llamadas
+        // — de este mismo lote o de otro job — dejen de golpearlo mientras
+        // dure, en vez de reintentar en loop ciego. Sin header no sabemos
+        // cuánto durar el cooldown: no se registra nada y se sigue con el
+        // backoff interno de siempre.
+        if (params.cupo && Number.isFinite(retryAfterMs)) {
+          await params.cupo.registrar429(retryAfterMs)
+        }
         ultimoError = {
           ok: false,
           motivo: 'rate_limited',

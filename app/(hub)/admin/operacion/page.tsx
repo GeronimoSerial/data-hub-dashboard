@@ -10,6 +10,7 @@ import {
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
 
 const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 const bloque: React.CSSProperties = {
@@ -46,6 +47,7 @@ export default async function OperacionSalud() {
 
   const estado = await obtenerEstadoOperativo()
   const fuentes = await getDb().select().from(hazardSourceHealth)
+  const cupo = await obtenerResumenCupo({ apiKeyPresente: Boolean(apiKeyDesdeEntorno()) })
 
   return (
     <div style={contenedor}>
@@ -159,6 +161,58 @@ export default async function OperacionSalud() {
         )}
         <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
           Datos meteorológicos: Open-Meteo.com (CC BY 4.0), ECMWF.
+        </p>
+      </section>
+
+      <section style={bloque}>
+        <h2>Cupo Open-Meteo</h2>
+        {cupo.filas.length === 0 ? (
+          <p>Sin uso registrado todavía</p>
+        ) : (
+          <table style={tabla}>
+            <thead>
+              <tr>
+                <th style={celda}>host</th>
+                <th style={celda}>ventana</th>
+                <th style={celda}>usado</th>
+                <th style={celda}>límite</th>
+                <th style={celda}>%</th>
+                <th style={celda}>estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cupo.filas.map((fila) => {
+                const resaltado = fila.agotado || fila.porcentaje >= 100
+                const estilo = resaltado ? alerta : celda
+                return (
+                  <tr key={`${fila.host}-${fila.ventana}`}>
+                    <td style={estilo}>{fila.host}</td>
+                    <td style={estilo}>{fila.ventana}</td>
+                    <td style={estilo}>{fila.usado.toFixed(1)}</td>
+                    <td style={estilo}>{fila.limite}</td>
+                    <td style={estilo}>{fila.porcentaje}%</td>
+                    <td style={estilo}>{fila.agotado ? 'cupo agotado' : '—'}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+        {cupo.cooldowns.length > 0 && (
+          <div style={{ marginTop: '1rem' }}>
+            <strong>Hosts en cooldown (post-429):</strong>
+            <ul>
+              {cupo.cooldowns.map((c) => (
+                <li key={c.host} style={{ color: 'var(--danger)' }}>
+                  {c.host}: hasta {c.hastaEn} ({c.motivoSaneado})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem' }}>
+          Límites del nivel gratuito de Open-Meteo, con margen de seguridad. Ver
+          docs/ejecucion-enos/OM-cupo/registro.md.
         </p>
       </section>
 

@@ -19,8 +19,10 @@
 //   siguen procesando los demás lotes.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import type { ControladorCupoOM } from './cupo-om'
 
-const BASE_URL = 'https://ensemble-api.open-meteo.com/v1/ensemble'
+const RUTA = '/v1/ensemble'
 const MS_POR_HORA = 3_600_000
 
 // Único modelo ECMWF disponible en la API Ensemble de Open-Meteo hoy.
@@ -46,6 +48,18 @@ const NOMBRES_MIEMBROS: string[] = [
   ),
 ]
 const MIEMBROS_TOTAL_ENSEMBLE = NOMBRES_MIEMBROS.length
+
+// OM-cupo: cuántas "weather variables" cuenta este request para la fórmula
+// de peso (ver providers/cupo-om.ts `pesoLlamada`). SUPUESTO documentado
+// (ver docs/ejecucion-enos/OM-cupo/registro.md, sección "Ensemble"): se
+// pidieron por query string ("hourly=precipitation", ver
+// `construirUrlLote`), no la cantidad de columnas que el endpoint Ensemble
+// expande internamente (51 miembros). Es la lectura literal de la fuente
+// ("select 200 weather variables simultaneously" — variables SELECCIONADAS
+// por query param, no derivadas). El registro documenta también el
+// escenario conservador (51) por si Open-Meteo en la práctica cuenta los
+// miembros como variables.
+const VARIABLES_SOLICITADAS_ENSEMBLE = 1
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
@@ -144,10 +158,12 @@ function serieDeMiembro(
 /** Celda resuelta de un geometryRef, lista para entrar en un lote. */
 type CeldaEnsemble = { geometryRef: string; lat: number; lon: number }
 
-function construirUrlLote(celdas: CeldaEnsemble[]): string {
+function construirUrlLote(celdas: CeldaEnsemble[], apiKey: string | undefined): string {
   const latitudes = celdas.map((celda) => String(celda.lat)).join(',')
   const longitudes = celdas.map((celda) => String(celda.lon)).join(',')
-  return `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}&hourly=precipitation&models=${MODELO_ENSEMBLE}&forecast_days=${DIAS_PRONOSTICO_ENSEMBLE}&timezone=UTC`
+  const base = construirBaseUrl('ensemble-api', RUTA, apiKey)
+  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&hourly=precipitation&models=${MODELO_ENSEMBLE}&forecast_days=${DIAS_PRONOSTICO_ENSEMBLE}&timezone=UTC`
+  return agregarApiKey(url, apiKey)
 }
 
 /**
@@ -242,6 +258,8 @@ function puntosDeCeldaEnsemble(params: {
  * los dos para una celda, esa celda queda en `erroresPorCelda` como
  * `'sin_climatologia'` y no afecta a las demás.
  */
+const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
+
 export async function obtenerProbabilidadesEnsemble(params: {
   geometryRefsConCoordenada: Array<{ geometryRef: string; lat: number; lon: number }>
   corridaEn: string
@@ -249,7 +267,18 @@ export async function obtenerProbabilidadesEnsemble(params: {
   umbralP95PorCelda: Map<string, number>
   umbralP99PorCelda: Map<string, number>
   fetchImpl?: typeof fetch
-}): Promise<{ puntos: HazardEnsembleProbPunto[]; erroresPorCelda: Record<string, string> }> {
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
+}): Promise<{
+  puntos: HazardEnsembleProbPunto[]
+  erroresPorCelda: Record<string, string>
+  // Opcional por compatibilidad con fakes de test más viejos que no lo
+  // declaren (mismo patrón que `ProveedorConDiagnostico` en
+  // sync-pronostico-caudal.ts): si falta, el job asume 1 llamada por tanda
+  // (comportamiento previo).
+  llamadasRealizadas?: number
+}> {
   const {
     geometryRefsConCoordenada,
     corridaEn,
@@ -257,27 +286,50 @@ export async function obtenerProbabilidadesEnsemble(params: {
     umbralP95PorCelda,
     umbralP99PorCelda,
     fetchImpl,
+    controladorCupoFactory,
   } = params
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
 
   const puntos: HazardEnsembleProbPunto[] = []
   const erroresPorCelda: Record<string, string> = {}
+  let llamadasRealizadas = 0
 
   const lotes = agruparEnLotes(geometryRefsConCoordenada, TAMANO_LOTE_COORDENADAS_ENSEMBLE)
 
-  for (const lote of lotes) {
+  for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
+    const lote = lotes[indiceLote]
+    const peso = pesoLlamada({
+      ubicaciones: lote.length,
+      variables: VARIABLES_SOLICITADAS_ENSEMBLE,
+      dias: DIAS_PRONOSTICO_ENSEMBLE,
+    })
+    const cupo = controladorCupoFactory?.(peso)
     const resultado = await ejecutarConReintentos<PayloadEnsembleElemento[]>({
-      url: construirUrlLote(lote),
+      url: construirUrlLote(lote, apiKey),
       fetchImpl,
+      cupo,
       parsearPayload: crearParserLoteEnsemble(lote.length),
     })
 
     if (!resultado.ok) {
       const detalle = `${resultado.motivo}: ${resultado.detalle}`
+      if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) llamadasRealizadas += 1
+      if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+        // Ver mismo razonamiento que ecmwf.ts: cupo agotado en ventana larga
+        // o host en cooldown afecta a todos los lotes restantes por igual.
+        for (const loteRestante of lotes.slice(indiceLote + 1)) {
+          for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle
+        }
+        for (const celda of lote) erroresPorCelda[celda.geometryRef] = detalle
+        break
+      }
       for (const celda of lote) {
         erroresPorCelda[celda.geometryRef] = detalle
       }
       continue
     }
+
+    llamadasRealizadas += 1
 
     // El array de respuesta viene en el mismo orden que las coordenadas
     // enviadas: se empareja por índice, no por el lat/lon de la respuesta.
@@ -302,5 +354,5 @@ export async function obtenerProbabilidadesEnsemble(params: {
     })
   }
 
-  return { puntos, erroresPorCelda }
+  return { puntos, erroresPorCelda, llamadasRealizadas }
 }

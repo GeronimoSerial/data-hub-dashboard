@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  agruparPuntosPorEra5,
   calcularPercentilesPrecipitacion,
+  estimarCostoClimatologia,
   obtenerSerieHistorica,
   obtenerSeriesHistoricas,
+  redondearACeldaEra5,
   TAMANO_LOTE_COORDENADAS,
 } from './climatologia'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
@@ -102,10 +105,13 @@ describe('obtenerSerieHistorica', () => {
       expect(r.valoresDiarios).toHaveLength(esperado.length)
       expect(r.valoresDiarios.every((v) => typeof v === 'number')).toBe(true)
     }
-    // Arma la URL del archivo histórico de Open-Meteo.
+    // Arma la URL del archivo histórico de Open-Meteo. La coordenada llega
+    // REDONDEADA a la celda ERA5 (-27.52 -> -27.5, -58.76 -> -58.75, ver
+    // "Deduplicación por celda ERA5" en climatologia.ts): es intencional,
+    // ERA5 no tiene más resolución nativa que 0.25°.
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     const url = fetchImpl.mock.calls[0][0] as unknown as string
-    expect(url).toContain('/v1/archive?latitude=-27.52&longitude=-58.76')
+    expect(url).toContain('/v1/archive?latitude=-27.5&longitude=-58.75')
     expect(url).toContain('daily=precipitation_sum')
   })
 
@@ -261,4 +267,132 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
     expect(seriesPorCelda['-27_100']).toEqual([100])
     expect(seriesPorCelda['-27_119']).toEqual([119])
   }, 15_000)
+})
+
+describe('redondearACeldaEra5 / agruparPuntosPorEra5 (deduplicación por celda ERA5)', () => {
+  it('redondea al múltiplo de 0.25 más cercano', () => {
+    expect(redondearACeldaEra5(-27.4)).toBeCloseTo(-27.5, 10)
+    expect(redondearACeldaEra5(-27.5)).toBeCloseTo(-27.5, 10)
+    expect(redondearACeldaEra5(-58.76)).toBeCloseTo(-58.75, 10)
+    expect(redondearACeldaEra5(0)).toBe(0)
+    expect(redondearACeldaEra5(10)).toBe(10)
+  })
+
+  it('agrupa varios puntos de 0.1° que caen en la misma celda ERA5 (~0.25°) en un único grupo', () => {
+    // -27.40, -27.42, -27.49 redondean los tres a -27.50 (0.25 más cercano);
+    // -27.60 redondea a -27.50 también (distancia 0.10 vs 0.25 al próximo
+    // múltiplo -27.75); -27.90 cae en un grupo aparte (-27.75... en realidad
+    // más cerca de -28.0 — se verifica abajo con el valor real).
+    const puntos = [
+      { geometryRef: 'a', lat: -27.4, lon: -58.8 },
+      { geometryRef: 'b', lat: -27.42, lon: -58.78 },
+      { geometryRef: 'c', lat: -27.49, lon: -58.76 },
+      { geometryRef: 'd', lat: -10, lon: -60 },
+    ]
+
+    const grupos = agruparPuntosPorEra5(puntos)
+
+    // a, b, c comparten la misma celda ERA5 (todas redondean a -27.5 / -58.75
+    // ó -58.75 según el caso: lo importante es que colapsan en UN grupo).
+    const grupoABC = grupos.find((g) => g.miembros.includes('a'))
+    expect(grupoABC?.miembros.sort()).toEqual(['a', 'b', 'c'])
+    expect(grupoABC?.miembros).toContain('b')
+    expect(grupoABC?.miembros).toContain('c')
+
+    // d está lejos (-10, -60): su propio grupo, no comparte con a/b/c.
+    const grupoD = grupos.find((g) => g.miembros.includes('d'))
+    expect(grupoD?.miembros).toEqual(['d'])
+
+    expect(grupos).toHaveLength(2)
+  })
+
+  it('un solo punto produce un grupo con un solo miembro (sin dedup posible)', () => {
+    const grupos = agruparPuntosPorEra5([{ geometryRef: 'x', lat: 1.23, lon: 4.56 }])
+    expect(grupos).toHaveLength(1)
+    expect(grupos[0].miembros).toEqual(['x'])
+  })
+})
+
+// Misma fórmula que `diasEntreFechas` (no exportada) en climatologia.ts, para
+// no hardcodear un conteo de días que dependa de asumir la cuenta exacta.
+function diasEntreFechasTest(desde: string, hasta: string): number {
+  const msPorDia = 86_400_000
+  return Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / msPorDia) + 1
+}
+
+describe('estimarCostoClimatologia', () => {
+  it('coincide con la fórmula de pesoLlamada para 1 variable', () => {
+    const dias = diasEntreFechasTest('1991-01-01', '2020-12-31')
+    const factorDias = Math.max(1, dias / 14)
+
+    const costo387SinDedup = estimarCostoClimatologia({
+      celdasEra5Unicas: 387,
+      periodoDesde: '1991-01-01',
+      periodoHasta: '2020-12-31',
+    })
+    expect(costo387SinDedup).toBeCloseTo(387 * factorDias, 6)
+    expect(costo387SinDedup).toBeGreaterThan(300_000) // supera el techo duro mensual sin deduplicar
+
+    // Con dedup (ej. 62 celdas ERA5 únicas en vez de 387) el costo baja
+    // proporcionalmente y entra cómodo en el techo mensual.
+    const costoDeduplicado = estimarCostoClimatologia({
+      celdasEra5Unicas: 62,
+      periodoDesde: '1991-01-01',
+      periodoHasta: '2020-12-31',
+    })
+    expect(costoDeduplicado).toBeCloseTo(62 * factorDias, 6)
+    expect(costoDeduplicado).toBeLessThan(300_000)
+  })
+
+  it('escala linealmente en celdasEra5Unicas (misma fórmula que pesoLlamada)', () => {
+    const costo1 = estimarCostoClimatologia({
+      celdasEra5Unicas: 1,
+      periodoDesde: '2020-01-01',
+      periodoHasta: '2020-01-14',
+    })
+    const costo10 = estimarCostoClimatologia({
+      celdasEra5Unicas: 10,
+      periodoDesde: '2020-01-01',
+      periodoHasta: '2020-01-14',
+    })
+    expect(costo10).toBeCloseTo(costo1 * 10, 6)
+  })
+})
+
+describe('obtenerSeriesHistoricas: resultado idéntico al enfoque celda-por-celda', () => {
+  it('dos geometryRef que caen en la misma celda ERA5 reciben la MISMA serie que pedirla por separado (una sola request HTTP, no dos)', async () => {
+    const fixtureUrl = new URL('../__fixtures__/hazard/era5-archive-2020q1.json', import.meta.url)
+    const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as {
+      daily: { time: string[]; precipitation_sum: Array<number | null> }
+    }
+    const esperado = fixture.daily.precipitation_sum.filter((v) => v !== null) as number[]
+
+    // Dos celdas de 0.1° distintas (geometryRef distinto) cuyas coordenadas
+    // redondean a la MISMA celda ERA5 que usa el fixture (-27.52 -> -27.50,
+    // -58.76 -> -58.75): -27.55/-58.7 y -27.48/-58.8 redondean igual.
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }))
+
+    const resultado = await obtenerSeriesHistoricas({
+      puntos: [
+        { geometryRef: 'celda-1', lat: -27.55, lon: -58.7 },
+        { geometryRef: 'celda-2', lat: -27.48, lon: -58.8 },
+      ],
+      periodoDesde: '2020-01-01',
+      periodoHasta: '2020-03-31',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    // Una sola request HTTP para ambas celdas (deduplicadas en 1 celda ERA5),
+    // no dos como haría el enfoque celda-por-celda anterior.
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(resultado.celdasEra5Unicas).toBe(1)
+    expect(resultado.puntosOriginales).toBe(2)
+
+    // Ambas celdas reciben exactamente la misma serie (la del fixture): el
+    // resultado NO pierde precisión frente a pedirlas una por una, porque es
+    // literalmente el mismo dato de grilla ERA5 subyacente.
+    expect(resultado.seriesPorCelda['celda-1']).toEqual(esperado)
+    expect(resultado.seriesPorCelda['celda-2']).toEqual(esperado)
+    expect(resultado.seriesPorCelda['celda-1']).toEqual(resultado.seriesPorCelda['celda-2'])
+  })
 })

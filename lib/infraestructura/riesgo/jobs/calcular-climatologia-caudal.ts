@@ -39,6 +39,7 @@ import {
   calcularPercentilesCaudal,
   obtenerSeriesHistoricasCaudal,
 } from '../providers/climatologia-caudal'
+import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 
 export type ResultadoCalcularClimatologiaCaudal = {
   puntosProcesados: number
@@ -127,10 +128,14 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
 
   // Una sola pasada de red para los 8 puntos fijos; los que fallen quedan en
   // `erroresPorPunto` sin bloquear a los demás.
+  const apiKey = apiKeyDesdeEntorno()
   const { seriesPorPunto, erroresPorPunto } = await obtenerSeries({
     puntos: PUNTOS_RIO,
     periodoDesde,
     periodoHasta,
+    apiKey,
+    controladorCupoFactory: (peso) =>
+      crearControladorCupo({ host: 'flood-api', peso, apiKeyPresente: Boolean(apiKey), db }),
   })
 
   const puntosConError: string[] = []

@@ -16,21 +16,51 @@
 //
 // Una celda caída NO tumba el job: se agrega a `celdasConError` y se sigue con
 // la próxima; el estado general queda completado.
+//
+// CURSOR RESUMABLE (OM-cupo, ver docs/ejecucion-enos/OM-cupo/registro.md,
+// sección "Climatología de precipitación"): este job es MUY costoso en cupo
+// (30 años de historia × ~387 celdas), suficiente para agotar el cupo
+// MENSUAL en una sola corrida. En vez de mantener un cursor separado, se
+// reusa `hazard_climatology` como fuente de verdad de "qué celdas ya están
+// calculadas" para este período+version exacto (misma clave que el upsert de
+// abajo): antes de gastar cupo, se excluyen las celdas que YA tienen al
+// menos una fila persistida. Si la corrida se corta por `cupo_agotado`
+// (ventana larga: hora/día/mes) o `host_en_cooldown`, las celdas que no
+// llegaron a procesarse simplemente no quedan en `hazard_climatology`, así
+// que la PRÓXIMA corrida (mismo período+version) las detecta como
+// pendientes y retoma sin recomputar ni volver a gastar cupo en lo ya hecho.
 import { randomUUID } from 'node:crypto'
-import { eq, isNotNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { hazardClimatology, infraGeoProfile } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import {
   calcularPercentilesPrecipitacion,
-  obtenerSerieHistorica,
+  obtenerSeriesHistoricas,
+  type PuntoClimatologia,
 } from '../providers/climatologia'
+import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 
 export type ResultadoCalcularClimatologia = {
   celdasProcesadas: number
   filasInsertadas: number
   celdasConError: string[]
+  /**
+   * `true` si la corrida se detuvo porque el cupo OM-cupo se agotó en una
+   * ventana larga (o el bucket entró en cooldown) antes de terminar todas
+   * las celdas pendientes — no una falla real de datos. El `infra_job_run`
+   * de esta corrida queda marcado 'fallido' (no 'completado') a propósito
+   * para que `adquirirLease` permita re-invocar el MISMO período+version en
+   * la próxima corrida (ver "CURSOR RESUMABLE" en la cabecera del archivo);
+   * si quedara 'completado', el lease bloquearía el reintento para siempre.
+   */
+  cortadoPorCupo: boolean
 }
+
+// OM-cupo: motivos que significan que la guarda de cupo cortó antes de tocar
+// la red (ver providers/cupo-om.ts) — el resto de las celdas pendientes
+// quedan igual en `erroresPorCelda` (el provider ya no gasta cupo en ellas).
+const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
 
 const TIPO_JOB = 'calculo-climatologia'
 const DURACION_LEASE_MS = 10 * 60 * 1000
@@ -43,7 +73,7 @@ export async function ejecutarCalculoClimatologia(params?: {
   periodoDesde?: string
   periodoHasta?: string
   version?: string
-  obtenerSerie?: typeof obtenerSerieHistorica
+  obtenerSeries?: typeof obtenerSeriesHistoricas
 }): Promise<
   | { ok: true; resultado: ResultadoCalcularClimatologia }
   | { ok: false; motivo: 'lease_no_disponible' }
@@ -54,7 +84,7 @@ export async function ejecutarCalculoClimatologia(params?: {
   const periodoDesde = params?.periodoDesde ?? PERIODO_DESDE_DEFAULT
   const periodoHasta = params?.periodoHasta ?? PERIODO_HASTA_DEFAULT
   const version = params?.version ?? VERSION_DEFAULT
-  const obtenerSerie = params?.obtenerSerie ?? obtenerSerieHistorica
+  const obtenerSeries = params?.obtenerSeries ?? obtenerSeriesHistoricas
 
   const claveIdempotente = `${periodoDesde}_${periodoHasta}_${version}`
   const lease = await adquirirLease({
@@ -81,7 +111,7 @@ export async function ejecutarCalculoClimatologia(params?: {
       periodoDesde,
       periodoHasta,
       version,
-      obtenerSerie,
+      obtenerSeries,
       lease,
     })
   } catch (error) {
@@ -103,13 +133,13 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
   periodoDesde: string
   periodoHasta: string
   version: string
-  obtenerSerie: typeof obtenerSerieHistorica
+  obtenerSeries: typeof obtenerSeriesHistoricas
   lease: { adquirido: true; jobRunId: string; leaseOwner: string }
 }): Promise<
   | { ok: true; resultado: ResultadoCalcularClimatologia }
   | { ok: false; motivo: 'lease_no_disponible' }
 > {
-  const { db, ahora, ahoraIso, periodoDesde, periodoHasta, version, obtenerSerie, lease } = ctx
+  const { db, ahora, ahoraIso, periodoDesde, periodoHasta, version, obtenerSeries, lease } = ctx
 
   // selectDistinct ya entrega las celdas deduplicadas; el filtro de nulos
   // reafirma el tipo para el resto del bucle.
@@ -121,13 +151,35 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
     .map((fila) => fila.geometryRef)
     .filter((ref): ref is string => ref !== null)
 
-  const celdasConError: string[] = []
-  let celdasProcesadas = 0
-  let filasInsertadas = 0
+  // Cursor resumable (ver comentario de cabecera): celdas que YA tienen al
+  // menos una fila persistida para este período+version exacto no vuelven a
+  // gastar cupo. Cubre tanto una corrida previa completa como una cortada a
+  // mitad de camino por `cupo_agotado`/`host_en_cooldown`.
+  const filasYaCalculadas = await db
+    .selectDistinct({ geometryRef: hazardClimatology.geometryRef })
+    .from(hazardClimatology)
+    .where(
+      and(
+        eq(hazardClimatology.version, version),
+        eq(hazardClimatology.periodoDesde, periodoDesde),
+        eq(hazardClimatology.periodoHasta, periodoHasta),
+      ),
+    )
+  const celdasYaCalculadas = new Set(filasYaCalculadas.map((fila) => fila.geometryRef))
+  const celdasPendientes = celdas.filter((celda) => !celdasYaCalculadas.has(celda))
 
-  for (const celda of celdas) {
-    // Todos los perfiles de una misma celda comparten la coordenada
-    // redondeada; alcanza con el primero para obtener lat/lon.
+  const celdasConError: string[] = []
+  let celdasProcesadas = celdasYaCalculadas.size
+  let filasInsertadas = 0
+  let cortadoPorCupo = false
+  const apiKey = apiKeyDesdeEntorno()
+
+  // lat/lon por celda pendiente (una query por celda, sin costo de cupo: es
+  // lectura local de infra_geo_profile, no una llamada a Open-Meteo). Todos
+  // los perfiles de una misma celda comparten la coordenada redondeada;
+  // alcanza con el primero.
+  const puntos: PuntoClimatologia[] = []
+  for (const celda of celdasPendientes) {
     const [perfil] = await db
       .select()
       .from(infraGeoProfile)
@@ -138,74 +190,100 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
       celdasConError.push(celda)
       continue
     }
-
-    const serie = await obtenerSerie({
-      lat: perfil.lat,
-      lon: perfil.lon,
-      periodoDesde,
-      periodoHasta,
-    })
-
-    if (!serie.ok) {
-      celdasConError.push(celda)
-      continue
-    }
-
-    const filas = calcularPercentilesPrecipitacion({
-      geometryRef: celda,
-      valoresDiarios: serie.valoresDiarios,
-      periodoDesde,
-      periodoHasta,
-    })
-
-    for (const fila of filas) {
-      await db
-        .insert(hazardClimatology)
-        .values({
-          id: randomUUID(),
-          geometryRef: fila.geometryRef,
-          variable: fila.variable,
-          percentil: fila.percentil,
-          muestra: fila.muestra,
-          valor: fila.valor,
-          unidad: fila.unidad,
-          periodoDesde: fila.periodoDesde,
-          periodoHasta: fila.periodoHasta,
-          version,
-          calculadoEn: ahoraIso,
-        })
-        .onConflictDoUpdate({
-          target: [
-            hazardClimatology.geometryRef,
-            hazardClimatology.variable,
-            hazardClimatology.percentil,
-            hazardClimatology.muestra,
-            hazardClimatology.periodoDesde,
-            hazardClimatology.periodoHasta,
-            hazardClimatology.version,
-          ],
-          set: {
-            valor: sql`excluded.valor`,
-            unidad: sql`excluded.unidad`,
-            calculadoEn: sql`excluded.calculado_en`,
-          },
-        })
-    }
-
-    celdasProcesadas += 1
-    filasInsertadas += filas.length
+    puntos.push({ geometryRef: celda, lat: perfil.lat, lon: perfil.lon })
   }
 
+  // Una sola pasada de red para TODAS las celdas pendientes: la
+  // deduplicación por celda ERA5 y el batching de 50 coordenadas viven
+  // adentro de `obtenerSeriesHistoricas` (ver providers/climatologia.ts). Si
+  // el cupo se agota en una ventana larga a mitad de las celdas pendientes,
+  // el provider ya marca las restantes con el mismo motivo en
+  // `erroresPorCelda` y corta su propio loop de lotes: no quedan escritas en
+  // `hazard_climatology`, así que el cursor resumable las retoma la próxima
+  // corrida.
+  if (puntos.length > 0) {
+    const resultado = await obtenerSeries({
+      puntos,
+      periodoDesde,
+      periodoHasta,
+      apiKey,
+      controladorCupoFactory: (peso) =>
+        crearControladorCupo({ host: 'archive-api', peso, apiKeyPresente: Boolean(apiKey), db }),
+    })
+
+    for (const punto of puntos) {
+      const serieDiaria = resultado.seriesPorCelda[punto.geometryRef]
+      const fallo = resultado.erroresPorCelda[punto.geometryRef]
+      if (fallo || serieDiaria === undefined) {
+        celdasConError.push(punto.geometryRef)
+        if (fallo && MOTIVOS_CUPO_SIN_RED.has(fallo.motivo)) cortadoPorCupo = true
+        continue
+      }
+
+      const filas = calcularPercentilesPrecipitacion({
+        geometryRef: punto.geometryRef,
+        valoresDiarios: serieDiaria,
+        periodoDesde,
+        periodoHasta,
+      })
+
+      for (const fila of filas) {
+        await db
+          .insert(hazardClimatology)
+          .values({
+            id: randomUUID(),
+            geometryRef: fila.geometryRef,
+            variable: fila.variable,
+            percentil: fila.percentil,
+            muestra: fila.muestra,
+            valor: fila.valor,
+            unidad: fila.unidad,
+            periodoDesde: fila.periodoDesde,
+            periodoHasta: fila.periodoHasta,
+            version,
+            calculadoEn: ahoraIso,
+          })
+          .onConflictDoUpdate({
+            target: [
+              hazardClimatology.geometryRef,
+              hazardClimatology.variable,
+              hazardClimatology.percentil,
+              hazardClimatology.muestra,
+              hazardClimatology.periodoDesde,
+              hazardClimatology.periodoHasta,
+              hazardClimatology.version,
+            ],
+            set: {
+              valor: sql`excluded.valor`,
+              unidad: sql`excluded.unidad`,
+              calculadoEn: sql`excluded.calculado_en`,
+            },
+          })
+      }
+
+      celdasProcesadas += 1
+      filasInsertadas += filas.length
+    }
+  }
+
+  // Ver `cortadoPorCupo` en el tipo de retorno: si el cupo cortó el batch
+  // antes de terminar, el job-run queda 'fallido' A PROPÓSITO (no
+  // 'completado') para que `adquirirLease` permita retomar el MISMO
+  // período+version en la próxima corrida en vez de bloquearlo para
+  // siempre.
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
-    estado: 'completado',
+    estado: cortadoPorCupo ? 'fallido' : 'completado',
     contadores: { celdas: celdasProcesadas, filas: filasInsertadas },
+    errorSaneado: cortadoPorCupo
+      ? `cupo OM-cupo agotado: ${celdasConError.length} celda(s) pendientes, se retoman en la próxima corrida`
+      : undefined,
     ahora,
   })
 
   return {
     ok: true,
-    resultado: { celdasProcesadas, filasInsertadas, celdasConError },
+    resultado: { celdasProcesadas, filasInsertadas, celdasConError, cortadoPorCupo },
   }
 }

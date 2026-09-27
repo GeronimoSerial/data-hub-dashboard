@@ -16,9 +16,11 @@
 //   consecutivos (primer punto usa el paso del segundo respecto al primero).
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import type { ControladorCupoOM } from './cupo-om'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
-const BASE_URL = 'https://api.open-meteo.com/v1/ecmwf'
+const RUTA = '/v1/ecmwf'
 const VARIABLES_HOURLY = [
   'precipitation',
   'cape',
@@ -103,12 +105,16 @@ function parsearGeometryRef(geometryRef: string): { lat: number; lon: number } {
   return { lat, lon }
 }
 
-function construirUrlLote(celdas: CeldaEcmwf[]): string {
+const FORECAST_DAYS = 10
+
+function construirUrlLote(celdas: CeldaEcmwf[], apiKey: string | undefined): string {
   const latitudes = celdas.map((celda) => String(celda.lat)).join(',')
   const longitudes = celdas.map((celda) => String(celda.lon)).join(',')
-  return `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}&hourly=${VARIABLES_HOURLY.join(
+  const base = construirBaseUrl('api', RUTA, apiKey)
+  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&hourly=${VARIABLES_HOURLY.join(
     ',',
-  )}&forecast_days=10&timezone=UTC`
+  )}&forecast_days=${FORECAST_DAYS}&timezone=UTC`
+  return agregarApiKey(url, apiKey)
 }
 
 /**
@@ -198,8 +204,27 @@ export interface HazardProviderEcmwf extends HazardProvider {
   }): Promise<ResultadoPronosticoEcmwf>
 }
 
-export function crearProviderEcmwf(opts?: { fetchImpl?: typeof fetch }): HazardProviderEcmwf {
+// OM-cupo: motivos que significan "la guarda de cupo cortó antes de tocar la
+// red" (ver providers/cupo-om.ts). Cuando un lote choca contra una ventana
+// larga (hora/dia/mes) o un cooldown de host, los lotes restantes van a
+// chocar exactamente igual: se cortan de una sin gastar más ciclos.
+const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
+
+export function crearProviderEcmwf(opts?: {
+  fetchImpl?: typeof fetch
+  apiKey?: string
+  /**
+   * OM-cupo (opt-in): fábrica de guarda de cupo por lote, invocada con el
+   * peso YA calculado del lote. Si se omite (default), este provider se
+   * comporta EXACTAMENTE igual que antes de OM-cupo — sin tocar ninguna DB
+   * — así los tests que no lo integran (ecmwf.test.ts) no cambian. La
+   * producción la pasa desde el job (ver sync-pronostico-caudal.ts), que es
+   * quien conoce el `getDb()` real.
+   */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
+}): HazardProviderEcmwf {
   const fetchImpl = opts?.fetchImpl
+  const apiKey = opts?.apiKey ?? apiKeyDesdeEntorno()
 
   async function obtenerPronosticoConDiagnostico(params: {
     geometryRefs: string[]
@@ -223,22 +248,38 @@ export function crearProviderEcmwf(opts?: { fetchImpl?: typeof fetch }): HazardP
     const lotes = agruparEnLotes(celdasValidas, TAMANO_LOTE_COORDENADAS)
     const celdasPorLlamada: number[] = []
 
-    for (const lote of lotes) {
-      celdasPorLlamada.push(lote.length)
+    for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
+      const lote = lotes[indiceLote]
+      const peso = pesoLlamada({ ubicaciones: lote.length, variables: VARIABLES_HOURLY.length, dias: FORECAST_DAYS })
+      const cupo = opts?.controladorCupoFactory?.(peso)
       const resultado = await ejecutarConReintentos<PayloadEcmwfElemento[]>({
-        url: construirUrlLote(lote),
+        url: construirUrlLote(lote, apiKey),
         fetchImpl,
+        cupo,
         parsearPayload: crearParserLote(lote.length),
       })
 
       if (!resultado.ok) {
+        if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(lote.length)
         const detalle = `${resultado.motivo}: ${resultado.detalle}`
+        if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+          // Cupo agotado en ventana larga o host en cooldown: los lotes que
+          // faltan van a chocar exactamente igual (misma guarda, mismo
+          // host). Se marcan como no consultados y se corta el loop en vez
+          // de seguir golpeando la guarda lote por lote sin necesidad.
+          for (const loteRestante of lotes.slice(indiceLote + 1)) {
+            for (const celda of loteRestante) erroresPorCelda[celda.geometryRef] = detalle
+          }
+          for (const celda of lote) erroresPorCelda[celda.geometryRef] = detalle
+          break
+        }
         for (const celda of lote) {
           erroresPorCelda[celda.geometryRef] = detalle
         }
         continue
       }
 
+      celdasPorLlamada.push(lote.length)
       // El array de respuesta viene en el mismo orden que las coordenadas
       // enviadas: se empareja por índice, no por el lat/lon de la respuesta.
       lote.forEach((celda, indice) => {
@@ -246,7 +287,11 @@ export function crearProviderEcmwf(opts?: { fetchImpl?: typeof fetch }): HazardP
       })
     }
 
-    return { puntos, erroresPorCelda, llamadasRealizadas: lotes.length, celdasPorLlamada }
+    // `llamadasRealizadas` cuenta requests HTTP reales; un lote bloqueado por
+    // OM-cupo (sin tocar la red) no cuenta, por eso se deriva de
+    // `celdasPorLlamada.length` (que sólo crece en lotes con intento de red
+    // real) y no de `lotes.length`.
+    return { puntos, erroresPorCelda, llamadasRealizadas: celdasPorLlamada.length, celdasPorLlamada }
   }
 
   return {
