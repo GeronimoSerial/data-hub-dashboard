@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { celdaDeCoordenada } from '../celda'
 import { mapearAsciiImergACeldas, parsearRespuestaAsciiImerg } from '../providers/imerg'
 import type { ejecutarSyncImerg as EjecutarSyncImerg } from './sync-imerg'
+import type { PuertoObservacionSatelital } from '../adaptadores-ingesta/puertos'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -474,5 +475,65 @@ describe('ejecutarSyncImerg', () => {
     if (resultado.ok) {
       expect(fetchImpl).toHaveBeenCalledTimes(1 + resultado.resultado.granulosProcesados)
     }
+  })
+
+  // Cableado por PUERTO (ABS1, segunda parte): a diferencia de los demás
+  // tests (que inyectan `fetchImpl`/`earthdataToken` y dejan que el job
+  // construya el adaptador real), acá se inyecta el PUERTO completo
+  // (`PuertoObservacionSatelital`) directamente. Cero red, ni siquiera
+  // `fetchImpl` fake: el fake vive enteramente por encima del fetch.
+  it('con un puerto fake inyectado directamente (sin adaptador, sin red) persiste sus observaciones', async () => {
+    const ahora = new Date('2026-09-26T22:05:00.000Z') // bloque 22:00, libre
+    const antes = await contarObservaciones()
+    const granulo = {
+      id: 'GPM_3IMERGHHE.fake-puerto',
+      inicioEn: '2026-09-26T21:30:00.000Z',
+      finEn: '2026-09-26T21:59:59.999Z',
+      urlDatos: 'https://example.invalid/fake-puerto.HDF5',
+    }
+
+    const puertoFake: PuertoObservacionSatelital = {
+      async listarGranulos() {
+        return [granulo]
+      },
+      async obtenerObservacion() {
+        return {
+          observaciones: [
+            {
+              geometryRef: '-27.5_-58.8',
+              variable: 'precipitacion_observada_satelital' as const,
+              valorMm: 1.1,
+              observadoEn: granulo.inicioEn,
+              ventanaDesde: granulo.inicioEn,
+              ventanaHasta: granulo.finEn,
+              calidad: 0.9,
+            },
+          ],
+          celdasSinDato: [],
+        }
+      },
+    }
+
+    const resultado = await ejecutarSyncImerg({ ahora, puerto: puertoFake, earthdataToken: 'token-fake' })
+
+    expect(resultado).toEqual({
+      ok: true,
+      resultado: {
+        celdasActualizadas: 1,
+        motivo: 'sincronizado',
+        granulosProcesados: 1,
+        granulosFallidos: 0,
+      },
+    })
+    expect((await contarObservaciones()) - antes).toBe(1)
+
+    const { hazardObservation } = await import('@/lib/db/schema')
+    const filas = (await (await db()).select().from(hazardObservation)).filter(
+      (fila) => fila.provider === 'nasa-imerg' && fila.geometryRef === '-27.5_-58.8',
+    )
+    const fila = filas.find((f) => f.observadoEn === granulo.inicioEn)
+    expect(fila?.valor).toBe(1.1)
+    expect(fila?.unidad).toBe('mm/30min')
+    expect(fila?.calidad).toBe(0.9)
   })
 })

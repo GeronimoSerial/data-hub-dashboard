@@ -41,22 +41,21 @@ import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardObservation, hazardSourceHealth } from '@/lib/db/schema'
-import { celdaDeCoordenada } from '../celda'
-import {
-  IMERG_LAT_MAX,
-  IMERG_LAT_MIN,
-  IMERG_LON_MAX,
-  IMERG_LON_MIN,
-  calcularIndicesGrillaImerg,
-  construirUrlSubsetImerg,
-  listarGranulosDelPayload,
-  mapearAsciiImergACeldas,
-  parsearRespuestaAsciiImerg,
-  type GranuloImerg,
-  type HazardObservationPunto,
-} from '../providers/imerg'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { CONFIG_FUENTES } from '../providers/config-fuentes'
+import { crearAdaptadorImerg } from '../adaptadores-ingesta/imerg'
+import type {
+  GranuloSatelital,
+  ObservacionPrecipitacionCelda,
+  PuertoObservacionSatelital,
+} from '../adaptadores-ingesta/puertos'
+
+// Mismo literal que providers/imerg.ts (`unidad: 'mm/30min'`, ver
+// `FACTOR_TASA_A_ACUMULADO_30MIN`): el puerto normalizado no expone `unidad`
+// (siempre mm, ver ObservacionPrecipitacionCelda), así que el job la
+// reconstituye acá para no cambiar el valor persistido en
+// `hazard_observation.unidad`.
+const UNIDAD_OBSERVADA = 'mm/30min'
 
 const TIPO_JOB = 'sync-hazard-imerg'
 const VERSION_JOB = 'v1'
@@ -95,14 +94,9 @@ const MARGEN_BACKFILL_HORAS = CONFIG_FUENTES.imergCmr.margenBackfillHoras
 // corridas sucesivas completan la ventana de 72h (144 gránulos) sin
 // disparar 144 requests de una sola vez.
 const MAX_GRANULOS_A_PROCESAR_POR_CORRIDA = CONFIG_FUENTES.imergCmr.maxGranulosPorCorrida
-// page_size de CMR para la ventana de 72h+margen: (72+6)h / 0.5h = 156,
-// redondeado hacia arriba con margen propio de paginación.
-const CMR_PAGE_SIZE_VENTANA = CONFIG_FUENTES.imergCmr.pageSizeVentana
-
-function urlCmrVentana(desde: Date, hasta: Date): string {
-  const temporal = `${desde.toISOString()},${hasta.toISOString()}`
-  return `https://${CONFIG_FUENTES.imergCmr.host}/search/granules.json?short_name=GPM_3IMERGHHE&temporal=${encodeURIComponent(temporal)}&sort_key=-start_date&page_size=${CMR_PAGE_SIZE_VENTANA}`
-}
+// El armado de la URL de CMR (page_size, short_name, host) ya vive en
+// `adaptadores-ingesta/imerg.ts` (`listarGranulos`), que usa el mismo
+// `CONFIG_FUENTES.imergCmr`. Ver PENDIENTE resuelto en el adaptador.
 
 type Db = ReturnType<typeof getDb>
 type EstadoSalud = 'ok' | 'degradado' | 'no_disponible'
@@ -193,9 +187,11 @@ async function actualizarSalud(
 // de ese detalle: si la grilla IMERG (desfasada media celda respecto de
 // `celdaDeCoordenada`) hace colisionar dos filas en la misma celda, nos
 // quedamos con el PRIMER valor encontrado, igual que el mapeo.
-function deduplicarPorCelda(puntos: HazardObservationPunto[]): HazardObservationPunto[] {
+function deduplicarPorCelda(
+  puntos: ObservacionPrecipitacionCelda[],
+): ObservacionPrecipitacionCelda[] {
   const vistas = new Set<string>()
-  const unicos: HazardObservationPunto[] = []
+  const unicos: ObservacionPrecipitacionCelda[] = []
   for (const punto of puntos) {
     if (vistas.has(punto.geometryRef)) continue
     vistas.add(punto.geometryRef)
@@ -229,21 +225,26 @@ async function obtenerObservadosEnExistentes(
 
 async function persistirObservaciones(
   db: Db,
-  puntos: HazardObservationPunto[],
+  puntos: ObservacionPrecipitacionCelda[],
   ingeridoEn: string,
 ): Promise<number> {
   if (puntos.length === 0) return 0
 
+  // Traducción de FORMA únicamente (nombres del puerto -> columnas de
+  // `hazard_observation`): `valorMm`/`ventanaDesde`/`ventanaHasta` son los
+  // mismos instantes/valor que antes exponían `valor`/`validoDesde`/
+  // `validoHasta` (ver adaptadores-ingesta/imerg.ts). `unidad` no viaja en el
+  // puerto porque siempre es la misma constante (ver UNIDAD_OBSERVADA arriba).
   const filas = puntos.map((punto) => ({
     id: randomUUID(),
     provider: PROVIDER,
     variable: punto.variable,
     geometryRef: punto.geometryRef,
-    valor: punto.valor,
-    unidad: punto.unidad,
+    valor: punto.valorMm,
+    unidad: UNIDAD_OBSERVADA,
     observadoEn: punto.observadoEn,
-    validoDesde: punto.validoDesde,
-    validoHasta: punto.validoHasta,
+    validoDesde: punto.ventanaDesde,
+    validoHasta: punto.ventanaHasta,
     calidad: punto.calidad,
     // Fuera del alcance de esta versión: no se conserva el ASCII crudo. Mismo
     // criterio que E2 dejó `rawRef` null para `hazard_forecast`.
@@ -285,38 +286,20 @@ async function persistirObservaciones(
   return filas.length
 }
 
-// Descarga+parsea+persiste un único gránulo. Lanza (no atrapa) en cualquier
-// falla de red/formato: el llamador decide qué hacer con ese gránulo puntual
-// (abortar la corrida si es el más reciente, o descartarlo y seguir con el
-// resto si es sólo backfill).
+// Descarga+parsea+persiste un único gránulo vía el puerto normalizado. Lanza
+// (no atrapa) en cualquier falla de red/formato: el llamador decide qué hacer
+// con ese gránulo puntual (abortar la corrida si es el más reciente, o
+// descartarlo y seguir con el resto si es sólo backfill). El fetch+parseo
+// (misma URL de subset, mismo armado de índices de grilla) ahora vive en
+// `adaptadores-ingesta/imerg.ts` (`obtenerObservacion`).
 async function procesarGranulo(
   db: Db,
-  fetchImpl: typeof fetch,
-  autorizacion: Record<string, string>,
-  granulo: GranuloImerg,
+  puerto: PuertoObservacionSatelital,
+  granulo: GranuloSatelital,
   ingeridoEn: string,
 ): Promise<number> {
-  const indices = calcularIndicesGrillaImerg(IMERG_LAT_MIN, IMERG_LAT_MAX, IMERG_LON_MIN, IMERG_LON_MAX)
-  const urlSubset = construirUrlSubsetImerg({ urlDatosGranulo: granulo.urlDatos, ...indices })
-
-  const respuestaSubset = await fetchImpl(urlSubset, { headers: autorizacion })
-  if (!respuestaSubset.ok) {
-    throw new Error(`subset HTTP ${respuestaSubset.status}`)
-  }
-  // Es ASCII plano, no JSON.
-  const texto = await respuestaSubset.text()
-  const parseado = parsearRespuestaAsciiImerg(texto)
-  const puntos = mapearAsciiImergACeldas({
-    parseado,
-    // El instante observado es el INICIO del gránulo, estable entre
-    // invocaciones; la ventana válida completa el intervalo del producto.
-    observadoEn: granulo.inicioEn,
-    validoDesde: granulo.inicioEn,
-    validoHasta: granulo.finEn,
-    celdaDeCoordenada,
-  })
-
-  const unicos = deduplicarPorCelda(puntos)
+  const { observaciones } = await puerto.obtenerObservacion({ granulo })
+  const unicos = deduplicarPorCelda(observaciones)
   return await persistirObservaciones(db, unicos, ingeridoEn)
 }
 
@@ -324,6 +307,10 @@ export async function ejecutarSyncImerg(params?: {
   ahora?: Date
   fetchImpl?: typeof fetch
   earthdataToken?: string
+  // Seam de test: inyecta el PUERTO completo (sin red), saltea la
+  // construcción del adaptador real. Demuestra la inyección por puerto (ver
+  // sync-imerg.test.ts).
+  puerto?: PuertoObservacionSatelital
 }): Promise<ResultadoEjecucionSyncImerg> {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
@@ -386,12 +373,19 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     ahora?: Date
     fetchImpl?: typeof fetch
     earthdataToken?: string
+    puerto?: PuertoObservacionSatelital
   }
 }): Promise<ResultadoEjecucionSyncImerg> {
   const { db, ahora, ahoraIso, token, lease, params } = ctx
 
-  const fetchImpl = params?.fetchImpl ?? fetch
-  const autorizacion = { Authorization: `Bearer ${token}` }
+  // Puerto normalizado (ABS1, segunda parte): por defecto el adaptador real,
+  // que envuelve el mismo fetch+parseo de CMR/OPeNDAP que antes vivía inline
+  // acá, sin cambiar ninguna URL ni valor. `token` ya viene validado (no
+  // vacío) por el chequeo de `fuente_no_configurada` de arriba, así que se
+  // pasa explícito para que el adaptador nunca dependa del fallback a
+  // `process.env.EARTHDATA_TOKEN`.
+  const puerto: PuertoObservacionSatelital =
+    params?.puerto ?? crearAdaptadorImerg({ fetchImpl: params?.fetchImpl, token })
 
   // Una fuente caída no debe bloquear el lease para el próximo ciclo: se
   // registra degradado y se publica `completado` con contador 0.
@@ -420,13 +414,16 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   // backfill: si alguno falla, se descarta y se reintenta en la próxima
   // corrida (no aborta el resto).
   const desdeVentana = new Date(ahora.getTime() - (VENTANA_BACKFILL_HORAS + MARGEN_BACKFILL_HORAS) * 60 * 60 * 1000)
-  let granulos: GranuloImerg[]
+  let granulos: GranuloSatelital[]
   try {
-    const respuestaCmr = await fetchImpl(urlCmrVentana(desdeVentana, ahora), { headers: autorizacion })
-    if (!respuestaCmr.ok) {
-      return await degradar('sin_granulo_disponible', `CMR HTTP ${respuestaCmr.status}`)
-    }
-    granulos = listarGranulosDelPayload(await respuestaCmr.json())
+    // El puerto ya valida `.ok` y lanza `CMR HTTP ${status}` (mismo texto que
+    // antes armaba el job a mano); `sanearError` deja ese mensaje intacto
+    // (sin token adentro) y cualquier otra falla de red/parseo cae en la
+    // misma rama, igual que antes.
+    granulos = await puerto.listarGranulos({
+      desde: desdeVentana.toISOString(),
+      hasta: ahora.toISOString(),
+    })
   } catch (error) {
     return await degradar('sin_granulo_disponible', sanearError(error, token))
   }
@@ -470,7 +467,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
 
   for (const granulo of aProcesar) {
     try {
-      celdasActualizadas += await procesarGranulo(db, fetchImpl, autorizacion, granulo, ahoraIso)
+      celdasActualizadas += await procesarGranulo(db, puerto, granulo, ahoraIso)
       granulosProcesados += 1
     } catch (error) {
       granulosFallidos += 1

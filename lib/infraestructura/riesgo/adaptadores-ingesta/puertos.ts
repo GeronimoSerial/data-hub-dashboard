@@ -51,6 +51,8 @@ export interface PuertoPronosticoEnsemble {
     puntos: PuntoEnsembleProbabilistico[]
     /** geometryRef -> motivo ('sin_climatologia', 'sin_miembros', ...). */
     sinDato: Record<string, string>
+    /** Llamadas HTTP reales hechas al proveedor (conteo de cupo del job). */
+    llamadasRealizadas: number
   }>
 }
 

@@ -45,9 +45,11 @@ export function crearAdaptadorSeasonal(
       return {
         estadisticas: resultado.estadisticas,
         sinDato: resultado.erroresPorDepartamento,
-        // PENDIENTE para el cableado del job: el provider también devuelve
-        // `llamadasRealizadas` para el conteo de cupo, que el puerto normalizado
-        // no expone todavía. Se omite a propósito para no alterar la forma.
+        // Cableado del job (ABS1, segunda parte): a diferencia de ensemble.ts,
+        // sync-seasonal.ts nunca usó el `llamadasRealizadas` del provider real
+        // (incrementa su propio contador una vez por tanda, independiente de
+        // la corrida interna de `obtenerTendenciaEstacional`); por eso el
+        // puerto NO necesita exponerlo para preservar el comportamiento.
       }
     },
   }

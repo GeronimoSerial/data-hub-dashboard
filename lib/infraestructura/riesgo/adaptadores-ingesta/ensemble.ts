@@ -102,9 +102,12 @@ export function crearAdaptadorEnsemble(
       return {
         puntos: resultado.puntos.map(normalizarPunto),
         sinDato: resultado.erroresPorCelda,
-        // PENDIENTE para el cableado del job: el provider también devuelve
-        // `llamadasRealizadas` para el conteo de cupo, que el puerto normalizado
-        // no expone todavía. Se omite a propósito para no alterar la forma.
+        // Cableado del job (segunda parte de ABS1): el job usa este conteo
+        // para reportar `contadores.llamadas` en infra_job_run, así que el
+        // puerto debe exponerlo (antes PENDIENTE). El provider ya lo calcula;
+        // acá sólo se reenvía, sin alterar el valor. Fallback a 0 si el
+        // provider inyectado en un test no lo declara.
+        llamadasRealizadas: resultado.llamadasRealizadas ?? 0,
       }
     },
   }

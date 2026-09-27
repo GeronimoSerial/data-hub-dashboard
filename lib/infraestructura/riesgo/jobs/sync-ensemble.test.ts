@@ -9,6 +9,7 @@ import type {
   obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal,
 } from '../providers/ensemble'
 import type { ejecutarSyncEnsemble as EjecutarSyncEnsemble } from './sync-ensemble'
+import type { PuertoPronosticoEnsemble } from '../adaptadores-ingesta/puertos'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -65,7 +66,12 @@ function ensembleFake(opciones?: {
       }
     }
 
-    return { puntos, erroresPorCelda }
+    // El provider real siempre reporta `llamadasRealizadas` (una llamada HTTP
+    // por invocación de esta función); el fake lo replica para que el
+    // cableado por puerto (que ahora reenvía este conteo, ver
+    // adaptadores-ingesta/ensemble.ts) mantenga el mismo
+    // `resultado.llamadasRealizadas` que antes del cableado.
+    return { puntos, erroresPorCelda, llamadasRealizadas: 1 }
   }
 }
 
@@ -370,5 +376,66 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
 
     expect(fila?.estado).toBe('fallido')
     expect(fila?.leaseOwner).toBeNull()
+  })
+
+  // Cableado por PUERTO (ABS1, segunda parte): a diferencia de los demás
+  // tests de este archivo (que inyectan `obtenerProbabilidades`, la función
+  // cruda del provider), acá se inyecta el PUERTO completo
+  // (`PuertoPronosticoEnsemble`) directamente, sin pasar por
+  // `crearAdaptadorEnsemble` ni por ningún provider real. Cero red: demuestra
+  // que el job ya no importa `providers/ensemble` para su camino de datos.
+  it('con un puerto fake inyectado directamente (sin adaptador, sin red) persiste sus puntos', async () => {
+    const ahora = new Date('2026-09-27T19:00:00.000Z') // bloque 18-24, libre
+    // No asumimos un total fijo de celdas: otros tests de este archivo insertan
+    // sus propias filas en `infra_geo_profile` (misma base compartida por
+    // `beforeAll`), así que el job puede consultar más de `CELDAS.length`. Lo
+    // que este test verifica es la INYECCIÓN por puerto, no el conteo global.
+    const args: Parameters<PuertoPronosticoEnsemble['obtenerProbabilidades']>[0][] = []
+
+    const puertoFake: PuertoPronosticoEnsemble = {
+      async obtenerProbabilidades(params) {
+        args.push(params)
+        return {
+          puntos: params.geometryRefs.map((geometryRef) => ({
+            geometryRef,
+            variable: 'precipitacion_acumulada' as const,
+            corridaEn: params.asOf,
+            validoDesde: params.asOf,
+            validoHasta: params.asOf,
+            horizonteHoras: 24,
+            acumuladoHoras: 24 as const,
+            miembrosTotal: 51,
+            miembrosValidos: 51,
+            probabilidadSuperaP95: 0.42,
+            probabilidadSuperaP99: 0.2,
+            dispersionMm: 2.1,
+          })),
+          sinDato: {},
+          llamadasRealizadas: 1,
+        }
+      },
+    }
+
+    const resultado = await ejecutarSyncEnsemble({ ahora, puerto: puertoFake })
+
+    expect(resultado.ok).toBe(true)
+    expect(args.length).toBeGreaterThan(0)
+    // Todos los geometryRefs que el puerto vio incluyen las 3 celdas base.
+    const refsVistos = new Set(args.flatMap((a) => a.geometryRefs))
+    for (const celda of CELDAS) expect(refsVistos.has(celda)).toBe(true)
+    if (resultado.ok) {
+      expect(resultado.resultado.filasInsertadas).toBe(resultado.resultado.celdasConsultadas)
+      expect(resultado.resultado.llamadasRealizadas).toBeGreaterThan(0)
+    }
+
+    const { getDb } = await import('@/lib/db')
+    const { hazardEnsembleProb } = await import('@/lib/db/schema')
+    const corridasVistas = [...new Set(args.map((a) => a.asOf))]
+    const filas = await getDb()
+      .select()
+      .from(hazardEnsembleProb)
+      .where(inArray(hazardEnsembleProb.corridaEn, corridasVistas))
+    expect(filas.length).toBeGreaterThan(0)
+    expect(filas.every((fila) => fila.probabilidadP95 === 0.42)).toBe(true)
   })
 })

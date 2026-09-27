@@ -13,11 +13,12 @@
 //   (`valor` -> `valorMm`, `validoDesde`/`validoHasta` -> `ventanaDesde`/
 //   `ventanaHasta`; `valor` se pasa sin tocar).
 //
-// PENDIENTE (no hacer en esta tarea): el armado de la URL de CMR sigue siendo
-// un copia fiel de `urlCmrVentana` de jobs/sync-imerg.ts, porque
-// ../providers/imerg.ts no exporta un builder de CMR y no se toca el job
-// todavía. Consolidación: mover ese builder a providers/imerg.ts y que el job
-// delegue en este adaptador. El job queda SIN TOCAR en esta tarea.
+// Cableado del job (ABS1, segunda parte): jobs/sync-imerg.ts ya delega en
+// `listarGranulos`/`obtenerObservacion` de este adaptador (antes tenía su
+// propia copia fiel de `urlCmrVentana` inline). Pendiente menor que sigue sin
+// resolverse: ../providers/imerg.ts todavía no exporta un builder de CMR
+// propio, así que `urlCmrVentana` de acá abajo sigue siendo una copia (ya no
+// duplicada con el job, sólo con la constante `CONFIG_FUENTES.imergCmr`).
 import { celdaDeCoordenada } from '../celda'
 import { CONFIG_FUENTES } from '../providers/config-fuentes'
 import {
