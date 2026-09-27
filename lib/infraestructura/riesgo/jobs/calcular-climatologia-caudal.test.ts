@@ -123,4 +123,37 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     // 24 de la versión v0.1 + 21 de la v0.2 (sólo los puntos que respondieron ok)
     expect(filas).toHaveLength(PUNTOS_RIO.length * 3 + (PUNTOS_RIO.length - 1) * 3)
   })
+
+  // Regresión: antes del fix, una excepción posterior a adquirir el lease
+  // (no un error por punto reportado por el provider, sino un throw real)
+  // escapaba sin publicar resultado y `infra_job_run` quedaba 'en_progreso'
+  // hasta el vencimiento del lease.
+  it('si obtenerSeries lanza, el job-run queda fallido y la excepción se relanza', async () => {
+    const errorOriginal = new Error('boom: fallo simulado de red')
+    const obtenerSeries: typeof ObtenerSeriesHistoricasCaudal = async () => {
+      throw errorOriginal
+    }
+
+    await expect(
+      ejecutarCalculoClimatologiaCaudal({
+        periodoDesde: '2000-01-01',
+        periodoHasta: '2009-12-31',
+        version: 'caudal-climatologia-v0.3-fallido',
+        obtenerSeries,
+      }),
+    ).rejects.toThrow(errorOriginal)
+
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [fila] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(
+        eq(infraJobRun.claveIdempotente, '2000-01-01_2009-12-31_caudal-climatologia-v0.3-fallido'),
+      )
+
+    expect(fila?.estado).toBe('fallido')
+    expect(fila?.leaseOwner).toBeNull()
+  })
 })

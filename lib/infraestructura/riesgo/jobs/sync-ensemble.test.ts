@@ -340,4 +340,35 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
     const despues = (await db.select().from(hazardEnsembleProb)).length
     expect(despues - antes).toBe(20 * PUNTOS_POR_CELDA_DEFAULT)
   })
+
+  // Regresión: antes del fix, una excepción posterior a adquirir el lease
+  // escapaba sin publicar resultado y `infra_job_run` quedaba 'en_progreso'
+  // hasta el vencimiento del lease (mismo hallazgo que
+  // sync-pronostico-caudal.ts).
+  it('si renovarLease lanza, el job-run queda fallido y la excepción se relanza', async () => {
+    const ahora = new Date('2026-09-27T13:00:00.000Z') // bloque propio, lease libre
+    const errorOriginal = new Error('boom: fallo simulado durante la renovación')
+    const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => {
+      throw errorOriginal
+    })
+
+    await expect(
+      ejecutarSyncEnsemble({
+        ahora,
+        obtenerProbabilidades: ensembleFake(),
+        renovarLease,
+      }),
+    ).rejects.toThrow(errorOriginal)
+
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [fila] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, '2026-09-27T12'))
+
+    expect(fila?.estado).toBe('fallido')
+    expect(fila?.leaseOwner).toBeNull()
+  })
 })
