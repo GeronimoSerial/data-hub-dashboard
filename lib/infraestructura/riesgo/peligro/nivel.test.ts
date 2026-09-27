@@ -503,6 +503,204 @@ describe('obtenerNivelesPeligro', () => {
   })
 })
 
+describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
+  const ahora = new Date('2026-09-26T12:00:00.000Z')
+  const horizontes: Array<24 | 72 | 240> = [24, 72, 240]
+  const refs = [
+    'lote-ensemble',
+    'lote-deterministico',
+    'lote-clima-parcial',
+    'lote-sin-datos',
+  ]
+  const ahoraIso = ahora.toISOString()
+  const sinDato = (geometryRef: string, horizonteHoras: 24 | 72 | 240) => ({
+    geometryRef,
+    horizonteHoras,
+    nivel: 'sin_dato',
+    base: 'sin_dato',
+    probabilidadP95: null,
+    probabilidadP99: null,
+    precipitacionMm: null,
+    percentilReferencia: null,
+    emitidoEn: ahoraIso,
+    validoHasta: ahoraIso,
+    versionRegla: 'peligro-v0.1',
+  })
+
+  beforeEach(async () => {
+    // Celda 1: ensemble reciente en 24 y 72; para 240 no hay nada -> sin_dato.
+    await db.insert(hazardEnsembleProb).values([
+      filaEnsemble({
+        geometryRef: 'lote-ensemble',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-26T23:00:00.000Z',
+        horizonteHoras: 24,
+        probabilidadP95: 0.6,
+        probabilidadP99: 0.1,
+      }),
+      filaEnsemble({
+        geometryRef: 'lote-ensemble',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-28T23:00:00.000Z',
+        horizonteHoras: 72,
+        probabilidadP95: 0.9,
+        probabilidadP99: 0.9,
+      }),
+    ])
+
+    // Celda 2: sin ensemble, sólo pronóstico en 24/72 + climatología completa.
+    await db.insert(hazardForecast).values([
+      filaPronostico({
+        geometryRef: 'lote-deterministico',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 25,
+      }),
+      filaPronostico({
+        geometryRef: 'lote-deterministico',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-29T00:00:00.000Z',
+        horizonteHoras: 72,
+        valor: 40,
+      }),
+    ])
+    await insertarClimatologia('lote-deterministico', 'precipitacion_diaria', {
+      p90: 10,
+      p95: 20,
+      p99: 30,
+    })
+
+    // Celda 3: climatología parcial (sin p99) => sin_dato pese al pronóstico.
+    await db.insert(hazardForecast).values(
+      filaPronostico({
+        geometryRef: 'lote-clima-parcial',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 100,
+      }),
+    )
+    await db.insert(hazardClimatology).values([
+      filaClimatologia({
+        geometryRef: 'lote-clima-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p90',
+        valor: 10,
+      }),
+      filaClimatologia({
+        geometryRef: 'lote-clima-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p95',
+        valor: 20,
+      }),
+    ])
+
+    // Celda 4: sin ningún dato.
+  })
+
+  it('produce 4*3 filas con los niveles/bases esperados del fixture determinista', async () => {
+    const resultado = await obtenerNivelesPeligro({ geometryRefs: refs, horizontes, ahora })
+
+    expect(resultado).toHaveLength(12)
+    expect(resultado.map((fila) => [fila.geometryRef, fila.horizonteHoras])).toEqual([
+      ['lote-ensemble', 24],
+      ['lote-ensemble', 72],
+      ['lote-ensemble', 240],
+      ['lote-deterministico', 24],
+      ['lote-deterministico', 72],
+      ['lote-deterministico', 240],
+      ['lote-clima-parcial', 24],
+      ['lote-clima-parcial', 72],
+      ['lote-clima-parcial', 240],
+      ['lote-sin-datos', 24],
+      ['lote-sin-datos', 72],
+      ['lote-sin-datos', 240],
+    ])
+    expect(resultado).toEqual([
+      {
+        geometryRef: 'lote-ensemble',
+        horizonteHoras: 24,
+        nivel: 'naranja',
+        base: 'ensemble',
+        probabilidadP95: 0.6,
+        probabilidadP99: 0.1,
+        precipitacionMm: null,
+        percentilReferencia: 'P95',
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-26T23:00:00.000Z',
+        versionRegla: 'peligro-v0.1',
+      },
+      {
+        geometryRef: 'lote-ensemble',
+        horizonteHoras: 72,
+        nivel: 'rojo',
+        base: 'ensemble',
+        probabilidadP95: 0.9,
+        probabilidadP99: 0.9,
+        precipitacionMm: null,
+        percentilReferencia: 'P99',
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-28T23:00:00.000Z',
+        versionRegla: 'peligro-v0.1',
+      },
+      sinDato('lote-ensemble', 240),
+      {
+        geometryRef: 'lote-deterministico',
+        horizonteHoras: 24,
+        nivel: 'naranja',
+        base: 'deterministico',
+        probabilidadP95: null,
+        probabilidadP99: null,
+        precipitacionMm: 25,
+        percentilReferencia: 'P95',
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-27T00:00:00.000Z',
+        versionRegla: 'peligro-v0.1',
+      },
+      {
+        geometryRef: 'lote-deterministico',
+        horizonteHoras: 72,
+        nivel: 'rojo',
+        base: 'deterministico',
+        probabilidadP95: null,
+        probabilidadP99: null,
+        precipitacionMm: 40,
+        percentilReferencia: 'P99',
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-29T00:00:00.000Z',
+        versionRegla: 'peligro-v0.1',
+      },
+      sinDato('lote-deterministico', 240),
+      sinDato('lote-clima-parcial', 24),
+      sinDato('lote-clima-parcial', 72),
+      sinDato('lote-clima-parcial', 240),
+      sinDato('lote-sin-datos', 24),
+      sinDato('lote-sin-datos', 72),
+      sinDato('lote-sin-datos', 240),
+    ])
+  })
+
+  it('la llamada agrupada equivale a invocar una celda a la vez', async () => {
+    const agrupado = await obtenerNivelesPeligro({ geometryRefs: refs, horizontes, ahora })
+
+    const porCeldaSuelta = []
+    for (const geometryRef of refs) {
+      const filas = await obtenerNivelesPeligro({ geometryRefs: [geometryRef], horizontes, ahora })
+      porCeldaSuelta.push(...filas)
+    }
+
+    expect(agrupado).toEqual(porCeldaSuelta)
+  })
+
+  it('con geometryRefs vacío no consulta y devuelve lista vacía', async () => {
+    expect(await obtenerNivelesPeligro({ geometryRefs: [], horizontes, ahora })).toEqual([])
+  })
+})
+
 describe('obtenerNivelCaudal', () => {
   it('usa el horizonte más chico de la corrida más reciente y calcula percentil/nivel', async () => {
     await insertarClimatologia('punto-1', 'caudal_diario', { p90: 50, p95: 100, p99: 140 })

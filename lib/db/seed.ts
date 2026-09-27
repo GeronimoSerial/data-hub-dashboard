@@ -512,6 +512,24 @@ CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazar
 CREATE INDEX IF NOT EXISTS infra_afectacion_creada_en_idx_e7b ON infra_afectacion(creada_en);
 CREATE INDEX IF NOT EXISTS infra_afectacion_rige_desde_idx_e7b ON infra_afectacion(rige_desde);
 CREATE INDEX IF NOT EXISTS infra_risk_run_publicado_en_idx_e7b ON infra_risk_run(publicado_en);
+-- E5: Centro de Situación
+CREATE TABLE IF NOT EXISTS \`infra_situacion_corte\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`generado_en\` text NOT NULL,
+  \`risk_run_id\` text,
+  \`cobertura\` text,
+  \`conteos_por_nivel_riesgo\` text NOT NULL,
+  \`kpis\` text NOT NULL,
+  \`fuentes_salud\` text NOT NULL,
+  \`episodios_abiertos\` integer NOT NULL DEFAULT 0,
+  \`episodios_cerrados_desde_anterior\` integer NOT NULL DEFAULT 0,
+  \`generado_por_job_run_id\` text,
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`risk_run_id\`) REFERENCES \`infra_risk_run\`(\`id\`),
+  FOREIGN KEY (\`generado_por_job_run_id\`) REFERENCES \`infra_job_run\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_generado_en_idx\` ON \`infra_situacion_corte\` (\`generado_en\`);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_risk_run_id_idx\` ON \`infra_situacion_corte\` (\`risk_run_id\`);
 `
 
 let seedPromise: Promise<void> | null = null
