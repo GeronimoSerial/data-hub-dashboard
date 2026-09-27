@@ -5,7 +5,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
+  hazardClimatology,
   hazardEnsembleProb,
+  hazardForecast,
   infraGeoProfile,
   infraRiskFactor,
   infraRiskRun,
@@ -63,6 +65,8 @@ async function limpiarMotor() {
   await db.delete(infraRiskRun)
   await db.delete(infraGeoProfile)
   await db.delete(hazardEnsembleProb)
+  await db.delete(hazardForecast)
+  await db.delete(hazardClimatology)
 }
 
 async function sembrarFixture() {
@@ -241,6 +245,53 @@ async function sembrarFixture() {
   ])
 }
 
+// Pronóstico determinístico para una celda SIN climatología: dispara el camino
+// de umbral provisorio. 130 mm a 24 h supera el rojo provisorio (120 mm).
+async function sembrarPronosticoSinClimatologia() {
+  await getDb()
+    .insert(hazardForecast)
+    .values({
+      id: 'f-prov-24',
+      provider: 'open-meteo',
+      variable: 'precipitacion',
+      geometryRef: 'celda-b',
+      corridaEn: '2026-01-01T00:00:00Z',
+      validoEn: '2026-01-02T00:00:00Z',
+      horizonteHoras: 24,
+      valor: 130,
+      unidad: 'mm',
+      pasoHoras: 6,
+      rawRef: null,
+      ingeridoEn: '2026-01-01T00:10:00Z',
+    })
+}
+
+// Climatología completa (p90/p95/p99) para la misma celda del pronóstico: con
+// esto el nivel sale por percentiles, no por umbral provisorio.
+async function sembrarClimatologiaCompleta() {
+  await getDb()
+    .insert(hazardClimatology)
+    .values(
+      [
+        { percentil: 'p90', valor: 40 },
+        { percentil: 'p95', valor: 60 },
+        { percentil: 'p99', valor: 90 },
+      ].map((fila) => ({
+        id: `c-celda-b-${fila.percentil}`,
+        geometryRef: 'celda-b',
+        variable: 'precipitacion_diaria',
+        percentil: fila.percentil,
+        muestra: 'todos_los_dias',
+        valor: fila.valor,
+        unidad: 'mm',
+        periodoDesde: '1991-01-01',
+        periodoHasta: '2020-12-31',
+        version: 'v1',
+        calculadoEn: '2026-01-01T00:00:00Z',
+      })),
+    )
+}
+
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'radar-route-'))
   prevDataDir = process.env.DATA_DIR
@@ -346,6 +397,7 @@ describe('GET /api/infraestructura/radar', () => {
       totalPages: 0,
     })
     expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0 })
+    expect(body.hayNivelProvisorio).toBe(false)
     expect(obtenerNivelesPeligro).not.toHaveBeenCalled()
   })
 
@@ -478,6 +530,31 @@ describe('GET /api/infraestructura/radar', () => {
     const pageSizeInvalido = await GET(req('?pageSize=500'))
     expect(pageSizeInvalido.status).toBe(400)
     expect((await pageSizeInvalido.json()).error).toContain('pageSize')
+  })
+
+  it('marca hayNivelProvisorio true si una celda usa umbral provisorio (sin climatología)', async () => {
+    mockAcceso({ ok: true, user: USER })
+    await sembrarPronosticoSinClimatologia()
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.hayNivelProvisorio).toBe(true)
+    // El campo es aditivo: el resto del shape no cambia.
+    expect(body.corte.runId).toBe(RUN_VIGENTE)
+  })
+
+  it('marca hayNivelProvisorio false si todas las celdas tienen climatología o sin_dato', async () => {
+    mockAcceso({ ok: true, user: USER })
+    await sembrarPronosticoSinClimatologia()
+    await sembrarClimatologiaCompleta()
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.hayNivelProvisorio).toBe(false)
   })
 
   it('no expone ningún campo nominal (escuela, alumno, docente ni persona)', async () => {
