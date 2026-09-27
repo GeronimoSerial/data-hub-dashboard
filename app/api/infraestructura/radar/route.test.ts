@@ -321,6 +321,7 @@ function req(qs = '') {
 const ITEM_KEYS = [
   'calculadoEn',
   'confianza',
+  'confianzaAcceso',
   'cueAnexo',
   'departamento',
   'evidenciaValida',
@@ -328,8 +329,10 @@ const ITEM_KEYS = [
   'exposicionSecciones',
   'horizonteHoras',
   'nivelRiesgo',
+  'nivelRiesgoAcceso',
   'scoreAmenaza',
   'scoreRiesgo',
+  'scoreRiesgoAcceso',
   'scoreVulnerabilidad',
   'snapshotId',
   'validoHasta',
@@ -396,7 +399,7 @@ describe('GET /api/infraestructura/radar', () => {
       total: 0,
       totalPages: 0,
     })
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
     expect(body.hayNivelProvisorio).toBe(false)
     expect(obtenerNivelesPeligro).not.toHaveBeenCalled()
   })
@@ -437,7 +440,7 @@ describe('GET /api/infraestructura/radar', () => {
 
     expect(body.departamentos).toEqual(DEPARTAMENTOS_ESPERADOS)
 
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 2, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 2, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     // El peligro se pidió "as-of" la publicación del run (no Date.now()).
     expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
@@ -455,7 +458,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(
       body.escuelas.items.map((i: { snapshotId: string }) => i.snapshotId),
     ).toEqual(['s1', 's2', 's4', 's3'])
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     // El corte de peligro siempre trae los 3 horizontes.
     expect(body.departamentos).toEqual(DEPARTAMENTOS_ESPERADOS)
@@ -469,7 +472,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.escuelas.total).toBe(1)
     expect(body.escuelas.items[0].snapshotId).toBe('s3')
     expect(body.escuelas.items[0].departamento).toBe('BETA')
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
     expect(body.departamentos).toEqual([
       { departamento: 'BETA', peorNivel: 'sin_dato', horizonteHoras: 24, celdas: 1 },
       { departamento: 'BETA', peorNivel: 'sin_dato', horizonteHoras: 72, celdas: 1 },
@@ -484,12 +487,34 @@ describe('GET /api/infraestructura/radar', () => {
     const alto = await (await GET(req('?nivel=alto'))).json()
     expect(alto.escuelas.total).toBe(1)
     expect(alto.escuelas.items[0].snapshotId).toBe('s5')
-    expect(alto.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 0 })
+    expect(alto.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     const bajo = await (await GET(req('?nivel=bajo'))).json()
     expect(bajo.escuelas.total).toBe(1)
     expect(bajo.escuelas.items[0].snapshotId).toBe('s4')
-    expect(bajo.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0 })
+    expect(bajo.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
+  })
+
+  it('expone el riesgo de acceso por item y agrega el KPI de matrícula condicionada', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { eq } = await import('drizzle-orm')
+    const { infraRiskSnapshot } = await import('@/lib/db/schema')
+    await getDb()
+      .update(infraRiskSnapshot)
+      .set({ nivelRiesgoAcceso: 'alto', scoreRiesgoAcceso: 75, confianzaAcceso: 'media' })
+      .where(eq(infraRiskSnapshot.id, 's2'))
+
+    const { GET } = await import('./route')
+    const body = await (await GET(req('?horizonte=24'))).json()
+
+    const item = body.escuelas.items.find((i: { snapshotId: string }) => i.snapshotId === 's2')
+    expect(item.nivelRiesgoAcceso).toBe('alto')
+    expect(item.scoreRiesgoAcceso).toBe(75)
+    expect(item.confianzaAcceso).toBe('media')
+
+    // s2 tiene exposicionMatricula 80; el resto de las escuelas no tiene
+    // nivel de acceso alto, así que sólo entra esa.
+    expect(body.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 80 })
   })
 
   it('pagina escuelas con total y totalPages correctos', async () => {
