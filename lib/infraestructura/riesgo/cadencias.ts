@@ -44,10 +44,28 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Sincroniza la tendencia estacional Open-Meteo por departamento (diario)',
   },
-  // 0 = sin cadencia automática: se ejecuta bajo demanda / manual.
-  'climatologia-precipitacion': { minutos: 0, descripcion: 'Climatología de precipitación (bajo demanda)' },
-  // 0 = sin cadencia automática: se ejecuta bajo demanda / manual.
-  'climatologia-caudal': { minutos: 0, descripcion: 'Climatología de caudal (bajo demanda)' },
+  // OM-cupo: timer diario (enos-ops1-climatologia-precipitacion.timer,
+  // 05:00 UTC) que avanza el cursor resumable un poco por corrida — el
+  // cálculo completo excede el cupo mensual en una sola corrida (ver
+  // docs/ejecucion-enos/OM-cupo/registro.md, "Climatología de precipitación",
+  // ~48.500 llamadas ponderadas / ~7.000 disponibles por día tras los syncs
+  // de 6h ⇒ ~7 días hasta completarse). Mientras haya celdas pendientes el
+  // job termina 'fallido' A PROPÓSITO (ver calcular-climatologia.ts,
+  // `cortadoPorCupo`), así que "atrasado" (basado en la última corrida
+  // EXITOSA) no es el indicador útil durante ese período: el avance real se
+  // muestra aparte en /admin/operacion (celdas completas / total, ver
+  // `avanceClimatologia` en salud.ts).
+  'climatologia-precipitacion': {
+    minutos: 1440,
+    descripcion: 'Climatología de precipitación (diario, avanza por cursor resumable de cupo)',
+  },
+  // Mismo esquema que climatologia-precipitacion, otra fuente (Flood
+  // API/GloFAS, 8 PUNTOS_RIO fijos — termina bastante antes que la de
+  // precipitación por tener muchas menos celdas).
+  'climatologia-caudal': {
+    minutos: 1440,
+    descripcion: 'Climatología de caudal (diario, avanza por cursor resumable de cupo)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el

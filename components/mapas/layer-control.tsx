@@ -55,7 +55,7 @@ export function LayerControl({ overlays, onChange }: Props) {
 export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinReportar'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Escuelas con afectación vigente',
+  escuelas: 'Todas las escuelas (padrón)',
   // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
   // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
   // responden a la misma pregunta operativa ("¿hay algo pasando con el
@@ -80,8 +80,14 @@ export function InfraLayerControl({
   const styles = useOverlayStyles()
 
   return (
-    <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Capas</h2>
+    <div
+      className={styles.controlCard}
+      role="group"
+      aria-labelledby="infra-layer-control-heading"
+    >
+      <h2 className={styles.controlHeading} id="infra-layer-control-heading">
+        Capas
+      </h2>
       {ORDEN_CAPAS_INFRAESTRUCTURA.map((capa) => (
         <Checkbox
           key={capa}
@@ -103,14 +109,18 @@ export function InfraLayerControl({
 // y 'riesgo' haría que ambos controles tuvieran que ignorarse mutuamente las
 // claves que no les corresponden. Los dos controles conviven en el mismo
 // `controlsStack` y el radar sólo se monta si el flag está prendido.
-export type CapaRadar = 'peligro' | 'riesgo'
+export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 
 export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = {
   peligro: 'Peligro meteorológico estimado (por departamento)',
   riesgo: 'Riesgo pronosticado por escuela',
+  // Dimensión SEPARADA del riesgo compuesto: el acceso no es una severidad ni
+  // un estado del edificio, por eso es una capa propia y no una codificación
+  // de color de una capa existente.
+  'riesgo-acceso': 'Riesgo de acceso',
 }
 
-const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo']
+const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo', 'riesgo-acceso']
 
 export function RadarLayerControl({
   capas,
@@ -122,8 +132,14 @@ export function RadarLayerControl({
   const styles = useOverlayStyles()
 
   return (
-    <div className={styles.controlCard}>
-      <h2 className={styles.controlHeading}>Capas del radar</h2>
+    <div
+      className={styles.controlCard}
+      role="group"
+      aria-labelledby="radar-layer-control-heading"
+    >
+      <h2 className={styles.controlHeading} id="radar-layer-control-heading">
+        Capas del radar
+      </h2>
       {ORDEN_CAPAS_RADAR.map((capa) => (
         <Checkbox
           key={capa}

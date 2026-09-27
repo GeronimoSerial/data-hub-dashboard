@@ -8,6 +8,8 @@ import {
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
+import { calcularMatriculaCondicionadaPorAcceso } from '@/lib/infraestructura/riesgo/kpi-acceso'
 import {
   agregarNivelPorDepartamento,
   obtenerNivelesPeligro,
@@ -45,6 +47,9 @@ const itemsFields = {
   scoreAmenaza: infraRiskSnapshot.scoreAmenaza,
   scoreVulnerabilidad: infraRiskSnapshot.scoreVulnerabilidad,
   confianza: infraRiskSnapshot.confianza,
+  scoreRiesgoAcceso: infraRiskSnapshot.scoreRiesgoAcceso,
+  nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
+  confianzaAcceso: infraRiskSnapshot.confianzaAcceso,
   exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
   exposicionSecciones: infraRiskSnapshot.exposicionSecciones,
   calculadoEn: infraRiskSnapshot.calculadoEn,
@@ -71,7 +76,12 @@ function respuestaVacia(page: number, pageSize: number) {
       cobertura: null,
       departamentos: [],
       escuelas: { items: [], page, pageSize, total: 0, totalPages: 0 },
-      kpis: { riesgoAltoTotal: 0, sinEvidenciaTotal: 0 },
+      kpis: {
+        riesgoAltoTotal: 0,
+        sinEvidenciaTotal: 0,
+        accesoCondicionado: { escuelas: 0, matricula: 0 },
+      },
+      hayNivelProvisorio: false,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
@@ -204,6 +214,9 @@ export async function GET(request: Request) {
   // publicó el run de riesgo vigente, no con Date.now(), para que ninguna
   // corrida de peligro más nueva se cuele en el mismo corte.
   const niveles = await obtenerNivelesPeligro({ ahora: new Date(publicadoEn) })
+  const hayNivelProvisorio = niveles.some(
+    (fila) => fila.metodo === 'umbral_provisorio',
+  )
   const celdasPorDepartamento = await cargarCeldasPorDepartamento(departamento)
   const departamentos = construirDepartamentos(niveles, celdasPorDepartamento)
 
@@ -266,6 +279,32 @@ export async function GET(request: Request) {
     )
     .where(and(where, eq(infraRiskSnapshot.evidenciaValida, false)))
 
+  // KPI de acceso: mismo universo filtrado que `escuelas`, pero con las filas
+  // crudas que la función pura necesita (nivel de acceso + matrícula expuesta).
+  // La afectación confirmada sale de `listarEscuelasMapa` (la MISMA fuente que
+  // usa el mapa), así una escuela con daño confirmado nunca vuelve a sumar su
+  // matrícula acá.
+  const snapshotsAcceso = await db
+    .select({
+      cueAnexo: infraRiskSnapshot.cueAnexo,
+      nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
+      exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
+    })
+    .from(infraRiskSnapshot)
+    .innerJoin(
+      infraGeoProfile,
+      eq(infraRiskSnapshot.cueAnexo, infraGeoProfile.cueAnexo),
+    )
+    .where(where)
+  const { escuelas: escuelasMapa } = await listarEscuelasMapa()
+  const cuesConAfectacionConfirmada = new Set(
+    escuelasMapa.filter((escuela) => escuela.estado === 'afectada').map((e) => e.cueAnexo),
+  )
+  const accesoCondicionado = calcularMatriculaCondicionadaPorAcceso({
+    snapshots: snapshotsAcceso,
+    cuesConAfectacionConfirmada,
+  })
+
   return Response.json(
     {
       corte,
@@ -281,7 +320,9 @@ export async function GET(request: Request) {
       kpis: {
         riesgoAltoTotal: Number(altoRow?.count ?? 0),
         sinEvidenciaTotal: Number(sinEvidenciaRow?.count ?? 0),
+        accesoCondicionado,
       },
+      hayNivelProvisorio,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )

@@ -15,6 +15,7 @@ import { beforeAll, afterAll, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import {
   hazardEnsembleProb,
+  hazardForecast,
   hazardObservation,
   hazardSourceHealth,
   infraAfectacion,
@@ -266,7 +267,7 @@ describe('generarReplay', () => {
 
     const enT0 = resultado.cuadros.find((c) => c.instante === fx.T0)
     expect(enT0?.nivelesPeligro).toEqual([
-      { geometryRef: fx.geometryRef, nivel: 'rojo', emitidoEn: fx.T0 },
+      { geometryRef: fx.geometryRef, nivel: 'rojo', emitidoEn: fx.T0, metodo: 'percentiles' },
     ])
     const idxT0 = resultado.cuadros.indexOf(enT0!)
     expect(resultado.vacios[idxT0]?.peligro).toBe(false)
@@ -312,5 +313,55 @@ describe('generarReplay', () => {
     expect(enT2?.saludFuentes).toEqual([
       { fuente: fx.saludFuente.provider, estado: fx.saludFuente.estado, actualizadoEn: fx.T2 },
     ])
+  })
+
+  it('Caso 10: celda sin climatología pero con pronóstico usa el umbral provisorio (no se omite)', async () => {
+    const db = getDb()
+    const celdaSinClima = 'celda-sin-clima'
+    await db.insert(infraGeoProfile).values({
+      cueAnexo: '007999',
+      lat: -31.8,
+      lon: -60.6,
+      geoCalidad: 'alta',
+      departamento: fx.departamento,
+      geometryRef: celdaSinClima,
+      motivoExclusion: null,
+      perfilVersion: 'geo-perfil-v1',
+      calculadoEn: fx.T0,
+    })
+    await db.insert(hazardForecast).values({
+      id: 'forecast-sin-clima',
+      provider: 'test',
+      variable: 'precipitacion',
+      geometryRef: celdaSinClima,
+      corridaEn: fx.T0,
+      validoEn: fx.T2,
+      horizonteHoras: 24,
+      valor: 90,
+      unidad: 'mm',
+      pasoHoras: 1,
+      rawRef: null,
+      ingeridoEn: fx.T0,
+    })
+
+    const resultado = await generarReplay({
+      territorioTipo: 'departamento',
+      territorioId: fx.departamento,
+      desde: fx.T0,
+      hasta: fx.T0,
+      paso: 6,
+      vista: 'conocido',
+    })
+
+    const enT0 = resultado.cuadros.find((c) => c.instante === fx.T0)
+    const celda = enT0?.nivelesPeligro.find((n) => n.geometryRef === celdaSinClima)
+    // 90 mm en 24h supera el umbral provisorio (>80 => naranja). Sin
+    // climatología no se omite: se resuelve con el puente provisorio.
+    expect(celda).toEqual({
+      geometryRef: celdaSinClima,
+      nivel: 'naranja',
+      emitidoEn: fx.T0,
+      metodo: 'umbral_provisorio',
+    })
   })
 })

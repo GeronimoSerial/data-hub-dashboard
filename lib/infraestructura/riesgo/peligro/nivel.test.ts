@@ -9,6 +9,7 @@ import {
   hazardForecast,
   infraGeoProfile,
 } from '@/lib/db/schema'
+import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
 import type { getDb as GetDb } from '@/lib/db'
 import type {
   agregarNivelPorDepartamento as AgregarNivelPorDepartamento,
@@ -211,6 +212,43 @@ describe('nivelDesdeDeterministico', () => {
   })
 })
 
+describe('nivelDesdeUmbralProvisorio', () => {
+  it('24h: los umbrales exactos no se superan (borde estricto)', () => {
+    expect(nivelDesdeUmbralProvisorio(50, 24)).toBe('verde')
+    expect(nivelDesdeUmbralProvisorio(80, 24)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(120, 24)).toBe('naranja')
+  })
+
+  it('24h: un mm más que cada umbral SÍ lo supera', () => {
+    expect(nivelDesdeUmbralProvisorio(50.001, 24)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(80.001, 24)).toBe('naranja')
+    expect(nivelDesdeUmbralProvisorio(120.001, 24)).toBe('rojo')
+  })
+
+  it('72h: los umbrales exactos no se superan y un mm más sí', () => {
+    expect(nivelDesdeUmbralProvisorio(80, 72)).toBe('verde')
+    expect(nivelDesdeUmbralProvisorio(80.001, 72)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(120, 72)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(120.001, 72)).toBe('naranja')
+    expect(nivelDesdeUmbralProvisorio(180, 72)).toBe('naranja')
+    expect(nivelDesdeUmbralProvisorio(180.001, 72)).toBe('rojo')
+  })
+
+  it('240h: derivados de 72h ×1.5 (120/180/270), bordes estrictos', () => {
+    expect(nivelDesdeUmbralProvisorio(120, 240)).toBe('verde')
+    expect(nivelDesdeUmbralProvisorio(120.001, 240)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(180, 240)).toBe('amarillo')
+    expect(nivelDesdeUmbralProvisorio(180.001, 240)).toBe('naranja')
+    expect(nivelDesdeUmbralProvisorio(270, 240)).toBe('naranja')
+    expect(nivelDesdeUmbralProvisorio(270.001, 240)).toBe('rojo')
+  })
+
+  it('por debajo del primer umbral es verde', () => {
+    expect(nivelDesdeUmbralProvisorio(0, 24)).toBe('verde')
+    expect(nivelDesdeUmbralProvisorio(49.999, 24)).toBe('verde')
+  })
+})
+
 describe('obtenerNivelesPeligro', () => {
   it('usa el ensemble en 24 h: corrida más reciente y horizonte más cercano al pedido', async () => {
     await db.insert(hazardEnsembleProb).values([
@@ -248,13 +286,14 @@ describe('obtenerNivelesPeligro', () => {
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'ensemble',
+        metodo: 'percentiles',
         probabilidadP95: 0.6,
         probabilidadP99: 0.1,
         precipitacionMm: null,
         percentilReferencia: 'P95',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-26T23:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
     ])
   })
@@ -302,15 +341,83 @@ describe('obtenerNivelesPeligro', () => {
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
+        metodo: 'percentiles',
         probabilidadP95: null,
         probabilidadP99: null,
         precipitacionMm: 25,
         percentilReferencia: 'P95',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
     ])
+  })
+
+  it('sin climatología pero con pronóstico usa el umbral provisorio (base determinístico)', async () => {
+    await db.insert(hazardForecast).values(
+      filaPronostico({
+        geometryRef: 'celda-provisoria',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 90,
+      }),
+    )
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-provisoria'],
+      horizontes: [24],
+    })
+
+    expect(resultado).toEqual([
+      {
+        geometryRef: 'celda-provisoria',
+        horizonteHoras: 24,
+        nivel: 'naranja',
+        base: 'deterministico',
+        metodo: 'umbral_provisorio',
+        probabilidadP95: null,
+        probabilidadP99: null,
+        precipitacionMm: 90,
+        percentilReferencia: null,
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-27T00:00:00.000Z',
+        versionRegla: 'peligro-v0.2',
+      },
+    ])
+  })
+
+  it('con climatología NO mezcla: el valor cruzaría el umbral provisorio pero manda percentiles', async () => {
+    await db.insert(hazardForecast).values(
+      filaPronostico({
+        geometryRef: 'celda-mixta',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 60,
+      }),
+    )
+    // 60 mm supera el umbral provisorio de 24h (>50 => amarillo), pero contra
+    // esta climatología supera P99 => rojo. Debe ganar el percentil.
+    await insertarClimatologia('celda-mixta', 'precipitacion_diaria', {
+      p90: 10,
+      p95: 20,
+      p99: 30,
+    })
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-mixta'],
+      horizontes: [24],
+    })
+
+    expect(resultado[0]).toMatchObject({
+      nivel: 'rojo',
+      base: 'deterministico',
+      metodo: 'percentiles',
+      percentilReferencia: 'P99',
+    })
   })
 
   it('sin pronóstico ni climatología devuelve sin_dato, nunca verde', async () => {
@@ -328,13 +435,14 @@ describe('obtenerNivelesPeligro', () => {
         horizonteHoras: 24,
         nivel: 'sin_dato',
         base: 'sin_dato',
+        metodo: 'sin_dato',
         probabilidadP95: null,
         probabilidadP99: null,
         precipitacionMm: null,
         percentilReferencia: null,
         emitidoEn: '2026-09-26T12:00:00.000Z',
         validoHasta: '2026-09-26T12:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
     ])
   })
@@ -518,13 +626,14 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
     horizonteHoras,
     nivel: 'sin_dato',
     base: 'sin_dato',
+    metodo: 'sin_dato',
     probabilidadP95: null,
     probabilidadP99: null,
     precipitacionMm: null,
     percentilReferencia: null,
     emitidoEn: ahoraIso,
     validoHasta: ahoraIso,
-    versionRegla: 'peligro-v0.1',
+    versionRegla: 'peligro-v0.2',
   })
 
   beforeEach(async () => {
@@ -573,7 +682,8 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
       p99: 30,
     })
 
-    // Celda 3: climatología parcial (sin p99) => sin_dato pese al pronóstico.
+    // Celda 3: climatología parcial (sin p99) con pronóstico => umbral
+    // provisorio (no hay climatología completa, pero sí pronóstico).
     await db.insert(hazardForecast).values(
       filaPronostico({
         geometryRef: 'lote-clima-parcial',
@@ -626,26 +736,28 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'ensemble',
+        metodo: 'percentiles',
         probabilidadP95: 0.6,
         probabilidadP99: 0.1,
         precipitacionMm: null,
         percentilReferencia: 'P95',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-26T23:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
       {
         geometryRef: 'lote-ensemble',
         horizonteHoras: 72,
         nivel: 'rojo',
         base: 'ensemble',
+        metodo: 'percentiles',
         probabilidadP95: 0.9,
         probabilidadP99: 0.9,
         precipitacionMm: null,
         percentilReferencia: 'P99',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-28T23:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
       sinDato('lote-ensemble', 240),
       {
@@ -653,30 +765,66 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
+        metodo: 'percentiles',
         probabilidadP95: null,
         probabilidadP99: null,
         precipitacionMm: 25,
         percentilReferencia: 'P95',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
       {
         geometryRef: 'lote-deterministico',
         horizonteHoras: 72,
         nivel: 'rojo',
         base: 'deterministico',
+        metodo: 'percentiles',
         probabilidadP95: null,
         probabilidadP99: null,
         precipitacionMm: 40,
         percentilReferencia: 'P99',
         emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-29T00:00:00.000Z',
-        versionRegla: 'peligro-v0.1',
+        versionRegla: 'peligro-v0.2',
       },
       sinDato('lote-deterministico', 240),
-      sinDato('lote-clima-parcial', 24),
-      sinDato('lote-clima-parcial', 72),
+      {
+        geometryRef: 'lote-clima-parcial',
+        horizonteHoras: 24,
+        nivel: 'naranja',
+        base: 'deterministico',
+        metodo: 'umbral_provisorio',
+        probabilidadP95: null,
+        probabilidadP99: null,
+        precipitacionMm: 100,
+        percentilReferencia: null,
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-27T00:00:00.000Z',
+        versionRegla: 'peligro-v0.2',
+      },
+      // 72h: sin fixture propio de 72h, así que el pronóstico de 24h (100mm)
+      // es el más cercano disponible (mismo criterio de matching ya existente
+      // para cualquier horizonte que no sea 240); sin climatología completa,
+      // resuelve con el umbral provisorio de 72h (amarillo > 80, no supera
+      // naranja > 120).
+      {
+        geometryRef: 'lote-clima-parcial',
+        horizonteHoras: 72,
+        nivel: 'amarillo',
+        base: 'deterministico',
+        metodo: 'umbral_provisorio',
+        probabilidadP95: null,
+        probabilidadP99: null,
+        precipitacionMm: 100,
+        percentilReferencia: null,
+        emitidoEn: CORRIDA_NUEVA,
+        validoHasta: '2026-09-27T00:00:00.000Z',
+        versionRegla: 'peligro-v0.2',
+      },
+      // 240h: la tolerancia de horizonte (24h) rechaza el fixture de 24h como
+      // candidato de 240h, así que no hay pronóstico dentro de tolerancia ->
+      // sigue sin_dato (no cambia con este batch).
       sinDato('lote-clima-parcial', 240),
       sinDato('lote-sin-datos', 24),
       sinDato('lote-sin-datos', 72),
@@ -698,6 +846,53 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
 
   it('con geometryRefs vacío no consulta y devuelve lista vacía', async () => {
     expect(await obtenerNivelesPeligro({ geometryRefs: [], horizontes, ahora })).toEqual([])
+  })
+
+  // Regresión M2: en el radar (mapa de infraestructura), 72 h y 7-10 días
+  // aparecían en gris ("sin dato") mientras 24 h mostraba un nivel real.
+  // Diagnóstico (DB de demo): el pronóstico determinístico cubre las 228 horas
+  // (0..227) de la corrida, pero `hazard_climatology` estaba VACÍA para todas
+  // las celdas. Antes del batch P1 (umbrales provisorios), sin climatología el
+  // resultado era 'sin_dato' para cualquier horizonte que no tomara el camino
+  // del ensemble — y el ensemble tampoco tenía filas en la demo, así que 72h y
+  // 240h caían siempre a sin_dato mientras 24h podía colarse por otro camino.
+  // P1 ya solucionó la causa de fondo (agrega el fallback 'umbral_provisorio'
+  // cuando hay pronóstico pero no climatología, ver umbrales-provisorios.ts) y
+  // este test la fija como regresión: con pronóstico horario completo y CERO
+  // climatología/ensemble, los tres horizontes tienen que resolver a un nivel
+  // concreto, nunca a 'sin_dato' mudo.
+  it('regresión: sin climatología ni ensemble pero con pronóstico horario completo, 24/72/240 nunca son sin_dato', async () => {
+    const geometryRef = 'celda-demo-m2'
+    const corridaEn = '2026-09-27T12:00:00.000Z'
+    // Pronóstico horario 0..227h (mismo rango que la corrida real de la demo),
+    // todas las lecturas bajas (0mm) salvo un pico a las 48h — no importa el
+    // valor exacto para esta regresión, sólo que exista una fila por hora.
+    const filas = []
+    for (let h = 0; h <= 227; h += 1) {
+      filas.push(
+        filaPronostico({
+          geometryRef,
+          variable: 'precipitacion',
+          corridaEn,
+          validoEn: new Date(Date.parse(corridaEn) + h * 60 * 60 * 1000).toISOString(),
+          horizonteHoras: h,
+          valor: h === 48 ? 2.8 : 0,
+        }),
+      )
+    }
+    await db.insert(hazardForecast).values(filas)
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: [geometryRef],
+      horizontes: [24, 72, 240],
+      ahora: new Date(corridaEn),
+    })
+
+    expect(resultado).toHaveLength(3)
+    for (const fila of resultado) {
+      expect(fila.nivel).not.toBe('sin_dato')
+      expect(fila.metodo).toBe('umbral_provisorio')
+    }
   })
 })
 
@@ -841,7 +1036,7 @@ describe('agregarNivelPorDepartamento', () => {
       percentilReferencia: null,
       emitidoEn: CORRIDA_NUEVA,
       validoHasta: CORRIDA_NUEVA,
-      versionRegla: 'peligro-v0.1',
+      versionRegla: 'peligro-v0.2',
     }
   }
 

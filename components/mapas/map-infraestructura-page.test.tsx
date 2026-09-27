@@ -2,10 +2,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { JSX } from 'react'
+import { forwardRef, useImperativeHandle, type JSX } from 'react'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 
 const CUE = '1801605-04'
+
+// M1: el buscador de escuelas llama a `mapRef.current?.getMap()?.flyTo(...)`
+// al seleccionar un resultado. `vi.hoisted` porque el factory de
+// `vi.mock('react-map-gl/maplibre', ...)` lo referencia y ese factory se
+// hoistea por encima del resto del archivo.
+const { FLY_TO_MOCK } = vi.hoisted(() => ({ FLY_TO_MOCK: vi.fn() }))
 
 const PARTE: ParteMapa = {
   parteId: 'p1',
@@ -109,6 +116,63 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
   useAlertas: () => ({ data: FIXTURE_RESPUESTA, loading: false, error: null }),
 }))
 
+// M1: el mapa ahora se alimenta del padrón completo vía useEscuelasMapa
+// (afectadas + sin afectación reportada), no sólo de las escuelas con parte.
+// El mock global de `fetch` devuelve un FeatureCollection (no la forma
+// EscuelasMapaResultado), así que este hook también se dobla acá — mismo
+// patrón que useAlertas: objeto ESTABLE para no re-disparar efectos.
+const FIXTURE_ESCUELAS_MAPA = {
+  escuelas: [
+    {
+      cueAnexo: CUE,
+      nombre: 'Escuela 1',
+      departamento: 'Capital',
+      localidad: 'Corrientes',
+      lat: -27.47,
+      lon: -58.83,
+      estado: 'afectada' as const,
+      parte: PARTE,
+    },
+    {
+      cueAnexo: '1801605-99',
+      nombre: 'Escuela sin afectación',
+      departamento: 'Capital',
+      localidad: 'Corrientes',
+      lat: -27.5,
+      lon: -58.8,
+      estado: 'sin_afectacion_reportada' as const,
+    },
+  ],
+  sinUbicacion: [],
+  totalPadron: 2,
+}
+
+vi.mock('@/lib/infraestructura/use-escuelas-mapa', () => ({
+  useEscuelasMapa: () => ({ data: FIXTURE_ESCUELAS_MAPA, loading: false, error: null }),
+}))
+
+// M1: totales por departamento que alimentan el popup de hover. La clave
+// `departamento` va NORMALIZADA (`normalizarNombreDepartamento('Capital')` =
+// 'CAPITAL') porque así es como el componente indexa el Map de totales y
+// busca al hacer hover. Objeto ESTABLE (mismo patrón que el resto de los
+// mocks de datos) para no re-disparar memos/efectos.
+const FIXTURE_TOTALES_MAPA = {
+  departamentos: [
+    {
+      departamento: 'CAPITAL',
+      departamentoOriginal: 'Capital',
+      totalEscuelas: 10,
+      escuelasAfectadas: 3,
+      porcentajeAfectadas: 30,
+    },
+  ],
+  provincia: { totalEscuelas: 10, escuelasAfectadas: 3, porcentajeAfectadas: 30 },
+}
+
+vi.mock('@/lib/infraestructura/use-totales-mapa', () => ({
+  useTotalesMapa: () => ({ data: FIXTURE_TOTALES_MAPA, loading: false, error: null }),
+}))
+
 // Mock del hook del radar (E4). Registra cada invocación con su flag `activo`
 // para poder afirmar que NO se dispara en modo "Situación actual" ni con el
 // flag apagado: el componente puede llamar al hook siempre (regla de hooks),
@@ -138,6 +202,7 @@ const RADAR_DATA = {
         evidenciaValida: true,
         scoreRiesgo: 0.8,
         nivelRiesgo: 'alto',
+        nivelRiesgoAcceso: 'alto',
         scoreAmenaza: 0.7,
         scoreVulnerabilidad: 0.6,
         confianza: 'media',
@@ -161,6 +226,15 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
     return activo
       ? { data: RADAR_DATA, loading: false, error: null }
       : { data: null, loading: false, error: null }
+  },
+}))
+
+const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[] }))
+const FIXTURE_REPLAY: RespuestaReplay = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
+vi.mock('@/lib/infraestructura/use-replay', () => ({
+  useReplay: (_filtros: unknown, activo: boolean) => {
+    llamadasReplay.activos.push(activo)
+    return activo ? { data: FIXTURE_REPLAY, loading: false, error: null } : { data: null, loading: false, error: null }
   },
 }))
 
@@ -199,10 +273,37 @@ vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
 // del componente real) y deja pasar el resto de los hijos sin más.
 vi.mock('react-map-gl/maplibre', () => {
-  function MapGL(props: {
-    children?: React.ReactNode
-    onClick?: (event: { features: Array<{ layer?: { id: string }; properties: Record<string, string> }> }) => void
-  }) {
+  type FeatureMock = { layer?: { id: string }; properties: Record<string, string> }
+  type MouseEventMock = { features: FeatureMock[] }
+  type HoverEventMock = { features: FeatureMock[]; lngLat: { lng: number; lat: number } }
+
+  // M1: el componente guarda `mapRef` con `useRef<MapRef>(null)` y lo pasa
+  // como `ref` a <MapGL>. El doble tiene que exponer `getMap()` (el
+  // componente lo usa para `.resize()`/`.stop()` al cambiar de pestaña y para
+  // `.flyTo()` al seleccionar una escuela del buscador). `FLY_TO_MOCK` vive
+  // en una variable de test (vi.hoisted) para poder afirmar sus argumentos.
+  const MapGL = forwardRef<
+    unknown,
+    {
+      children?: React.ReactNode
+      onClick?: (event: MouseEventMock) => void
+      onMouseMove?: (event: HoverEventMock) => void
+      onMouseLeave?: () => void
+    }
+  >(function MapGL(props, ref) {
+    useImperativeHandle(
+      ref,
+      () => ({
+        getMap: () => ({
+          flyTo: FLY_TO_MOCK,
+          resize: vi.fn(),
+          stop: vi.fn(),
+          getSource: () => undefined,
+          querySourceFeatures: () => [],
+        }),
+      }),
+      [],
+    )
     return (
       <div data-testid="mock-maplibre">
         <button
@@ -221,10 +322,20 @@ vi.mock('react-map-gl/maplibre', () => {
           data-testid="mock-click-riesgo"
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-riesgo-circle' }, properties: { cueAnexo: CUE } }] })}
         />
+        <button
+          data-testid="mock-hover-departamento"
+          onClick={() =>
+            props.onMouseMove?.({
+              features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        <button data-testid="mock-mouse-leave" onClick={() => props.onMouseLeave?.()} />
         {props.children}
       </div>
     )
-  }
+  })
   return {
     __esModule: true,
     default: MapGL,
@@ -232,7 +343,16 @@ vi.mock('react-map-gl/maplibre', () => {
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
     NavigationControl: () => null,
     Popup: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
-    Source: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
+    // `data` no se renderiza en el DOM real (MapLibre lo consume vía WebGL),
+    // pero se expone acá como atributo serializado: es la única forma de
+    // inspeccionar, desde un test de integración, qué features terminan en
+    // el GeoJSON de cada fuente (p. ej. `infra-replay-riesgo-src`) sin
+    // depender del click handler (que para Replay ni siquiera está cableado).
+    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => (
+      <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-geojson={JSON.stringify(props.data)}>
+        {props.children ?? null}
+      </div>
+    ),
   }
 })
 
@@ -252,6 +372,7 @@ let desmontarMapa: (() => void) | null = null
 async function renderMapa(props: {
   mostrarEnlaceNominal: boolean
   riskRadarEnabled?: boolean
+  replayEnabled?: boolean
 }) {
   const MapInfraestructuraPage = await cargar()
   const { unmount } = render(<MapInfraestructuraPage {...props} />)
@@ -261,6 +382,7 @@ async function renderMapa(props: {
 beforeEach(() => {
   vi.restoreAllMocks()
   llamadasRadar.activos.length = 0
+  llamadasReplay.activos.length = 0
   llamadasSnapshot.snapshotIds.length = 0
   vi.stubGlobal(
     'fetch',
@@ -399,8 +521,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     expect(screen.getByTestId('radar-kpi-riesgo-alto')).toHaveTextContent('1')
     expect(screen.getByTestId('radar-briefing')).toBeInTheDocument()
-    // Sin run anterior, el briefing es la línea honesta de primer corte.
-    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/primer corte disponible/i)
+    // Sin run anterior, el briefing es la línea honesta de primer resumen.
+    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/Primer resumen del día/i)
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
@@ -470,7 +592,232 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     // El checkbox de la capa de partes sigue presente: no se desmontó.
     expect(
-      screen.getByRole('checkbox', { name: /escuelas con afectación vigente/i }),
+      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('MapInfraestructuraPage — modo Replay', () => {
+  it('con el flag apagado no muestra el botón Replay y el hook nunca recibe activo=true', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    expect(screen.queryByRole('button', { name: 'Replay' })).not.toBeInTheDocument()
+    expect(llamadasReplay.activos.every((activo) => activo === false)).toBe(true)
+  })
+
+  // MENOR (revisión N1): el test original sólo probaba que se restauraba el
+  // MODO (a), sin ninguna aserción de que también volvieran el horizonte (b)
+  // y la selección de departamento (c) — las tres cosas que
+  // `volverDeReplay`/`estadoPrevioReplayRef` prometen restaurar.
+  it('al volver del modo Replay se restauran modo, horizonte y selección de departamento previos', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await userEvent.click(screen.getByRole('button', { name: '72 h' }))
+    await userEvent.click(screen.getByTestId('mock-click-peligro'))
+    expect(await screen.findByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+    expect(llamadasReplay.activos.at(-1)).toBe(true)
+
+    const botonVolver = screen.getByRole('button', { name: /volver a la situación actual/i })
+    await userEvent.click(botonVolver)
+
+    expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: '72 h' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+  })
+
+  // MAYOR 1 (revisión N1): `cambiarModo` no reseteaba `playingReplay` al
+  // salir de Replay por el CONMUTADOR (a diferencia de "Volver", que sí lo
+  // hacía). Sin el fix, reproducir un cuadro, salir por el conmutador y
+  // volver a entrar dejaba `playing=true` heredado de la visita anterior, y
+  // el intervalo de auto-avance arrancaba solo sin que el usuario tocara
+  // "Reproducir" de nuevo.
+  it('salir de Replay por el conmutador detiene la reproducción (no sólo "Volver")', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Reproducir' }))
+    expect(screen.getByRole('button', { name: 'Pausar' })).toHaveAttribute('aria-pressed', 'true')
+
+    // Sale por el conmutador, NO por "Volver a la situación actual".
+    await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+    expect(screen.getByRole('button', { name: 'Reproducir' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  // MAYOR 2 (revisión N1): las coordenadas de los puntos de riesgo/afectación
+  // del replay salían de `dataVisible` (filtrado por el departamento elegido
+  // en "Situación actual"), no del padrón completo de M1 (`useEscuelasMapa`).
+  // Una escuela sin parte vigente hoy — y por lo tanto ausente de
+  // `dataVisible.partes` — no se dibujaba en Replay aunque el cuadro
+  // reproducido tuviera snapshot de riesgo para su cueAnexo. El fix usa
+  // `dataEscuelasMapa` (padrón completo, sin ese filtro) como fuente de
+  // coordenadas para Replay.
+  it('las coordenadas de Replay salen del padrón completo, no de dataVisible filtrado', async () => {
+    const CUE_OTRO_DEPTO = '1801699-01'
+    FIXTURE_ESCUELAS_MAPA.escuelas.push({
+      cueAnexo: CUE_OTRO_DEPTO,
+      nombre: 'Escuela de Empedrado',
+      departamento: 'Empedrado',
+      localidad: 'Empedrado',
+      lat: -27.9,
+      lon: -58.8,
+      estado: 'sin_afectacion_reportada' as const,
+    })
+    FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.push({
+      cueAnexo: CUE_OTRO_DEPTO,
+      nivelRiesgo: 'alto',
+      horizonteHoras: 24,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { nombre: 'Capital' }, geometry: null },
+            { type: 'Feature', properties: { nombre: 'Empedrado' }, geometry: null },
+          ],
+        }),
+      }),
+    )
+
+    try {
+      await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
+      await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+      const selectDepartamento = await screen.findByLabelText('Departamento')
+      await userEvent.selectOptions(selectDepartamento, 'Empedrado')
+
+      const fuenteRiesgo = await screen.findByTestId('mock-source-infra-replay-riesgo-src')
+      const geojson = JSON.parse(fuenteRiesgo.getAttribute('data-geojson') ?? '{}')
+      const cues = (geojson.features ?? []).map(
+        (feature: { properties: { cueAnexo: string } }) => feature.properties.cueAnexo,
+      )
+      // La escuela de Empedrado nunca tuvo un ParteMapa (no está en
+      // dataVisible.partes), pero SÍ está en el padrón completo con
+      // coordenadas: tiene que aparecer.
+      expect(cues).toContain(CUE_OTRO_DEPTO)
+    } finally {
+      FIXTURE_ESCUELAS_MAPA.escuelas.pop()
+      FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.pop()
+    }
+  })
+})
+
+describe('M1: hover de departamento y buscador de escuelas', () => {
+  // El popup de hover arma su texto con <strong> intercalados ("En
+  // <strong>Capital</strong> hay <strong>10</strong> escuelas…"), así que el
+  // matcher por defecto de getByText (que sólo mira los text nodes DIRECTOS)
+  // no lo ve. Se matchea por tagName + textContent completo del <p>.
+  const esParrafoHover = (element: Element | null): boolean =>
+    element?.tagName === 'P' &&
+    /En Capital hay 10 escuelas/.test(element.textContent ?? '')
+
+  it('hover de departamento muestra total, afectadas y porcentaje, y desaparece al salir', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    expect(
+      screen.queryByText((_contenido, element) => esParrafoHover(element)),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('mock-hover-departamento'))
+
+    const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
+    expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
+    expect(popup).toHaveTextContent('3 están afectadas')
+    expect(popup).toHaveTextContent('30%')
+
+    await userEvent.click(screen.getByTestId('mock-mouse-leave'))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y no abre ficha', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    // El aria-label completo distingue el buscador de escuelas del filtro
+    // homónimo del panel de leyenda ("Buscar escuela" + placeholder corto).
+    const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
+    await userEvent.type(input, 'Escuela sin afectación')
+
+    await userEvent.click(await screen.findByText(/Escuela sin afectación/i))
+
+    expect(FLY_TO_MOCK).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-58.8, -27.5] }),
+    )
+    // Sin afectación reportada: no hay ParteMapa, por lo tanto no se abre la ficha.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+})
+
+describe('M2: capa de padrón apagada por defecto', () => {
+  it('el indicador de totales se ve aunque la capa de padrón esté apagada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const indicador = screen.getByTestId('infra-totales-indicador')
+    expect(indicador).toHaveTextContent(/10 escuelas/)
+    expect(indicador).toHaveTextContent(/3 afectadas/)
+    expect(indicador).toHaveTextContent(/30%/)
+  })
+
+  it('la casilla de "Todas las escuelas (padrón)" arranca destildada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const checkbox = screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i })
+    expect(checkbox).not.toBeChecked()
+  })
+
+  it('tildar la casilla no hace desaparecer el indicador de totales', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const antes = screen.getByTestId('infra-totales-indicador').textContent
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
+    )
+
+    const despues = screen.getByTestId('infra-totales-indicador')
+    expect(despues).toBeInTheDocument()
+    expect(despues.textContent).toBe(antes)
+  })
+})
+
+describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
+  it('apagada por defecto: el checkbox existe sin marcar y la fuente de la capa no está montada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    expect(checkbox).not.toBeChecked()
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
+  })
+
+  it('el toggle monta y desmonta la capa', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    await userEvent.click(checkbox)
+    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
+
+    await userEvent.click(checkbox)
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
+  })
+
+  it('oculta en modo Replay aunque el toggle esté prendido', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /riesgo de acceso/i }))
+    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
 })

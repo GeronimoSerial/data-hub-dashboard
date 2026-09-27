@@ -1,0 +1,18 @@
+[Unit]
+Description=Timer OPS1 ENOS: climatologia-caudal (diario, avanza por cursor resumable de cupo)
+
+[Timer]
+# Mismo motivo que enos-ops1-climatologia-precipitacion.timer, otra fuente
+# (Open-Meteo Flood API/GloFAS, 8 PUNTOS_RIO fijos en vez de ~387 celdas — ver
+# docs/ejecucion-enos/OM-cupo/registro.md). 06:00 UTC: una hora después de
+# climatologia-precipitacion (que consume `archive-api`, bucket distinto al
+# de `flood-api`, pero se mantienen escalonados para no competir por cupo si
+# alguna vez comparten bucket) y fuera de las ventanas de los syncs de 6h
+# (02,08,14,20:00), geo-perfiles (03:00) y sync-seasonal (09:00).
+OnCalendar=*-*-* 06:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@climatologia-caudal.service
+
+[Install]
+WantedBy=timers.target

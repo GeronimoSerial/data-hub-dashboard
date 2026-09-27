@@ -64,6 +64,12 @@ export interface RadarEscuela {
   scoreAmenaza: number | null
   scoreVulnerabilidad: number | null
   confianza: string
+  // Dimensión SEPARADA "riesgo de acceso" (ver motor/riesgo-acceso.ts): nunca
+  // se mezcla con scoreRiesgo/scoreVulnerabilidad. `null` = riesgo de acceso
+  // desconocido, no "bajo". Opcionales para no romper fixtures previos.
+  scoreRiesgoAcceso?: number | null
+  nivelRiesgoAcceso?: string | null
+  confianzaAcceso?: string | null
   exposicionMatricula: number | null
   exposicionSecciones: number | null
   calculadoEn: string
@@ -84,7 +90,13 @@ export interface RespuestaRadar {
   kpis: {
     riesgoAltoTotal: number
     sinEvidenciaTotal: number
+    // Matrícula potencialmente condicionada por acceso, ya deduplicada contra
+    // la afectación confirmada (nunca se suma dos veces la misma matrícula).
+    accesoCondicionado: { escuelas: number; matricula: number }
   }
+  // P1: alguna celda del corte usa umbral provisorio (falta su climatología
+  // ERA5). Opcional para no romper fixtures/mocks previos a este batch.
+  hayNivelProvisorio?: boolean
 }
 
 function construirQueryString(filtros: FiltrosRadar): string {

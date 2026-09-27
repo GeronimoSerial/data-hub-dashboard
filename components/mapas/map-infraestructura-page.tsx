@@ -11,6 +11,7 @@ import MapGL, {
   Layer,
   Marker,
   NavigationControl,
+  Popup,
   Source,
   type MapLayerMouseEvent,
   type MapRef,
@@ -19,6 +20,7 @@ import type {
   CircleLayerSpecification,
   DataDrivenPropertyValueSpecification,
   FillLayerSpecification,
+  FilterSpecification,
   GeoJSONSource,
   LineLayerSpecification,
   MapGeoJSONFeature,
@@ -28,6 +30,7 @@ import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
+import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
@@ -46,16 +49,22 @@ import { InfraLegendPanel } from '@/components/mapas/legend-panel'
 import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
+import { useReplay, type VistaReplay } from '@/lib/infraestructura/use-replay'
 import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
 import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
+import { ReplayPanel } from '@/components/mapas/replay-panel'
 import {
   construirCoropletaPeligro,
   construirPuntosRiesgo,
+  construirPuntosRiesgoAcceso,
   paintCoropletaPeligro,
   paintPuntosRiesgo,
+  paintPuntosRiesgoAcceso,
+  peorNivelEntre,
   type NivelPorDepartamento,
+  type RiesgoAccesoEscuela,
   type RiesgoEscuela,
 } from '@/lib/mapas/peligro-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
@@ -72,7 +81,12 @@ import {
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
 import { filtrarDepartamentoMapa } from '@/lib/infraestructura/filtrar-departamento-mapa'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
+import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
+import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
+import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
+import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
@@ -186,14 +200,46 @@ export function circlePaintHaloRiesgo(): CircleLayerSpecification['paint'] {
 }
 
 const CAPA_HALO_RIESGO_ID = 'infra-riesgo-halo'
+const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
+
+// ── Modo Replay (E7c) ────────────────────────────────────────────────────────
+//
+// IDs propios, namespaced aparte de infra-peligro-*/infra-riesgo-* del Radar:
+// el modo Replay es un modo de análisis SEPARADO, nunca apilado sobre el
+// Radar, y ambos pueden convivir en el árbol de MapLibre sin pisarse aunque
+// en la práctica sólo uno está activo a la vez (radarActivo/replayActivo son
+// mutuamente excluyentes por construcción de `modo`).
+const CAPA_REPLAY_PELIGRO_FILL_ID = 'infra-replay-peligro-fill'
+const CAPA_REPLAY_RIESGO_CIRCLE_ID = 'infra-replay-riesgo-circle'
+const CAPA_REPLAY_AFECTACION_CIRCLE_ID = 'infra-replay-afectacion-circle'
+
+function circlePaintAfectacionReplay(): CircleLayerSpecification['paint'] {
+  return {
+    'circle-radius': RADIO_PUNTO_RIESGO_BASE,
+    'circle-color': ['get', 'color'],
+    'circle-opacity': 0.9,
+    'circle-stroke-color': '#1c1c1c',
+    'circle-stroke-width': 1,
+  }
+}
 
 // Etiqueta del conmutador de modo. `role=tablist` + `aria-pressed` sobre
 // botones REALES: operable por teclado sin JS extra.
-type ModoMapa = 'actual' | 'radar'
+//
+// 'replay' (batch E7c) es un modo de ANÁLISIS separado, no apilado sobre
+// 'radar': vive detrás de su propio flag (REPLAY_ENABLED) y no comparte
+// estado de selección con los otros dos modos (ver useReplay/ReplayPanel más
+// abajo).
+type ModoMapa = 'actual' | 'radar' | 'replay'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
   riesgo: true,
+  // Apagada por defecto: el acceso es contexto adicional, no el encuadre base.
+  // TODO(E6): consumir este toggle en map-infraestructura-page.tsx (dibujar la
+  // capa de acceso sobre los puntos de riesgo). Hoy sólo existe la definición
+  // del control; el estado ya viaja a <RadarLayerControl>.
+  'riesgo-acceso': false,
 }
 
 // Máscara: tapa todo lo que no es Corrientes. Va primera en el árbol, apenas
@@ -341,8 +387,14 @@ const ANILLO_COLOR = '#1c1c1c'
 // una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
 // mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
 // no el mayor es Alta (>=2), y así hasta Baja (default).
+//
+// Antes de mirar la severidad se chequea `escuelasAfectadas === 0`: un cluster
+// que agrupa SÓLO escuelas sin afectación reportada (severidadRango = 0, el
+// mismo 0 que 'Baja') se pinta con el gris neutro COLOR_SIN_AFECTACION, nunca
+// con una severidad real. Sólo si hay al menos una afectada se usa la
+// severidad más alta (`severidadRango`, agregado por max).
 export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
-  const expresion: unknown[] = ['case']
+  const expresion: unknown[] = ['case', ['==', ['get', 'escuelasAfectadas'], 0], COLOR_SIN_AFECTACION]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
     expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
   }
@@ -368,6 +420,28 @@ export function circlePaintPartes(): CircleLayerSpecification['paint'] {
     'circle-stroke-width': ['match', ['get', 'servicio'], 'suspendido', 4, 'parcial', 2, 1],
     'circle-stroke-opacity': ['match', ['get', 'servicio'], 'suspendido', 1, 'parcial', 0.55, 0.9],
   }
+}
+
+// Filtro de los puntos individuales (no clusterizados) según el toggle del
+// padrón completo: apagado (default) sólo muestra escuelas con
+// `estado === 'afectada'`; encendido muestra TODAS (afectadas y sin
+// afectación, esta última en gris neutro vía el campo `color` que ya
+// asigna construirEscuelasMapaFeatureCollection).
+export function filtroPuntosPartes(mostrarPadron: boolean): FilterSpecification {
+  const base = ['!', ['has', 'point_count']]
+  if (mostrarPadron) return base as unknown as FilterSpecification
+  return ['all', base, ['==', ['get', 'estado'], 'afectada']] as unknown as FilterSpecification
+}
+
+// Mismo criterio para los clusters: apagado sólo muestra clusters con al
+// menos una escuela afectada (escuelasAfectadas > 0, agregado ya existente
+// en clusterProperties); encendido muestra todos, incluidos los clusters
+// de puras escuelas sin afectación (pintados en gris por
+// colorPorSeveridadRango, que ya cubre ese caso).
+export function filtroClusterPartes(mostrarPadron: boolean): FilterSpecification {
+  const base = ['has', 'point_count']
+  if (mostrarPadron) return base as unknown as FilterSpecification
+  return ['all', base, ['>', ['get', 'escuelasAfectadas'], 0]] as unknown as FilterSpecification
 }
 
 type PropiedadesParte = {
@@ -477,7 +551,7 @@ function estiloSimboloCentroEvacuados(): CSSProperties {
 }
 
 const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
-  escuelas: true,
+  escuelas: false,
   // Capas informativas nuevas: apagadas por defecto para no sumar ruido
   // visual al encuadre inicial. El director las prende cuando las necesita.
   evacuacion: false,
@@ -496,6 +570,8 @@ export default function MapInfraestructuraPage(props: {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
+  replayEnabled?: boolean
+  visible?: boolean
 }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -519,6 +595,8 @@ export default function MapInfraestructuraPage(props: {
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
+  const [departamentoHover, setDepartamentoHover] = useState<{ nombre: string; lng: number; lat: number } | null>(null)
+  const [escuelaResaltada, setEscuelaResaltada] = useState<{ cueAnexo: string; lng: number; lat: number } | null>(null)
   const [puntosVisibles, setPuntosVisibles] = useState(true)
   const entradaPuntosPendiente = useRef(false)
   // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
@@ -538,9 +616,12 @@ export default function MapInfraestructuraPage(props: {
   // actual (seleccionCue / nominalAfectacionId / historialCue) y también de
   // `departamentoSeleccionado`: son dos modos distintos sobre el mismo mapa, y
   // mezclarlos haría que abrir una ficha de radar pisara el filtro de partes.
-  // `modoRadar` arranca SIEMPRE en false ("Situación actual"), aun con el flag
-  // prendido; el conmutador sólo es visible si `props.riskRadarEnabled`.
-  const [modoRadar, setModoRadar] = useState(false)
+  // `modo` arranca SIEMPRE en 'actual' ("Situación actual"), aun con los
+  // flags prendidos; el conmutador sólo muestra el botón de cada modo si su
+  // propio flag está activo.
+  const [modo, setModo] = useState<ModoMapa>('actual')
+  const modoRadar = modo === 'radar'
+  const modoReplay = modo === 'replay'
   // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
   // Sólo los numéricos viajan a la API; 'ahora' no tiene evidencia y el hook
   // no manda query (ver use-radar.ts). Default 'ahora' = lo más inmediato.
@@ -578,6 +659,62 @@ export default function MapInfraestructuraPage(props: {
     seasonalActivo,
   )
 
+  // ── Modo Replay (E7c) ───────────────────────────────────────────────────
+  //
+  // Modo de ANÁLISIS separado del Radar: no se apila sobre él ni reusa su
+  // estado. `territorioIdReplay`/fechas arrancan vacíos a propósito — nada se
+  // consulta hasta que el usuario elige explícitamente departamento y
+  // ventana (o un episodio derivado), y NUNCA hay reproducción automática al
+  // entrar (`playingReplay` arranca siempre en false).
+  const [territorioIdReplay, setTerritorioIdReplay] = useState<string | null>(null)
+  const [desdeReplay, setDesdeReplay] = useState('')
+  const [hastaReplay, setHastaReplay] = useState('')
+  const [vistaReplay, setVistaReplay] = useState<VistaReplay>('conocido')
+  const [frameIndexReplay, setFrameIndexReplay] = useState(0)
+  const [playingReplay, setPlayingReplay] = useState(false)
+  const PASO_REPLAY_HORAS = 6
+
+  // Snapshot del estado operativo tomado al ENTRAR a Replay (no al montar el
+  // componente): "Volver a la situación actual" restaura exactamente el modo,
+  // horizonte y selección que estaban activos antes de abrir Replay, sean los
+  // de "Situación actual" o los del Radar.
+  const estadoPrevioReplayRef = useRef<{
+    modo: ModoMapa
+    horizonteSeleccionado: HorizonteRadar
+    departamentoSeleccionado: string | null
+    seleccionCue: string | null
+    departamentoRadarSeleccionado: string | null
+    cueRadarSeleccionado: string | null
+  } | null>(null)
+
+  const replayActivo = (props.replayEnabled ?? false) && modoReplay
+  const filtrosReplay = useMemo(
+    () => ({
+      territorioId: territorioIdReplay ?? undefined,
+      desde: desdeReplay || undefined,
+      hasta: hastaReplay || undefined,
+      paso: PASO_REPLAY_HORAS,
+      vista: vistaReplay,
+    }),
+    [territorioIdReplay, desdeReplay, hastaReplay, vistaReplay],
+  )
+  const { data: replayData, loading: replayLoading, error: replayError } = useReplay(
+    filtrosReplay,
+    replayActivo,
+  )
+
+  // El índice de cuadro nunca puede quedar apuntando fuera de rango cuando la
+  // respuesta cambia (nuevo territorio/ventana/vista trae menos cuadros que
+  // el anterior): se reacomoda al último válido, nunca se inventa un cuadro.
+  const [replayDataAnterior, setReplayDataAnterior] = useState(replayData)
+  if (replayData !== replayDataAnterior) {
+    setReplayDataAnterior(replayData)
+    const total = replayData?.cuadros.length ?? 0
+    setFrameIndexReplay(total === 0 ? 0 : Math.min(frameIndexReplay, total - 1))
+  }
+
+  const cuadroReplayActual = replayData?.cuadros[frameIndexReplay] ?? null
+
   const filtros = useMemo(
     () => ({
       territorio: filtrosForm.territorio || undefined,
@@ -602,6 +739,42 @@ export default function MapInfraestructuraPage(props: {
     return () => clearTimeout(id)
   }, [data])
 
+  const { data: dataEscuelasMapa } = useEscuelasMapa(filtros)
+  const { data: dataTotalesMapa } = useTotalesMapa(filtros)
+  const totalesPorDepartamento = useMemo(() => {
+    const mapa = new Map<string, TotalesDepartamento>()
+    for (const d of dataTotalesMapa?.departamentos ?? []) mapa.set(d.departamento, d)
+    return mapa
+  }, [dataTotalesMapa])
+  const dataEscuelasMapaVisible = useMemo(
+    () => dataEscuelasMapa ? filtrarDepartamentoEscuelasMapa(dataEscuelasMapa, departamentoSeleccionado) : null,
+    [dataEscuelasMapa, departamentoSeleccionado],
+  )
+  // Padrón completo (afectadas y sin afectación reportada), reemplaza a
+  // featureCollection (que sólo tenía las afectadas) como fuente de la
+  // capa de puntos. Requisito no negociable: el mapa muestra TODAS las
+  // escuelas siempre, no depende de si hay partes cargados.
+  const featureCollectionPadron = useMemo(
+    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? [], ahoraMs),
+    [dataEscuelasMapaVisible, ahoraMs],
+  )
+
+  // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
+  // con `hidden`), cortar cualquier flyTo en curso con `.stop()` para no
+  // gastar rAF sobre un contenedor sin layout. Al volver a mostrarse,
+  // `.resize()` + `.fitBounds()` corrigen el encuadre si MapLibre calculó
+  // mal el tamaño mientras estaba oculto (mismo patrón que
+  // map-natalidad-page.tsx en la rama main).
+  useEffect(() => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (props.visible ?? true) {
+      mapa.resize()
+    } else {
+      mapa.stop()
+    }
+  }, [props.visible])
+
   const dataVisible = useMemo(
     () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
     [data, departamentoSeleccionado, ahoraMs],
@@ -622,11 +795,6 @@ export default function MapInfraestructuraPage(props: {
   // mouse no debe recalcular ni parpadear el halo). Antes de que corra el
   // primer efecto, `ahoraMs` es null y el halo simplemente no dibuja nada
   // (mejor eso que fechar con un valor inventado).
-  const featureCollection = useMemo(
-    () => construirFeatureCollection(dataVisible?.partes ?? [], ahoraMs),
-    [dataVisible, ahoraMs],
-  )
-
   const partesEvacuacion = useMemo(
     () =>
       (dataVisible?.partes ?? []).filter(
@@ -714,15 +882,23 @@ export default function MapInfraestructuraPage(props: {
   // pasan a <SelectorHorizonte> para deshabilitar los que no tienen datos; el
   // selector siempre ofrece los 4 y el resto queda visible pero inactivo.
   const horizontesDisponibles = useMemo<HorizonteRadar[]>(() => {
-    if (!radarData) return []
+    // 'ahora' es cualitativo y no depende de ninguna corrida del radar (no
+    // manda query, ver use-radar.ts): siempre está disponible, aunque
+    // `radarData` todavía no haya llegado o el resto de los horizontes no
+    // tengan evidencia. Sin esto, el botón "Ahora" queda permanentemente
+    // deshabilitado y no hay forma de volver a la situación actual.
+    if (!radarData) return ['ahora']
     const horas = new Set<number>()
     for (const fila of radarData.departamentos) {
       if (fila.peorNivel !== 'sin_dato') horas.add(fila.horizonteHoras)
     }
     for (const escuela of radarData.escuelas.items) horas.add(escuela.horizonteHoras)
-    return ([24, 72, 240] as HorizonteRadar[]).filter(
-      (h) => typeof h === 'number' && horas.has(h),
-    )
+    return [
+      'ahora',
+      ...([24, 72, 240] as HorizonteRadar[]).filter(
+        (h) => typeof h === 'number' && horas.has(h),
+      ),
+    ]
   }, [radarData])
 
   // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
@@ -774,6 +950,100 @@ export default function MapInfraestructuraPage(props: {
     () => construirPuntosRiesgo(escuelasConCoordenadas, riesgoPorCue),
     [escuelasConCoordenadas, riesgoPorCue],
   )
+
+  // Riesgo de acceso (E6): mismo patrón que riesgoPorCue/puntosRiesgoGeojson
+  // de arriba, pero leyendo `nivelRiesgoAcceso` del item del radar en vez de
+  // `nivelRiesgo`. Dimensión separada, no una variante de color de la capa
+  // existente.
+  const riesgoAccesoPorCue = useMemo(() => {
+    const map = new Map<string, RiesgoAccesoEscuela>()
+    for (const escuela of radarData?.escuelas.items ?? []) {
+      map.set(escuela.cueAnexo, {
+        nivel: (escuela.nivelRiesgoAcceso ?? null) as 'bajo' | 'moderado' | 'alto' | null,
+      })
+    }
+    return map
+  }, [radarData])
+
+  const puntosRiesgoAccesoGeojson = useMemo(
+    () => construirPuntosRiesgoAcceso(escuelasConCoordenadas, riesgoAccesoPorCue),
+    [escuelasConCoordenadas, riesgoAccesoPorCue],
+  )
+
+  // ── Capas del cuadro reproducido (Replay, E7c) ────────────────────────────
+  //
+  // El replay entrega el peligro por CELDA de grilla (geometryRef), no por
+  // departamento, y está siempre acotado a UN SOLO territorio a la vez (el
+  // elegido en el panel). Por eso la coropleta no se recalcula por
+  // departamento como en el Radar: se reduce el peligro de todas las celdas
+  // del cuadro a un único peor-nivel (`peorNivelEntre`) y se pinta SÓLO el
+  // departamento seleccionado con ese nivel — el resto queda en 'sin_dato'
+  // (gris), reusando `construirCoropletaPeligro` tal cual.
+  const peligroGeojsonReplay = useMemo(() => {
+    if (!departamentosRaw || !territorioIdReplay || !cuadroReplayActual) return null
+    const peorNivel = peorNivelEntre(cuadroReplayActual.nivelesPeligro.map((n) => n.nivel))
+    return construirCoropletaPeligro(departamentosRaw, [
+      { departamento: territorioIdReplay, peorNivel },
+    ])
+  }, [departamentosRaw, territorioIdReplay, cuadroReplayActual])
+
+  // Coordenadas para Replay: el padrón COMPLETO de M1 (`useEscuelasMapa`, sin
+  // filtrar por el departamento elegido en "Situación actual"), no
+  // `dataVisible`/`escuelasConCoordenadas`. Replay tiene su PROPIO territorio
+  // (`territorioIdReplay`), independiente del filtro de "Situación actual";
+  // reusar ese filtro dejaba sin puntos cualquier departamento de Replay que
+  // no coincidiera con el elegido en el otro modo.
+  const escuelasConCoordenadasReplay = useMemo(
+    () =>
+      (dataEscuelasMapa?.escuelas ?? [])
+        .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
+        .map((escuela) => ({
+          cueAnexo: escuela.cueAnexo,
+          lat: escuela.lat as number,
+          lon: escuela.lon as number,
+        })),
+    [dataEscuelasMapa],
+  )
+
+  // Puntos de riesgo del cuadro reproducido: cruzan `snapshotRiesgo.porEscuela`
+  // (por cueAnexo) con las coordenadas del padrón completo. `confianza` no
+  // viaja en el contrato de replay: se fija en 'media' como valor neutro,
+  // nunca inventando 'alta'.
+  const riesgoPorCueReplay = useMemo(() => {
+    const map = new Map<string, RiesgoEscuela>()
+    for (const escuela of cuadroReplayActual?.snapshotRiesgo?.porEscuela ?? []) {
+      map.set(escuela.cueAnexo, { nivelRiesgo: escuela.nivelRiesgo, confianza: 'media' })
+    }
+    return map
+  }, [cuadroReplayActual])
+
+  const puntosRiesgoGeojsonReplay = useMemo(
+    () => construirPuntosRiesgo(escuelasConCoordenadasReplay, riesgoPorCueReplay),
+    [escuelasConCoordenadasReplay, riesgoPorCueReplay],
+  )
+
+  // Afectaciones confirmadas del cuadro reproducido: mismo criterio de
+  // coordenadas que arriba (padrón completo). El color reusa `colorSeveridad`,
+  // la MISMA escala que "Situación actual" — el replay no inventa una paleta
+  // propia.
+  const afectacionesGeojsonReplay = useMemo(() => {
+    const coordsPorCue = new Map(escuelasConCoordenadasReplay.map((e) => [e.cueAnexo, e]))
+    const features = (cuadroReplayActual?.afectacionesConfirmadas ?? [])
+      .map((afectacion) => {
+        const coords = coordsPorCue.get(afectacion.cueAnexo)
+        if (!coords) return null
+        return {
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [coords.lon, coords.lat] },
+          properties: {
+            cueAnexo: afectacion.cueAnexo,
+            color: colorSeveridad(afectacion.severidad),
+          },
+        }
+      })
+      .filter((f): f is NonNullable<typeof f> => f !== null)
+    return { type: 'FeatureCollection' as const, features }
+  }, [cuadroReplayActual, escuelasConCoordenadasReplay])
 
   // Briefing: `generarBriefing` necesita el run ANTERIOR y los conteos por
   // nivel, y la API sólo entrega el corte VIGENTE (no el anterior). GAP
@@ -837,6 +1107,27 @@ export default function MapInfraestructuraPage(props: {
     [snapshotDetalle],
   )
 
+  // Dimensión SEPARADA "riesgo de acceso" para el panel de la escuela
+  // seleccionada. El nivel/confianza vienen del item del radar (tarea 1); la
+  // explicación se toma del factor 'acceso' del detalle del snapshot cuando
+  // está disponible. `undefined` (sin escuela seleccionada) = no se renderiza.
+  const riesgoAccesoPanel = useMemo(() => {
+    if (!escuelaRadarSeleccionada) return undefined
+    const factorAcceso = snapshotDetalle?.factores.find((factor) => factor.tipo === 'acceso')
+    return {
+      nivel: (escuelaRadarSeleccionada.nivelRiesgoAcceso ?? null) as
+        | 'bajo'
+        | 'moderado'
+        | 'alto'
+        | null,
+      confianza: (escuelaRadarSeleccionada.confianzaAcceso ?? 'baja') as
+        | 'baja'
+        | 'media'
+        | 'alta',
+      explicacion: factorAcceso?.explicacion ?? 'Sin detalle de acceso disponible.',
+    }
+  }, [escuelaRadarSeleccionada, snapshotDetalle])
+
   // Niveles por horizonte del departamento elegido en el radar, para el panel
   // de explicación. La API entrega el peor nivel por (departamento, horizonte),
   // pero NO el detalle de caudal/precipitación/base ensemble por departamento:
@@ -865,7 +1156,8 @@ export default function MapInfraestructuraPage(props: {
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
-    ...(capasVisibles.escuelas ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID] : []),
+    CAPA_PARTES_ID,
+    CAPA_PARTES_CLUSTER_ID,
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
     // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
@@ -927,7 +1219,10 @@ export default function MapInfraestructuraPage(props: {
       return
     }
     if (feature?.properties?.cueAnexo) {
-      setSeleccionCue(String(feature.properties.cueAnexo))
+      const cue = String(feature.properties.cueAnexo)
+      // Sin afectación reportada: no hay ParteMapa que mostrar en la ficha,
+      // así que el click no abre nada (evita abrir un modal vacío/roto).
+      if (partesPorCue.has(cue)) setSeleccionCue(cue)
       return
     }
     const departamento = features.find((item) =>
@@ -940,6 +1235,33 @@ export default function MapInfraestructuraPage(props: {
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
     }
+  }
+
+  function handleMouseMove(event: MapLayerMouseEvent) {
+    const features = event.features ?? []
+    const departamento = features.find(
+      (item) => item.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID || item.layer?.id === 'infra-departamentos-etiqueta',
+    )
+    const nombre = departamento?.properties?.nombre
+    if (typeof nombre === 'string') {
+      setDepartamentoHover({ nombre, lng: event.lngLat.lng, lat: event.lngLat.lat })
+    } else if (departamentoHover) {
+      setDepartamentoHover(null)
+    }
+  }
+
+  function handleMouseLeave() {
+    setDepartamentoHover(null)
+  }
+
+  // Seleccionar una escuela desde el buscador: mismo criterio que el click
+  // sobre un punto del mapa — vuela al punto y resalta el anillo; sólo abre
+  // ficha si hay un ParteMapa (afectación reportada) para ese cueAnexo.
+  function handleSeleccionarEscuelaBuscada(escuela: EscuelaMapa) {
+    if (escuela.lat === null || escuela.lon === null) return
+    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
+    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
+    if (partesPorCue.has(escuela.cueAnexo)) setSeleccionCue(escuela.cueAnexo)
   }
 
   // T1.1c: lee del mapa (querySourceFeatures) qué features de
@@ -981,10 +1303,53 @@ export default function MapInfraestructuraPage(props: {
   // Cambiar de modo limpia las selecciones del OTRO modo: si quedo con una
   // ficha de radar abierta y vuelvo a "Situación actual", el panel de
   // explicación se cierra solo (su visibilidad deriva de estos estados).
+  //
+  // Entrar a Replay ('actual'/'radar' -> 'replay') toma una FOTO del estado
+  // operativo vigente (modo, horizonte, selecciones) antes de tocar nada:
+  // "Volver a la situación actual" (volverDeReplay) restaura exactamente esa
+  // foto, nunca fuerza 'actual' a secas — si se venía del Radar con un
+  // horizonte y un departamento elegidos, se vuelve a ESE estado.
   function cambiarModo(siguiente: ModoMapa) {
-    setModoRadar(siguiente === 'radar')
+    if (siguiente === 'replay' && modo !== 'replay') {
+      estadoPrevioReplayRef.current = {
+        modo,
+        horizonteSeleccionado,
+        departamentoSeleccionado,
+        seleccionCue,
+        departamentoRadarSeleccionado,
+        cueRadarSeleccionado,
+      }
+    }
+    // Salir de Replay por el conmutador (no por "Volver") también debe
+    // detener la reproducción: si no, al volver a entrar arranca sola con
+    // el estado de play que quedó de la visita anterior.
+    if (modo === 'replay' && siguiente !== 'replay') {
+      setPlayingReplay(false)
+    }
+    setModo(siguiente)
     setCueRadarSeleccionado(null)
     setDepartamentoRadarSeleccionado(null)
+  }
+
+  // "Volver a la situación actual" del modo Replay: restaura el modo,
+  // horizonte y selección operativos previos a abrir Replay (ver
+  // cambiarModo). El estado PROPIO de Replay (territorio/ventana/vista/cuadro
+  // reproducido) se conserva tal cual por si el usuario vuelve a entrar — no
+  // se pierde el trabajo de armar la consulta.
+  function volverDeReplay() {
+    const previo = estadoPrevioReplayRef.current
+    setPlayingReplay(false)
+    if (!previo) {
+      setModo('actual')
+      return
+    }
+    setModo(previo.modo)
+    setHorizonteSeleccionado(previo.horizonteSeleccionado)
+    setDepartamentoSeleccionado(previo.departamentoSeleccionado)
+    setSeleccionCue(previo.seleccionCue)
+    setDepartamentoRadarSeleccionado(previo.departamentoRadarSeleccionado)
+    setCueRadarSeleccionado(previo.cueRadarSeleccionado)
+    estadoPrevioReplayRef.current = null
   }
 
   function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
@@ -1036,6 +1401,8 @@ export default function MapInfraestructuraPage(props: {
           cursor="pointer"
           onLoad={actualizarCuesNoAgrupados}
           onMoveEnd={actualizarCuesNoAgrupados}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
           onIdle={() => {
             if (entradaPuntosPendiente.current) {
               entradaPuntosPendiente.current = false
@@ -1133,11 +1500,75 @@ export default function MapInfraestructuraPage(props: {
             </Source>
           )}
 
-          {capasVisibles.escuelas && (
+          {/*
+            Riesgo de acceso (E6): capa HERMANA de infra-riesgo-src, apagada
+            por defecto (capasRadarVisibles['riesgo-acceso'] arranca en
+            false). Gateada explícitamente por `!modoReplay` además de
+            `radarActivo` (aunque ya son mutuamente excluyentes por
+            construcción de `modo`): la regla de aceptación es que esta capa
+            NUNCA se muestre en Replay, sin depender de un efecto indirecto.
+          */}
+          {radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso'] && (
+            <Source id="infra-riesgo-acceso-src" type="geojson" data={puntosRiesgoAccesoGeojson}>
+              <Layer
+                id={CAPA_RIESGO_ACCESO_CIRCLE_ID}
+                type="circle"
+                paint={paintPuntosRiesgoAcceso()}
+              />
+            </Source>
+          )}
+
+          {/*
+            Replay (E7c): fuentes/layers PROPIOS del cuadro reproducido,
+            namespaced aparte del Radar (ver comentario de los ids arriba).
+            Se montan SÓLO con replayActivo Y un cuadro resuelto — un vacío
+            temporal (`vacios[i]`) no se pinta con el color del cuadro
+            anterior, así que si no hay `cuadroReplayActual` no se monta la
+            capa (mejor nada que un dato viejo disfrazado de vigente).
+          */}
+          {replayActivo && peligroGeojsonReplay && (
+            <Source id="infra-replay-peligro-src" type="geojson" data={peligroGeojsonReplay}>
+              <Layer
+                id={CAPA_REPLAY_PELIGRO_FILL_ID}
+                type="fill"
+                paint={paintCoropletaPeligro()}
+              />
+            </Source>
+          )}
+
+          {replayActivo && cuadroReplayActual && (
+            <Source
+              id="infra-replay-riesgo-src"
+              type="geojson"
+              data={puntosRiesgoGeojsonReplay}
+            >
+              <Layer
+                id={CAPA_REPLAY_RIESGO_CIRCLE_ID}
+                type="circle"
+                paint={circlePaintRiesgo()}
+              />
+            </Source>
+          )}
+
+          {replayActivo && cuadroReplayActual && (
+            <Source
+              id="infra-replay-afectacion-src"
+              type="geojson"
+              data={afectacionesGeojsonReplay}
+            >
+              <Layer
+                id={CAPA_REPLAY_AFECTACION_CIRCLE_ID}
+                type="circle"
+                paint={circlePaintAfectacionReplay()}
+              />
+            </Source>
+          )}
+
+          {(
             <Source
               id="infra-partes-src"
               type="geojson"
-              data={featureCollection}
+              data={featureCollectionPadron}
               cluster={true}
               clusterMaxZoom={CAPA_PARTES_CLUSTER_MAX_ZOOM}
               clusterRadius={40}
@@ -1155,6 +1586,12 @@ export default function MapInfraestructuraPage(props: {
                 // establecimiento evacuado/centro de evacuados (semántica
                 // OR), igual que `sinReportar`.
                 esEvacuado: ['max', ['case', ['get', 'esEvacuado'], 1, 0]],
+                // Cuenta de escuelas REALMENTE afectadas en el cluster: suma 1
+                // por cada punto con `estado === 'afectada'`. Distingue un
+                // cluster de puras escuelas sin afectación (0) de uno con al
+                // menos una afectada, para no pintar el primero con el color
+                // de severidad 'Baja' (su severidadRango también es 0).
+                escuelasAfectadas: ['+', ['case', ['==', ['get', 'estado'], 'afectada'], 1, 0]],
               }}
             >
               {/*
@@ -1220,7 +1657,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
-                filter={['!', ['has', 'point_count']]}
+                filter={filtroPuntosPartes(capasVisibles.escuelas)}
                 paint={{
                   ...circlePaintPartes(),
                   'circle-opacity': puntosVisibles ? 0.9 : 0,
@@ -1240,7 +1677,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
-                filter={['has', 'point_count']}
+                filter={filtroClusterPartes(capasVisibles.escuelas)}
                 paint={{
                   'circle-color': colorPorSeveridadRango(),
                   'circle-radius': expresionRadioCluster(),
@@ -1253,7 +1690,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
-                filter={['has', 'point_count']}
+                filter={filtroClusterPartes(capasVisibles.escuelas)}
                 layout={{
                   'text-field': ['get', 'point_count_abbreviated'],
                   'text-size': 12,
@@ -1293,6 +1730,57 @@ export default function MapInfraestructuraPage(props: {
                   />
                 </Marker>
               ))}
+
+          {departamentoHover && (() => {
+            const clave = normalizarNombreDepartamento(departamentoHover.nombre)
+            const totales = totalesPorDepartamento.get(clave)
+            if (!totales) return null
+            return (
+              <Popup
+                longitude={departamentoHover.lng}
+                latitude={departamentoHover.lat}
+                closeButton={false}
+                closeOnClick={false}
+                anchor="bottom"
+                className="mapa-tooltip-departamento"
+              >
+                <p>
+                  En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                  <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
+                </p>
+              </Popup>
+            )
+          })()}
+
+          {/* Resalta la escuela elegida en el buscador con un anillo aparte,
+              sin tocar circlePaintPartes: se ve encima tanto de un punto
+              individual como de un cluster todavía sin desagrupar mientras
+              el flyTo llega al zoom que lo desagrupa. */}
+          {escuelaResaltada && (
+            <Source
+              id="infra-escuela-resaltada-src"
+              type="geojson"
+              data={{
+                type: 'FeatureCollection',
+                features: [{
+                  type: 'Feature',
+                  geometry: { type: 'Point', coordinates: [escuelaResaltada.lng, escuelaResaltada.lat] },
+                  properties: {},
+                }],
+              }}
+            >
+              <Layer
+                id="infra-escuela-resaltada"
+                type="circle"
+                paint={{
+                  'circle-radius': 11,
+                  'circle-color': 'transparent',
+                  'circle-stroke-color': '#f59e0b',
+                  'circle-stroke-width': 3,
+                }}
+              />
+            </Source>
+          )}
 
 
         </MapGL>
@@ -1336,10 +1824,13 @@ export default function MapInfraestructuraPage(props: {
       */}
       {dataVisible && (
         <div className={styles.leftStack} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
-          {/* Conmutador de modo: SÓLO con el flag prendido. Dos botones reales
+          {/* Conmutador de modo: cada botón adicional ("Radar", "Replay")
+              sólo aparece con SU PROPIO flag prendido; "Situación actual" se
+              muestra si cualquiera de los dos está activo. Botones reales
               (operables por teclado) con aria-pressed; el modo activo es
-              "Situación actual" siempre al entrar. */}
-          {(props.riskRadarEnabled ?? false) && (
+              "Situación actual" siempre al entrar, aunque los flags estén
+              prendidos. */}
+          {((props.riskRadarEnabled ?? false) || (props.replayEnabled ?? false)) && (
             <div
               className={`${styles.panel} map-modo-conmutador`}
               role="group"
@@ -1347,22 +1838,54 @@ export default function MapInfraestructuraPage(props: {
             >
               <button
                 type="button"
-                aria-pressed={!modoRadar}
+                aria-pressed={modo === 'actual'}
                 onClick={() => cambiarModo('actual')}
               >
                 Situación actual
               </button>
-              <button
-                type="button"
-                aria-pressed={modoRadar}
-                onClick={() => cambiarModo('radar')}
-              >
-                Radar
-              </button>
+              {(props.riskRadarEnabled ?? false) && (
+                <button
+                  type="button"
+                  aria-pressed={modoRadar}
+                  onClick={() => cambiarModo('radar')}
+                >
+                  Radar
+                </button>
+              )}
+              {(props.replayEnabled ?? false) && (
+                <button
+                  type="button"
+                  aria-pressed={modoReplay}
+                  onClick={() => cambiarModo('replay')}
+                >
+                  Replay
+                </button>
+              )}
             </div>
           )}
 
-          {modoRadar ? (
+          {modoReplay ? (
+            <ReplayPanel
+              departamentos={departamentosRaw?.features.map((f) => f.properties.nombre) ?? []}
+              territorioId={territorioIdReplay}
+              onTerritorioIdChange={setTerritorioIdReplay}
+              desde={desdeReplay}
+              hasta={hastaReplay}
+              onDesdeChange={setDesdeReplay}
+              onHastaChange={setHastaReplay}
+              vista={vistaReplay}
+              onVistaChange={setVistaReplay}
+              paso={PASO_REPLAY_HORAS}
+              data={replayData}
+              loading={replayLoading}
+              error={replayError}
+              frameIndex={frameIndexReplay}
+              onFrameIndexChange={setFrameIndexReplay}
+              playing={playingReplay}
+              onPlayingChange={setPlayingReplay}
+              onVolver={volverDeReplay}
+            />
+          ) : modoRadar ? (
             <div className={`${styles.panel} map-radar-panel`}>
               <SelectorHorizonte
                 horizonte={horizonteSeleccionado}
@@ -1431,6 +1954,7 @@ export default function MapInfraestructuraPage(props: {
                   }
                   scoreAmenaza={escuelaRadarSeleccionada.scoreAmenaza}
                   scoreVulnerabilidad={escuelaRadarSeleccionada.scoreVulnerabilidad}
+                  riesgoAcceso={riesgoAccesoPanel}
                   factores={factoresPanel}
                   factoresCargando={snapshotLoading}
                   factoresError={snapshotError}
@@ -1439,6 +1963,23 @@ export default function MapInfraestructuraPage(props: {
             </div>
           ) : (
             <>
+              <EscuelaSearchBox
+                escuelas={dataEscuelasMapa?.escuelas ?? []}
+                onSeleccionar={handleSeleccionarEscuelaBuscada}
+              />
+              {(() => {
+                const totales = departamentoSeleccionado
+                  ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
+                  : dataTotalesMapa?.provincia
+                if (!totales) return null
+                return (
+                  <p className={styles.hint} data-testid="infra-totales-indicador">
+                    <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                    <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
+                    {totales.porcentajeAfectadas}%
+                  </p>
+                )
+              })()}
               <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
               {departamentoSeleccionado && (
                 <div className={`${styles.panel} map-departamento-seleccionado`}>
@@ -1461,7 +2002,15 @@ export default function MapInfraestructuraPage(props: {
           )}
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
-            mostrarLeyendaPeligro={radarActivo}
+            mostrarLeyendaPeligro={radarActivo || replayActivo}
+            mostrarLeyendaAcceso={radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']}
+            hayNivelProvisorio={
+              radarActivo
+                ? (radarData?.hayNivelProvisorio ?? false)
+                : (cuadroReplayActual?.nivelesPeligro.some(
+                    (n) => n.metodo === 'umbral_provisorio',
+                  ) ?? false)
+            }
           />
         </div>
       )}

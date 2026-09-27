@@ -4,6 +4,8 @@ import { LLUVIA_72H_SATURACION_MM, MOTOR_VERSION } from './config'
 import type {
   AntecedenteHistorial,
   IndicadoresSusceptibilidad,
+  IndiceAislamiento,
+  NivelAislamiento,
   NivelCaudalPunto,
   NivelPeligro,
   NivelPeligroCelda,
@@ -56,6 +58,28 @@ function caudal(nivel: NivelPeligro, over: Partial<NivelCaudalPunto> = {}): Nive
   }
 }
 
+// Cambio de contrato de la tarea 1: el puerto de aislamiento pasó de devolver
+// un `NivelAislamiento` plano a un `IndiceAislamiento` (nivel + conteos de
+// cruces + alternativa). El núcleo sigue usando sólo `.nivel`, pero los tests
+// ahora construyen el objeto completo.
+function aislamientoDe(
+  nivel: NivelAislamiento,
+  over: Partial<IndiceAislamiento> = {},
+): IndiceAislamiento {
+  return {
+    cueAnexo: CUE,
+    nivel,
+    crucesAguaCount: null,
+    crucesAguaConPuenteCount: null,
+    crucesAguaConVadoCount: null,
+    tieneAlternativaSinCruce: null,
+    versionJob: 'v1',
+    fechaExtractoOsm: '2026-09-01',
+    licencia: 'ODbL',
+    ...over,
+  }
+}
+
 function susceptibilidadDe(valores: number[], version = 'v1'): IndicadoresSusceptibilidad {
   const indicadores: Record<string, number> = {}
   valores.forEach((valor, indice) => {
@@ -88,7 +112,7 @@ function escenarioBase(): EscenarioFake {
     caudal: { [RIO]: caudal('amarillo') },
     lluvia24h: { [GEOM]: 30 },
     lluvia72h: { [GEOM]: 80 },
-    aislamiento: { [CUE]: 2 },
+    aislamiento: { [CUE]: aislamientoDe(2) },
     susceptibilidad: { [CUE]: susceptibilidadDe([0.4, 0.6]) },
     historial: {
       [CUE]: {
@@ -161,7 +185,7 @@ describe('calcularRiesgoEscuela', () => {
       peligro: { [GEOM]: [celda('rojo')] },
       caudal: { [RIO]: caudal('rojo') },
       lluvia24h: { [GEOM]: LLUVIA_72H_SATURACION_MM },
-      aislamiento: { [CUE]: 3 },
+      aislamiento: { [CUE]: aislamientoDe(3) },
       susceptibilidad: { [CUE]: susceptibilidadDe([1, 1, 1]) },
       historial: {
         [CUE]: {
@@ -199,7 +223,7 @@ describe('calcularRiesgoEscuela', () => {
       peligro: { [GEOM]: [celda('verde')] },
       caudal: { [RIO]: caudal('verde') },
       lluvia24h: { [GEOM]: 0 },
-      aislamiento: { [CUE]: 0 },
+      aislamiento: { [CUE]: aislamientoDe(0) },
       susceptibilidad: { [CUE]: susceptibilidadDe([0, 0]) },
       historial: {
         [CUE]: {
@@ -349,6 +373,34 @@ describe('calcularRiesgoEscuela', () => {
     expect(resultado.confianza).toBe('media')
   })
 
+  it('T-UP1: peligro con metodo umbral_provisorio baja la confianza un escalón (evidencia menos confiable, no ausencia)', async () => {
+    const conPercentiles = escenarioBase()
+    const conProvisorio: EscenarioFake = {
+      ...escenarioBase(),
+      peligro: { [GEOM]: [celda('naranja', { metodo: 'umbral_provisorio' })] },
+    }
+
+    const percentiles = await calcularRiesgoEscuela({
+      cueAnexo: CUE,
+      horizonte: 24,
+      asOf: AS_OF,
+      puertos: crearPuertosFake(conPercentiles),
+    })
+    const provisorio = await calcularRiesgoEscuela({
+      cueAnexo: CUE,
+      horizonte: 24,
+      asOf: AS_OF,
+      puertos: crearPuertosFake(conProvisorio),
+    })
+
+    // El factor de amenaza se agrega igual al score...
+    expect(provisorio.scoreAmenaza).not.toBeNull()
+    expect(provisorio.factores.some((factor) => factor.fuente === 'peligro-celda')).toBe(true)
+    // ...pero la confianza cae un escalón frente al mismo escenario con percentiles.
+    expect(percentiles.confianza).toBe('alta')
+    expect(provisorio.confianza).toBe('media')
+  })
+
   it('T-H1: un antecedente con rigeDesde posterior a asOf no aporta nada a duracionTotalHoras ni al score', async () => {
     const asOfViejo = '2026-03-01T00:00:00.000Z'
     const escenario: EscenarioFake = {
@@ -466,6 +518,30 @@ describe('calcularRiesgoEscuela', () => {
     expect(vacio.confianza).toBe('media')
     expect(vacio.confianza).toBe(nulo.confianza)
     expect(vacio.scoreVulnerabilidad).toBe(nulo.scoreVulnerabilidad)
+  })
+
+  it('T-ACC1: el aislamiento ya no es factor de vulnerabilidad y se expone como riesgoAcceso separado', async () => {
+    const resultado = await calcularRiesgoEscuela({
+      cueAnexo: CUE,
+      horizonte: 24,
+      asOf: AS_OF,
+      puertos: crearPuertosFake(escenarioBase()),
+    })
+
+    // El aislamiento salió del IRO: no debe quedar como factor de vulnerabilidad...
+    expect(
+      resultado.factores.some(
+        (factor) => factor.tipo === 'vulnerabilidad' && factor.fuente === 'aislamiento-osm',
+      ),
+    ).toBe(false)
+    // ...sino como dimensión aparte, con su propio factor informativo.
+    expect(resultado.riesgoAcceso.score).not.toBeNull()
+    expect(resultado.riesgoAcceso.nivel).not.toBeNull()
+    const factorAcceso = resultado.factores.find((factor) => factor.tipo === 'acceso')
+    expect(factorAcceso?.fuente).toBe('riesgo-acceso')
+    // Informativo: nunca aporta al IRO compuesto.
+    expect(factorAcceso?.contribucion).toBe(0)
+    expect(factorAcceso?.peso).toBe(0)
   })
 })
 

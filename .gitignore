@@ -27,4 +27,6 @@ plan.md
 # Paquete de marca original del Ministerio (22 MB). Los archivos que el
 # producto realmente usa viven versionados en public/marca/.
 Ministerio de Educación.zip
+
+# Caché local del registro de skills de los agentes
 .atl/

@@ -700,6 +700,13 @@ export const infraRiskSnapshot = sqliteTable(
     scoreVulnerabilidad: real('score_vulnerabilidad'),
     // 'baja' | 'media' | 'alta'.
     confianza: text('confianza').notNull(),
+    // Dimensión aparte 'riesgo de acceso' (aislamiento OSM x peligro del
+    // horizonte x accesos interrumpidos): NUNCA se mezcla en el IRO compuesto.
+    scoreRiesgoAcceso: real('score_riesgo_acceso'),
+    // 'bajo' | 'moderado' | 'alto' (null = riesgo de acceso desconocido).
+    nivelRiesgoAcceso: text('nivel_riesgo_acceso'),
+    // 'baja' | 'media' | 'alta'.
+    confianzaAcceso: text('confianza_acceso'),
     exposicionMatricula: integer('exposicion_matricula'),
     exposicionSecciones: integer('exposicion_secciones'),
     calculadoEn: text('calculado_en').notNull(),
@@ -722,7 +729,7 @@ export const infraRiskFactor = sqliteTable(
     snapshotId: text('snapshot_id')
       .notNull()
       .references(() => infraRiskSnapshot.id, { onDelete: 'cascade' }),
-    // 'amenaza' | 'vulnerabilidad' | 'exposicion' | 'urgencia'.
+    // 'amenaza' | 'vulnerabilidad' | 'acceso' | 'exposicion' | 'urgencia'.
     tipo: text('tipo').notNull(),
     fuente: text('fuente').notNull(),
     variable: text('variable').notNull(),
@@ -875,6 +882,52 @@ export const infraEpisodioMiembro = sqliteTable(
   ],
 )
 
+// OM-cupo: guarda de cupo compartida entre TODOS los adapters de Open-Meteo
+// (hosts api./ensemble-api./archive-api./flood-api., y sus variantes
+// customer-* cuando hay OPEN_METEO_API_KEY). Ver
+// lib/infraestructura/riesgo/providers/cupo-om.ts y
+// docs/ejecucion-enos/OM-cupo/registro.md para la fórmula de peso, la fuente
+// citada y las decisiones de diseño.
+//
+// IMPORTANTE: los techos de Open-Meteo (600/min, 5.000/hora, 10.000/día,
+// 300.000/mes) son de CUENTA/IP, no por subdominio — la página de pricing no
+// distingue host por host. Por eso la columna `host` de estas dos tablas en
+// realidad guarda un "bucket" compartido (`'open-meteo-free'` o
+// `'open-meteo-pago'`, ver `bucketCupo` en cupo-om.ts), NO el literal
+// api./ensemble-api./etc.: las 4 familias de host gastan del MISMO pozo.
+// Se conserva el nombre de columna `host` para no romper el resto de este
+// archivo con un rename cosmético.
+//
+// `om_cupo_contador`: peso acumulado por (host=bucket, ventana,
+// claveVentana). Una fila por ventana de tiempo vigente
+// (minuto/hora/dia/mes); las ventanas vencidas quedan como historial, no se
+// borran (volumen acotado: 4 filas por bucket por ventana de calendario,
+// nunca crece sin límite práctico).
+export const omCupoContador = sqliteTable(
+  'om_cupo_contador',
+  {
+    host: text('host').notNull(),
+    ventana: text('ventana').notNull(),
+    claveVentana: text('clave_ventana').notNull(),
+    pesoAcumulado: real('peso_acumulado').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.host, t.ventana, t.claveVentana] })],
+)
+
+// `om_cupo_cooldown`: un HTTP 429 con `Retry-After` pone al BUCKET entero
+// (todos los hosts de ese plan) en cooldown hasta `hastaEn`; mientras dure,
+// ningún adapter vuelve a golpear ninguno de los 4 hosts (ver cupo-om.ts
+// `estaEnCooldown`). `hostOrigen` es sólo informativo: qué host literal
+// devolvió el 429 que originó el cooldown. Una fila por bucket (upsert).
+export const omCupoCooldown = sqliteTable('om_cupo_cooldown', {
+  host: text('host').primaryKey(),
+  hostOrigen: text('host_origen').notNull(),
+  hastaEn: text('hasta_en').notNull(),
+  motivoSaneado: text('motivo_saneado').notNull(),
+  retryAfterSegundos: integer('retry_after_segundos'),
+  actualizadaEn: text('actualizada_en').notNull(),
+})
 // Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal, ECMWF SEAS5 +
 // EC46, 51 miembros, ~36 km) por CENTROIDE de departamento — nunca por
 // escuela (plan-implementacion §9.3 / plan-ejecucion §E5, capa opcional
@@ -1016,3 +1069,59 @@ export const infraBriefingPresupuestoMes = sqliteTable('infra_briefing_presupues
   acumuladoUsd: real('acumulado_usd').notNull(),
   actualizadaEn: text('actualizada_en').notNull(),
 })
+
+// ============================================================
+// G1: capas territoriales estáticas
+// ============================================================
+// Capas territoriales de largo plazo producidas por los jobs offline de
+// services/geo-static/ (ver docs/ejecucion-enos/G1/contrato-datos.md). Son
+// importadas por un importador aparte; ambas usan PK compuesta
+// (cue_anexo, version_job) para permitir convivencia de versiones.
+
+// Aislamiento de un anexo respecto de la red vial/OSM. Los campos de conteo y
+// distancia pueden ser null cuando el job no pudo calcularlos; en ese caso
+// `motivoSinDatos` explica por qué (por ejemplo 'sin_conexion_red') y
+// `indiceAislamiento` queda null. Nunca se asume seguro por defecto.
+export const infraAislamientoOsm = sqliteTable('infra_aislamiento_osm', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  distanciaViaPavimentadaM: real('distancia_via_pavimentada_m'),
+  distanciaCabeceraDepartamentalM: real('distancia_cabecera_departamental_m'),
+  tramosSinPavimentarCount: integer('tramos_sin_pavimentar_count'),
+  crucesAguaCount: integer('cruces_agua_count'),
+  crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
+  crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
+  tieneAlternativaSinCruce: integer('tiene_alternativa_sin_cruce', { mode: 'boolean' }),
+  indiceAislamiento: integer('indice_aislamiento'),
+  motivoSinDatos: text('motivo_sin_datos'),
+  snapDistanciaM: real('snap_distancia_m'),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+  index('infra_aislamiento_osm_indice_idx').on(t.indiceAislamiento),
+])
+
+// Susceptibilidad estática de largo plazo por período de retorno (physrisk).
+// Es riesgo estático, NUNCA un pronóstico ni dato en tiempo real. `fuente`
+// distingue 'physrisk' de 'no_disponible'; los peligros quedan null cuando no
+// hay dato.
+export const infraSusceptibilidadEstatica = sqliteTable('infra_susceptibilidad_estatica', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  peligroInundacionFluvial: real('peligro_inundacion_fluvial'),
+  peligroInundacionPluvial: real('peligro_inundacion_pluvial'),
+  peligroViento: real('peligro_viento'),
+  peligroCalor: real('peligro_calor'),
+  periodoRetornoAnios: integer('periodo_retorno_anios').notNull(),
+  fuente: text('fuente').notNull(),
+  fechaCorrida: text('fecha_corrida').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+])
+// ============================================================
+// Fin bloque G1
+// ============================================================

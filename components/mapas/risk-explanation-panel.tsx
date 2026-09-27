@@ -26,10 +26,15 @@ export type HorizontePeligroPanel = 24 | 72 | 240
 
 export type ConfianzaNivel = 'baja' | 'media' | 'alta'
 
+export type MetodoNivelPanel = 'percentiles' | 'umbral_provisorio' | 'sin_dato'
+
 export interface NivelHorizontePanel {
   horizonteHoras: HorizontePeligroPanel
   nivel: NivelPeligroPanel
   base: BaseNivelPanel
+  // P1: método que produjo el nivel (mirror de NivelPeligroCelda.metodo).
+  // Opcional para no romper a los callers previos a este batch.
+  metodo?: MetodoNivelPanel
   precipitacionMm: number | null
   percentilReferencia: string | null
   emitidoEn: string
@@ -117,6 +122,15 @@ export type RiskExplanationPanelProps =
       factores?: FactorRiesgoPanel[]
       factoresCargando?: boolean
       factoresError?: string | null
+      // Dimensión SEPARADA "riesgo de acceso": espejo del resultado del motor
+      // (motor/riesgo-acceso.ts), sin importar sus tipos. NUNCA es parte del
+      // estado del edificio. `undefined` = el caller no la pasa y no se
+      // renderiza; `null` o un objeto = sí se renderiza la sección "Acceso".
+      riesgoAcceso?: {
+        nivel: 'bajo' | 'moderado' | 'alto' | null
+        confianza: ConfianzaNivel
+        explicacion: string
+      } | null
     })
 
 // Etiquetas replicadas de `lib/mapas/peligro-capas.ts` (ver nota de cabecera).
@@ -137,6 +151,12 @@ const ETIQUETA_CONFIANZA: Record<ConfianzaNivel, string> = {
 // Rótulo fijo y no negociable: esto es una estimación propia, nunca un aviso
 // oficial. "alerta" y el SMN quedan deliberadamente afuera del copy.
 export const TITULO_PELIGRO = 'Peligro meteorológico estimado'
+
+// P1: rótulo fijo del puente de umbrales provisorios (mismo texto que la
+// leyenda del Radar, ver components/mapas/peligro-legend.tsx). "alerta" y el
+// SMN quedan deliberadamente afuera acá también.
+export const ROTULO_NIVEL_PROVISORIO =
+  'Nivel provisorio (umbrales fijos de lluvia) mientras se calcula la climatología de la zona.'
 
 function etiquetaHorizonte(horas: HorizontePeligroPanel): string {
   if (horas === 24) return 'Próximas 24h (riesgo inmediato)'
@@ -173,6 +193,14 @@ function etiquetaNivelRiesgo(nivelRiesgo: string): string {
   if (nivelRiesgo === 'alto') return 'Alto'
   if (nivelRiesgo === 'muy_alto') return 'Muy alto'
   return nivelRiesgo
+}
+
+// Etiqueta de la dimensión "Acceso". `null` es "sin datos", NUNCA "bajo".
+function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
+  if (nivel === null) return 'Sin datos de acceso'
+  if (nivel === 'bajo') return 'Bajo'
+  if (nivel === 'moderado') return 'Moderado'
+  return 'Alto'
 }
 
 function formatearNumero(valor: number): string {
@@ -263,6 +291,11 @@ function PanelDepartamento(
                 {etiquetaNivel(fila.nivel)}
               </span>{' '}
               <span className="risk-explanation-panel__base">({etiquetaBase(fila.base)})</span>
+              {fila.metodo === 'umbral_provisorio' && (
+                <span className="risk-explanation-panel__provisorio">
+                  {ROTULO_NIVEL_PROVISORIO}
+                </span>
+              )}
               {fila.precipitacionMm !== null && (
                 <span className="risk-explanation-panel__detalle">
                   {' '}
@@ -320,6 +353,7 @@ function PanelEscuela(
     factores,
     factoresCargando,
     factoresError,
+    riesgoAcceso,
   } = props
 
   return (
@@ -341,6 +375,35 @@ function PanelEscuela(
       <p className="risk-explanation-panel__dato" data-testid="risk-explanation-vulnerabilidad">
         Vulnerabilidad: {scoreVulnerabilidad === null ? 'sin dato' : formatearNumero(scoreVulnerabilidad)}
       </p>
+
+      {riesgoAcceso !== undefined && (
+        <section
+          className="risk-explanation-panel__acceso"
+          data-testid="risk-explanation-acceso"
+          aria-label="Riesgo de acceso"
+        >
+          <p className="risk-explanation-panel__subtitulo">
+            <strong>Acceso</strong>
+          </p>
+          <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-nivel">
+            Riesgo de acceso: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
+          </p>
+          {riesgoAcceso === null || riesgoAcceso.nivel === null ? (
+            <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-sin-dato">
+              Sin datos de acceso
+            </p>
+          ) : (
+            <>
+              <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-confianza">
+                Confianza: {ETIQUETA_CONFIANZA[riesgoAcceso.confianza]}
+              </p>
+              <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-explicacion">
+                {riesgoAcceso.explicacion}
+              </p>
+            </>
+          )}
+        </section>
+      )}
 
       {factoresCargando ? (
         <p role="status" data-testid="risk-explanation-factores-cargando">

@@ -1856,6 +1856,57 @@ time {
   line-height: 1.4;
 }
 
+/* Panel del modo Replay (E7c): mismo patrón de columna que .map-radar-panel,
+   con su propia fila de selección (departamento + ventana + vista) y la
+   timeline agrupadas por separado. */
+.map-replay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-replay-panel__seleccion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+.map-replay-panel__seleccion select,
+.map-replay-panel__seleccion input {
+  font: inherit;
+}
+.map-replay-panel__vista {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-replay-panel__timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+.map-replay-panel__contador {
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  margin: 0;
+}
+.map-replay-panel__truncado {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__vacios {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__export {
+  display: flex;
+  gap: var(--s-2);
+}
+
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
    izquierda (escuelas/filtros/indicadores) y el panel de base/capas en la
    esquina superior derecha a la vez — se pisan y se vuelven ilegibles. Debajo
@@ -1933,6 +1984,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-section-title { font-weight: 600; margin-top: var(--s-1); margin-bottom: 2px; }
 .map-emphasis { font-weight: 600; color: var(--ink); }
 .map-legend-item { display: flex; align-items: center; gap: var(--s-1); margin: 3px 0; }
+.peligro-legend__provisorio {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 .map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
@@ -3903,3 +3963,72 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .situacion-fuentes [data-vencida='true'] {
   color: var(--danger);
 }
+
+/* M1: buscador de escuelas (mapa de infraestructura) — inicio */
+/* Buscador genérico de escuelas: mismo slot que el control de métrica, con su
+   propio separador arriba. */
+.mapa-buscador-escuela {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+  max-width: 20rem;
+}
+.mapa-buscador-escuela > .ui-input { width: 100%; }
+
+/* Resultados en un popover flotante anclado al input. Mismo lenguaje visual
+   que .ui-select-popup/.ui-select-item: superficie, borde, radio y sombra
+   por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
+.mapa-buscador-escuela-positioner { z-index: var(--z-popup); outline: none; }
+.mapa-buscador-escuela-popup {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-modal);
+  overflow: hidden;
+}
+/* Único contenedor con scroll — el popup en sí no scrollea, sólo esta lista,
+   acotada a ~6 filas visibles. */
+.mapa-buscador-escuela-lista {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+}
+.mapa-buscador-escuela-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--r-sm);
+  cursor: default;
+  outline: none;
+  text-align: left;
+}
+.mapa-buscador-escuela-item[data-highlighted] {
+  background: var(--ink);
+  color: var(--page);
+}
+.mapa-buscador-escuela-item[data-highlighted] .mapa-buscador-escuela-meta { color: inherit; opacity: 0.75; }
+.mapa-buscador-escuela-nombre {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.mapa-buscador-escuela-meta { color: var(--ink-soft); font-size: var(--t-micro); }
+.mapa-buscador-escuela-match {
+  background: color-mix(in srgb, var(--action) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+.mapa-buscador-escuela-vacio {
+  padding: 0.6rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+/* M1: buscador de escuelas (mapa de infraestructura) — fin */

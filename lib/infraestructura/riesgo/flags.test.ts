@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   aiBriefingEnabled,
   hazardContextEnabled,
+  replayEnabled,
   riskEngineEnabled,
   riskMode,
   riskRadarEnabled,
@@ -16,6 +17,7 @@ const CLAVES = [
   'RISK_MODE',
   'HAZARD_CONTEXT_ENABLED',
   'SEASONAL_ENABLED',
+  'REPLAY_ENABLED',
   'SITUACION_ENABLED',
 ] as const
 
@@ -142,6 +144,23 @@ describe('situacionEnabled', () => {
     expect(situacionEnabled()).toBe(false)
     process.env.SITUACION_ENABLED = 'yes'
     expect(situacionEnabled()).toBe(false)
+  })
+})
+
+describe('replayEnabled', () => {
+  it('devuelve false por defecto (sin la variable seteada)', () => {
+    delete process.env.REPLAY_ENABLED
+    expect(replayEnabled()).toBe(false)
+  })
+
+  it('devuelve true con el valor exacto "true"', () => {
+    process.env.REPLAY_ENABLED = 'true'
+    expect(replayEnabled()).toBe(true)
+  })
+
+  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
+    process.env.REPLAY_ENABLED = '1'
+    expect(replayEnabled()).toBe(false)
   })
 })
 

@@ -131,6 +131,27 @@ export function paintCoropletaPeligro(): FillLayerSpecification['paint'] {
   }
 }
 
+// Peor nivel entre varias filas (batch E7c, modo Replay): un cuadro de replay
+// entrega el nivel de peligro por CELDA de grilla (geometryRef), no por
+// departamento — para pintar la coropleta con `construirCoropletaPeligro` (que
+// espera un peor-nivel por departamento) hay que reducir esas celdas a una
+// sola fila primero. Valores desconocidos o `'sin_dato'` se ignoran para el
+// ranking; si NINGUNA fila es un nivel real, el resultado es `'sin_dato'`
+// (nunca se inventa un nivel a partir de un arreglo vacío).
+export function peorNivelEntre(niveles: string[]): NivelPeligro {
+  let peor: NivelPeligro = 'sin_dato'
+  let peorIndice = -1
+  for (const nivel of niveles) {
+    if (!esNivelPeligro(nivel) || nivel === 'sin_dato') continue
+    const indice = NIVELES_PELIGRO.indexOf(nivel)
+    if (indice > peorIndice) {
+      peorIndice = indice
+      peor = nivel
+    }
+  }
+  return peor
+}
+
 // ── Puntos de riesgo por escuela ────────────────────────────────────────────
 
 export interface EscuelaConCoordenadas {
@@ -207,4 +228,85 @@ export function paintPuntosRiesgo(): CircleLayerSpecification['paint'] {
   return {
     'circle-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
   }
+}
+
+// ── Puntos de riesgo de acceso ──────────────────────────────────────────────
+//
+// Dimensión SEPARADA del riesgo compuesto (ver capasRadarVisibles['riesgo-acceso']
+// en map-types.ts / layer-control.tsx): el acceso no es una severidad del
+// edificio, es "caminos y cruces". Capa HERMANA de construirPuntosRiesgo, no
+// una variante: comparte el mismo patrón (Feature/Point por escuela, 'sin
+// dato' explícito) pero con su propio vocabulario de nivel.
+
+export interface RiesgoAccesoEscuela {
+  nivel: 'bajo' | 'moderado' | 'alto' | null
+}
+
+export interface PropiedadesPuntoRiesgoAcceso {
+  cueAnexo: string
+  // 'bajo' | 'moderado' | 'alto' | 'sin_cobertura'. `null` (sin cobertura OSM
+  // o escuela sin fila en riesgoAccesoPorCue) se traduce a 'sin_cobertura'
+  // acá, nunca a 'bajo': ausencia de dato no es bajo riesgo.
+  nivelAcceso: string
+}
+
+/**
+ * Un Feature/Point por escuela para la capa de riesgo de acceso. Si el
+ * `cueAnexo` no está en `riesgoAccesoPorCue` (o su `nivel` es null) el punto
+ * queda en `'sin_cobertura'`, nunca `'bajo'`.
+ */
+export function construirPuntosRiesgoAcceso(
+  escuelasConCoordenadas: EscuelaConCoordenadas[],
+  riesgoAccesoPorCue: Map<string, RiesgoAccesoEscuela>,
+): FeatureCollection<Point, PropiedadesPuntoRiesgoAcceso> {
+  const features = escuelasConCoordenadas.map((escuela) => {
+    const riesgo = riesgoAccesoPorCue.get(escuela.cueAnexo)
+    return {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Point' as const,
+        coordinates: [escuela.lon, escuela.lat] as [number, number],
+      },
+      properties: {
+        cueAnexo: escuela.cueAnexo,
+        nivelAcceso: riesgo?.nivel ?? 'sin_cobertura',
+      },
+    }
+  })
+
+  return { type: 'FeatureCollection', features }
+}
+
+// Puente entre el vocabulario de riesgo de acceso y la paleta de peligro:
+// 'bajo'/'moderado'/'alto' reusan verde/amarillo/naranja (mismos colores que
+// el resto del mapa), 'sin_cobertura' reusa el gris neutro de 'sin_dato'. NO
+// se usa rojo: 'alto' en acceso no es "muy_alto" de riesgo compuesto.
+const NIVEL_ACCESO_A_PELIGRO: Array<[string, NivelPeligro]> = [
+  ['bajo', 'verde'],
+  ['moderado', 'amarillo'],
+  ['alto', 'naranja'],
+]
+
+/**
+ * Paint de `circle-color` para la capa de riesgo de acceso: un `match` sobre
+ * `nivelAcceso` con la paleta de arriba y `sin_dato` (gris neutro) como
+ * fallback para 'sin_cobertura' y cualquier valor inesperado.
+ */
+export function paintPuntosRiesgoAcceso(): CircleLayerSpecification['paint'] {
+  const expresion: unknown[] = ['match', ['get', 'nivelAcceso']]
+  for (const [nivelAcceso, nivelPeligro] of NIVEL_ACCESO_A_PELIGRO) {
+    expresion.push(nivelAcceso, COLOR_NIVEL_PELIGRO[nivelPeligro])
+  }
+  expresion.push(COLOR_NIVEL_PELIGRO.sin_dato)
+
+  return {
+    'circle-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
+    // Marca visual que NO depende sólo del color (accesibilidad/daltonismo):
+    // 'alto' tiene un trazo (stroke) más ancho y opaco que el resto, un
+    // anillo distintivo igual que el criterio ya usado en circlePaintPartes
+    // para 'servicio' (ver map-infraestructura-page.tsx).
+    'circle-stroke-width': ['match', ['get', 'nivelAcceso'], 'alto', 3, 1],
+    'circle-stroke-opacity': ['match', ['get', 'nivelAcceso'], 'alto', 1, 0.5],
+    'circle-stroke-color': '#1c1c1c',
+  } as CircleLayerSpecification['paint']
 }

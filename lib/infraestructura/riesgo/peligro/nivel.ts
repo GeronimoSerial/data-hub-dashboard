@@ -10,6 +10,7 @@ import {
   hazardForecast,
   infraGeoProfile,
 } from '@/lib/db/schema'
+import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
 
 export type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
 
@@ -20,6 +21,11 @@ export interface NivelPeligroCelda {
   horizonteHoras: HorizontePeligro
   nivel: NivelPeligro
   base: 'ensemble' | 'deterministico' | 'sin_dato'
+  // Método que produjo el nivel: percentiles de climatología, umbral provisorio
+  // (puente mientras no hay climatología) o sin_dato. Aditivo y opcional para
+  // no romper a los consumidores que construyen el tipo; nivel.ts SIEMPRE lo
+  // emite.
+  metodo?: 'percentiles' | 'umbral_provisorio' | 'sin_dato'
   probabilidadP95: number | null
   probabilidadP99: number | null
   precipitacionMm: number | null
@@ -42,7 +48,7 @@ export interface NivelCaudalPunto {
 // el contrato fijo que ejecutará E3b; estas son las funciones que consume.
 // ---------------------------------------------------------------------------
 
-export const VERSION_REGLA_PELIGRO = 'peligro-v0.1'
+export const VERSION_REGLA_PELIGRO = 'peligro-v0.2'
 
 // Nombres de `variable`/`muestra` tal como los escriben los jobs de ingesta
 // (providers/ensemble.ts, ecmwf.ts, flood.ts, climatologia*.ts). La consulta
@@ -406,6 +412,9 @@ function calcularNivelCeldaSync(
         horizonteHoras: horizonte,
         nivel,
         base: 'ensemble',
+        // La fila de hazardEnsembleProb sólo existe cuando hubo climatología al
+        // momento de la ingesta: el ensemble siempre es percentiles.
+        metodo: 'percentiles',
         probabilidadP95: fila.probabilidadP95,
         probabilidadP99: fila.probabilidadP99,
         // El ensemble reporta proporción de miembros, no un acumulado puntual:
@@ -446,10 +455,32 @@ function calcularNivelCeldaSync(
       horizonteHoras: horizonte,
       nivel,
       base: 'deterministico',
+      metodo: 'percentiles',
       probabilidadP95: null,
       probabilidadP99: null,
       precipitacionMm: pronostico.valor,
       percentilReferencia,
+      emitidoEn: pronostico.corridaEn,
+      validoHasta: pronostico.validoEn,
+      versionRegla: VERSION_REGLA_PELIGRO,
+    }
+  }
+
+  // Hay pronóstico pero NO climatología: puente provisorio mientras se calcula
+  // la climatología ERA5. base sigue siendo 'deterministico' (la fuente es el
+  // pronóstico determinístico); el nivel sale de umbrales fijos, no de
+  // percentiles. Si hubiera climatología, este camino NUNCA se toma.
+  if (pronostico !== null) {
+    return {
+      geometryRef,
+      horizonteHoras: horizonte,
+      nivel: nivelDesdeUmbralProvisorio(pronostico.valor, horizonte),
+      base: 'deterministico',
+      metodo: 'umbral_provisorio',
+      probabilidadP95: null,
+      probabilidadP99: null,
+      precipitacionMm: pronostico.valor,
+      percentilReferencia: null,
       emitidoEn: pronostico.corridaEn,
       validoHasta: pronostico.validoEn,
       versionRegla: VERSION_REGLA_PELIGRO,
@@ -465,6 +496,7 @@ function calcularNivelCeldaSync(
     horizonteHoras: horizonte,
     nivel: 'sin_dato',
     base: 'sin_dato',
+    metodo: 'sin_dato',
     probabilidadP95: null,
     probabilidadP99: null,
     precipitacionMm: null,
@@ -486,8 +518,10 @@ function calcularNivelCeldaSync(
  *   fallback determinístico (pronóstico `precipitacion` + climatología
  *   `precipitacion_diaria`).
  * - Horizonte 240: siempre fallback determinístico; el ensemble no participa.
- * - Si falta el pronóstico o la climatología, `base`/`nivel` son 'sin_dato'
- *   (nunca 'verde' inventado).
+ * - Si hay pronóstico pero NO climatología completa, se usa el umbral
+ *   provisorio (metodo 'umbral_provisorio'; puente mientras se calcula ERA5).
+ * - Si falta el pronóstico, `base`/`nivel` son 'sin_dato' (nunca 'verde'
+ *   inventado).
  */
 export async function obtenerNivelesPeligro(opts?: {
   geometryRefs?: string[]

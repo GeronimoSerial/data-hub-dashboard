@@ -1,0 +1,7 @@
+.data/
+output/*.tmp
+.venv/
+__pycache__/
+*.pyc
+cache/
+output/*.bak

@@ -20,11 +20,21 @@
 // coordenadas separadas por coma en una sola request.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 import type { PuntoRio } from '../puntos-rio'
 
-const BASE_URL = 'https://flood-api.open-meteo.com/v1/flood'
+const RUTA = '/v1/flood'
 const PERCENTILES = [90, 95, 99] as const
+const CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA = 1
+
+/** Días de calendario entre dos fechas `YYYY-MM-DD` (inclusive), para OM-cupo. */
+function diasEntreFechas(desde: string, hasta: string): number {
+  const msPorDia = 86_400_000
+  const dias = Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / msPorDia) + 1
+  return Math.max(1, dias)
+}
 
 // Forma de `HazardClimatologiaPunto` con `variable`/`muestra` angostados a lo
 // único que produce el caudal. El tipo compartido está atado a precipitación
@@ -128,10 +138,13 @@ function construirUrlLote(
   puntos: readonly PuntoRio[],
   periodoDesde: string,
   periodoHasta: string,
+  apiKey: string | undefined,
 ): string {
   const latitudes = puntos.map((punto) => String(punto.lat)).join(',')
   const longitudes = puntos.map((punto) => String(punto.lon)).join(',')
-  return `${BASE_URL}?latitude=${latitudes}&longitude=${longitudes}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=river_discharge&timezone=UTC`
+  const base = construirBaseUrl('flood-api', RUTA, apiKey)
+  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=river_discharge&timezone=UTC`
+  return agregarApiKey(url, apiKey)
 }
 
 /**
@@ -163,18 +176,30 @@ export async function obtenerSeriesHistoricasCaudal(params: {
   periodoDesde: string
   periodoHasta: string
   fetchImpl?: typeof fetch
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
 }): Promise<ResultadoSeriesHistoricasCaudal> {
   const seriesPorPunto: Record<string, number[]> = {}
   const erroresPorPunto: Record<string, { motivo: string; detalle: string }> = {}
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
+  const dias = diasEntreFechas(params.periodoDesde, params.periodoHasta)
 
   const lotes = agruparEnLotes(params.puntos, TAMANO_LOTE_COORDENADAS_CAUDAL)
 
   for (const lote of lotes) {
+    const peso = pesoLlamada({
+      ubicaciones: lote.length,
+      variables: CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA,
+      dias,
+    })
+    const cupo = params.controladorCupoFactory?.(peso)
     const resultado = await ejecutarConReintentos<
       Array<z.infer<typeof payloadCaudalElementoSchema>>
     >({
-      url: construirUrlLote(lote, params.periodoDesde, params.periodoHasta),
+      url: construirUrlLote(lote, params.periodoDesde, params.periodoHasta, apiKey),
       fetchImpl: params.fetchImpl,
+      cupo,
       parsearPayload: crearParserLoteCaudal(lote.length),
     })
 

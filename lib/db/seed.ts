@@ -389,6 +389,9 @@ CREATE TABLE IF NOT EXISTS \`infra_risk_snapshot\` (
   \`score_amenaza\` real,
   \`score_vulnerabilidad\` real,
   \`confianza\` text NOT NULL,
+  \`score_riesgo_acceso\` real,
+  \`nivel_riesgo_acceso\` text,
+  \`confianza_acceso\` text,
   \`exposicion_matricula\` integer,
   \`exposicion_secciones\` integer,
   \`calculado_en\` text NOT NULL,
@@ -483,6 +486,26 @@ CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
+-- OM-cupo: guarda de cupo compartida de Open-Meteo (ver lib/db/schema.ts y
+-- lib/infraestructura/riesgo/providers/cupo-om.ts). \`host\` guarda el BUCKET
+-- compartido ('open-meteo-free'/'open-meteo-pago'), no el subdominio literal:
+-- los techos de Open-Meteo son de cuenta/IP, no por host.
+CREATE TABLE IF NOT EXISTS \`om_cupo_contador\` (
+  \`host\` text NOT NULL,
+  \`ventana\` text NOT NULL,
+  \`clave_ventana\` text NOT NULL,
+  \`peso_acumulado\` real NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  PRIMARY KEY (\`host\`, \`ventana\`, \`clave_ventana\`)
+);
+CREATE TABLE IF NOT EXISTS \`om_cupo_cooldown\` (
+  \`host\` text PRIMARY KEY NOT NULL,
+  \`host_origen\` text NOT NULL,
+  \`hasta_en\` text NOT NULL,
+  \`motivo_saneado\` text NOT NULL,
+  \`retry_after_segundos\` integer,
+  \`actualizada_en\` text NOT NULL
+);
 -- Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal), ver
 -- lib/db/schema.ts (hazardSeasonalTrend) y
 -- lib/infraestructura/riesgo/providers/seasonal.ts.
@@ -558,6 +581,39 @@ CREATE TABLE IF NOT EXISTS \`infra_briefing_presupuesto_mes\` (
   \`mes\` text PRIMARY KEY NOT NULL,
   \`acumulado_usd\` real NOT NULL,
   \`actualizada_en\` text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS \`infra_aislamiento_osm\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`distancia_via_pavimentada_m\` real,
+  \`distancia_cabecera_departamental_m\` real,
+  \`tramos_sin_pavimentar_count\` integer,
+  \`cruces_agua_count\` integer,
+  \`cruces_agua_con_puente_count\` integer,
+  \`cruces_agua_con_vado_count\` integer,
+  \`tiene_alternativa_sin_cruce\` integer,
+  \`indice_aislamiento\` integer,
+  \`motivo_sin_datos\` text,
+  \`snap_distancia_m\` real,
+  \`fecha_extracto_osm\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_aislamiento_osm_indice_idx\` ON \`infra_aislamiento_osm\` (\`indice_aislamiento\`);
+CREATE TABLE IF NOT EXISTS \`infra_susceptibilidad_estatica\` (
+  \`cue_anexo\` text NOT NULL,
+  \`version_job\` text NOT NULL,
+  \`peligro_inundacion_fluvial\` real,
+  \`peligro_inundacion_pluvial\` real,
+  \`peligro_viento\` real,
+  \`peligro_calor\` real,
+  \`periodo_retorno_anios\` integer NOT NULL,
+  \`fuente\` text NOT NULL,
+  \`fecha_corrida\` text NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`importado_en\` text NOT NULL,
+  PRIMARY KEY (\`cue_anexo\`, \`version_job\`)
 );
 `
 
@@ -637,6 +693,29 @@ export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   await db.$client.execute(
     'CREATE UNIQUE INDEX IF NOT EXISTS `infra_movimiento_idempotency_key_uidx` ON `infra_movimiento` (`idempotency_key`)',
   )
+}
+
+// Dimensión "riesgo de acceso": el batch E6 agregó tres columnas a
+// infra_risk_snapshot (score/nivel/confianza de acceso). HUB_DDL ya las crea
+// para una base nueva, pero una base de desarrollo ya poblada no las tiene:
+// `ALTER TABLE ADD COLUMN` no es idempotente, así que se comprueba con
+// `PRAGMA table_info` antes de alterar (mismo patrón que
+// ensureMovimientoIdempotencyKeyColumn). Las tres son nullable — un snapshot
+// sin riesgo de acceso (p. ej. sin IndiceAislamiento) es un valor válido — así
+// que el ALTER sí puede correr sobre una tabla con filas.
+export async function ensureRiesgoAccesoColumns(): Promise<void> {
+  const db = getDb()
+  const info = await db.$client.execute("PRAGMA table_info('infra_risk_snapshot')")
+  const columnas = new Set(info.rows.map((r) => String(r.name)))
+  if (!columnas.has('score_riesgo_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN score_riesgo_acceso real')
+  }
+  if (!columnas.has('nivel_riesgo_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN nivel_riesgo_acceso text')
+  }
+  if (!columnas.has('confianza_acceso')) {
+    await db.$client.execute('ALTER TABLE infra_risk_snapshot ADD COLUMN confianza_acceso text')
+  }
 }
 
 // El batch E1 introdujo `infra_movimiento.episodio_id` (enlazaba el
@@ -836,6 +915,7 @@ async function seedHub() {
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica_seccion`')
   await db.$client.execute('DROP TABLE IF EXISTS `infra_problematica`')
   await ensureMovimientoIdempotencyKeyColumn()
+  await ensureRiesgoAccesoColumns()
   await ensureAccesoNominalLogAfectacionIdColumn()
   await ensureBriefingAuditoriaFallbackColumn()
   // Debe correr ANTES del DROP de infra_episodio: el backfill de periodo_id

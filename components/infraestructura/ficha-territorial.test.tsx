@@ -478,4 +478,53 @@ describe('FichaTerritorial', () => {
     expect(screen.queryByTestId('ficha-territorial-observado-24h')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-territorial-observado-72h')).not.toBeInTheDocument()
   })
+
+  it('muestra A LA VEZ "edificio sin daño" y "acceso en riesgo alto" (nunca colapsa uno en el otro)', async () => {
+    stubFetch()
+
+    render(
+      <FichaTerritorial
+        cueAnexo={CUE}
+        estadoEdificio="sin_afectacion_reportada"
+        riesgoAcceso={{ nivel: 'alto', explicacion: 'aislamiento OSM 3/3' }}
+      />,
+    )
+
+    await screen.findByTestId('ficha-territorial-datos')
+    // Los dos estados coexisten y son visibles a la vez.
+    expect(screen.getByTestId('ficha-territorial-estado-edificio')).toHaveTextContent(
+      'Sin afectación reportada',
+    )
+    const acceso = screen.getByTestId('ficha-territorial-riesgo-acceso')
+    expect(acceso).toHaveTextContent('Acceso')
+    expect(acceso).toHaveTextContent('Riesgo de acceso: Alto')
+    expect(acceso).toHaveTextContent('aislamiento OSM 3/3')
+  })
+
+  it('acceso sin datos se muestra explícito, nunca como "Bajo"', async () => {
+    stubFetch()
+
+    render(
+      <FichaTerritorial
+        cueAnexo={CUE}
+        riesgoAcceso={{ nivel: null, explicacion: 'sin índice OSM' }}
+      />,
+    )
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.getByTestId('ficha-territorial-acceso-sin-dato')).toHaveTextContent(
+      'Sin datos de acceso',
+    )
+    expect(screen.getByTestId('ficha-territorial-riesgo-acceso')).not.toHaveTextContent('Bajo')
+  })
+
+  it('sin las props de acceso no inventa secciones de estado del edificio ni de acceso', async () => {
+    stubFetch()
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.queryByTestId('ficha-territorial-estado-edificio')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-territorial-riesgo-acceso')).not.toBeInTheDocument()
+  })
 })

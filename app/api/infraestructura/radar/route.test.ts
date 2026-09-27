@@ -5,7 +5,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
+  hazardClimatology,
   hazardEnsembleProb,
+  hazardForecast,
   infraGeoProfile,
   infraRiskFactor,
   infraRiskRun,
@@ -63,6 +65,8 @@ async function limpiarMotor() {
   await db.delete(infraRiskRun)
   await db.delete(infraGeoProfile)
   await db.delete(hazardEnsembleProb)
+  await db.delete(hazardForecast)
+  await db.delete(hazardClimatology)
 }
 
 async function sembrarFixture() {
@@ -241,6 +245,53 @@ async function sembrarFixture() {
   ])
 }
 
+// Pronóstico determinístico para una celda SIN climatología: dispara el camino
+// de umbral provisorio. 130 mm a 24 h supera el rojo provisorio (120 mm).
+async function sembrarPronosticoSinClimatologia() {
+  await getDb()
+    .insert(hazardForecast)
+    .values({
+      id: 'f-prov-24',
+      provider: 'open-meteo',
+      variable: 'precipitacion',
+      geometryRef: 'celda-b',
+      corridaEn: '2026-01-01T00:00:00Z',
+      validoEn: '2026-01-02T00:00:00Z',
+      horizonteHoras: 24,
+      valor: 130,
+      unidad: 'mm',
+      pasoHoras: 6,
+      rawRef: null,
+      ingeridoEn: '2026-01-01T00:10:00Z',
+    })
+}
+
+// Climatología completa (p90/p95/p99) para la misma celda del pronóstico: con
+// esto el nivel sale por percentiles, no por umbral provisorio.
+async function sembrarClimatologiaCompleta() {
+  await getDb()
+    .insert(hazardClimatology)
+    .values(
+      [
+        { percentil: 'p90', valor: 40 },
+        { percentil: 'p95', valor: 60 },
+        { percentil: 'p99', valor: 90 },
+      ].map((fila) => ({
+        id: `c-celda-b-${fila.percentil}`,
+        geometryRef: 'celda-b',
+        variable: 'precipitacion_diaria',
+        percentil: fila.percentil,
+        muestra: 'todos_los_dias',
+        valor: fila.valor,
+        unidad: 'mm',
+        periodoDesde: '1991-01-01',
+        periodoHasta: '2020-12-31',
+        version: 'v1',
+        calculadoEn: '2026-01-01T00:00:00Z',
+      })),
+    )
+}
+
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'radar-route-'))
   prevDataDir = process.env.DATA_DIR
@@ -270,6 +321,7 @@ function req(qs = '') {
 const ITEM_KEYS = [
   'calculadoEn',
   'confianza',
+  'confianzaAcceso',
   'cueAnexo',
   'departamento',
   'evidenciaValida',
@@ -277,8 +329,10 @@ const ITEM_KEYS = [
   'exposicionSecciones',
   'horizonteHoras',
   'nivelRiesgo',
+  'nivelRiesgoAcceso',
   'scoreAmenaza',
   'scoreRiesgo',
+  'scoreRiesgoAcceso',
   'scoreVulnerabilidad',
   'snapshotId',
   'validoHasta',
@@ -345,7 +399,8 @@ describe('GET /api/infraestructura/radar', () => {
       total: 0,
       totalPages: 0,
     })
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
+    expect(body.hayNivelProvisorio).toBe(false)
     expect(obtenerNivelesPeligro).not.toHaveBeenCalled()
   })
 
@@ -385,7 +440,7 @@ describe('GET /api/infraestructura/radar', () => {
 
     expect(body.departamentos).toEqual(DEPARTAMENTOS_ESPERADOS)
 
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 2, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 2, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     // El peligro se pidió "as-of" la publicación del run (no Date.now()).
     expect(obtenerNivelesPeligro).toHaveBeenCalledTimes(1)
@@ -403,7 +458,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(
       body.escuelas.items.map((i: { snapshotId: string }) => i.snapshotId),
     ).toEqual(['s1', 's2', 's4', 's3'])
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     // El corte de peligro siempre trae los 3 horizontes.
     expect(body.departamentos).toEqual(DEPARTAMENTOS_ESPERADOS)
@@ -417,7 +472,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.escuelas.total).toBe(1)
     expect(body.escuelas.items[0].snapshotId).toBe('s3')
     expect(body.escuelas.items[0].departamento).toBe('BETA')
-    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 1 })
+    expect(body.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 1, accesoCondicionado: { escuelas: 0, matricula: 0 } })
     expect(body.departamentos).toEqual([
       { departamento: 'BETA', peorNivel: 'sin_dato', horizonteHoras: 24, celdas: 1 },
       { departamento: 'BETA', peorNivel: 'sin_dato', horizonteHoras: 72, celdas: 1 },
@@ -432,12 +487,98 @@ describe('GET /api/infraestructura/radar', () => {
     const alto = await (await GET(req('?nivel=alto'))).json()
     expect(alto.escuelas.total).toBe(1)
     expect(alto.escuelas.items[0].snapshotId).toBe('s5')
-    expect(alto.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 0 })
+    expect(alto.kpis).toEqual({ riesgoAltoTotal: 1, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
 
     const bajo = await (await GET(req('?nivel=bajo'))).json()
     expect(bajo.escuelas.total).toBe(1)
     expect(bajo.escuelas.items[0].snapshotId).toBe('s4')
-    expect(bajo.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0 })
+    expect(bajo.kpis).toEqual({ riesgoAltoTotal: 0, sinEvidenciaTotal: 0, accesoCondicionado: { escuelas: 0, matricula: 0 } })
+  })
+
+  it('expone el riesgo de acceso por item y agrega el KPI de matrícula condicionada', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { eq } = await import('drizzle-orm')
+    const { infraRiskSnapshot } = await import('@/lib/db/schema')
+    await getDb()
+      .update(infraRiskSnapshot)
+      .set({ nivelRiesgoAcceso: 'alto', scoreRiesgoAcceso: 75, confianzaAcceso: 'media' })
+      .where(eq(infraRiskSnapshot.id, 's2'))
+
+    const { GET } = await import('./route')
+    const body = await (await GET(req('?horizonte=24'))).json()
+
+    const item = body.escuelas.items.find((i: { snapshotId: string }) => i.snapshotId === 's2')
+    expect(item.nivelRiesgoAcceso).toBe('alto')
+    expect(item.scoreRiesgoAcceso).toBe(75)
+    expect(item.confianzaAcceso).toBe('media')
+
+    // s2 tiene exposicionMatricula 80; el resto de las escuelas no tiene
+    // nivel de acceso alto, así que sólo entra esa.
+    expect(body.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 80 })
+  })
+
+  it('sin ?horizonte= no duplica el KPI de acceso condicionado cuando la misma escuela tiene una fila por horizonte', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { eq } = await import('drizzle-orm')
+    const { infraRiskSnapshot } = await import('@/lib/db/schema')
+
+    // `s1` (cueAnexo 1000000-01) ya tiene perfil territorial en GEO. Se le
+    // agregan dos filas del MISMO cue para 72h y 240h dentro del run vigente,
+    // para que el KPI agregue tres filas del mismo colegio. Sin `?horizonte=`
+    // el endpoint devuelve las tres: si no deduplicara por cueAnexo, contaría
+    // la matrícula 3 veces.
+    await getDb()
+      .insert(infraRiskSnapshot)
+      .values([
+        {
+          id: 's7',
+          runId: RUN_VIGENTE,
+          cueAnexo: '1000000-01',
+          horizonteHoras: 72,
+          evidenciaValida: true,
+          scoreRiesgo: 80,
+          nivelRiesgo: 'muy_alto',
+          scoreAmenaza: 70,
+          scoreVulnerabilidad: 60,
+          confianza: 'alta',
+          nivelRiesgoAcceso: 'alto',
+          exposicionMatricula: 100,
+          exposicionSecciones: 5,
+          calculadoEn: '2026-01-02T00:00:00Z',
+          validoHasta: '2026-01-05T00:00:00Z',
+        },
+        {
+          id: 's8',
+          runId: RUN_VIGENTE,
+          cueAnexo: '1000000-01',
+          horizonteHoras: 240,
+          evidenciaValida: true,
+          scoreRiesgo: 80,
+          nivelRiesgo: 'muy_alto',
+          scoreAmenaza: 70,
+          scoreVulnerabilidad: 60,
+          confianza: 'alta',
+          nivelRiesgoAcceso: 'alto',
+          exposicionMatricula: 100,
+          exposicionSecciones: 5,
+          calculadoEn: '2026-01-02T00:00:00Z',
+          validoHasta: '2026-01-05T00:00:00Z',
+        },
+      ])
+
+    await getDb()
+      .update(infraRiskSnapshot)
+      .set({ nivelRiesgoAcceso: 'alto', exposicionMatricula: 100 })
+      .where(eq(infraRiskSnapshot.id, 's1'))
+
+    const { GET } = await import('./route')
+    // SIN query string: es el estado inicial real de la UI (sin `?horizonte=`).
+    const body = await (await GET(req())).json()
+
+    // Ninguna otra fila del fixture fija nivelRiesgoAcceso (default null), así
+    // que el único colegio condicionado es 1000000-01, y debe contarse una sola
+    // vez (no 300 por sumar los tres horizontes).
+    expect(body.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 100 })
   })
 
   it('pagina escuelas con total y totalPages correctos', async () => {
@@ -478,6 +619,31 @@ describe('GET /api/infraestructura/radar', () => {
     const pageSizeInvalido = await GET(req('?pageSize=500'))
     expect(pageSizeInvalido.status).toBe(400)
     expect((await pageSizeInvalido.json()).error).toContain('pageSize')
+  })
+
+  it('marca hayNivelProvisorio true si una celda usa umbral provisorio (sin climatología)', async () => {
+    mockAcceso({ ok: true, user: USER })
+    await sembrarPronosticoSinClimatologia()
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.hayNivelProvisorio).toBe(true)
+    // El campo es aditivo: el resto del shape no cambia.
+    expect(body.corte.runId).toBe(RUN_VIGENTE)
+  })
+
+  it('marca hayNivelProvisorio false si todas las celdas tienen climatología o sin_dato', async () => {
+    mockAcceso({ ok: true, user: USER })
+    await sembrarPronosticoSinClimatologia()
+    await sembrarClimatologiaCompleta()
+    const { GET } = await import('./route')
+    const res = await GET(req())
+    expect(res.status).toBe(200)
+
+    const body = await res.json()
+    expect(body.hayNivelProvisorio).toBe(false)
   })
 
   it('no expone ningún campo nominal (escuela, alumno, docente ni persona)', async () => {

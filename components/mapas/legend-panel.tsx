@@ -7,6 +7,7 @@ import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { PeligroLegend } from '@/components/mapas/peligro-legend'
 
 type Props = {
@@ -111,6 +112,10 @@ export function LegendPanel({
 export function InfraLegendPanel({
   departamentosSinMatch = [],
   mostrarLeyendaPeligro = false,
+  // E6: cuando está prendido, se inserta un bloque breve de leyenda de riesgo
+  // de acceso (dimensión separada, "caminos y cruces" no el edificio).
+  mostrarLeyendaAcceso = false,
+  hayNivelProvisorio = false,
 }: {
   // F2.4: un departamento de la base que no matchea ningún polígono del
   // GeoJSON no se silencia (gotcha de nombres, ver lib/mapas/departamentos.ts)
@@ -121,6 +126,10 @@ export function InfraLegendPanel({
   // peligro DENTRO de esta misma leyenda (no se monta un panel paralelo). El
   // componente <PeligroLegend> ya trae su propio título y lista accesible.
   mostrarLeyendaPeligro?: boolean
+  mostrarLeyendaAcceso?: boolean
+  // P1: alguna celda del corte vigente usa umbral provisorio (falta su
+  // climatología ERA5). Pasa directo a <PeligroLegend> para el aviso.
+  hayNivelProvisorio?: boolean
 }) {
   const styles = useOverlayStyles()
 
@@ -144,6 +153,11 @@ export function InfraLegendPanel({
           {severidad}
         </div>
       ))}
+
+      <div className={styles.legendItem}>
+        <span className={styles.swatch} style={{ background: COLOR_SIN_AFECTACION }} />
+        Sin afectación reportada
+      </div>
 
       <br />
       {/*
@@ -228,10 +242,38 @@ export function InfraLegendPanel({
         </div>
       )}
 
+      {mostrarLeyendaAcceso && (
+        <>
+          <br />
+          <div className={styles.hint}>
+            Riesgo de acceso (caminos y cruces), no del edificio.
+          </div>
+          {(
+            [
+              ['bajo', '#719c29'],
+              ['moderado', '#facd05'],
+              ['alto', '#f68e13'],
+              ['sin_cobertura', '#8a8886'],
+            ] as const
+          ).map(([nivel, color]) => (
+            <div key={nivel} className={styles.legendItem}>
+              <span
+                className={styles.swatch}
+                style={{
+                  background: color,
+                  border: nivel === 'alto' ? '3px solid #1c1c1c' : undefined,
+                }}
+              />
+              {nivel === 'sin_cobertura' ? 'Sin cobertura' : nivel}
+            </div>
+          ))}
+        </>
+      )}
+
       {mostrarLeyendaPeligro && (
         <>
           <br />
-          <PeligroLegend />
+          <PeligroLegend hayNivelProvisorio={hayNivelProvisorio} />
         </>
       )}
 

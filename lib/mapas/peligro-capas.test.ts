@@ -9,6 +9,7 @@ import {
   NIVELES_PELIGRO,
   paintCoropletaPeligro,
   paintPuntosRiesgo,
+  peorNivelEntre,
   type EscuelaConCoordenadas,
   type PropiedadesDepartamentoRadar,
   type RiesgoEscuela,
@@ -57,6 +58,22 @@ describe('ETIQUETA_NIVEL_PELIGRO', () => {
       expect(ETIQUETA_NIVEL_PELIGRO[nivel].trim().length).toBeGreaterThan(0)
     }
     expect(ETIQUETA_NIVEL_PELIGRO.sin_dato).toBe('Sin dato')
+  })
+})
+
+describe('peorNivelEntre', () => {
+  it('devuelve el más severo entre varios niveles reales', () => {
+    expect(peorNivelEntre(['verde', 'rojo', 'amarillo'])).toBe('rojo')
+    expect(peorNivelEntre(['verde', 'naranja'])).toBe('naranja')
+  })
+
+  it('ignora sin_dato y valores desconocidos al rankear', () => {
+    expect(peorNivelEntre(['sin_dato', 'amarillo', 'bogus'])).toBe('amarillo')
+  })
+
+  it('devuelve sin_dato con un arreglo vacío o sin ningún nivel real', () => {
+    expect(peorNivelEntre([])).toBe('sin_dato')
+    expect(peorNivelEntre(['sin_dato', 'bogus'])).toBe('sin_dato')
   })
 })
 
