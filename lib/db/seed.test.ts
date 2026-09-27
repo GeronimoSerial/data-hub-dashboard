@@ -1,8 +1,9 @@
+import { createClient } from '@libsql/client'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getDb } from './index'
 import {
   categorias,
@@ -705,5 +706,183 @@ describe('ensureVerificacionPeriodoIdColumn', () => {
     const columnas = info.rows.map((r) => String(r.name))
     expect(columnas).toContain('periodo_id')
     expect(columnas).not.toContain('episodio_id')
+  })
+})
+
+// Regresión del bug real reportado: seedHub() corre HUB_DDL completo (que
+// declara CREATE INDEX sobre infra_verificacion.periodo_id) ANTES de
+// ensureVerificacionPeriodoIdColumn() (la migración que crea esa columna
+// sobre una base batch E1). Los tests de arriba llaman a
+// ensureVerificacionPeriodoIdColumn() de forma aislada y nunca ejercitan ese
+// orden, así que no detectaban que en una base E1 real (todavía con
+// episodio_id, sin periodo_id) el CREATE INDEX de HUB_DDL fallaba con
+// "SQLITE_ERROR: no such column: periodo_id" y abortaba el resto del script
+// completo: la app no arrancaba sobre ninguna base creada durante E1.
+//
+// Este bloque arma, con el cliente de libsql directo (sin pasar por
+// getDb()), una base nueva con el esquema E1 exacto (extraído de
+// `git show 5e9c09f:lib/db/seed.ts`: infra_periodo, infra_episodio,
+// infra_movimiento e infra_verificacion con episodio_id) y una fila real en
+// infra_verificacion. Después apunta un DATA_DIR nuevo a esa base y corre el
+// camino real de arranque (ensureSeeded → seedHub → HUB_DDL → los ensure*)
+// con un módulo `./seed` fresco (vi.resetModules(), ya que getDb() memoiza
+// la conexión a nivel de módulo y auth.ts la resuelve en tiempo de import).
+describe('seedHub sobre una base real creada en el batch E1', () => {
+  it('arranca sin romperse y backfillea periodo_id sobre infra_verificacion', async () => {
+    const e1Dir = mkdtempSync(path.join(tmpdir(), 'seed-ddl-e1-'))
+    const prevDataDirLocal = process.env.DATA_DIR
+    try {
+      const dbPath = path.join(e1Dir, 'hub.sqlite')
+      const legacyClient = createClient({ url: `file:${dbPath}` })
+      try {
+        // Esquema E1 exacto (git show 5e9c09f:lib/db/seed.ts), acotado a las
+        // tablas que ensureVerificacionPeriodoIdColumn necesita leer/migrar.
+        await legacyClient.executeMultiple(`
+PRAGMA foreign_keys = OFF;
+CREATE TABLE \`infra_periodo\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`nombre\` text NOT NULL,
+  \`inicio_en\` text NOT NULL,
+  \`fin_en\` text,
+  \`estado\` text NOT NULL,
+  \`creada_en\` text NOT NULL
+);
+CREATE TABLE \`infra_parte\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`periodo_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`estado_establecimiento\` text DEFAULT 'habitual' NOT NULL,
+  \`estado_establecimiento_rige_desde\` text NOT NULL,
+  \`corte_id\` integer NOT NULL,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`)
+);
+CREATE TABLE \`infra_movimiento\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`parte_id\` text NOT NULL,
+  \`tipo\` text NOT NULL,
+  \`rol\` text NOT NULL,
+  \`resumen\` text NOT NULL,
+  \`rige_desde\` text NOT NULL,
+  \`creada_en\` text NOT NULL,
+  \`idempotency_key\` text,
+  \`episodio_id\` text,
+  FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
+CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
+CREATE TABLE \`infra_episodio\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`periodo_id\` text NOT NULL,
+  \`nombre\` text NOT NULL,
+  \`descripcion\` text,
+  \`estado\` text NOT NULL,
+  \`abierto_en\` text NOT NULL,
+  \`cerrado_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`)
+);
+CREATE TABLE \`infra_verificacion\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`episodio_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`estado\` text NOT NULL,
+  \`solicitada_en\` text NOT NULL,
+  \`solicitada_por_user_id\` text NOT NULL,
+  \`vencimiento_en\` text,
+  \`resultado\` text,
+  \`discrepancia\` integer DEFAULT 0 NOT NULL,
+  \`respondida_en\` text,
+  \`respondida_canal\` text,
+  \`respondida_por_user_id\` text,
+  \`movimiento_id\` text,
+  \`cancelada_en\` text,
+  \`cancelada_por_user_id\` text,
+  \`motivo_cancelacion\` text,
+  \`token_hash\` text NOT NULL,
+  \`token_expira_en\` text NOT NULL,
+  \`token_revocado_en\` text,
+  \`token_consumido_en\` text,
+  \`creada_en\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  FOREIGN KEY (\`episodio_id\`) REFERENCES \`infra_episodio\`(\`id\`),
+  FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
+);
+PRAGMA foreign_keys = ON;
+`)
+
+        await legacyClient.execute({
+          sql: `INSERT INTO infra_periodo (id, nombre, inicio_en, fin_en, estado, creada_en)
+                VALUES ('periodo-e1', 'Protocolo E1', '2025-01-01T00:00:00.000Z', NULL, 'vigente', '2025-01-01T00:00:00.000Z')`,
+        })
+        await legacyClient.execute({
+          sql: `INSERT INTO infra_episodio (
+                  id, periodo_id, nombre, descripcion, estado, abierto_en, cerrado_en,
+                  creada_en, actualizada_en
+                ) VALUES (
+                  'episodio-e1', 'periodo-e1', 'Episodio E1', NULL, 'abierto',
+                  '2025-01-01T00:00:00.000Z', NULL, '2025-01-01T00:00:00.000Z',
+                  '2025-01-01T00:00:00.000Z'
+                )`,
+        })
+        await legacyClient.execute({
+          sql: `INSERT INTO infra_verificacion (
+                  id, episodio_id, cue_anexo, estado, solicitada_en, solicitada_por_user_id,
+                  vencimiento_en, resultado, discrepancia, respondida_en, respondida_canal,
+                  respondida_por_user_id, movimiento_id, cancelada_en, cancelada_por_user_id,
+                  motivo_cancelacion, token_hash, token_expira_en, token_revocado_en,
+                  token_consumido_en, creada_en, actualizada_en
+                ) VALUES (
+                  'verificacion-e1', 'episodio-e1', '1801605-09', 'pendiente',
+                  '2025-01-01T00:00:00.000Z', 'user-director', NULL, NULL, 0, NULL, NULL,
+                  NULL, NULL, NULL, NULL, NULL, ?, '2025-02-01T00:00:00.000Z', NULL, NULL,
+                  '2025-01-01T00:00:00.000Z', '2025-01-01T00:00:00.000Z'
+                )`,
+          args: ['e'.repeat(64)],
+        })
+      } finally {
+        legacyClient.close()
+      }
+
+      // auth.ts llama a getDb() en tiempo de import, y getDb() memoiza la
+      // conexión a nivel de módulo: hace falta un registro de módulos
+      // limpio para que el DATA_DIR nuevo tome efecto en un getDb() propio.
+      vi.resetModules()
+      process.env.DATA_DIR = e1Dir
+      const { ensureSeeded } = await import('./seed')
+      const { getDb: getDbFresh } = await import('./index')
+
+      await expect(ensureSeeded()).resolves.toBeUndefined()
+
+      const freshDb = getDbFresh()
+      const columnas = (
+        await freshDb.$client.execute("PRAGMA table_info('infra_verificacion')")
+      ).rows.map((r) => String(r.name))
+      expect(columnas).toContain('periodo_id')
+      expect(columnas).not.toContain('episodio_id')
+
+      const fila = await freshDb.$client.execute({
+        sql: 'SELECT periodo_id, cue_anexo, token_hash FROM infra_verificacion WHERE id = ?',
+        args: ['verificacion-e1'],
+      })
+      expect(fila.rows).toHaveLength(1)
+      expect(fila.rows[0]?.periodo_id).toBe('periodo-e1')
+      expect(fila.rows[0]?.cue_anexo).toBe('1801605-09')
+      expect(fila.rows[0]?.token_hash).toBe('e'.repeat(64))
+
+      const indices = await freshDb.$client.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'infra_verificacion'",
+      )
+      expect(indices.rows.map((r) => String(r.name))).toContain(
+        'infra_verificacion_periodo_id_idx',
+      )
+    } finally {
+      vi.resetModules()
+      if (prevDataDirLocal === undefined) delete process.env.DATA_DIR
+      else process.env.DATA_DIR = prevDataDirLocal
+      rmSync(e1Dir, { recursive: true, force: true })
+    }
   })
 })

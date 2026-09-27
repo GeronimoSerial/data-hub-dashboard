@@ -250,7 +250,6 @@ CREATE TABLE IF NOT EXISTS \`infra_movimiento\` (
   FOREIGN KEY (\`parte_id\`) REFERENCES \`infra_parte\`(\`id\`) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS \`infra_movimiento_parte_id_idx\` ON \`infra_movimiento\` (\`parte_id\`);
-CREATE UNIQUE INDEX IF NOT EXISTS \`infra_movimiento_idempotency_key_uidx\` ON \`infra_movimiento\` (\`idempotency_key\`);
 CREATE TABLE IF NOT EXISTS \`infra_verificacion\` (
   \`id\` text PRIMARY KEY NOT NULL,
   \`periodo_id\` text NOT NULL,
@@ -277,7 +276,6 @@ CREATE TABLE IF NOT EXISTS \`infra_verificacion\` (
   FOREIGN KEY (\`periodo_id\`) REFERENCES \`infra_periodo\`(\`id\`),
   FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
 );
-CREATE INDEX IF NOT EXISTS \`infra_verificacion_periodo_id_idx\` ON \`infra_verificacion\` (\`periodo_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_cue_anexo_idx\` ON \`infra_verificacion\` (\`cue_anexo\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_estado_idx\` ON \`infra_verificacion\` (\`estado\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_verificacion_token_hash_uidx\` ON \`infra_verificacion\` (\`token_hash\`);
@@ -516,9 +514,14 @@ async function convertExistingSeedFiles() {
 // tabla no tenía dónde guardarla. Mismo motivo que cualquier columna
 // agregada con ALTER a una base poblada: ALTER TABLE ADD COLUMN no es
 // idempotente y SQLite no permite agregar una columna NOT NULL a una tabla
-// con filas, así que queda nullable. El índice único de HUB_DDL ya cubre las
-// bases nuevas; acá sólo hace falta la columna para las que ya tenían la
-// tabla creada sin ella.
+// con filas, así que queda nullable.
+// El índice único NO vive en HUB_DDL (aunque la CREATE TABLE de ahí ya
+// declara la columna): HUB_DDL corre antes que este `ensure*`, así que en
+// una base batch 1 (todavía sin la columna) ese CREATE UNIQUE INDEX
+// fallaría con "no such column: idempotency_key" y abortaría el resto de
+// HUB_DDL, igual que pasaba con infra_verificacion_periodo_id_idx. Por eso
+// el índice se crea acá abajo, después del ALTER, para los dos casos (tabla
+// nueva ya con la columna, o tabla vieja recién alterada).
 export async function ensureMovimientoIdempotencyKeyColumn(): Promise<void> {
   const db = getDb()
   const info = await db.$client.execute("PRAGMA table_info('infra_movimiento')")
@@ -569,13 +572,21 @@ export async function ensureMovimientoEpisodioIdColumnDropped(): Promise<void> {
 // vigente actual, que sembrarPeriodoEnos garantiza que exista siempre en
 // una base que ya tenía esta tabla poblada. Se ejecuta ANTES de dropear
 // infra_episodio (ver seedHub) porque necesita leerla para el backfill.
+//
+// `infra_verificacion_periodo_id_idx` NO vive en HUB_DDL: HUB_DDL corre
+// antes que este `ensure*` (ver seedHub), así que en una base E1 (todavía
+// con episodio_id, sin periodo_id) ese CREATE INDEX fallaría con "no such
+// column: periodo_id" y, al ser parte del mismo executeMultiple, abortaría
+// TODO el resto de HUB_DDL (nada de lo que sigue en el script se crearía).
+// El índice se crea acá, al final de la función, para los dos caminos: recién
+// migrada arriba, o ya migrada / tabla nueva creada directo por HUB_DDL.
 export async function ensureVerificacionPeriodoIdColumn(): Promise<void> {
   const db = getDb()
   const info = await db.$client.execute("PRAGMA table_info('infra_verificacion')")
   const tieneEpisodioId = info.rows.some((r) => String(r.name) === 'episodio_id')
-  if (!tieneEpisodioId) return // ya migrada (o tabla nueva creada directo por HUB_DDL)
 
-  await db.$client.executeMultiple(`
+  if (tieneEpisodioId) {
+    await db.$client.executeMultiple(`
 PRAGMA foreign_keys = OFF;
 CREATE TABLE \`infra_verificacion_new\` (
   \`id\` text PRIMARY KEY NOT NULL,
@@ -624,12 +635,16 @@ FROM \`infra_verificacion\` v
 LEFT JOIN \`infra_episodio\` e ON e.\`id\` = v.\`episodio_id\`;
 DROP TABLE \`infra_verificacion\`;
 ALTER TABLE \`infra_verificacion_new\` RENAME TO \`infra_verificacion\`;
-CREATE INDEX IF NOT EXISTS \`infra_verificacion_periodo_id_idx\` ON \`infra_verificacion\` (\`periodo_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_cue_anexo_idx\` ON \`infra_verificacion\` (\`cue_anexo\`);
 CREATE INDEX IF NOT EXISTS \`infra_verificacion_estado_idx\` ON \`infra_verificacion\` (\`estado\`);
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_verificacion_token_hash_uidx\` ON \`infra_verificacion\` (\`token_hash\`);
 PRAGMA foreign_keys = ON;
 `)
+  }
+
+  await db.$client.execute(
+    'CREATE INDEX IF NOT EXISTS `infra_verificacion_periodo_id_idx` ON `infra_verificacion` (`periodo_id`)',
+  )
 }
 
 // infra_acceso_nominal_log.problematica_id nace apuntando al modelo
