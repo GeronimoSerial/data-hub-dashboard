@@ -32,6 +32,7 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardClimatology } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { PUNTOS_RIO } from '../puntos-rio'
@@ -152,37 +153,43 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
     })
 
     for (const fila of filas) {
-      await db
-        .insert(hazardClimatology)
-        .values({
-          id: randomUUID(),
-          geometryRef: fila.geometryRef,
-          variable: fila.variable,
-          percentil: fila.percentil,
-          muestra: fila.muestra,
-          valor: fila.valor,
-          unidad: fila.unidad,
-          periodoDesde: fila.periodoDesde,
-          periodoHasta: fila.periodoHasta,
-          version,
-          calculadoEn: ahoraIso,
-        })
-        .onConflictDoUpdate({
-          target: [
-            hazardClimatology.geometryRef,
-            hazardClimatology.variable,
-            hazardClimatology.percentil,
-            hazardClimatology.muestra,
-            hazardClimatology.periodoDesde,
-            hazardClimatology.periodoHasta,
-            hazardClimatology.version,
-          ],
-          set: {
-            valor: sql`excluded.valor`,
-            unidad: sql`excluded.unidad`,
-            calculadoEn: sql`excluded.calculado_en`,
-          },
-        })
+      // Upsert único por fila: seguro de reintentar ante SQLITE_BUSY (job, no
+      // request path). El id generado en cada intento puede variar, pero no
+      // es la clave del conflicto (lo es geometryRef+variable+percentil+
+      // muestra+periodo+version), así que no afecta el resultado del upsert.
+      await conReintentoPorBloqueo(() =>
+        db
+          .insert(hazardClimatology)
+          .values({
+            id: randomUUID(),
+            geometryRef: fila.geometryRef,
+            variable: fila.variable,
+            percentil: fila.percentil,
+            muestra: fila.muestra,
+            valor: fila.valor,
+            unidad: fila.unidad,
+            periodoDesde: fila.periodoDesde,
+            periodoHasta: fila.periodoHasta,
+            version,
+            calculadoEn: ahoraIso,
+          })
+          .onConflictDoUpdate({
+            target: [
+              hazardClimatology.geometryRef,
+              hazardClimatology.variable,
+              hazardClimatology.percentil,
+              hazardClimatology.muestra,
+              hazardClimatology.periodoDesde,
+              hazardClimatology.periodoHasta,
+              hazardClimatology.version,
+            ],
+            set: {
+              valor: sql`excluded.valor`,
+              unidad: sql`excluded.unidad`,
+              calculadoEn: sql`excluded.calculado_en`,
+            },
+          }),
+      )
     }
 
     puntosProcesados += 1

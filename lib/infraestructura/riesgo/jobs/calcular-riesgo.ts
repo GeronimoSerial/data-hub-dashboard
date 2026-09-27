@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearAdapterAislamientoNoDisponible } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
@@ -73,7 +74,12 @@ async function insertarEnChunks<TSchema extends SQLiteTable>(
 ): Promise<void> {
   for (let inicio = 0; inicio < filas.length; inicio += tamanoChunk) {
     const chunk = filas.slice(inicio, inicio + tamanoChunk)
-    if (chunk.length > 0) await db.insert(tabla).values(chunk)
+    // Cada chunk es un INSERT único de filas con ids ya generados (nunca se
+    // regeneran entre intentos): si SQLITE_BUSY interrumpe el statement no
+    // queda nada escrito, así que reintentar el mismo INSERT es seguro. El
+    // run sigue 'preparando' durante todo este loop, invisible para
+    // lectores, así que un reintento acá no afecta la publicación atómica.
+    if (chunk.length > 0) await conReintentoPorBloqueo(() => db.insert(tabla).values(chunk))
   }
 }
 
@@ -268,16 +274,20 @@ export async function calcularYPublicarRiesgo(params?: {
     // Este insert es INDEPENDIENTE del de snapshots/factores.
     runId = randomUUID()
     const idRun = runId
-    await db.insert(infraRiskRun).values({
-      id: idRun,
-      periodoId: periodo.id,
-      modeloVersion: MOTOR_VERSION,
-      iniciadoEn: asOf,
-      publicadoEn: null,
-      estado: 'preparando',
-      cobertura: null,
-      creadaEn: asOf,
-    })
+    // Insert único con id ya fijado: seguro de reintentar ante SQLITE_BUSY,
+    // nada queda escrito si el statement no llegó a correr.
+    await conReintentoPorBloqueo(() =>
+      db.insert(infraRiskRun).values({
+        id: idRun,
+        periodoId: periodo.id,
+        modeloVersion: MOTOR_VERSION,
+        iniciadoEn: asOf,
+        publicadoEn: null,
+        estado: 'preparando',
+        cobertura: null,
+        creadaEn: asOf,
+      }),
+    )
 
     const cueAnexos = await puertos.territorio.listarCuesConPerfil()
 
@@ -358,7 +368,9 @@ export async function calcularYPublicarRiesgo(params?: {
     // cortado antes de llegar acá; se deja igual para no publicar un run
     // parcial si en el futuro el procesamiento se vuelve concurrente.
     if (procesadas !== cueAnexos.length * HORIZONTES.length) {
-      await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, idRun))
+      await conReintentoPorBloqueo(() =>
+        db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, idRun)),
+      )
       await publicarResultado({
         jobRunId,
         leaseOwner,
@@ -375,21 +387,27 @@ export async function calcularYPublicarRiesgo(params?: {
     // corta es la ÚNICA que cambia qué run es el vigente, y el índice único
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
     // que nunca haya dos vigentes a la vez. Sólo estas 2 actualizaciones: los
-    // inserts masivos ya se hicieron fuera de la transacción.
-    await db.transaction(async (tx) => {
-      await tx
-        .update(infraRiskRun)
-        .set({ estado: 'vencido' })
-        .where(eq(infraRiskRun.estado, 'vigente'))
-      await tx
-        .update(infraRiskRun)
-        .set({
-          estado: 'vigente',
-          publicadoEn: new Date().toISOString(),
-          cobertura: { procesadas, conEvidencia, sinEvidencia },
-        })
-        .where(eq(infraRiskRun.id, idRun))
-    })
+    // inserts masivos ya se hicieron fuera de la transacción. Reintento
+    // seguro ante SQLITE_BUSY: la transacción se revierte entera si falla a
+    // mitad de camino, y repetir las mismas 2 actualizaciones desde cero
+    // produce el mismo estado final (vencer el vigente anterior + publicar
+    // este run), sin duplicar ni saltear ninguna.
+    await conReintentoPorBloqueo(() =>
+      db.transaction(async (tx) => {
+        await tx
+          .update(infraRiskRun)
+          .set({ estado: 'vencido' })
+          .where(eq(infraRiskRun.estado, 'vigente'))
+        await tx
+          .update(infraRiskRun)
+          .set({
+            estado: 'vigente',
+            publicadoEn: new Date().toISOString(),
+            cobertura: { procesadas, conEvidencia, sinEvidencia },
+          })
+          .where(eq(infraRiskRun.id, idRun))
+      }),
+    )
 
     await publicarResultado({
       jobRunId,
@@ -408,7 +426,9 @@ export async function calcularYPublicarRiesgo(params?: {
     // reemplace ni oculte el error original.
     if (runId !== undefined) {
       try {
-        await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, runId))
+        await conReintentoPorBloqueo(() =>
+          db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, runId as string)),
+        )
       } catch {
         // Limpieza best-effort: se prioriza propagar el error original.
       }

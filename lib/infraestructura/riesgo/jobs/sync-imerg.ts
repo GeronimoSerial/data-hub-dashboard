@@ -37,6 +37,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardObservation, hazardSourceHealth } from '@/lib/db/schema'
 import { celdaDeCoordenada } from '../celda'
 import {
@@ -148,33 +149,37 @@ async function actualizarSalud(
   ahoraIso: string,
 ): Promise<void> {
   const hayExito = estado === 'ok'
-  await db
-    .insert(hazardSourceHealth)
-    .values({
-      provider: PROVIDER,
-      // Un insert degradado/no disponible no conoce un éxito previo: null.
-      ultimoExitoEn: hayExito ? ahoraIso : null,
-      ultimoIntentoEn: ahoraIso,
-      estado,
-      ultimoErrorSaneado,
-      ttlMinutos: TTL_MINUTOS,
-      licencia: LICENCIA,
-      actualizadaEn: ahoraIso,
-    })
-    .onConflictDoUpdate({
-      target: hazardSourceHealth.provider,
-      set: {
-        estado,
+  // Upsert único: seguro de reintentar ante SQLITE_BUSY (job, no request
+  // path), el statement no deja nada aplicado si no llega a correr.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardSourceHealth)
+      .values({
+        provider: PROVIDER,
+        // Un insert degradado/no disponible no conoce un éxito previo: null.
+        ultimoExitoEn: hayExito ? ahoraIso : null,
         ultimoIntentoEn: ahoraIso,
+        estado,
         ultimoErrorSaneado,
         ttlMinutos: TTL_MINUTOS,
         licencia: LICENCIA,
         actualizadaEn: ahoraIso,
-        // En degradado/no disponible se preserva el último éxito conocido; en
-        // ok se actualiza.
-        ...(hayExito ? { ultimoExitoEn: ahoraIso } : {}),
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: hazardSourceHealth.provider,
+        set: {
+          estado,
+          ultimoIntentoEn: ahoraIso,
+          ultimoErrorSaneado,
+          ttlMinutos: TTL_MINUTOS,
+          licencia: LICENCIA,
+          actualizadaEn: ahoraIso,
+          // En degradado/no disponible se preserva el último éxito conocido; en
+          // ok se actualiza.
+          ...(hayExito ? { ultimoExitoEn: ahoraIso } : {}),
+        },
+      }),
+  )
 }
 
 // Deduplicación a nivel de todo el batch por `geometryRef`. `mapearAsciiImergACeldas`
@@ -242,7 +247,10 @@ async function persistirObservaciones(
 
   // Ver comentario de `TAMANO_CHUNK_INSERCION`: nunca un solo `.values()` con
   // todas las filas, siempre en chunks dentro de una transacción.
-  await db.transaction(async (tx) => {
+  // Toda la transacción se reintenta ante SQLITE_BUSY: si falla, se revierte
+  // completa y es seguro volver a correrla.
+  await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
     for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
       const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
       await tx
@@ -265,7 +273,8 @@ async function persistirObservaciones(
           },
         })
     }
-  })
+    }),
+  )
 
   return filas.length
 }

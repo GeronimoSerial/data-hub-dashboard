@@ -335,3 +335,46 @@ describe('fencing de lease (leaseOwner)', () => {
     expect(fila?.contadores).toEqual({ procesados: 7 })
   })
 })
+
+// Reintento ante SQLITE_BUSY (lib/db/reintento.ts), con un lock de escritura
+// real tomado por una SEGUNDA conexión al mismo hub.sqlite — no un mock: si
+// el reintento de adquirirLease no cediera el hilo (setTimeout real) o no
+// reintentara el statement completo, este test colgaría hasta el timeout de
+// vitest en vez de resolver apenas la otra conexión libera el lock.
+describe('adquirirLease reintenta ante un lock real de otra conexión', () => {
+  it('adquirirLease se bloquea con SQLITE_BUSY mientras otra conexión sostiene BEGIN IMMEDIATE y adquiere apenas se libera', async () => {
+    const { createClient } = await import('@libsql/client')
+    const { getSqlitePath } = await import('@/lib/data-dir')
+
+    // Segunda conexión NATIVA al mismo archivo hub.sqlite (no la memoizada
+    // por getDb() de este proceso de test): simula el escritor concurrente
+    // real que compite por el lock, igual que dos requests de
+    // app/api/problematicas/parte/route.ts.
+    const otraConexion = createClient({ url: `file:${getSqlitePath()}` })
+    const otraTx = await otraConexion.transaction('write')
+
+    try {
+      // adquirirLease arranca mientras `otraTx` todavía tiene el lock de
+      // escritura tomado: el INSERT/UPDATE de más abajo tiene que pegar
+      // contra SQLITE_BUSY y quedar reintentando con backoff.
+      const promesaLease = adquirirLease({
+        tipo: 'diagnostico',
+        claveIdempotente: 'clave-lock-real',
+        version: 'v1',
+        duracionLeaseMs: 60_000,
+      })
+
+      // Se le da tiempo a adquirirLease de pegar contra el lock ocupado y
+      // entrar en su loop de reintento antes de soltarlo.
+      await new Promise((resolve) => setTimeout(resolve, 80))
+
+      await otraTx.commit()
+      otraTx.close()
+
+      const resultado = await promesaLease
+      expect(resultado.adquirido).toBe(true)
+    } finally {
+      otraConexion.close()
+    }
+  })
+})

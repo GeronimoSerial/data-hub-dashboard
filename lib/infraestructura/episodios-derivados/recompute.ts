@@ -18,6 +18,7 @@
 import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import {
   infraAfectacion,
   infraEpisodioDerivado,
@@ -122,8 +123,13 @@ export async function recomputarEpisodiosDerivados(params?: {
 
   // 5. Reemplazo atómico por versión de regla: delete + insert completo dentro
   // de UNA sola transacción. El onDelete: 'cascade' de infra_episodio_miembro
-  // limpia sus filas al borrar el episodio.
-  await db.transaction(async (tx) => {
+  // limpia sus filas al borrar el episodio. Job (no request path): puede
+  // toparse con SQLITE_BUSY si compite con un escritor concurrente sobre el
+  // mismo hub.sqlite; reintento seguro porque la transacción se revierte
+  // entera si falla a mitad de camino y el reemplazo completo es
+  // re-ejecutable desde cero (mismo resultado, calculado en memoria antes de
+  // la transacción).
+  await conReintentoPorBloqueo(() => db.transaction(async (tx) => {
     await tx
       .delete(infraEpisodioDerivado)
       .where(eq(infraEpisodioDerivado.reglaVersion, reglaVersion))
@@ -162,7 +168,7 @@ export async function recomputarEpisodiosDerivados(params?: {
     if (filasMiembros.length > 0) {
       await tx.insert(infraEpisodioMiembro).values(filasMiembros)
     }
-  })
+  }))
 
   return {
     reglaVersion,
