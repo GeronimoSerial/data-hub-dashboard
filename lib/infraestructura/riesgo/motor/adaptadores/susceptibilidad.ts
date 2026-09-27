@@ -15,6 +15,9 @@
 // Contrato: null es "sin evidencia", nunca un catálogo vacío ni un valor
 // neutro. Un peligro con valor null NO entra al Record (no se imputa 0); si
 // los cuatro peligros vienen null, se devuelve null completo. Nunca lanza.
+// Tampoco lanza si la tabla no existe todavía o la query falla: se degrada a
+// "sin cobertura" (Map vacío) con un console.error, en vez de propagar la
+// excepción.
 import { getDb } from '@/lib/db'
 import { infraSusceptibilidadEstatica } from '@/lib/db/schema'
 import type { IndicadoresSusceptibilidad, PuertoSusceptibilidad } from '../puertos'
@@ -106,7 +109,15 @@ export function crearAdapterSusceptibilidad(
 
   function cargar(): Promise<Map<string, FilaSusceptibilidadEstatica>> {
     if (cache === null) {
-      cache = Promise.resolve(cargarFilas()).then((filas) => ultimaFilaConservadoraPorCue(filas))
+      cache = Promise.resolve(cargarFilas())
+        .then((filas) => ultimaFilaConservadoraPorCue(filas))
+        .catch((error) => {
+          console.error(
+            'crearAdapterSusceptibilidad: fallo al cargar infra_susceptibilidad_estatica, se degrada a sin cobertura',
+            error,
+          )
+          return new Map<string, FilaSusceptibilidadEstatica>()
+        })
     }
     return cache
   }

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
-import { crearAdapterAislamiento } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/aislamiento'
+import { obtenerIndiceAislamientoDeCue } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/aislamiento'
 import { crearAdapterTerritorio } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/territorio'
 
 export const runtime = 'nodejs'
@@ -43,7 +43,7 @@ export async function GET(_request: Request, ctx: Ctx) {
     return Response.json({ error: 'Escuela no encontrada' }, { status: 404, headers: SIN_STORE })
   }
 
-  const indice = await crearAdapterAislamiento().obtenerIndice(parsed.data)
+  const indice = await obtenerIndiceAislamientoDeCue(parsed.data)
   // La escuela existe pero el dataset OSM no tiene fila para ella: falta de
   // cobertura, no un error (mismo criterio que `rioAsociacion: null` en
   // geo-perfiles). Se responde 200 con `disponible: false`, nunca 404.

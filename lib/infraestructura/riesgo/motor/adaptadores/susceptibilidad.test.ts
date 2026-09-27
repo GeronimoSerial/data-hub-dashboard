@@ -175,6 +175,16 @@ describe('crearAdapterSusceptibilidad.obtenerIndicadores', () => {
     expect(await adapter.obtenerIndicadores('CUE-AUSENTE')).toBeNull()
     expect(llamadas).toBe(1)
   })
+
+  it('si la carga falla (tabla inexistente) degrada a sin cobertura y nunca lanza', async () => {
+    const adapter = crearAdapterSusceptibilidad({
+      cargarFilas: async () => {
+        throw new Error('tabla inexistente')
+      },
+    })
+
+    await expect(adapter.obtenerIndicadores('CUE-1')).resolves.toBeNull()
+  })
 })
 
 describe('ultimaFilaConservadoraPorCue', () => {

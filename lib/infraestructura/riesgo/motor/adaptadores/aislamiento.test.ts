@@ -121,6 +121,15 @@ describe('crearAdapterAislamiento.obtenerIndice', () => {
     expect(indice?.nivel).toBe('sin_datos_red')
   })
 
+  it('índice fuera de rango (4, dato corrupto) => sin_datos_red, nunca 4 ni throw', async () => {
+    await db.insert(tabla).values(fila('CUE-1', { indiceAislamiento: 4 }))
+
+    const indice = await crearAdapterAislamiento().obtenerIndice('CUE-1')
+
+    expect(indice?.nivel).toBe('sin_datos_red')
+    expect(indice?.nivel).not.toBe(4)
+  })
+
   it('sin cobertura del dataset (ninguna fila) => null, nunca 0', async () => {
     const indice = await crearAdapterAislamiento().obtenerIndice('CUE-INEXISTENTE')
 
@@ -188,5 +197,15 @@ describe('crearAdapterAislamiento.obtenerIndice', () => {
     // Un cue sin fila tampoco dispara otra query: se resuelve del Map cacheado.
     expect(await adapter.obtenerIndice('CUE-AUSENTE')).toBeNull()
     expect(llamadas).toBe(1)
+  })
+
+  it('si la carga falla (tabla inexistente) degrada a sin cobertura y nunca lanza', async () => {
+    const adapter = crearAdapterAislamiento({
+      cargarFilas: async () => {
+        throw new Error('tabla inexistente')
+      },
+    })
+
+    await expect(adapter.obtenerIndice('CUE-1')).resolves.toBeNull()
   })
 })

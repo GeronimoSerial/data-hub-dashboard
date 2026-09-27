@@ -16,7 +16,10 @@
 //  - `nivel: 'sin_datos_red'`: SÍ hay fila, pero el job no pudo calcular un
 //    índice (por ejemplo `motivoSinDatos === 'sin_conexion_red'`) => ausencia
 //    de cálculo, tampoco 0.
-// Nunca lanza.
+// Nunca lanza. Tampoco lanza si la tabla no existe todavía o la query falla:
+// se degrada a "sin cobertura" (Map vacío) con un console.error, en vez de
+// propagar la excepción.
+import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraAislamientoOsm } from '@/lib/db/schema'
 import type { IndiceAislamiento, NivelAislamiento, PuertoAislamiento } from '../puertos'
@@ -67,7 +70,15 @@ export function ultimaVersionPorCue(
 }
 
 function nivelDeFila(fila: FilaAislamientoOsm): NivelAislamiento {
-  if (fila.indiceAislamiento !== null) return fila.indiceAislamiento as NivelAislamiento
+  if (fila.indiceAislamiento !== null) {
+    const indice = fila.indiceAislamiento
+    if (indice === 0 || indice === 1 || indice === 2 || indice === 3) return indice
+    // Guard defensivo: la columna no tiene CHECK en el schema, así que un
+    // entero fuera de 0-3 (dato corrupto) NUNCA se trata como un nivel válido
+    // ni cae en 'alto' por descarte de NaN en clasificar() — se trata como
+    // ausencia de cálculo, igual que 'sin_datos_red'.
+    return 'sin_datos_red'
+  }
   // Fila presente con índice nulo: el job corrió pero no pudo calcular la
   // ruta (`motivoSinDatos`, p. ej. 'sin_conexion_red', documenta por qué).
   // Aunque el motivo viniera vacío, es una AUSENCIA de cálculo: nunca 0.
@@ -86,7 +97,15 @@ export function crearAdapterAislamiento(
 
   function cargar(): Promise<Map<string, FilaAislamientoOsm>> {
     if (cache === null) {
-      cache = Promise.resolve(cargarFilas()).then((filas) => ultimaVersionPorCue(filas))
+      cache = Promise.resolve(cargarFilas())
+        .then((filas) => ultimaVersionPorCue(filas))
+        .catch((error) => {
+          console.error(
+            'crearAdapterAislamiento: fallo al cargar infra_aislamiento_osm, se degrada a sin cobertura',
+            error,
+          )
+          return new Map<string, FilaAislamientoOsm>()
+        })
     }
     return cache
   }
@@ -108,5 +127,34 @@ export function crearAdapterAislamiento(
         licencia: fila.licencia,
       }
     },
+  }
+}
+
+// Lectura de detalle por UN solo cueAnexo (no batch): usada por el endpoint
+// de detalle de accesos, que resuelve una sola escuela por request y no debe
+// pagar el costo de traer TODA la tabla (ver crearAdapterAislamiento arriba,
+// pensado para el job de batch que reutiliza una instancia para miles de
+// escuelas). Mismo criterio de "última versión" que el batch (ultimaVersionPorCue),
+// aplicado sólo a las filas de este cueAnexo.
+export async function obtenerIndiceAislamientoDeCue(
+  cueAnexo: string,
+): Promise<IndiceAislamiento | null> {
+  const filas = await getDb()
+    .select()
+    .from(infraAislamientoOsm)
+    .where(eq(infraAislamientoOsm.cueAnexo, cueAnexo))
+  const porCue = ultimaVersionPorCue(filas)
+  const fila = porCue.get(cueAnexo)
+  if (fila === undefined) return null
+  return {
+    cueAnexo,
+    nivel: nivelDeFila(fila),
+    crucesAguaCount: fila.crucesAguaCount,
+    crucesAguaConPuenteCount: fila.crucesAguaConPuenteCount,
+    crucesAguaConVadoCount: fila.crucesAguaConVadoCount,
+    tieneAlternativaSinCruce: fila.tieneAlternativaSinCruce,
+    versionJob: fila.versionJob,
+    fechaExtractoOsm: fila.fechaExtractoOsm,
+    licencia: fila.licencia,
   }
 }
