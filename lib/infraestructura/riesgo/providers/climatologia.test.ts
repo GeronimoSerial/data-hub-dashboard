@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import { calcularPercentilesPrecipitacion, obtenerSerieHistorica } from './climatologia'
+import {
+  calcularPercentilesPrecipitacion,
+  obtenerSerieHistorica,
+  obtenerSeriesHistoricas,
+  TAMANO_LOTE_COORDENADAS,
+} from './climatologia'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 
 // Serie sintética conocida: 10 días secos (0 mm) + 10 días con lluvia
@@ -151,4 +156,109 @@ describe('obtenerSerieHistorica', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.motivo).toBe('payload_invalido')
   })
+})
+
+describe('obtenerSeriesHistoricas (por lotes)', () => {
+  // Un objeto por coordenada pedida, en el mismo orden, con la precipitación
+  // del primer día codificando la longitud. El day 2 es null para confirmar
+  // que se descarta. latitude/longitude del cuerpo es señuelo: el parseo debe
+  // emparejar por POSICIÓN.
+  function payloadArchivoParaLongitudes(longitudes: number[]) {
+    return longitudes.map((lon) => ({
+      latitude: 999,
+      longitude: 999,
+      daily: { time: ['2020-01-01', '2020-01-02'], precipitation_sum: [lon, null] },
+    }))
+  }
+
+  function longitudesDeUrl(url: string): number[] {
+    return (new URL(url).searchParams.get('longitude') ?? '').split(',').map(Number)
+  }
+
+  function puntosSinteticos(cantidad: number) {
+    return Array.from({ length: cantidad }, (_, indice) => ({
+      geometryRef: `-27_${indice}`,
+      lat: -27,
+      lon: indice,
+    }))
+  }
+
+  it('agrupa 120 celdas en ceil(120/TAMANO_LOTE_COORDENADAS) llamadas y empareja por índice', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      const longitudes = longitudesDeUrl(url)
+      return new Response(JSON.stringify(payloadArchivoParaLongitudes(longitudes)), { status: 200 })
+    })
+
+    const { seriesPorCelda, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
+      await obtenerSeriesHistoricas({
+        puntos: puntosSinteticos(120),
+        periodoDesde: '1991-01-01',
+        periodoHasta: '2020-12-31',
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(Math.ceil(120 / TAMANO_LOTE_COORDENADAS))
+    expect(llamadasRealizadas).toBe(Math.ceil(120 / TAMANO_LOTE_COORDENADAS))
+    expect(celdasPorLlamada).toEqual([50, 50, 20])
+    expect(erroresPorCelda).toEqual({})
+
+    expect(Object.keys(seriesPorCelda)).toHaveLength(120)
+    for (let indice = 0; indice < 120; indice++) {
+      expect(seriesPorCelda[`-27_${indice}`]).toEqual([indice])
+    }
+  })
+
+  it('asigna cada objeto del array a la celda correcta por posición', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      const longitudes = longitudesDeUrl(url)
+      return new Response(JSON.stringify(payloadArchivoParaLongitudes(longitudes)), { status: 200 })
+    })
+
+    const { seriesPorCelda } = await obtenerSeriesHistoricas({
+      puntos: puntosSinteticos(3),
+      periodoDesde: '2020-01-01',
+      periodoHasta: '2020-01-02',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(seriesPorCelda['-27_0']).toEqual([0])
+    expect(seriesPorCelda['-27_1']).toEqual([1])
+    expect(seriesPorCelda['-27_2']).toEqual([2])
+  }, 15_000)
+
+  it('un lote caído no pierde los lotes exitosos', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      const longitudes = longitudesDeUrl(url)
+      // El lote cuyo primer lon es 50 (celdas 50..99) falla siempre.
+      if (longitudes[0] === 50) {
+        return new Response('boom', { status: 500 })
+      }
+      return new Response(JSON.stringify(payloadArchivoParaLongitudes(longitudes)), { status: 200 })
+    })
+
+    const { seriesPorCelda, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
+      await obtenerSeriesHistoricas({
+        puntos: puntosSinteticos(120),
+        periodoDesde: '1991-01-01',
+        periodoHasta: '2020-12-31',
+        fetchImpl: fetchImpl as unknown as typeof fetch,
+      })
+
+    expect(llamadasRealizadas).toBe(3)
+    expect(celdasPorLlamada).toEqual([50, 50, 20])
+
+    const refsConError = Object.keys(erroresPorCelda)
+    expect(refsConError).toHaveLength(50)
+    expect(refsConError.every((ref) => Number(ref.slice(4)) >= 50)).toBe(true)
+    expect(refsConError.every((ref) => Number(ref.slice(4)) <= 99)).toBe(true)
+    expect(erroresPorCelda['-27_50'].motivo).toBe('http_error')
+
+    expect(Object.keys(seriesPorCelda)).toHaveLength(70)
+    expect(seriesPorCelda['-27_0']).toEqual([0])
+    expect(seriesPorCelda['-27_49']).toEqual([49])
+    expect(seriesPorCelda['-27_50']).toBeUndefined()
+    expect(seriesPorCelda['-27_99']).toBeUndefined()
+    expect(seriesPorCelda['-27_100']).toEqual([100])
+    expect(seriesPorCelda['-27_119']).toEqual([119])
+  }, 15_000)
 })

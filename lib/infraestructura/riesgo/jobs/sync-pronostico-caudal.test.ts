@@ -1,7 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { inArray } from 'drizzle-orm'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { PUNTOS_RIO } from '../puntos-rio'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import type {
@@ -189,5 +190,162 @@ describe('ejecutarSyncPronosticoCaudal', () => {
     expect(flood?.estado).toBe('ok')
     expect(flood?.ultimoExitoEn).toBe(ahora.toISOString())
     expect(flood?.ultimoErrorSaneado).toBeNull()
+  })
+})
+
+// --- Renovación activa del lease durante el loop (hallazgo H2, batch E2) ---
+//
+// `RENOVAR_LEASE_CADA_N_CELDAS` es 25 en la implementación. Para forzar más de
+// una renovación necesitamos > 25 celdas, así que en esta suite insertamos 60
+// perfiles extra (total 63 con las 3 base) y las limpiamos en el afterAll para
+// no alterar los conteos de los tests que ya existían.
+const CELDAS_EXTRA = Array.from({ length: 60 }, (_, indice) => ({
+  cueAnexo: `199000${indice + 1}-00`,
+  geometryRef: `-30.${String(indice).padStart(2, '0')}_-60.0`,
+}))
+
+type RenovarLeaseParamsTest = {
+  jobRunId: string
+  leaseOwner: string
+  duracionLeaseMs: number
+  ahora?: Date
+}
+
+describe('ejecutarSyncPronosticoCaudal — renovación de lease durante el loop', () => {
+  beforeAll(async () => {
+    const { getDb } = await import('@/lib/db')
+    const { infraGeoProfile } = await import('@/lib/db/schema')
+    await getDb()
+      .insert(infraGeoProfile)
+      .values(
+        CELDAS_EXTRA.map(({ cueAnexo, geometryRef }) => ({
+          cueAnexo,
+          geometryRef,
+          motivoExclusion: null,
+          perfilVersion: 'geo-perfil-v1',
+          calculadoEn: '2026-09-26T00:00:00.000Z',
+        })),
+      )
+  })
+
+  afterAll(async () => {
+    const { getDb } = await import('@/lib/db')
+    const { infraGeoProfile } = await import('@/lib/db/schema')
+    await getDb()
+      .delete(infraGeoProfile)
+      .where(
+        inArray(
+          infraGeoProfile.cueAnexo,
+          CELDAS_EXTRA.map(({ cueAnexo }) => cueAnexo),
+        ),
+      )
+  })
+
+  it('renueva el lease más de una vez cuando las celdas superan el umbral de tanda', async () => {
+    const ahora = new Date('2026-09-26T13:00:00.000Z') // bloque 12-18
+    const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => true)
+
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora,
+      ecmwfProvider: ecmwfFake(),
+      floodProvider: floodFake(),
+      renovarLease,
+    })
+
+    // 3 celdas base + 60 extra = 63 (> 25): varias tandas => varias renovaciones.
+    expect(renovarLease.mock.calls.length).toBeGreaterThan(1)
+    // Se renueva sin `ahora` a propósito: con el instante anclado al inicio del
+    // job el vencimiento no avanzaría y la renovación no extendería el lease.
+    const primerLlamado = renovarLease.mock.calls[0]?.[0]
+    expect(primerLlamado?.ahora).toBeUndefined()
+    expect(primerLlamado?.duracionLeaseMs).toBe(5 * 60 * 1000)
+    expect(typeof primerLlamado?.jobRunId).toBe('string')
+    expect(typeof primerLlamado?.leaseOwner).toBe('string')
+
+    if (!resultado.ok) throw new Error('unreachable')
+    expect(resultado.resultado.celdasConsultadas).toBe(CELDAS.length + CELDAS_EXTRA.length)
+    expect(resultado.resultado.proveedoresConError).toEqual([])
+  })
+
+  it('si renovarLease devuelve false corta y no escribe más filas de hazard_forecast', async () => {
+    const ahora = new Date('2026-09-26T19:00:00.000Z') // bloque 18-24
+    const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => false)
+
+    const { getDb } = await import('@/lib/db')
+    const { hazardForecast } = await import('@/lib/db/schema')
+    const db = getDb()
+    const antes = (await db.select().from(hazardForecast)).length
+
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora,
+      ecmwfProvider: ecmwfFake(),
+      floodProvider: floodFake(),
+      renovarLease,
+    })
+
+    if (resultado.ok || resultado.motivo !== 'lease_perdido_durante_ejecucion') {
+      throw new Error('unreachable')
+    }
+    // Sólo se procesó la primera tanda (25 celdas ECMWF) antes del corte: ni
+    // los puntos de río ni las tandas siguientes se consultaron/escribieron.
+    expect(resultado.resultado.celdasConsultadas).toBe(25)
+    expect(resultado.resultado.puntosRioConsultados).toBe(0)
+    expect(resultado.resultado.filasInsertadas).toBe(25)
+    expect(renovarLease).toHaveBeenCalledTimes(1)
+
+    const despues = (await db.select().from(hazardForecast)).length
+    expect(despues - antes).toBe(25)
+  })
+})
+
+describe('ejecutarSyncPronosticoCaudal — conteo real de llamadas (regresión hallazgo B)', () => {
+  it('usa el llamadasRealizadas que reporta el provider, no una llamada por celda/punto', async () => {
+    // Simula un provider que batchea TODAS las celdas en 1 sola request HTTP
+    // (como ecmwf.ts real con ≤50 coordenadas por lote), reportándolo.
+    const ecmwfBatcheado: ProveedorConDiagnostico = {
+      nombreProveedor: 'open-meteo-ecmwf',
+      async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
+        const puntos: HazardForecastPunto[] = geometryRefs.map((ref) => ({
+          variable: 'precipitacion',
+          geometryRef: ref,
+          corridaEn: ahora.toISOString(),
+          validoEn: ahora.toISOString(),
+          horizonteHoras: 0,
+          valor: 1.5,
+          unidad: 'mm',
+          pasoHoras: 1,
+        }))
+        return { puntos, erroresPorCelda: {}, llamadasRealizadas: 1 }
+      },
+    }
+    const floodBatcheado: ProveedorConDiagnostico = {
+      nombreProveedor: 'open-meteo-flood',
+      async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
+        const puntos: HazardForecastPunto[] = geometryRefs.map((id) => ({
+          variable: 'caudal',
+          geometryRef: id,
+          corridaEn: ahora.toISOString(),
+          validoEn: ahora.toISOString(),
+          horizonteHoras: 24,
+          valor: 123.4,
+          unidad: 'm3/s',
+          pasoHoras: 6,
+        }))
+        return { puntos, erroresPorCelda: {}, llamadasRealizadas: 1 }
+      },
+    }
+
+    const ahora = new Date('2026-09-27T01:00:00.000Z') // bloque 00-06, día distinto: lease libre
+    const resultado = await ejecutarSyncPronosticoCaudal({
+      ahora,
+      ecmwfProvider: ecmwfBatcheado,
+      floodProvider: floodBatcheado,
+    })
+
+    if (!resultado.ok) throw new Error('unreachable')
+    // 2 tandas en total (todas las celdas caben en 1 tanda de 25, todos los
+    // puntos de río en otra), cada una reportando 1 sola llamada real: el
+    // total real es 2, MUY por debajo de CELDAS.length + PUNTOS_RIO.length.
+    expect(resultado.resultado.llamadasRealizadas).toBe(2)
   })
 })

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
-import { infraGeoProfile } from '@/lib/db/schema'
+import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
 import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
@@ -57,6 +57,15 @@ beforeAll(async () => {
       calculadoEn: '2026-01-01T00:00:00Z',
     },
   ])
+
+  await getDb().insert(infraGeoRio).values({
+    cueAnexo: CUE,
+    puntoRioId: 'rio-1801605',
+    distanciaKm: 4.2,
+    radioMaximoKm: 10,
+    version: 'v1',
+    calculadoEn: '2026-01-01T00:00:00Z',
+  })
 })
 
 afterAll(() => {
@@ -117,6 +126,28 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.motivoExclusion).toBe('sin_coordenadas')
+  })
+
+  it('incluye rioAsociacion cuando el CUE tiene fila en infraGeoRio', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx(CUE))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.rioAsociacion).toEqual({
+      puntoRioId: 'rio-1801605',
+      distanciaKm: 4.2,
+    })
+  })
+
+  it('devuelve rioAsociacion null (200, no 404) si la asociación de río todavía no corrió', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx('1801605-05'))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.cueAnexo).toBe('1801605-05')
+    expect(body.rioAsociacion).toBeNull()
   })
 
   it('devuelve 404 si no hay fila para el CUE-anexo', async () => {

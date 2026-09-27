@@ -84,6 +84,12 @@ export type ParametrosPronosticoFlood = {
 export type DiagnosticoFlood = {
   puntos: HazardForecastPunto[]
   erroresPorCelda: Record<string, string>
+  // Una request HTTP por punto de río deduplicado (sin batching multi-
+  // coordenada: son ~8 puntos fijos, no ~387 celdas). Corrección de revisión
+  // (docs/ejecucion-enos/E3a/registro.md, hallazgo B): el job que consume esto
+  // dejó de asumir "una request por geometryRef pedido" tras el batching de
+  // ecmwf.ts, así que cada provider reporta su conteo real.
+  llamadasRealizadas: number
 }
 
 /**
@@ -122,7 +128,7 @@ export async function obtenerPronosticoConDiagnostico(
   )
 
   for (const porPunto of resultados) puntos.push(...porPunto)
-  return { puntos, erroresPorCelda }
+  return { puntos, erroresPorCelda, llamadasRealizadas: ids.length }
 }
 
 export function crearProviderFlood(opts?: { fetchImpl?: typeof fetch }): HazardProvider {

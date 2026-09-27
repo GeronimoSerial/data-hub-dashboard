@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { getDb } from '@/lib/db'
-import { infraGeoProfile } from '@/lib/db/schema'
+import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
@@ -30,7 +30,9 @@ export async function GET(_request: Request, ctx: Ctx) {
     return Response.json({ error: 'cueAnexo inválido' }, { status: 400 })
   }
 
-  const [perfil] = await getDb()
+  const db = getDb()
+
+  const [perfil] = await db
     .select()
     .from(infraGeoProfile)
     .where(eq(infraGeoProfile.cueAnexo, parsed.data))
@@ -45,8 +47,27 @@ export async function GET(_request: Request, ctx: Ctx) {
     )
   }
 
-  return Response.json(perfil, {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  const [rio] = await db
+    .select({
+      puntoRioId: infraGeoRio.puntoRioId,
+      distanciaKm: infraGeoRio.distanciaKm,
+    })
+    .from(infraGeoRio)
+    .where(eq(infraGeoRio.cueAnexo, parsed.data))
+    .limit(1)
+
+  // `infraGeoRio` la llena el job `calcularAsociacionesRio`. Si todavía no
+  // corrió no hay fila y `rioAsociacion: null` significa "aún no calculado",
+  // no un error: el perfil SÍ existe y la respuesta sigue siendo 200.
+  const rioAsociacion = rio
+    ? { puntoRioId: rio.puntoRioId, distanciaKm: rio.distanciaKm }
+    : null
+
+  return Response.json(
+    { ...perfil, rioAsociacion },
+    {
+      status: 200,
+      headers: { 'Cache-Control': 'private, no-store' },
+    },
+  )
 }

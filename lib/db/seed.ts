@@ -365,6 +365,48 @@ CREATE TABLE IF NOT EXISTS \`hazard_source_health\` (
   \`licencia\` text NOT NULL,
   \`actualizada_en\` text NOT NULL
 );
+-- E3a: señales v2 y capa de peligro estimado (ver docs/ejecucion-enos/E3a/registro.md)
+CREATE TABLE IF NOT EXISTS \`infra_geo_rio\` (
+  \`cue_anexo\` text PRIMARY KEY NOT NULL,
+  \`punto_rio_id\` text,
+  \`distancia_km\` real,
+  \`radio_maximo_km\` real NOT NULL,
+  \`version\` text NOT NULL,
+  \`calculado_en\` text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS \`hazard_ensemble_prob\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`geometry_ref\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`corrida_en\` text NOT NULL,
+  \`valido_en\` text NOT NULL,
+  \`horizonte_horas\` integer NOT NULL,
+  \`miembros_total\` integer NOT NULL,
+  \`miembros_validos\` integer NOT NULL,
+  \`probabilidad_p95\` real NOT NULL,
+  \`probabilidad_p99\` real NOT NULL,
+  \`dispersion\` real NOT NULL,
+  \`version\` text NOT NULL,
+  \`ingerido_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_ensemble_prob_uidx\` ON \`hazard_ensemble_prob\` (\`geometry_ref\`, \`variable\`, \`corrida_en\`, \`valido_en\`);
+CREATE INDEX IF NOT EXISTS \`hazard_ensemble_prob_geometry_ref_idx\` ON \`hazard_ensemble_prob\` (\`geometry_ref\`);
+CREATE TABLE IF NOT EXISTS \`hazard_observation\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`provider\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`geometry_ref\` text NOT NULL,
+  \`valor\` real NOT NULL,
+  \`unidad\` text NOT NULL,
+  \`observado_en\` text NOT NULL,
+  \`valido_desde\` text NOT NULL,
+  \`valido_hasta\` text NOT NULL,
+  \`calidad\` real,
+  \`raw_ref\` text,
+  \`ingerido_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_observation_uidx\` ON \`hazard_observation\` (\`provider\`, \`variable\`, \`geometry_ref\`, \`observado_en\`);
+CREATE INDEX IF NOT EXISTS \`hazard_observation_geometry_ref_idx\` ON \`hazard_observation\` (\`geometry_ref\`);
 `
 
 let seedPromise: Promise<void> | null = null
