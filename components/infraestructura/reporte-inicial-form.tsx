@@ -22,6 +22,16 @@ import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import {
+  crearAlmacenNavegador,
+  intentarEnviar,
+  registrarAutoReintento,
+  leerBorrador as leerColaEnvio,
+  MENSAJES_ESTADO,
+  type EstadoEnvio,
+} from '@/lib/infraestructura/parte/envio-offline'
+
+const almacenParte = crearAlmacenNavegador()
 
 export interface ReporteInicialFormProps {
   cue: string
@@ -61,8 +71,8 @@ type Paso = 1 | 2 | 3 | 4
 
 // Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
 // clave va por CUE para que dos establecimientos abiertos en la misma pestaña
-// no se pisen, y TODO acceso a sessionStorage está envuelto en try/catch: en
-// modo privado (o cuota llena) puede lanzar o directamente no estar.
+// no se pisen, y todo acceso al almacén pasa por el módulo de envío offline,
+// que ya tolera que el almacenamiento falte o lance (modo privado, cuota).
 function claveBorradorDe(cue: string): string {
   return `parte-nuevo:draft:${cue}`
 }
@@ -77,19 +87,24 @@ interface BorradorParteNuevo {
   servicioSecciones: number[]
   estadoEstablecimiento: '' | EstadoEstablecimiento
   rigeDesde: string
-  idempotencyKey: string
+  // Vestigial (ver esBorradorParteNuevo): sólo se lee por compatibilidad con
+  // borradores viejos, ya no se escribe.
+  idempotencyKey?: string
 }
 
 function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   if (typeof valor !== 'object' || valor === null) return false
   const b = valor as Record<string, unknown>
-  if (
-    typeof b.generacion !== 'string' ||
-    typeof b.rigeDesde !== 'string' ||
-    typeof b.idempotencyKey !== 'string'
-  ) {
+  if (typeof b.generacion !== 'string' || typeof b.rigeDesde !== 'string') {
     return false
   }
+  // `idempotencyKey` fue un campo vestigial del borrador de este asistente
+  // (nunca lo usaba el POST: la idempotencyKey real la decide el motor de
+  // envío por tipo+cue, ver lib/infraestructura/parte/envio-offline.ts). Ya
+  // no se escribe, pero un borrador viejo puede seguir teniéndolo — se
+  // acepta y se ignora, para no invalidar borradores existentes en el
+  // dispositivo del director.
+  if (b.idempotencyKey !== undefined && typeof b.idempotencyKey !== 'string') return false
   if (b.paso !== 1 && b.paso !== 2 && b.paso !== 3 && b.paso !== 4) return false
   if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
     return false
@@ -134,34 +149,26 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   return true
 }
 
-function leerBorrador(clave: string): BorradorParteNuevo | null {
+async function leerBorrador(clave: string): Promise<BorradorParteNuevo | null> {
+  const crudo = await almacenParte.obtener(clave)
+  if (!crudo) return null
   try {
-    const crudo = window.sessionStorage.getItem(clave)
-    if (!crudo) return null
     const dato: unknown = JSON.parse(crudo)
     if (esBorradorParteNuevo(dato)) return dato
     // Un borrador de otra versión del formulario no se restaura a medias.
-    window.sessionStorage.removeItem(clave)
+    await almacenParte.eliminar(clave)
     return null
   } catch {
     return null
   }
 }
 
-function guardarBorrador(clave: string, borrador: BorradorParteNuevo): void {
-  try {
-    window.sessionStorage.setItem(clave, JSON.stringify(borrador))
-  } catch {
-    // Sin almacenamiento disponible el asistente sigue funcionando en memoria.
-  }
+async function guardarBorrador(clave: string, borrador: BorradorParteNuevo): Promise<void> {
+  await almacenParte.guardar(clave, JSON.stringify(borrador))
 }
 
-function limpiarBorrador(clave: string): void {
-  try {
-    window.sessionStorage.removeItem(clave)
-  } catch {
-    // Idem: no poder limpiar no debe romper el guardado ni el reinicio.
-  }
+async function limpiarBorrador(clave: string): Promise<void> {
+  await almacenParte.eliminar(clave)
 }
 
 function empujarPasoEnHistorial(paso: number, generacion: string): void {
@@ -234,9 +241,11 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const enviandoRef = useRef(false)
+  const reintentarRef = useRef<() => void>(() => {})
   // Identidad de las entradas de historial de ESTE asistente: un popstate de
   // una sesión ya reiniciada no debe revivir sus pasos.
   const generacionRef = useRef<string | null>(null)
@@ -251,30 +260,46 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   }
 
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
-  // leer sessionStorage en el render produciría un desajuste de hidratación
+  // leer el almacén en el render produciría un desajuste de hidratación
   // entre servidor y cliente. Sin borrador (o ilegible) no hay nada que
   // restaurar y el asistente arranca limpio en el paso 1.
-  /* eslint-disable react-hooks/set-state-in-effect -- restauración única al
-     montar de un borrador de sesión: no hay suscripción que haga (el storage
-     no emite eventos) y el render no puede leerlo, así que el efecto aplica lo
-     leído una sola vez. La regla aplica a efectos reactivos a cambios de
-     estado, no a esta hidratación inicial. */
   useEffect(() => {
-    const borrador = leerBorrador(claveBorrador)
-    if (!borrador) return
-    generacionRef.current = borrador.generacion
-    setPaso(borrador.paso)
-    setAfectacion(borrador.afectacion)
-    setServicioEstado(borrador.servicioEstado)
-    setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
-    setServicioTurnos(borrador.servicioTurnos)
-    setServicioSecciones(borrador.servicioSecciones)
-    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
-    setRigeDesde(borrador.rigeDesde)
-    setIdempotencyKey(borrador.idempotencyKey)
-    sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+    let cancelado = false
+    ;(async () => {
+      const borrador = await leerBorrador(claveBorrador)
+      if (cancelado || !borrador) return
+      generacionRef.current = borrador.generacion
+      setPaso(borrador.paso)
+      setAfectacion(borrador.afectacion)
+      setServicioEstado(borrador.servicioEstado)
+      setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
+      setServicioTurnos(borrador.servicioTurnos)
+      setServicioSecciones(borrador.servicioSecciones)
+      setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+      setRigeDesde(borrador.rigeDesde)
+      sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+    })()
+    return () => {
+      cancelado = true
+    }
   }, [claveBorrador])
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Restaura el estado del envío en cola SIEMPRE al montar, haya o no
+  // borrador del asistente: sin esto, cerrar y reabrir la app con un envío
+  // pendiente dejaba `estadoEnvio` en null y el reintento automático al
+  // recuperar la conexión no se disparaba.
+  useEffect(() => {
+    let cancelado = false
+    ;(async () => {
+      const colaPendiente = await leerColaEnvio(almacenParte, 'nuevo', cue)
+      if (cancelado || !colaPendiente) return
+      setEstadoEnvio(colaPendiente.estado)
+      setMotivoEnvio(colaPendiente.motivoError ?? null)
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [cue])
 
   // #31: el botón "atrás" del navegador camina el asistente un paso para
   // atrás en vez de salirse del flujo y tirar todo lo cargado. Sólo se sale
@@ -298,6 +323,17 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     return () => window.removeEventListener('popstate', alVolverAtras)
   }, [])
 
+  useEffect(() => {
+    reintentarRef.current = () => {
+      if (guardado) return
+      if (estadoEnvio !== 'pendiente-envio') return
+      void manejarEnvio({ preventDefault() {} } as unknown as FormEvent<HTMLFormElement>)
+    }
+  })
+  useEffect(() => {
+    return registrarAutoReintento(() => reintentarRef.current())
+  }, [])
+
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
   // recién limpia con el estado por defecto.
@@ -306,7 +342,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       omitirEscrituraRef.current = false
       return
     }
-    guardarBorrador(claveBorrador, {
+    void guardarBorrador(claveBorrador, {
       generacion: generacionVigente(),
       paso,
       afectacion,
@@ -316,7 +352,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       servicioSecciones,
       estadoEstablecimiento,
       rigeDesde,
-      idempotencyKey,
     })
   }, [
     claveBorrador,
@@ -328,7 +363,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     servicioSecciones,
     estadoEstablecimiento,
     rigeDesde,
-    idempotencyKey,
   ])
 
   const nombresTurnos = Array.from(new Set(turnos.map((t) => t.turno)))
@@ -388,11 +422,14 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   }
 
   // Deja el asistente listo para un hecho nuevo, no para reintentar el que ya
-  // se guardó: por eso también cambia el idempotencyKey, no sólo limpia los
-  // campos.
+  // se guardó. La idempotencyKey real la decide el motor de envío por
+  // tipo+cue (ver envio-offline.ts) y ya quedó limpia sola: un envío exitoso
+  // borra esa cola antes de mostrar la confirmación, así que el próximo
+  // "Guardar reporte" acuña una clave nueva sin que este formulario tenga que
+  // gestionar ninguna.
   function registrarOtra() {
     omitirEscrituraRef.current = true
-    limpiarBorrador(claveBorrador)
+    void limpiarBorrador(claveBorrador)
     enviandoRef.current = false
     setPaso(1)
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
@@ -404,7 +441,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setRigeDesde(new Date().toISOString())
     setEnviando(false)
     setError(null)
-    setIdempotencyKey(crypto.randomUUID())
     setGuardado(null)
   }
 
@@ -422,6 +458,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     enviandoRef.current = true
     setEnviando(true)
     setError(null)
+    setMotivoEnvio(null)
 
     const alcance =
       servicioAlcanceTipo === 'turno'
@@ -430,61 +467,64 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           ? { tipo: 'seccion' as const, secciones: servicioSecciones }
           : { tipo: 'establecimiento' as const }
 
-    try {
-      const respuesta = await fetch('/api/problematicas/parte', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cue,
-          idempotencyKey,
-          rigeDesde,
-          afectacionesNuevas: [
-            {
-              motivo: afectacion.motivo,
-              severidad: afectacion.severidad as Severidad,
-              descripcion: afectacion.descripcion.trim() || undefined,
-              secciones: afectacion.secciones,
-              alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
-            },
-          ],
-          afectacionesModificadas: [],
-          afectacionesRetiradas: [],
-          servicioEducativo:
-            servicioEstado === '' ? undefined : { estado: servicioEstado, alcance },
-          estadoEstablecimiento:
-            estadoEstablecimiento === '' ? undefined : { estado: estadoEstablecimiento },
-        }),
-      })
+    const datosEnvio = {
+      cue,
+      rigeDesde,
+      afectacionesNuevas: [
+        {
+          motivo: afectacion.motivo,
+          severidad: afectacion.severidad as Severidad,
+          descripcion: afectacion.descripcion.trim() || undefined,
+          secciones: afectacion.secciones,
+          alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
+        },
+      ],
+      afectacionesModificadas: [] as never[],
+      afectacionesRetiradas: [] as never[],
+      servicioEducativo:
+        servicioEstado === '' ? undefined : { estado: servicioEstado, alcance },
+      estadoEstablecimiento:
+        estadoEstablecimiento === '' ? undefined : { estado: estadoEstablecimiento },
+    }
 
-      if (!respuesta.ok) {
-        const cuerpo = await respuesta.json().catch(() => null)
-        enviandoRef.current = false
-        setEnviando(false)
-        setError(cuerpo && typeof cuerpo.error === 'string' ? cuerpo.error : MENSAJE_ERROR_GUARDADO)
-        return
-      }
+    const resultado = await intentarEnviar(datosEnvio, {
+      almacen: almacenParte,
+      tipo: 'nuevo',
+      cue,
+      fetchImpl: fetch,
+      url: '/api/problematicas/parte',
+      construirCuerpo: (datos, idempotencyKey) => ({ ...datos, idempotencyKey }),
+      // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
+      // real, aunque el transporte HTTP haya sido 2xx.
+      validarExito: (respuesta) => {
+        const cuerpo = respuesta as { ok?: boolean; movimientoId?: string } | null
+        return !!cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string'
+      },
+      onCambioEstado: (borrador) => {
+        setEstadoEnvio(borrador.estado)
+        setMotivoEnvio(borrador.motivoError ?? null)
+      },
+    })
 
-      const datos = await respuesta.json()
-      if (datos?.ok === true) {
-        // El reporte quedó guardado: el borrador de sesión ya no representa
-        // nada pendiente, y el historial se colapsa para que "atrás" desde la
-        // confirmación salga del asistente en vez de revivir sus pasos.
-        limpiarBorrador(claveBorrador)
+    if (resultado.ok) {
+      const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
+      if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
+        void limpiarBorrador(claveBorrador)
         colapsarHistorial(paso - 1)
-        // Un reporte guardado no se reenvía desde la misma instancia del
-        // formulario: el ref queda clavado en true a propósito.
         setGuardado({ movimientoId: datos.movimientoId })
         return
       }
-
       enviandoRef.current = false
       setEnviando(false)
       setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
-    } catch {
-      enviandoRef.current = false
-      setEnviando(false)
-      setError(MENSAJE_ERROR_GUARDADO)
+      return
     }
+
+    enviandoRef.current = false
+    setEnviando(false)
+    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
+    // volver la conexión, sin acción del director. El texto de estado ya lo
+    // muestra onCambioEstado; acá no hay nada más que hacer.
   }
 
   if (guardado) {
@@ -688,9 +728,11 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         )}
       </section>
 
-      {enviando && (
+      {estadoEnvio && (
         <p role="status" aria-live="polite">
-          Guardando…
+          {estadoEnvio === 'error' && motivoEnvio
+            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+            : MENSAJES_ESTADO[estadoEnvio]}
         </p>
       )}
 
