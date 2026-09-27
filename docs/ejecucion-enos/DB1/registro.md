@@ -10,7 +10,7 @@ plan 2026/2027. Ver `plan.md` para el inventario F0 completo.
 | F0 — Plan/inventario | **Completa** | n/a (documento) |
 | F1 — Capa de acceso dual por `DATABASE_URL` | **Completa** | verde |
 | F2 — Schema pg-core + migraciones drizzle-kit | **Completa** | verde (216/218 archivos, 1928/1930 tests; los 2 restantes son de F3) |
-| F3 — Concurrencia en Postgres (lease, cupo E8) | **Parcial (no entró con calidad en este dispatch)** | 2 tests reales de doble conexión física pendientes contra podman |
+| F3 — Concurrencia en Postgres (lease, cupo E8) | **Completa** | verde (219/219 archivos, 1936/1936 tests contra Postgres real de podman; 1933/1936 con 3 skips en modo PGlite sin Docker) |
 | F4 — Migración de datos SQLite→PG + verificación | **Pendiente** | — |
 | F5 — Backups `pg_dump`, config RDS, runbook | **Pendiente** | — |
 
@@ -380,6 +380,116 @@ correctitud, no porque un test lo exigiera).
   código; no ocurre hoy (siempre se lo llama sobre `PGlite` o dentro de un
   `tx` ya abierto), pero conviene resolverlo con `pool.connect()` antes de
   RDS en producción con carga concurrente real.
+
+## F3 — Concurrencia en Postgres (lease, cupo E8)
+
+Todo el código de este dispatch pasó por N3 (`opencode run`, un dispatch en
+primer plano por tarea); N2 sólo verificó, corrió la suite y escribe este
+documento. Ningún archivo de producción fue tocado en F3 — sólo tests.
+
+### 1. Los 2 fallos "no concurrentes" reportados por N1 en `cb37534`
+
+**Ya estaban en verde al arrancar este dispatch.** El primer N3 corrió
+`scripts/job-diagnostico.test.ts` y `lib/infraestructura/recurso-seed.test.ts`
+aislados, juntos, y dentro de la suite completa (216/218 archivos, 1928/1930
+tests, sólo los 2 tests de concurrencia conocidos en rojo) — los 3 modos en
+verde, sin tocar ningún archivo. Conclusión: las 4 fallas que vio N1 en
+`cb37534` incluían estos 2 de forma no reproducible (orden/paralelismo del
+runner en esa corrida particular), no un bug real de F2. No se investigó más
+a fondo porque no hay nada que reproducir; si reaparecen, son candidatos a
+flaky por orden de ejecución, no por lógica de negocio.
+
+### 2. `scripts/jobs.migracion-legacy.test.ts` — garantía de E8 restaurada
+
+F2 había borrado este test sin reemplazo (protegía que `scripts/jobs.mjs` /
+`correrJob()` aplique las migraciones ANTES de despachar cualquier job — ver
+`docs/ejecucion-enos/E8/revision-3.md`, Tarea 3c). N3 escribió un test
+equivalente adaptado a PGlite: sobre una base `PGLITE_DATA_DIR` completamente
+sin migrar (sin `drizzle.__drizzle_migrations`, sin ninguna tabla), invoca
+`correrJob('briefing-ia')` por la misma vía que el timer real (`./jobs.mjs`,
+sin atajos) y verifica que migra, no lanza, y persiste el briefing. Validado
+por mutación: N3 sacó temporalmente el `await ensureSeeded()` de `jobs.mjs`,
+confirmó que el test *sí* detecta la regresión (`relation "infra_situacion_corte"
+does not exist`, `42P01`), y lo restauró. `jobs.mjs` quedó byte-idéntico.
+
+### 3. `conReintentoPorBloqueo` — reintento real ante los 3 códigos Postgres
+
+Ya existían tests de que `esErrorLockOcupado` **reconoce** `40001`, `40P01`,
+`55P03`, pero ninguno probaba que `conReintentoPorBloqueo` **reintenta de
+verdad** (ejecuta la función de nuevo y tiene éxito) con esos códigos — sólo
+había cobertura de reintento real para `SQLITE_BUSY`. N3 agregó un
+`it.each(['40001','40P01','55P03'])` en `lib/db/reintento.test.ts` con el
+mismo patrón (falla 2 veces, éxito al tercer intento, verifica 3 llamadas).
+No hizo falta tocar `reintento.ts`: el código ya reintentaba bien para los 3.
+
+### 4. Falso positivo encontrado y corregido: lease de `job-run.ts`
+
+Hallazgo importante de N3, verificado por N2: el describe
+`adquirirLease reintenta ante un lock real de otra conexión` en
+`job-run.test.ts` pasaba en verde pero **no probaba nada**. Abría una segunda
+conexión `@libsql/client` contra un archivo `hub.sqlite` suelto en
+`getSqlitePath()` — un archivo que `adquirirLease()` (vía `getDb()`) nunca
+toca bajo Postgres/PGlite. El `BEGIN IMMEDIATE` de esa conexión fantasma no
+bloqueaba nada real: el test sólo confirmaba que el lease se adquiere, sin
+ejercer ninguna garantía de concurrencia. Reemplazado por dos tests reales:
+
+- **Contra Postgres real (podman, gateado por `DATABASE_URL_TEST`)**: dos
+  `pg.Pool` independientes, migrados una vez, `Promise.all` de dos
+  `adquirirLease` concurrentes para la misma clave — exactamente una
+  `adquirido:true`.
+- **PGlite de un solo proceso (sin gate)**: mismo patrón pero con
+  `Promise.all` real (el test viejo de la línea ~43 era secuencial, nunca
+  ejercía la ventana de carrera dentro de un solo proceso).
+
+Mismo patrón aplicado, con hallazgos análogos de conexión-fantasma, a:
+
+- **`lib/infraestructura/briefing-ia/presupuesto.test.ts`** (reserva atómica
+  del presupuesto E8): el describe `con una SEGUNDA conexión física real`
+  fallaba con `SQLITE_ERROR: no such table` por el mismo motivo (conexión
+  libsql a un archivo que ya no existe). Reemplazado por el mismo patrón de
+  dos `pg.Pool` contra podman + PGlite concurrente (este último ya existía y
+  ya era genuinamente concurrente, se dejó igual).
+- **`lib/infraestructura/riesgo/providers/cupo-om.test.ts`** (cupo
+  compartido de Open-Meteo): el describe `window accounting across
+  processes` fallaba igual (`no such table: om_cupo_cooldown`). Reemplazado
+  por el mismo patrón; se borraron los imports de `@libsql/client` /
+  `drizzle-orm/libsql` ya sin uso, lo que hizo desaparecer los 3 errores de
+  `tsc` que arrastraba este archivo desde F2 (tipaba `LibSQLDatabase` para
+  simular la segunda conexión).
+
+### Cómo correr los tests reales contra Postgres
+
+```
+podman run -d --name <nombre> \
+  -e POSTGRES_USER=enos_test -e POSTGRES_PASSWORD=<local> -e POSTGRES_DB=enos_db1_f3 \
+  -p 55432:5432 docker.io/library/postgres:16
+
+DATABASE_URL_TEST=postgresql://enos_test:<local>@localhost:55432/enos_db1_f3 \
+  pnpm vitest run --maxWorkers=2
+
+podman rm -f <nombre>
+```
+
+Sin `DATABASE_URL_TEST`, esos 3 tests (`job-run.test.ts`,
+`presupuesto.test.ts`, `cupo-om.test.ts`) se saltean con motivo explícito y
+la suite normal sigue sin Docker.
+
+### Verificación final (corrida por N2, contenedor propio en :55432, borrado al cerrar)
+
+- `pnpm vitest run --maxWorkers=2` (sin `DATABASE_URL_TEST`, 2 corridas
+  consecutivas): **219/219 archivos, 1933/1936 tests, 3 skipped** (los 3
+  gateados por Postgres) — ambas corridas idénticas.
+- `pnpm vitest run --maxWorkers=2` (con `DATABASE_URL_TEST` contra el podman
+  local): **219/219 archivos, 1936/1936 tests, 0 skipped, 0 fallos.**
+- `pnpm exec tsc --noEmit`: **0 errores** (los 3 preexistentes de
+  `cupo-om.test.ts` desaparecieron al borrar el tipo `LibSQLDatabase` sin uso).
+- `pnpm lint`: limpio.
+- `pnpm exec next build`: exitoso.
+- Único archivo de producción tocado en todo F3: ninguno. Sólo tests
+  (`lib/db/reintento.test.ts`, `lib/infraestructura/riesgo/job-run.test.ts`,
+  `lib/infraestructura/briefing-ia/presupuesto.test.ts`,
+  `lib/infraestructura/riesgo/providers/cupo-om.test.ts`,
+  `scripts/jobs.migracion-legacy.test.ts` nuevo).
 
 ## Gate
 
