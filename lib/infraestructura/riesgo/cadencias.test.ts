@@ -46,6 +46,24 @@ describe('estaAtrasado', () => {
     })
     expect(atrasado).toBe(true)
   })
+
+  it('no marca atrasado situacion-corte con corrida hace 90 minutos (cadencia horaria)', () => {
+    const atrasado = estaAtrasado({
+      nombre: 'situacion-corte',
+      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 90 * MINUTO_MS),
+      ahora: AHORA,
+    })
+    expect(atrasado).toBe(false)
+  })
+
+  it('marca atrasado situacion-corte con corrida hace 150 minutos', () => {
+    const atrasado = estaAtrasado({
+      nombre: 'situacion-corte',
+      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 150 * MINUTO_MS),
+      ahora: AHORA,
+    })
+    expect(atrasado).toBe(true)
+  })
 })
 
 describe('proximaCorridaEsperada', () => {
@@ -114,7 +132,7 @@ describe('estadoAtrasoJob', () => {
 })
 
 describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
-  it('cubre exactamente los 8 nombres de job de CADENCIAS, sin huecos ni duplicados', () => {
+  it('cubre exactamente todos los nombres de job de CADENCIAS, sin huecos ni duplicados', () => {
     const valores = Object.values(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB)
     expect(new Set(valores)).toEqual(new Set(Object.keys(CADENCIAS)))
     expect(valores).toHaveLength(Object.keys(CADENCIAS).length)
@@ -134,6 +152,7 @@ describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
     )
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['calcular-riesgo-v0']).toBe('calcular-riesgo')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['episodios-derivados-v0']).toBe('episodios-derivados')
+    expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['situacion-corte-v1']).toBe('situacion-corte')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['geo-perfiles']).toBe('geo-perfiles')
   })
 })

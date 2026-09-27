@@ -508,9 +508,31 @@ CREATE TABLE IF NOT EXISTS \`hazard_seasonal_trend\` (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_seasonal_trend_uidx\` ON \`hazard_seasonal_trend\` (\`departamento\`, \`variable\`, \`emision_en\`, \`horizonte_desde_dias\`, \`horizonte_hasta_dias\`);
 CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazard_seasonal_trend\` (\`departamento\`);
+-- E7b: índices temporales para replay (no modifica tablas existentes)
+CREATE INDEX IF NOT EXISTS infra_afectacion_creada_en_idx_e7b ON infra_afectacion(creada_en);
+CREATE INDEX IF NOT EXISTS infra_afectacion_rige_desde_idx_e7b ON infra_afectacion(rige_desde);
+CREATE INDEX IF NOT EXISTS infra_risk_run_publicado_en_idx_e7b ON infra_risk_run(publicado_en);
+-- E5: Centro de Situación
+CREATE TABLE IF NOT EXISTS \`infra_situacion_corte\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`generado_en\` text NOT NULL,
+  \`risk_run_id\` text,
+  \`cobertura\` text,
+  \`conteos_por_nivel_riesgo\` text NOT NULL,
+  \`kpis\` text NOT NULL,
+  \`fuentes_salud\` text NOT NULL,
+  \`episodios_abiertos\` integer NOT NULL DEFAULT 0,
+  \`episodios_cerrados_desde_anterior\` integer NOT NULL DEFAULT 0,
+  \`generado_por_job_run_id\` text,
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`risk_run_id\`) REFERENCES \`infra_risk_run\`(\`id\`),
+  FOREIGN KEY (\`generado_por_job_run_id\`) REFERENCES \`infra_job_run\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_generado_en_idx\` ON \`infra_situacion_corte\` (\`generado_en\`);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_risk_run_id_idx\` ON \`infra_situacion_corte\` (\`risk_run_id\`);
 -- E8: briefing narrativo asistido por IA (infra_briefing), ver lib/db/schema.ts
--- (infraBriefing). Un briefing por corte (corte_id espejo de E5) e índice por
--- creada_en para sumar el costo_usd del mes vigente.
+-- (infraBriefing). Un briefing por corte (corte_id referencia infra_situacion_corte
+-- de E5) e índice por creada_en para sumar el costo_usd del mes vigente.
 CREATE TABLE IF NOT EXISTS \`infra_briefing\` (
   \`id\` text PRIMARY KEY NOT NULL,
   \`corte_id\` text NOT NULL,
@@ -526,7 +548,8 @@ CREATE TABLE IF NOT EXISTS \`infra_briefing\` (
   \`costo_usd\` real,
   \`latencia_ms\` integer,
   \`validacion\` text,
-  \`creada_en\` text NOT NULL
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`corte_id\`) REFERENCES \`infra_situacion_corte\`(\`id\`)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_briefing_corte_uidx\` ON \`infra_briefing\` (\`corte_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_briefing_creada_en_idx\` ON \`infra_briefing\` (\`creada_en\`);

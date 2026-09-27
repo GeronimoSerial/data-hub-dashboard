@@ -278,14 +278,26 @@ afterEach(() => {
 })
 
 describe('MapInfraestructuraPage — orquestación de modales', () => {
-  it('filtra por departamento al hacer click y permite quitar el filtro', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-    await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(screen.getByText('Departamento:')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
-    await userEvent.click(screen.getByText('Quitar filtro'))
-    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-  })
+  // E5 Ola 0: intermitente detectado (1/3 corridas completas de `pnpm test`
+  // falló acá con "Test timed out in 5000ms"). No es una condición de carrera
+  // real del componente — no hay estado que dependa del fetch de
+  // departamentosRaw para este flujo (el filtro se setea directo en el click
+  // handler) — sino el timeout por defecto de Vitest (5s) quedando corto bajo
+  // carga de máquina para un test con dos userEvent.click reales sobre un
+  // árbol con varios efectos/mocks async encadenados. Se sube el timeout de
+  // ESTE test puntual en vez de tocar el default global.
+  it(
+    'filtra por departamento al hacer click y permite quitar el filtro',
+    async () => {
+      await renderMapa({ mostrarEnlaceNominal: true })
+      await userEvent.click(screen.getByTestId('mock-click-departamento'))
+      expect(screen.getByText('Departamento:')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
+      await userEvent.click(screen.getByText('Quitar filtro'))
+      expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    },
+    15000,
+  )
 
   it('abre la ficha al hacer click en un parte del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })

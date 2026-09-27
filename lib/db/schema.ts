@@ -919,17 +919,68 @@ export const hazardSeasonalTrend = sqliteTable(
   ],
 )
 
+// E7b: índices temporales para replay (no modifica tablas existentes)
+export const infraAfectacionCreadaEnIdxE7b = index('infra_afectacion_creada_en_idx_e7b').on(infraAfectacion.creadaEn)
+export const infraAfectacionRigeDesdeIdxE7b = index('infra_afectacion_rige_desde_idx_e7b').on(infraAfectacion.rigeDesde)
+export const infraRiskRunPublicadoEnIdxE7b = index('infra_risk_run_publicado_en_idx_e7b').on(infraRiskRun.publicadoEn)
+
+// E5: Centro de Situación (infra_situacion_corte)
+//
+// Cada fila es UN corte (snapshot) ejecutivo completo del territorio, generado
+// por un job periódico. No hay filas por escuela ni por departamento: el corte
+// congela su propia cobertura y la salud de fuentes para poder reconstruir el
+// briefing exactamente como se vio en ese instante, sin depender de qué
+// infra_risk_run esté vigente cuando el corte se lea después.
+export const infraSituacionCorte = sqliteTable(
+  'infra_situacion_corte',
+  {
+    id: text('id').primaryKey(),
+    // Instante "as-of" que representa el corte (ISO).
+    generadoEn: text('generado_en').notNull(),
+    // Run de riesgo vigente al generar el corte; null si no había ninguno.
+    riskRunId: text('risk_run_id').references(() => infraRiskRun.id),
+    // Copia de infraRiskRun.cobertura en ese instante (p. ej.
+    // { procesadas, conEvidencia, sinEvidencia }).
+    cobertura: text('cobertura', { mode: 'json' }).$type<Record<string, number> | null>(),
+    // Conteo de escuelas por nivelRiesgo ('bajo'/'moderado'/'alto'/'muy_alto')
+    // al horizonte de 24h, en el instante del corte.
+    conteosPorNivelRiesgo: text('conteos_por_nivel_riesgo', { mode: 'json' })
+      .$type<Record<string, number>>()
+      .notNull(),
+    kpis: text('kpis', { mode: 'json' })
+      .$type<{
+        escuelasAfectacionConfirmadaVigente: number
+        escuelasRiesgoAlto24h: number
+        fuentesVencidas: number
+      }>()
+      .notNull(),
+    // Salud de fuentes congelada en el instante del corte (frescura ya
+    // calculada, no recalculada al leer).
+    fuentesSalud: text('fuentes_salud', { mode: 'json' })
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .notNull(),
+    episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
+    // Episodios que pasaron a cerrado entre el corte anterior y este.
+    episodiosCerradosDesdeAnterior: integer('episodios_cerrados_desde_anterior').notNull().default(0),
+    // Trazabilidad hacia el infra_job_run que produjo este corte.
+    generadoPorJobRunId: text('generado_por_job_run_id').references(() => infraJobRun.id),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    index('infra_situacion_corte_generado_en_idx').on(t.generadoEn),
+    index('infra_situacion_corte_risk_run_id_idx').on(t.riskRunId),
+  ],
+)
+
 // E8: briefing narrativo asistido por IA (batch E8, ver plan-ejecucion §6-E8).
-// `corteId` es espejo de infra_situacion_corte de E5 (tabla que aún no existe
-// en este worktree): por ahora es un string suelto, sin FK, para no bloquear el
-// merge entre batches. Un briefing por corte (`infra_briefing_corte_uidx` da la
-// idempotencia) y `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del
-// mes vigente.
+// `corteId` referencia infra_situacion_corte de E5 (ya mergeada). Un briefing
+// por corte (`infra_briefing_corte_uidx` da la idempotencia) y
+// `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del mes vigente.
 export const infraBriefing = sqliteTable(
   'infra_briefing',
   {
     id: text('id').primaryKey(),
-    corteId: text('corte_id').notNull(),
+    corteId: text('corte_id').notNull().references(() => infraSituacionCorte.id),
     modelo: text('modelo').notNull(),
     versionPrompt: text('version_prompt').notNull(),
     parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>(),

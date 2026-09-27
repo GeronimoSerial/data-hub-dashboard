@@ -65,7 +65,10 @@ const TTL_MINUTOS = 60
 const LICENCIA = 'NASA GPM IMERG — GES DISC, cuenta NASA Earthdata requerida'
 
 const PROVIDER = 'nasa-imerg'
-const VARIABLE_OBSERVADA = 'precipitacion_observada_satelital'
+// E7b: exportada (cambio aditivo) para que el replay
+// (lib/infraestructura/replay/consulta.ts) consulte hazard_observation con el
+// mismo literal de `variable`, sin duplicarlo a mano.
+export const VARIABLE_OBSERVADA = 'precipitacion_observada_satelital'
 const LARGO_MAX_ERROR = 300
 
 // Mismo bug de clase que sync-pronostico-caudal.ts (ver su comentario junto a

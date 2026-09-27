@@ -47,6 +47,8 @@ registerHooks({
 
 const TIPO_GEO_PERFILES = 'geo-perfiles'
 const DURACION_LEASE_GEO_PERFILES_MS = 10 * 60 * 1000
+const TIPO_SITUACION_CORTE = 'situacion-corte-v1'
+const DURACION_LEASE_SITUACION_CORTE_MS = 10 * 60 * 1000
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 const NOMBRES_VALIDOS = [
@@ -59,6 +61,7 @@ const NOMBRES_VALIDOS = [
   'calcular-riesgo',
   'episodios-derivados',
   'sync-seasonal',
+  'situacion-corte',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -154,6 +157,69 @@ async function correrGeoPerfiles(opts) {
   }
 }
 
+// situacion-corte no gestiona lease internamente: jobs.mjs lo envuelve con
+// adquirirLease/publicarResultado, igual patrón que correrGeoPerfiles.
+async function correrSituacionCorte(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('situacion-corte')
+
+  const { adquirirLease, publicarResultado } = await import(
+    '../lib/infraestructura/riesgo/job-run.ts'
+  )
+  const { generarCorte } = await import('../lib/infraestructura/riesgo/situacion/corte.ts')
+
+  const ahora = opts?.ahora ?? new Date()
+  // Clave idempotente por HORA UTC (no por día, como geo-perfiles): el job
+  // corre cada hora, dos invocaciones dentro de la misma hora comparten el
+  // mismo job run y sólo una genera el corte.
+  const claveIdempotente = ahora.toISOString().slice(0, 13) // 'YYYY-MM-DDTHH'
+  const lease = await adquirirLease({
+    tipo: TIPO_SITUACION_CORTE,
+    claveIdempotente,
+    version: pkg.version,
+    duracionLeaseMs: DURACION_LEASE_SITUACION_CORTE_MS,
+    ahora,
+  })
+
+  if (!lease.adquirido) {
+    return { ejecutado: false, motivo: lease.motivo }
+  }
+
+  try {
+    const resultado = await generarCorte({ ahora, jobRunId: lease.jobRunId })
+    const publicado = await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'completado',
+      contadores: {
+        episodiosAbiertos: resultado.episodiosAbiertos,
+        episodiosCerradosDesdeAnterior: resultado.episodiosCerradosDesdeAnterior,
+        escuelasRiesgoAlto24h: resultado.kpis.escuelasRiesgoAlto24h,
+      },
+    })
+
+    return {
+      ejecutado: true,
+      corteId: resultado.corteId,
+      generadoEn: resultado.generadoEn,
+      leasePerdido: !publicado,
+    }
+  } catch (error) {
+    const errorSaneado =
+      error instanceof Error ? error.message : 'Error desconocido en job situacion-corte'
+    try {
+      await publicarResultado({
+        jobRunId: lease.jobRunId,
+        leaseOwner: lease.leaseOwner,
+        estado: 'fallido',
+        errorSaneado,
+      })
+    } catch {
+      // Ignorado a propósito: se relanza el error original.
+    }
+    throw error
+  }
+}
+
 async function correrSyncPronosticoCaudal() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-pronostico-caudal')
   const { ejecutarSyncPronosticoCaudal } = await import(
@@ -239,6 +305,8 @@ export async function correrJob(nombre, opts) {
       return correrEpisodiosDerivados()
     case 'sync-seasonal':
       return correrSyncSeasonal()
+    case 'situacion-corte':
+      return correrSituacionCorte(opts)
     default:
       throw new JobDesconocidoError(nombre)
   }
