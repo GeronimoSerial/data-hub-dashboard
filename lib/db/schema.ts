@@ -735,3 +735,59 @@ export const infraRiskFactor = sqliteTable(
   },
   (t) => [index('infra_risk_factor_snapshot_id_idx').on(t.snapshotId)],
 )
+
+// E7a: episodios derivados (calculados automáticamente)
+// Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
+// parametrizado para poder pasar a 'cuenca' en una versión futura de la
+// regla sin migrar el esquema). `reglaVersion` + `parametros` (json) quedan
+// grabados con cada cálculo para que un recomputo con otra versión/parámetros
+// no se confunda con uno viejo. `escuelasAfectadas` es la cuenta acumulada de
+// CUE-anexo distintos que fueron miembro del episodio en algún momento (no
+// sólo los vigentes al momento del cálculo). No existe columna `episodio` en
+// infra_movimiento: el vínculo va sólo en infra_episodio_miembro.
+export const infraEpisodioDerivado = sqliteTable(
+  'infra_episodio_derivado',
+  {
+    id: text('id').primaryKey(),
+    reglaVersion: text('regla_version').notNull(),
+    parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    // 'departamento' es el único valor emitido por la regla v0.1.
+    unidadTipo: text('unidad_tipo').notNull(),
+    unidadId: text('unidad_id').notNull(),
+    inicioEn: text('inicio_en').notNull(),
+    finEn: text('fin_en'),
+    // 'abierto' | 'cerrado'.
+    estado: text('estado').notNull(),
+    escuelasAfectadas: integer('escuelas_afectadas').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [
+    index('infra_episodio_derivado_unidad_idx').on(t.unidadTipo, t.unidadId),
+    index('infra_episodio_derivado_regla_version_idx').on(t.reglaVersion),
+    index('infra_episodio_derivado_estado_idx').on(t.estado),
+  ],
+)
+
+// Una fila por (episodio, cueAnexo): si la escuela se recupera y se vuelve a
+// afectar dentro del MISMO episodio (el departamento no llegó a cerrarlo), se
+// reutiliza esta misma fila (recuperadoEn vuelve a null), no se duplica.
+// `movimientoId` es nullable: no toda infra_afectacion tiene un
+// infra_movimiento con el mismo (parteId, rigeDesde) resoluble en datos
+// legacy.
+export const infraEpisodioMiembro = sqliteTable(
+  'infra_episodio_miembro',
+  {
+    id: text('id').primaryKey(),
+    episodioDerivadoId: text('episodio_derivado_id')
+      .notNull()
+      .references(() => infraEpisodioDerivado.id, { onDelete: 'cascade' }),
+    cueAnexo: text('cue_anexo').notNull(),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    primeraAfectacionEn: text('primera_afectacion_en').notNull(),
+    recuperadoEn: text('recuperado_en'),
+  },
+  (t) => [
+    index('infra_episodio_miembro_episodio_id_idx').on(t.episodioDerivadoId),
+    index('infra_episodio_miembro_cue_anexo_idx').on(t.cueAnexo),
+  ],
+)

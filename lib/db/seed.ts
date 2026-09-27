@@ -414,6 +414,34 @@ CREATE TABLE IF NOT EXISTS \`infra_risk_factor\` (
   FOREIGN KEY (\`snapshot_id\`) REFERENCES \`infra_risk_snapshot\`(\`id\`) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS \`infra_risk_factor_snapshot_id_idx\` ON \`infra_risk_factor\` (\`snapshot_id\`);
+-- E7a: episodios derivados (calculados automáticamente)
+CREATE TABLE IF NOT EXISTS \`infra_episodio_derivado\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`regla_version\` text NOT NULL,
+  \`parametros\` text NOT NULL,
+  \`unidad_tipo\` text NOT NULL,
+  \`unidad_id\` text NOT NULL,
+  \`inicio_en\` text NOT NULL,
+  \`fin_en\` text,
+  \`estado\` text NOT NULL,
+  \`escuelas_afectadas\` integer NOT NULL,
+  \`calculado_en\` text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_derivado_unidad_idx\` ON \`infra_episodio_derivado\` (\`unidad_tipo\`, \`unidad_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_derivado_regla_version_idx\` ON \`infra_episodio_derivado\` (\`regla_version\`);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_derivado_estado_idx\` ON \`infra_episodio_derivado\` (\`estado\`);
+CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`episodio_derivado_id\` text NOT NULL,
+  \`cue_anexo\` text NOT NULL,
+  \`movimiento_id\` text,
+  \`primera_afectacion_en\` text NOT NULL,
+  \`recuperado_en\` text,
+  FOREIGN KEY (\`episodio_derivado_id\`) REFERENCES \`infra_episodio_derivado\`(\`id\`) ON DELETE CASCADE,
+  FOREIGN KEY (\`movimiento_id\`) REFERENCES \`infra_movimiento\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
+CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
 `
 
 let seedPromise: Promise<void> | null = null
