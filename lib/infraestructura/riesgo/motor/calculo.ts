@@ -195,6 +195,10 @@ export async function calcularRiesgoEscuela(params: {
       })
       validecesPeligro.push(nivelCelda.validoHasta)
       peligroCeldaPresente = true
+      // El umbral provisorio es evidencia de MENOR CONFIANZA, no una ausencia:
+      // el factor se agrega igual al score, pero cuenta como faltante para que
+      // la confianza baje un escalón respecto de un percentil de climatología.
+      if (nivelCelda.metodo === 'umbral_provisorio') cantidadFaltantes += 1
     }
   }
   if (!peligroCeldaPresente) cantidadFaltantes += 1

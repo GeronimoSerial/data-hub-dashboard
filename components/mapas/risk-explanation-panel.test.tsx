@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import {
+  ROTULO_NIVEL_PROVISORIO,
   RiskExplanationPanel,
   type NivelHorizontePanel,
 } from './risk-explanation-panel'
@@ -60,6 +61,46 @@ describe('RiskExplanationPanel — variante departamento', () => {
     // El nivel se lee como texto (no depende del color) y la base queda explícita.
     expect(within(fila72).getByText('(determinístico)')).toBeInTheDocument()
     expect(fila72).toHaveTextContent('Percentil de referencia: P95')
+  })
+
+  it('P1: muestra el rótulo de nivel provisorio cuando el método es umbral_provisorio', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[
+          nivelHorizonte(24, 'naranja', 'deterministico', {
+            metodo: 'umbral_provisorio',
+            precipitacionMm: 100,
+          }),
+        ]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+
+    const fila24 = screen.getByTestId('risk-explanation-horizonte-24')
+    expect(within(fila24).getByText(ROTULO_NIVEL_PROVISORIO)).toBeInTheDocument()
+  })
+
+  it('P1: NO muestra el rótulo de nivel provisorio cuando el método es percentiles (o no está presente)', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[
+          nivelHorizonte(24, 'naranja', 'deterministico', {
+            metodo: 'percentiles',
+            precipitacionMm: 100,
+          }),
+          nivelHorizonte(72, 'verde', 'ensemble'),
+        ]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+
+    expect(screen.queryByText(ROTULO_NIVEL_PROVISORIO)).not.toBeInTheDocument()
   })
 
   it('muestra explícito un horizonte sin dato de amenaza, no lo omite', () => {

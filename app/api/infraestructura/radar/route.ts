@@ -72,6 +72,7 @@ function respuestaVacia(page: number, pageSize: number) {
       departamentos: [],
       escuelas: { items: [], page, pageSize, total: 0, totalPages: 0 },
       kpis: { riesgoAltoTotal: 0, sinEvidenciaTotal: 0 },
+      hayNivelProvisorio: false,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
@@ -204,6 +205,9 @@ export async function GET(request: Request) {
   // publicó el run de riesgo vigente, no con Date.now(), para que ninguna
   // corrida de peligro más nueva se cuele en el mismo corte.
   const niveles = await obtenerNivelesPeligro({ ahora: new Date(publicadoEn) })
+  const hayNivelProvisorio = niveles.some(
+    (fila) => fila.metodo === 'umbral_provisorio',
+  )
   const celdasPorDepartamento = await cargarCeldasPorDepartamento(departamento)
   const departamentos = construirDepartamentos(niveles, celdasPorDepartamento)
 
@@ -282,6 +286,7 @@ export async function GET(request: Request) {
         riesgoAltoTotal: Number(altoRow?.count ?? 0),
         sinEvidenciaTotal: Number(sinEvidenciaRow?.count ?? 0),
       },
+      hayNivelProvisorio,
     },
     { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )

@@ -85,6 +85,9 @@ export interface RespuestaRadar {
     riesgoAltoTotal: number
     sinEvidenciaTotal: number
   }
+  // P1: alguna celda del corte usa umbral provisorio (falta su climatología
+  // ERA5). Opcional para no romper fixtures/mocks previos a este batch.
+  hayNivelProvisorio?: boolean
 }
 
 function construirQueryString(filtros: FiltrosRadar): string {
