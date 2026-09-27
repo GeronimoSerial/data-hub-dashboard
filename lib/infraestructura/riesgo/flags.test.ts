@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { aiBriefingEnabled, hazardContextEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
+import {
+  aiBriefingEnabled,
+  hazardContextEnabled,
+  riskEngineEnabled,
+  riskMode,
+  riskRadarEnabled,
+  seasonalEnabled,
+  situacionEnabled,
+} from './flags'
 
 const CLAVES = [
   'RISK_ENGINE_ENABLED',
@@ -7,6 +15,8 @@ const CLAVES = [
   'AI_BRIEFING_ENABLED',
   'RISK_MODE',
   'HAZARD_CONTEXT_ENABLED',
+  'SEASONAL_ENABLED',
+  'SITUACION_ENABLED',
 ] as const
 
 const originales = new Map<string, string | undefined>()
@@ -94,6 +104,44 @@ describe('hazardContextEnabled', () => {
   it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
     process.env.HAZARD_CONTEXT_ENABLED = '1'
     expect(hazardContextEnabled()).toBe(false)
+  })
+})
+
+describe('seasonalEnabled', () => {
+  it('devuelve false por defecto (sin la variable seteada)', () => {
+    delete process.env.SEASONAL_ENABLED
+    expect(seasonalEnabled()).toBe(false)
+  })
+
+  it('devuelve true con el valor exacto "true"', () => {
+    process.env.SEASONAL_ENABLED = 'true'
+    expect(seasonalEnabled()).toBe(true)
+  })
+
+  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
+    process.env.SEASONAL_ENABLED = '1'
+    expect(seasonalEnabled()).toBe(false)
+    process.env.SEASONAL_ENABLED = 'yes'
+    expect(seasonalEnabled()).toBe(false)
+  })
+})
+
+describe('situacionEnabled', () => {
+  it('devuelve false sin la variable seteada', () => {
+    delete process.env.SITUACION_ENABLED
+    expect(situacionEnabled()).toBe(false)
+  })
+
+  it('devuelve true con el valor exacto "true"', () => {
+    process.env.SITUACION_ENABLED = 'true'
+    expect(situacionEnabled()).toBe(true)
+  })
+
+  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
+    process.env.SITUACION_ENABLED = '1'
+    expect(situacionEnabled()).toBe(false)
+    process.env.SITUACION_ENABLED = 'yes'
+    expect(situacionEnabled()).toBe(false)
   })
 })
 

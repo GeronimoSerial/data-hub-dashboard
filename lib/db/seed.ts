@@ -13,6 +13,7 @@ import {
   shouldReplaceWithSeedFile,
 } from '@/lib/seed-files'
 import { getDb } from './index'
+import { conReintentoPorBloqueo } from './reintento'
 import {
   categorias,
   infraPeriodo,
@@ -502,6 +503,53 @@ CREATE TABLE IF NOT EXISTS \`om_cupo_cooldown\` (
   \`retry_after_segundos\` integer,
   \`actualizada_en\` text NOT NULL
 );
+-- Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal), ver
+-- lib/db/schema.ts (hazardSeasonalTrend) y
+-- lib/infraestructura/riesgo/providers/seasonal.ts.
+CREATE TABLE IF NOT EXISTS \`hazard_seasonal_trend\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`departamento\` text NOT NULL,
+  \`provider\` text NOT NULL,
+  \`model\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`emision_en\` text NOT NULL,
+  \`valido_desde\` text NOT NULL,
+  \`valido_hasta\` text NOT NULL,
+  \`horizonte_desde_dias\` integer NOT NULL,
+  \`horizonte_hasta_dias\` integer NOT NULL,
+  \`miembros_total\` integer NOT NULL,
+  \`miembros_validos\` integer NOT NULL,
+  \`media_mm\` real,
+  \`mediana_mm\` real,
+  \`dispersion_mm\` real,
+  \`probabilidad_sobre_normal\` real,
+  \`version\` text NOT NULL,
+  \`ingerido_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_seasonal_trend_uidx\` ON \`hazard_seasonal_trend\` (\`departamento\`, \`variable\`, \`emision_en\`, \`horizonte_desde_dias\`, \`horizonte_hasta_dias\`);
+CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazard_seasonal_trend\` (\`departamento\`);
+-- E7b: índices temporales para replay (no modifica tablas existentes)
+CREATE INDEX IF NOT EXISTS infra_afectacion_creada_en_idx_e7b ON infra_afectacion(creada_en);
+CREATE INDEX IF NOT EXISTS infra_afectacion_rige_desde_idx_e7b ON infra_afectacion(rige_desde);
+CREATE INDEX IF NOT EXISTS infra_risk_run_publicado_en_idx_e7b ON infra_risk_run(publicado_en);
+-- E5: Centro de Situación
+CREATE TABLE IF NOT EXISTS \`infra_situacion_corte\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`generado_en\` text NOT NULL,
+  \`risk_run_id\` text,
+  \`cobertura\` text,
+  \`conteos_por_nivel_riesgo\` text NOT NULL,
+  \`kpis\` text NOT NULL,
+  \`fuentes_salud\` text NOT NULL,
+  \`episodios_abiertos\` integer NOT NULL DEFAULT 0,
+  \`episodios_cerrados_desde_anterior\` integer NOT NULL DEFAULT 0,
+  \`generado_por_job_run_id\` text,
+  \`creada_en\` text NOT NULL,
+  FOREIGN KEY (\`risk_run_id\`) REFERENCES \`infra_risk_run\`(\`id\`),
+  FOREIGN KEY (\`generado_por_job_run_id\`) REFERENCES \`infra_job_run\`(\`id\`)
+);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_generado_en_idx\` ON \`infra_situacion_corte\` (\`generado_en\`);
+CREATE INDEX IF NOT EXISTS \`infra_situacion_corte_risk_run_id_idx\` ON \`infra_situacion_corte\` (\`risk_run_id\`);
 `
 
 let seedPromise: Promise<void> | null = null
@@ -738,6 +786,20 @@ export async function sembrarPeriodoEnos(): Promise<void> {
 
 async function seedHub() {
   const db = getDb()
+  // WAL en vez del rollback journal por default: app/api/problematicas/parte/route.ts
+  // abre transacciones de escritura con BEGIN IMMEDIATE en su propia conexión
+  // nativa (cada `client.transaction()` de @libsql/client abre una conexión
+  // nueva) mientras OTRAS conexiones del mismo proceso siguen leyendo (ge.sqlite
+  // adjuntada, `obtenerAfectacionesYServicio`, etc.) — en rollback journal mode
+  // un escritor con lock reservado/pendiente puede dejar sin lectura a esas
+  // otras conexiones el tiempo suficiente para que la propia liberación del
+  // lock quede bloqueada esperando un lector, un patrón que en la práctica
+  // dejaba el lock colgado indefinidamente entre tests con dos escritores
+  // concurrentes reales (Promise.all). WAL permite lectores concurrentes con
+  // un único escritor sin ese bloqueo cruzado. `journal_mode` es una
+  // propiedad del ARCHIVO (persiste en el header), así que basta con
+  // pedirlo acá, una vez por proceso.
+  await db.$client.execute('PRAGMA journal_mode=WAL')
   await db.$client.executeMultiple(HUB_DDL)
   // F4.6: las tres tablas del modelo deprecado ya no se crean en HUB_DDL; se
   // dropean acá, donde antes vivían sus helpers ensure/backfill, para que una
@@ -759,31 +821,44 @@ async function seedHub() {
   // (HUB_DDL ya no la crea).
   await db.$client.execute('DROP TABLE IF EXISTS `infra_episodio`')
 
-  const [row] = await db.select({ n: count() }).from(niveles)
-  if ((row?.n ?? 0) === 0) {
-    const seeded = seedRecursos.map(withSeedFile)
-    const tagJoins = seeded.flatMap((r) =>
-      r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
-    )
-
-    await db.transaction(async (tx) => {
-      await tx.insert(niveles).values(seedNiveles)
-      await tx.insert(tipos).values(seedTipos)
-      await tx.insert(categorias).values(seedCategorias)
-      await tx.insert(tags).values(seedTags)
-      await tx.insert(recursos).values(
-        seeded.map(
-          ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
-            row,
-        ),
+  // Reintento ante SQLITE_BUSY (lib/db/reintento.ts): TODO el bloque —el
+  // conteo Y la decisión de sembrar vs. convertir— vive DENTRO del intento,
+  // nunca sólo la transacción de siembra. Si dos procesos corren seedHub()
+  // casi al mismo tiempo (p. ej. el proceso web y un job de scripts/, cada
+  // uno con su propia conexión) y éste pierde la carrera por el lock,
+  // reintentar sólo la transacción con el `row.n === 0` viejo insertaría la
+  // siembra dos veces (violando los UNIQUE de niveles/tipos/categorias/tags)
+  // si el otro proceso ya la completó entre medio. Releer `count()` en cada
+  // intento evita ese duplicado: un reintento que encuentra la base ya
+  // sembrada simplemente pasa a `convertExistingSeedFiles()`, como si nunca
+  // hubiera hecho falta sembrar.
+  await conReintentoPorBloqueo(async () => {
+    const [row] = await db.select({ n: count() }).from(niveles)
+    if ((row?.n ?? 0) === 0) {
+      const seeded = seedRecursos.map(withSeedFile)
+      const tagJoins = seeded.flatMap((r) =>
+        r.tagIds.map((tagId) => ({ recursoId: r.id, tagId })),
       )
-      if (tagJoins.length > 0) {
-        await tx.insert(recursoTags).values(tagJoins)
-      }
-    })
-  } else {
-    await convertExistingSeedFiles()
-  }
+
+      await db.transaction(async (tx) => {
+        await tx.insert(niveles).values(seedNiveles)
+        await tx.insert(tipos).values(seedTipos)
+        await tx.insert(categorias).values(seedCategorias)
+        await tx.insert(tags).values(seedTags)
+        await tx.insert(recursos).values(
+          seeded.map(
+            ({ tagIds: _tagIds, audienciaNivelIds: _n, audienciaUserIds: _u, ...row }) =>
+              row,
+          ),
+        )
+        if (tagJoins.length > 0) {
+          await tx.insert(recursoTags).values(tagJoins)
+        }
+      })
+    } else {
+      await convertExistingSeedFiles()
+    }
+  })
 
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).

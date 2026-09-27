@@ -125,6 +125,15 @@
   --z-popup: 90;
   --z-tooltip: 95;
 
+  /* E4: niveles de peligro meteorológico estimado / riesgo educativo. Reusa
+     la paleta oficial (Manual §3.1/§3.2) en vez de inventar colores nuevos;
+     "sin dato" es un gris neutro con trama, nunca un color de nivel. */
+  --nivel-peligro-verde: var(--green);
+  --nivel-peligro-amarillo: var(--yellow);
+  --nivel-peligro-naranja: var(--orange);
+  --nivel-peligro-rojo: var(--red);
+  --nivel-peligro-sin-dato: var(--ink-faint);
+
 }
 
 /* Dark surfaces use the official Negro as ground and step up from it. The
@@ -1804,6 +1813,47 @@ time {
   color: var(--ink);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Conmutador de modo del mapa de infraestructura (Radar E4). Dos botones
+   planos en fila; el activo se marca con aria-pressed y un borde inferior
+   sólido, sin introducir un componente de tabs nuevo. */
+.map-modo-conmutador {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-modo-conmutador button {
+  flex: 1 1 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 600;
+  padding: var(--s-1) 0;
+  cursor: pointer;
+}
+.map-modo-conmutador button[aria-pressed="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.map-radar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-radar-panel .selector-horizonte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+.map-radar-briefing {
+  margin: var(--s-1) 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
 }
 
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
@@ -3764,4 +3814,92 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--fill);
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
+}
+
+/* Centro de Situación (E5): región aria-live que anuncia el refresco
+   automático a lectores de pantalla sin moverla visualmente ni robar foco.
+   Patrón estándar de "visually hidden" (clip + tamaño 1px), no display:none
+   (eso la sacaría del árbol de accesibilidad). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.situacion-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.situacion-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.situacion-kpi__titulo {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.situacion-kpi__valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* "alerta_texto" es sólo énfasis tipográfico (negrita ya la da .situacion-kpi__valor);
+   el color por sí solo NUNCA es la única señal — el texto del título ya dice
+   qué significa el número. */
+.situacion-kpi[data-tono='alerta_texto'] .situacion-kpi__valor {
+  color: var(--danger);
+}
+
+.situacion-cambios__controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: center;
+  margin-bottom: var(--s-3);
+}
+
+.situacion-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.situacion-timeline__fecha {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.situacion-fuentes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* La palabra "(vencida)"/"(al día)" ya está en el texto: el color es sólo
+   refuerzo visual adicional, nunca la única señal. */
+.situacion-fuentes [data-vencida='true'] {
+  color: var(--danger);
 }

@@ -96,7 +96,15 @@ systemctl enable --now enos-ops1-sync-imerg.timer
 systemctl enable --now enos-ops1-calcular-riesgo.timer
 systemctl enable --now enos-ops1-episodios-derivados.timer
 systemctl enable --now enos-ops1-geo-perfiles.timer
+systemctl enable --now enos-ops1-sync-seasonal.timer
+systemctl enable --now enos-ops1-situacion-corte.timer
 ```
+
+`sync-seasonal` es una capa OPCIONAL (Open-Meteo Seasonal, tendencia ENOS a
+30-90 días, detrás del flag `SEASONAL_ENABLED` de UI — ver
+docs/ejecucion-enos/SEASONAL/registro.md). El job corre igual con el flag de
+UI apagado (el flag sólo oculta la tarjeta en el mapa); habilitar este timer
+es opcional y depende de si se decide activar esa capa en el ambiente.
 
 Las climatologías no se habilitan como timer (bajo demanda, ver tabla): se
 corren manualmente con
@@ -116,8 +124,10 @@ UTC`) en vez de reintroducir drop-ins.
 | calcular-riesgo | 6h, encadenado por offset | `*-*-* 08,14,20,02:15:00 UTC` (offset +15min sobre los syncs de 6h) | `enos-ops1-calcular-riesgo.timer` | corre DESPUÉS de sync-pronostico-caudal/sync-ensemble; el offset de 15min evita la carrera; el lease además impide solapes |
 | episodios-derivados | 1h | `*-*-* *:00:00 UTC` | `enos-ops1-episodios-derivados.timer` | recomputo barato, sin llamadas externas |
 | geo-perfiles | diario | `*-*-* 03:00:00 UTC` | `enos-ops1-geo-perfiles.timer` | recompute barato de perfiles geográficos, sin llamadas externas; horario de baja carga |
+| situacion-corte | 1h, alineado tras calcular-riesgo | `*-*-* *:20:00 UTC` | `enos-ops1-situacion-corte.timer` | corre poco después de calcular-riesgo (`:15` en 08,14,20,02 UTC) para que el corte del Centro de Situación (E5) refleje el riesgo recién calculado lo antes posible; en las demás horas corre con su propia cadencia horaria |
 | climatologia-precipitacion | bajo demanda | sin timer | — | ejecución manual (`docker exec <CONTENEDOR> node scripts/jobs.mjs climatologia-precipitacion`); cálculo pesado de serie histórica, no cambia seguido |
 | climatologia-caudal | bajo demanda | sin timer | — | ídem anterior |
+| sync-seasonal | diario (opcional) | `*-*-* 09:00:00 UTC` | `enos-ops1-sync-seasonal.timer` | Open-Meteo Seasonal (EC46+SEAS5): EC46 actualiza a diario (20:30Z), SEAS5 mensual; una corrida diaria alcanza. Capa opcional detrás de `SEASONAL_ENABLED` (UI); el job corre igual, sólo la tarjeta queda oculta con el flag apagado |
 
 ### Caveat de secuencia entre jobs distintos (sin cola/orquestador)
 
@@ -130,17 +140,26 @@ distintos entre sí). Efectos concretos a tener en cuenta:
 - `calcular-riesgo` corre a `:15` sobre la ventana de 6h de
   `sync-pronostico-caudal`/`sync-ensemble`, pero **no** espera a `sync-imerg`
   (cadencia horaria, independiente): puede calcular riesgo con datos de IMERG
-  de hasta ~1h de antigüedad. Esto es una decisión de producto pendiente de
-  revisar con datos reales de duración (¿conviene un segundo timer horario
-  con offset del propio `calcular-riesgo`, p. ej. `*:20:00 UTC`, además del
-  de 6h? — **pendiente de ensayo**, no bloqueante: `calcular-riesgo` en modo
-  `shadow` no expone nada a usuarios).
+  de hasta ~1h de antigüedad. Esto es una decisión de producto que E5 resolvió
+  con su propio job/timer: `situacion-corte` corre cada hora a
+  `*:20:00 UTC` (offset de +5min sobre `calcular-riesgo` cuando coinciden en
+  08,14,20,02), para que el corte del Centro de Situación refleje el riesgo
+  recién calculado lo antes posible. Sigue siendo un **offset fijo sin
+  cola/orquestador**, con el mismo caveat que `calcular-riesgo`: si el timer de
+  `calcular-riesgo` se atrasa, el corte puede reflejar datos de hasta ~1h de
+  antigüedad.
 - `episodios-derivados` y `sync-imerg` comparten cadencia horaria en `:00`
   pero no hay offset entre ambos: `episodios-derivados` puede correr con
   datos de IMERG de la hora anterior si el orden de disparo dentro del mismo
   minuto no favorece a `sync-imerg`. Bajo riesgo (recompute barato, se
   corrige solo en la corrida siguiente), pero documentado para no
   sorprenderse si aparece en el panel.
+
+Consumidor del `situacion-corte`: la UI del Centro de Situación (E5) muestra
+cuándo se generó el corte y lo marca "desactualizado" reusando
+`estaAtrasado`/`estadoAtrasoJob` de `lib/infraestructura/riesgo/cadencias.ts`
+con `nombre: 'situacion-corte'` (el mismo mecanismo que ya usa
+`/admin/operacion` para los demás jobs).
 
 ## Variante Docker — cómo se invoca el runner dentro del contenedor
 
@@ -185,6 +204,7 @@ systemd-analyze verify /etc/systemd/system/enos-ops1-sync-imerg.timer
 systemd-analyze verify /etc/systemd/system/enos-ops1-calcular-riesgo.timer
 systemd-analyze verify /etc/systemd/system/enos-ops1-episodios-derivados.timer
 systemd-analyze verify /etc/systemd/system/enos-ops1-geo-perfiles.timer
+systemd-analyze verify /etc/systemd/system/enos-ops1-situacion-corte.timer
 ```
 
 Tras `systemctl start`, revisar `/admin/operacion` (requiere sesión con rol

@@ -122,6 +122,9 @@ const CUE_N = '1801605-56'
 // CUE exclusivo del test de N reintentos secuenciales con la misma clave de
 // idempotencia: arranca sin parte para que el primer POST sea el que lo crea.
 const CUE_IDEM = '1801605-57'
+// CUE exclusivo del test de la carrera cross-device (fix/parte-alta-concurrente):
+// dos POSTs concurrentes con distinta idempotencyKey para la primera alta.
+const CUE_CONCURRENTE = '1801605-58'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -140,7 +143,10 @@ beforeAll(async () => {
     await ge.execute(
       "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
     )
-    for (const cue of [CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N, CUE_IDEM]) {
+    for (const cue of [
+      CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
+      CUE_IDEM, CUE_CONCURRENTE,
+    ]) {
       await ge.execute(
         `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
       )
@@ -433,6 +439,71 @@ describe('POST /api/problematicas/parte', () => {
 
     const partes = await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_IDEM))
     expect(partes).toHaveLength(1)
+  })
+
+  it('dos POSTs concurrentes con distinta idempotencyKey para la primera alta del mismo CUE no duplican el parte ni la afectación (fix/parte-alta-concurrente)', async () => {
+    // Riesgo residual documentado en docs/ejecucion-enos/E1b/registro.md
+    // ("Correcciones del gate N1"): dos dispositivos que mandan la primera
+    // alta del mismo CUE+período casi al mismo tiempo, cada uno con SU
+    // PROPIA idempotencyKey (la dedup por clave de E1b es de un único
+    // dispositivo, no cruza dispositivos). Antes del fix, el chequeo de
+    // "¿ya existe el parte?" se hacía ANTES de la transacción de escritura:
+    // ambos POST lo veían en `null`, ambos se trataban como alta nueva, y
+    // aunque el parte en sí no se duplicaba (ya tenía onConflictDoNothing),
+    // sí se insertaba una infra_afectacion nueva por cada uno para el MISMO
+    // evento, y ambos movimientos quedaban como 'reporte_inicial' aunque
+    // sólo había un parte.
+    const payloadBase = {
+      cue: CUE_CONCURRENTE,
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [
+        { motivo: 'Inundación', severidad: 'Alta' as const, secciones: [seccionId(CUE_CONCURRENTE, '10')] },
+      ],
+    }
+
+    const [resA, resB] = await Promise.all([
+      POST(postReq({ ...payloadBase, idempotencyKey: crypto.randomUUID() })),
+      POST(postReq({ ...payloadBase, idempotencyKey: crypto.randomUUID() })),
+    ])
+
+    const cuerpos = await Promise.all([resA, resB].map((r) => r.json()))
+
+    // Ninguna de las dos respuestas puede ser un 500: o crea/actualiza (201),
+    // o detecta que el contenido ya está cubierto y no cambia nada (409 "sin
+    // cambios", spec §17) — nunca un error de escritura sin manejar.
+    for (const res of [resA, resB]) {
+      expect([201, 409]).toContain(res.status)
+    }
+    // Al menos una de las dos tiene que haber escrito el parte.
+    expect([resA.status, resB.status]).toContain(201)
+
+    const db = getDb()
+    const partes = await db.select().from(infraParte).where(eq(infraParte.cueAnexo, CUE_CONCURRENTE))
+    expect(partes).toHaveLength(1)
+
+    const afectaciones = await db
+      .select()
+      .from(infraAfectacion)
+      .where(eq(infraAfectacion.parteId, partes[0]!.id))
+    // El requisito duro: nunca dos filas de afectación describiendo el mismo
+    // evento, sin importar cómo haya resuelto cada POST individual.
+    expect(afectaciones).toHaveLength(1)
+
+    const movimientos = await db
+      .select()
+      .from(infraMovimiento)
+      .where(eq(infraMovimiento.parteId, partes[0]!.id))
+    // A lo sumo un 'reporte_inicial': si la segunda request llegó después de
+    // que la primera ya hubiera confirmado el parte, se procesa como
+    // actualización (aunque, al no aportar contenido nuevo, puede terminar
+    // en el 409 de "sin cambios" en vez de un movimiento 'actualizacion' —
+    // ambos desenlaces son válidos, lo que nunca puede pasar es un segundo
+    // 'reporte_inicial').
+    const reportesIniciales = movimientos.filter((m) => m.tipo === 'reporte_inicial')
+    expect(reportesIniciales).toHaveLength(1)
+    for (const cuerpo of cuerpos) {
+      if (cuerpo.ok) expect(cuerpo.parteId).toBe(partes[0]!.id)
+    }
   })
 
   it('el segundo POST (actualización) escribe tipo actualizacion y no crea un segundo parte', async () => {

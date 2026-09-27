@@ -29,9 +29,26 @@ export function hazardContextEnabled(): boolean {
   return esTrue(process.env.HAZARD_CONTEXT_ENABLED)
 }
 
+// Gobierna sólo la UI de la tarjeta "Perspectiva 30-90 días" (tendencia ENOS
+// regional, Open-Meteo Seasonal) dentro del panel de explicación del Radar.
+// Apagado por defecto (Off/E5+, capa opcional — plan-implementacion §9.3).
+// La API /tendencia-estacional existe siempre, protegida por ACL staff; este
+// flag sólo oculta el frontend, mismo criterio que hazardContextEnabled.
+export function seasonalEnabled(): boolean {
+  return esTrue(process.env.SEASONAL_ENABLED)
+}
+
 // Modo de operación del motor: 'advisory' solo si el valor es exactamente
 // 'advisory'; cualquier otro valor (incluido undefined o inválido) cae al
 // default seguro 'shadow'. No lanza excepción ante valor inválido.
 export function riskMode(): 'shadow' | 'advisory' {
   return process.env.RISK_MODE === ES_ADVISORY ? 'advisory' : 'shadow'
+}
+
+// Gobierna sólo la UI nueva del Centro de Situación (E5, ruta /situacion) y
+// nada más: las APIs /api/infraestructura/situacion* existen siempre,
+// protegidas por adminPageGate/ACL, este flag sólo oculta el frontend. Apagado
+// por defecto, como todos los flags de este módulo.
+export function situacionEnabled(): boolean {
+  return esTrue(process.env.SITUACION_ENABLED)
 }

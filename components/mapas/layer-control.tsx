@@ -93,3 +93,45 @@ export function InfraLayerControl({
     </div>
   )
 }
+
+// ── Capas del modo Radar ────────────────────────────────────────────────────
+//
+// Dominio DISTINTO del de arriba: peligro meteorológico estimado y riesgo
+// pronosticado, no estado de servicio observado. Por eso es un union type y un
+// componente HERMANO en vez de ampliar `CapaInfraestructura`: el comentario de
+// ese tipo dice que es a propósito acotado a un dominio, y meter acá 'peligro'
+// y 'riesgo' haría que ambos controles tuvieran que ignorarse mutuamente las
+// claves que no les corresponden. Los dos controles conviven en el mismo
+// `controlsStack` y el radar sólo se monta si el flag está prendido.
+export type CapaRadar = 'peligro' | 'riesgo'
+
+export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = {
+  peligro: 'Peligro meteorológico estimado (por departamento)',
+  riesgo: 'Riesgo pronosticado por escuela',
+}
+
+const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo']
+
+export function RadarLayerControl({
+  capas,
+  onChange,
+}: {
+  capas: Record<CapaRadar, boolean>
+  onChange: (capa: CapaRadar, value: boolean) => void
+}) {
+  const styles = useOverlayStyles()
+
+  return (
+    <div className={styles.controlCard}>
+      <h2 className={styles.controlHeading}>Capas del radar</h2>
+      {ORDEN_CAPAS_RADAR.map((capa) => (
+        <Checkbox
+          key={capa}
+          label={CAPAS_RADAR_LABELS[capa]}
+          checked={capas[capa]}
+          onCheckedChange={(checked) => onChange(capa, checked)}
+        />
+      ))}
+    </div>
+  )
+}

@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
 import { PUNTOS_RIO, type PuntoRio } from './puntos-rio'
 
@@ -80,11 +81,19 @@ export async function calcularAsociacionesRio(
 
   const filas = await db.select().from(infraGeoProfile)
 
-  let conPunto = 0
-  let sinPunto = 0
-
-  await db.transaction(async (tx) => {
-    for (const fila of filas) {
+  // Job (no request path): sin BEGIN IMMEDIATE propio, así que db.transaction
+  // (BEGIN DEFERRED) puede toparse con SQLITE_BUSY si compite con un escritor
+  // concurrente sobre el mismo hub.sqlite (p. ej. la ruta de parte). Reintento
+  // seguro: la transacción entera se revierte si falla a mitad de camino
+  // (nunca deja upserts a medio aplicar) y el upsert por cueAnexo es
+  // plenamente re-ejecutable desde cero. `conPunto`/`sinPunto` se cuentan
+  // DENTRO del intento (nunca afuera) para no duplicar el conteo si un
+  // intento anterior llegó a correr parte del loop antes de fallar.
+  const { conPunto, sinPunto } = await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
+      let conPuntoIntento = 0
+      let sinPuntoIntento = 0
+      for (const fila of filas) {
       let puntoRioId: string | null = null
       let distanciaKm: number | null = null
 
@@ -122,10 +131,12 @@ export async function calcularAsociacionesRio(
           },
         })
 
-      if (puntoRioId !== null) conPunto += 1
-      else sinPunto += 1
-    }
-  })
+      if (puntoRioId !== null) conPuntoIntento += 1
+      else sinPuntoIntento += 1
+      }
+      return { conPunto: conPuntoIntento, sinPunto: sinPuntoIntento }
+    }),
+  )
 
   return {
     procesados: filas.length,

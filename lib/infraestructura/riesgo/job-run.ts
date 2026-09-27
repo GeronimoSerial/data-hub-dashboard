@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, eq, lte, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraJobRun } from '@/lib/db/schema'
 import type { EstadoJob } from './tipos'
 
@@ -29,6 +30,19 @@ type AdquirirLeaseResultado =
 // condición) dejaba una ventana donde dos invocaciones concurrentes podían
 // recuperar el mismo lease vencido y ambas terminar publicando resultado.
 export async function adquirirLease(
+  params: AdquirirLeaseParams,
+): Promise<AdquirirLeaseResultado> {
+  // Reintento ante SQLITE_BUSY (ver lib/db/reintento.ts): CADA intento
+  // re-decide desde cero (insert-attempt condicionado, select fresco,
+  // update condicionado) leyendo el estado real de esa vuelta — nunca
+  // reutiliza una decisión tomada en un intento anterior. Eso es lo que
+  // mantiene el CAS de fencing intacto: un intento retried no puede
+  // "recuperar" un lease con datos viejos, porque vuelve a correr la misma
+  // lectura+condición contra el estado actual de la fila.
+  return conReintentoPorBloqueo(() => adquirirLeaseIntento(params))
+}
+
+async function adquirirLeaseIntento(
   params: AdquirirLeaseParams,
 ): Promise<AdquirirLeaseResultado> {
   const db = getDb()
@@ -130,6 +144,12 @@ type RenovarLeaseParams = {
 }
 
 export async function renovarLease(params: RenovarLeaseParams): Promise<boolean> {
+  // Un solo UPDATE condicionado (CAS por estado+leaseOwner): reintentar el
+  // mismo UPDATE desde cero ante SQLITE_BUSY no cambia su semántica.
+  return conReintentoPorBloqueo(() => renovarLeaseIntento(params))
+}
+
+async function renovarLeaseIntento(params: RenovarLeaseParams): Promise<boolean> {
   const db = getDb()
   const ahora = params.ahora ?? new Date()
   const leaseExpiraEn = new Date(ahora.getTime() + params.duracionLeaseMs).toISOString()
@@ -159,6 +179,12 @@ type PublicarResultadoParams = {
 }
 
 export async function publicarResultado(params: PublicarResultadoParams): Promise<boolean> {
+  // Mismo motivo que renovarLease: un único UPDATE condicionado (CAS por
+  // estado+leaseOwner), idempotente de reintentar desde cero.
+  return conReintentoPorBloqueo(() => publicarResultadoIntento(params))
+}
+
+async function publicarResultadoIntento(params: PublicarResultadoParams): Promise<boolean> {
   const db = getDb()
   const ahora = params.ahora ?? new Date()
 

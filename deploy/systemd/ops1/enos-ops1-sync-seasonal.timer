@@ -1,0 +1,16 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-seasonal (diario, Open-Meteo Seasonal ECMWF SEAS5+EC46)
+
+[Timer]
+# Una vez al día alcanza: EC46 (parte del blend ecmwf_seasonal_seamless)
+# actualiza a diario a las 20:30Z, SEAS5 sólo el día 5 de cada mes (ver
+# lib/infraestructura/riesgo/providers/seasonal.ts). 09:00 UTC deja margen
+# después de la corrida diaria de EC46 del día anterior sin competir con los
+# demás timers de 6h (00/06/12/18).
+OnCalendar=*-*-* 09:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@sync-seasonal.service
+
+[Install]
+WantedBy=timers.target

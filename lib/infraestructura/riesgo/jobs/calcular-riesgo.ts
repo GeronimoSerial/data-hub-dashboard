@@ -18,17 +18,29 @@ import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearAdapterAislamientoNoDisponible } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
-import { crearAdapterLluviaNoDisponible } from '../motor/adaptadores/lluvia'
-import { crearAdapterPeligroNoDisponible } from '../motor/adaptadores/peligro'
+import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
+import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
 import { crearAdapterSusceptibilidadNoDisponible } from '../motor/adaptadores/susceptibilidad'
 import { crearAdapterTerritorio } from '../motor/adaptadores/territorio'
 import { calcularRiesgoEscuela } from '../motor/calculo'
 import { MOTOR_VERSION } from '../motor/config'
-import type { HorizontePeligro, PuertosMotor } from '../motor/puertos'
+import type {
+  HorizontePeligro,
+  IndicadoresSusceptibilidad,
+  LluviaObservadaCelda,
+  NivelAislamiento,
+  NivelCaudalPunto,
+  NivelPeligroCelda,
+  PerfilTerritorio,
+  PuertosMotor,
+  ResumenExposicion,
+  ResumenHistorial,
+} from '../motor/puertos'
 import { adquirirLease, publicarResultado, renovarLease } from '../job-run'
 
 const TIPO_JOB = 'calcular-riesgo-v0'
@@ -62,7 +74,12 @@ async function insertarEnChunks<TSchema extends SQLiteTable>(
 ): Promise<void> {
   for (let inicio = 0; inicio < filas.length; inicio += tamanoChunk) {
     const chunk = filas.slice(inicio, inicio + tamanoChunk)
-    if (chunk.length > 0) await db.insert(tabla).values(chunk)
+    // Cada chunk es un INSERT único de filas con ids ya generados (nunca se
+    // regeneran entre intentos): si SQLITE_BUSY interrumpe el statement no
+    // queda nada escrito, así que reintentar el mismo INSERT es seguro. El
+    // run sigue 'preparando' durante todo este loop, invisible para
+    // lectores, así que un reintento acá no afecta la publicación atómica.
+    if (chunk.length > 0) await conReintentoPorBloqueo(() => db.insert(tabla).values(chunk))
   }
 }
 
@@ -84,13 +101,117 @@ function inicioDeBloqueUtc(ahora: Date): Date {
 
 function construirPuertosReales(): PuertosMotor {
   return {
-    peligro: crearAdapterPeligroNoDisponible(),
-    lluviaObservada: crearAdapterLluviaNoDisponible(),
+    peligro: crearAdapterPeligro(),
+    lluviaObservada: crearAdapterLluvia(),
     territorio: crearAdapterTerritorio(),
     aislamiento: crearAdapterAislamientoNoDisponible(),
     susceptibilidad: crearAdapterSusceptibilidadNoDisponible(),
     historial: crearAdapterHistorial(),
     exposicion: crearAdapterExposicion(),
+  }
+}
+
+// Cacheo por corrida de las consultas que NO dependen del horizonte. El núcleo
+// calcularRiesgoEscuela se invoca una vez por (escuela, horizonte) y, para cada
+// horizonte, vuelve a pedir exactamente los mismos datos: el perfil territorial
+// (dato estático por escuela), el peligro de celda, el caudal del punto, la
+// lluvia observada, el historial, el aislamiento, la susceptibilidad y la
+// exposición. Ninguno de esos puertos recibe el horizonte como parámetro y
+// `asOf` es constante en toda la corrida, así que memoizar por su clave natural
+// (cueAnexo / geometryRef / puntoId) no cambia el resultado observable, sólo
+// evita repetir la misma consulta 3 veces (una por horizonte) y una vez por
+// cada escuela que comparte celda.
+//
+// obtenerNivelesCelda se trata aparte: el núcleo pide un horizonte por vez
+// (`horizontes: [h]`). Acá se pide la lista completa de horizontes UNA vez por
+// geometryRef y se filtra en memoria el horizonte solicitado, en vez de golpear
+// el puerto por cada horizonte y por cada escuela que comparte la misma celda.
+function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
+  const perfiles = new Map<string, Promise<PerfilTerritorio | null>>()
+  const nivelesCelda = new Map<string, Promise<NivelPeligroCelda[]>>()
+  const nivelesCaudal = new Map<string, Promise<NivelCaudalPunto | null>>()
+  const lluvia = new Map<string, Promise<LluviaObservadaCelda>>()
+  const historiales = new Map<string, Promise<ResumenHistorial>>()
+  const aislamientos = new Map<string, Promise<NivelAislamiento | null>>()
+  const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
+  const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
+
+  function memoizar<K, V>(
+    cache: Map<K, Promise<V>>,
+    clave: K,
+    producir: () => Promise<V>,
+  ): Promise<V> {
+    const cacheado = cache.get(clave)
+    if (cacheado !== undefined) return cacheado
+    const promesa = producir()
+    cache.set(clave, promesa)
+    return promesa
+  }
+
+  return {
+    peligro: {
+      obtenerNivelesCelda(params) {
+        const promesa = memoizar(nivelesCelda, params.geometryRef, () =>
+          puertos.peligro.obtenerNivelesCelda({
+            geometryRef: params.geometryRef,
+            horizontes: HORIZONTES,
+            asOf: params.asOf,
+          }),
+        )
+        // El array cacheado es el conjunto completo de horizontes; cada
+        // llamador recibe una vista filtrada a los horizontes que pidió, igual
+        // que devolvería el puerto subyacente.
+        return promesa.then((todos) =>
+          todos.filter((nivel) => params.horizontes.includes(nivel.horizonteHoras)),
+        )
+      },
+      obtenerNivelCaudal(params) {
+        return memoizar(nivelesCaudal, params.puntoId, () =>
+          puertos.peligro.obtenerNivelCaudal(params),
+        )
+      },
+    },
+    lluviaObservada: {
+      obtenerAcumulado(params) {
+        return memoizar(lluvia, params.geometryRef, () =>
+          puertos.lluviaObservada.obtenerAcumulado(params),
+        )
+      },
+    },
+    territorio: {
+      obtenerPerfil(cueAnexo) {
+        return memoizar(perfiles, cueAnexo, () => puertos.territorio.obtenerPerfil(cueAnexo))
+      },
+      listarCuesConPerfil() {
+        return puertos.territorio.listarCuesConPerfil()
+      },
+    },
+    aislamiento: {
+      obtenerIndice(cueAnexo) {
+        return memoizar(aislamientos, cueAnexo, () => puertos.aislamiento.obtenerIndice(cueAnexo))
+      },
+    },
+    susceptibilidad: {
+      obtenerIndicadores(cueAnexo) {
+        return memoizar(susceptibilidades, cueAnexo, () =>
+          puertos.susceptibilidad.obtenerIndicadores(cueAnexo),
+        )
+      },
+    },
+    historial: {
+      obtenerResumen(params) {
+        return memoizar(historiales, params.cueAnexo, () =>
+          puertos.historial.obtenerResumen(params),
+        )
+      },
+    },
+    exposicion: {
+      obtenerResumen(params) {
+        return memoizar(exposiciones, params.cueAnexo, () =>
+          puertos.exposicion.obtenerResumen(params),
+        )
+      },
+    },
   }
 }
 
@@ -116,7 +237,10 @@ export async function calcularYPublicarRiesgo(params?: {
   }
 
   const { jobRunId, leaseOwner } = lease
-  const puertos = params?.puertos ?? construirPuertosReales()
+  // Los puertos se envuelven una única vez por corrida: el cacheo debe vivir
+  // todo el bucle (escuelas x horizontes) para eliminar las repeticiones, no
+  // reiniciarse por lote.
+  const puertos = crearPuertosConCache(params?.puertos ?? construirPuertosReales())
   const db = getDb()
 
   // `runId` se asigna recién después de insertar la fila 'preparando'. Se
@@ -150,16 +274,20 @@ export async function calcularYPublicarRiesgo(params?: {
     // Este insert es INDEPENDIENTE del de snapshots/factores.
     runId = randomUUID()
     const idRun = runId
-    await db.insert(infraRiskRun).values({
-      id: idRun,
-      periodoId: periodo.id,
-      modeloVersion: MOTOR_VERSION,
-      iniciadoEn: asOf,
-      publicadoEn: null,
-      estado: 'preparando',
-      cobertura: null,
-      creadaEn: asOf,
-    })
+    // Insert único con id ya fijado: seguro de reintentar ante SQLITE_BUSY,
+    // nada queda escrito si el statement no llegó a correr.
+    await conReintentoPorBloqueo(() =>
+      db.insert(infraRiskRun).values({
+        id: idRun,
+        periodoId: periodo.id,
+        modeloVersion: MOTOR_VERSION,
+        iniciadoEn: asOf,
+        publicadoEn: null,
+        estado: 'preparando',
+        cobertura: null,
+        creadaEn: asOf,
+      }),
+    )
 
     const cueAnexos = await puertos.territorio.listarCuesConPerfil()
 
@@ -240,7 +368,9 @@ export async function calcularYPublicarRiesgo(params?: {
     // cortado antes de llegar acá; se deja igual para no publicar un run
     // parcial si en el futuro el procesamiento se vuelve concurrente.
     if (procesadas !== cueAnexos.length * HORIZONTES.length) {
-      await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, idRun))
+      await conReintentoPorBloqueo(() =>
+        db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, idRun)),
+      )
       await publicarResultado({
         jobRunId,
         leaseOwner,
@@ -257,21 +387,27 @@ export async function calcularYPublicarRiesgo(params?: {
     // corta es la ÚNICA que cambia qué run es el vigente, y el índice único
     // parcial infra_risk_run_vigente_unico (ver schema.ts) impone a nivel DB
     // que nunca haya dos vigentes a la vez. Sólo estas 2 actualizaciones: los
-    // inserts masivos ya se hicieron fuera de la transacción.
-    await db.transaction(async (tx) => {
-      await tx
-        .update(infraRiskRun)
-        .set({ estado: 'vencido' })
-        .where(eq(infraRiskRun.estado, 'vigente'))
-      await tx
-        .update(infraRiskRun)
-        .set({
-          estado: 'vigente',
-          publicadoEn: new Date().toISOString(),
-          cobertura: { procesadas, conEvidencia, sinEvidencia },
-        })
-        .where(eq(infraRiskRun.id, idRun))
-    })
+    // inserts masivos ya se hicieron fuera de la transacción. Reintento
+    // seguro ante SQLITE_BUSY: la transacción se revierte entera si falla a
+    // mitad de camino, y repetir las mismas 2 actualizaciones desde cero
+    // produce el mismo estado final (vencer el vigente anterior + publicar
+    // este run), sin duplicar ni saltear ninguna.
+    await conReintentoPorBloqueo(() =>
+      db.transaction(async (tx) => {
+        await tx
+          .update(infraRiskRun)
+          .set({ estado: 'vencido' })
+          .where(eq(infraRiskRun.estado, 'vigente'))
+        await tx
+          .update(infraRiskRun)
+          .set({
+            estado: 'vigente',
+            publicadoEn: new Date().toISOString(),
+            cobertura: { procesadas, conEvidencia, sinEvidencia },
+          })
+          .where(eq(infraRiskRun.id, idRun))
+      }),
+    )
 
     await publicarResultado({
       jobRunId,
@@ -290,7 +426,9 @@ export async function calcularYPublicarRiesgo(params?: {
     // reemplace ni oculte el error original.
     if (runId !== undefined) {
       try {
-        await db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, runId))
+        await conReintentoPorBloqueo(() =>
+          db.update(infraRiskRun).set({ estado: 'fallido' }).where(eq(infraRiskRun.id, runId as string)),
+        )
       } catch {
         // Limpieza best-effort: se prioriza propagar el error original.
       }

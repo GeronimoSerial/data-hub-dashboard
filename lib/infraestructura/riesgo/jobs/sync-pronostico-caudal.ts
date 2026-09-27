@@ -19,6 +19,7 @@
 import { randomUUID } from 'node:crypto'
 import { isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { hazardForecast, hazardSourceHealth, infraGeoProfile } from '@/lib/db/schema'
 import { PUNTOS_RIO } from '../puntos-rio'
 import { crearProviderEcmwf } from '../providers/ecmwf'
@@ -213,7 +214,10 @@ async function persistirPuntos(
 
   // Ver comentario de `TAMANO_CHUNK_INSERCION`: nunca un solo `.values()` con
   // todas las filas de la tanda, siempre en chunks dentro de una transacción.
-  await db.transaction(async (tx) => {
+  // Toda la transacción se reintenta ante SQLITE_BUSY: si falla, se revierte
+  // completa y es seguro volver a correrla.
+  await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
     for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
       const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
       await tx
@@ -235,7 +239,8 @@ async function persistirPuntos(
           },
         })
     }
-  })
+    }),
+  )
 
   return filas.length
 }
@@ -250,32 +255,35 @@ async function actualizarSalud(
   const hayError = mensajes.length > 0
   const primerError = hayError ? mensajes[0].slice(0, LARGO_MAX_ERROR) : null
 
-  await db
-    .insert(hazardSourceHealth)
-    .values({
-      provider,
-      // Un insert degradado no conoce un éxito previo: null.
-      ultimoExitoEn: hayError ? null : ahoraIso,
-      ultimoIntentoEn: ahoraIso,
-      estado: hayError ? 'degradado' : 'ok',
-      ultimoErrorSaneado: primerError,
-      ttlMinutos: TTL_MINUTOS,
-      licencia: LICENCIA,
-      actualizadaEn: ahoraIso,
-    })
-    .onConflictDoUpdate({
-      target: hazardSourceHealth.provider,
-      set: {
-        estado: hayError ? 'degradado' : 'ok',
+  // Upsert único: mismo motivo de reintento que persistirPuntos.
+  await conReintentoPorBloqueo(() =>
+    db
+      .insert(hazardSourceHealth)
+      .values({
+        provider,
+        // Un insert degradado no conoce un éxito previo: null.
+        ultimoExitoEn: hayError ? null : ahoraIso,
         ultimoIntentoEn: ahoraIso,
+        estado: hayError ? 'degradado' : 'ok',
         ultimoErrorSaneado: primerError,
         ttlMinutos: TTL_MINUTOS,
         licencia: LICENCIA,
         actualizadaEn: ahoraIso,
-        // En degraded se preserva el último éxito conocido; en ok se actualiza.
-        ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
-      },
-    })
+      })
+      .onConflictDoUpdate({
+        target: hazardSourceHealth.provider,
+        set: {
+          estado: hayError ? 'degradado' : 'ok',
+          ultimoIntentoEn: ahoraIso,
+          ultimoErrorSaneado: primerError,
+          ttlMinutos: TTL_MINUTOS,
+          licencia: LICENCIA,
+          actualizadaEn: ahoraIso,
+          // En degraded se preserva el último éxito conocido; en ok se actualiza.
+          ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
+        },
+      }),
+  )
 }
 
 export async function ejecutarSyncPronosticoCaudal(params?: {

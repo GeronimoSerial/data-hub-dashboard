@@ -921,3 +921,99 @@ export const omCupoCooldown = sqliteTable('om_cupo_cooldown', {
   retryAfterSegundos: integer('retry_after_segundos'),
   actualizadaEn: text('actualizada_en').notNull(),
 })
+// Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal, ECMWF SEAS5 +
+// EC46, 51 miembros, ~36 km) por CENTROIDE de departamento — nunca por
+// escuela (plan-implementacion §9.3 / plan-ejecucion §E5, capa opcional
+// detrás del flag SEASONAL_ENABLED). Ver
+// lib/infraestructura/riesgo/providers/seasonal.ts para el detalle de las
+// fuentes/modelos verificados y la simplificación v0 de
+// `probabilidadSobreNormal`. Tabla propia (no reutiliza `hazard_forecast` ni
+// `hazard_ensemble_prob`, que son por celda de grilla, no por departamento) e
+// índice único por (departamento, variable, emisionEn, horizonteDesdeDias,
+// horizonteHastaDias) para que reintentar el job no duplique.
+export const hazardSeasonalTrend = sqliteTable(
+  'hazard_seasonal_trend',
+  {
+    id: text('id').primaryKey(),
+    departamento: text('departamento').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    variable: text('variable').notNull(),
+    emisionEn: text('emision_en').notNull(),
+    validoDesde: text('valido_desde').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+    horizonteDesdeDias: integer('horizonte_desde_dias').notNull(),
+    horizonteHastaDias: integer('horizonte_hasta_dias').notNull(),
+    miembrosTotal: integer('miembros_total').notNull(),
+    miembrosValidos: integer('miembros_validos').notNull(),
+    mediaMm: real('media_mm'),
+    medianaMm: real('mediana_mm'),
+    dispersionMm: real('dispersion_mm'),
+    probabilidadSobreNormal: real('probabilidad_sobre_normal'),
+    version: text('version').notNull(),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_seasonal_trend_uidx').on(
+      t.departamento,
+      t.variable,
+      t.emisionEn,
+      t.horizonteDesdeDias,
+      t.horizonteHastaDias,
+    ),
+    index('hazard_seasonal_trend_departamento_idx').on(t.departamento),
+  ],
+)
+
+// E7b: índices temporales para replay (no modifica tablas existentes)
+export const infraAfectacionCreadaEnIdxE7b = index('infra_afectacion_creada_en_idx_e7b').on(infraAfectacion.creadaEn)
+export const infraAfectacionRigeDesdeIdxE7b = index('infra_afectacion_rige_desde_idx_e7b').on(infraAfectacion.rigeDesde)
+export const infraRiskRunPublicadoEnIdxE7b = index('infra_risk_run_publicado_en_idx_e7b').on(infraRiskRun.publicadoEn)
+
+// E5: Centro de Situación (infra_situacion_corte)
+//
+// Cada fila es UN corte (snapshot) ejecutivo completo del territorio, generado
+// por un job periódico. No hay filas por escuela ni por departamento: el corte
+// congela su propia cobertura y la salud de fuentes para poder reconstruir el
+// briefing exactamente como se vio en ese instante, sin depender de qué
+// infra_risk_run esté vigente cuando el corte se lea después.
+export const infraSituacionCorte = sqliteTable(
+  'infra_situacion_corte',
+  {
+    id: text('id').primaryKey(),
+    // Instante "as-of" que representa el corte (ISO).
+    generadoEn: text('generado_en').notNull(),
+    // Run de riesgo vigente al generar el corte; null si no había ninguno.
+    riskRunId: text('risk_run_id').references(() => infraRiskRun.id),
+    // Copia de infraRiskRun.cobertura en ese instante (p. ej.
+    // { procesadas, conEvidencia, sinEvidencia }).
+    cobertura: text('cobertura', { mode: 'json' }).$type<Record<string, number> | null>(),
+    // Conteo de escuelas por nivelRiesgo ('bajo'/'moderado'/'alto'/'muy_alto')
+    // al horizonte de 24h, en el instante del corte.
+    conteosPorNivelRiesgo: text('conteos_por_nivel_riesgo', { mode: 'json' })
+      .$type<Record<string, number>>()
+      .notNull(),
+    kpis: text('kpis', { mode: 'json' })
+      .$type<{
+        escuelasAfectacionConfirmadaVigente: number
+        escuelasRiesgoAlto24h: number
+        fuentesVencidas: number
+      }>()
+      .notNull(),
+    // Salud de fuentes congelada en el instante del corte (frescura ya
+    // calculada, no recalculada al leer).
+    fuentesSalud: text('fuentes_salud', { mode: 'json' })
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .notNull(),
+    episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
+    // Episodios que pasaron a cerrado entre el corte anterior y este.
+    episodiosCerradosDesdeAnterior: integer('episodios_cerrados_desde_anterior').notNull().default(0),
+    // Trazabilidad hacia el infra_job_run que produjo este corte.
+    generadoPorJobRunId: text('generado_por_job_run_id').references(() => infraJobRun.id),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    index('infra_situacion_corte_generado_en_idx').on(t.generadoEn),
+    index('infra_situacion_corte_risk_run_id_idx').on(t.riskRunId),
+  ],
+)
