@@ -3,8 +3,17 @@
 // Módulo puro: sin dependencias de React ni de MapLibre.
 import { normalizarNombreDepartamento } from './normalizar-departamento'
 
-/** Ruta pública del GeoJSON con los polígonos de los 25 departamentos. */
-export const DEPARTAMENTOS_URL = '/data/departamentos-corrientes.geojson'
+/**
+ * Ruta pública del GeoJSON con los polígonos de los 25 departamentos.
+ *
+ * Fuente: Georef Argentina (IGN), descarga masiva de
+ * https://infra.datos.gob.ar/georef/departamentos.geojson, filtrada a los 25
+ * departamentos de Corrientes (provincia id 18) y versionada en el repo el
+ * 2026-09-27. Reemplaza al prototipo no oficial
+ * `public/data/departamentos-corrientes.geojson`, que se conserva sin usarse
+ * por si algo más lo referencia en el futuro.
+ */
+export const DEPARTAMENTOS_URL = '/data/departamentos-corrientes-georef-2026-09-27.geojson'
 
 // Bounding box de la provincia de Corrientes, calculado recorriendo todas
 // las coordenadas de todos los polígonos de

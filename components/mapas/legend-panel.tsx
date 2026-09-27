@@ -7,6 +7,7 @@ import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { PeligroLegend } from '@/components/mapas/peligro-legend'
 
 type Props = {
   summary: Summary
@@ -109,12 +110,17 @@ export function LegendPanel({
 // lados era duplicar la misma fuente en la misma pantalla.
 export function InfraLegendPanel({
   departamentosSinMatch = [],
+  mostrarLeyendaPeligro = false,
 }: {
   // F2.4: un departamento de la base que no matchea ningún polígono del
   // GeoJSON no se silencia (gotcha de nombres, ver lib/mapas/departamentos.ts)
   // — se loguea en consola Y se muestra acá, para que sea visible también
   // para quien mira el mapa y no la consola del navegador.
   departamentosSinMatch?: string[]
+  // Modo Radar (E4): cuando está prendido, se inserta el bloque de niveles de
+  // peligro DENTRO de esta misma leyenda (no se monta un panel paralelo). El
+  // componente <PeligroLegend> ya trae su propio título y lista accesible.
+  mostrarLeyendaPeligro?: boolean
 }) {
   const styles = useOverlayStyles()
 
@@ -220,6 +226,13 @@ export function InfraLegendPanel({
         <div className={`${styles.hint} ${styles.statusError}`}>
           Departamento(s) sin coincidencia geográfica: {departamentosSinMatch.join(', ')}
         </div>
+      )}
+
+      {mostrarLeyendaPeligro && (
+        <>
+          <br />
+          <PeligroLegend />
+        </>
       )}
 
     </details>

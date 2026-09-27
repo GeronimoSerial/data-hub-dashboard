@@ -9,36 +9,18 @@
 // explícito de ausencia ('sin_dato' | null) que motor/calculo.ts debe tratar
 // como confianza degradada, nunca como riesgo bajo por defecto.
 
-// --- Espejo de peligro/nivel.ts de E3a; N1 unifica al integrar ---
-// E3a (batch hermano, otro worktree) implementa el tipo real en
-// lib/infraestructura/riesgo/peligro/nivel.ts. Hasta el merge, este archivo
-// declara los mismos tipos para poder tipar el puerto sin depender del
-// código de E3a. Si al integrar difieren, N1 decide cuál es la fuente única.
-export type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
-export type HorizontePeligro = 24 | 72 | 240
+// Tipos del contrato de la Capa 1: fuente única en peligro/nivel.ts de E3a
+// (antes duplicados acá como espejo, ya unificados). Se importan para tipar
+// los puertos y se re-exportan para no romper a quienes los importan desde
+// este archivo (motor/tipos.ts, calculo.ts, jobs/ y fixtures).
+import type {
+  HorizontePeligro,
+  NivelCaudalPunto,
+  NivelPeligro,
+  NivelPeligroCelda,
+} from '../peligro/nivel'
 
-export interface NivelPeligroCelda {
-  geometryRef: string
-  horizonteHoras: HorizontePeligro
-  nivel: NivelPeligro
-  base: 'ensemble' | 'deterministico' | 'sin_dato'
-  probabilidadP95: number | null
-  probabilidadP99: number | null
-  precipitacionMm: number | null
-  percentilReferencia: 'P90' | 'P95' | 'P99' | null
-  emitidoEn: string
-  validoHasta: string
-  versionRegla: string
-}
-
-export interface NivelCaudalPunto {
-  puntoId: string
-  percentilActual: number | null
-  nivel: NivelPeligro
-  emitidoEn: string
-  validoHasta: string
-}
-// --- fin espejo de E3a ---
+export type { HorizontePeligro, NivelCaudalPunto, NivelPeligro, NivelPeligroCelda }
 
 // Peligro meteorológico estimado por celda/horizonte (Capa 1) y por punto de
 // río (caudal). `asOf` es el instante simulado: un adapter real nunca debe

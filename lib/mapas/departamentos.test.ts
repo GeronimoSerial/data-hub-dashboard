@@ -9,7 +9,10 @@ import {
 } from './departamentos'
 
 function cargarDepartamentos(): FeatureCollection {
-  const filePath = path.resolve(process.cwd(), 'public/data/departamentos-corrientes.geojson')
+  const filePath = path.resolve(
+    process.cwd(),
+    'public/data/departamentos-corrientes-georef-2026-09-27.geojson',
+  )
   return JSON.parse(readFileSync(filePath, 'utf8'))
 }
 
@@ -35,7 +38,7 @@ function* recorrerPosiciones(geometry: Geometry): Generator<Position> {
   }
 }
 
-describe('departamentos-corrientes.geojson', () => {
+describe('departamentos-corrientes-georef-2026-09-27.geojson', () => {
   it('parsea como un FeatureCollection', () => {
     const geojson = cargarDepartamentos()
     expect(geojson.type).toBe('FeatureCollection')

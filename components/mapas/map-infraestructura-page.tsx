@@ -38,9 +38,23 @@ import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nomina
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
   InfraLayerControl,
+  RadarLayerControl,
   type CapaInfraestructura,
+  type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { InfraLegendPanel } from '@/components/mapas/legend-panel'
+import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
+import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
+import { useRadar } from '@/lib/infraestructura/use-radar'
+import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
+import {
+  construirCoropletaPeligro,
+  construirPuntosRiesgo,
+  paintCoropletaPeligro,
+  paintPuntosRiesgo,
+  type NivelPorDepartamento,
+  type RiesgoEscuela,
+} from '@/lib/mapas/peligro-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import {
   agregarEscuelasCaidasPorDepartamento,
@@ -123,6 +137,61 @@ const SIMBOLO_EVACUACION_TAMANO = 12
 // distinga un departamento del otro, no competir con los puntos.
 const CAPA_DEPARTAMENTOS_RELLENO_ID = 'infra-departamentos-relleno'
 const CAPA_DEPARTAMENTOS_BORDE_ID = 'infra-departamentos-borde'
+
+// ── Modo Radar (E4) ─────────────────────────────────────────────────────────
+//
+// IDs PROPIOS para no pisar jamás la capa de "escuelas caídas" ni el coroplético
+// de departamentos existente: la coropleta de peligro es una fuente/layer NUEVA
+// montada ENCIMA (misma geometría departamental, otro relleno) y los puntos de
+// riesgo viven en una fuente aparte. Si no fuera una fuente nueva, `Source` de
+// react-map-gl no permitiría dos `data` distintos para el mismo id.
+const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
+const CAPA_RIESGO_CIRCLE_ID = 'infra-riesgo-circle'
+
+// Puntos de riesgo: círculo RELLENO con un halo (stroke) más ancho que el de
+// "afectación confirmada", para que ambas señales se lean juntas cuando la
+// misma escuela tiene las dos. Regla de aceptación del batch: "una escuela con
+// ambas señales muestra ambas, nunca se fusionan" — el color de relleno viene
+// de `paintPuntosRiesgo` (paleta de peligro) y el halo se resuelve acá en la
+// integración, no en el módulo puro.
+const RADIO_PUNTO_RIESGO_BASE = 7
+const RADIO_HALO_RIESGO_EXTRA = 5
+
+function circlePaintRiesgo(): CircleLayerSpecification['paint'] {
+  return {
+    ...paintPuntosRiesgo(),
+    'circle-radius': RADIO_PUNTO_RIESGO_BASE,
+    'circle-opacity': 0.85,
+    'circle-stroke-color': '#1c1c1c',
+    'circle-stroke-width': 2,
+    'circle-stroke-opacity': 0.9,
+  }
+}
+
+// Halo distintivo del riesgo: anillo SIN relleno alrededor del punto, para
+// separarlo visualmente de la forma de "afectación confirmada" (que tiene
+// relleno por severidad y anillo por servicio). El halo no toca ninguno de
+// esos dos canales: es sólo un contorno extra.
+export function circlePaintHaloRiesgo(): CircleLayerSpecification['paint'] {
+  return {
+    'circle-radius': RADIO_PUNTO_RIESGO_BASE + RADIO_HALO_RIESGO_EXTRA,
+    'circle-color': 'transparent',
+    'circle-stroke-color': '#1c1c1c',
+    'circle-stroke-width': 1,
+    'circle-stroke-opacity': 0.5,
+  }
+}
+
+const CAPA_HALO_RIESGO_ID = 'infra-riesgo-halo'
+
+// Etiqueta del conmutador de modo. `role=tablist` + `aria-pressed` sobre
+// botones REALES: operable por teclado sin JS extra.
+type ModoMapa = 'actual' | 'radar'
+
+const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
+  peligro: true,
+  riesgo: true,
+}
 
 // Máscara: tapa todo lo que no es Corrientes. Va primera en el árbol, apenas
 // encima del basemap, para que los departamentos y las alertas queden por
@@ -422,6 +491,7 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
+  riskRadarEnabled?: boolean
 }) {
   const styles = useOverlayStyles()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -457,6 +527,42 @@ export default function MapInfraestructuraPage(props: {
   // mismo default conservador que tenía el gate viejo antes del primer
   // onLoad.
   const [cuesNoAgrupados, setCuesNoAgrupados] = useState<Set<string> | null>(null)
+
+  // ── Modo Radar (E4) ───────────────────────────────────────────────────────
+  //
+  // Todo el estado del radar es INDEPENDIENTE de los tres estados del modo
+  // actual (seleccionCue / nominalAfectacionId / historialCue) y también de
+  // `departamentoSeleccionado`: son dos modos distintos sobre el mismo mapa, y
+  // mezclarlos haría que abrir una ficha de radar pisara el filtro de partes.
+  // `modoRadar` arranca SIEMPRE en false ("Situación actual"), aun con el flag
+  // prendido; el conmutador sólo es visible si `props.riskRadarEnabled`.
+  const [modoRadar, setModoRadar] = useState(false)
+  // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
+  // Sólo los numéricos viajan a la API; 'ahora' no tiene evidencia y el hook
+  // no manda query (ver use-radar.ts). Default 'ahora' = lo más inmediato.
+  const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteRadar>('ahora')
+  const [capasRadarVisibles, setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
+  // Selección del radar: estados propios, nunca reutilizan seleccionCue ni
+  // departamentoSeleccionado (uno es por CUE de parte; estos son por CUE de
+  // snapshot y por nombre de departamento del radar).
+  const [cueRadarSeleccionado, setCueRadarSeleccionado] = useState<string | null>(null)
+  const [departamentoRadarSeleccionado, setDepartamentoRadarSeleccionado] = useState<string | null>(null)
+
+  // El hook SIEMPRE se llama (regla de hooks), pero sólo dispara request con
+  // `activo` true — es decir, flag prendido Y modo Radar. En "Situación actual"
+  // o con el flag apagado no hay fetch ni Source/Layer nuevos.
+  const filtrosRadar = useMemo(
+    () => ({
+      horizonte:
+        typeof horizonteSeleccionado === 'number' ? horizonteSeleccionado : undefined,
+    }),
+    [horizonteSeleccionado],
+  )
+  const radarActivo = (props.riskRadarEnabled ?? false) && modoRadar
+  const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
+    filtrosRadar,
+    radarActivo,
+  )
 
   const filtros = useMemo(
     () => ({
@@ -587,6 +693,126 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [departamentosRaw, data])
 
+  // ── Datos derivados del radar (E4) ────────────────────────────────────────
+  //
+  // Horizontes con evidencia REAL: los que aparecen en las filas de
+  // `data.departamentos` (peorNivel concreto) o en las escuelas del radar. Se
+  // pasan a <SelectorHorizonte> para deshabilitar los que no tienen datos; el
+  // selector siempre ofrece los 4 y el resto queda visible pero inactivo.
+  const horizontesDisponibles = useMemo<HorizonteRadar[]>(() => {
+    if (!radarData) return []
+    const horas = new Set<number>()
+    for (const fila of radarData.departamentos) {
+      if (fila.peorNivel !== 'sin_dato') horas.add(fila.horizonteHoras)
+    }
+    for (const escuela of radarData.escuelas.items) horas.add(escuela.horizonteHoras)
+    return ([24, 72, 240] as HorizonteRadar[]).filter(
+      (h) => typeof h === 'number' && horas.has(h),
+    )
+  }, [radarData])
+
+  // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
+  // duplica el fetch de DEPARTAMENTOS_URL). El radar entrega una fila por
+  // (departamento, horizonte); el módulo puro documenta que hay que filtrar al
+  // horizonte activo antes de cruzar. En 'ahora' no hay horizonte numérico:
+  // todas las features quedan en 'sin_dato' y la capa pinta el gris neutro.
+  const peligroGeojson = useMemo(() => {
+    if (!departamentosRaw) return null
+    const niveles: NivelPorDepartamento[] =
+      typeof horizonteSeleccionado === 'number'
+        ? (radarData?.departamentos ?? [])
+            .filter((fila) => fila.horizonteHoras === horizonteSeleccionado)
+            .map((fila) => ({
+              departamento: fila.departamento,
+              peorNivel: fila.peorNivel,
+            }))
+        : []
+    return construirCoropletaPeligro(departamentosRaw, niveles)
+  }, [departamentosRaw, radarData, horizonteSeleccionado])
+
+  // Índice cueAnexo → riesgo de la página actual del radar, para cruzar contra
+  // las coordenadas que YA existen en `partesPorCue`. Los puntos de riesgo
+  // reutilizan la fuente de coordenadas del modo actual: no se inventa otra.
+  const riesgoPorCue = useMemo(() => {
+    const map = new Map<string, RiesgoEscuela>()
+    for (const escuela of radarData?.escuelas.items ?? []) {
+      map.set(escuela.cueAnexo, {
+        nivelRiesgo: escuela.nivelRiesgo,
+        confianza: escuela.confianza,
+      })
+    }
+    return map
+  }, [radarData])
+
+  const escuelasConCoordenadas = useMemo(
+    () =>
+      (dataVisible?.partes ?? [])
+        .filter((parte) => parte.lat !== null && parte.lon !== null)
+        .map((parte) => ({
+          cueAnexo: parte.cueAnexo,
+          lat: parte.lat as number,
+          lon: parte.lon as number,
+        })),
+    [dataVisible],
+  )
+
+  const puntosRiesgoGeojson = useMemo(
+    () => construirPuntosRiesgo(escuelasConCoordenadas, riesgoPorCue),
+    [escuelasConCoordenadas, riesgoPorCue],
+  )
+
+  // Briefing: `generarBriefing` necesita el run ANTERIOR y los conteos por
+  // nivel, y la API sólo entrega el corte VIGENTE (no el anterior). GAP
+  // documentado en el resumen: sin runAnterior se pasa null y el briefing
+  // devuelve su línea de "primer corte disponible", que es un resultado
+  // honesto, nunca una comparación inventada.
+  const briefingLineas = useMemo(() => {
+    if (!radarData?.corte) return []
+    const conteosPorNivel = { actual: {} as Record<string, number>, anterior: null }
+    for (const escuela of radarData.escuelas.items) {
+      const nivel = escuela.nivelRiesgo ?? 'sin_dato'
+      conteosPorNivel.actual[nivel] = (conteosPorNivel.actual[nivel] ?? 0) + 1
+    }
+    return generarBriefing(
+      {
+        id: radarData.corte.runId,
+        cobertura: radarData.cobertura,
+        publicadoEn: radarData.corte.publicadoEn,
+      },
+      null,
+      conteosPorNivel,
+    )
+  }, [radarData])
+
+  // Escuela de radar seleccionada (para el panel de explicación): se resuelve
+  // del snapshot del radar, no de `partesPorCue` (el radar no siempre tiene un
+  // parte vigente para el mismo CUE).
+  const escuelaRadarSeleccionada = useMemo(
+    () =>
+      radarData?.escuelas.items.find((e) => e.cueAnexo === cueRadarSeleccionado) ?? null,
+    [radarData, cueRadarSeleccionado],
+  )
+
+  // Niveles por horizonte del departamento elegido en el radar, para el panel
+  // de explicación. La API entrega el peor nivel por (departamento, horizonte),
+  // pero NO el detalle de caudal/precipitación/base ensemble por departamento:
+  // esos campos van a null y el panel los muestra como "No disponible" (gap
+  // documentado, no bloquea la integración).
+  const nivelesDepartamentoRadar = useMemo(() => {
+    if (!radarData || departamentoRadarSeleccionado === null) return []
+    return radarData.departamentos
+      .filter((fila) => fila.departamento === departamentoRadarSeleccionado)
+      .map((fila) => ({
+        horizonteHoras: fila.horizonteHoras as 24 | 72 | 240,
+        nivel: fila.peorNivel as 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato',
+        base: 'sin_dato' as const,
+        precipitacionMm: null,
+        percentilReferencia: null,
+        emitidoEn: radarData.corte?.publicadoEn ?? '',
+        validoHasta: radarData.corte?.publicadoEn ?? '',
+      }))
+  }, [radarData, departamentoRadarSeleccionado])
+
   const mapStyle = BASEMAPS[basemap].styleUrl
   // F3.2: ya no hace falta la coordenada del punto seleccionado (era sólo
   // para anclar el Popup de MapLibre); el modal no depende de la posición
@@ -598,6 +824,10 @@ export default function MapInfraestructuraPage(props: {
     ...(capasVisibles.escuelas ? [CAPA_PARTES_ID, CAPA_PARTES_CLUSTER_ID] : []),
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
+    // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
+    // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
+    ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
+    ...(radarActivo && capasRadarVisibles.riesgo ? [CAPA_RIESGO_CIRCLE_ID] : []),
   ]
 
   // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
@@ -623,6 +853,29 @@ export default function MapInfraestructuraPage(props: {
 
   function handleClick(event: MapLayerMouseEvent) {
     const features = event.features ?? []
+
+    // Radar primero: si alguna de sus capas está entre las features del click,
+    // se atiende ese gesto y se corta. En modo Radar las capas de partes pueden
+    // seguir montadas detrás (decisión 2: SUMAR), así que el orden importa —
+    // un click sobre un punto de riesgo abre el panel de riesgo, no la ficha.
+    if (radarActivo) {
+      const puntoRiesgo = features.find(
+        (item) =>
+          item.layer?.id === CAPA_RIESGO_CIRCLE_ID || item.layer?.id === CAPA_HALO_RIESGO_ID,
+      )
+      const cueRiesgo = puntoRiesgo?.properties?.cueAnexo
+      if (typeof cueRiesgo === 'string') {
+        setCueRadarSeleccionado(cueRiesgo)
+        return
+      }
+      const peligro = features.find((item) => item.layer?.id === CAPA_PELIGRO_FILL_ID)
+      const nombrePeligro = peligro?.properties?.nombre
+      if (typeof nombrePeligro === 'string') {
+        setDepartamentoRadarSeleccionado(nombrePeligro)
+        return
+      }
+    }
+
     const feature = features.find((item) => item.layer?.id === CAPA_PARTES_CLUSTER_ID)
       ?? features.find((item) => item.layer?.id === CAPA_PARTES_ID)
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
@@ -675,6 +928,19 @@ export default function MapInfraestructuraPage(props: {
 
   function alternarCapa(capa: CapaInfraestructura, value: boolean) {
     setCapasVisibles((prev) => ({ ...prev, [capa]: value }))
+  }
+
+  function alternarCapaRadar(capa: CapaRadar, value: boolean) {
+    setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
+  }
+
+  // Cambiar de modo limpia las selecciones del OTRO modo: si quedo con una
+  // ficha de radar abierta y vuelvo a "Situación actual", el panel de
+  // explicación se cierra solo (su visibilidad deriva de estos estados).
+  function cambiarModo(siguiente: ModoMapa) {
+    setModoRadar(siguiente === 'radar')
+    setCueRadarSeleccionado(null)
+    setDepartamentoRadarSeleccionado(null)
   }
 
   function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
@@ -780,6 +1046,48 @@ export default function MapInfraestructuraPage(props: {
               paint={symbolPaintDepartamentos()}
             />
           </Source>
+
+          {/*
+            Radar (E4): fuente y layers PROPIOS, montados ENCIMA de las capas
+            actuales (decisión 2: SUMAR, no reemplazar). Así el modo Radar no
+            desmonta nada de lo existente ni toca sus ids — el riesgo de
+            regresión del layout actual queda en cero — y las capas de radar
+            se pueden apagar con su propio control (RadarLayerControl) sin
+            afectar las de partes. `peligroGeojson` reutiliza el mismo
+            departamentosRaw; no hay fetch extra para la coropleta.
+          */}
+          {radarActivo && peligroGeojson && (
+            <Source id="infra-peligro-src" type="geojson" data={peligroGeojson}>
+              {capasRadarVisibles.peligro && (
+                <Layer
+                  id={CAPA_PELIGRO_FILL_ID}
+                  type="fill"
+                  paint={paintCoropletaPeligro()}
+                />
+              )}
+            </Source>
+          )}
+
+          {radarActivo && (
+            <Source id="infra-riesgo-src" type="geojson" data={puntosRiesgoGeojson}>
+              {/* Halo primero en el árbol: queda por debajo del punto, se lee
+                  como contorno alrededor y nunca lo tapa. */}
+              {capasRadarVisibles.riesgo && (
+                <Layer
+                  id={CAPA_HALO_RIESGO_ID}
+                  type="circle"
+                  paint={circlePaintHaloRiesgo()}
+                />
+              )}
+              {capasRadarVisibles.riesgo && (
+                <Layer
+                  id={CAPA_RIESGO_CIRCLE_ID}
+                  type="circle"
+                  paint={circlePaintRiesgo()}
+                />
+              )}
+            </Source>
+          )}
 
           {capasVisibles.escuelas && (
             <Source
@@ -984,25 +1292,117 @@ export default function MapInfraestructuraPage(props: {
       */}
       {dataVisible && (
         <div className={styles.leftStack} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
-          <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
-          {departamentoSeleccionado && (
-            <div className={`${styles.panel} map-departamento-seleccionado`}>
-              <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
-              <button type="button" onClick={() => {
-                entradaPuntosPendiente.current = true
-                setPuntosVisibles(false)
-                setDepartamentoSeleccionado(null)
-              }}>Quitar filtro</button>
+          {/* Conmutador de modo: SÓLO con el flag prendido. Dos botones reales
+              (operables por teclado) con aria-pressed; el modo activo es
+              "Situación actual" siempre al entrar. */}
+          {(props.riskRadarEnabled ?? false) && (
+            <div
+              className={`${styles.panel} map-modo-conmutador`}
+              role="group"
+              aria-label="Modo del mapa"
+            >
+              <button
+                type="button"
+                aria-pressed={!modoRadar}
+                onClick={() => cambiarModo('actual')}
+              >
+                Situación actual
+              </button>
+              <button
+                type="button"
+                aria-pressed={modoRadar}
+                onClick={() => cambiarModo('radar')}
+              >
+                Radar
+              </button>
             </div>
           )}
-          <ListaAlertas
-            partes={dataVisible.partes}
-            filtros={filtrosForm}
-            onFiltroChange={setFiltro}
-            seleccionadaCue={seleccionCue}
-            onSeleccionar={seleccionarDesdeLista}
+
+          {modoRadar ? (
+            <div className={`${styles.panel} map-radar-panel`}>
+              <SelectorHorizonte
+                horizonte={horizonteSeleccionado}
+                onChange={setHorizonteSeleccionado}
+                disponibles={horizontesDisponibles}
+              />
+
+              {radarLoading && !radarData && (
+                <p role="status" className={styles.hint}>
+                  Cargando datos del radar…
+                </p>
+              )}
+              {radarError && (
+                <p role="alert" className={`${styles.hint} ${styles.statusError}`}>
+                  {radarError}
+                </p>
+              )}
+
+              {radarData && (
+                <>
+                  <p className={styles.hint} data-testid="radar-kpi-riesgo-alto">
+                    Escuelas en riesgo alto o muy alto: <strong>{radarData.kpis.riesgoAltoTotal}</strong>
+                  </p>
+                  {briefingLineas.length > 0 && (
+                    <ul className="map-radar-briefing" data-testid="radar-briefing">
+                      {briefingLineas.map((linea) => (
+                        <li key={linea}>{linea}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+
+              {/* Selección del radar: panel de explicación por departamento o
+                  por escuela. Los props que la API no entrega van en null y el
+                  panel los muestra como "No disponible". */}
+              {departamentoRadarSeleccionado && (
+                <RiskExplanationPanel
+                  tipo="departamento"
+                  departamento={departamentoRadarSeleccionado}
+                  niveles={nivelesDepartamentoRadar}
+                  caudal={null}
+                  lluviaObservada={null}
+                />
+              )}
+              {escuelaRadarSeleccionada && (
+                <RiskExplanationPanel
+                  tipo="escuela"
+                  cueAnexo={escuelaRadarSeleccionada.cueAnexo}
+                  nivelRiesgo={escuelaRadarSeleccionada.nivelRiesgo}
+                  confianza={
+                    (escuelaRadarSeleccionada.confianza as 'baja' | 'media' | 'alta')
+                  }
+                  scoreAmenaza={escuelaRadarSeleccionada.scoreAmenaza}
+                  scoreVulnerabilidad={escuelaRadarSeleccionada.scoreVulnerabilidad}
+                />
+              )}
+            </div>
+          ) : (
+            <>
+              <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
+              {departamentoSeleccionado && (
+                <div className={`${styles.panel} map-departamento-seleccionado`}>
+                  <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
+                  <button type="button" onClick={() => {
+                    entradaPuntosPendiente.current = true
+                    setPuntosVisibles(false)
+                    setDepartamentoSeleccionado(null)
+                  }}>Quitar filtro</button>
+                </div>
+              )}
+              <ListaAlertas
+                partes={dataVisible.partes}
+                filtros={filtrosForm}
+                onFiltroChange={setFiltro}
+                seleccionadaCue={seleccionCue}
+                onSeleccionar={seleccionarDesdeLista}
+              />
+            </>
+          )}
+          <InfraLegendPanel
+            departamentosSinMatch={departamentosSinMatch}
+            mostrarLeyendaPeligro={radarActivo}
           />
-          <InfraLegendPanel departamentosSinMatch={departamentosSinMatch} />
         </div>
       )}
 
@@ -1030,6 +1430,9 @@ export default function MapInfraestructuraPage(props: {
       >
         <BasemapControl value={basemap} onChange={setBasemap} />
         <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
+        {radarActivo && (
+          <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
+        )}
       </div>
 
       <Button

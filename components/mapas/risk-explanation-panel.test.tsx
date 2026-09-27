@@ -1,0 +1,195 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import {
+  RiskExplanationPanel,
+  type NivelHorizontePanel,
+} from './risk-explanation-panel'
+
+// Sin `globals: true` el auto-cleanup de testing-library no se registra:
+// limpiar el body entre tests evita testids duplicados entre casos.
+afterEach(() => {
+  document.body.innerHTML = ''
+})
+
+function nivelHorizonte(
+  horizonteHoras: 24 | 72 | 240,
+  nivel: NivelHorizontePanel['nivel'],
+  base: NivelHorizontePanel['base'],
+  extras: Partial<NivelHorizontePanel> = {},
+): NivelHorizontePanel {
+  return {
+    horizonteHoras,
+    nivel,
+    base,
+    precipitacionMm: null,
+    percentilReferencia: null,
+    emitidoEn: '2026-09-26T06:00:00Z',
+    validoHasta: '2026-09-27T06:00:00Z',
+    ...extras,
+  }
+}
+
+describe('RiskExplanationPanel — variante departamento', () => {
+  it('muestra las tres filas de horizonte con su nivel como texto', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[
+          nivelHorizonte(24, 'verde', 'ensemble'),
+          nivelHorizonte(72, 'naranja', 'deterministico', {
+            precipitacionMm: 42,
+            percentilReferencia: 'P95',
+          }),
+          nivelHorizonte(240, 'rojo', 'ensemble'),
+        ]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+
+    const fila24 = screen.getByTestId('risk-explanation-horizonte-24')
+    const fila72 = screen.getByTestId('risk-explanation-horizonte-72')
+    const fila240 = screen.getByTestId('risk-explanation-horizonte-240')
+
+    expect(within(fila24).getByText('Bajo')).toBeInTheDocument()
+    expect(within(fila72).getByText('Alto')).toBeInTheDocument()
+    expect(within(fila240).getByText('Muy alto')).toBeInTheDocument()
+
+    // El nivel se lee como texto (no depende del color) y la base queda explícita.
+    expect(within(fila72).getByText('(determinístico)')).toBeInTheDocument()
+    expect(fila72).toHaveTextContent('Percentil de referencia: P95')
+  })
+
+  it('muestra explícito un horizonte sin dato de amenaza, no lo omite', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[
+          nivelHorizonte(24, 'verde', 'ensemble'),
+          nivelHorizonte(72, 'sin_dato', 'sin_dato'),
+          nivelHorizonte(240, 'sin_dato', 'sin_dato'),
+        ]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+
+    const fila72 = screen.getByTestId('risk-explanation-horizonte-72')
+    expect(within(fila72).getByText('Sin dato')).toBeInTheDocument()
+    expect(within(fila72).getByText('(sin dato de amenaza)')).toBeInTheDocument()
+  })
+
+  it('muestra "No disponible" para caudal y lluvia nulos, nunca 0', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[nivelHorizonte(24, 'verde', 'ensemble')]}
+        caudal={null}
+        lluviaObservada={null}
+      />,
+    )
+
+    expect(screen.getByTestId('risk-explanation-caudal')).toHaveTextContent('No disponible')
+    expect(screen.getByTestId('risk-explanation-lluvia-observada')).toHaveTextContent(
+      'No disponible',
+    )
+    expect(screen.queryByText(/^0 mm$/)).toBeNull()
+  })
+
+  it('muestra "sin dato" por acumulado ausente sin convertirlo en 0', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[nivelHorizonte(24, 'verde', 'ensemble')]}
+        caudal={{ nivel: 'amarillo', percentilActual: 90, emitidoEn: '2026-09-26T06:00:00Z' }}
+        lluviaObservada={{ acumuladoMm24h: null, acumuladoMm72h: 18, observadoEn: null }}
+      />,
+    )
+
+    const lluvia = screen.getByTestId('risk-explanation-lluvia-observada')
+    expect(lluvia).toHaveTextContent('24 h sin dato')
+    expect(lluvia).toHaveTextContent('72 h 18 mm')
+    expect(screen.getByTestId('risk-explanation-caudal')).toHaveTextContent('percentil 90')
+  })
+
+  it('con cargando muestra un estado accesible role=status', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="departamento"
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+        cargando
+      />,
+    )
+    expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+})
+
+describe('RiskExplanationPanel — variante escuela', () => {
+  it('sin factores no rompe y no inventa factores', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="muy_alto"
+        confianza="alta"
+        scoreAmenaza={0.82}
+        scoreVulnerabilidad={0.4}
+      />,
+    )
+
+    expect(screen.getByTestId('risk-explanation-nivel-riesgo')).toHaveTextContent('Muy alto')
+    expect(screen.getByTestId('risk-explanation-confianza')).toHaveTextContent('Confianza: Alta')
+    expect(screen.getByTestId('risk-explanation-amenaza')).toHaveTextContent('0.8')
+    expect(screen.getByTestId('risk-explanation-vulnerabilidad')).toHaveTextContent('0.4')
+    expect(screen.queryByTestId('risk-explanation-factores')).toBeNull()
+  })
+
+  it('con factores provistos los lista con fuente y fecha', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo="alto"
+        confianza="media"
+        scoreAmenaza={0.6}
+        scoreVulnerabilidad={null}
+        factores={[
+          {
+            tipo: 'lluvia',
+            fuente: 'ensemble ECMWF',
+            fecha: '2026-09-26T06:00:00Z',
+            detalle: 'Precipitación sobre P95',
+          },
+        ]}
+      />,
+    )
+
+    const factores = screen.getByTestId('risk-explanation-factores')
+    expect(within(factores).getByText(/ensemble ECMWF/)).toBeInTheDocument()
+    expect(within(factores).getByText(/2026-09-26T06:00:00Z/)).toBeInTheDocument()
+    // Un score nulo se lee como "sin dato", nunca como 0.
+    expect(screen.getByTestId('risk-explanation-vulnerabilidad')).toHaveTextContent('sin dato')
+  })
+
+  it('nivel de riesgo nulo se muestra como "Sin dato"', () => {
+    render(
+      <RiskExplanationPanel
+        tipo="escuela"
+        cueAnexo="1801605-04"
+        nivelRiesgo={null}
+        confianza="baja"
+        scoreAmenaza={null}
+        scoreVulnerabilidad={null}
+      />,
+    )
+    expect(screen.getByTestId('risk-explanation-nivel-riesgo')).toHaveTextContent('Sin dato')
+  })
+})

@@ -125,6 +125,15 @@
   --z-popup: 90;
   --z-tooltip: 95;
 
+  /* E4: niveles de peligro meteorológico estimado / riesgo educativo. Reusa
+     la paleta oficial (Manual §3.1/§3.2) en vez de inventar colores nuevos;
+     "sin dato" es un gris neutro con trama, nunca un color de nivel. */
+  --nivel-peligro-verde: var(--green);
+  --nivel-peligro-amarillo: var(--yellow);
+  --nivel-peligro-naranja: var(--orange);
+  --nivel-peligro-rojo: var(--red);
+  --nivel-peligro-sin-dato: var(--ink-faint);
+
 }
 
 /* Dark surfaces use the official Negro as ground and step up from it. The
@@ -1804,6 +1813,47 @@ time {
   color: var(--ink);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Conmutador de modo del mapa de infraestructura (Radar E4). Dos botones
+   planos en fila; el activo se marca con aria-pressed y un borde inferior
+   sólido, sin introducir un componente de tabs nuevo. */
+.map-modo-conmutador {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-modo-conmutador button {
+  flex: 1 1 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 600;
+  padding: var(--s-1) 0;
+  cursor: pointer;
+}
+.map-modo-conmutador button[aria-pressed="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.map-radar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-radar-panel .selector-horizonte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+.map-radar-briefing {
+  margin: var(--s-1) 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
 }
 
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
