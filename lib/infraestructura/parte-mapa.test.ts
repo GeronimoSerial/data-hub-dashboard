@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { getDb } from '@/lib/db'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import {
@@ -12,7 +12,21 @@ import {
   infraServicioAlcance,
 } from '@/lib/db/schema'
 import { ensureGeSchema, openGeDb } from './ge-db'
-import { listarPartesVigentes } from './parte-mapa'
+import { obtenerPeriodoVigente } from './parte-consulta'
+import type * as ParteConsultaModule from './parte-consulta'
+import { listarEscuelasMapa, listarPartesVigentes, type FiltrosMapa } from './parte-mapa'
+
+// Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
+// tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
+// pueden forzar "sin período vigente" con mockResolvedValueOnce(null) para
+// verificar que el padrón no desaparece.
+vi.mock('./parte-consulta', async (importOriginal) => {
+  const actual = await importOriginal<typeof ParteConsultaModule>()
+  return {
+    ...actual,
+    obtenerPeriodoVigente: vi.fn(actual.obtenerPeriodoVigente),
+  }
+})
 
 let dir: string
 let prevDataDir: string | undefined
@@ -353,3 +367,148 @@ async function sembrarGeParaCueExtra(cue: string, n: number): Promise<void> {
     ge.close()
   }
 }
+
+// Siembra una escuela suelta en ge.ge_localizacion con un departamento/
+// localidad ÚNICO por test, para que los asserts sobre "todo el padrón" no
+// dependan de las escuelas que otros tests de este archivo ya sembraron.
+async function sembrarEscuelaPadron(params: {
+  cue: string
+  departamento: string
+  localidad: string
+  lat: number | null
+  lon: number | null
+}): Promise<void> {
+  const ge = openGeDb()
+  try {
+    await ge.execute({
+      sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+      args: [
+        params.cue,
+        `Escuela ${params.cue}`,
+        params.departamento,
+        params.localidad,
+        params.lat,
+        params.lon,
+      ],
+    })
+  } finally {
+    ge.close()
+  }
+}
+
+describe('listarEscuelasMapa', () => {
+  it('sin afectaciones vigentes devuelve todo el padrón como sin_afectacion_reportada', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-A-1', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.1, lon: -58.1 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-A-2', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.2, lon: -58.2 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-A-3', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: null, lon: null })
+
+    const { escuelas, sinUbicacion, totalPadron } = await listarEscuelasMapa({ territorio: 'MAPA-QUIMILI' })
+
+    expect(escuelas.map((e) => e.cueAnexo).sort()).toEqual(['MAPA-A-1', 'MAPA-A-2'])
+    expect(escuelas.every((e) => e.estado === 'sin_afectacion_reportada')).toBe(true)
+    expect(escuelas.every((e) => e.parte === undefined)).toBe(true)
+    expect(sinUbicacion).toEqual([
+      { cueAnexo: 'MAPA-A-3', nombre: 'Escuela MAPA-A-3', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI' },
+    ])
+    expect(totalPadron).toBe(3)
+  })
+
+  it('una escuela con afectación vigente queda afectada y trae su ParteMapa', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-B-1', departamento: 'MAPA-AFECT', localidad: 'MAPA-AFECT', lat: -27.5, lon: -58.5 })
+    const parteId = await crearParte('MAPA-B-1')
+    await crearAfectacion({ parteId, motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta', secciones: [101] })
+
+    const { escuelas, sinUbicacion, totalPadron } = await listarEscuelasMapa({ cueAnexo: 'MAPA-B-1' })
+
+    expect(sinUbicacion).toEqual([])
+    expect(totalPadron).toBe(1)
+    expect(escuelas).toHaveLength(1)
+    const escuela = escuelas[0]
+    expect(escuela.estado).toBe('afectada')
+    expect(escuela.parte?.parteId).toBe(parteId)
+    expect(escuela.parte?.cueAnexo).toBe('MAPA-B-1')
+    expect(escuela.parte?.peorSeveridad).toBe('Alta')
+    expect(escuela.parte?.categorias).toEqual(['establecimiento'])
+    expect(escuela.parte?.afectaciones[0]).toMatchObject({ motivo: 'Inundación', severidad: 'Alta' })
+  })
+
+  it('una escuela sin lat/lon va a sinUbicacion aunque tenga afectación vigente', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-C-1', departamento: 'MAPA-SINCOORD', localidad: 'MAPA-SINCOORD', lat: null, lon: null })
+    const parteId = await crearParte('MAPA-C-1')
+    await crearAfectacion({ parteId, secciones: [] })
+
+    const { escuelas, sinUbicacion, totalPadron } = await listarEscuelasMapa({ cueAnexo: 'MAPA-C-1' })
+
+    expect(escuelas).toEqual([])
+    expect(sinUbicacion).toEqual([
+      { cueAnexo: 'MAPA-C-1', nombre: 'Escuela MAPA-C-1', departamento: 'MAPA-SINCOORD', localidad: 'MAPA-SINCOORD' },
+    ])
+    expect(totalPadron).toBe(1)
+  })
+
+  it('el filtro de territorio se aplica a todo el padrón, no sólo a las afectadas', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-D-A1', departamento: 'MAPA-DEPTO-A', localidad: 'MAPA-DEPTO-A', lat: -28.1, lon: -58.1 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-D-A2', departamento: 'MAPA-DEPTO-A', localidad: 'MAPA-DEPTO-A', lat: -28.2, lon: -58.2 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-D-B1', departamento: 'MAPA-DEPTO-B', localidad: 'MAPA-DEPTO-B', lat: -29.1, lon: -59.1 })
+    const parteId = await crearParte('MAPA-D-A1')
+    await crearAfectacion({ parteId, secciones: [] })
+
+    const { escuelas, totalPadron } = await listarEscuelasMapa({ territorio: 'MAPA-DEPTO-A' })
+
+    expect(escuelas.map((e) => e.cueAnexo).sort()).toEqual(['MAPA-D-A1', 'MAPA-D-A2'])
+    expect(escuelas.find((e) => e.cueAnexo === 'MAPA-D-A1')?.estado).toBe('afectada')
+    expect(escuelas.find((e) => e.cueAnexo === 'MAPA-D-A2')?.estado).toBe('sin_afectacion_reportada')
+    expect(totalPadron).toBe(2)
+  })
+
+  it('un filtro de afectación que no matchea no borra la escuela: cae a sin_afectacion_reportada', async () => {
+    const casos: Array<{ cue: string; filtros: FiltrosMapa }> = [
+      { cue: 'MAPA-F-SEV', filtros: { cueAnexo: 'MAPA-F-SEV', severidad: 'Alta' } },
+      { cue: 'MAPA-F-MOT', filtros: { cueAnexo: 'MAPA-F-MOT', motivo: 'Nevada' } },
+      { cue: 'MAPA-F-CAT', filtros: { cueAnexo: 'MAPA-F-CAT', categoria: 'alumnos' } },
+      { cue: 'MAPA-F-SER', filtros: { cueAnexo: 'MAPA-F-SER', servicio: 'suspendido' } },
+    ]
+
+    for (const caso of casos) {
+      await sembrarEscuelaPadron({
+        cue: caso.cue,
+        departamento: 'MAPA-FILTRO',
+        localidad: 'MAPA-FILTRO',
+        lat: -30.1,
+        lon: -60.1,
+      })
+      const parteId = await crearParte(caso.cue)
+      await crearAfectacion({
+        parteId,
+        motivo: 'Inundación',
+        categoria: 'establecimiento',
+        severidad: 'Baja',
+        secciones: [],
+      })
+
+      const { escuelas, totalPadron } = await listarEscuelasMapa(caso.filtros)
+
+      expect(escuelas).toHaveLength(1)
+      expect(escuelas[0].cueAnexo).toBe(caso.cue)
+      expect(escuelas[0].estado).toBe('sin_afectacion_reportada')
+      expect(escuelas[0].parte).toBeUndefined()
+      expect(totalPadron).toBe(1)
+    }
+  })
+
+  it('sin período vigente igual devuelve todo el padrón, nunca vacío', async () => {
+    await sembrarEscuelaPadron({ cue: 'MAPA-G-1', departamento: 'MAPA-SINPERIODO', localidad: 'MAPA-SINPERIODO', lat: -31.1, lon: -61.1 })
+    const parteId = await crearParte('MAPA-G-1')
+    await crearAfectacion({ parteId, secciones: [] })
+
+    // El parte existe, pero sin período vigente no puede contar como
+    // afectación: aun así la escuela NO desaparece del padrón.
+    vi.mocked(obtenerPeriodoVigente).mockResolvedValueOnce(null)
+
+    const { escuelas, totalPadron } = await listarEscuelasMapa({ territorio: 'MAPA-SINPERIODO' })
+
+    expect(escuelas.map((e) => e.cueAnexo)).toEqual(['MAPA-G-1'])
+    expect(escuelas[0].estado).toBe('sin_afectacion_reportada')
+    expect(totalPadron).toBe(1)
+  })
+})
