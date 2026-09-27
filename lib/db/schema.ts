@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { integer, real, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const niveles = sqliteTable('niveles', {
   id: text('id').primaryKey(),
@@ -534,3 +534,114 @@ export const infraJobRun = sqliteTable(
     index('infra_job_run_estado_idx').on(t.estado),
   ],
 )
+
+// --- Amenazas hidrometeorológicas: perfiles geográficos, pronóstico,
+// climatología y salud de fuentes ---
+// `geometryRef` es la celda de grilla de 0.1° (formato "lat_lon") para las
+// variables atmosféricas, o el id del punto de río para caudal. Todas estas
+// tablas arrancan vacías: las llena un job de ingesta, no la siembra.
+
+// Perfil geográfico por establecimiento (cueAnexo): resuelve una sola vez la
+// coordenada y su calidad para no recalcular el join geográfico en cada sync
+// de amenazas. `motivoExclusion` explica por qué no hay perfil válido (null =
+// sí lo hay); `perfilVersion` permite reprocesar cuando cambia la regla de
+// cálculo sin confundir una corrida vieja con una nueva.
+export const infraGeoProfile = sqliteTable(
+  'infra_geo_profile',
+  {
+    cueAnexo: text('cue_anexo').primaryKey(),
+    lat: real('lat'),
+    lon: real('lon'),
+    geoCalidad: text('geo_calidad'),
+    departamento: text('departamento'),
+    geometryRef: text('geometry_ref'),
+    // null = tiene perfil válido; 'sin_coordenadas' | 'coordenada_invalida' si no.
+    motivoExclusion: text('motivo_exclusion'),
+    perfilVersion: text('perfil_version').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [index('infra_geo_profile_departamento_idx').on(t.departamento)],
+)
+
+// Pronóstico crudo por (provider, variable, celda) y corrida. El índice único
+// sobre (provider, variable, geometryRef, corridaEn, validoEn) hace que
+// repetir el sync del mismo run no duplique filas. `horizonteHoras` es la
+// distancia entre `corridaEn` y `validoEn`; `pasoHoras` guarda el paso real
+// del modelo en ese horizonte (1, 3 o 6), nunca un valor interpolado.
+export const hazardForecast = sqliteTable(
+  'hazard_forecast',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    variable: text('variable').notNull(),
+    geometryRef: text('geometry_ref').notNull(),
+    corridaEn: text('corrida_en').notNull(),
+    validoEn: text('valido_en').notNull(),
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    pasoHoras: integer('paso_horas').notNull(),
+    // Ruta del payload crudo bajo DATA_DIR; null si no se conservó.
+    rawRef: text('raw_ref'),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_forecast_uidx').on(
+      t.provider,
+      t.variable,
+      t.geometryRef,
+      t.corridaEn,
+      t.validoEn,
+    ),
+    index('hazard_forecast_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Climatología por celda: valores de referencia (p90/p95/p99) sobre una
+// ventana histórica fija. `muestra` distingue todos los días de sólo los
+// húmedos (>=1mm); la clave única incluye `version` para poder recalcular con
+// una nueva regla sin pisar la versión anterior.
+export const hazardClimatology = sqliteTable(
+  'hazard_climatology',
+  {
+    id: text('id').primaryKey(),
+    geometryRef: text('geometry_ref').notNull(),
+    variable: text('variable').notNull(),
+    percentil: text('percentil').notNull(),
+    // 'todos_los_dias' | 'dias_humedos' (este último filtra días con >=1mm).
+    muestra: text('muestra').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    periodoDesde: text('periodo_desde').notNull(),
+    periodoHasta: text('periodo_hasta').notNull(),
+    version: text('version').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_climatology_uidx').on(
+      t.geometryRef,
+      t.variable,
+      t.percentil,
+      t.muestra,
+      t.periodoDesde,
+      t.periodoHasta,
+      t.version,
+    ),
+    index('hazard_climatology_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Salud por proveedor de amenazas: cuándo tuvo éxito y cuándo se intentó por
+// última vez, el estado actual y el TTL de frescura esperado. `ultimoErrorSaneado`
+// guarda el error sin datos nominales ni secretos; `licencia` deja registrada
+// la atribución obligatoria de cada fuente.
+export const hazardSourceHealth = sqliteTable('hazard_source_health', {
+  provider: text('provider').primaryKey(),
+  ultimoExitoEn: text('ultimo_exito_en'),
+  ultimoIntentoEn: text('ultimo_intento_en'),
+  estado: text('estado').notNull(),
+  ultimoErrorSaneado: text('ultimo_error_saneado'),
+  ttlMinutos: integer('ttl_minutos').notNull(),
+  licencia: text('licencia').notNull(),
+  actualizadaEn: text('actualizada_en').notNull(),
+})

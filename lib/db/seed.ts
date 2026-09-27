@@ -312,6 +312,59 @@ CREATE TABLE IF NOT EXISTS \`infra_job_run\` (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS \`infra_job_run_clave_uidx\` ON \`infra_job_run\` (\`tipo\`, \`clave_idempotente\`);
 CREATE INDEX IF NOT EXISTS \`infra_job_run_estado_idx\` ON \`infra_job_run\` (\`estado\`);
+CREATE TABLE IF NOT EXISTS \`infra_geo_profile\` (
+  \`cue_anexo\` text PRIMARY KEY NOT NULL,
+  \`lat\` real,
+  \`lon\` real,
+  \`geo_calidad\` text,
+  \`departamento\` text,
+  \`geometry_ref\` text,
+  \`motivo_exclusion\` text,
+  \`perfil_version\` text NOT NULL,
+  \`calculado_en\` text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS \`infra_geo_profile_departamento_idx\` ON \`infra_geo_profile\` (\`departamento\`);
+CREATE TABLE IF NOT EXISTS \`hazard_forecast\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`provider\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`geometry_ref\` text NOT NULL,
+  \`corrida_en\` text NOT NULL,
+  \`valido_en\` text NOT NULL,
+  \`horizonte_horas\` integer NOT NULL,
+  \`valor\` real NOT NULL,
+  \`unidad\` text NOT NULL,
+  \`paso_horas\` integer NOT NULL,
+  \`raw_ref\` text,
+  \`ingerido_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_forecast_uidx\` ON \`hazard_forecast\` (\`provider\`, \`variable\`, \`geometry_ref\`, \`corrida_en\`, \`valido_en\`);
+CREATE INDEX IF NOT EXISTS \`hazard_forecast_geometry_ref_idx\` ON \`hazard_forecast\` (\`geometry_ref\`);
+CREATE TABLE IF NOT EXISTS \`hazard_climatology\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`geometry_ref\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`percentil\` text NOT NULL,
+  \`muestra\` text NOT NULL,
+  \`valor\` real NOT NULL,
+  \`unidad\` text NOT NULL,
+  \`periodo_desde\` text NOT NULL,
+  \`periodo_hasta\` text NOT NULL,
+  \`version\` text NOT NULL,
+  \`calculado_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_climatology_uidx\` ON \`hazard_climatology\` (\`geometry_ref\`, \`variable\`, \`percentil\`, \`muestra\`, \`periodo_desde\`, \`periodo_hasta\`, \`version\`);
+CREATE INDEX IF NOT EXISTS \`hazard_climatology_geometry_ref_idx\` ON \`hazard_climatology\` (\`geometry_ref\`);
+CREATE TABLE IF NOT EXISTS \`hazard_source_health\` (
+  \`provider\` text PRIMARY KEY NOT NULL,
+  \`ultimo_exito_en\` text,
+  \`ultimo_intento_en\` text,
+  \`estado\` text NOT NULL,
+  \`ultimo_error_saneado\` text,
+  \`ttl_minutos\` integer NOT NULL,
+  \`licencia\` text NOT NULL,
+  \`actualizada_en\` text NOT NULL
+);
 `
 
 let seedPromise: Promise<void> | null = null
