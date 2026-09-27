@@ -11,10 +11,19 @@ const MINUTO_MS = 60_000
 const AHORA = new Date('2026-01-01T00:00:00.000Z')
 
 describe('estaAtrasado', () => {
-  it('nunca marca atrasado un job bajo demanda sin corrida previa', () => {
+  it('marca atrasado climatologia-precipitacion (timer diario) sin corrida previa', () => {
     const atrasado = estaAtrasado({
       nombre: 'climatologia-precipitacion',
       ultimaCorridaExitosaEn: null,
+      ahora: AHORA,
+    })
+    expect(atrasado).toBe(true)
+  })
+
+  it('no marca atrasado climatologia-caudal (timer diario) con corrida exitosa hace 10 minutos', () => {
+    const atrasado = estaAtrasado({
+      nombre: 'climatologia-caudal',
+      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 10 * MINUTO_MS),
       ahora: AHORA,
     })
     expect(atrasado).toBe(false)
@@ -77,13 +86,14 @@ describe('proximaCorridaEsperada', () => {
     expect(proxima?.getTime()).toBe(ultimaCorridaExitosaEn.getTime() + 1440 * MINUTO_MS)
   })
 
-  it('devuelve null para un job bajo demanda', () => {
+  it('devuelve la última corrida más la cadencia diaria para climatologia-caudal', () => {
+    const ultimaCorridaExitosaEn = new Date(AHORA.getTime() - 10 * MINUTO_MS)
     const proxima = proximaCorridaEsperada({
       nombre: 'climatologia-caudal',
-      ultimaCorridaExitosaEn: null,
+      ultimaCorridaExitosaEn,
       ahora: AHORA,
     })
-    expect(proxima).toBeNull()
+    expect(proxima?.getTime()).toBe(ultimaCorridaExitosaEn.getTime() + 1440 * MINUTO_MS)
   })
 })
 

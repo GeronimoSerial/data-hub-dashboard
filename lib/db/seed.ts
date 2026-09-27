@@ -483,6 +483,26 @@ CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
+-- OM-cupo: guarda de cupo compartida de Open-Meteo (ver lib/db/schema.ts y
+-- lib/infraestructura/riesgo/providers/cupo-om.ts). \`host\` guarda el BUCKET
+-- compartido ('open-meteo-free'/'open-meteo-pago'), no el subdominio literal:
+-- los techos de Open-Meteo son de cuenta/IP, no por host.
+CREATE TABLE IF NOT EXISTS \`om_cupo_contador\` (
+  \`host\` text NOT NULL,
+  \`ventana\` text NOT NULL,
+  \`clave_ventana\` text NOT NULL,
+  \`peso_acumulado\` real NOT NULL,
+  \`actualizada_en\` text NOT NULL,
+  PRIMARY KEY (\`host\`, \`ventana\`, \`clave_ventana\`)
+);
+CREATE TABLE IF NOT EXISTS \`om_cupo_cooldown\` (
+  \`host\` text PRIMARY KEY NOT NULL,
+  \`host_origen\` text NOT NULL,
+  \`hasta_en\` text NOT NULL,
+  \`motivo_saneado\` text NOT NULL,
+  \`retry_after_segundos\` integer,
+  \`actualizada_en\` text NOT NULL
+);
 -- Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal), ver
 -- lib/db/schema.ts (hazardSeasonalTrend) y
 -- lib/infraestructura/riesgo/providers/seasonal.ts.
