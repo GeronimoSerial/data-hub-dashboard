@@ -64,6 +64,26 @@ describe('conReintentoPorBloqueo', () => {
     expect(fn).toHaveBeenCalledTimes(3)
   })
 
+  it.each(['40001', '40P01', '55P03'])(
+    'reintenta ante el código de lock de Postgres %s hasta que un intento posterior tiene éxito',
+    async (code) => {
+      let intentos = 0
+      const fn = vi.fn(async () => {
+        intentos += 1
+        if (intentos < 3) {
+          const err = new Error('postgres error') as Error & { code?: string }
+          err.code = code
+          throw err
+        }
+        return 'listo'
+      })
+
+      const resultado = await conReintentoPorBloqueo(fn, { maxIntentos: 8, calcularEsperaMs: () => 0 })
+      expect(resultado).toBe('listo')
+      expect(fn).toHaveBeenCalledTimes(3)
+    },
+  )
+
   it('reintenta ante "database is locked" aunque no tenga code SQLITE_BUSY', async () => {
     let intentos = 0
     const fn = vi.fn(async () => {
