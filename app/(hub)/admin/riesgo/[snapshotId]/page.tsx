@@ -7,7 +7,12 @@ import { getDb } from '@/lib/db'
 import { infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { riskEngineEnabled } from '@/lib/infraestructura/riesgo/flags'
-import { ETIQUETA_CONFIANZA, ETIQUETA_NIVEL, ETIQUETA_TIPO_FACTOR, etiqueta } from '../etiquetas'
+import {
+  ETIQUETA_CONFIANZA,
+  ETIQUETA_NIVEL,
+  ETIQUETA_TIPO_FACTOR,
+  etiqueta,
+} from '@/lib/infraestructura/riesgo/etiquetas'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

@@ -118,3 +118,37 @@ Archivos modificados/creados por este batch (ver `git status` del worktree para 
 - Verificaciones globales repetidas por N1: `pnpm lint`, `pnpm exec tsc --noEmit` y `pnpm build` con exit 0; `pnpm test` dio 1 falla en la primera corrida y 1331/1331 en las dos siguientes → test intermitente a identificar (follow-up).
 - Revisión independiente: cableado del motor correcto (tipos unificados, `sin_dato` propagado, caché por clave natural sin cambio de resultados), corte único del radar (niveles de peligro evaluados al `publicadoEn` del run vigente), KPIs y lista sobre el mismo universo, ACL antes de tocar la base, `Cache-Control: private, no-store`, GeoJSON oficial de Georef (25 departamentos, 49,8 KB) sin consumidores del archivo viejo, flag apagado sin nodos nuevos, CSS aditivo, sin "alerta"/"SMN", controles accesibles.
 - Follow-ups: (1) `/radar` calcula niveles de peligro celda por celda y por horizonte de forma secuencial en cada request → agrupar o paralelizar y medir el p95 real antes de habilitar el flag (primera tarea de E5); (2) corrida real con evidencia cuando Open-Meteo lo permita, respetando los límites duros (600/min, 5.000/h, 10.000/día, 300.000/mes); (3) máscara de Corrientes todavía derivada de la geometría vieja; (4) el panel de explicación aún no trae el detalle por factor desde la API; (5) identificar el test intermitente; (6) walkthrough UX con participantes.
+
+## Follow-ups aplicados (2026-09-27, worktree `enos-e4fu`, rama `fix/enos-e4-followups`)
+
+Se resolvieron los follow-ups (3) y (4) del Gate. (1), (2), (5) y (6) siguen pendientes, sin tocarlos en este dispatch.
+
+### Follow-up 3 — máscara de Corrientes regenerada desde el GeoJSON oficial
+
+- **Problema:** `public/data/mascara-corrientes.geojson` seguía derivada de `departamentos-corrientes.geojson` (prototipo no oficial de E2), aunque `lib/mapas/departamentos.ts` ya usa el GeoJSON oficial de Georef desde Ola 1.
+- **Solución:** `scripts/regenerar-mascara-corrientes.mjs` (nuevo, committeado): disuelve (`union`) los 25 departamentos oficiales en un solo contorno, lo simplifica con Douglas-Peucker propio (tolerancia `0.0015°` ≈ 165 m, documentada en el script) y lo resta (`difference`) de un rectángulo mundial, igual patrón que documentaba `lib/mapas/departamentos.ts` (antes con mapshaper, ahora con Turf porque mapshaper no está instalado). Sin librería de geometría instalada más que `@turf/circle`, se agregaron `@turf/union`, `@turf/difference` y `@turf/helpers` como **devDependencies** (sólo las usa este script; no entran al bundle de la app).
+- **Resultado:** `public/data/mascara-corrientes.geojson` regenerado, 30.444 → 27.425 bytes. Los tests de `lib/mapas/departamentos.test.ts` (bbox `LIMITES_CORRIENTES`, "deja destapadas las ciudades de Corrientes", "tapa todo lo que está fuera de la provincia") siguen en verde contra el archivo nuevo, sin tocar el test.
+- Archivos: `scripts/regenerar-mascara-corrientes.mjs` (nuevo), `public/data/mascara-corrientes.geojson` (regenerado), `package.json`/`pnpm-lock.yaml` (3 devDependencies nuevas).
+
+### Follow-up 4 — panel de explicación con detalle por factor
+
+- **Problema:** el panel de explicación (`RiskExplanationPanel`, variante `escuela`) aceptaba `factores` como prop opcional pero nada lo alimentaba: `/api/infraestructura/radar` no expone `infra_risk_factor` y el componente no llamaba a `/api/infraestructura/riesgo/[snapshotId]`.
+- **Solución:**
+  - `lib/infraestructura/use-riesgo-snapshot.ts` (nuevo): hook de lectura por `snapshotId`, mismo patrón que `use-radar.ts`/`use-alertas.ts` (`AbortController`, sin polling — es un snapshot ya calculado). Con `snapshotId=null` no dispara fetch (enmascarado, no vía `setState` en el cuerpo del efecto, mismo criterio que `useRadar`). Al cambiar de escuela limpia el snapshot anterior antes de pedir el nuevo (evita mostrar los factores de la escuela recién deseleccionada mientras carga la siguiente).
+  - `RiskExplanationPanel` (variante `escuela`): `FactorRiesgoPanel` pasó de un `detalle: string` genérico a campos explícitos (`tipo`, `fuente`, `valor`, `unidad`, `contribucion`, `observadoEn`) que el panel formatea igual que ya hace con caudal/lluvia. Se agregaron los 3 estados que pedía el follow-up: `factoresCargando` (`role="status"`), `factoresError` (`role="alert"`) y un array vacío ya resuelto se muestra como **"Sin dato" explícito** (nunca en silencio, nunca con semántica de nivel/verde — verificado con un test que chequea que el elemento no lleva ninguna clase `nivel--*`). `factores === undefined` (sin cargando/error) sigue sin renderizar nada, para no romper el contrato previo de callers que no pidan factores.
+  - `app/(hub)/admin/riesgo/etiquetas.ts` → movido a `lib/infraestructura/riesgo/etiquetas.ts` (ubicación compartida, mismo contenido) porque ahora lo usan tanto `/admin/riesgo` como el panel del Radar. Los 2 importadores de `/admin/riesgo` se actualizaron al nuevo path.
+  - `components/mapas/map-infraestructura-page.tsx`: llama `useRiesgoSnapshot(escuelaRadarSeleccionada?.snapshotId ?? null)`, mapea los factores crudos a la forma del panel aplicando `ETIQUETA_TIPO_FACTOR` (mismas etiquetas que `/admin/riesgo`) y pasa `factores`/`factoresCargando`/`factoresError` al `<RiskExplanationPanel tipo="escuela">`.
+- Archivos: `lib/infraestructura/use-riesgo-snapshot.ts` (+test, nuevos), `components/mapas/risk-explanation-panel.tsx` (+test actualizado), `components/mapas/map-infraestructura-page.tsx` (+test actualizado), `lib/infraestructura/riesgo/etiquetas.ts` (movido), `app/(hub)/admin/riesgo/{page,[snapshotId]/page}.tsx` (sólo el import).
+
+### Verificación
+
+| Comando | Resultado |
+|---|---|
+| `pnpm exec vitest run lib/mapas/departamentos.test.ts` | 14/14 OK |
+| `pnpm exec vitest run components/mapas/risk-explanation-panel.test.tsx` | 12/12 OK (6 nuevos) |
+| `pnpm exec vitest run lib/infraestructura/use-riesgo-snapshot.test.tsx` | 6/6 OK (nuevo) |
+| `pnpm exec vitest run components/mapas/map-infraestructura-page.test.tsx components/mapas/map-infraestructura-page.paint.test.ts` | 27/27 OK |
+| `pnpm test` | 174 archivos — 1 falla intermitente ya señalada en el Gate (follow-up 5, `MapInfraestructuraPage — orquestación de modales > filtra por departamento al hacer click y permite quitar el filtro`, timeout de 5 s sólo en corrida completa; en aislamiento (`-t "filtra por departamento"`) pasa). Confirmado en 2 corridas completas seguidas, mismo test ambas veces — no es una regresión de este batch, es el follow-up 5 pendiente. Resto: 1469/1470 tests OK. |
+| `pnpm lint` | exit 0 |
+| `pnpm exec tsc --noEmit` | exit 0 |
+| `pnpm build` | exit 0 — `/api/infraestructura/radar` y `/api/infraestructura/riesgo/[snapshotId]` listadas entre las rutas |
