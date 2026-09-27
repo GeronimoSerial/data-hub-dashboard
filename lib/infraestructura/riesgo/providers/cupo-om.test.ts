@@ -1,15 +1,31 @@
 // Tests de la guarda de cupo compartida de Open-Meteo (OM-cupo). Ver
 // docs/ejecucion-enos/OM-cupo/registro.md para la fórmula citada y las
 // decisiones de diseño. Nunca golpea la red real: todo es cálculo puro o
-// contabilidad en SQLite (archivo temporal aislado por test, ver
-// beforeAll/afterAll, mismo patrón que los tests de jobs).
+// contabilidad en la base de datos.
+//
+// Por defecto corren sobre PGlite en memoria (getDb() sin DATABASE_URL, ver
+// lib/db/index.ts). El único test que NO corre así es el de concurrencia real
+// entre dos conexiones físicas, gateado por DATABASE_URL_TEST. Cómo correrlo:
+//
+//   1. Levantar un Postgres local con podman:
+//        podman run --rm -d --name enos-pg \
+//          -p 55432:5432 \
+//          -e POSTGRES_USER=enos_test \
+//          -e POSTGRES_PASSWORD=enos_test_local_only \
+//          -e POSTGRES_DB=enos_db1_f3 \
+//          postgres:16
+//   2. Exportar la URL antes de correr vitest:
+//        export DATABASE_URL_TEST='postgresql://enos_test:enos_test_local_only@localhost:55432/enos_db1_f3'
+//        pnpm vitest run lib/infraestructura/riesgo/providers/cupo-om.test.ts
+//
+// Sin DATABASE_URL_TEST ese describe se saltea con motivo explícito y la
+// suite normal sigue corriendo 100% sobre PGlite en memoria, sin Docker.
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { createClient } from '@libsql/client'
-import { drizzle } from 'drizzle-orm/libsql'
+import { and, eq } from 'drizzle-orm'
+import type { Pool } from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import * as schema from '@/lib/db/schema'
 import type {
   agregarApiKey as AgregarApiKey,
   construirBaseUrl as ConstruirBaseUrl,
@@ -88,9 +104,15 @@ function setEnv(nombre: string, valor: string) {
   process.env[nombre] = valor
 }
 
-function clienteIndependiente() {
-  const url = `file:${path.join(dir, 'hub.sqlite')}`
-  return drizzle(createClient({ url }), { schema })
+// Clave de ventana única por corrida: desplaza `ahora` a una hora aleatoria
+// lejana para que las filas del contador (clave `YYYY-MM-DDTHH`) no choquen ni
+// con otras suites ni con corridas previas sobre la misma base real
+// compartida. Truncado a la hora exacta para que `actualizadaEn` sea estable.
+function ahoraUnicoHora(): Date {
+  const offsetHoras = Math.floor(Math.random() * 5_000_000)
+  const d = new Date(Date.now() + offsetHoras * 3_600_000)
+  d.setUTCMinutes(0, 0, 0)
+  return d
 }
 
 describe('pesoLlamada', () => {
@@ -268,30 +290,134 @@ describe('reservarCupo — contabilidad por ventana', () => {
   })
 })
 
-describe('window accounting across processes (dos clientes contra el mismo archivo)', () => {
-  it('dos "procesos" (clientes drizzle independientes) comparten el mismo contador sin duplicar ni perder cupo', async () => {
-    const clienteA = clienteIndependiente()
-    const clienteB = clienteIndependiente()
-    const ahora = new Date('2026-01-10T10:00:00.000Z')
-    setEnv('OPEN_METEO_LIMITE_HORA', '10')
+// TEST 1 — concurrencia REAL contra Postgres con dos conexiones
+// independientes. Reemplaza al viejo test que abría una segunda conexión
+// @libsql/client contra un archivo hub.sqlite suelto: ese archivo NUNCA era
+// la base que usa reservarCupo (getDb() va a PGlite en memoria bajo Vitest, o
+// a Postgres con DATABASE_URL), así que su contador no competía contra nada
+// real y el test era un falso positivo. Acá las dos conexiones son dos
+// pg.Pool distintos contra la MISMA base real: se migra una sola vez y luego
+// se lanzan ambas reservas en paralelo. El UPDATE condicionado por
+// `pesoAcumulado + peso <= limite` —que Postgres re-evalúa tras el lock de
+// fila— exige exactamente un ganador, sin importar cuál gane la carrera.
+describe('reservarCupo concurrencia real entre dos conexiones Postgres', () => {
+  it.skipIf(!process.env.DATABASE_URL_TEST)(
+    'dos conexiones independientes compiten por el mismo bucket/ventana: exactamente una reserva pasa al superar el límite, y el contador refleja sólo su peso — se saltea si no está seteada DATABASE_URL_TEST (requiere un Postgres real)',
+    async () => {
+      const databaseUrlTest = process.env.DATABASE_URL_TEST
+      if (!databaseUrlTest) throw new Error('unreachable: gateado por it.skipIf')
 
-    const resultados = await Promise.all([
-      reservarCupo({ db: clienteA, host: 'test-host-f', peso: 6, ahora }),
-      reservarCupo({ db: clienteB, host: 'test-host-f', peso: 6, ahora }),
+      const prevDatabaseUrl = process.env.DATABASE_URL
+      process.env.DATABASE_URL = databaseUrlTest
+      let poolA: Pool | undefined
+      let poolB: Pool | undefined
+      let limpiarContador: (() => Promise<void>) | undefined
+      try {
+        // Cada vi.resetModules() + import reconstruye lib/db, así que su
+        // memoización de la conexión arranca de cero: dos getDb() distintos,
+        // cada uno con su propio pg.Pool (drizzle-orm/node-postgres) contra
+        // la MISMA base real.
+        vi.resetModules()
+        const dbModuleA = await import('@/lib/db')
+        poolA = dbModuleA.getRawClient() as Pool
+        const { reservarCupo: reservarA, obtenerResumenCupo: obtenerResumenA } = await import('./cupo-om')
+        const { omCupoContador } = await import('@/lib/db/schema')
+
+        vi.resetModules()
+        const dbModuleB = await import('@/lib/db')
+        poolB = dbModuleB.getRawClient() as Pool
+        const { reservarCupo: reservarB } = await import('./cupo-om')
+
+        expect(poolA).not.toBe(poolB)
+
+        // El esquema se migra una sola vez (migrarDb es idempotente); la
+        // segunda conexión comparte la misma base ya migrada.
+        await dbModuleA.migrarDb()
+
+        setEnv('OPEN_METEO_LIMITE_HORA', '5')
+        const ahora = ahoraUnicoHora()
+        const ahoraIso = ahora.toISOString()
+
+        // Limpieza acotada al bucket compartido y a la clave única de esta
+        // corrida (mismo `actualizadaEn`): deja el contador de esa ventana en
+        // cero antes de la carrera y lo vuelve a dejar limpio al terminar.
+        limpiarContador = async () => {
+          await dbModuleA
+            .getDb()
+            .delete(omCupoContador)
+            .where(
+              and(eq(omCupoContador.host, 'open-meteo-free'), eq(omCupoContador.actualizadaEn, ahoraIso)),
+            )
+        }
+        await limpiarContador()
+
+        const host = `test-host-concurrencia-pg-${Date.now()}`
+        const [resultadoA, resultadoB] = await Promise.all([
+          reservarA({ host, peso: 3, ahora }),
+          reservarB({ host, peso: 3, ahora }),
+        ])
+
+        // 3 + 3 = 6 > 5: sólo UNA de las dos reservas concurrentes puede
+        // haber pasado (todo o nada, atómico entre conexiones). Nunca las dos
+        // (duplicaría el gasto real de cupo frente a Open-Meteo) ni ninguna
+        // (perdería gasto real).
+        const ganadoras = [resultadoA, resultadoB].filter((r) => r.ok)
+        expect(ganadoras).toHaveLength(1)
+        const perdedoras = [resultadoA, resultadoB].filter((r) => !r.ok)
+        expect(perdedoras).toEqual([
+          expect.objectContaining({ motivo: 'cupo_agotado', ventana: 'hora' }),
+        ])
+
+        // El contador final refleja SOLO el peso de la que ganó: 3, nunca 6
+        // (doble gasto) ni 0 (gasto perdido).
+        const resumen = await obtenerResumenA({ ahora })
+        const filaHora = resumen.filas.find((f) => f.host === 'open-meteo-free' && f.ventana === 'hora')
+        expect(filaHora?.usado).toBe(3)
+      } finally {
+        if (limpiarContador) {
+          try {
+            await limpiarContador()
+          } catch {
+            // si la conexión ya no sirve, no enmascarar el resultado del test
+          }
+        }
+        if (poolA) await poolA.end()
+        if (poolB) await poolB.end()
+        if (prevDatabaseUrl === undefined) delete process.env.DATABASE_URL
+        else process.env.DATABASE_URL = prevDatabaseUrl
+        vi.resetModules()
+      }
+    },
+  )
+})
+
+// TEST 2 — concurrencia real dentro de un solo proceso sobre PGlite (corre
+// siempre, sin gate). A diferencia de los tests secuenciales de más arriba,
+// las dos reservas se disparan de verdad en paralelo (Promise.all) sobre la
+// MISMA instancia de Db: PGlite serializa las transacciones
+// (_runExclusiveTransaction), así que el UPDATE condicionado de la segunda
+// re-evalúa el acumulado ya commiteado por la primera y sólo una pasa.
+describe('reservarCupo concurrencia dentro de un proceso (PGlite)', () => {
+  it('dos reservas concurrentes que juntas superan la ventana hora: exactamente una ok y el contador queda en el peso ganador', async () => {
+    setEnv('OPEN_METEO_LIMITE_HORA', '5')
+    const ahora = ahoraUnicoHora()
+    const host = `test-host-concurrencia-pglite-${Date.now()}`
+
+    const [resultadoA, resultadoB] = await Promise.all([
+      reservarCupo({ host, peso: 3, ahora }),
+      reservarCupo({ host, peso: 3, ahora }),
     ])
 
-    const exitosos = resultados.filter((r) => r.ok).length
-    const fallidos = resultados.filter((r) => !r.ok).length
-    // 6 + 6 = 12 > 10: sólo UNA de las dos reservas concurrentes puede
-    // haber pasado (todo o nada, atómico entre procesos); la otra debe
-    // rechazarse por cupo agotado, nunca las dos aceptarse (eso duplicaría
-    // el gasto real de cupo frente a Open-Meteo).
-    expect(exitosos).toBe(1)
-    expect(fallidos).toBe(1)
+    const ganadoras = [resultadoA, resultadoB].filter((r) => r.ok)
+    expect(ganadoras).toHaveLength(1)
+    const perdedoras = [resultadoA, resultadoB].filter((r) => !r.ok)
+    expect(perdedoras).toEqual([
+      expect.objectContaining({ motivo: 'cupo_agotado', ventana: 'hora' }),
+    ])
 
-    const resumen = await obtenerResumenCupo({ db: clienteA, ahora })
+    const resumen = await obtenerResumenCupo({ ahora })
     const filaHora = resumen.filas.find((f) => f.host === 'open-meteo-free' && f.ventana === 'hora')
-    expect(filaHora?.usado).toBe(6)
+    expect(filaHora?.usado).toBe(3)
   })
 })
 

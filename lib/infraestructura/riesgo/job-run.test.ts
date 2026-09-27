@@ -1,8 +1,26 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import type { Pool } from 'pg'
 import type { adquirirLease as AdquirirLease, publicarResultado as PublicarResultado, renovarLease as RenovarLease } from './job-run'
+
+// Cómo correr el test de concurrencia REAL contra Postgres (el único de este
+// archivo que no corre sobre PGlite en memoria):
+//
+//   1. Levantar un Postgres local con podman:
+//        podman run --rm -d --name enos-pg \
+//          -p 55432:5432 \
+//          -e POSTGRES_USER=enos_test \
+//          -e POSTGRES_PASSWORD=enos_test_local_only \
+//          -e POSTGRES_DB=enos_db1_f3 \
+//          postgres:16
+//   2. Exportar la URL antes de correr vitest:
+//        export DATABASE_URL_TEST='postgresql://enos_test:enos_test_local_only@localhost:55432/enos_db1_f3'
+//        pnpm vitest run lib/infraestructura/riesgo/job-run.test.ts
+//
+// Sin DATABASE_URL_TEST ese describe se saltea con motivo explícito y la
+// suite normal sigue corriendo 100% sobre PGlite en memoria, sin Docker.
 
 let dir: string
 let prevDataDir: string | undefined
@@ -336,45 +354,131 @@ describe('fencing de lease (leaseOwner)', () => {
   })
 })
 
-// Reintento ante SQLITE_BUSY (lib/db/reintento.ts), con un lock de escritura
-// real tomado por una SEGUNDA conexión al mismo hub.sqlite — no un mock: si
-// el reintento de adquirirLease no cediera el hilo (setTimeout real) o no
-// reintentara el statement completo, este test colgaría hasta el timeout de
-// vitest en vez de resolver apenas la otra conexión libera el lock.
-describe('adquirirLease reintenta ante un lock real de otra conexión', () => {
-  it('adquirirLease se bloquea con SQLITE_BUSY mientras otra conexión sostiene BEGIN IMMEDIATE y adquiere apenas se libera', async () => {
-    const { createClient } = await import('@libsql/client')
-    const { getSqlitePath } = await import('@/lib/data-dir')
+// TEST 1 — concurrencia REAL contra Postgres con dos conexiones
+// independientes. Reemplaza al viejo test que abría una segunda conexión
+// @libsql/client contra un archivo hub.sqlite suelto: ese archivo NUNCA era
+// la base que usa adquirirLease (getDb() va a PGlite en memoria bajo Vitest, o
+// a Postgres con DATABASE_URL), así que su BEGIN IMMEDIATE no bloqueaba nada
+// real y el test era un falso positivo. Acá las dos conexiones son dos
+// pg.Pool distintos contra la MISMA base real: se migra una sola vez y luego
+// se lanzan ambas adquisiciones en paralelo. La garantía del CAS por fila
+// (INSERT ... ON CONFLICT DO NOTHING RETURNING) exige exactamente un ganador,
+// sin importar cuál gane la carrera.
+describe('adquirirLease concurrencia real entre dos conexiones Postgres', () => {
+  it.skipIf(!process.env.DATABASE_URL_TEST)(
+    'dos conexiones independientes compiten por la misma clave: exactamente una obtiene adquirido:true — se saltea si no está seteada DATABASE_URL_TEST (requiere un Postgres real)',
+    async () => {
+      const databaseUrlTest = process.env.DATABASE_URL_TEST
+      if (!databaseUrlTest) throw new Error('unreachable: gateado por it.skipIf')
 
-    // Segunda conexión NATIVA al mismo archivo hub.sqlite (no la memoizada
-    // por getDb() de este proceso de test): simula el escritor concurrente
-    // real que compite por el lock, igual que dos requests de
-    // app/api/problematicas/parte/route.ts.
-    const otraConexion = createClient({ url: `file:${getSqlitePath()}` })
-    const otraTx = await otraConexion.transaction('write')
+      const prevDatabaseUrl = process.env.DATABASE_URL
+      process.env.DATABASE_URL = databaseUrlTest
+      let poolA: Pool | undefined
+      let poolB: Pool | undefined
+      try {
+        // Cada vi.resetModules() + import reconstruye lib/db, así que su
+        // memoización de la conexión arranca de cero: dos getDb() distintos,
+        // cada uno con su propio pg.Pool (drizzle-orm/node-postgres) contra
+        // la MISMA base real.
+        vi.resetModules()
+        const {
+          getDb: getDbA,
+          getRawClient: getRawClientA,
+          migrarDb: migrarDbA,
+        } = await import('@/lib/db')
+        const { adquirirLease: adquirirLeaseA } = await import('./job-run')
+        poolA = getRawClientA() as Pool
 
-    try {
-      // adquirirLease arranca mientras `otraTx` todavía tiene el lock de
-      // escritura tomado: el INSERT/UPDATE de más abajo tiene que pegar
-      // contra SQLITE_BUSY y quedar reintentando con backoff.
-      const promesaLease = adquirirLease({
-        tipo: 'diagnostico',
-        claveIdempotente: 'clave-lock-real',
-        version: 'v1',
-        duracionLeaseMs: 60_000,
-      })
+        vi.resetModules()
+        const { getRawClient: getRawClientB } = await import('@/lib/db')
+        const { adquirirLease: adquirirLeaseB } = await import('./job-run')
+        poolB = getRawClientB() as Pool
 
-      // Se le da tiempo a adquirirLease de pegar contra el lock ocupado y
-      // entrar en su loop de reintento antes de soltarlo.
-      await new Promise((resolve) => setTimeout(resolve, 80))
+        expect(poolA).not.toBe(poolB)
 
-      await otraTx.commit()
-      otraTx.close()
+        // El esquema se migra una sola vez (migrarDb es idempotente); la
+        // segunda conexión comparte la misma base ya migrada.
+        await migrarDbA()
 
-      const resultado = await promesaLease
-      expect(resultado.adquirido).toBe(true)
-    } finally {
-      otraConexion.close()
+        const claveIdempotente = `clave-carrera-postgres-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const params = {
+          tipo: 'diagnostico',
+          claveIdempotente,
+          version: 'v1',
+          duracionLeaseMs: 60_000,
+        }
+
+        const [resultadoA, resultadoB] = await Promise.all([
+          adquirirLeaseA(params),
+          adquirirLeaseB(params),
+        ])
+
+        const ganadores = [resultadoA, resultadoB].filter((r) => r.adquirido)
+        const perdedores = [resultadoA, resultadoB].filter((r) => !r.adquirido)
+
+        expect(ganadores).toHaveLength(1)
+        expect(perdedores).toEqual([
+          { adquirido: false, motivo: 'en_progreso_vigente' },
+        ])
+
+        const ganador = ganadores[0]
+        if (!ganador?.adquirido) throw new Error('unreachable')
+
+        // Un solo job corriendo por lease: una única fila para la clave, y es
+        // la del ganador, no una por conexión.
+        const { infraJobRun } = await import('@/lib/db/schema')
+        const { and, eq } = await import('drizzle-orm')
+        const filas = await getDbA()
+          .select()
+          .from(infraJobRun)
+          .where(
+            and(
+              eq(infraJobRun.tipo, 'diagnostico'),
+              eq(infraJobRun.claveIdempotente, claveIdempotente),
+            ),
+          )
+
+        expect(filas).toHaveLength(1)
+        expect(filas[0]?.id).toBe(ganador.jobRunId)
+        expect(filas[0]?.estado).toBe('en_progreso')
+        expect(filas[0]?.leaseOwner).toBe(ganador.leaseOwner)
+      } finally {
+        if (poolA) await poolA.end()
+        if (poolB) await poolB.end()
+        if (prevDatabaseUrl === undefined) delete process.env.DATABASE_URL
+        else process.env.DATABASE_URL = prevDatabaseUrl
+        vi.resetModules()
+      }
+    },
+  )
+})
+
+// TEST 2 — concurrencia real dentro de un solo proceso sobre PGlite (corre
+// siempre, sin gate). A diferencia del test secuencial de más arriba, las dos
+// adquisiciones se disparan de verdad en paralelo (Promise.all) sobre la
+// MISMA instancia de Db: el CAS por fila tiene que dejar exactamente un
+// ganador aunque dos promesas compitan sobre la misma conexión.
+describe('adquirirLease concurrencia dentro de un proceso (PGlite)', () => {
+  it('dos adquisiciones concurrentes de la misma clave: exactamente una obtiene adquirido:true', async () => {
+    const claveIdempotente = `clave-carrera-pglite-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const params = {
+      tipo: 'diagnostico',
+      claveIdempotente,
+      version: 'v1',
+      duracionLeaseMs: 60_000,
     }
+
+    const [resultadoA, resultadoB] = await Promise.all([
+      adquirirLease(params),
+      adquirirLease(params),
+    ])
+
+    const ganadores = [resultadoA, resultadoB].filter((r) => r.adquirido)
+    const perdedores = [resultadoA, resultadoB].filter((r) => !r.adquirido)
+
+    expect(ganadores).toHaveLength(1)
+    expect(perdedores).toEqual([
+      { adquirido: false, motivo: 'en_progreso_vigente' },
+    ])
   })
 })
