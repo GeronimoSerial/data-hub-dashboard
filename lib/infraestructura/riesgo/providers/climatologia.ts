@@ -48,7 +48,15 @@
 // request ya agrupada).
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import {
+  agregarApiKey,
+  apiKeyDesdeEntorno,
+  asegurarPesoAlcanzable,
+  construirBaseUrl,
+  limiteVentana,
+  MOTIVOS_CUPO_SIN_RED,
+  pesoLlamada,
+} from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 
@@ -219,9 +227,79 @@ const payloadArchivoElementoSchema = z
     }
   })
 
-// 50 coordenadas por request: misma decisión que ECMWF — URLs acotadas y
-// ~387 celdas reales pasan de ~387 requests a ~8 por cálculo histórico.
-export const TAMANO_LOTE_COORDENADAS = 50
+// -----------------------------------------------------------------------
+// Troceo por período (OM-cupo, fix bloqueante de la 2da revisión)
+// -----------------------------------------------------------------------
+//
+// `obtenerSeriesHistoricas` pedía SIEMPRE el período completo (hasta 30 años,
+// ~10.958 días) en una sola request por lote de celdas ERA5. El peso de esa
+// única request (`celdasPorLote * factorDias`, con `factorDias≈782,7` para
+// 30 años) supera el límite de la ventana de MINUTO aunque el lote tenga una
+// sola celda (782,7 > 480 default operativo, y > 600 techo duro): ninguna
+// espera lo resuelve porque el límite de minuto se evalúa completo POR
+// REQUEST, no acumulado (ver `asegurarPesoAlcanzable` en cupo-om.ts). Por eso
+// la ventana de minuto rechazaba SIEMPRE, `cupo_minuto_agotado` no cortaba el
+// job (bug real, ver sección del registro) y el job-run quedaba `completado`
+// con 0 filas para siempre.
+//
+// El fix parte tanto las CELDAS por lote (pocas por request) como el
+// PERÍODO en tramos (del orden de 1-2 años cada uno, calculado dinámicamente
+// contra el límite de minuto vigente, no hardcodeado), de forma que el peso
+// de CADA request individual quede muy por debajo del límite operativo de
+// minuto. Los tramos de un mismo lote se piden en orden y sus series diarias
+// se concatenan en memoria; sólo si TODOS los tramos de un lote responden ok
+// se asignan sus celdas a `seriesPorCelda` — un lote que se corta a mitad de
+// tramos no dispersa datos parciales, así que en la próxima corrida el cursor
+// resumable de `calcular-climatologia.ts` (basado en `hazard_climatology`)
+// vuelve a pedir el lote completo desde el primer tramo, nunca deja una celda
+// a medio calcular.
+
+/** Pocas celdas ERA5 por request: mantiene el peso de cada tramo bajo incluso con 30 años de historia. */
+export const TAMANO_LOTE_COORDENADAS = 5
+
+/** Margen adicional (sobre el 80% operativo ya aplicado por `limiteVentana`) para dejar lugar a los syncs de 6h y sync-seasonal que comparten el mismo minuto/bucket. */
+const MARGEN_SEGURIDAD_TRAMO = 0.5
+
+/**
+ * Días máximos de un tramo de período para que un lote de `celdasPorLote`
+ * celdas quede, con margen, muy por debajo de `limiteMinuto`. Devuelve al
+ * menos 1 (nunca 0 ni negativo): si ni 1 día alcanza (sólo posible con un
+ * `limiteMinuto` mal configurado a casi 0), `asegurarPesoAlcanzable` corta
+ * con un error explícito antes de intentar la request, en vez de partir en
+ * tramos de 0 días.
+ */
+export function diasMaximosPorTramo(params: {
+  celdasPorLote: number
+  variables: number
+  limiteMinuto: number
+}): number {
+  const factorVariables = Math.max(1, params.variables / 10)
+  const presupuesto = params.limiteMinuto * MARGEN_SEGURIDAD_TRAMO
+  const diasMax = Math.floor((presupuesto / (params.celdasPorLote * factorVariables)) * 14)
+  return Math.max(1, diasMax)
+}
+
+/** Parte [desde, hasta] (fechas `YYYY-MM-DD` inclusive) en tramos contiguos de a lo sumo `diasPorTramo` días. */
+export function partirPeriodoEnTramos(
+  desde: string,
+  hasta: string,
+  diasPorTramo: number,
+): Array<{ desde: string; hasta: string }> {
+  const msPorDia = 86_400_000
+  const inicio = Date.parse(`${desde}T00:00:00Z`)
+  const fin = Date.parse(`${hasta}T00:00:00Z`)
+  const tramos: Array<{ desde: string; hasta: string }> = []
+  let cursor = inicio
+  while (cursor <= fin) {
+    const finTramo = Math.min(cursor + (diasPorTramo - 1) * msPorDia, fin)
+    tramos.push({
+      desde: new Date(cursor).toISOString().slice(0, 10),
+      hasta: new Date(finTramo).toISOString().slice(0, 10),
+    })
+    cursor = finTramo + msPorDia
+  }
+  return tramos
+}
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
@@ -287,10 +365,10 @@ function crearParserLoteClima(cantidad: number) {
  * coordenadas enviadas, así que el parseo empareja por índice; el resultado de
  * cada celda ERA5 se replica a TODOS los `geometryRef` de 0.1° que agrupó. Un
  * lote caído no tumba a los demás: sus miembros quedan en `erroresPorCelda` y
- * el resto devuelve datos.
+ * el resto devuelve datos. Ver "Troceo por período" arriba: cada lote de
+ * celdas pide el período completo en varios TRAMOS (no una sola request), y
+ * sólo se asigna a `seriesPorCelda` si TODOS sus tramos respondieron ok.
  */
-const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
-
 export async function obtenerSeriesHistoricas(params: {
   puntos: PuntoClimatologia[]
   periodoDesde: string
@@ -304,50 +382,92 @@ export async function obtenerSeriesHistoricas(params: {
   const erroresPorCelda: Record<string, { motivo: string; detalle: string }> = {}
   const celdasPorLlamada: number[] = []
   const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
-  const dias = diasEntreFechas(params.periodoDesde, params.periodoHasta)
+  const apiKeyPresente = Boolean(apiKey)
+
+  const limiteMinuto = limiteVentana('minuto', apiKeyPresente)
+  const diasPorTramo = diasMaximosPorTramo({
+    celdasPorLote: TAMANO_LOTE_COORDENADAS,
+    variables: CANTIDAD_VARIABLES_CLIMATOLOGIA,
+    limiteMinuto,
+  })
+  const tramos = partirPeriodoEnTramos(params.periodoDesde, params.periodoHasta, diasPorTramo)
 
   const gruposEra5 = agruparPuntosPorEra5(params.puntos)
   const lotes = agruparEnLotes(gruposEra5, TAMANO_LOTE_COORDENADAS)
 
-  for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
+  loteLoop: for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
     const lote = lotes[indiceLote]
     const puntosLote: PuntoClimatologia[] = lote.map((grupo) => ({
       geometryRef: grupo.claveEra5,
       lat: grupo.lat,
       lon: grupo.lon,
     }))
-    const peso = pesoLlamada({ ubicaciones: lote.length, variables: CANTIDAD_VARIABLES_CLIMATOLOGIA, dias })
-    const cupo = params.controladorCupoFactory?.(peso)
-    const resultado = await ejecutarConReintentos<Array<z.infer<typeof payloadArchivoElementoSchema>>>({
-      url: construirUrlLote(puntosLote, params.periodoDesde, params.periodoHasta, apiKey),
-      fetchImpl: params.fetchImpl,
-      cupo,
-      parsearPayload: crearParserLoteClima(puntosLote.length),
-    })
 
-    if (!resultado.ok) {
-      const fallo = { motivo: resultado.motivo, detalle: resultado.detalle }
-      for (const grupo of lote) {
-        for (const miembro of grupo.miembros) erroresPorCelda[miembro] = fallo
+    // Series parciales de este lote, un tramo a la vez; sólo se vuelcan a
+    // `seriesPorCelda` si TODOS los tramos responden ok (ver comentario de
+    // cabecera de la función).
+    const seriesTramo: Record<string, number[]> = {}
+    for (const grupo of lote) seriesTramo[grupo.claveEra5] = []
+
+    let falloLote: { motivo: string; detalle: string } | undefined
+
+    for (const tramo of tramos) {
+      const diasTramo = diasEntreFechas(tramo.desde, tramo.hasta)
+      const peso = pesoLlamada({
+        ubicaciones: lote.length,
+        variables: CANTIDAD_VARIABLES_CLIMATOLOGIA,
+        dias: diasTramo,
+      })
+      // Guard #3 (requisito 3 del batch): nunca dispara una request cuyo peso
+      // por sí solo ya supere el límite de minuto — con `diasMaximosPorTramo`
+      // arriba no debería pasar nunca, pero se deja el check explícito para
+      // no depender silenciosamente de esa cuenta si cambia el margen/límite.
+      asegurarPesoAlcanzable({ peso, apiKeyPresente })
+
+      const cupo = params.controladorCupoFactory?.(peso)
+      const resultado = await ejecutarConReintentos<Array<z.infer<typeof payloadArchivoElementoSchema>>>({
+        url: construirUrlLote(puntosLote, tramo.desde, tramo.hasta, apiKey),
+        fetchImpl: params.fetchImpl,
+        cupo,
+        parsearPayload: crearParserLoteClima(puntosLote.length),
+      })
+
+      if (!resultado.ok) {
+        falloLote = { motivo: resultado.motivo, detalle: resultado.detalle }
+        // Igual criterio que antes del troceo: un motivo "sin red" (guarda de
+        // cupo, ver MOTIVOS_CUPO_SIN_RED) nunca disparó un fetch real, así que
+        // no cuenta como llamada realizada; cualquier otro motivo sí disparó
+        // una request HTTP real (aunque haya fallado).
+        if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(lote.length)
+        break
       }
-      if (!MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) celdasPorLlamada.push(lote.length)
-      if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+
+      celdasPorLlamada.push(lote.length)
+      lote.forEach((grupo, indice) => {
+        const serie = resultado.datos[indice].daily.precipitation_sum.filter(
+          (valor): valor is number => valor !== null,
+        )
+        seriesTramo[grupo.claveEra5].push(...serie)
+      })
+    }
+
+    if (falloLote) {
+      for (const grupo of lote) {
+        for (const miembro of grupo.miembros) erroresPorCelda[miembro] = falloLote
+      }
+      if (MOTIVOS_CUPO_SIN_RED.has(falloLote.motivo)) {
         for (const loteRestante of lotes.slice(indiceLote + 1)) {
           for (const grupo of loteRestante) {
-            for (const miembro of grupo.miembros) erroresPorCelda[miembro] = fallo
+            for (const miembro of grupo.miembros) erroresPorCelda[miembro] = falloLote
           }
         }
-        break
+        break loteLoop
       }
       continue
     }
 
-    celdasPorLlamada.push(lote.length)
-    lote.forEach((grupo, indice) => {
-      const serie = resultado.datos[indice].daily.precipitation_sum.filter(
-        (valor): valor is number => valor !== null,
-      )
-      for (const miembro of grupo.miembros) seriesPorCelda[miembro] = serie
+    lote.forEach((grupo) => {
+      for (const miembro of grupo.miembros) seriesPorCelda[miembro] = seriesTramo[grupo.claveEra5]
     })
   }
 

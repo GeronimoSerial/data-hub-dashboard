@@ -188,6 +188,49 @@ describe('ejecutarCalculoClimatologia', () => {
     expect(fila?.leaseOwner).toBeNull()
   })
 
+  // Regresión del bloqueante de la 2da revisión (OM-cupo): antes del fix,
+  // `cupo_minuto_agotado` NO estaba en `MOTIVOS_CUPO_SIN_RED` (ver
+  // providers/cupo-om.ts), así que `cortadoPorCupo` quedaba `false` y el
+  // job-run se marcaba `completado` con 0 filas — `adquirirLease` bloqueaba
+  // cualquier reintento del mismo período+version para siempre. Con el fix,
+  // `cupo_minuto_agotado` corta igual que `cupo_agotado`/`host_en_cooldown`.
+  it('cupo_minuto_agotado también corta el job-run como fallido (nunca completado con 0 filas)', async () => {
+    const obtenerSeries: typeof ObtenerSeriesHistoricas = async ({ puntos }) => {
+      const erroresPorCelda: Record<string, { motivo: string; detalle: string }> = {}
+      for (const punto of puntos) {
+        erroresPorCelda[punto.geometryRef] = { motivo: 'cupo_minuto_agotado', detalle: 'fake: minuto agotado' }
+      }
+      return { ...resultadoBase(), seriesPorCelda: {}, erroresPorCelda }
+    }
+
+    const resultado = await ejecutarCalculoClimatologia({
+      periodoDesde: '1951-01-01',
+      periodoHasta: '1980-12-31',
+      version: 'climatologia-v6-minuto-agotado',
+      obtenerSeries,
+    })
+
+    expect(resultado).toEqual({
+      ok: true,
+      resultado: {
+        celdasProcesadas: 0,
+        filasInsertadas: 0,
+        celdasConError: [CELDA_A, CELDA_B],
+        cortadoPorCupo: true,
+      },
+    })
+
+    const { getDb } = await import('@/lib/db')
+    const { infraJobRun } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
+    const [jobRun] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, '1951-01-01_1980-12-31_climatologia-v6-minuto-agotado'))
+
+    expect(jobRun?.estado).toBe('fallido')
+  })
+
   // Cursor resumable (OM-cupo): una corrida cortada por `cupo_agotado` no
   // debe recomputar en la corrida siguiente las celdas que ya quedaron
   // persistidas en `hazard_climatology`.

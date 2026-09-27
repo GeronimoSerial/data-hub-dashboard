@@ -425,6 +425,155 @@ Sin cambios en el resto de lo ya resuelto por la sesión anterior
 `calcular-climatologia.ts`, `schema.ts`, `seed.ts`): ya estaba correcto,
 verificado en esta sesión antes de commitear.
 
+## 11. Correcciones del gate N1 (segunda revisión)
+
+**Hallazgo bloqueante:** la climatología de precipitación (`calcular-climatologia.ts`)
+nunca avanzaba. `obtenerSeriesHistoricas` (`providers/climatologia.ts`) pedía
+SIEMPRE el período completo (hasta 30 años, ~10.958 días) en una sola request
+por lote de celdas ERA5. El peso de esa única request (`ubicaciones ×
+factorDias`, con `factorDias≈782,71` para 30 años) supera el límite de la
+ventana de MINUTO **aunque el lote tenga una sola celda** (782,71 > 480
+default operativo, y > 600 techo duro absoluto): la ventana de minuto se
+evalúa completa por request, no acumulada, así que ninguna espera lo resuelve.
+La ventana de minuto rechazaba SIEMPRE (era la primera evaluada en
+`intentarReservarTodasLasVentanas`, antes que hora/día/mes), y
+`cupo_minuto_agotado` **no estaba en `MOTIVOS_CUPO_SIN_RED`**
+(`climatologia.ts:292`, `calcular-climatologia.ts:60`, cada uno con su propia
+copia local incompleta del Set): el job no reconocía ese corte como "cupo
+agotado", `cortadoPorCupo` quedaba `false`, y el job-run se marcaba
+`completado` con 0 filas — `adquirirLease` bloqueaba cualquier reintento del
+mismo período+version para siempre.
+
+### 11.1 Fix 1 — troceo por período (`providers/climatologia.ts`)
+
+`obtenerSeriesHistoricas` ahora parte tanto las CELDAS por lote (pocas por
+request: `TAMANO_LOTE_COORDENADAS` bajó de 50 a **5**) como el PERÍODO en
+TRAMOS, calculados dinámicamente contra el límite de minuto vigente
+(`diasMaximosPorTramo`, con un margen adicional del 50% sobre el 80%
+operativo ya aplicado por `limiteVentana`, para dejar lugar a los syncs de 6h
+y `sync-seasonal` que comparten el mismo minuto/bucket) y partidos en
+sub-rangos contiguos (`partirPeriodoEnTramos`). Con el default operativo
+(minuto=480), `diasMaximosPorTramo({celdasPorLote:5, variables:1,
+limiteMinuto:480}) = 672 días` (~1,84 años — dentro del rango "1-2 años"
+pedido), y el peso de CADA request individual queda en `5 × max(1,672/14) =
+240`, la mitad del límite operativo y bien por debajo del techo duro (600).
+
+Los tramos de un mismo lote se piden en orden y sus series diarias se
+concatenan EN MEMORIA (opción "combinar en memoria" del pedido, no se agregó
+tabla nueva de progreso por período): sólo si TODOS los tramos de un lote
+responden ok se asigna la serie completa a `seriesPorCelda`; un lote que se
+corta a mitad de tramos no vuelca datos parciales, así que en la corrida
+siguiente el CURSOR RESUMABLE existente (basado en `hazard_climatology`, ver
+sección 4.5) vuelve a pedir el lote completo desde el primer tramo — nunca
+deja una celda a medio calcular. El **costo total ponderado no cambia** (el
+troceo no reduce ni aumenta el peso total, sólo lo reparte en requests más
+chicas): sigue siendo `celdasEra5Unicas × 782,71` (≈48.528 en el caso
+esperado de ~62 celdas dedup, ≈302.910 en el peor caso sin dedup real — ver
+sección 4.5), así que la estimación de "~7 días de corridas diarias" de la
+sección 9 sigue siendo válida como orden de magnitud; se ajusta a **~7-9
+días** porque la atomicidad por lote (5 celdas) hace que el avance real por
+corrida sea "lotes completos", no celdas sueltas — con ~7.000 de cupo diario
+disponible (sección 9) y ~3.914 de peso por lote completo (17 tramos: 16 de
+240 + 1 remanente de 206 días ≈73,6), avanza **~1-2 lotes completos por
+corrida** (5-10 celdas).
+
+### 11.2 Fix 2 — `MOTIVOS_CUPO_SIN_RED` única fuente de verdad (`providers/cupo-om.ts`)
+
+El Set `MOTIVOS_CUPO_SIN_RED` (`{cupo_agotado, cupo_minuto_agotado,
+host_en_cooldown}`) ahora se exporta UNA sola vez desde `cupo-om.ts` y se
+importa en vez de redeclararse local: `climatologia.ts`,
+`calcular-climatologia.ts`, `seasonal.ts`, `ensemble.ts` y `ecmwf.ts`
+mantenían cada uno su propia copia, y las 5 copias tenían el mismo bug
+(`cupo_minuto_agotado` faltante). Con el fix, un corte por ventana de
+MINUTO ahora corta limpio igual que hora/día/mes: en `climatologia.ts` corta
+el resto de los lotes de una `obtenerSeriesHistoricas`; en
+`calcular-climatologia.ts` marca `cortadoPorCupo = true` y el job-run queda
+`fallido` (nunca `completado` con 0 filas), permitiendo que `adquirirLease`
+autorice el reintento del mismo período+version en la corrida siguiente.
+`ensemble.ts`/`ecmwf.ts` tenían el mismo bug latente (sin haber disparado
+nunca en producción, porque sus períodos cortos de pronóstico —10 días—
+mantienen el peso muy por debajo del límite de minuto), corregidos por
+consistencia con la misma única fuente de verdad.
+
+### 11.3 Fix 3 — guard contra peso imposible por request (`asegurarPesoAlcanzable`, `cupo-om.ts`)
+
+Nueva función `asegurarPesoAlcanzable({peso, apiKeyPresente})`: compara `peso`
+contra `limiteVentana('minuto', apiKeyPresente)` y lanza un error explícito si
+lo supera — un peso así está condenado a `cupo_minuto_agotado` sin importar
+cuánto se espere o reintente (el límite se evalúa completo por request, no
+acumulado), así que cortar con un error explícito es preferible a dejar que
+el caller reintente en loop. Se invoca en `climatologia.ts` antes de cada
+request por tramo (defensivo: con `diasMaximosPorTramo` no debería disparar
+nunca) y en `sync-seasonal.ts` antes de llamar al provider por tanda (ver
+11.4).
+
+### 11.4 Fix 4 — guard conectado también en `sync-seasonal.ts` (hueco menor)
+
+`sync-seasonal.ts` ahora valida `asegurarPesoAlcanzable` con el peso real de
+su tanda (5 departamentos, `FORECAST_DAYS_SOLICITADOS=95` días, 1 variable,
+ahora exportado desde `providers/seasonal.ts`) ANTES de llamar al provider.
+Hoy el peso de esa tanda (`5 × max(1,95/14) ≈ 33,9`) es chico y esto nunca
+dispara; si el horizonte o el tamaño de tanda crecen a futuro, corta con un
+error explícito (capturado por el mismo `try/catch` que ya traduce un throw
+del provider a error-por-departamento, ver `sync-seasonal.ts`) en vez de
+dejar que el provider entre en un loop contra un `cupo_minuto_agotado`
+imposible de satisfacer.
+
+### 11.5 Tests nuevos
+
+- `providers/climatologia.test.ts` (describe `"troceo por período"`):
+  `diasMaximosPorTramo` nunca produce un tramo cuyo peso supere el límite de
+  minuto y nunca devuelve menos de 1 día; `partirPeriodoEnTramos` cubre el
+  período sin huecos ni superposición; un período de 30 años se pide en
+  varios tramos secuenciales con las series concatenadas EN ORDEN; un tramo
+  caído a mitad de un lote no deja datos parciales (la celda entera cae en
+  `erroresPorCelda`, sin pedir los tramos restantes); `cupo_minuto_agotado`
+  corta el resto de los lotes igual que `cupo_agotado`/`host_en_cooldown`
+  (regresión directa del bloqueante). Los tests preexistentes de batching por
+  celdas se ajustaron a `TAMANO_LOTE_COORDENADAS=5` y a períodos cortos (para
+  aislar la dimensión de celdas de la de tramos, sin heredar el backoff real
+  de `cliente-http.ts` sobre docenas de lotes fallidos).
+- `jobs/calcular-climatologia.test.ts`: nuevo caso "cupo_minuto_agotado
+  también corta el job-run como fallido" — regresión directa del bloqueante:
+  antes del fix este escenario dejaba el job-run `completado` con 0 filas.
+- `jobs/sync-seasonal.test.ts`: nuevo caso que fuerza
+  `OPEN_METEO_LIMITE_MINUTO=1` (peso de cualquier tanda lo supera) y verifica
+  que el guard corta la tanda ANTES de llamar al provider, sin tumbar el job
+  (la fuente queda `degradado`, no hay throw sin capturar).
+
+### 11.6 Verificación
+
+| Verificación | Comando | Resultado |
+|---|---|---|
+| Tests focalizados (fix) | `pnpm exec vitest run --maxWorkers=2 lib/infraestructura/riesgo/providers/cupo-om.test.ts lib/infraestructura/riesgo/providers/cliente-http.test.ts lib/infraestructura/riesgo/providers/climatologia.test.ts lib/infraestructura/riesgo/jobs/calcular-climatologia.test.ts lib/infraestructura/riesgo/providers/seasonal.test.ts lib/infraestructura/riesgo/jobs/sync-seasonal.test.ts lib/infraestructura/riesgo/providers/ensemble.test.ts lib/infraestructura/riesgo/providers/ecmwf.test.ts` | verde — 92/92 |
+| Suite completa | `pnpm exec vitest run --maxWorkers=2` (bajo `flock`) | verde — 193 archivos, **1649/1649** (+9 sobre el baseline de 1640) |
+| Lint | `pnpm lint` (bajo `flock`) | verde |
+| Types | `pnpm exec tsc --noEmit` (bajo `flock`) | verde |
+| Build | `pnpm build` (bajo `flock`) | verde (Next.js 16.2.9 / Turbopack) |
+
+### 11.7 Archivos tocados en esta sesión
+
+- `lib/infraestructura/riesgo/providers/cupo-om.ts`: exporta
+  `MOTIVOS_CUPO_SIN_RED` (única fuente de verdad, con `cupo_minuto_agotado`
+  agregado) y la nueva `asegurarPesoAlcanzable`.
+- `lib/infraestructura/riesgo/providers/climatologia.ts`: troceo por período
+  (`diasMaximosPorTramo`, `partirPeriodoEnTramos`), `TAMANO_LOTE_COORDENADAS`
+  50→5, `obtenerSeriesHistoricas` reescrito para pedir por tramos y
+  concatenar en memoria, importa `MOTIVOS_CUPO_SIN_RED`/`asegurarPesoAlcanzable`.
+- `lib/infraestructura/riesgo/jobs/calcular-climatologia.ts`: importa
+  `MOTIVOS_CUPO_SIN_RED` de `cupo-om.ts` en vez de la copia local.
+- `lib/infraestructura/riesgo/providers/seasonal.ts`: importa
+  `MOTIVOS_CUPO_SIN_RED`; exporta `FORECAST_DAYS_SOLICITADOS`.
+- `lib/infraestructura/riesgo/providers/ensemble.ts` /
+  `lib/infraestructura/riesgo/providers/ecmwf.ts`: importan
+  `MOTIVOS_CUPO_SIN_RED` en vez de la copia local (mismo bug latente, sin
+  disparar nunca en producción).
+- `lib/infraestructura/riesgo/jobs/sync-seasonal.ts`: guard
+  `asegurarPesoAlcanzable` conectado antes de llamar al provider por tanda.
+- Tests: `climatologia.test.ts`, `calcular-climatologia.test.ts`,
+  `sync-seasonal.test.ts` (ver 11.5).
+- `docs/ejecucion-enos/OM-cupo/registro.md`: esta sección.
+
 ## Pendientes explícitos para N1
 
 Ninguno funcional. Queda pendiente la revisión y el merge del batch, y la

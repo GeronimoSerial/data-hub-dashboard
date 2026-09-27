@@ -3,12 +3,15 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   agruparPuntosPorEra5,
   calcularPercentilesPrecipitacion,
+  diasMaximosPorTramo,
   estimarCostoClimatologia,
   obtenerSerieHistorica,
   obtenerSeriesHistoricas,
+  partirPeriodoEnTramos,
   redondearACeldaEra5,
   TAMANO_LOTE_COORDENADAS,
 } from './climatologia'
+import { limiteVentana } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 
 // Serie sintética conocida: 10 días secos (0 mm) + 10 días con lluvia
@@ -189,6 +192,10 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
     }))
   }
 
+  // Período corto (2 días) a propósito: cae en UN solo tramo (ver
+  // "troceo por período" más abajo), así que esta prueba aísla el batching
+  // por CELDAS sin que el troceo por PERÍODO multiplique la cantidad de
+  // llamadas — eso se prueba aparte.
   it('agrupa 120 celdas en ceil(120/TAMANO_LOTE_COORDENADAS) llamadas y empareja por índice', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       const longitudes = longitudesDeUrl(url)
@@ -198,14 +205,15 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
     const { seriesPorCelda, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
       await obtenerSeriesHistoricas({
         puntos: puntosSinteticos(120),
-        periodoDesde: '1991-01-01',
-        periodoHasta: '2020-12-31',
+        periodoDesde: '2020-01-01',
+        periodoHasta: '2020-01-02',
         fetchImpl: fetchImpl as unknown as typeof fetch,
       })
 
-    expect(fetchImpl).toHaveBeenCalledTimes(Math.ceil(120 / TAMANO_LOTE_COORDENADAS))
-    expect(llamadasRealizadas).toBe(Math.ceil(120 / TAMANO_LOTE_COORDENADAS))
-    expect(celdasPorLlamada).toEqual([50, 50, 20])
+    const lotesEsperados = Math.ceil(120 / TAMANO_LOTE_COORDENADAS)
+    expect(fetchImpl).toHaveBeenCalledTimes(lotesEsperados)
+    expect(llamadasRealizadas).toBe(lotesEsperados)
+    expect(celdasPorLlamada).toEqual(Array(lotesEsperados).fill(TAMANO_LOTE_COORDENADAS))
     expect(erroresPorCelda).toEqual({})
 
     expect(Object.keys(seriesPorCelda)).toHaveLength(120)
@@ -235,7 +243,10 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
   it('un lote caído no pierde los lotes exitosos', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       const longitudes = longitudesDeUrl(url)
-      // El lote cuyo primer lon es 50 (celdas 50..99) falla siempre.
+      // El lote cuyo primer lon es 50 (celdas 50..54, un solo lote de
+      // TAMANO_LOTE_COORDENADAS=5) falla siempre — sólo UN lote a propósito,
+      // para no acumular el backoff real de `cliente-http.ts` (3 intentos
+      // por lote caído) sobre muchos lotes y hacer lenta la prueba.
       if (longitudes[0] === 50) {
         return new Response('boom', { status: 500 })
       }
@@ -245,28 +256,178 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
     const { seriesPorCelda, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
       await obtenerSeriesHistoricas({
         puntos: puntosSinteticos(120),
-        periodoDesde: '1991-01-01',
-        periodoHasta: '2020-12-31',
+        periodoDesde: '2020-01-01',
+        periodoHasta: '2020-01-02',
         fetchImpl: fetchImpl as unknown as typeof fetch,
       })
 
-    expect(llamadasRealizadas).toBe(3)
-    expect(celdasPorLlamada).toEqual([50, 50, 20])
+    const lotesEsperados = Math.ceil(120 / TAMANO_LOTE_COORDENADAS)
+    // `http_error` no es un motivo "sin red": cada lote (exitoso o caído)
+    // dispara igual una request HTTP real, así que los 24 cuentan.
+    expect(llamadasRealizadas).toBe(lotesEsperados)
+    expect(celdasPorLlamada).toEqual(Array(lotesEsperados).fill(TAMANO_LOTE_COORDENADAS))
 
     const refsConError = Object.keys(erroresPorCelda)
-    expect(refsConError).toHaveLength(50)
+    expect(refsConError).toHaveLength(TAMANO_LOTE_COORDENADAS)
     expect(refsConError.every((ref) => Number(ref.slice(4)) >= 50)).toBe(true)
-    expect(refsConError.every((ref) => Number(ref.slice(4)) <= 99)).toBe(true)
+    expect(refsConError.every((ref) => Number(ref.slice(4)) < 50 + TAMANO_LOTE_COORDENADAS)).toBe(true)
     expect(erroresPorCelda['-27_50'].motivo).toBe('http_error')
 
-    expect(Object.keys(seriesPorCelda)).toHaveLength(70)
+    expect(Object.keys(seriesPorCelda)).toHaveLength(120 - TAMANO_LOTE_COORDENADAS)
     expect(seriesPorCelda['-27_0']).toEqual([0])
     expect(seriesPorCelda['-27_49']).toEqual([49])
     expect(seriesPorCelda['-27_50']).toBeUndefined()
-    expect(seriesPorCelda['-27_99']).toBeUndefined()
     expect(seriesPorCelda['-27_100']).toEqual([100])
     expect(seriesPorCelda['-27_119']).toEqual([119])
   }, 15_000)
+})
+
+describe('troceo por período (OM-cupo, fix bloqueante 2da revisión)', () => {
+  const LIMITE_MINUTO_DEFAULT = limiteVentana('minuto', false)
+
+  it('diasMaximosPorTramo nunca produce un tramo cuyo peso supere el límite de minuto', () => {
+    const dias = diasMaximosPorTramo({
+      celdasPorLote: TAMANO_LOTE_COORDENADAS,
+      variables: 1,
+      limiteMinuto: LIMITE_MINUTO_DEFAULT,
+    })
+    expect(dias).toBeGreaterThanOrEqual(1)
+
+    const factorDias = Math.max(1, dias / 14)
+    const peso = TAMANO_LOTE_COORDENADAS * factorDias
+    expect(peso).toBeLessThanOrEqual(LIMITE_MINUTO_DEFAULT)
+  })
+
+  it('diasMaximosPorTramo nunca devuelve menos de 1 día, incluso con un límite casi nulo', () => {
+    expect(diasMaximosPorTramo({ celdasPorLote: 50, variables: 1, limiteMinuto: 1 })).toBe(1)
+  })
+
+  it('partirPeriodoEnTramos cubre el período completo sin huecos ni superposición', () => {
+    const tramos = partirPeriodoEnTramos('2020-01-01', '2020-01-10', 3)
+    expect(tramos).toEqual([
+      { desde: '2020-01-01', hasta: '2020-01-03' },
+      { desde: '2020-01-04', hasta: '2020-01-06' },
+      { desde: '2020-01-07', hasta: '2020-01-09' },
+      { desde: '2020-01-10', hasta: '2020-01-10' },
+    ])
+  })
+
+  it('partirPeriodoEnTramos con un tramo más largo que el período entero devuelve un único tramo', () => {
+    expect(partirPeriodoEnTramos('2020-01-01', '2020-01-05', 30)).toEqual([
+      { desde: '2020-01-01', hasta: '2020-01-05' },
+    ])
+  })
+
+  it('un período de 30 años se pide en varios tramos secuenciales y las series diarias quedan concatenadas en orden', async () => {
+    const llamadas: Array<{ desde: string; hasta: string }> = []
+    const fetchImpl = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      const desde = u.searchParams.get('start_date') as string
+      const hasta = u.searchParams.get('end_date') as string
+      llamadas.push({ desde, hasta })
+      // Cada tramo devuelve un único día cuyo valor codifica el índice del
+      // tramo (orden de llegada), para poder verificar la concatenación.
+      return new Response(
+        JSON.stringify({ daily: { time: [desde], precipitation_sum: [llamadas.length] } }),
+        { status: 200 },
+      )
+    })
+
+    const resultado = await obtenerSeriesHistoricas({
+      puntos: [{ geometryRef: 'una-celda', lat: -27, lon: -58 }],
+      periodoDesde: '1991-01-01',
+      periodoHasta: '2020-12-31',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    // Ninguna request individual pide el período completo (30 años): con 1
+    // sola celda por lote (TAMANO_LOTE_COORDENADAS <= 5), un solo tramo de
+    // 30 años pesaría ~782 (por encima del límite de minuto); acá deben ser
+    // varios tramos más chicos.
+    expect(fetchImpl.mock.calls.length).toBeGreaterThan(1)
+    // Cubre el período completo sin huecos: el primer tramo arranca en la
+    // fecha pedida y el último termina en ella.
+    expect(llamadas[0].desde).toBe('1991-01-01')
+    expect(llamadas[llamadas.length - 1].hasta).toBe('2020-12-31')
+
+    expect(resultado.seriesPorCelda['una-celda']).toEqual(
+      Array.from({ length: llamadas.length }, (_, indice) => indice + 1),
+    )
+  })
+
+  it('un tramo caído a mitad de un lote no deja datos parciales: la celda entera queda en erroresPorCelda', async () => {
+    const PERIODO_DESDE = '1991-01-01'
+    const PERIODO_HASTA = '2020-12-31'
+    const tramosEsperados = partirPeriodoEnTramos(
+      PERIODO_DESDE,
+      PERIODO_HASTA,
+      diasMaximosPorTramo({ celdasPorLote: TAMANO_LOTE_COORDENADAS, variables: 1, limiteMinuto: LIMITE_MINUTO_DEFAULT }),
+    )
+    expect(tramosEsperados.length).toBeGreaterThanOrEqual(3)
+    const fechaTramoQueFalla = tramosEsperados[1].desde
+
+    // El 2do tramo (de varios) falla SIEMPRE con esa fecha de inicio — hace
+    // que `ejecutarConReintentos` agote sus 3 intentos internos y devuelva
+    // `http_error` de verdad, en vez de un 500 transitorio que un reintento
+    // interno arreglaría solo. El resto de los tramos, si se llegaran a
+    // pedir, responderían ok.
+    const fetchImpl = vi.fn(async (url: string) => {
+      const desde = new URL(url).searchParams.get('start_date')
+      if (desde === fechaTramoQueFalla) return new Response('boom', { status: 500 })
+      return new Response(JSON.stringify({ daily: { time: [desde as string], precipitation_sum: [1] } }), {
+        status: 200,
+      })
+    })
+
+    const resultado = await obtenerSeriesHistoricas({
+      puntos: [{ geometryRef: 'una-celda', lat: -27, lon: -58 }],
+      periodoDesde: PERIODO_DESDE,
+      periodoHasta: PERIODO_HASTA,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(resultado.seriesPorCelda['una-celda']).toBeUndefined()
+    expect(resultado.erroresPorCelda['una-celda']?.motivo).toBe('http_error')
+    // No se siguió pidiendo tramos de este lote después del que falló (el
+    // 3er tramo nunca se pide).
+    const fechaTercerTramo = tramosEsperados[2].desde
+    expect(fetchImpl.mock.calls.some((llamada) => llamada[0].includes(`start_date=${fechaTercerTramo}`))).toBe(false)
+  }, 10_000)
+
+  it('cupo_minuto_agotado corta el resto de los lotes igual que cupo_agotado/host_en_cooldown (fix del bloqueante)', async () => {
+    let llamadas = 0
+    const controladorCupoFactory = () => ({
+      reservar: async () => {
+        llamadas++
+        return { ok: false as const, motivo: 'cupo_minuto_agotado' as const, detalle: 'fake: minuto agotado' }
+      },
+      registrar429: async () => {},
+    })
+
+    const resultado = await obtenerSeriesHistoricas({
+      puntos: [
+        { geometryRef: 'celda-1', lat: -27, lon: -58 },
+        { geometryRef: 'celda-2', lat: -10, lon: -60 },
+      ],
+      periodoDesde: '1991-01-01',
+      periodoHasta: '2020-12-31',
+      fetchImpl: (async () => {
+        throw new Error('no debería llegar a la red: la guarda de cupo corta antes')
+      }) as unknown as typeof fetch,
+      controladorCupoFactory,
+    })
+
+    // Sólo se reservó UNA vez: al chocar contra un motivo "sin red" en el
+    // primer tramo, se corta el resto de los tramos/lotes sin seguir
+    // intentando (mismo criterio que cupo_agotado/host_en_cooldown) — antes
+    // del fix, `cupo_minuto_agotado` no estaba en MOTIVOS_CUPO_SIN_RED y el
+    // caller seguía pidiendo tramos igual.
+    expect(llamadas).toBe(1)
+    expect(resultado.erroresPorCelda['celda-1']?.motivo).toBe('cupo_minuto_agotado')
+    expect(resultado.erroresPorCelda['celda-2']?.motivo).toBe('cupo_minuto_agotado')
+    expect(resultado.seriesPorCelda).toEqual({})
+    expect(resultado.llamadasRealizadas).toBe(0)
+  })
 })
 
 describe('redondearACeldaEra5 / agruparPuntosPorEra5 (deduplicación por celda ERA5)', () => {

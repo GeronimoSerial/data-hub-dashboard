@@ -45,7 +45,7 @@
 // ("regional, probabilístico, nunca valor por escuela").
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 
 const RUTA = '/v1/seasonal'
@@ -69,7 +69,7 @@ export const TAMANO_LOTE_DEPARTAMENTOS_SEASONAL = 5
 // segunda request real (presupuesto de cupo agotado): si Open-Meteo ignora
 // el parámetro, el parseo sigue siendo correcto (se filtra por fecha, no por
 // índice), sólo se pierde el ahorro de payload/costo — ver registro.md.
-const FORECAST_DAYS_SOLICITADOS = 95
+export const FORECAST_DAYS_SOLICITADOS = 95
 
 const MIEMBRO_CONTROL = VARIABLE_DIARIA_SEASONAL
 const NOMBRES_MIEMBROS_PERTURBADOS: string[] = Array.from(
@@ -275,13 +275,6 @@ function estadisticaDeDepartamento(params: {
     probabilidadSobreNormal,
   }
 }
-
-// OM-cupo: motivos que significan que la guarda de cupo cortó ANTES de tocar
-// la red (ver providers/cupo-om.ts) — mismo criterio que ecmwf.ts/ensemble.ts:
-// si esto pasa en un lote, TODOS los lotes restantes van a fallar por la
-// misma razón (mismo bucket compartido), así que se cortan de una sin gastar
-// más intentos.
-const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
 
 /**
  * Obtiene la tendencia estacional (30-90 días por defecto) por LOTES de

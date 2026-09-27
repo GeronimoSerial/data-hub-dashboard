@@ -185,6 +185,49 @@ export type ResultadoReservaCupo =
   | { ok: false; motivo: 'cupo_agotado'; ventana: 'hora' | 'dia' | 'mes'; detalle: string }
   | { ok: false; motivo: 'cupo_minuto_agotado'; detalle: string }
 
+/**
+ * Motivos que significan que la guarda de cupo cortó ANTES de tocar la red:
+ * ningún fetch real se disparó, así que no tiene sentido reintentar contra el
+ * mismo bucket agotado y el caller debe cortar limpio (marcar la fuente
+ * `degradado` y, en un job, dejar el job-run `fallido` para que la próxima
+ * corrida retome — nunca `completado` con 0 filas).
+ *
+ * ÚNICA fuente de verdad (fix de la 2da revisión OM-cupo): antes,
+ * `climatologia.ts`, `calcular-climatologia.ts`, `seasonal.ts`, `ensemble.ts`
+ * y `ecmwf.ts` mantenían cada uno su propia copia local de este Set, y las 5
+ * copias tenían el mismo bug — les faltaba `cupo_minuto_agotado` — así que un
+ * corte por ventana de minuto no cortaba el resto del batch ni marcaba el
+ * job-run `fallido`, dejándolo `completado` con 0 filas para siempre
+ * (`adquirirLease` bloqueaba cualquier reintento). Todos esos archivos ahora
+ * importan este único Set en vez de declarar el propio.
+ */
+export const MOTIVOS_CUPO_SIN_RED: ReadonlySet<string> = new Set([
+  'cupo_agotado',
+  'cupo_minuto_agotado',
+  'host_en_cooldown',
+])
+
+/**
+ * Guarda contra un peso de request que NINGUNA espera puede satisfacer: el
+ * límite de cada ventana se evalúa completo por request (no se "consume a
+ * medias" esperando), así que si `peso` por sí solo ya supera el límite de
+ * minuto, ese request está condenado a `cupo_minuto_agotado` sin importar
+ * cuánto se espere o reintente. En vez de dejar que el caller reintente en
+ * loop indefinido, se corta acá con un error explícito: el caller
+ * (`climatologia.ts`, `sync-seasonal.ts`) debe partir el request en menos
+ * ubicaciones y/o menos días ANTES de intentarlo.
+ */
+export function asegurarPesoAlcanzable(params: { peso: number; apiKeyPresente?: boolean }): void {
+  const limiteMinuto = limiteVentana('minuto', params.apiKeyPresente ?? false)
+  if (params.peso > limiteMinuto) {
+    throw new Error(
+      `[cupo-om] peso de request (${params.peso.toFixed(2)}) supera el límite de la ventana de minuto ` +
+        `(${limiteMinuto}); ningún reintento ni espera lo resuelve porque el límite se evalúa completo por ` +
+        `request, no acumulado. Hay que partir el request en menos ubicaciones y/o menos días.`,
+    )
+  }
+}
+
 // Error interno usado sólo para cortar la transacción de reserva desde
 // adentro del loop de ventanas; nunca se propaga fuera de este módulo.
 class CupoAgotadoEnVentana extends Error {

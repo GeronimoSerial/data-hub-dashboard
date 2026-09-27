@@ -23,12 +23,19 @@ import { hazardSeasonalTrend, hazardSourceHealth } from '@/lib/db/schema'
 import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import {
+  FORECAST_DAYS_SOLICITADOS,
   MODELO_SEASONAL,
   obtenerTendenciaEstacional as obtenerTendenciaEstacionalReal,
   TAMANO_LOTE_DEPARTAMENTOS_SEASONAL,
 } from '../providers/seasonal'
 import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
 import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
+import { apiKeyDesdeEntorno, asegurarPesoAlcanzable, pesoLlamada } from '../providers/cupo-om'
+
+// Variables de `daily=` en la request Seasonal (ver providers/seasonal.ts,
+// `VARIABLE_DIARIA_SEASONAL`): sólo `precipitation_sum`, los 51 miembros
+// vienen como columnas del mismo payload, no cuentan como variables extra.
+const VARIABLES_SEASONAL = 1
 
 export type ResultadoSyncSeasonal = {
   departamentosConsultados: number
@@ -253,10 +260,22 @@ async function ejecutarCuerpoDelJobSeasonal(ctx: {
       erroresPorDepartamento: Record<string, string>
     }
     try {
+      // Guard #3 del batch OM-cupo (requisito 4: "conectá el guard también en
+      // el job, no sólo en el proveedor"): valida ACÁ, antes de llamar al
+      // provider, que el peso de la tanda no supere el límite de minuto por sí
+      // solo. Hoy (95 días, 5 departamentos por tanda) el peso es chico y esto
+      // nunca dispara; si el horizonte o el tamaño de tanda crecen a futuro,
+      // corta con un error explícito en vez de dejar que el provider entre en
+      // un loop de `cupo_minuto_agotado` imposible de satisfacer.
+      asegurarPesoAlcanzable({
+        peso: pesoLlamada({ ubicaciones: tanda.length, variables: VARIABLES_SEASONAL, dias: FORECAST_DAYS_SOLICITADOS }),
+        apiKeyPresente: Boolean(apiKeyDesdeEntorno()),
+      })
       diagnostico = await obtener({ centroides: tanda, emisionEn })
     } catch (error) {
-      // Un provider que lanza no debe tumbar el job: se traduce a error en
-      // todos sus departamentos y se sigue (mismo criterio que sync-ensemble.ts).
+      // Un provider que lanza (o el guard de arriba) no debe tumbar el job:
+      // se traduce a error en todos sus departamentos y se sigue (mismo
+      // criterio que sync-ensemble.ts).
       const mensaje = error instanceof Error ? error.message : String(error)
       const errores: Record<string, string> = {}
       for (const centroide of tanda) {

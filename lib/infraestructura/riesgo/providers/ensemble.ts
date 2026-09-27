@@ -19,7 +19,7 @@
 //   siguen procesando los demás lotes.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 
 const RUTA = '/v1/ensemble'
@@ -258,8 +258,6 @@ function puntosDeCeldaEnsemble(params: {
  * los dos para una celda, esa celda queda en `erroresPorCelda` como
  * `'sin_climatologia'` y no afecta a las demás.
  */
-const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
-
 export async function obtenerProbabilidadesEnsemble(params: {
   geometryRefsConCoordenada: Array<{ geometryRef: string; lat: number; lon: number }>
   corridaEn: string

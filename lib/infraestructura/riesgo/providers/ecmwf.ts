@@ -16,7 +16,7 @@
 //   consecutivos (primer punto usa el paso del segundo respecto al primero).
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
@@ -203,12 +203,6 @@ export interface HazardProviderEcmwf extends HazardProvider {
     ahora: Date
   }): Promise<ResultadoPronosticoEcmwf>
 }
-
-// OM-cupo: motivos que significan "la guarda de cupo cortó antes de tocar la
-// red" (ver providers/cupo-om.ts). Cuando un lote choca contra una ventana
-// larga (hora/dia/mes) o un cooldown de host, los lotes restantes van a
-// chocar exactamente igual: se cortan de una sin gastar más ciclos.
-const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
 
 export function crearProviderEcmwf(opts?: {
   fetchImpl?: typeof fetch

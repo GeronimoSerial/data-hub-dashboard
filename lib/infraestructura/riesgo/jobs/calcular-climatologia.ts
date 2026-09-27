@@ -40,7 +40,7 @@ import {
   obtenerSeriesHistoricas,
   type PuntoClimatologia,
 } from '../providers/climatologia'
-import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
+import { apiKeyDesdeEntorno, crearControladorCupo, MOTIVOS_CUPO_SIN_RED } from '../providers/cupo-om'
 
 export type ResultadoCalcularClimatologia = {
   celdasProcesadas: number
@@ -57,11 +57,6 @@ export type ResultadoCalcularClimatologia = {
    */
   cortadoPorCupo: boolean
 }
-
-// OM-cupo: motivos que significan que la guarda de cupo cortó antes de tocar
-// la red (ver providers/cupo-om.ts) — el resto de las celdas pendientes
-// quedan igual en `erroresPorCelda` (el provider ya no gasta cupo en ellas).
-const MOTIVOS_CUPO_SIN_RED = new Set(['cupo_agotado', 'host_en_cooldown'])
 
 const TIPO_JOB = 'calculo-climatologia'
 const DURACION_LEASE_MS = 10 * 60 * 1000

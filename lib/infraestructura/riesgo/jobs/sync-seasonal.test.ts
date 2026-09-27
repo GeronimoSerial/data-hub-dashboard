@@ -109,6 +109,47 @@ describe('ejecutarSyncSeasonal', () => {
     expect(seasonal?.ultimoErrorSaneado).toBeNull()
   })
 
+  // Guard #3 del batch OM-cupo conectado también en el job (requisito 4:
+  // "conectá el guard también en sync-seasonal, no sólo en el proveedor"):
+  // con un límite de minuto forzado a casi 0, el peso de CUALQUIER tanda lo
+  // supera por sí solo — el guard debe cortar esa tanda con un error
+  // explícito (capturado, no un throw que tumbe el job) en vez de llamar al
+  // provider y dejar que reintente contra un `cupo_minuto_agotado`
+  // imposible de satisfacer.
+  it('el guard de peso alcanzable corta la tanda ANTES de llamar al provider si el límite de minuto es imposible', async () => {
+    const prevLimite = process.env.OPEN_METEO_LIMITE_MINUTO
+    process.env.OPEN_METEO_LIMITE_MINUTO = '1'
+    try {
+      const ahora = new Date('2026-10-05T09:00:00.000Z')
+      let llamadasAlProvider = 0
+
+      const resultado = await ejecutarSyncSeasonal({
+        ahora,
+        obtenerTendenciaEstacional: seasonalFake({
+          onLlamada: () => {
+            llamadasAlProvider += 1
+          },
+        }),
+      })
+
+      expect(llamadasAlProvider).toBe(0)
+      expect(resultado.ok).toBe(true)
+      if (!resultado.ok) throw new Error('unreachable')
+      // Ningún departamento consiguió fila (el guard cortó todas las tandas
+      // antes de tocar la red), pero el job TERMINA (no tumba el proceso).
+      expect(resultado.resultado.filasInsertadas).toBe(0)
+
+      const { getDb } = await import('@/lib/db')
+      const { hazardSourceHealth } = await import('@/lib/db/schema')
+      const salud = await getDb().select().from(hazardSourceHealth)
+      const seasonal = salud.find((f) => f.provider === 'open-meteo-seasonal')
+      expect(seasonal?.estado).toBe('degradado')
+    } finally {
+      if (prevLimite === undefined) delete process.env.OPEN_METEO_LIMITE_MINUTO
+      else process.env.OPEN_METEO_LIMITE_MINUTO = prevLimite
+    }
+  })
+
   it('repetir el sync el MISMO día UTC no adquiere lease y no duplica filas', async () => {
     const { getDb } = await import('@/lib/db')
     const { hazardSeasonalTrend } = await import('@/lib/db/schema')
