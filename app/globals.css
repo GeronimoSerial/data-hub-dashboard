@@ -1856,6 +1856,57 @@ time {
   line-height: 1.4;
 }
 
+/* Panel del modo Replay (E7c): mismo patrón de columna que .map-radar-panel,
+   con su propia fila de selección (departamento + ventana + vista) y la
+   timeline agrupadas por separado. */
+.map-replay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-replay-panel__seleccion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+.map-replay-panel__seleccion select,
+.map-replay-panel__seleccion input {
+  font: inherit;
+}
+.map-replay-panel__vista {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-replay-panel__timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+.map-replay-panel__contador {
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  margin: 0;
+}
+.map-replay-panel__truncado {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__vacios {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__export {
+  display: flex;
+  gap: var(--s-2);
+}
+
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
    izquierda (escuelas/filtros/indicadores) y el panel de base/capas en la
    esquina superior derecha a la vez — se pisan y se vuelven ilegibles. Debajo
