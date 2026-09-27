@@ -874,3 +874,47 @@ export const infraEpisodioMiembro = sqliteTable(
     index('infra_episodio_miembro_cue_anexo_idx').on(t.cueAnexo),
   ],
 )
+
+// Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal, ECMWF SEAS5 +
+// EC46, 51 miembros, ~36 km) por CENTROIDE de departamento — nunca por
+// escuela (plan-implementacion §9.3 / plan-ejecucion §E5, capa opcional
+// detrás del flag SEASONAL_ENABLED). Ver
+// lib/infraestructura/riesgo/providers/seasonal.ts para el detalle de las
+// fuentes/modelos verificados y la simplificación v0 de
+// `probabilidadSobreNormal`. Tabla propia (no reutiliza `hazard_forecast` ni
+// `hazard_ensemble_prob`, que son por celda de grilla, no por departamento) e
+// índice único por (departamento, variable, emisionEn, horizonteDesdeDias,
+// horizonteHastaDias) para que reintentar el job no duplique.
+export const hazardSeasonalTrend = sqliteTable(
+  'hazard_seasonal_trend',
+  {
+    id: text('id').primaryKey(),
+    departamento: text('departamento').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    variable: text('variable').notNull(),
+    emisionEn: text('emision_en').notNull(),
+    validoDesde: text('valido_desde').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+    horizonteDesdeDias: integer('horizonte_desde_dias').notNull(),
+    horizonteHastaDias: integer('horizonte_hasta_dias').notNull(),
+    miembrosTotal: integer('miembros_total').notNull(),
+    miembrosValidos: integer('miembros_validos').notNull(),
+    mediaMm: real('media_mm'),
+    medianaMm: real('mediana_mm'),
+    dispersionMm: real('dispersion_mm'),
+    probabilidadSobreNormal: real('probabilidad_sobre_normal'),
+    version: text('version').notNull(),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_seasonal_trend_uidx').on(
+      t.departamento,
+      t.variable,
+      t.emisionEn,
+      t.horizonteDesdeDias,
+      t.horizonteHastaDias,
+    ),
+    index('hazard_seasonal_trend_departamento_idx').on(t.departamento),
+  ],
+)
