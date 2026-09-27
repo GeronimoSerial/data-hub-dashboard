@@ -11,6 +11,7 @@ export type NombreJob =
   | 'climatologia-caudal'
   | 'calcular-riesgo'
   | 'episodios-derivados'
+  | 'sync-seasonal'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -27,6 +28,14 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
   'episodios-derivados': { minutos: 60, descripcion: 'Deriva episodios a partir de los datos recientes' },
   // Proceso pesado de agregación: alcanza con una corrida diaria.
   'geo-perfiles': { minutos: 1440, descripcion: 'Reconstruye los perfiles geográficos (diario)' },
+  // Open-Meteo Seasonal (EC46+SEAS5): capa opcional de tendencia a 30-90 días
+  // por departamento, detrás de SEASONAL_ENABLED. Una corrida diaria alcanza
+  // (EC46 actualiza a diario; SEAS5, una vez al mes) y respeta el cupo de la
+  // fuente (ver providers/seasonal.ts).
+  'sync-seasonal': {
+    minutos: 1440,
+    descripcion: 'Sincroniza la tendencia estacional Open-Meteo por departamento (diario)',
+  },
   // 0 = sin cadencia automática: se ejecuta bajo demanda / manual.
   'climatologia-precipitacion': { minutos: 0, descripcion: 'Climatología de precipitación (bajo demanda)' },
   // 0 = sin cadencia automática: se ejecuta bajo demanda / manual.
@@ -48,6 +57,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'calcular-hazard-climatologia-caudal': 'climatologia-caudal',
   'calcular-riesgo-v0': 'calcular-riesgo',
   'episodios-derivados-v0': 'episodios-derivados',
+  'sync-hazard-seasonal': 'sync-seasonal',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su

@@ -58,6 +58,7 @@ const NOMBRES_VALIDOS = [
   'climatologia-caudal',
   'calcular-riesgo',
   'episodios-derivados',
+  'sync-seasonal',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -169,6 +170,14 @@ async function correrSyncEnsemble() {
   return ejecutarSyncEnsemble()
 }
 
+async function correrSyncSeasonal() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-seasonal')
+  const { ejecutarSyncSeasonal } = await import(
+    '../lib/infraestructura/riesgo/jobs/sync-seasonal.ts'
+  )
+  return ejecutarSyncSeasonal()
+}
+
 async function correrSyncImerg() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-imerg')
   const { ejecutarSyncImerg } = await import('../lib/infraestructura/riesgo/jobs/sync-imerg.ts')
@@ -228,6 +237,8 @@ export async function correrJob(nombre, opts) {
       return correrCalcularRiesgo()
     case 'episodios-derivados':
       return correrEpisodiosDerivados()
+    case 'sync-seasonal':
+      return correrSyncSeasonal()
     default:
       throw new JobDesconocidoError(nombre)
   }

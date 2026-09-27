@@ -96,7 +96,14 @@ systemctl enable --now enos-ops1-sync-imerg.timer
 systemctl enable --now enos-ops1-calcular-riesgo.timer
 systemctl enable --now enos-ops1-episodios-derivados.timer
 systemctl enable --now enos-ops1-geo-perfiles.timer
+systemctl enable --now enos-ops1-sync-seasonal.timer
 ```
+
+`sync-seasonal` es una capa OPCIONAL (Open-Meteo Seasonal, tendencia ENOS a
+30-90 días, detrás del flag `SEASONAL_ENABLED` de UI — ver
+docs/ejecucion-enos/SEASONAL/registro.md). El job corre igual con el flag de
+UI apagado (el flag sólo oculta la tarjeta en el mapa); habilitar este timer
+es opcional y depende de si se decide activar esa capa en el ambiente.
 
 Las climatologías no se habilitan como timer (bajo demanda, ver tabla): se
 corren manualmente con
@@ -118,6 +125,7 @@ UTC`) en vez de reintroducir drop-ins.
 | geo-perfiles | diario | `*-*-* 03:00:00 UTC` | `enos-ops1-geo-perfiles.timer` | recompute barato de perfiles geográficos, sin llamadas externas; horario de baja carga |
 | climatologia-precipitacion | bajo demanda | sin timer | — | ejecución manual (`docker exec <CONTENEDOR> node scripts/jobs.mjs climatologia-precipitacion`); cálculo pesado de serie histórica, no cambia seguido |
 | climatologia-caudal | bajo demanda | sin timer | — | ídem anterior |
+| sync-seasonal | diario (opcional) | `*-*-* 09:00:00 UTC` | `enos-ops1-sync-seasonal.timer` | Open-Meteo Seasonal (EC46+SEAS5): EC46 actualiza a diario (20:30Z), SEAS5 mensual; una corrida diaria alcanza. Capa opcional detrás de `SEASONAL_ENABLED` (UI); el job corre igual, sólo la tarjeta queda oculta con el flag apagado |
 
 ### Caveat de secuencia entre jobs distintos (sin cola/orquestador)
 

@@ -483,6 +483,31 @@ CREATE TABLE IF NOT EXISTS \`infra_episodio_miembro\` (
 );
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_episodio_id_idx\` ON \`infra_episodio_miembro\` (\`episodio_derivado_id\`);
 CREATE INDEX IF NOT EXISTS \`infra_episodio_miembro_cue_anexo_idx\` ON \`infra_episodio_miembro\` (\`cue_anexo\`);
+-- Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal), ver
+-- lib/db/schema.ts (hazardSeasonalTrend) y
+-- lib/infraestructura/riesgo/providers/seasonal.ts.
+CREATE TABLE IF NOT EXISTS \`hazard_seasonal_trend\` (
+  \`id\` text PRIMARY KEY NOT NULL,
+  \`departamento\` text NOT NULL,
+  \`provider\` text NOT NULL,
+  \`model\` text NOT NULL,
+  \`variable\` text NOT NULL,
+  \`emision_en\` text NOT NULL,
+  \`valido_desde\` text NOT NULL,
+  \`valido_hasta\` text NOT NULL,
+  \`horizonte_desde_dias\` integer NOT NULL,
+  \`horizonte_hasta_dias\` integer NOT NULL,
+  \`miembros_total\` integer NOT NULL,
+  \`miembros_validos\` integer NOT NULL,
+  \`media_mm\` real,
+  \`mediana_mm\` real,
+  \`dispersion_mm\` real,
+  \`probabilidad_sobre_normal\` real,
+  \`version\` text NOT NULL,
+  \`ingerido_en\` text NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS \`hazard_seasonal_trend_uidx\` ON \`hazard_seasonal_trend\` (\`departamento\`, \`variable\`, \`emision_en\`, \`horizonte_desde_dias\`, \`horizonte_hasta_dias\`);
+CREATE INDEX IF NOT EXISTS \`hazard_seasonal_trend_departamento_idx\` ON \`hazard_seasonal_trend\` (\`departamento\`);
 `
 
 let seedPromise: Promise<void> | null = null
