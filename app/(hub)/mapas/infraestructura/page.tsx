@@ -4,6 +4,7 @@ import { puedeAbrir } from '@/lib/acl'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
 import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
+import { hazardContextEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { InfraestructuraMapClient } from './map-client'
 
 export const runtime = 'nodejs'
@@ -15,5 +16,10 @@ export default async function InfraestructuraMapRoute() {
   const found = await loadRecursoAccessByRuta('/mapas/infraestructura')
   if (!found || !puedeAbrir(user, found.access)) redirect('/forbidden')
   const mostrarEnlaceNominal = await puedeVerNominal(user, new Date())
-  return <InfraestructuraMapClient mostrarEnlaceNominal={mostrarEnlaceNominal} />
+  return (
+    <InfraestructuraMapClient
+      mostrarEnlaceNominal={mostrarEnlaceNominal}
+      hazardContextEnabled={hazardContextEnabled()}
+    />
+  )
 }

@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { aiBriefingEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
+import { aiBriefingEnabled, hazardContextEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
 
-const CLAVES = ['RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_BRIEFING_ENABLED', 'RISK_MODE'] as const
+const CLAVES = [
+  'RISK_ENGINE_ENABLED',
+  'RISK_RADAR_ENABLED',
+  'AI_BRIEFING_ENABLED',
+  'RISK_MODE',
+  'HAZARD_CONTEXT_ENABLED',
+] as const
 
 const originales = new Map<string, string | undefined>()
 
@@ -71,6 +77,23 @@ describe('aiBriefingEnabled', () => {
     expect(aiBriefingEnabled()).toBe(false)
     process.env.AI_BRIEFING_ENABLED = 'yes'
     expect(aiBriefingEnabled()).toBe(false)
+  })
+})
+
+describe('hazardContextEnabled', () => {
+  it('devuelve false sin la variable seteada', () => {
+    delete process.env.HAZARD_CONTEXT_ENABLED
+    expect(hazardContextEnabled()).toBe(false)
+  })
+
+  it('devuelve true con el valor exacto "true"', () => {
+    process.env.HAZARD_CONTEXT_ENABLED = 'true'
+    expect(hazardContextEnabled()).toBe(true)
+  })
+
+  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
+    process.env.HAZARD_CONTEXT_ENABLED = '1'
+    expect(hazardContextEnabled()).toBe(false)
   })
 })
 

@@ -22,6 +22,13 @@ export function aiBriefingEnabled(): boolean {
   return esTrue(process.env.AI_BRIEFING_ENABLED)
 }
 
+// Gobierna sólo la UI nueva de E2 (ficha territorial + vista técnica de
+// fuentes). Las APIs /fuentes, /peligro y /geo-perfiles/:cueAnexo existen
+// siempre, protegidas por ACL; este flag no las oculta, sólo el frontend.
+export function hazardContextEnabled(): boolean {
+  return esTrue(process.env.HAZARD_CONTEXT_ENABLED)
+}
+
 // Modo de operación del motor: 'advisory' solo si el valor es exactamente
 // 'advisory'; cualquier otro valor (incluido undefined o inválido) cae al
 // default seguro 'shadow'. No lanza excepción ante valor inválido.

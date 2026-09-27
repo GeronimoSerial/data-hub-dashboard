@@ -21,6 +21,7 @@ import {
   rigeDesdeDelServicio,
 } from './estado-actual-textos'
 import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
+import { FichaTerritorial } from './ficha-territorial'
 
 // --- Forma de GET /api/mapas/infraestructura/parte (ver app/api/mapas/infraestructura/parte/route.ts) ---
 //
@@ -316,6 +317,7 @@ export function FichaParteModal({
   mostrarEnlaceNominal,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
+  habilitado = false,
 }: {
   cueAnexo: string
   open: boolean
@@ -324,6 +326,10 @@ export function FichaParteModal({
   mostrarEnlaceNominal: boolean
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
+  // Flag server-side (E2): el padre decide si la ficha territorial corresponde
+  // para esta escuela. Default `false` para no cambiar el comportamiento
+  // existente de todo el mapa que ya usa este modal.
+  habilitado?: boolean
 }): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -335,14 +341,20 @@ export function FichaParteModal({
           </p>
         )}
         {open ? (
-          <FichaParteModalContenido
-            key={cueAnexo}
-            cueAnexo={cueAnexo}
-            parteResumen={parteResumen}
-            mostrarEnlaceNominal={mostrarEnlaceNominal}
-            onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
-            onVerHistorialCompleto={onVerHistorialCompleto}
-          />
+          <>
+            <FichaParteModalContenido
+              key={cueAnexo}
+              cueAnexo={cueAnexo}
+              parteResumen={parteResumen}
+              mostrarEnlaceNominal={mostrarEnlaceNominal}
+              onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
+              onVerHistorialCompleto={onVerHistorialCompleto}
+            />
+            {/* Ficha territorial compacta (E2). DENTRO de `open` a propósito:
+                sus fetches no deben existir con el modal cerrado. El flag lo
+                decide el padre; acá sólo se respeta. */}
+            {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
+          </>
         ) : null}
       </DialogContent>
     </Dialog>
