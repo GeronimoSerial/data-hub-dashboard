@@ -58,6 +58,45 @@ function fuente(
   }
 }
 
+function nivel(
+  horizonteHoras: 24 | 72 | 240,
+  nivel: 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato',
+  base: 'ensemble' | 'deterministico' | 'sin_dato' = 'ensemble',
+) {
+  return {
+    geometryRef: GEOMETRY_REF,
+    horizonteHoras,
+    nivel,
+    base,
+    probabilidadP95: null,
+    probabilidadP99: null,
+    precipitacionMm: null,
+    percentilReferencia: null,
+    emitidoEn: '2026-08-01T06:00:00Z',
+    validoHasta: '2026-08-02T06:00:00Z',
+    versionRegla: 'v1',
+  }
+}
+
+function observadoSatelital(overrides: Record<string, unknown> = {}) {
+  return {
+    geometryRef: GEOMETRY_REF,
+    provider: 'nasa-imerg',
+    variable: 'precipitacion_observada_satelital',
+    valor: 12.4,
+    unidad: 'mm',
+    observadoEn: '2026-08-01T09:00:00Z',
+    validoDesde: '2026-08-01T09:00:00Z',
+    validoHasta: '2026-08-01T10:00:00Z',
+    ...overrides,
+  }
+}
+
+function urlPeligro(fetchMock: ReturnType<typeof stubFetch>): string {
+  const llamada = fetchMock.mock.calls.find(([input]) => String(input).includes('/peligro?'))
+  return llamada ? String(llamada[0]) : ''
+}
+
 interface Handlers {
   perfil?: () => Response | Promise<Response>
   peligro?: () => Response | Promise<Response>
@@ -218,5 +257,225 @@ describe('FichaTerritorial', () => {
       'No se pudo obtener el contexto territorial en este momento.',
     )
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('agrega puntoRioId a la URL de /peligro cuando el perfil trae un punto de río asociado', async () => {
+    const fetchMock = stubFetch({
+      perfil: () =>
+        jsonOk(
+          perfilValido({ rioAsociacion: { puntoRioId: 'rio-1801', distanciaKm: 12.5 } }),
+        ),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(urlPeligro(fetchMock)).toContain('puntoRioId=rio-1801')
+    // Una sola request a /peligro: el punto de río viaja en la misma llamada.
+    const llamadasPeligro = fetchMock.mock.calls.filter(([input]) =>
+      String(input).includes('/peligro?'),
+    )
+    expect(llamadasPeligro).toHaveLength(1)
+  })
+
+  it('sin job de asociación (rioAsociacion: null) no agrega puntoRioId ni muestra caudal', async () => {
+    const fetchMock = stubFetch({
+      perfil: () => jsonOk(perfilValido({ rioAsociacion: null })),
+      peligro: () =>
+        jsonOk({ pronostico: [], climatologia: [], niveles: [], caudal: null, observado: [] }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(urlPeligro(fetchMock)).not.toContain('puntoRioId')
+    expect(screen.queryByTestId('ficha-territorial-caudal')).not.toBeInTheDocument()
+  })
+
+  it('con fila de asociación pero sin punto en radio (puntoRioId: null) tampoco muestra caudal', async () => {
+    const fetchMock = stubFetch({
+      perfil: () =>
+        jsonOk(perfilValido({ rioAsociacion: { puntoRioId: null, distanciaKm: null } })),
+      peligro: () =>
+        jsonOk({ pronostico: [], climatologia: [], niveles: [], caudal: null, observado: [] }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(urlPeligro(fetchMock)).not.toContain('puntoRioId')
+    expect(screen.queryByTestId('ficha-territorial-caudal')).not.toBeInTheDocument()
+  })
+
+  it('muestra cada nivel con su texto explícito por horizonte, no sólo color', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [],
+          niveles: [
+            nivel(24, 'rojo', 'ensemble'),
+            nivel(72, 'amarillo', 'deterministico'),
+            nivel(240, 'sin_dato', 'sin_dato'),
+          ],
+          observado: [],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const filas = screen.getAllByTestId('ficha-territorial-nivel-peligro')
+    expect(filas).toHaveLength(3)
+    expect(filas[0]).toHaveTextContent('Próximas 24h (riesgo inmediato)')
+    expect(filas[0]).toHaveTextContent('Rojo')
+    expect(filas[0]).toHaveTextContent('(ensemble)')
+    expect(filas[1]).toHaveTextContent('Próximas 72h (riesgo probable)')
+    expect(filas[1]).toHaveTextContent('Amarillo')
+    expect(filas[1]).toHaveTextContent('(determinístico)')
+    expect(filas[2]).toHaveTextContent('7-10 días (tendencia)')
+    expect(filas[2]).toHaveTextContent('Sin dato')
+  })
+
+  it('colapsa a un único "sin dato" cuando los tres horizontes vienen sin dato', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [],
+          niveles: [nivel(24, 'sin_dato'), nivel(72, 'sin_dato'), nivel(240, 'sin_dato')],
+          observado: [],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const filas = screen.getAllByTestId('ficha-territorial-nivel-peligro')
+    expect(filas).toHaveLength(1)
+    expect(filas[0]).toHaveTextContent('sin dato')
+  })
+
+  it('muestra el caudal con percentil y nivel cuando la respuesta lo trae', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [],
+          niveles: [],
+          caudal: {
+            puntoId: 'rio-1801',
+            percentilActual: 0.92,
+            nivel: 'naranja',
+            emitidoEn: '2026-08-01T06:00:00Z',
+            validoHasta: '2026-08-02T06:00:00Z',
+          },
+          observado: [],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const linea = screen.getByTestId('ficha-territorial-caudal')
+    expect(linea).toHaveTextContent('percentil 0.92')
+    expect(linea).toHaveTextContent('nivel Naranja')
+  })
+
+  it('muestra "Caudal del río: sin dato" cuando hay punto asociado pero todavía no hay caudal', async () => {
+    stubFetch({
+      perfil: () =>
+        jsonOk(perfilValido({ rioAsociacion: { puntoRioId: 'rio-1801', distanciaKm: 8 } })),
+      peligro: () =>
+        jsonOk({ pronostico: [], niveles: [], caudal: null, observado: [] }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.getByTestId('ficha-territorial-caudal')).toHaveTextContent(
+      'Caudal del río: sin dato',
+    )
+  })
+
+  it('muestra la lluvia observada satelital con su rótulo completo y la fecha', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [],
+          niveles: [],
+          observado: [observadoSatelital()],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const linea = screen.getByTestId('ficha-territorial-lluvia-observada')
+    expect(linea).toHaveTextContent('Lluvia observada estimada por satélite')
+    expect(linea).toHaveTextContent('12.4 mm')
+    expect(linea).toHaveTextContent(/01\/08\/2026/)
+  })
+
+  it('no muestra la línea de lluvia observada cuando no hay filas de IMERG', async () => {
+    stubFetch({
+      peligro: () => jsonOk({ pronostico: [], niveles: [], observado: [] }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.queryByTestId('ficha-territorial-lluvia-observada')).not.toBeInTheDocument()
+  })
+
+  it('muestra el acumulado observado 24h/72h con cobertura cuando hay dato', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [],
+          niveles: [],
+          observado: [],
+          observadoAcumulado: [
+            {
+              geometryRef: GEOMETRY_REF,
+              horizonteHoras: 24,
+              acumuladoMm: 18.5,
+              granulosEncontrados: 48,
+              granulosEsperados: 48,
+              cobertura: 1,
+              masRecienteEn: '2026-08-01T09:00:00Z',
+            },
+            {
+              geometryRef: GEOMETRY_REF,
+              horizonteHoras: 72,
+              acumuladoMm: null,
+              granulosEncontrados: 60,
+              granulosEsperados: 144,
+              cobertura: 60 / 144,
+              masRecienteEn: '2026-08-01T09:00:00Z',
+            },
+          ],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.getByTestId('ficha-territorial-observado-24h')).toHaveTextContent(
+      '24 h: 18.5 mm (cobertura 100%)',
+    )
+    // Cobertura insuficiente -> "sin dato" explícito, nunca un número que
+    // subestima.
+    expect(screen.getByTestId('ficha-territorial-observado-72h')).toHaveTextContent('sin dato')
+    expect(screen.getByTestId('ficha-territorial-observado-72h')).toHaveTextContent('60/144')
+  })
+
+  it('no muestra la sección de acumulado observado cuando la ruta no la trae (backward compatible)', async () => {
+    stubFetch({
+      peligro: () => jsonOk({ pronostico: [], niveles: [], observado: [] }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.queryByTestId('ficha-territorial-observado-24h')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-territorial-observado-72h')).not.toBeInTheDocument()
   })
 })
