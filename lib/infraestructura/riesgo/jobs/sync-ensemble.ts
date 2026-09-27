@@ -37,6 +37,7 @@ import {
   TAMANO_LOTE_COORDENADAS_ENSEMBLE,
 } from '../providers/ensemble'
 import type { HazardEnsembleProbPunto } from '../providers/ensemble'
+import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
 
 export type ResultadoSyncEnsemble = {
@@ -341,6 +342,7 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
 
   const obtener = params?.obtenerProbabilidades ?? obtenerProbabilidadesEnsembleReal
   const renovar = params?.renovarLease ?? renovarLeaseReal
+  const apiKey = apiKeyDesdeEntorno()
 
   // `corridaEn` se deriva del INICIO del bloque, no del wall-clock `ahora`.
   const corridaEn = inicioDeBloqueUtc(ahora).toISOString()
@@ -355,7 +357,11 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
   for (let indice = 0; indice < totalCeldas; indice += TAMANO_TANDA_CELDAS) {
     const tanda = celdasConCoordenada.slice(indice, indice + TAMANO_TANDA_CELDAS)
 
-    let diagnostico: { puntos: HazardEnsembleProbPunto[]; erroresPorCelda: Record<string, string> }
+    let diagnostico: {
+      puntos: HazardEnsembleProbPunto[]
+      erroresPorCelda: Record<string, string>
+      llamadasRealizadas?: number
+    }
     try {
       diagnostico = await obtener({
         geometryRefsConCoordenada: tanda,
@@ -363,6 +369,9 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
         acumuladoHoras: ACUMULADO_HORAS,
         umbralP95PorCelda,
         umbralP99PorCelda,
+        apiKey,
+        controladorCupoFactory: (peso) =>
+          crearControladorCupo({ host: 'ensemble-api', peso, apiKeyPresente: Boolean(apiKey), db }),
       })
     } catch (error) {
       // Un provider que lanza (no sólo que reporta errores por celda) no debe
@@ -372,13 +381,16 @@ async function ejecutarCuerpoDelJobEnsemble(ctx: {
       for (const celda of tanda) {
         errores[celda.geometryRef] = `proveedor_throw: ${mensaje}`
       }
-      diagnostico = { puntos: [], erroresPorCelda: errores }
+      diagnostico = { puntos: [], erroresPorCelda: errores, llamadasRealizadas: 0 }
     }
 
     Object.assign(erroresPorCelda, diagnostico.erroresPorCelda)
     filasInsertadas += await persistirPuntos(db, diagnostico.puntos, ahoraIso)
     celdasConsultadas += tanda.length
-    llamadasRealizadas += 1
+    // OM-cupo (hallazgo de este mismo batch): igual que ecmwf.ts, si el
+    // provider no reporta su conteo real se asume conservadoramente 1
+    // llamada por tanda (comportamiento previo).
+    llamadasRealizadas += diagnostico.llamadasRealizadas ?? 1
 
     // La última tanda ya no tiene trabajo posterior que proteger: no renovamos
     // después de ella.

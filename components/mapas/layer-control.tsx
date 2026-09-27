@@ -55,7 +55,7 @@ export function LayerControl({ overlays, onChange }: Props) {
 export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinReportar'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Escuelas (padrón completo)',
+  escuelas: 'Todas las escuelas (padrón)',
   // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
   // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
   // responden a la misma pregunta operativa ("¿hay algo pasando con el

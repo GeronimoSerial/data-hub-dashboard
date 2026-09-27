@@ -6,13 +6,16 @@
 // se resuelve id -> lat/lon y se emite el pronóstico diario.
 import { z } from 'zod'
 import { ejecutarConReintentos } from './cliente-http'
+import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import type { ControladorCupoOM } from './cupo-om'
 import { PUNTOS_RIO, puntoRioPorId, type PuntoRio } from '../puntos-rio'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
 const NOMBRE_PROVEEDOR = 'open-meteo-flood'
-const URL_BASE = 'https://flood-api.open-meteo.com/v1/flood'
+const RUTA = '/v1/flood'
 const VARIABLES_CAUDAL =
   'river_discharge,river_discharge_mean,river_discharge_max,river_discharge_p75'
+const CANTIDAD_VARIABLES_CAUDAL = 4
 const DIAS_PRONOSTICO = 10
 
 // El contrato sólo persiste `river_discharge` como valor principal. Mean/max/p75
@@ -35,8 +38,10 @@ const respuestaFloodSchema = z
 
 type DailyFlood = z.infer<typeof respuestaFloodSchema>['daily']
 
-function construirUrl(punto: PuntoRio): string {
-  return `${URL_BASE}?latitude=${punto.lat}&longitude=${punto.lon}&daily=${VARIABLES_CAUDAL}&forecast_days=${DIAS_PRONOSTICO}&timezone=UTC`
+function construirUrl(punto: PuntoRio, apiKey: string | undefined): string {
+  const base = construirBaseUrl('flood-api', RUTA, apiKey)
+  const url = `${base}?latitude=${punto.lat}&longitude=${punto.lon}&daily=${VARIABLES_CAUDAL}&forecast_days=${DIAS_PRONOSTICO}&timezone=UTC`
+  return agregarApiKey(url, apiKey)
 }
 
 function horizonteHorasDe(fecha: string, ahora: Date): number | null {
@@ -79,6 +84,9 @@ export type ParametrosPronosticoFlood = {
   geometryRefs: string[]
   ahora: Date
   fetchImpl?: typeof fetch
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
 }
 
 export type DiagnosticoFlood = {
@@ -106,6 +114,8 @@ export async function obtenerPronosticoConDiagnostico(
   // Dedupe preservando el orden: un id repetido no debe disparar dos fetch ni
   // emitir puntos duplicados.
   const ids = [...new Set(params.geometryRefs)]
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
+  let llamadasRealizadas = 0
 
   const resultados = await Promise.all(
     ids.map(async (id) => {
@@ -114,24 +124,37 @@ export async function obtenerPronosticoConDiagnostico(
         erroresPorCelda[id] = 'punto_no_configurado'
         return []
       }
+      const peso = pesoLlamada({ ubicaciones: 1, variables: CANTIDAD_VARIABLES_CAUDAL, dias: DIAS_PRONOSTICO })
+      const cupo = params.controladorCupoFactory?.(peso)
       const resultado = await ejecutarConReintentos<DailyFlood>({
-        url: construirUrl(punto),
+        url: construirUrl(punto, apiKey),
         fetchImpl: params.fetchImpl,
+        cupo,
         parsearPayload: (json) => respuestaFloodSchema.parse(json).daily,
       })
       if (!resultado.ok) {
         erroresPorCelda[id] = `${resultado.motivo}: ${resultado.detalle}`
+        // OM-cupo: un bloqueo de la guarda (cupo agotado/host en cooldown)
+        // no tocó la red — no cuenta como llamada real.
+        if (resultado.motivo !== 'cupo_agotado' && resultado.motivo !== 'host_en_cooldown') {
+          llamadasRealizadas += 1
+        }
         return []
       }
+      llamadasRealizadas += 1
       return puntosDePuntoRio(resultado.datos, punto, params.ahora)
     }),
   )
 
   for (const porPunto of resultados) puntos.push(...porPunto)
-  return { puntos, erroresPorCelda, llamadasRealizadas: ids.length }
+  return { puntos, erroresPorCelda, llamadasRealizadas }
 }
 
-export function crearProviderFlood(opts?: { fetchImpl?: typeof fetch }): HazardProvider {
+export function crearProviderFlood(opts?: {
+  fetchImpl?: typeof fetch
+  apiKey?: string
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
+}): HazardProvider {
   return {
     nombreProveedor: NOMBRE_PROVEEDOR,
     async obtenerPronostico({ geometryRefs, ahora }) {
@@ -139,6 +162,8 @@ export function crearProviderFlood(opts?: { fetchImpl?: typeof fetch }): HazardP
         geometryRefs,
         ahora,
         fetchImpl: opts?.fetchImpl,
+        apiKey: opts?.apiKey,
+        controladorCupoFactory: opts?.controladorCupoFactory,
       })
       return puntos
     },

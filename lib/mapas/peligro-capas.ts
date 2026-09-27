@@ -131,6 +131,27 @@ export function paintCoropletaPeligro(): FillLayerSpecification['paint'] {
   }
 }
 
+// Peor nivel entre varias filas (batch E7c, modo Replay): un cuadro de replay
+// entrega el nivel de peligro por CELDA de grilla (geometryRef), no por
+// departamento — para pintar la coropleta con `construirCoropletaPeligro` (que
+// espera un peor-nivel por departamento) hay que reducir esas celdas a una
+// sola fila primero. Valores desconocidos o `'sin_dato'` se ignoran para el
+// ranking; si NINGUNA fila es un nivel real, el resultado es `'sin_dato'`
+// (nunca se inventa un nivel a partir de un arreglo vacío).
+export function peorNivelEntre(niveles: string[]): NivelPeligro {
+  let peor: NivelPeligro = 'sin_dato'
+  let peorIndice = -1
+  for (const nivel of niveles) {
+    if (!esNivelPeligro(nivel) || nivel === 'sin_dato') continue
+    const indice = NIVELES_PELIGRO.indexOf(nivel)
+    if (indice > peorIndice) {
+      peorIndice = indice
+      peor = nivel
+    }
+  }
+  return peor
+}
+
 // ── Puntos de riesgo por escuela ────────────────────────────────────────────
 
 export interface EscuelaConCoordenadas {
