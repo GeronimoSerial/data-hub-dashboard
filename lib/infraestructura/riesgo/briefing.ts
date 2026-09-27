@@ -75,10 +75,12 @@ function lineaSinEvidencia(actual: CoberturaBriefing | null): string {
   return `Sin evidencia válida: ${actual.sinEvidencia} escuelas.`
 }
 
+// Nunca exponer `id` (UUID interno): sólo la fecha de publicación, que es lo
+// único que un operador necesita para ubicar el corte en el tiempo.
 function lineaCorte(runActual: RunBriefing, runAnterior: RunBriefing | null): string {
-  let linea = `Corte ${runActual.id} publicado el ${formatearFechaCorta(runActual.publicadoEn)}.`
+  let linea = `Corte publicado el ${formatearFechaCorta(runActual.publicadoEn)}.`
   if (runAnterior !== null) {
-    linea += ` Corte anterior: ${runAnterior.id} (${formatearFechaCorta(runAnterior.publicadoEn)}).`
+    linea += ` Corte anterior: ${formatearFechaCorta(runAnterior.publicadoEn)}.`
   }
   return linea
 }
@@ -96,7 +98,7 @@ export function generarBriefing(
   conteosPorNivel: ConteosPorNivel,
 ): string[] {
   if (runAnterior === null) {
-    return [lineaCorte(runActual, null) + ' Es el primer corte disponible, sin comparación.']
+    return ['Primer resumen del día; todavía no hay un corte anterior para comparar.']
   }
 
   const coberturaAnterior = conteosPorNivel.anterior === null ? null : runAnterior.cobertura

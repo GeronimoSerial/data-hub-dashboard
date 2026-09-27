@@ -21,8 +21,22 @@ describe('generarBriefing', () => {
     })
 
     expect(lineas).toHaveLength(1)
-    expect(lineas[0]).toContain('primer corte disponible')
+    expect(lineas[0]).toContain('Primer resumen del día')
     expect(lineas[0]).not.toContain('Sin cambios significativos')
+    expect(lineas[0]).not.toContain(RUN_ACTUAL.id)
+  })
+
+  it('nunca expone el id interno (UUID) del corte en ninguna línea', () => {
+    const lineas = generarBriefing(RUN_ACTUAL, RUN_ANTERIOR, {
+      actual: { alto: 5, muy_alto: 3 },
+      anterior: { alto: 2, muy_alto: 1 },
+    })
+
+    const texto = lineas.join('\n')
+    expect(texto).not.toContain(RUN_ACTUAL.id)
+    expect(texto).not.toContain(RUN_ANTERIOR.id)
+    expect(texto).toContain('Corte publicado el 2026-09-27')
+    expect(texto).toContain('Corte anterior: 2026-09-26')
   })
 
   it('corte con más escuelas en alto que el anterior menciona el número exacto', () => {
