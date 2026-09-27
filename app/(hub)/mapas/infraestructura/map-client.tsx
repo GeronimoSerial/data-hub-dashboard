@@ -94,6 +94,7 @@ export function InfraestructuraMapClient(props: {
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
             seasonalEnabled={props.seasonalEnabled ?? false}
+            visible={mapaVisible}
           />
         </div>
 

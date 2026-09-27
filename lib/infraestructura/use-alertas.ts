@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FiltrosMapa, IndicadoresMapa, ParteMapa } from './parte-mapa'
+import { construirQueryStringFiltrosMapa as construirQueryString } from './query-string-filtros-mapa'
 
 const RUTA_PARTES = '/api/mapas/infraestructura'
 const INTERVALO_POLLING_MS = 15000
@@ -12,27 +13,6 @@ const MENSAJE_ERROR = 'No se pudieron cargar los partes.'
 export interface RespuestaPartesMapa {
   partes: ParteMapa[]
   indicadores: IndicadoresMapa
-}
-
-function construirQueryString(filtros: FiltrosMapa): string {
-  const parametros = new URLSearchParams()
-
-  const agregar = (nombre: string, valor: string | undefined): void => {
-    if (valor !== undefined && valor !== '') {
-      parametros.set(nombre, valor)
-    }
-  }
-
-  agregar('territorio', filtros.territorio)
-  agregar('nivel', filtros.nivel)
-  agregar('establecimiento', filtros.cueAnexo)
-  agregar('motivo', filtros.motivo)
-  agregar('severidad', filtros.severidad)
-  agregar('categoria', filtros.categoria)
-  agregar('servicio', filtros.servicio)
-
-  const cadena = parametros.toString()
-  return cadena === '' ? '' : `?${cadena}`
 }
 
 export function useAlertas(filtros: FiltrosMapa): {

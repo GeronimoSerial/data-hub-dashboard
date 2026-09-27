@@ -15,9 +15,19 @@
  *     listarPartesVigentes (parte-mapa.ts) tenga algo interesante que
  *     mostrar.
  *
- * Usage:
- *   node scripts/seed-demo-partes.mjs             # siembra (idempotente)
- *   node scripts/seed-demo-partes.mjs --limpiar   # borra sólo lo sembrado y sale
+ * Usage (requiere gate de seguridad):
+ *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs             # siembra (idempotente)
+ *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --limpiar   # borra sólo lo sembrado y sale
+ *
+ * Gate de seguridad: este script inserta datos FICTICIOS de demo. Para evitar
+ * correrlo por accidente contra datos reales exige DOS condiciones (si falta
+ * cualquiera, imprime el motivo por stderr y sale con código 1 SIN abrir
+ * ninguna base):
+ *   - DEMO_OK=1
+ *   - DATA_DIR seteado explícitamente (no vacío). El default de getDataDir()
+ *     (.data en el cwd) NO cuenta como explícito.
+ * El gate corre apenas después de process.loadEnvFile(), antes de importar
+ * cualquier módulo de infraestructura/DB.
  *
  * Idempotencia: todo lo que este script escribe es identificable sin
  * ambigüedad y se borra antes de reinsertar en cada corrida:
@@ -47,6 +57,20 @@ try {
   process.loadEnvFile()
 } catch {
   // noop: si no hay .env (p.ej. CI con las env vars ya exportadas), seguimos.
+}
+
+// --- Gate de seguridad (antes de importar/abrir cualquier DB) -------------
+// Ver comentario de cabecera. DATA_DIR debe estar EXPLÍCITAMENTE seteado:
+// un string vacío o ausente no cuenta (el default .data del cwd sería
+// justamente el riesgo que este gate evita).
+if (process.env.DEMO_OK !== '1' || !process.env.DATA_DIR) {
+  console.error(
+    'Este script inserta datos FICTICIOS de demo. Para evitar correrlo por ' +
+      'accidente contra datos reales, requiere DEMO_OK=1 y DATA_DIR seteado ' +
+      'explícitamente a un directorio de prueba (nunca el de producción). ' +
+      'Uso: DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs',
+  )
+  process.exit(1)
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
