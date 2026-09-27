@@ -1,0 +1,146 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SessionUser } from '@/lib/acl'
+import { getDb } from '@/lib/db'
+import { infraGeoProfile } from '@/lib/db/schema'
+import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+
+// Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
+// antes de que el beforeAll fije DATA_DIR.
+vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
+  verificarAccesoLectura: vi.fn(),
+}))
+
+const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [] }
+
+function mockAcceso(acceso: AccesoLectura) {
+  vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
+}
+
+const CUE = '1801605-04'
+
+let dir: string
+let prevDataDir: string | undefined
+
+beforeAll(async () => {
+  dir = mkdtempSync(path.join(tmpdir(), 'geo-perfiles-route-'))
+  prevDataDir = process.env.DATA_DIR
+  process.env.DATA_DIR = dir
+
+  const { ensureSeeded } = await import('@/lib/db/seed')
+  await ensureSeeded()
+
+  await getDb().insert(infraGeoProfile).values([
+    {
+      cueAnexo: CUE,
+      lat: -31.7,
+      lon: -60.5,
+      geoCalidad: 'alta',
+      departamento: 'Parana',
+      geometryRef: '-31.7_-60.5',
+      motivoExclusion: null,
+      perfilVersion: 'v1',
+      calculadoEn: '2026-01-01T00:00:00Z',
+    },
+    {
+      cueAnexo: '1801605-05',
+      lat: null,
+      lon: null,
+      geoCalidad: null,
+      departamento: 'Parana',
+      geometryRef: null,
+      motivoExclusion: 'sin_coordenadas',
+      perfilVersion: 'v1',
+      calculadoEn: '2026-01-01T00:00:00Z',
+    },
+  ])
+})
+
+afterAll(() => {
+  if (prevDataDir === undefined) delete process.env.DATA_DIR
+  else process.env.DATA_DIR = prevDataDir
+  rmSync(dir, { recursive: true, force: true })
+})
+
+beforeEach(() => {
+  vi.mocked(verificarAccesoLectura).mockReset()
+})
+
+function ctx(cueAnexo: string) {
+  return { params: Promise.resolve({ cueAnexo }) }
+}
+
+function req() {
+  return new Request(`http://localhost/api/infraestructura/geo-perfiles/${CUE}`)
+}
+
+describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
+  it('rechaza sin sesión con 401', async () => {
+    mockAcceso({ ok: false, status: 401 })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx(CUE))
+    expect(res.status).toBe(401)
+    const body = await res.json()
+    expect(body.error).toBe('No autenticado')
+  })
+
+  it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
+    mockAcceso({ ok: false, status: 403 })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx(CUE))
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe('No tiene acceso a este recurso')
+  })
+
+  it('con acceso devuelve el perfil completo, incluyendo motivoExclusion null', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx(CUE))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+
+    const body = await res.json()
+    expect(body.cueAnexo).toBe(CUE)
+    expect(body.geometryRef).toBe('-31.7_-60.5')
+    expect(body.motivoExclusion).toBeNull()
+    expect(body.perfilVersion).toBe('v1')
+  })
+
+  it('devuelve el perfil de exclusión tal cual (motivoExclusion no null)', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx('1801605-05'))
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.motivoExclusion).toBe('sin_coordenadas')
+  })
+
+  it('devuelve 404 si no hay fila para el CUE-anexo', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx('9999999-99'))
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe('Sin perfil geográfico para ese CUE-anexo')
+  })
+
+  it('rechaza cueAnexo inválido (vacío) con 400', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx(''))
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('cueAnexo inválido')
+  })
+
+  it('rechaza cueAnexo demasiado largo con 400', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const res = await GET(req(), ctx('x'.repeat(51)))
+    expect(res.status).toBe(400)
+  })
+})
