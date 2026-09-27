@@ -41,6 +41,16 @@ describe('calcularMatriculaCondicionadaPorAcceso', () => {
     expect(resultado).toEqual({ escuelas: 2, matricula: 40 })
   })
 
+  it('deduplica por cueAnexo cuando el caller pasa una fila por horizonte', () => {
+    const fila = { cueAnexo: 'a', nivelRiesgoAcceso: 'alto', exposicionMatricula: 100 }
+    const resultado = calcularMatriculaCondicionadaPorAcceso({
+      snapshots: [{ ...fila }, { ...fila }, { ...fila }],
+      cuesConAfectacionConfirmada: new Set(),
+    })
+
+    expect(resultado).toEqual({ escuelas: 1, matricula: 100 })
+  })
+
   it('devuelve cero con universo vacío', () => {
     const resultado = calcularMatriculaCondicionadaPorAcceso({
       snapshots: [],

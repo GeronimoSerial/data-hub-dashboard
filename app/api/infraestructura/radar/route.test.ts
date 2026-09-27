@@ -517,6 +517,70 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 80 })
   })
 
+  it('sin ?horizonte= no duplica el KPI de acceso condicionado cuando la misma escuela tiene una fila por horizonte', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { eq } = await import('drizzle-orm')
+    const { infraRiskSnapshot } = await import('@/lib/db/schema')
+
+    // `s1` (cueAnexo 1000000-01) ya tiene perfil territorial en GEO. Se le
+    // agregan dos filas del MISMO cue para 72h y 240h dentro del run vigente,
+    // para que el KPI agregue tres filas del mismo colegio. Sin `?horizonte=`
+    // el endpoint devuelve las tres: si no deduplicara por cueAnexo, contaría
+    // la matrícula 3 veces.
+    await getDb()
+      .insert(infraRiskSnapshot)
+      .values([
+        {
+          id: 's7',
+          runId: RUN_VIGENTE,
+          cueAnexo: '1000000-01',
+          horizonteHoras: 72,
+          evidenciaValida: true,
+          scoreRiesgo: 80,
+          nivelRiesgo: 'muy_alto',
+          scoreAmenaza: 70,
+          scoreVulnerabilidad: 60,
+          confianza: 'alta',
+          nivelRiesgoAcceso: 'alto',
+          exposicionMatricula: 100,
+          exposicionSecciones: 5,
+          calculadoEn: '2026-01-02T00:00:00Z',
+          validoHasta: '2026-01-05T00:00:00Z',
+        },
+        {
+          id: 's8',
+          runId: RUN_VIGENTE,
+          cueAnexo: '1000000-01',
+          horizonteHoras: 240,
+          evidenciaValida: true,
+          scoreRiesgo: 80,
+          nivelRiesgo: 'muy_alto',
+          scoreAmenaza: 70,
+          scoreVulnerabilidad: 60,
+          confianza: 'alta',
+          nivelRiesgoAcceso: 'alto',
+          exposicionMatricula: 100,
+          exposicionSecciones: 5,
+          calculadoEn: '2026-01-02T00:00:00Z',
+          validoHasta: '2026-01-05T00:00:00Z',
+        },
+      ])
+
+    await getDb()
+      .update(infraRiskSnapshot)
+      .set({ nivelRiesgoAcceso: 'alto', exposicionMatricula: 100 })
+      .where(eq(infraRiskSnapshot.id, 's1'))
+
+    const { GET } = await import('./route')
+    // SIN query string: es el estado inicial real de la UI (sin `?horizonte=`).
+    const body = await (await GET(req())).json()
+
+    // Ninguna otra fila del fixture fija nivelRiesgoAcceso (default null), así
+    // que el único colegio condicionado es 1000000-01, y debe contarse una sola
+    // vez (no 300 por sumar los tres horizontes).
+    expect(body.kpis.accesoCondicionado).toEqual({ escuelas: 1, matricula: 100 })
+  })
+
   it('pagina escuelas con total y totalPages correctos', async () => {
     mockAcceso({ ok: true, user: USER })
     const { GET } = await import('./route')
