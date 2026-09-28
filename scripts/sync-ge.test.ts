@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { ensureGeSchema, openGeDb } from '../lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '../lib/infraestructura/ge-db'
+import { getRawClient } from '../lib/db'
 import {
   buildFixtureSecciones,
   insertFixtureCorte,
@@ -15,10 +16,23 @@ import {
 let dir: string
 let prevDataDir: string | undefined
 
-beforeEach(() => {
+// DB1/F2: GE ya no es un ge.sqlite por test, sino el schema `ge` de la base
+// PGlite compartida por todo el archivo; cada test limpia sus tablas para
+// conservar el aislamiento que antes daba el archivo SQLite.
+async function resetGe(): Promise<void> {
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute('DELETE FROM ge.ge_alumno_seccion')
+  await client.execute('DELETE FROM ge.ge_seccion')
+  await client.execute('DELETE FROM ge.ge_localizacion')
+  await client.execute('DELETE FROM ge.ge_corte')
+}
+
+beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'sync-ge-'))
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
+  await resetGe()
 })
 
 afterEach(() => {
@@ -209,79 +223,75 @@ describe('reconciliarLocalizaciones', () => {
 
 describe('upsertLocalizaciones', () => {
   it('inserta registros y es idempotente (ON CONFLICT no duplica)', async () => {
-    const client = openGeDb()
-    try {
-      await ensureGeSchema(client)
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
 
-      const registros = [
-        {
-          cueAnexo: '1801605-04',
-          cui: null,
-          nombre: 'Escuela 415',
-          departamento: 'GENERAL PAZ',
-          localidad: 'ITA IBATE',
-          lat: -27.42,
-          lon: -57.33,
-          geoCalidad: 'excelente',
-        },
-        {
-          cueAnexo: '1800001-00',
-          cui: null,
-          nombre: 'Escuela 793',
-          departamento: 'BELLA VISTA',
-          localidad: 'MUCHAS ISLAS',
-          lat: -28.38,
-          lon: -58.79,
-          geoCalidad: null,
-        },
-      ]
-      await upsertLocalizaciones(client, registros)
+    const registros = [
+      {
+        cueAnexo: '1801605-04',
+        cui: null,
+        nombre: 'Escuela 415',
+        departamento: 'GENERAL PAZ',
+        localidad: 'ITA IBATE',
+        lat: -27.42,
+        lon: -57.33,
+        geoCalidad: 'excelente',
+      },
+      {
+        cueAnexo: '1800001-00',
+        cui: null,
+        nombre: 'Escuela 793',
+        departamento: 'BELLA VISTA',
+        localidad: 'MUCHAS ISLAS',
+        lat: -28.38,
+        lon: -58.79,
+        geoCalidad: null,
+      },
+    ]
+    await upsertLocalizaciones(client, registros)
 
-      let res = await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')
-      expect(Number(res.rows[0].n)).toBe(2)
+    let res = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
+    expect(Number(res.rows[0].n)).toBe(2)
 
-      res = await client.execute(
-        "SELECT cue_anexo, nombre, lat, lon FROM ge_localizacion WHERE cue_anexo = '1801605-04'",
-      )
-      expect(res.rows[0].nombre).toBe('Escuela 415')
+    res = await client.execute(
+      "SELECT cue_anexo, nombre, lat, lon FROM ge.ge_localizacion WHERE cue_anexo = '1801605-04'",
+    )
+    expect(res.rows[0].nombre).toBe('Escuela 415')
 
-      const registrosRepetidos = [
-        {
-          cueAnexo: '1801605-04',
-          cui: null,
-          nombre: 'Escuela 415 RENOMBRADA',
-          departamento: 'GENERAL PAZ',
-          localidad: 'ITA IBATE NORTE',
-          lat: -27.5,
-          lon: -57.4,
-          geoCalidad: null,
-        },
-        registros[1],
-        {
-          cueAnexo: '1800020-00',
-          cui: null,
-          nombre: 'Tercera',
-          departamento: 'D',
-          localidad: 'L',
-          lat: null,
-          lon: null,
-          geoCalidad: null,
-        },
-      ]
-      await upsertLocalizaciones(client, registrosRepetidos)
+    const registrosRepetidos = [
+      {
+        cueAnexo: '1801605-04',
+        cui: null,
+        nombre: 'Escuela 415 RENOMBRADA',
+        departamento: 'GENERAL PAZ',
+        localidad: 'ITA IBATE NORTE',
+        lat: -27.5,
+        lon: -57.4,
+        geoCalidad: null,
+      },
+      registros[1],
+      {
+        cueAnexo: '1800020-00',
+        cui: null,
+        nombre: 'Tercera',
+        departamento: 'D',
+        localidad: 'L',
+        lat: null,
+        lon: null,
+        geoCalidad: null,
+      },
+    ]
+    await upsertLocalizaciones(client, registrosRepetidos)
 
-      res = await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')
-      expect(Number(res.rows[0].n)).toBe(3)
+    res = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
+    expect(Number(res.rows[0].n)).toBe(3)
 
-      res = await client.execute(
-        "SELECT nombre, localidad, lat FROM ge_localizacion WHERE cue_anexo = '1801605-04'",
-      )
-      expect(res.rows[0].nombre).toBe('Escuela 415 RENOMBRADA')
-      expect(res.rows[0].localidad).toBe('ITA IBATE NORTE')
-      expect(res.rows[0].lat).toBe(-27.5)
-    } finally {
-      client.close()
-    }
+    res = await client.execute(
+      "SELECT nombre, localidad, lat FROM ge.ge_localizacion WHERE cue_anexo = '1801605-04'",
+    )
+    expect(res.rows[0].nombre).toBe('Escuela 415 RENOMBRADA')
+    expect(res.rows[0].localidad).toBe('ITA IBATE NORTE')
+    expect(res.rows[0].lat).toBe(-27.5)
   })
 })
 
@@ -323,36 +333,32 @@ describe('buildFixtureSecciones', () => {
 
 describe('insertFixtureCorte', () => {
   it('crea el corte, lo activa y queda vigente', async () => {
-    const client = openGeDb()
-    try {
-      await ensureGeSchema(client)
-      await client.execute(
-        "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('1801020-00', 'CUI1', 'Escuela 20', 'Corrientes', 'Capital', -27.47, -58.84)",
-      )
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    await client.execute(
+      "INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('1801020-00', 'CUI1', 'Escuela 20', 'Corrientes', 'Capital', -27.47, -58.84)",
+    )
 
-      const corteId = await insertFixtureCorte(client, ['1801020-00'])
-      expect(typeof corteId).toBe('number')
+    const corteId = await insertFixtureCorte(client, ['1801020-00'])
+    expect(typeof corteId).toBe('number')
 
-      const corte = await client.execute(
-        'SELECT id, estado, ciclo_lectivo FROM ge_corte WHERE id = ?',
-        [corteId],
-      )
-      expect(corte.rows[0].estado).toBe('vigente')
-      expect(Number(corte.rows[0].ciclo_lectivo)).toBe(2026)
+    const corte = await client.execute({
+      sql: 'SELECT id, estado, ciclo_lectivo FROM ge.ge_corte WHERE id = ?',
+      args: [corteId],
+    })
+    expect(corte.rows[0].estado).toBe('vigente')
+    expect(Number(corte.rows[0].ciclo_lectivo)).toBe(2026)
 
-      const secciones = await client.execute(
-        'SELECT COUNT(*) AS n FROM ge_seccion WHERE corte_id = ?',
-        [corteId],
-      )
-      expect(Number(secciones.rows[0].n)).toBe(3)
+    const secciones = await client.execute({
+      sql: 'SELECT COUNT(*) AS n FROM ge.ge_seccion WHERE corte_id = ?',
+      args: [corteId],
+    })
+    expect(Number(secciones.rows[0].n)).toBe(3)
 
-      const membresias = await client.execute(
-        'SELECT COUNT(*) AS n FROM ge_alumno_seccion WHERE corte_id = ?',
-        [corteId],
-      )
-      expect(Number(membresias.rows[0].n)).toBe(4)
-    } finally {
-      client.close()
-    }
+    const membresias = await client.execute({
+      sql: 'SELECT COUNT(*) AS n FROM ge.ge_alumno_seccion WHERE corte_id = ?',
+      args: [corteId],
+    })
+    expect(Number(membresias.rows[0].n)).toBe(4)
   })
 })

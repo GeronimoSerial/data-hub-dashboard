@@ -106,7 +106,7 @@ export async function crearVerificacion(
       solicitadaPorUserId: input.solicitadaPorUserId,
       vencimientoEn: input.vencimientoEn ?? null,
       resultado: null,
-      discrepancia: 0,
+      discrepancia: false,
       respondidaEn: null,
       respondidaCanal: null,
       respondidaPorUserId: null,
@@ -310,7 +310,7 @@ async function transicionarARespondida(
     // consulta de afectación vigente usa el período que ancla la verificación
     // (el mismo que ancla el parte del establecimiento).
     const hayAfectacion = await existeAfectacionVigente(fila.cueAnexo, fila.periodoId)
-    const discrepancia = resultado === 'sin_afectacion' && hayAfectacion ? 1 : 0
+    const discrepancia = resultado === 'sin_afectacion' && hayAfectacion
 
     if (resultado === 'con_afectacion' && movimientoId !== null) {
       if (!(await movimientoPerteneceAlCue(movimientoId, fila.cueAnexo))) {
@@ -351,7 +351,7 @@ async function transicionarARespondida(
       canal,
       ahoraIso,
     })
-    if (discrepancia === 1) {
+    if (discrepancia) {
       await insertarEvento({
         verificacionId,
         tipo: 'discrepancia_detectada',

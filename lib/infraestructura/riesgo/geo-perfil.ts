@@ -1,8 +1,9 @@
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraGeoProfile } from '@/lib/db/schema'
 import { normalizarNombreDepartamentoONull } from '@/lib/mapas/normalizar-departamento'
 import { asegurarGeAdjuntada } from '../impacto'
+import { crearEjecutorSql } from '../ge-db'
 import { celdaDeCoordenada } from './celda'
 
 // Perfil geográfico por establecimiento: resuelve, para el 100% del padrón de
@@ -49,15 +50,16 @@ export async function calcularGeoPerfiles(
   params?: { ahora?: Date },
 ): Promise<ResultadoCalculoGeoPerfiles> {
   const db = getDb()
+  const client = crearEjecutorSql(getRawClient())
   const ahora = params?.ahora ?? new Date()
   const calculadoEn = ahora.toISOString()
 
   // attachGe falla si 'ge' ya está adjuntada en esta conexión (getDb memoiza
   // un único Client); asegurarGeAdjuntada es el wrapper idempotente que ya usa
   // el resto de lib/infraestructura (ver impacto.ts).
-  await asegurarGeAdjuntada(db.$client)
+  await asegurarGeAdjuntada(client)
 
-  const res = await db.$client.execute(
+  const res = await client.execute(
     'SELECT cue_anexo, departamento, lat, lon, geo_calidad FROM ge.ge_localizacion',
   )
   const filas = res.rows as unknown as FilaGeLocalizacion[]

@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { openGeDb } from './ge-db'
+import { getRawClient } from '../db'
+import { crearEjecutorSql } from './ge-db'
 import { ensureLocalizacionesSeeded } from './localizaciones-seed'
 
 let dir: string
@@ -21,44 +22,32 @@ afterEach(() => {
 })
 
 describe('ensureLocalizacionesSeeded', () => {
-  it('siembra ge_localizacion desde el JSON versionado cuando la tabla esta vacia', async () => {
+  it('siembra ge.ge_localizacion desde el JSON versionado cuando la tabla esta vacia', async () => {
     await ensureLocalizacionesSeeded()
-    const client = openGeDb()
-    try {
-      const res = await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')
+    const client = crearEjecutorSql(getRawClient())
+      const res = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
       expect(Number(res.rows[0].n)).toBeGreaterThan(2000)
-    } finally {
-      client.close()
-    }
   })
 
   it('es idempotente: correrla dos veces no duplica registros', async () => {
     await ensureLocalizacionesSeeded()
-    const client = openGeDb()
-    try {
+    const client = crearEjecutorSql(getRawClient())
       const primera = Number(
-        (await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')).rows[0].n,
+        (await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')).rows[0].n,
       )
       await ensureLocalizacionesSeeded()
       const segunda = Number(
-        (await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')).rows[0].n,
+        (await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')).rows[0].n,
       )
       expect(segunda).toBe(primera)
-    } finally {
-      client.close()
-    }
   })
 
   it('no siembra secciones ni identidades: el padron no viaja en la imagen', async () => {
     await ensureLocalizacionesSeeded()
-    const client = openGeDb()
-    try {
-      const secciones = await client.execute('SELECT COUNT(*) AS n FROM ge_seccion')
-      const identidades = await client.execute('SELECT COUNT(*) AS n FROM ge_alumno_identidad')
+    const client = crearEjecutorSql(getRawClient())
+      const secciones = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_seccion')
+      const identidades = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_alumno_identidad')
       expect(Number(secciones.rows[0].n)).toBe(0)
       expect(Number(identidades.rows[0].n)).toBe(0)
-    } finally {
-      client.close()
-    }
   })
 })

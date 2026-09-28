@@ -16,11 +16,10 @@
 // excepción documentada es `alumnosAcumulados` (ver más abajo): responde una
 // pregunta distinta (saldo del período, no snapshot de hoy) y por diseño
 // puede no coincidir con IndicadoresMapa.alumnosAlcanzados.
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraPeriodo } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import type { Client } from '@libsql/client'
-import { getCorteVigente } from './ge-db'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import { listarPartesVigentes, type ParteMapa } from './parte-mapa'
@@ -133,7 +132,7 @@ function referenciaParaDia(fecha: string, hoy: string): Date {
   return new Date(`${fecha}T23:59:59.999Z`)
 }
 
-async function cargarServicioAlcanceDeParte(client: Client, parteIds: string[]): Promise<ServicioAlcance[]> {
+async function cargarServicioAlcanceDeParte(client: EjecutorSql, parteIds: string[]): Promise<ServicioAlcance[]> {
   if (parteIds.length === 0) return []
   const placeholders = parteIds.map(() => '?').join(',')
   const res = await client.execute({
@@ -161,7 +160,7 @@ async function cargarServicioAlcanceDeParte(client: Client, parteIds: string[]):
 // funciones a reusar) — acá se repite el mismo patrón batcheado, no el
 // N+1 que reemplaza.
 async function cargarAfectacionesDeParte(
-  client: Client,
+  client: EjecutorSql,
   corteId: number,
   parteIds: string[],
 ): Promise<Afectacion[]> {
@@ -310,8 +309,7 @@ export async function obtenerEvolucionMapa(): Promise<EvolucionMapa> {
     return { serieEscuelasServicioCaido: [], rankingDepartamentos, distribucionMotivo, alumnosAcumulados: [] }
   }
 
-  const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)

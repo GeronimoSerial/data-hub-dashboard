@@ -48,18 +48,15 @@ beforeAll(async () => {
   prevDataDir = process.env.DATA_DIR
   process.env.DATA_DIR = dir
 
-  const { ensureGeSchema, openGeDb } = await import('@/lib/infraestructura/ge-db')
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    for (const fila of FILAS) {
-      await ge.execute({
-        sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
-        args: [fila.cueAnexo, null, fila.nombre, fila.departamento, fila.localidad, fila.lat, fila.lon, null],
-      })
-    }
-  } finally {
-    ge.close()
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  for (const fila of FILAS) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
+      args: [fila.cueAnexo, null, fila.nombre, fila.departamento, fila.localidad, fila.lat, fila.lon, null],
+    })
   }
 
   const { ensureSeeded } = await import('@/lib/db/seed')

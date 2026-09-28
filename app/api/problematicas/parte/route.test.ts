@@ -3,12 +3,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
 import { infraAfectacion, infraMovimiento, infraParte, infraVerificacionEvento } from '@/lib/db/schema'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import {
   NOMBRE_COOKIE_SESION_VERIFICACION,
@@ -137,44 +137,40 @@ beforeAll(async () => {
   delete process.env.ADMIN_EMAIL
   delete process.env.ADMIN_PASSWORD
 
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  )
+  for (const cue of [
+    CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
+    CUE_IDEM, CUE_CONCURRENTE,
+  ]) {
+    await client.execute(
+      `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
     )
-    for (const cue of [
-      CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-      CUE_IDEM, CUE_CONCURRENTE,
-    ]) {
-      await ge.execute(
-        `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
-      )
-      await ge.execute(
-        `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${cue.slice(-2)}10, '${cue}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
-      )
-      await ge.execute(
-        `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${cue.slice(-2)}20, '${cue}', '1', 'B', 'PRIMARIA', 'TARDE')`,
-      )
-      for (let i = 0; i < 5; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
-          args: [Number(`${cue.slice(-2)}10`), Number(`${cue.slice(-2)}000`) + i],
-        })
-      }
-      for (let i = 0; i < 5; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
-          args: [Number(`${cue.slice(-2)}20`), Number(`${cue.slice(-2)}100`) + i],
-        })
-      }
+    await client.execute(
+      `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${cue.slice(-2)}10, '${cue}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+    )
+    await client.execute(
+      `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${cue.slice(-2)}20, '${cue}', '1', 'B', 'PRIMARIA', 'TARDE')`,
+    )
+    for (let i = 0; i < 5; i++) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [Number(`${cue.slice(-2)}10`), Number(`${cue.slice(-2)}000`) + i],
+      })
     }
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_SECCIONES}', NULL, 'Escuela sin secciones', 'ER', 'Parana')`,
-    )
-  } finally {
-    ge.close()
+    for (let i = 0; i < 5; i++) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [Number(`${cue.slice(-2)}20`), Number(`${cue.slice(-2)}100`) + i],
+      })
+    }
   }
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_SECCIONES}', NULL, 'Escuela sin secciones', 'ER', 'Parana')`,
+  )
 
   await ensureSeeded()
 })

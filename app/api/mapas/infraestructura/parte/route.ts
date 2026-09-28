@@ -4,11 +4,11 @@
 // amplio del hub (verificarAccesoLectura), no con el gate nominal auditado
 // que sólo cubre el flujo del director (F3.3). Por eso la respuesta expone
 // `totales` por afectación y nunca la lista de alumnos.
-import { getDb } from '@/lib/db'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { getCorteVigente } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { armarFichaParte } from '@/lib/infraestructura/parte-consulta'
 
@@ -34,8 +34,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
   }
 
-  const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)

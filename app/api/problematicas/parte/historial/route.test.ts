@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import {
   NOMBRE_COOKIE_SESION_VERIFICACION,
@@ -48,30 +49,26 @@ beforeAll(async () => {
   delete process.env.ADMIN_EMAIL
   delete process.env.ADMIN_PASSWORD
 
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_A}', NULL, 'Escuela', 'ER', 'Parana')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 5110, '${CUE_A}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_PARTE}', NULL, 'Escuela sin parte', 'ER', 'Parana')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SESION}', NULL, 'Escuela con sesión acotada', 'ER', 'Parana')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${SECCION_SESION}, '${CUE_SESION}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
-    )
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_A}', NULL, 'Escuela', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 5110, '${CUE_A}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SIN_PARTE}', NULL, 'Escuela sin parte', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE_SESION}', NULL, 'Escuela con sesión acotada', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ${SECCION_SESION}, '${CUE_SESION}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+  )
 
   await ensureSeeded()
 })

@@ -1,4 +1,3 @@
-import type { Client } from '@libsql/client'
 import { getDb } from '../db'
 import {
   infraAfectacion,
@@ -30,9 +29,10 @@ const seccionesVacias: ImpactoResultado = {
   cuiDisponible: false,
 }
 
-// ge.sqlite se adjunta una sola vez por conexión: un segundo ATTACH sobre el
-// mismo Client falla. Esta función es el único punto de entrada seguro para
-// garantizarlo antes de correr las consultas de impacto.
+// En Postgres `ge` es un schema nativo de la misma base (no hay ATTACH que
+// hacer): attachGe re-ejecuta el DDL idempotente para garantizar que exista
+// antes de correr las consultas de impacto. Se conserva el catch para tolerar
+// carreras idempotentes ("already exists", etc.).
 export async function asegurarGeAdjuntada(client: EjecutorSql): Promise<void> {
   try {
     await attachGe(client)
@@ -49,7 +49,7 @@ export async function asegurarGeAdjuntada(client: EjecutorSql): Promise<void> {
 // pertenezca realmente a alguna de las secciones elegidas (mismo criterio
 // que ya se aplica para validar secciones contra el CUE).
 export async function obtenerMembresiaSecciones(
-  client: Client,
+  client: EjecutorSql,
   params: { corteId: number; geSectionIds: number[] },
 ): Promise<Map<number, Set<number>>> {
   const { corteId, geSectionIds } = params
@@ -83,7 +83,7 @@ export async function obtenerMembresiaSecciones(
 // completa. Esa es la semántica de "sección sin alumnos explícitos = sección
 // completa" documentada en validacion.ts.
 export async function calcularImpactoSecciones(
-  client: Client,
+  client: EjecutorSql,
   params: { corteId: number; geSectionIds: number[]; alumnoIds?: number[] },
 ): Promise<ImpactoResultado> {
   const { corteId, geSectionIds, alumnoIds } = params

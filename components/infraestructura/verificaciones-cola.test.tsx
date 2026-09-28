@@ -26,7 +26,7 @@ function verificacion(overrides: Partial<VerificacionVisible> = {}): Verificacio
     solicitadaPorUserId: 'u1',
     vencimientoEn: null,
     resultado: null,
-    discrepancia: 0,
+    discrepancia: false,
     respondidaEn: null,
     respondidaCanal: null,
     respondidaPorUserId: null,

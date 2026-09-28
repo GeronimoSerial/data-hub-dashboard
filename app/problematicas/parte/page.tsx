@@ -6,8 +6,9 @@ import {
   tieneAccesoAlParteDesdeCookies,
   tieneAccesoAlParteParaCueDesdeCookies,
 } from '@/lib/infraestructura/acceso-parte'
+import { getRawClient } from '@/lib/db'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,14 +64,9 @@ export default async function EstadoActualPartePage({
     )
   }
 
-  const client = openGeDb()
-  let resultado
-  try {
-    await ensureGeSchema(client)
-    resultado = await resolverContextoPorCue(client, cue ?? null)
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  const resultado = await resolverContextoPorCue(client, cue ?? null)
 
   if (!resultado.ok) {
     return (

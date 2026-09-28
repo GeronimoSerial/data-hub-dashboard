@@ -1,30 +1,30 @@
 import { sql } from 'drizzle-orm'
-import { integer, real, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, integer, bigint, boolean, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
 
-export const niveles = sqliteTable('niveles', {
+export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   orden: integer('orden').notNull(),
 })
 
-export const tipos = sqliteTable('tipos', {
+export const tipos = pgTable('tipos', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
-  aplicaA: text('aplica_a', { mode: 'json' }).$type<string[]>().notNull(),
+  aplicaA: jsonb('aplica_a').$type<string[]>().notNull(),
 })
 
-export const categorias = sqliteTable('categorias', {
+export const categorias = pgTable('categorias', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   color: text('color').notNull(),
 })
 
-export const tags = sqliteTable('tags', {
+export const tags = pgTable('tags', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
 })
 
-export const recursos = sqliteTable('recursos', {
+export const recursos = pgTable('recursos', {
   id: text('id').primaryKey(),
   titulo: text('titulo').notNull(),
   descripcion: text('descripcion').notNull(),
@@ -48,7 +48,7 @@ export const recursos = sqliteTable('recursos', {
   size: integer('size'),
 })
 
-export const recursoTags = sqliteTable(
+export const recursoTags = pgTable(
   'recurso_tags',
   {
     recursoId: text('recurso_id')
@@ -61,7 +61,7 @@ export const recursoTags = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.tagId] })],
 )
 
-export const recursoAudienciaNiveles = sqliteTable(
+export const recursoAudienciaNiveles = pgTable(
   'recurso_audiencia_niveles',
   {
     recursoId: text('recurso_id')
@@ -74,7 +74,7 @@ export const recursoAudienciaNiveles = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.nivelId] })],
 )
 
-export const recursoAudienciaUsuarios = sqliteTable(
+export const recursoAudienciaUsuarios = pgTable(
   'recurso_audiencia_usuarios',
   {
     recursoId: text('recurso_id')
@@ -85,37 +85,37 @@ export const recursoAudienciaUsuarios = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.userId] })],
 )
 
-export const user = sqliteTable('user', {
+export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified', { mode: 'boolean' })
+  emailVerified: boolean('email_verified')
     .default(false)
     .notNull(),
   image: text('image'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+  createdAt: timestamp('created_at', { mode: 'date' })
+    .default(sql`now()`)
     .notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .default(sql`now()`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   role: text('role'),
-  banned: integer('banned', { mode: 'boolean' }).default(false),
+  banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
-  banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
+  banExpires: timestamp('ban_expires', { mode: 'date' }),
 })
 
-export const session = sqliteTable(
+export const session = pgTable(
   'session',
   {
     id: text('id').primaryKey(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
     token: text('token').notNull().unique(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    updatedAt: timestamp('updated_at', { mode: 'date' })
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
     ipAddress: text('ip_address'),
@@ -128,7 +128,7 @@ export const session = sqliteTable(
   (table) => [index('session_userId_idx').on(table.userId)],
 )
 
-export const account = sqliteTable(
+export const account = pgTable(
   'account',
   {
     id: text('id').primaryKey(),
@@ -141,18 +141,14 @@ export const account = sqliteTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     idToken: text('id_token'),
-    accessTokenExpiresAt: integer('access_token_expires_at', {
-      mode: 'timestamp_ms',
-    }),
-    refreshTokenExpiresAt: integer('refresh_token_expires_at', {
-      mode: 'timestamp_ms',
-    }),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { mode: 'date' }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { mode: 'date' }),
     scope: text('scope'),
     password: text('password'),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    updatedAt: timestamp('updated_at', { mode: 'date' })
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
@@ -162,25 +158,25 @@ export const account = sqliteTable(
   ],
 )
 
-export const verification = sqliteTable(
+export const verification = pgTable(
   'verification',
   {
     id: text('id').primaryKey(),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    updatedAt: timestamp('updated_at', { mode: 'date' })
+      .default(sql`now()`)
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
 
-export const userNiveles = sqliteTable(
+export const userNiveles = pgTable(
   'user_niveles',
   {
     userId: text('user_id').notNull(),
@@ -196,7 +192,7 @@ export const userNiveles = sqliteTable(
 // lib/infraestructura/categorias.ts (no hay FK porque ese catálogo no es una
 // tabla). `id` es un slug estable usado sólo en el ABM y en el formulario; lo
 // que persiste infra_afectacion.motivo es el nombre, no este id.
-export const infraMotivo = sqliteTable('infra_motivo', {
+export const infraMotivo = pgTable('infra_motivo', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   categoria: text('categoria').notNull(),
@@ -206,7 +202,7 @@ export const infraMotivo = sqliteTable('infra_motivo', {
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
 // obligatorio: no existen grants permanentes. `otorgado_por` deja registrado
 // quién lo concedió, incluso cuando un admin se lo otorga a sí mismo.
-export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
+export const infraPermisoNominal = pgTable('infra_permiso_nominal', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   otorgadoPor: text('otorgado_por').notNull(),
@@ -224,7 +220,7 @@ export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
 // apuntaba al modelo deprecado, eliminado en la Fase 4.
 // Sigue siendo texto plano SIN foreign key (nunca la tuvo), así que el rename
 // no arrastra constraints ni índices.
-export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
+export const infraAccesoNominalLog = pgTable('infra_acceso_nominal_log', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   afectacionId: text('afectacion_id').notNull(),
@@ -252,7 +248,7 @@ export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
 // HUB_DDL (lib/db/seed.ts) porque este proyecto no corre drizzle-kit
 // generate/push (ver seedHub) — la declaración acá mantiene el esquema
 // tipado en sincro con esa DDL, no es lo que la crea en runtime.
-export const infraPeriodo = sqliteTable(
+export const infraPeriodo = pgTable(
   'infra_periodo',
   {
     id: text('id').primaryKey(),
@@ -275,7 +271,7 @@ export const infraPeriodo = sqliteTable(
 // reporte cuando ya existe un parte para el establecimiento en el período
 // vigente resuelve a "actualizar el parte" (spec §8, CONTRACT.md — spec §14
 // "Continuar como otro episodio" queda muerta).
-export const infraParte = sqliteTable(
+export const infraParte = pgTable(
   'infra_parte',
   {
     id: text('id').primaryKey(),
@@ -302,7 +298,7 @@ export const infraParte = sqliteTable(
 // delete vía `retiradaEn` (nullable): "retirar" una afectación no borra la
 // fila para que el historial (spec §15) conserve la trayectoria completa
 // (spec §8: la actualización conserva el estado anterior en el historial).
-export const infraAfectacion = sqliteTable(
+export const infraAfectacion = pgTable(
   'infra_afectacion',
   {
     id: text('id').primaryKey(),
@@ -319,18 +315,22 @@ export const infraAfectacion = sqliteTable(
     // de regir. Null mientras la afectación sigue vigente.
     retiradaEn: text('retirada_en'),
   },
-  (t) => [index('infra_afectacion_parte_id_idx').on(t.parteId)],
+  (t) => [
+    index('infra_afectacion_parte_id_idx').on(t.parteId),
+    index('infra_afectacion_creada_en_idx_e7b').on(t.creadaEn),
+    index('infra_afectacion_rige_desde_idx_e7b').on(t.rigeDesde),
+  ],
 )
 
 // Selección de secciones de una afectación: clave compuesta
 // (afectacionId, geSectionId) y cascade desde infra_afectacion.
-export const infraAfectacionSeccion = sqliteTable(
+export const infraAfectacionSeccion = pgTable(
   'infra_afectacion_seccion',
   {
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    geSectionId: integer('ge_section_id').notNull(),
+    geSectionId: bigint('ge_section_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.geSectionId] })],
 )
@@ -339,13 +339,13 @@ export const infraAfectacionSeccion = sqliteTable(
 // parcial). Una sección presente en infraAfectacionSeccion sin ninguna fila
 // acá se interpreta como "sección completa"; la ausencia de filas es la
 // semántica, no un estado transitorio.
-export const infraAfectacionAlumno = sqliteTable(
+export const infraAfectacionAlumno = pgTable(
   'infra_afectacion_alumno',
   {
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    gePersonId: integer('ge_person_id').notNull(),
+    gePersonId: bigint('ge_person_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.gePersonId] })],
 )
@@ -357,7 +357,7 @@ export const infraAfectacionAlumno = sqliteTable(
 // se calcula a partir de las filas vigentes de esta tabla — nunca se
 // persiste, ver CONTRACT.md. Soft delete vía `retiradaEn`, mismo criterio que
 // infraAfectacion.
-export const infraServicioAlcance = sqliteTable(
+export const infraServicioAlcance = pgTable(
   'infra_servicio_alcance',
   {
     id: text('id').primaryKey(),
@@ -381,7 +381,7 @@ export const infraServicioAlcance = sqliteTable(
 // text con mode 'json', mismo patrón que tipos.aplicaA arriba); la forma
 // exacta del diff la define la capa de dominio del batch 2 (movement
 // diffing), acá sólo se reserva la columna.
-export const infraMovimiento = sqliteTable(
+export const infraMovimiento = pgTable(
   'infra_movimiento',
   {
     id: text('id').primaryKey(),
@@ -393,7 +393,7 @@ export const infraMovimiento = sqliteTable(
     // futuro flujo de supervisor, nunca producida en esta etapa)
     tipo: text('tipo').notNull(),
     rol: text('rol').notNull(), // 'director' | 'supervisor'
-    resumen: text('resumen', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    resumen: jsonb('resumen').$type<Record<string, unknown>>().notNull(),
     rigeDesde: text('rige_desde').notNull(),
     creadaEn: text('creada_en').notNull(),
     // Clave de idempotencia del POST que generó este movimiento (batch 3:
@@ -431,7 +431,7 @@ export const infraMovimiento = sqliteTable(
 // provincial vigente (`periodoId`), resuelto en el momento de creación por
 // `obtenerPeriodoVigente` (parte-consulta.ts), en vez de a un episodio
 // intermedio.
-export const infraVerificacion = sqliteTable(
+export const infraVerificacion = pgTable(
   'infra_verificacion',
   {
     id: text('id').primaryKey(),
@@ -447,7 +447,7 @@ export const infraVerificacion = sqliteTable(
     resultado: text('resultado'), // 'sin_afectacion' | 'con_afectacion' | 'no_disponible'
     // Boolean: 1 cuando se respondió 'sin_afectacion' mientras había una
     // afectación vigente.
-    discrepancia: integer('discrepancia').notNull().default(0),
+    discrepancia: boolean('discrepancia').notNull().default(false),
     respondidaEn: text('respondida_en'),
     respondidaCanal: text('respondida_canal'), // 'enlace' | 'telefono' | 'whatsapp' | 'presencial' | 'otro'
     respondidaPorUserId: text('respondida_por_user_id'),
@@ -478,7 +478,7 @@ export const infraVerificacion = sqliteTable(
 // agrega una fila nueva, mismo criterio que infraMovimiento. `actorTipo`
 // distingue quién disparó el evento ('usuario' | 'enlace' | 'sistema');
 // `actorUserId` sólo aplica cuando el actor es un usuario.
-export const infraVerificacionEvento = sqliteTable(
+export const infraVerificacionEvento = pgTable(
   'infra_verificacion_evento',
   {
     id: text('id').primaryKey(),
@@ -506,7 +506,7 @@ export const infraVerificacionEvento = sqliteTable(
 // 'fallido', mismos valores que estadoJobSchema en
 // lib/infraestructura/riesgo/tipos.ts); la validación de forma vive en la
 // capa de dominio. Timestamps en texto ISO UTC (patrón de infraParte).
-export const infraJobRun = sqliteTable(
+export const infraJobRun = pgTable(
   'infra_job_run',
   {
     id: text('id').primaryKey(),
@@ -518,7 +518,7 @@ export const infraJobRun = sqliteTable(
     finalizadoEn: text('finalizado_en'),
     estado: text('estado').notNull(),
     // p. ej. { procesados: 10, exitosos: 8, fallidos: 2 }.
-    contadores: text('contadores', { mode: 'json' }).$type<Record<string, number>>(),
+    contadores: jsonb('contadores').$type<Record<string, number>>(),
     // Mensaje de error sin datos nominales ni secretos, para diagnóstico.
     errorSaneado: text('error_saneado'),
     version: text('version').notNull(),
@@ -546,7 +546,7 @@ export const infraJobRun = sqliteTable(
 // de amenazas. `motivoExclusion` explica por qué no hay perfil válido (null =
 // sí lo hay); `perfilVersion` permite reprocesar cuando cambia la regla de
 // cálculo sin confundir una corrida vieja con una nueva.
-export const infraGeoProfile = sqliteTable(
+export const infraGeoProfile = pgTable(
   'infra_geo_profile',
   {
     cueAnexo: text('cue_anexo').primaryKey(),
@@ -568,7 +568,7 @@ export const infraGeoProfile = sqliteTable(
 // repetir el sync del mismo run no duplique filas. `horizonteHoras` es la
 // distancia entre `corridaEn` y `validoEn`; `pasoHoras` guarda el paso real
 // del modelo en ese horizonte (1, 3 o 6), nunca un valor interpolado.
-export const hazardForecast = sqliteTable(
+export const hazardForecast = pgTable(
   'hazard_forecast',
   {
     id: text('id').primaryKey(),
@@ -601,7 +601,7 @@ export const hazardForecast = sqliteTable(
 // ventana histórica fija. `muestra` distingue todos los días de sólo los
 // húmedos (>=1mm); la clave única incluye `version` para poder recalcular con
 // una nueva regla sin pisar la versión anterior.
-export const hazardClimatology = sqliteTable(
+export const hazardClimatology = pgTable(
   'hazard_climatology',
   {
     id: text('id').primaryKey(),
@@ -635,7 +635,7 @@ export const hazardClimatology = sqliteTable(
 // última vez, el estado actual y el TTL de frescura esperado. `ultimoErrorSaneado`
 // guarda el error sin datos nominales ni secretos; `licencia` deja registrada
 // la atribución obligatoria de cada fuente.
-export const hazardSourceHealth = sqliteTable('hazard_source_health', {
+export const hazardSourceHealth = pgTable('hazard_source_health', {
   provider: text('provider').primaryKey(),
   ultimoExitoEn: text('ultimo_exito_en'),
   ultimoIntentoEn: text('ultimo_intento_en'),
@@ -654,7 +654,7 @@ export const hazardSourceHealth = sqliteTable('hazard_source_health', {
 // a nivel DB que exista a lo sumo UN run `vigente`, así publicar uno nuevo y
 // marcar vencido el anterior es atómico sin depender de la disciplina de la
 // app (mismo patrón de índice único parcial que infraPeriodo).
-export const infraRiskRun = sqliteTable(
+export const infraRiskRun = pgTable(
   'infra_risk_run',
   {
     id: text('id').primaryKey(),
@@ -667,7 +667,7 @@ export const infraRiskRun = sqliteTable(
     // 'preparando' | 'vigente' | 'vencido' | 'fallido'.
     estado: text('estado').notNull(),
     // p. ej. { procesadas: 2005, conEvidencia: 1800, sinEvidencia: 205 }.
-    cobertura: text('cobertura', { mode: 'json' }).$type<Record<string, number>>(),
+    cobertura: jsonb('cobertura').$type<Record<string, number>>(),
     creadaEn: text('creada_en').notNull(),
   },
   (t) => [
@@ -675,6 +675,7 @@ export const infraRiskRun = sqliteTable(
       .on(t.estado)
       .where(sql`${t.estado} = 'vigente'`),
     index('infra_risk_run_periodo_id_idx').on(t.periodoId),
+    index('infra_risk_run_publicado_en_idx_e7b').on(t.publicadoEn),
   ],
 )
 
@@ -682,7 +683,7 @@ export const infraRiskRun = sqliteTable(
 // si el score se calculó con evidencia suficiente; `nivelRiesgo` y `confianza`
 // son texto validado en la capa de dominio. El índice único evita duplicar el
 // mismo cálculo al reintentar la corrida.
-export const infraRiskSnapshot = sqliteTable(
+export const infraRiskSnapshot = pgTable(
   'infra_risk_snapshot',
   {
     id: text('id').primaryKey(),
@@ -692,7 +693,7 @@ export const infraRiskSnapshot = sqliteTable(
     cueAnexo: text('cue_anexo').notNull(),
     // 24 | 72 | 240.
     horizonteHoras: integer('horizonte_horas').notNull(),
-    evidenciaValida: integer('evidencia_valida', { mode: 'boolean' }).notNull(),
+    evidenciaValida: boolean('evidencia_valida').notNull(),
     scoreRiesgo: real('score_riesgo'),
     // 'bajo' | 'moderado' | 'alto' | 'muy_alto'.
     nivelRiesgo: text('nivel_riesgo'),
@@ -722,7 +723,7 @@ export const infraRiskSnapshot = sqliteTable(
 // Factores que explican un snapshot (N por snapshot): cada fila aporta una
 // variable con su contribución y su peso al score. `onDelete: 'cascade'`
 // limpia los factores cuando se borra el snapshot.
-export const infraRiskFactor = sqliteTable(
+export const infraRiskFactor = pgTable(
   'infra_risk_factor',
   {
     id: text('id').primaryKey(),
@@ -753,7 +754,7 @@ export const infraRiskFactor = sqliteTable(
 // misma ola: `infra_geo_profile` sigue siendo propiedad exclusiva de E2/E3b.
 // `puntoRioId` null y `distanciaKm` null significan "fuera de radio", nunca el
 // punto más lejano encontrado.
-export const infraGeoRio = sqliteTable('infra_geo_rio', {
+export const infraGeoRio = pgTable('infra_geo_rio', {
   cueAnexo: text('cue_anexo').primaryKey(),
   puntoRioId: text('punto_rio_id'),
   distanciaKm: real('distancia_km'),
@@ -766,7 +767,7 @@ export const infraGeoRio = sqliteTable('infra_geo_rio', {
 // calculada sobre los miembros de la API Ensemble de Open-Meteo (~51 miembros
 // ECMWF IFS). `dispersion` es la base del nivel de confianza reportado en
 // `nivel.ts`. Índice único por corrida para que repetir el sync no duplique.
-export const hazardEnsembleProb = sqliteTable(
+export const hazardEnsembleProb = pgTable(
   'hazard_ensemble_prob',
   {
     id: text('id').primaryKey(),
@@ -799,7 +800,7 @@ export const hazardEnsembleProb = sqliteTable(
 // existir entonces una fuente observacional; E3a la crea. `validoDesde`/
 // `validoHasta` son la ventana de 30 min del producto; `calidad` guarda
 // `precipitationQualityIndex` cuando el granulo lo trae.
-export const hazardObservation = sqliteTable(
+export const hazardObservation = pgTable(
   'hazard_observation',
   {
     id: text('id').primaryKey(),
@@ -835,12 +836,12 @@ export const hazardObservation = sqliteTable(
 // CUE-anexo distintos que fueron miembro del episodio en algún momento (no
 // sólo los vigentes al momento del cálculo). No existe columna `episodio` en
 // infra_movimiento: el vínculo va sólo en infra_episodio_miembro.
-export const infraEpisodioDerivado = sqliteTable(
+export const infraEpisodioDerivado = pgTable(
   'infra_episodio_derivado',
   {
     id: text('id').primaryKey(),
     reglaVersion: text('regla_version').notNull(),
-    parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    parametros: jsonb('parametros').$type<Record<string, unknown>>().notNull(),
     // 'departamento' es el único valor emitido por la regla v0.1.
     unidadTipo: text('unidad_tipo').notNull(),
     unidadId: text('unidad_id').notNull(),
@@ -864,7 +865,7 @@ export const infraEpisodioDerivado = sqliteTable(
 // `movimientoId` es nullable: no toda infra_afectacion tiene un
 // infra_movimiento con el mismo (parteId, rigeDesde) resoluble en datos
 // legacy.
-export const infraEpisodioMiembro = sqliteTable(
+export const infraEpisodioMiembro = pgTable(
   'infra_episodio_miembro',
   {
     id: text('id').primaryKey(),
@@ -903,7 +904,7 @@ export const infraEpisodioMiembro = sqliteTable(
 // (minuto/hora/dia/mes); las ventanas vencidas quedan como historial, no se
 // borran (volumen acotado: 4 filas por bucket por ventana de calendario,
 // nunca crece sin límite práctico).
-export const omCupoContador = sqliteTable(
+export const omCupoContador = pgTable(
   'om_cupo_contador',
   {
     host: text('host').notNull(),
@@ -920,7 +921,7 @@ export const omCupoContador = sqliteTable(
 // ningún adapter vuelve a golpear ninguno de los 4 hosts (ver cupo-om.ts
 // `estaEnCooldown`). `hostOrigen` es sólo informativo: qué host literal
 // devolvió el 429 que originó el cooldown. Una fila por bucket (upsert).
-export const omCupoCooldown = sqliteTable('om_cupo_cooldown', {
+export const omCupoCooldown = pgTable('om_cupo_cooldown', {
   host: text('host').primaryKey(),
   hostOrigen: text('host_origen').notNull(),
   hastaEn: text('hasta_en').notNull(),
@@ -938,7 +939,7 @@ export const omCupoCooldown = sqliteTable('om_cupo_cooldown', {
 // `hazard_ensemble_prob`, que son por celda de grilla, no por departamento) e
 // índice único por (departamento, variable, emisionEn, horizonteDesdeDias,
 // horizonteHastaDias) para que reintentar el job no duplique.
-export const hazardSeasonalTrend = sqliteTable(
+export const hazardSeasonalTrend = pgTable(
   'hazard_seasonal_trend',
   {
     id: text('id').primaryKey(),
@@ -972,10 +973,13 @@ export const hazardSeasonalTrend = sqliteTable(
   ],
 )
 
-// E7b: índices temporales para replay (no modifica tablas existentes)
-export const infraAfectacionCreadaEnIdxE7b = index('infra_afectacion_creada_en_idx_e7b').on(infraAfectacion.creadaEn)
-export const infraAfectacionRigeDesdeIdxE7b = index('infra_afectacion_rige_desde_idx_e7b').on(infraAfectacion.rigeDesde)
-export const infraRiskRunPublicadoEnIdxE7b = index('infra_risk_run_publicado_en_idx_e7b').on(infraRiskRun.publicadoEn)
+// E7b: los índices temporales para replay (infra_afectacion_creada_en_idx_e7b,
+// infra_afectacion_rige_desde_idx_e7b, infra_risk_run_publicado_en_idx_e7b)
+// viven en el tercer argumento de cada pgTable. No se pueden declarar como
+// `index(...).on(columna)` sueltos a nivel de módulo: en drizzle-orm 0.45.2 el
+// PgColumn de módulo no expone `defaultConfig`, así que `.on()` lanza
+// `SyntaxError: "undefined" is not valid JSON` al evaluar el módulo (lo
+// destapó drizzle-kit generate; ver brief DB1/F2).
 
 // E5: Centro de Situación (infra_situacion_corte)
 //
@@ -984,7 +988,7 @@ export const infraRiskRunPublicadoEnIdxE7b = index('infra_risk_run_publicado_en_
 // congela su propia cobertura y la salud de fuentes para poder reconstruir el
 // briefing exactamente como se vio en ese instante, sin depender de qué
 // infra_risk_run esté vigente cuando el corte se lea después.
-export const infraSituacionCorte = sqliteTable(
+export const infraSituacionCorte = pgTable(
   'infra_situacion_corte',
   {
     id: text('id').primaryKey(),
@@ -994,13 +998,13 @@ export const infraSituacionCorte = sqliteTable(
     riskRunId: text('risk_run_id').references(() => infraRiskRun.id),
     // Copia de infraRiskRun.cobertura en ese instante (p. ej.
     // { procesadas, conEvidencia, sinEvidencia }).
-    cobertura: text('cobertura', { mode: 'json' }).$type<Record<string, number> | null>(),
+    cobertura: jsonb('cobertura').$type<Record<string, number> | null>(),
     // Conteo de escuelas por nivelRiesgo ('bajo'/'moderado'/'alto'/'muy_alto')
     // al horizonte de 24h, en el instante del corte.
-    conteosPorNivelRiesgo: text('conteos_por_nivel_riesgo', { mode: 'json' })
+    conteosPorNivelRiesgo: jsonb('conteos_por_nivel_riesgo')
       .$type<Record<string, number>>()
       .notNull(),
-    kpis: text('kpis', { mode: 'json' })
+    kpis: jsonb('kpis')
       .$type<{
         escuelasAfectacionConfirmadaVigente: number
         escuelasRiesgoAlto24h: number
@@ -1009,7 +1013,7 @@ export const infraSituacionCorte = sqliteTable(
       .notNull(),
     // Salud de fuentes congelada en el instante del corte (frescura ya
     // calculada, no recalculada al leer).
-    fuentesSalud: text('fuentes_salud', { mode: 'json' })
+    fuentesSalud: jsonb('fuentes_salud')
       .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
       .notNull(),
     episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
@@ -1029,15 +1033,15 @@ export const infraSituacionCorte = sqliteTable(
 // `corteId` referencia infra_situacion_corte de E5 (ya mergeada). Un briefing
 // por corte (`infra_briefing_corte_uidx` da la idempotencia) y
 // `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del mes vigente.
-export const infraBriefing = sqliteTable(
+export const infraBriefing = pgTable(
   'infra_briefing',
   {
     id: text('id').primaryKey(),
     corteId: text('corte_id').notNull().references(() => infraSituacionCorte.id),
     modelo: text('modelo').notNull(),
     versionPrompt: text('version_prompt').notNull(),
-    parametros: text('parametros', { mode: 'json' }).$type<Record<string, unknown>>(),
-    salidaIa: text('salida_ia', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    parametros: jsonb('parametros').$type<Record<string, unknown>>(),
+    salidaIa: jsonb('salida_ia').$type<Record<string, unknown> | null>(),
     textoFinal: text('texto_final').notNull(),
     // 'ia' | 'plantilla'.
     fuente: text('fuente').notNull(),
@@ -1048,8 +1052,8 @@ export const infraBriefing = sqliteTable(
     tokensSalida: integer('tokens_salida'),
     costoUsd: real('costo_usd'),
     latenciaMs: integer('latencia_ms'),
-    validacion: text('validacion', { mode: 'json' }).$type<Record<string, unknown> | null>(),
-    auditoriaFallback: text('auditoria_fallback', { mode: 'json' }).$type<Record<string, unknown> | null>(),
+    validacion: jsonb('validacion').$type<Record<string, unknown> | null>(),
+    auditoriaFallback: jsonb('auditoria_fallback').$type<Record<string, unknown> | null>(),
     creadaEn: text('creada_en').notNull(),
   },
   (t) => [
@@ -1064,7 +1068,7 @@ export const infraBriefing = sqliteTable(
 // select-then-compare) y se ajusta con el costo real al terminar. Evita que
 // dos corridas casi simultáneas lean el mismo acumulado y juntas superen el
 // techo (mismo defecto de clase que infraJobRun, ver job-run.ts).
-export const infraBriefingPresupuestoMes = sqliteTable('infra_briefing_presupuesto_mes', {
+export const infraBriefingPresupuestoMes = pgTable('infra_briefing_presupuesto_mes', {
   mes: text('mes').primaryKey(), // inicio de mes UTC en ISO, ej '2026-09-01T00:00:00.000Z'
   acumuladoUsd: real('acumulado_usd').notNull(),
   actualizadaEn: text('actualizada_en').notNull(),
@@ -1082,7 +1086,7 @@ export const infraBriefingPresupuestoMes = sqliteTable('infra_briefing_presupues
 // distancia pueden ser null cuando el job no pudo calcularlos; en ese caso
 // `motivoSinDatos` explica por qué (por ejemplo 'sin_conexion_red') y
 // `indiceAislamiento` queda null. Nunca se asume seguro por defecto.
-export const infraAislamientoOsm = sqliteTable('infra_aislamiento_osm', {
+export const infraAislamientoOsm = pgTable('infra_aislamiento_osm', {
   cueAnexo: text('cue_anexo').notNull(),
   versionJob: text('version_job').notNull(),
   distanciaViaPavimentadaM: real('distancia_via_pavimentada_m'),
@@ -1091,7 +1095,7 @@ export const infraAislamientoOsm = sqliteTable('infra_aislamiento_osm', {
   crucesAguaCount: integer('cruces_agua_count'),
   crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
   crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
-  tieneAlternativaSinCruce: integer('tiene_alternativa_sin_cruce', { mode: 'boolean' }),
+  tieneAlternativaSinCruce: boolean('tiene_alternativa_sin_cruce'),
   indiceAislamiento: integer('indice_aislamiento'),
   motivoSinDatos: text('motivo_sin_datos'),
   snapDistanciaM: real('snap_distancia_m'),
@@ -1107,7 +1111,7 @@ export const infraAislamientoOsm = sqliteTable('infra_aislamiento_osm', {
 // Es riesgo estático, NUNCA un pronóstico ni dato en tiempo real. `fuente`
 // distingue 'physrisk' de 'no_disponible'; los peligros quedan null cuando no
 // hay dato.
-export const infraSusceptibilidadEstatica = sqliteTable('infra_susceptibilidad_estatica', {
+export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estatica', {
   cueAnexo: text('cue_anexo').notNull(),
   versionJob: text('version_job').notNull(),
   peligroInundacionFluvial: real('peligro_inundacion_fluvial'),
@@ -1125,3 +1129,11 @@ export const infraSusceptibilidadEstatica = sqliteTable('infra_susceptibilidad_e
 // ============================================================
 // Fin bloque G1
 // ============================================================
+// DB1-F2 (pg-core): las fechas guardadas como `text` ISO-8601 UTC se conservan
+// como `text` en esta fase (migrar a timestamptz queda como seguimiento F4/F5).
+// Las tablas better-auth (user/session/account/verification) pasan de epoch ms
+// `integer` a `timestamp` nativo (mode 'date') porque pg-core no admite
+// `integer` con mode timestamp; default `now()`.
+// Booleanos nativos: user.emailVerified, user.banned,
+// infra_verificacion.discrepancia, infra_risk_snapshot.evidenciaValida,
+// infra_aislamiento_osm.tieneAlternativaSinCruce. Sin TODO(DB1-F2) por duda.

@@ -1,0 +1,2 @@
+ALTER TABLE "infra_afectacion_alumno" ALTER COLUMN "ge_person_id" SET DATA TYPE bigint;--> statement-breakpoint
+ALTER TABLE "infra_afectacion_seccion" ALTER COLUMN "ge_section_id" SET DATA TYPE bigint;

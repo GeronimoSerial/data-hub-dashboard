@@ -6,24 +6,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let dir: string
 let prevDataDir: string | undefined
+let prevPgliteDir: string | undefined
 
 beforeEach(() => {
   dir = mkdtempSync(path.join(tmpdir(), 'recurso-seed-'))
   prevDataDir = process.env.DATA_DIR
+  prevPgliteDir = process.env.PGLITE_DATA_DIR
   process.env.DATA_DIR = dir
+  // Simular un reinicio de la app (`vi.resetModules()`) solo tiene sentido si
+  // la MISMA base sobrevive al reset. Bajo Vitest getDb() usa una PGlite en
+  // memoria (aislada por archivo de test, pero perdida al resetear módulos),
+  // así que este test opta por una PGlite persistida en DATA_DIR/pg. Ver el
+  // comentario de PGLITE_DATA_DIR en lib/db/index.ts.
+  process.env.PGLITE_DATA_DIR = path.join(dir, 'pg')
 })
 
 afterEach(() => {
   if (prevDataDir === undefined) delete process.env.DATA_DIR
   else process.env.DATA_DIR = prevDataDir
+  if (prevPgliteDir === undefined) delete process.env.PGLITE_DATA_DIR
+  else process.env.PGLITE_DATA_DIR = prevPgliteDir
   rmSync(dir, { recursive: true, force: true })
   vi.resetModules()
 })
 
 // Simula un reinicio real del proceso: los singletons de conexión (getDb)
 // y de seed (ensureSeeded) viven en variables de módulo, así que hay que
-// limpiar el registro de módulos para forzar que se reconstruyan sobre el
-// mismo archivo .sqlite en disco.
+// limpiar el registro de módulos para forzar que se reconstruyan sobre la
+// misma base PGlite persistida en DATA_DIR/pg.
 async function restart() {
   vi.resetModules()
   const { ensureSeeded } = await import('@/lib/db/seed')

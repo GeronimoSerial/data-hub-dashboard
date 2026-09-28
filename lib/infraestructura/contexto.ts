@@ -1,6 +1,5 @@
-import type { Client } from '@libsql/client'
 import { normalizeCue } from './cue'
-import { getCorteVigente } from './ge-db'
+import { getCorteVigente, type EjecutorSql } from './ge-db'
 import { listarIdentidadesPorPersonasDesdeGeDb } from './identidad'
 
 export interface AlumnoContexto {
@@ -98,7 +97,7 @@ function agruparPorTurnoYNivel(secciones: SeccionContexto[]): TurnoContexto[] {
 // en SeccionContexto: sólo llega a quien ya pasó la contraseña temporal de
 // acceso público, nunca a un llamador sin ese gate.
 export async function resolverContextoPorCue(
-  client: Client,
+  client: EjecutorSql,
   rawCue: string | null | undefined,
 ): Promise<ContextoResultado> {
   if (rawCue == null || rawCue.trim() === '') {
@@ -116,7 +115,7 @@ export async function resolverContextoPorCue(
   // qué caerse entero porque el padrón nominal todavía no se importó. El corte
   // hace falta únicamente para ofrecer las secciones.
   const locRes = await client.execute({
-    sql: 'SELECT cue_anexo as cueAnexo, nombre, departamento, localidad FROM ge_localizacion WHERE cue_anexo = ?',
+    sql: 'SELECT cue_anexo as "cueAnexo", nombre, departamento, localidad FROM ge.ge_localizacion WHERE cue_anexo = ?',
     args: [identifier.value],
   })
   if (locRes.rows.length === 0) {
@@ -131,10 +130,10 @@ export async function resolverContextoPorCue(
   const seccionesRows = corte
     ? ((
         await client.execute({
-          sql: `SELECT s.ge_section_id as geSectionId, s.curso, s.division, s.nivel, s.turno,
+          sql: `SELECT s.ge_section_id as "geSectionId", s.curso, s.division, s.nivel, s.turno,
                        COUNT(DISTINCT a.ge_person_id) as matricula
-                FROM ge_seccion s
-                LEFT JOIN ge_alumno_seccion a
+                FROM ge.ge_seccion s
+                LEFT JOIN ge.ge_alumno_seccion a
                   ON a.corte_id = s.corte_id AND a.ge_section_id = s.ge_section_id
                 WHERE s.corte_id = ? AND s.cue_anexo = ?
                 GROUP BY s.ge_section_id, s.curso, s.division, s.nivel, s.turno
@@ -152,9 +151,9 @@ export async function resolverContextoPorCue(
     corte && seccionesRows.length > 0
       ? (
           await client.execute({
-            sql: `SELECT a.ge_section_id as geSectionId, a.ge_person_id as gePersonId
-                  FROM ge_alumno_seccion a
-                  JOIN ge_seccion s ON s.corte_id = a.corte_id AND s.ge_section_id = a.ge_section_id
+            sql: `SELECT a.ge_section_id as "geSectionId", a.ge_person_id as "gePersonId"
+                  FROM ge.ge_alumno_seccion a
+                  JOIN ge.ge_seccion s ON s.corte_id = a.corte_id AND s.ge_section_id = a.ge_section_id
                   WHERE a.corte_id = ? AND s.cue_anexo = ?`,
             args: [corte.id, identifier.value],
           })

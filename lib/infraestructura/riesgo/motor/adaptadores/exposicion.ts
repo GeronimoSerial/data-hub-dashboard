@@ -1,5 +1,5 @@
-import { getDb } from '@/lib/db'
-import { getCorteVigente } from '../../../ge-db'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql, getCorteVigente } from '../../../ge-db'
 import { asegurarGeAdjuntada } from '../../../impacto'
 import type { PuertoExposicion, ResumenExposicion } from '../puertos'
 
@@ -13,8 +13,7 @@ export function crearAdapterExposicion(): PuertoExposicion {
       // contrato del puerto y queda documentado como follow-up; no se intenta
       // resolver con una aproximación que daría un corte incorrecto.
       void asOf
-      const db = getDb()
-      const client = db.$client
+      const client = crearEjecutorSql(getRawClient())
 
       await asegurarGeAdjuntada(client)
       const corte = await getCorteVigente(client)

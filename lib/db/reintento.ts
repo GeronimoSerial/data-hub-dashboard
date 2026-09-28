@@ -13,6 +13,15 @@
 // reintenta a mano con un `setTimeout` real, que sí cede el hilo y deja
 // correr al que tiene el lock.
 //
+// Con Postgres (vía `pg` y `PGlite`) esta misma función también reintenta ante
+// los conflictos de serialización, deadlock y lock no disponible: `40001`
+// (serialization_failure), `40P01` (deadlock_detected) y `55P03`
+// (lock_not_available). Son la forma en que Postgres devuelve la misma clase de
+// "perdiste la carrera, reintentá el bloque completo" que representaba
+// SQLITE_BUSY en SQLite. Se mantiene la detección de SQLITE_BUSY/"database is
+// locked" como fallback: no cuesta nada y permite correr en un entorno mixto
+// durante la transición.
+//
 // Todo lo que se envuelva con `conReintentoPorBloqueo` tiene que ser
 // re-ejecutable desde cero sin duplicar efectos: o bien re-lee el estado
 // fresco en cada intento (como el bloque de la ruta de parte), o bien está
@@ -20,8 +29,19 @@
 // falla a mitad de camino. Ver los call sites para el razonamiento
 // caso a caso.
 
+// Códigos de error que representan "perdiste la carrera por el lock, reintentá
+// el bloque completo": SQLITE_BUSY de libsql, y los de Postgres.
+const CODIGOS_LOCK_POSTGRES = new Set(['40001', '40P01', '55P03'])
+
+function tieneCodigoDeLock(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const code = (err as { code?: unknown }).code
+  return typeof code === 'string' && (code === 'SQLITE_BUSY' || CODIGOS_LOCK_POSTGRES.has(code))
+}
+
 export function esErrorLockOcupado(err: unknown): boolean {
-  if (err && typeof err === 'object' && 'code' in err && err.code === 'SQLITE_BUSY') return true
+  if (tieneCodigoDeLock(err)) return true
+  if (tieneCodigoDeLock((err as { cause?: unknown } | null)?.cause)) return true
   const msg = err instanceof Error ? err.message : String(err)
   const causaMsg = err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
   return /SQLITE_BUSY|database is locked/i.test(msg) || /SQLITE_BUSY|database is locked/i.test(causaMsg)
