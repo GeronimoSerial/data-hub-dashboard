@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState, type JSX } from 'react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { SheetContent, SheetRoot, SheetTitle } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
+import type { DatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type {
   Categoria,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
+  SeccionEstablecimiento,
   ServicioAlcance,
   Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
@@ -54,6 +56,17 @@ interface RespuestaParteMapa {
   parte: ParteFicha | null
   servicio?: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones?: AfectacionFicha[]
+  // Secciones del establecimiento (turno + id de sección GE) que devuelve la
+  // ruta para CUALQUIER escuela del corte, tenga o no afectación vigente. Es
+  // la fuente cruda; el bloque "Datos de la escuela" ya no la recorre (usa
+  // `datosPadron`, que es el agregado), pero se conserva en la forma de la
+  // respuesta por compatibilidad con la ruta.
+  secciones?: SeccionEstablecimiento[]
+  // Agregado del padrón GE de la escuela (F3.2/V4): nivel(es), matrícula total
+  // del corte vigente, secciones y turnos. `null` = la escuela no tiene
+  // ninguna sección en el corte vigente (se dice explícitamente en la ficha);
+  // `undefined` = una ruta vieja no lo manda. Nunca trae identidad de alumno.
+  datosPadron?: DatosPadronEscuela | null
   ultimaActualizacion?: string | null
 }
 
@@ -169,6 +182,13 @@ function FichaParteModalContenido({
   const afectacionesFicha: AfectacionFicha[] | null = datos?.afectaciones ?? null
   const afectacionesPlaceholder = parteResumen?.afectaciones ?? []
 
+  // Escuela sin afectación vigente: la respuesta llega con `afectaciones: []`
+  // o directamente sin el campo y con `parte: null`. En ambos casos hay que
+  // decirlo con un texto explícito en vez de dejar la sección vacía, que se
+  // lee como una pantalla rota o a medio cargar.
+  const sinAfectaciones =
+    afectacionesFicha !== null ? afectacionesFicha.length === 0 : datos?.parte === null
+
   return (
     <div className="ficha-parte-modal">
       {estado.fase === 'error' && (
@@ -203,7 +223,14 @@ function FichaParteModalContenido({
           Situación hidrometeorológica en seguimiento
         </h3>
 
-        {afectacionesFicha !== null ? (
+        {sinAfectaciones ? (
+          <p
+            className="estado-actual-bloque__valor ficha-parte-modal__sin-afectaciones"
+            data-testid="ficha-parte-sin-afectaciones"
+          >
+            Sin afectaciones reportadas para esta escuela.
+          </p>
+        ) : afectacionesFicha !== null ? (
           <ul className="estado-actual-afectaciones">
             {afectacionesFicha.map((afectacion) => (
               <li key={afectacion.id} className="estado-actual-afectacion">
@@ -274,6 +301,65 @@ function FichaParteModalContenido({
         )}
       </section>
 
+      {/* F3.2/V4: agregado del padrón GE para la escuela que la ruta devuelve
+          para cualquier CUE del corte, tenga o no afectación vigente. Muestra
+          nivel(es) educativo(s), matrícula total y cantidad de secciones; si
+          la escuela no tiene datos en el corte vigente (`datosPadron: null`),
+          lo dice explícitamente en vez de inventar ceros. Si una ruta vieja no
+          manda el campo, el bloque no se muestra. */}
+      {datos !== null && datos.datosPadron !== undefined && (
+        <section
+          className="estado-actual-bloque estado-actual-bloque--ancho"
+          aria-labelledby="ficha-parte-datos-escuela"
+        >
+          <h3 className="estado-actual-bloque__titulo" id="ficha-parte-datos-escuela">
+            Datos de la escuela
+          </h3>
+          {datos.datosPadron === null ? (
+            <p
+              className="estado-actual-bloque__valor"
+              data-testid="ficha-parte-sin-padron"
+            >
+              Sin datos del padrón para esta escuela.
+            </p>
+          ) : (
+            <>
+              <p
+                className="estado-actual-bloque__valor"
+                data-testid="ficha-parte-padron-niveles"
+              >
+                {datos.datosPadron.niveles.length === 1
+                  ? 'Nivel educativo'
+                  : 'Niveles educativos'}
+                : {datos.datosPadron.niveles.join(', ')}
+              </p>
+              <p
+                className="estado-actual-bloque__valor"
+                data-testid="ficha-parte-padron-matricula"
+              >
+                Matrícula total: {datos.datosPadron.matriculaTotal}{' '}
+                {datos.datosPadron.matriculaTotal === 1 ? 'alumno' : 'alumnos'}
+              </p>
+              <p
+                className="estado-actual-bloque__valor"
+                data-testid="ficha-parte-padron-secciones"
+              >
+                {datos.datosPadron.secciones}{' '}
+                {datos.datosPadron.secciones === 1 ? 'sección' : 'secciones'}
+              </p>
+              {datos.datosPadron.turnos.length > 0 && (
+                <p
+                  className="estado-actual-bloque__vigencia"
+                  data-testid="ficha-parte-padron-turnos"
+                >
+                  Turnos: {datos.datosPadron.turnos.join(' · ')}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       {ultimaActualizacion && (
         <p className="estado-actual-pie__actualizacion">Última actualización: {ultimaActualizacion}</p>
       )}
@@ -332,31 +418,33 @@ export function FichaParteModal({
   habilitado?: boolean
 }): JSX.Element {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="map-detail-dialog">
-        <DialogTitle>{parteResumen?.nombre ?? 'Ficha del parte'}</DialogTitle>
-        {parteResumen && (
-          <p className="estado-actual-bloque__vigencia">
-            {parteResumen.localidad}, {parteResumen.departamento}
-          </p>
-        )}
-        {open ? (
-          <>
-            <FichaParteModalContenido
-              key={cueAnexo}
-              cueAnexo={cueAnexo}
-              parteResumen={parteResumen}
-              mostrarEnlaceNominal={mostrarEnlaceNominal}
-              onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
-              onVerHistorialCompleto={onVerHistorialCompleto}
-            />
-            {/* Ficha territorial compacta (E2). DENTRO de `open` a propósito:
-                sus fetches no deben existir con el modal cerrado. El flag lo
-                decide el padre; acá sólo se respeta. */}
-            {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
-          </>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    <SheetRoot open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="map-ficha-sheet">
+        <SheetTitle>{parteResumen?.nombre ?? 'Ficha del parte'}</SheetTitle>
+        <div className="ficha-parte-sheet__body">
+          {parteResumen && (
+            <p className="estado-actual-bloque__vigencia">
+              {parteResumen.localidad}, {parteResumen.departamento}
+            </p>
+          )}
+          {open ? (
+            <>
+              <FichaParteModalContenido
+                key={cueAnexo}
+                cueAnexo={cueAnexo}
+                parteResumen={parteResumen}
+                mostrarEnlaceNominal={mostrarEnlaceNominal}
+                onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
+                onVerHistorialCompleto={onVerHistorialCompleto}
+              />
+              {/* Ficha territorial compacta (E2). DENTRO de `open` a propósito:
+                  sus fetches no deben existir con el modal cerrado. El flag lo
+                  decide el padre; acá sólo se respeta. */}
+              {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
+            </>
+          ) : null}
+        </div>
+      </SheetContent>
+    </SheetRoot>
   )
 }

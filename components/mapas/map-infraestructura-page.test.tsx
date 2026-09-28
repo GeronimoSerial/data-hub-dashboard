@@ -7,6 +7,9 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 
 const CUE = '1801605-04'
+// Escuela del padrón SIN afectación vigente (no está en partesPorCue): es el
+// caso del hallazgo 7, el click que antes no abría nada.
+const CUE_SIN_AFECTACION = '1801605-99'
 
 // M1: el buscador de escuelas llama a `mapRef.current?.getMap()?.flyTo(...)`
 // al seleccionar un resultado. `vi.hoisted` porque el factory de
@@ -52,12 +55,13 @@ const PARTE: ParteMapa = {
 vi.mock('@/components/infraestructura/ficha-parte-modal', () => ({
   FichaParteModal: (props: {
     open: boolean
+    cueAnexo: string
     onOpenChange: (open: boolean) => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
   }): JSX.Element | null =>
     props.open ? (
-      <div data-testid="mock-ficha-modal">
+      <div data-testid="mock-ficha-modal" data-cue={props.cueAnexo}>
         <button onClick={() => props.onOpenChange(false)}>cerrar-ficha</button>
         <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
         <button onClick={() => props.onVerHistorialCompleto()}>abrir-historial-desde-ficha</button>
@@ -134,7 +138,7 @@ const FIXTURE_ESCUELAS_MAPA = {
       parte: PARTE,
     },
     {
-      cueAnexo: '1801605-99',
+      cueAnexo: CUE_SIN_AFECTACION,
       nombre: 'Escuela sin afectación',
       departamento: 'Capital',
       localidad: 'Corrientes',
@@ -273,7 +277,7 @@ vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
 // del componente real) y deja pasar el resto de los hijos sin más.
 vi.mock('react-map-gl/maplibre', () => {
-  type FeatureMock = { layer?: { id: string }; properties: Record<string, string> }
+  type FeatureMock = { layer?: { id: string }; properties: Record<string, unknown> }
   type MouseEventMock = { features: FeatureMock[] }
   type HoverEventMock = { features: FeatureMock[]; lngLat: { lng: number; lat: number } }
 
@@ -311,6 +315,14 @@ vi.mock('react-map-gl/maplibre', () => {
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE } }] })}
         />
         <button
+          data-testid="mock-click-parte-sin-afectacion"
+          onClick={() =>
+            props.onClick?.({
+              features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE_SIN_AFECTACION } }],
+            })
+          }
+        />
+        <button
           data-testid="mock-click-departamento"
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }] })}
         />
@@ -327,6 +339,49 @@ vi.mock('react-map-gl/maplibre', () => {
           onClick={() =>
             props.onMouseMove?.({
               features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        {/* V3: simula el hover que MapLibre entrega cuando el cursor está sobre
+            una escuela o un cluster: el relleno del departamento SIEMPRE está
+            debajo, así que el evento trae AMBAS features y la prioridad del
+            componente tiene que elegir la escuela/cluster. */}
+        <button
+          data-testid="mock-hover-escuela"
+          onClick={() =>
+            props.onMouseMove?.({
+              features: [
+                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
+                {
+                  layer: { id: 'infra-partes' },
+                  properties: {
+                    cueAnexo: CUE,
+                    nombre: 'Escuela 1',
+                    estado: 'afectada',
+                    severidad: 'Alta',
+                    servicio: 'suspendido',
+                    esEvacuado: false,
+                    esCentroEvacuados: false,
+                    sinReportar: false,
+                  },
+                },
+              ],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        <button
+          data-testid="mock-hover-cluster"
+          onClick={() =>
+            props.onMouseMove?.({
+              features: [
+                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
+                {
+                  layer: { id: 'infra-partes-cluster' },
+                  properties: { point_count: 7, severidadRango: 2, escuelasAfectadas: 3 },
+                },
+              ],
               lngLat: { lng: -58.8, lat: -27.5 },
             })
           }
@@ -426,7 +481,21 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    expect(await screen.findByTestId('mock-ficha-modal')).toBeInTheDocument()
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE)
+  })
+
+  // Hallazgo 7 (regresión central de V4): una escuela del padrón SIN
+  // afectación vigente tiene que abrir su ficha igual. Antes el handler sólo
+  // llamaba a setSeleccionCue si `partesPorCue` ya tenía ese CUE, así que el
+  // click no hacía nada.
+  it('abre la ficha al hacer click en una escuela del padrón sin afectación', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mock-click-parte-sin-afectacion'))
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
   })
 
   it('abre el modal nominal desde la ficha', async () => {
@@ -739,7 +808,60 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     )
   })
 
-  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y no abre ficha', async () => {
+  it('sobre una escuela, el tooltip de escuela gana al de departamento', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-hover-escuela'))
+
+    const popup = await screen.findByText(
+      (_contenido, element) =>
+        element?.tagName === 'P' && /Escuela 1/.test(element.textContent ?? ''),
+    )
+    expect(popup).toHaveTextContent('Escuela 1')
+    expect(popup).toHaveTextContent('Severidad: Alta')
+    // Servicio suspendido participa siempre del badge, aunque la capa de
+    // evacuación esté apagada: mismo criterio que el ícono dibujado.
+    expect(popup).toHaveTextContent('Estado: Servicio suspendido')
+    // El tooltip de departamento NO se muestra a la vez.
+    expect(
+      screen.queryByText((_contenido, element) => esParrafoHover(element)),
+    ).not.toBeInTheDocument()
+  })
+
+  it('sobre un cluster, el tooltip de cluster gana al de departamento y muestra conteo y severidad', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-hover-cluster'))
+
+    const popup = await screen.findByText(
+      (_contenido, element) =>
+        element?.tagName === 'P' && /escuelas agrupadas/.test(element.textContent ?? ''),
+    )
+    expect(popup).toHaveTextContent('7 escuelas agrupadas')
+    // severidadRango 2 = SEVERIDADES[2] = 'Alta'.
+    expect(popup).toHaveTextContent('Severidad máxima: Alta')
+    expect(
+      screen.queryByText((_contenido, element) => esParrafoHover(element)),
+    ).not.toBeInTheDocument()
+  })
+
+  it('al cambiar de modo se limpia el tooltip (no queda clavado)', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    await userEvent.click(screen.getByTestId('mock-hover-departamento'))
+    expect(
+      await screen.findByText((_contenido, element) => esParrafoHover(element)),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y abre la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     // El aria-label completo distingue el buscador de escuelas del filtro
@@ -752,8 +874,10 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     expect(FLY_TO_MOCK).toHaveBeenCalledWith(
       expect.objectContaining({ center: [-58.8, -27.5] }),
     )
-    // Sin afectación reportada: no hay ParteMapa, por lo tanto no se abre la ficha.
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    // Hallazgo 7: sin afectación reportada igual se abre la ficha de la
+    // escuela (la ausencia de parte la resuelve el propio modal).
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
   })
 })
 

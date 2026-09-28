@@ -137,6 +137,11 @@ describe('paintCoropletaPeligro', () => {
     ])
     expect(expresion[expresion.length - 1]).toBe(COLOR_NIVEL_PELIGRO.sin_dato)
   })
+
+  it('rellena la coropleta de forma semitransparente para no tapar las capas inferiores', () => {
+    const paint = paintCoropletaPeligro()!
+    expect(paint['fill-opacity']).toBe(0.55)
+  })
 })
 
 describe('construirPuntosRiesgo', () => {

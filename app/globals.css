@@ -1748,7 +1748,7 @@ time {
   transition: color 160ms ease, border-color 160ms ease;
 }
 .ui-tabs-tab:hover { color: var(--ink); }
-.ui-tabs-tab[data-selected] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
+.ui-tabs-tab[data-active] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
 .ui-tabs-panel { min-width: 0; padding-top: var(--s-5); }
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
@@ -1778,19 +1778,21 @@ time {
    leyenda), así que reclamaban el mismo offset y se montaban uno sobre otro.
    Acá el anclaje pasa al contenedor y los paneles vuelven a ser estáticos:
    apilados en flujo, no superpuestos.
-   El tope de altura deja libre la esquina superior izquierda, donde vive el
-   control de zoom de MapLibre, y habilita scroll propio para que la columna
-   nunca desborde el mapa ni tape el pie de atribución. */
+   La columna se ancla ARRIBA (no abajo): así arranca siempre desde el mismo
+   punto y crece hacia abajo con su propio scroll, en vez de "flotar" con
+   espacio vacío arriba y desplazarse cada vez que cambia la altura de su
+   contenido (carga async). El `left` mayor deja libre el control de zoom de
+   MapLibre (esquina superior izquierda), igual que .map-title-panel. */
 .map-left-stack {
   position: absolute;
-  bottom: 25px;
-  left: 25px;
+  top: 25px;
+  left: 55px;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  width: min(20rem, calc(100vw - 50px));
-  max-height: calc(100% - 140px);
+  width: min(20rem, calc(100vw - 80px));
+  max-height: calc(100% - 50px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1847,6 +1849,13 @@ time {
   flex-wrap: wrap;
   gap: var(--s-1);
   align-items: center;
+}
+/* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
+   habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
+   alcanzables por teclado/lector de pantalla), así que la señal es sólo CSS. */
+.selector-horizonte__boton--deshabilitado {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .map-radar-briefing {
   margin: var(--s-1) 0;
@@ -2062,10 +2071,54 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   margin: var(--s-1) 0 0;
   padding: 0;
 }
-.map-escuelas-search { margin-bottom: var(--s-2); }
-.map-escuelas-search .map-filtro-input { width: 100%; }
-.map-escuelas-resultados { margin-bottom: var(--s-2); }
-.map-escuelas-resultados .map-alertas-list { max-height: 15rem; overflow-y: auto; }
+/* Indicadores consolidados: grilla de número grande + etiqueta chica. Las
+   propias del mapa (no se reutiliza .stat-block, que es de la portada del
+   hub). Dos columnas en desktop; una sola en pantallas angostas. */
+.map-indicadores-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-2);
+}
+.map-indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.map-indicador__valor {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink);
+}
+.map-indicador__label {
+  font-size: var(--t-micro);
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+/* V8 (hallazgo 28): en modo oscuro el texto de ayuda del panel usaba --ink-soft
+   sobre una tarjeta más clara que la página; sobre --card queda en 4.19:1
+   (bajo AA). Se fuerza --ink (blanco puro) en esa superficie, que da 12.3:1.
+   Ajuste puntual para esta clase, no un rediseño del sistema de hints. */
+[data-theme='dark'] .map-panel .map-hint,
+[data-theme='dark'] .map-control-card .map-hint { color: var(--ink); }
+
+/* V8 (hallazgo 28): los tres estilos base de BASEMAPS son claros y no hay uno
+   oscuro. Sin agregar un proveedor de tiles nuevo (decisión de infraestructura
+   ajena a esta tarea), se oscurece el canvas de MapLibre sólo en tema oscuro.
+   El ancestro `.mapa-pestanas-cuerpo` (presente sólo en el mapa de
+   infraestructura) acota el efecto a esa página: `.map-root` también lo usa el
+   mapa de matrícula, que así queda fuera de alcance. */
+[data-theme='dark'] .mapa-pestanas-cuerpo .map-root .maplibregl-canvas-container {
+  filter: brightness(0.65) invert(1) contrast(0.9) hue-rotate(180deg);
+}
+
+@media (max-width: 720px) {
+  .map-indicadores-grid { grid-template-columns: 1fr; }
+}
 .map-alerta-texto { display: grid; min-width: 0; gap: 2px; }
 .map-alerta-texto b, .map-alerta-texto small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-alerta-texto small { color: var(--ink-soft); }
@@ -2954,6 +3007,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   max-height: calc(100dvh - 2rem);
 }
 .ui-sheet--right.map-historial-sheet { width: min(38rem, 100vw); }
+/* Ficha del parte como panel lateral (hallazgo 20): mismo ancho y
+   comportamiento que el historial del mapa. El scroll va en el body interno
+   (no en la sheet) para que el botón de cierre no se vaya con el contenido. */
+.ui-sheet--right.map-ficha-sheet { width: min(38rem, 100vw); }
+.ficha-parte-sheet__body { padding: 0 var(--s-5) var(--s-5); overflow: auto; }
 
 .ficha-parte-modal__aviso {
   margin: 0;
@@ -3757,6 +3815,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-height: 0;
 }
 .mapa-pestanas-barra {
+  display: flex;
+  justify-content: center;
   flex: 0 0 auto;
   padding: var(--s-2) var(--gutter) 0;
   background: var(--page);
@@ -3792,6 +3852,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  /* Hallazgo 23: las cuatro vistas no comparten altura (gráfico de 17rem vs.
+     tabla vs. mensaje) y al cambiar de subpestaña el layout saltaba. Se reserva
+     la altura típica de un gráfico más el texto de encabezado para que el salto
+     entre vistas sea mínimo. La vista de acumulado puede superarlo y crecer. */
+  min-height: 21rem;
 }
 .evolucion-subtitulo {
   margin: 0;
@@ -3829,6 +3894,28 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   letter-spacing: 0;
   text-transform: none;
   white-space: normal;
+}
+/* Hallazgo 25: apoyo visual del ranking. La barra es proporcional a las
+   escuelas afectadas respecto del máximo del listado; el número sigue en su
+   columna para no perder precisión. El ancho mínimo evita que la columna
+   colapse cuando el listado tiene un solo departamento. */
+.evolucion-tabla td.evolucion-barra-celda {
+  width: 30%;
+  min-width: 7rem;
+}
+.evolucion-barra {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.evolucion-barra__relleno {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+  border-radius: inherit;
 }
 
 /* === Batch E1: verificación escolar === */

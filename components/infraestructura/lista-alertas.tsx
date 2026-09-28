@@ -1,9 +1,8 @@
 'use client'
 
-import { useMemo, useState, type JSX } from 'react'
+import { useMemo, type JSX } from 'react'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { CATEGORIAS, CATEGORIA_META } from '@/lib/infraestructura/categorias'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
@@ -35,19 +34,15 @@ export function ListaAlertas(props: {
     campo: K,
     valor: FiltrosForm[K],
   ) => void
-  seleccionadaCue: string | null
-  onSeleccionar: (cueAnexo: string) => void
+  // Estado de apertura del bloque de filtros avanzados. Vive en el padre
+  // (MapInfraestructuraPage) porque esta lista se desmonta al cambiar de modo
+  // del mapa (Situación actual / Radar / Replay): si el <details> fuera no
+  // controlado, cada remontaje lo devolvía cerrado y el usuario perdía lo que
+  // tenía abierto.
+  filtrosAbiertos: boolean
+  onFiltrosAbiertosChange: (abierto: boolean) => void
 }): JSX.Element {
   const styles = useOverlayStyles()
-  const [busqueda, setBusqueda] = useState('')
-  const resultados = useMemo(() => {
-    const termino = busqueda.trim().toLocaleLowerCase('es')
-    if (!termino) return []
-    return props.partes.filter((parte) =>
-      [parte.nombre, parte.cueAnexo, parte.localidad, parte.departamento]
-        .some((valor) => valor.toLocaleLowerCase('es').includes(termino)),
-    )
-  }, [busqueda, props.partes])
 
   // El motivo ya no es un catálogo fijo en código (tiene ABM, ver
   // lib/infraestructura/motivos.ts): el filtro ofrece los motivos que
@@ -84,46 +79,11 @@ export function ListaAlertas(props: {
 
   return (
     <div className={`${styles.panel} ${styles.legendPanel}`}>
-      <label className="map-filtro-campo map-escuelas-search">
-        <span className="map-filtro-label">Buscar escuela</span>
-        <input
-          className="ui-input map-filtro-input"
-          type="search"
-          placeholder="Nombre, CUE o localidad"
-          value={busqueda}
-          onChange={(event) => setBusqueda(event.target.value)}
-        />
-      </label>
-      {busqueda.trim() && (
-        <div className="map-escuelas-resultados" aria-live="polite">
-          <p className={styles.hint}>
-            {resultados.length === 0
-              ? 'No se encontraron escuelas con los filtros aplicados.'
-              : `${resultados.length} ${resultados.length === 1 ? 'escuela encontrada' : 'escuelas encontradas'}`}
-          </p>
-          <ul className={styles.alertasList}>
-            {resultados.slice(0, 8).map((parte) => (
-              <li key={parte.parteId}>
-                <button
-                  type="button"
-                  className={props.seleccionadaCue === parte.cueAnexo
-                    ? `${styles.alertaRow} ${styles.alertaRowActive}`
-                    : styles.alertaRow}
-                  onClick={() => props.onSeleccionar(parte.cueAnexo)}
-                >
-                  <span className={styles.swatch} style={{ backgroundColor: colorSeveridad(parte.peorSeveridad) }} />
-                  <span className="map-alerta-texto">
-                    <b>{parte.nombre}</b>
-                    <small>{parte.cueAnexo} · {ETIQUETA_SERVICIO[parte.servicio]} · {parte.localidad}, {parte.departamento}</small>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          {resultados.length > 8 && <p className={styles.hint}>Escribí más para acotar los resultados.</p>}
-        </div>
-      )}
-      <details className="map-filtros-avanzados">
+      <details
+        className="map-filtros-avanzados"
+        open={props.filtrosAbiertos}
+        onToggle={(event) => props.onFiltrosAbiertosChange(event.currentTarget.open)}
+      >
         <summary>Filtros del mapa</summary>
       <div className={styles.filtrosGrid}>
         <label className="map-filtro-campo">

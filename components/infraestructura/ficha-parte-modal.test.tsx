@@ -58,6 +58,17 @@ function respuestaParte() {
         totales: { secciones: 3, alumnos: 74 },
       },
     ],
+    secciones: [
+      { geSectionId: 1, turno: 'Mañana' },
+      { geSectionId: 2, turno: 'Mañana' },
+      { geSectionId: 3, turno: 'Tarde' },
+    ],
+    datosPadron: {
+      niveles: ['PRIMARIA'],
+      secciones: 3,
+      matriculaTotal: 74,
+      turnos: ['MAÑANA', 'TARDE'],
+    },
     ultimaActualizacion: '2026-08-01T12:00:00Z',
   }
 }
@@ -136,6 +147,127 @@ describe('FichaParteModal', () => {
     expect(screen.getByText(/establecimiento evacuado/i)).toBeInTheDocument()
     expect(screen.getByText('Inundación')).toBeInTheDocument()
     expect(await screen.findByText(/3 secciones · 74 alumnos/)).toBeInTheDocument()
+  })
+
+  // Hallazgo 22 / F3.2-V4: datos reales del padrón de la escuela que la ruta
+  // ya devuelve para cualquier CUE, tenga o no afectación.
+  it('muestra niveles, matrícula total, secciones y turnos en "Datos de la escuela"', async () => {
+    stubFetch()
+    render(
+      <FichaParteModal
+        cueAnexo={CUE}
+        open={true}
+        onOpenChange={() => {}}
+        parteResumen={parteResumen}
+        mostrarEnlaceNominal={false}
+        onVerAlumnosAlcanzados={() => {}}
+        onVerHistorialCompleto={() => {}}
+      />,
+    )
+
+    expect(await screen.findByTestId('ficha-parte-padron-niveles')).toHaveTextContent(
+      'Nivel educativo: PRIMARIA',
+    )
+    expect(screen.getByTestId('ficha-parte-padron-matricula')).toHaveTextContent(
+      'Matrícula total: 74 alumnos',
+    )
+    expect(screen.getByTestId('ficha-parte-padron-secciones')).toHaveTextContent('3 secciones')
+    expect(screen.getByTestId('ficha-parte-padron-turnos')).toHaveTextContent(
+      'Turnos: MAÑANA · TARDE',
+    )
+  })
+
+  // Escuela sin datos en el corte vigente: se dice explícitamente, nunca una
+  // tabla vacía ni ceros inventados.
+  it('muestra "Sin datos del padrón para esta escuela" cuando datosPadron es null', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/parte?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ok: true,
+            periodo: { id: 'per1', nombre: 'Invierno 2026' },
+            parte: null,
+            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
+            afectaciones: [],
+            secciones: [],
+            datosPadron: null,
+            ultimaActualizacion: null,
+          }),
+        } as Response)
+      }
+      if (url.includes('/historial?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, movimientos: [] }),
+        } as Response)
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <FichaParteModal
+        cueAnexo={CUE}
+        open={true}
+        onOpenChange={() => {}}
+        parteResumen={null}
+        mostrarEnlaceNominal={false}
+        onVerAlumnosAlcanzados={() => {}}
+        onVerHistorialCompleto={() => {}}
+      />,
+    )
+
+    expect(await screen.findByTestId('ficha-parte-sin-padron')).toHaveTextContent(
+      'Sin datos del padrón para esta escuela.',
+    )
+  })
+
+  // Hallazgo 7/22: una escuela sin afectación vigente no tiene que verse como
+  // una pantalla vacía o rota: se dice explícitamente que no hay afectaciones.
+  it('muestra un mensaje explícito cuando la escuela no tiene afectaciones', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/parte?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ok: true,
+            periodo: { id: 'per1', nombre: 'Invierno 2026' },
+            parte: null,
+            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
+            afectaciones: [],
+            secciones: [],
+            ultimaActualizacion: null,
+          }),
+        } as Response)
+      }
+      if (url.includes('/historial?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, movimientos: [] }),
+        } as Response)
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <FichaParteModal
+        cueAnexo={CUE}
+        open={true}
+        onOpenChange={() => {}}
+        parteResumen={null}
+        mostrarEnlaceNominal={false}
+        onVerAlumnosAlcanzados={() => {}}
+        onVerHistorialCompleto={() => {}}
+      />,
+    )
+
+    expect(await screen.findByTestId('ficha-parte-sin-afectaciones')).toHaveTextContent(
+      'Sin afectaciones reportadas para esta escuela.',
+    )
   })
 
   it('muestra el botón nominal por afectación sólo cuando mostrarEnlaceNominal es true', async () => {

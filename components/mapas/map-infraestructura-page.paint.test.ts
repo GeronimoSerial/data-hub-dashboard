@@ -8,7 +8,6 @@ import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-featur
 import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
   circlePaintPartes,
-  circlePaintSinReportar,
   colorPorSeveridadRango,
   construirFeatureCollection,
   esSinReportar,
@@ -18,7 +17,6 @@ import {
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
   RADIO_CLUSTER_MENOR,
-  SIN_REPORTAR_RADIO_EXTRA,
 } from './map-infraestructura-page'
 
 const CUE = '1801605-04'
@@ -144,39 +142,16 @@ describe('circlePaintPartes', () => {
       'circle-opacity',
       'circle-radius',
       'circle-stroke-color',
-      'circle-stroke-opacity',
       'circle-stroke-width',
     ])
   })
 
-  it('el anillo de servicio distingue suspendido/parcial del resto por grosor y opacidad', () => {
+  it('el borde es neutro y fijo: el servicio ya no se codifica con grosor/opacidad', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-stroke-width']).toEqual([
-      'match',
-      ['get', 'servicio'],
-      'suspendido',
-      4,
-      'parcial',
-      2,
-      1,
-    ])
-    expect(paint['circle-stroke-opacity']).toEqual([
-      'match',
-      ['get', 'servicio'],
-      'suspendido',
-      1,
-      'parcial',
-      0.55,
-      0.9,
-    ])
-  })
-})
-
-describe('circlePaintSinReportar', () => {
-  it('es un anillo más grande que el punto (RADIO_DOT_BASE + extra), sin relleno', () => {
-    const paint = circlePaintSinReportar()!
-    expect(paint['circle-radius']).toBe(RADIO_DOT_BASE + SIN_REPORTAR_RADIO_EXTRA)
-    expect(paint['circle-color']).toBe('transparent')
+    expect(paint['circle-stroke-width']).toBe(1)
+    // El estado del servicio pasó al badge de íconos (V2): el paint del punto
+    // ya no debe tener ninguna expresión data-driven sobre `servicio`.
+    expect(paint).not.toHaveProperty('circle-stroke-opacity')
   })
 })
 

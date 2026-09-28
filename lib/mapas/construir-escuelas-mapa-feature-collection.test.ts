@@ -83,7 +83,33 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     expect(props.severidadRango).toBe(0)
     expect(props.sinReportar).toBe(false)
     expect(props.esEvacuado).toBe(false)
+    expect(props.esCentroEvacuados).toBe(false)
     expect(props.estado).toBe('sin_afectacion_reportada')
+  })
+
+  it('marca esCentroEvacuados sólo para centro_evacuados, y esEvacuado para ambos', () => {
+    const escuelas = [
+      escuelaAfectada({ cueAnexo: 'habitual', parte: parte({ estadoEstablecimiento: 'habitual' }) }),
+      escuelaAfectada({ cueAnexo: 'evacuado', parte: parte({ estadoEstablecimiento: 'evacuado' }) }),
+      escuelaAfectada({
+        cueAnexo: 'centro',
+        parte: parte({ estadoEstablecimiento: 'centro_evacuados' }),
+      }),
+    ]
+
+    const fc = construirEscuelasMapaFeatureCollection(escuelas, null)
+
+    expect(
+      fc.features.map((f) => [
+        f.properties.cueAnexo,
+        f.properties.esEvacuado,
+        f.properties.esCentroEvacuados,
+      ]),
+    ).toEqual([
+      ['habitual', false, false],
+      ['evacuado', true, false],
+      ['centro', true, true],
+    ])
   })
 
   it('excluye escuelas sin lat o sin lon aunque vengan en la entrada', () => {

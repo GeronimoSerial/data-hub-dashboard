@@ -59,7 +59,9 @@ export function SelectorHorizonte({ horizonte, onChange, disponibles }: Props) {
             type="button"
             size="sm"
             variant={activo ? 'default' : 'secondary'}
-            className={`selector-horizonte__boton${activo ? ' ui-button--active' : ''}`}
+            className={`selector-horizonte__boton${activo ? ' ui-button--active' : ''}${
+              !habilitado ? ' selector-horizonte__boton--deshabilitado' : ''
+            }`}
             aria-pressed={activo}
             aria-disabled={!habilitado}
             title={habilitado ? undefined : TEXTO_SIN_EVIDENCIA}

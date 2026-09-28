@@ -48,6 +48,10 @@ export interface PropiedadesEscuelaMapa {
   sinReportar: boolean
   // false siempre para 'sin_afectacion_reportada'.
   esEvacuado: boolean
+  // true sólo para estadoEstablecimiento === 'centro_evacuados'. Permite que
+  // el agregado de cluster distinga centro de evacuados (prioridad 1, Tent)
+  // de evacuado (prioridad 2, DoorOpen) al elegir el ícono del cluster.
+  esCentroEvacuados: boolean
   // Campo explícito para que la ficha/tooltip distinga sin adivinar por color.
   estado: 'afectada' | 'sin_afectacion_reportada'
 }
@@ -91,6 +95,7 @@ export function construirEscuelasMapaFeatureCollection(
             esEvacuado:
               parte.estadoEstablecimiento === 'evacuado' ||
               parte.estadoEstablecimiento === 'centro_evacuados',
+            esCentroEvacuados: parte.estadoEstablecimiento === 'centro_evacuados',
             estado: 'afectada',
           }
         : {
@@ -103,6 +108,7 @@ export function construirEscuelasMapaFeatureCollection(
             severidadRango: 0,
             sinReportar: false,
             esEvacuado: false,
+            esCentroEvacuados: false,
             estado: 'sin_afectacion_reportada',
           }
 

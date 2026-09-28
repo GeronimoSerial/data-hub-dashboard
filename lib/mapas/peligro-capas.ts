@@ -128,6 +128,12 @@ export function paintCoropletaPeligro(): FillLayerSpecification['paint'] {
 
   return {
     'fill-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
+    // Semitransparente a propósito: la coropleta es contexto de fondo del
+    // modo Radar, no el dato principal. Opaca (el default de MapLibre es 1)
+    // tapaba por completo departamentos, clusters y escuelas montados
+    // debajo. 0.55 deja leer el nivel de peligro con claridad sin anular
+    // las capas inferiores.
+    'fill-opacity': 0.55,
   }
 }
 

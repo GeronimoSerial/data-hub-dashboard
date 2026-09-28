@@ -102,23 +102,40 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 
 ## Tareas
 
-- [ ] V1 — Sistema visual: escala de severidad, tokens de color claro/oscuro, set de iconos
+- [x] V1 — Sistema visual: escala de severidad, tokens de color claro/oscuro, set de iconos
       Lucide para estados (suspendido, parcial, evacuado, centro de evacuados, sin reportar).
-- [ ] V2 — Marcadores y clusters: reemplazar anillos/halos por iconos claros; cluster con
+      Ver `docs/ejecucion-enos/pulido/registro.md`.
+- [x] V2 — Marcadores y clusters: reemplazar anillos/halos por iconos claros; cluster con
       significado explícito; leyenda coherente con lo dibujado; selección resaltada.
-- [ ] V3 — Tooltip: caja que contiene el texto, contenido según el objeto apuntado (escuela,
+      TypeScript + tests verdes; verificación visual en navegador pendiente (V9).
+- [x] V3 — Tooltip: caja que contiene el texto, contenido según el objeto apuntado (escuela,
       cluster, departamento), sin tapar el objetivo, se limpia al cambiar de modo.
-- [ ] V4 — Ficha de escuela para cualquier escuela (clic en mapa o buscador): accesos, datos,
-      partes/reportes; panel lateral en lugar de modal que tapa todo.
-- [ ] V5 — Panel izquierdo: un solo buscador, indicadores con jerarquía, estado de filtros
-      persistente, sin saltos; coherencia de contadores (hallazgo 10).
-- [ ] V6 — Radar: capa de peligro sin tapar el mapa (estado sin evidencia legible), leyenda
-      propia, horizontes deshabilitados distinguibles, buscador disponible.
-- [ ] V7 — Pestañas y Evolución: centrado, estado activo, gráfico con rango útil, ranking con
-      barras, footer.
-- [ ] V8 — Transversal al mapa: modo oscuro del mapa (mapa base oscuro, contraste),
-      controles de MapLibre en español, responsive.
+      TypeScript + tests verdes; verificación visual pendiente (V9).
+- [x] V4 — Ficha de escuela para cualquier escuela (clic en mapa o buscador): accesos, datos,
+      partes/reportes; panel lateral en lugar de modal que tapa todo. Completa (incluye
+      hallazgo 20, panel lateral con Sheet). Gap de datos (matrícula/nivel por escuela):
+      autorizado por N1 el 2026-09-28 y resuelto (`datosPadron` agregado, sin datos
+      nominales, ver registro).
+- [x] V5 — Panel izquierdo: un solo buscador, indicadores con jerarquía, estado de filtros
+      persistente, sin saltos; coherencia de contadores (hallazgo 10). Completa; hallazgo 10
+      resuelto con copy aclaratorio (conceptos legítimamente distintos, no un bug).
+- [x] V6 — Radar: capa de peligro sin tapar el mapa (estado sin evidencia legible), leyenda
+      propia, horizontes deshabilitados distinguibles, buscador disponible. Completa.
+      Nota de producto pendiente: si el buscador en Radar debe alimentar el panel de riesgo
+      además de/en vez de la ficha (no resuelto sin decisión de producto).
+- [x] V7 — Pestañas y Evolución: centrado, estado activo, gráfico con rango útil, ranking con
+      barras, footer. Completa salvo footer (investigado: su ausencia es intencional, decisión
+      de producto pendiente si se quiere cambiar).
+- [x] V8 — Transversal al mapa: modo oscuro del mapa (mapa base oscuro, contraste),
+      controles de MapLibre en español, responsive. Completa; verificación visual (V9)
+      pendiente, sobre todo del filtro CSS del mapa oscuro.
 - [ ] V9 — Verificación en navegador de cada sección (claro/oscuro, desktop/móvil) con capturas.
+      NO HECHA por N2: chrome-devtools-mcp/claude-in-chrome no disponibles para mí, y el
+      camino alternativo (Playwright headless propio) topó con un bug de entorno real —
+      Chromium en este entorno nunca adjunta la cookie de sesión a una navegación de página
+      (probado con 5+ métodos distintos; curl sí funciona siempre con el mismo cookie).
+      Decisión de N1 (2026-09-28): cortar V9 acá, se absorbe en el QA visual de V10 con
+      navegador real. Ver detalle y evidencia en el registro.
 - [ ] V10 — QA estético completo del mapa de infraestructura, al detalle, hecho por el coordinador en el navegador cuando
       el N2 termina (pedido explícito del usuario). Recorre los 29 hallazgos y cada estado:
       hover, foco, capas combinadas, Radar por horizonte, ficha, Evolución, claro/oscuro,
@@ -131,5 +148,10 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 
 ## Estado
 
-- Ruta: delegado (N2 → N3), a lanzar al terminar DB1 según pedido del usuario ("al final").
-- Progreso: revisión hecha; implementación pendiente.
+- Ruta: delegado (N2 → N3), cerrado por N2.
+- Progreso: V1-V8 completos e implementados (íconos, tooltip, ficha con panel
+  lateral y datos de padrón, panel izquierdo, Radar, pestañas/Evolución,
+  transversal), `pnpm exec tsc --noEmit`, suite completa (223 archivos /
+  1982 tests) y `pnpm build` verdes. V9 no hecha (bloqueo de entorno real,
+  no de la app — ver registro), derivada a V10 por decisión de N1. Demo
+  levantada y estable en :3202 para el QA de N1.
