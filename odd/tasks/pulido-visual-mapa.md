@@ -140,6 +140,59 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
       el N2 termina (pedido explícito del usuario). Recorre los 29 hallazgos y cada estado:
       hover, foco, capas combinadas, Radar por horizonte, ficha, Evolución, claro/oscuro,
       móvil. Lo que no pase vuelve al N2 como corrección.
+      Primera pasada hecha 2026-09-28 11:00 UTC por N1 (chrome-devtools, demo :3202,
+      1448 px y 390 px, claro y oscuro). Resuelto: pestañas centradas con estado activo
+      (Base UI usa data-active, confirmado en DOM), panel izquierdo anclado arriba con un
+      solo buscador e indicadores con jerarquía, contadores coherentes (47/47 con nota),
+      leyenda con íconos Lucide, ficha para cualquier escuela con datos de padrón,
+      Evolución con rango útil, mapa base oscuro, controles en español, sin scroll
+      horizontal en móvil. Pendiente, vuelve como V11.
+
+### V11 — Correcciones del QA de N1 (bloquean el cierre)
+
+- [ ] Q1 — Clusters engañosos: el número es el total de escuelas del padrón agrupadas y el
+      color la peor severidad, así que un círculo rojo "490" en San Cosme se lee como 490
+      escuelas críticas. El cluster tiene que comunicar AFECTADAS: número = escuelas
+      afectadas del grupo, color = peor severidad; un grupo sin afectadas no se dibuja
+      como alerta (sólo aparece, discreto y sin color de severidad, si está activa la capa
+      del padrón). Tooltip del cluster: "490 escuelas · 3 afectadas (1 crítica, 2 altas)".
+      Leyenda acorde.
+- [ ] Q2 — Radar, riesgo por escuela: vuelven los círculos grises con anillo. Reemplazar por
+      ícono Lucide coloreado por nivel de riesgo; "sin dato" no se dibuja como marcador.
+- [ ] Q3 — Radar, peligro por departamento sin evidencia: pinta la provincia con un velo gris.
+      Sin dato = sin relleno; el estado vacío se comunica en el panel, no tapando el mapa.
+- [ ] Q4 — Radar, leyenda: hoy es una lista con viñetas e íconos sin muestra de color. Usar
+      muestras del MISMO color que el mapa + ícono, alineados, sin viñetas.
+- [ ] Q5 — Escuela seleccionada: se marca con un anillo amarillo. Usar un marcador claro
+      (p. ej. MapPin de Lucide o el ícono de la escuela agrandado con contorno), no un anillo.
+- [ ] Q6 — Ficha:
+      a) encabezado con nombre, CUE, localidad y departamento para CUALQUIER escuela (hoy la
+         de una escuela sin afectación dice sólo "FICHA DEL PARTE");
+      b) los estados vacíos ("Sin afectaciones…", "Sin datos del padrón…") en texto normal
+         secundario, no en tamaño de titular;
+      c) panel lateral NO modal: sin velo que oscurezca y bloquee el mapa y el header; el
+         mapa sigue usable; cerrar con Esc y con el botón, alineado dentro del panel;
+      d) severidad con un único código (ícono + color + texto), no círculo/cuadrado/triángulo
+         según el nivel (hallazgo 21 sigue abierto);
+      e) accesos: riesgo de acceso de la escuela si el radar lo tiene (o "Sin dato de
+         acceso"), y enlaces a su historial de partes y a cargar o actualizar el parte;
+      f) "Ver alumnos alcanzados" como acción secundaria liviana, no un botón grande por
+         afectación.
+- [ ] Q7 — Tooltip: cerca del borde superior queda cortado debajo de la barra de pestañas.
+      Reposicionar según el espacio disponible (anchor automático).
+- [ ] Q8 — Escuelas a zoom alto: puntos de ~8 px que se pierden entre los íconos de
+      colectivo del mapa base. Ícono de escuela (School de Lucide) de tamaño legible,
+      coloreado por severidad; mapa base por defecto "Mapa claro" o con los POI de
+      transporte atenuados.
+- [ ] Q9 — Modo oscuro: los clusters pasan a salmón pastel, se pierde la escala de severidad
+      y el contraste del número. Escala de severidad con contraste AA también en oscuro.
+- [ ] Q10 — Móvil (390 px): el botón "Buscar escuelas" queda tapado por la atribución del
+      mapa, que también pisa "Pantalla completa". Reubicar para que nada se superponga.
+- [ ] Q11 — Leyenda de Situación actual: ítems de varias líneas con el ícono desalineado;
+      "Sin reportar" usa un halo diminuto (usar un ícono Lucide, p. ej. Clock o
+      SignalZero); textos más cortos.
+- [ ] Q12 — Evolución (menor): línea escalonada (los datos son diarios, la curva suavizada
+      sugiere valores intermedios), tooltip por punto y marcas del eje regulares.
 
 ## Checks
 
