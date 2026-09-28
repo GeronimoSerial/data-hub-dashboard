@@ -181,8 +181,12 @@
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; min-height: 100%; }
-html { scroll-behavior: smooth; }
+/* The document itself never scrolls: every page scrolls inside the shell's
+   `.app-content`/`.app-content--bleed` region instead (T12). This is what
+   keeps the header fixed and stops centered content from jumping when a
+   scrollbar or a Base UI scroll lock would otherwise appear/disappear on the
+   document — there is no document scrollbar to appear or disappear. */
+html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; }
 
 body {
   background: var(--page);
@@ -278,8 +282,7 @@ time {
 
 /* ── Frame ─────────────────────────────────────────────────────────────── */
 
-.app-page { min-height: 100dvh; display: flex; flex-direction: column; }
-.app-page--viewer { height: 100dvh; }
+.app-page { height: 100dvh; display: flex; flex-direction: column; }
 
 /* Institutional strip: five solid segments, one colour each. Not a
    gradient — the manual forbids ramps built from the palette (§3.4). */
@@ -437,7 +440,26 @@ time {
 }
 .app-actions .ui-button:focus-visible { outline-color: var(--marker); }
 
+/* The one scroller for ordinary pages. Full width (like `.app-header`/
+   `.app-footer`) so `scrollbar-gutter: stable` reserves its lane at the true
+   viewport edge, not inside the centered reading column — `.app-content__inner`
+   is what actually centers `{children}` at `var(--measure)`. The footer is a
+   sibling of that inner wrapper, inside this same scroller, so it scrolls
+   with the content instead of sitting pinned below it. */
 .app-content {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.app-content__inner {
   flex: 1;
   width: 100%;
   max-width: var(--measure);
@@ -732,6 +754,18 @@ time {
   color: var(--ink-soft);
 }
 .resource-card__access svg { color: var(--warn); }
+
+/* Restringido: no es un enlace, solo informa que existe. Menor énfasis y
+   cursor por defecto en vez del pointer de una tarjeta clickeable. */
+.resource-card--bloqueado {
+  cursor: default;
+  opacity: 0.6;
+}
+.resource-card--bloqueado:hover {
+  border-color: var(--line);
+  background: var(--card);
+}
+.resource-card--bloqueado:hover h3 { text-decoration: none; }
 
 /* Browse card: topic, level, format. The icon block is a solid square of
    palette colour — the manual's own device — not a tinted rounded chip. */
@@ -1133,6 +1167,29 @@ time {
 
 .ui-radio-group { display: flex; flex-direction: column; gap: var(--s-2); }
 .ui-radio-group[data-orientation='horizontal'] { flex-direction: row; flex-wrap: wrap; }
+
+.ui-segmented {
+  display: inline-flex;
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--card);
+  width: 100%;
+}
+.ui-segmented__item {
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+.ui-segmented__item + .ui-segmented__item { border-left: 1px solid var(--ink-faint); }
+.ui-segmented__item:hover { color: var(--ink); }
+.ui-segmented__item[data-pressed] { background: var(--action); color: var(--white); font-weight: 600; }
+[data-theme='dark'] .ui-segmented__item[data-pressed] { color: var(--black); }
 
 /* ── Filters ───────────────────────────────────────────────────────────── */
 
@@ -1610,7 +1667,10 @@ time {
 .admin-sidebar {
   align-self: start;
   position: sticky;
-  top: calc(var(--header-h) + var(--s-4));
+  /* The header lives outside `.app-content` now (T12) — it never scrolls
+     into this container, so the sticky offset no longer needs to clear its
+     height, just a small breathing gap from the scroller's own top edge. */
+  top: var(--s-4);
   display: grid;
   gap: var(--s-5);
   background: var(--card);
@@ -2559,7 +2619,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    ══════════════════════════════════════════════════════════════════════════ */
 
 .publico-layout {
-  min-height: 100dvh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--page);
@@ -2622,10 +2682,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .publico-header .app-signature__compact { display: flex; }
 }
 
+/* Not part of the AppShell, but it shares the same document — with `html`/
+   `body` no longer scrolling (T12), this is now the public flow's own inner
+   scroller so the form stays reachable. */
 .publico-main {
   flex: 1;
+  min-height: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
+.publico-main__body { flex: 1; width: 100%; }
 
 .publico-content {
   max-width: var(--publico-medida, 640px);
@@ -3892,6 +3965,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   justify-content: center;
   flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
   padding: var(--s-2) var(--gutter) 0;
   background: var(--page);
 }
@@ -4134,6 +4209,70 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 1px solid var(--line-soft);
   max-width: 20rem;
 }
+
+/* ── Estadísticas de natalidad (T8) ───────────────────────────────────────
+   Reusa .evolucion-panel/.evolucion-vista/.evolucion-subtitulo/
+   .evolucion-descripcion/.grafico-contenedor (son genéricos, no específicos
+   de infraestructura); acá sólo lo que es nuevo: el selector de
+   departamento y las tarjetas de KPI. */
+.natalidad-filtro-departamento {
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+  max-width: 18rem;
+  margin-bottom: var(--s-3);
+}
+
+/* T10a: el panel de título y la leyenda comparten un ancho fijo — antes el
+   título crecía tanto como su línea de fuentes más larga (una sola línea sin
+   cortar) y quedaba más ancho y descentrado que la leyenda de abajo. Con este
+   ancho fijo, el panel de título + el control de métrica/año + el buscador
+   forman una única columna alineada de igual ancho que la leyenda. */
+.natalidad-title-panel,
+.natalidad-legend-panel {
+  width: min(330px, calc(100vw - 50px));
+  max-width: min(330px, calc(100vw - 50px));
+}
+/* Fuentes/provenance de datos (T10a): antes un <span> siempre visible que
+   estiraba el panel; ahora un <details> chico, colapsado por defecto, en
+   letra muted — no compite con el título/resumen. */
+.natalidad-fuentes {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+}
+.natalidad-fuentes summary {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  font-weight: 600;
+  cursor: pointer;
+}
+.natalidad-fuentes .map-hint { margin-top: 4px; }
+
+/* Control compacto de métrica del mapa, integrado bajo el panel de título
+   (T9): reemplaza el panel de la derecha "Métrica / Escuelas / Mapa base",
+   sacado por feedback ("no lo siento útil"). */
+.natalidad-metrica-control {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 20rem;
+}
+.natalidad-anio-par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-2);
+}
+/* Buscador de escuelas (T10): mismo slot que el control de métrica, con su
+   propio separador arriba. */
+.natalidad-buscador {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+  max-width: 20rem;
+}
 .mapa-buscador-escuela > .ui-input { width: 100%; }
 
 /* Resultados en un popover flotante anclado al input. Mismo lenguaje visual
@@ -4141,6 +4280,24 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
 .mapa-buscador-escuela-positioner { z-index: var(--z-popup); outline: none; }
 .mapa-buscador-escuela-popup {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-modal);
+  overflow: hidden;
+}
+
+.natalidad-buscador > .ui-input { width: 100%; }
+
+/* Resultados en un popover flotante anclado al input (feedback "se ven
+   pésimos", 2026-09-25 — antes era una lista inline dentro de la tarjeta de
+   título, que crecía y empujaba el resto del panel). Mismo lenguaje visual
+   que .ui-select-popup/.ui-select-item: superficie, borde, radio y sombra
+   por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
+.natalidad-buscador-positioner { z-index: var(--z-popup); outline: none; }
+.natalidad-buscador-popup {
   width: var(--anchor-width);
   max-width: var(--available-width);
   background: var(--card);
@@ -4157,7 +4314,29 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   overscroll-behavior: contain;
   padding: var(--s-1);
 }
+
+/* Único contenedor con scroll (requisito: "single scroll container") — el
+   popup en sí no scrollea, sólo esta lista, acotada a ~6 filas visibles. */
+.natalidad-buscador-lista {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+}
 .mapa-buscador-escuela-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--r-sm);
+  cursor: default;
+  outline: none;
+  text-align: left;
+}
+
+.natalidad-buscador-item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -4181,8 +4360,28 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+.natalidad-buscador-item[data-highlighted] {
+  background: var(--ink);
+  color: var(--page);
+}
+.natalidad-buscador-item[data-highlighted] .natalidad-buscador-meta { color: inherit; opacity: 0.75; }
+.natalidad-buscador-nombre {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .mapa-buscador-escuela-meta { color: var(--ink-soft); font-size: var(--t-micro); }
 .mapa-buscador-escuela-match {
+  background: color-mix(in srgb, var(--action) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.natalidad-buscador-meta { color: var(--ink-soft); font-size: var(--t-micro); }
+.natalidad-buscador-match {
   background: color-mix(in srgb, var(--action) 30%, transparent);
   color: inherit;
   border-radius: 2px;
@@ -4192,4 +4391,43 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-soft);
   font-size: var(--t-small);
 }
+
+.natalidad-buscador-vacio {
+  padding: 0.6rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
 /* M1: buscador de escuelas (mapa de infraestructura) — fin */
+
+.natalidad-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--s-3);
+}
+.natalidad-kpi-tile {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  padding: var(--s-3);
+}
+.natalidad-kpi-etiqueta {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.natalidad-nota-metodologica {
+  font-size: var(--t-micro);
+  color: var(--ink-soft);
+  border-top: 1px dashed var(--line-soft);
+  padding-top: var(--s-2);
+}
+.natalidad-grafico-etiqueta {
+  fill: var(--ink);
+}
+.natalidad-kpi-valor {
+  font-family: var(--font-display);
+  font-size: var(--t-large, 1.5rem);
+  font-weight: 700;
+  color: var(--ink);
+}

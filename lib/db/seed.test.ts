@@ -466,3 +466,27 @@ describe('modelo de verificaciones: tablas nuevas en la migración inicial', () 
     expect(eventos.rows).toHaveLength(1)
   })
 })
+
+describe('recursos-por-usuario: esquema de datos', () => {
+  it('user_recursos existe y user.acceso_recursos por defecto es "todos"', async () => {
+    const ejecutor = crearEjecutorSql(getRawClient())
+
+    const tablas = await ejecutor.execute({
+      sql: `SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename = ?`,
+      args: ['user_recursos'],
+    })
+    expect(tablas.rows).toHaveLength(1)
+
+    const columnas = await ejecutor.execute({
+      sql: `SELECT column_default FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = ?
+              AND column_name = ?`,
+      args: ['user', 'acceso_recursos'],
+    })
+    expect(columnas.rows).toHaveLength(1)
+    expect(String(columnas.rows[0]?.column_default)).toContain('todos')
+  })
+})

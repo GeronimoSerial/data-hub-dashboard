@@ -82,6 +82,8 @@ describe('GET /api/mapas/infraestructura', () => {
       role: 'consulta',
       banned: false,
       nivelIds: ['inicial'],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET(req())
@@ -98,6 +100,8 @@ describe('GET /api/mapas/infraestructura', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET(req())
@@ -113,6 +117,8 @@ describe('GET /api/mapas/infraestructura', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET(req())

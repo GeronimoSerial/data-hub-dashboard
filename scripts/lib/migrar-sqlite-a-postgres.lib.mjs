@@ -146,7 +146,10 @@ export function columnasBoolean(columns) {
  *   hay que convertir el epoch ms a Date.
  * - Cualquier otra columna (text, integer, real): paso directo. Las fechas
  *   guardadas como `text` ISO (pg-core las declara `text`, ver la nota DB1-F2
- *   en lib/db/schema.ts) se conservan como string tal cual.
+ *   en lib/db/schema.ts) se conservan como string tal cual. Si la columna no
+ *   existe en absoluto en la fila de origen (`undefined`, típico de una
+ *   columna nueva que el origen SQLite nunca tuvo), se omite la clave en vez
+ *   de forzar `null`, para que Postgres aplique su DEFAULT declarado.
  */
 export function convertirFila(fila, columnas) {
   const salida = {}
@@ -158,8 +161,11 @@ export function convertirFila(fila, columnas) {
       salida[col.clave] = convertirBoolean(valor)
     } else if (col.tipo === 'timestamp') {
       salida[col.clave] = convertirTimestamp(valor, col.nombre)
-    } else {
-      salida[col.clave] = valor === undefined ? null : valor
+    } else if (valor !== undefined) {
+      // La columna no existe en el origen: se omite la clave (en vez de
+      // forzar null) para que Postgres aplique su DEFAULT declarado. Las
+      // columnas nullable sin default quedan en null de cualquier forma.
+      salida[col.clave] = valor
     }
   }
   return salida

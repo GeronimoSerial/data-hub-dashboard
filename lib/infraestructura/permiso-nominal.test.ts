@@ -23,7 +23,15 @@ afterAll(() => {
 })
 
 function user(overrides: Partial<SessionUser>): SessionUser {
-  return { id: 'sin-uso', role: 'consulta', banned: false, nivelIds: [], ...overrides }
+  return {
+    id: 'sin-uso',
+    role: 'consulta',
+    banned: false,
+    nivelIds: [],
+    accesoRecursos: 'todos',
+    recursoIds: [],
+    ...overrides,
+  }
 }
 
 let contador = 0

@@ -136,7 +136,7 @@ describe('ReporteInicialForm', () => {
   it('muestra la glosa de cada categoría, que antes existía sin mostrarse', () => {
     renderFormulario()
 
-    expect(screen.getByText('La escuela o parte de ella queda fuera de servicio.')).toBeInTheDocument()
+    expect(screen.getByText('La escuela o parte de ella deja de funcionar con normalidad.')).toBeInTheDocument()
     expect(screen.getByText('La escuela funciona, pero hay alumnos que no pueden llegar.')).toBeInTheDocument()
   })
 
@@ -164,7 +164,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
-  it('exige el alcance cuando se suspenden las clases', () => {
+  it('usa las secciones afectadas como alcance de la interrupción', () => {
     renderFormulario()
 
     completarQuePaso()
@@ -172,16 +172,8 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
-    continuar()
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique el alcance de la suspensión.')
-
-    // Elegir "uno o más turnos" y no marcar ninguno tampoco alcanza.
-    fireEvent.click(screen.getByRole('radio', { name: 'Uno o más turnos' }))
-    continuar()
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique a qué turnos alcanza la suspensión.')
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Mañana' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar interrumpido' }))
+    expect(screen.queryByText('¿Dónde se interrumpió el funcionamiento?')).toBeNull()
     continuar()
     expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
 
@@ -210,19 +202,20 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
-  it('el alcance sólo se pregunta si hay suspensión', () => {
+  it('un problema de alumnos pasa directamente a confirmar sin preguntar por escuela ni edificio', () => {
     renderFormulario()
 
-    completarQuePaso()
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
     completarAQuienAfecta()
     continuar()
 
-    expect(screen.queryByRole('radio', { name: 'Todo el establecimiento' })).toBeNull()
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
-
-    expect(screen.getByRole('radio', { name: 'Todo el establecimiento' })).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
+    expect(screen.queryByText('Funcionamiento escolar interrumpido')).toBeNull()
   })
 
   it('volver conserva lo ya cargado', () => {

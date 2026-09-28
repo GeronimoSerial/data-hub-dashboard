@@ -113,6 +113,8 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
     const { GET } = await import('./route')
     const res = await GET(req())
@@ -134,6 +136,8 @@ describe('GET /api/mapas/infraestructura/nominal', () => {
       role: 'consulta',
       banned: false,
       nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
     })
 
     const antes = await contarLogsDe('usuario-con-grant')

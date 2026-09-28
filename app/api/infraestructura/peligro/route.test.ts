@@ -33,7 +33,7 @@ vi.mock('@/lib/infraestructura/riesgo/peligro/nivel', () => ({
   obtenerNivelCaudal: vi.fn(),
 }))
 
-const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [] }
+const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 
 function mockAcceso(acceso: AccesoLectura) {
   vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)

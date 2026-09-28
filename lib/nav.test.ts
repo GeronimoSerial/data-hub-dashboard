@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { gatedStaticPath, isBleedViewerPath } from './nav'
+import {
+  decideScrollAction,
+  gatedStaticPath,
+  isBleedViewerPath,
+  isRestoreSettled,
+  scrollRestorationKey,
+} from './nav'
 
 describe('gatedStaticPath', () => {
   it('returns prefix roots and nested paths', () => {
@@ -54,5 +60,60 @@ describe('isBleedViewerPath', () => {
     )
     expect(isBleedViewerPath('/')).toBe(false)
     expect(isBleedViewerPath('/admin')).toBe(false)
+  })
+})
+
+describe('scrollRestorationKey', () => {
+  it('combines pathname and search into one stable key', () => {
+    expect(scrollRestorationKey('/explorar', '?tema=x&nivel=y')).toBe(
+      'app-scroll:/explorar?tema=x&nivel=y',
+    )
+    expect(scrollRestorationKey('/explorar', 'tema=x')).toBe(
+      'app-scroll:/explorar?tema=x',
+    )
+  })
+
+  it('omits the query separator when there is no search', () => {
+    expect(scrollRestorationKey('/', '')).toBe('app-scroll:/')
+  })
+
+  it('treats different search params as different keys', () => {
+    expect(scrollRestorationKey('/explorar', '?tema=a')).not.toBe(
+      scrollRestorationKey('/explorar', '?tema=b'),
+    )
+  })
+})
+
+describe('decideScrollAction', () => {
+  it('always resets on a forward navigation, ignoring a stale saved value', () => {
+    expect(decideScrollAction(false, '383')).toEqual({ type: 'reset' })
+    expect(decideScrollAction(false, null)).toEqual({ type: 'reset' })
+  })
+
+  it('restores a saved positive value on a popstate navigation', () => {
+    expect(decideScrollAction(true, '516')).toEqual({ type: 'restore', target: 516 })
+  })
+
+  it('resets on popstate when there is nothing usable to restore', () => {
+    expect(decideScrollAction(true, null)).toEqual({ type: 'reset' })
+    expect(decideScrollAction(true, '0')).toEqual({ type: 'reset' })
+    expect(decideScrollAction(true, '-5')).toEqual({ type: 'reset' })
+    expect(decideScrollAction(true, 'not-a-number')).toEqual({ type: 'reset' })
+  })
+})
+
+describe('isRestoreSettled', () => {
+  it('is not settled while under target and within budget', () => {
+    expect(isRestoreSettled(0, 500, 10, 1000)).toBe(false)
+    expect(isRestoreSettled(498, 500, 10, 1000)).toBe(false)
+  })
+
+  it('settles once within one pixel of the target', () => {
+    expect(isRestoreSettled(499, 500, 10, 1000)).toBe(true)
+    expect(isRestoreSettled(500, 500, 10, 1000)).toBe(true)
+  })
+
+  it('settles once the time budget is exceeded, even short of the target', () => {
+    expect(isRestoreSettled(0, 500, 1001, 1000)).toBe(true)
   })
 })

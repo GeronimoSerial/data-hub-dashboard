@@ -15,6 +15,13 @@
       "when": 1790571093878,
       "tag": "0001_mute_the_initiative",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790617774855,
+      "tag": "0002_empty_frank_castle",
+      "breakpoints": true
     }
   ]
 }

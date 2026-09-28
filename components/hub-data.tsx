@@ -61,17 +61,33 @@ async function readError(res: Response) {
   return typeof data?.error === 'string' ? data.error : 'No se pudo guardar el cambio. Intente nuevamente.'
 }
 
-export function HubDataProvider({ children }: { children: React.ReactNode }) {
+export function HubDataProvider({
+  children,
+  initialCatalog,
+}: {
+  children: React.ReactNode
+  initialCatalog?: Catalog
+}) {
   const session = authClient.useSession()
   const role = (session.data?.user as { role?: Role } | undefined)?.role
   const catalogPath = catalogPathForRole(role)
   const pending = session.isPending
 
-  const [recursos, setRecursos] = React.useState<Recurso[]>(seedRecursos)
-  const [niveles, setNiveles] = React.useState<Nivel[]>(seedNiveles)
-  const [tipos, setTipos] = React.useState<Tipo[]>(seedTipos)
-  const [categorias, setCategorias] = React.useState<Categoria[]>(seedCategorias)
-  const [tags, setTags] = React.useState<Tag[]>(seedTags)
+  const [recursos, setRecursos] = React.useState<Recurso[]>(
+    initialCatalog?.recursos ?? seedRecursos,
+  )
+  const [niveles, setNiveles] = React.useState<Nivel[]>(
+    initialCatalog?.niveles ?? seedNiveles,
+  )
+  const [tipos, setTipos] = React.useState<Tipo[]>(
+    initialCatalog?.tipos ?? seedTipos,
+  )
+  const [categorias, setCategorias] = React.useState<Categoria[]>(
+    initialCatalog?.categorias ?? seedCategorias,
+  )
+  const [tags, setTags] = React.useState<Tag[]>(
+    initialCatalog?.tags ?? seedTags,
+  )
   const [writeError, setWriteError] = React.useState<string | null>(null)
 
   const recursosRef = React.useRef(recursos)

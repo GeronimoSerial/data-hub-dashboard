@@ -38,7 +38,7 @@ beforeEach(() => {
 })
 
 function editor() {
-  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelIds: [] }
+  return { id: 'editor-1', role: 'editor' as const, banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
 function url(qs: string): Request {

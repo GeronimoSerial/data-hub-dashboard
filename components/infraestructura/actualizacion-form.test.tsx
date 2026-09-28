@@ -439,9 +439,9 @@ describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar',
 
     // Antes se leía "Estado actual: X" y debajo radios TODOS vacíos, que se
     // ve como un formulario sin completar.
-    expect(screen.getByText('Clases normales')).toBeInTheDocument()
+    expect(screen.getByText('Funcionamiento escolar normal')).toBeInTheDocument()
     expect(screen.getByText('Funcionamiento habitual')).toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'Clases suspendidas' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Funcionamiento escolar interrumpido' })).toBeNull()
     expect(screen.queryByRole('radio', { name: 'Establecimiento evacuado' })).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Cambiar' }).length).toBeGreaterThanOrEqual(2)
   })
@@ -455,17 +455,17 @@ describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar',
     const [cambiarClases] = screen.getAllByRole('button', { name: 'Cambiar' })
     fireEvent.click(cambiarClases)
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar interrumpido' }))
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeEnabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Dejar como está' }))
 
-    expect(screen.queryByRole('radio', { name: 'Clases suspendidas' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Funcionamiento escolar interrumpido' })).toBeNull()
     expect(screen.getByRole('button', { name: /revisar cambios/i })).toBeDisabled()
   })
 
   // El alcance describe a quiénes alcanza una SUSPENSIÓN: preguntarlo tras
-  // elegir "Clases normales" no quiere decir nada.
+  // elegir "Funcionamiento escolar normal" no quiere decir nada.
   it('el alcance sólo se pregunta al suspender las clases', async () => {
     stubFetchInicial()
     renderFormulario()
@@ -475,10 +475,10 @@ describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar',
     const [cambiarClases] = screen.getAllByRole('button', { name: 'Cambiar' })
     fireEvent.click(cambiarClases)
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Clases normales' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar normal' }))
     expect(screen.queryByRole('radio', { name: 'Todo el establecimiento' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Clases suspendidas' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar interrumpido' }))
     expect(screen.getByRole('radio', { name: 'Todo el establecimiento' })).toBeInTheDocument()
   })
 

@@ -33,12 +33,14 @@ const labels = {
 }
 
 const publicAccess = {
+  id: 'r1',
   estado: 'publicado' as const,
   audienciaNivelIds: [],
   audienciaUserIds: [],
 }
 
 const restrictedAccess = {
+  id: 'r1',
   estado: 'publicado' as const,
   audienciaNivelIds: ['secundario'],
   audienciaUserIds: [],
@@ -78,7 +80,14 @@ describe('resource explanations', () => {
     const editor = buildExplainContext(
       resource,
       labels,
-      { id: 'u1', role: 'editor', banned: false, nivelIds: [] },
+      {
+        id: 'u1',
+        role: 'editor',
+        banned: false,
+        nivelIds: [],
+        accesoRecursos: 'todos',
+        recursoIds: [],
+      },
       restrictedAccess,
     )
     expect(anonymous.authorized).toBe(false)
@@ -145,7 +154,14 @@ describe('resource explanations', () => {
     const authorized = buildExplainContext(
       resource,
       labels,
-      { id: 'u1', role: 'consulta', banned: false, nivelIds: [] },
+      {
+        id: 'u1',
+        role: 'consulta',
+        banned: false,
+        nivelIds: [],
+        accesoRecursos: 'todos',
+        recursoIds: [],
+      },
       publicAccess,
     )
     const first = await generateExplanation(anonymous, provider)

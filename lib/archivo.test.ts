@@ -9,6 +9,7 @@ import {
 } from './archivo'
 
 const pub: RecursoAccess = {
+  id: 'r1',
   estado: 'publicado',
   audienciaNivelIds: [],
   audienciaUserIds: [],
@@ -19,6 +20,8 @@ const consulta = (over: Partial<SessionUser> = {}): SessionUser => ({
   role: 'consulta',
   banned: false,
   nivelIds: [],
+  accesoRecursos: 'todos',
+  recursoIds: [],
   ...over,
 })
 

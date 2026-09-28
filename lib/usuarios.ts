@@ -1,12 +1,16 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import type { Role, SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
-import { user, userNiveles } from '@/lib/db/schema'
+import { recursos, user, userNiveles, userRecursos } from '@/lib/db/schema'
 
 export const LAST_ADMIN_ERROR = 'No se puede quitar el último administrador'
+export const UNKNOWN_RECURSOS_ERROR = 'Hay recursos seleccionados que no existen'
 
 const ROLES: Role[] = ['admin', 'editor', 'consulta']
 const MIN_PASSWORD = 8
+
+export type AccesoRecursos = 'todos' | 'seleccionados'
+const ACCESOS_RECURSOS: AccesoRecursos[] = ['todos', 'seleccionados']
 
 export type HubUser = {
   id: string
@@ -15,6 +19,8 @@ export type HubUser = {
   role: Role
   banned: boolean
   nivelIds: string[]
+  accesoRecursos: AccesoRecursos
+  recursoIds: string[]
 }
 
 export type CreateUserBody = {
@@ -23,6 +29,8 @@ export type CreateUserBody = {
   password: string
   role: Role
   nivelIds: string[]
+  accesoRecursos: AccesoRecursos
+  recursoIds: string[]
 }
 
 export type PatchUserBody = {
@@ -31,6 +39,8 @@ export type PatchUserBody = {
   banned?: boolean
   password?: string
   nivelIds?: string[]
+  accesoRecursos?: AccesoRecursos
+  recursoIds?: string[]
 }
 
 export function listUsuariosDenied(user: SessionUser | null) {
@@ -65,6 +75,13 @@ function asRole(value: unknown): Role | null {
   return ROLES.includes(value as Role) ? (value as Role) : null
 }
 
+function asAccesoRecursos(value: unknown): AccesoRecursos | null {
+  if (typeof value !== 'string') return null
+  return ACCESOS_RECURSOS.includes(value as AccesoRecursos)
+    ? (value as AccesoRecursos)
+    : null
+}
+
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string' && item.length > 0)
@@ -79,12 +96,20 @@ export function parseCreateUserBody(body: unknown): CreateUserBody | null {
     return null
   const role = asRole(b.role)
   if (!role) return null
+  let accesoRecursos: AccesoRecursos = 'todos'
+  if ('accesoRecursos' in b) {
+    const parsed = asAccesoRecursos(b.accesoRecursos)
+    if (!parsed) return null
+    accesoRecursos = parsed
+  }
   return {
     email: b.email.trim().toLowerCase(),
     name: b.name.trim(),
     password: b.password,
     role,
     nivelIds: asStringArray(b.nivelIds),
+    accesoRecursos,
+    recursoIds: asStringArray(b.recursoIds),
   }
 }
 
@@ -120,6 +145,15 @@ export function parsePatchUserBody(body: unknown): PatchUserBody | null {
   if ('nivelIds' in b) {
     if (!Array.isArray(b.nivelIds)) return null
     patch.nivelIds = asStringArray(b.nivelIds)
+  }
+  if ('accesoRecursos' in b) {
+    const accesoRecursos = asAccesoRecursos(b.accesoRecursos)
+    if (!accesoRecursos) return null
+    patch.accesoRecursos = accesoRecursos
+  }
+  if ('recursoIds' in b) {
+    if (!Array.isArray(b.recursoIds)) return null
+    patch.recursoIds = asStringArray(b.recursoIds)
   }
 
   return patch
@@ -160,7 +194,7 @@ export function authApiError(err: unknown): { status: number; error: string } {
 
 export async function listHubUsers(): Promise<HubUser[]> {
   const db = getDb()
-  const [users, nivelRows] = await Promise.all([
+  const [users, nivelRows, recursoRows] = await Promise.all([
     db
       .select({
         id: user.id,
@@ -168,15 +202,23 @@ export async function listHubUsers(): Promise<HubUser[]> {
         email: user.email,
         role: user.role,
         banned: user.banned,
+        accesoRecursos: user.accesoRecursos,
       })
       .from(user),
     db.select().from(userNiveles),
+    db.select().from(userRecursos),
   ])
   const nivelIdsByUser = new Map<string, string[]>()
   for (const row of nivelRows) {
     const list = nivelIdsByUser.get(row.userId)
     if (list) list.push(row.nivelId)
     else nivelIdsByUser.set(row.userId, [row.nivelId])
+  }
+  const recursoIdsByUser = new Map<string, string[]>()
+  for (const row of recursoRows) {
+    const list = recursoIdsByUser.get(row.userId)
+    if (list) list.push(row.recursoId)
+    else recursoIdsByUser.set(row.userId, [row.recursoId])
   }
   return users.map((row) => ({
     id: row.id,
@@ -185,6 +227,9 @@ export async function listHubUsers(): Promise<HubUser[]> {
     role: (row.role as Role | null) ?? 'consulta',
     banned: Boolean(row.banned),
     nivelIds: nivelIdsByUser.get(row.id) ?? [],
+    accesoRecursos:
+      row.accesoRecursos === 'seleccionados' ? 'seleccionados' : 'todos',
+    recursoIds: recursoIdsByUser.get(row.id) ?? [],
   }))
 }
 
@@ -202,4 +247,29 @@ export async function replaceUserNiveles(userId: string, nivelIds: string[]) {
   const unique = [...new Set(nivelIds.filter(Boolean))]
   if (unique.length === 0) return
   await db.insert(userNiveles).values(unique.map((nivelId) => ({ userId, nivelId })))
+}
+
+/** Recurso ids en `recursoIds` que no existen en `recursos`. Vacío si todos
+ *  son válidos (incluye el caso trivial de una lista vacía). */
+export async function unknownRecursoIds(recursoIds: string[]): Promise<string[]> {
+  const unique = [...new Set(recursoIds.filter(Boolean))]
+  if (unique.length === 0) return []
+  const rows = await getDb()
+    .select({ id: recursos.id })
+    .from(recursos)
+    .where(inArray(recursos.id, unique))
+  const found = new Set(rows.map((r) => r.id))
+  return unique.filter((id) => !found.has(id))
+}
+
+export async function replaceUserRecursos(userId: string, recursoIds: string[]) {
+  const db = getDb()
+  await db.delete(userRecursos).where(eq(userRecursos.userId, userId))
+  const unique = [...new Set(recursoIds.filter(Boolean))]
+  if (unique.length === 0) return
+  await db.insert(userRecursos).values(unique.map((recursoId) => ({ userId, recursoId })))
+}
+
+export async function setAccesoRecursos(userId: string, accesoRecursos: AccesoRecursos) {
+  await getDb().update(user).set({ accesoRecursos }).where(eq(user.id, userId))
 }

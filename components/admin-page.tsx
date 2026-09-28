@@ -17,7 +17,6 @@ import {
   tipoNombre,
 } from '@/lib/model'
 import { useHubData } from '@/components/hub-data'
-import { authClient } from '@/lib/auth-client'
 import type { Role } from '@/lib/acl'
 import { isAllowedUpload } from '@/lib/upload'
 import { Button } from '@/components/ui/button'
@@ -46,6 +45,8 @@ const COLORS: BadgeColor[] = [
   'subtle',
 ]
 
+type AccesoRecursos = 'todos' | 'seleccionados'
+
 type HubUserRow = {
   id: string
   name: string
@@ -53,6 +54,8 @@ type HubUserRow = {
   role: Role
   banned: boolean
   nivelIds: string[]
+  accesoRecursos: AccesoRecursos
+  recursoIds: string[]
 }
 
 const ROLES: Role[] = ['admin', 'editor', 'consulta']
@@ -827,12 +830,14 @@ function UserDialog({
   onClose,
   editing,
   niveles,
+  recursos,
   onSaved,
 }: {
   open: boolean
   onClose: () => void
   editing: HubUserRow | null
   niveles: Nivel[]
+  recursos: Recurso[]
   onSaved: () => Promise<void>
 }) {
   return (
@@ -842,6 +847,7 @@ function UserDialog({
           key={editing?.id ?? 'nuevo'}
           editing={editing}
           niveles={niveles}
+          recursos={recursos}
           onClose={onClose}
           onSaved={onSaved}
         />
@@ -854,11 +860,13 @@ function UserForm({
   onClose,
   editing,
   niveles,
+  recursos,
   onSaved,
 }: {
   onClose: () => void
   editing: HubUserRow | null
   niveles: Nivel[]
+  recursos: Recurso[]
   onSaved: () => Promise<void>
 }) {
   const empty = {
@@ -868,6 +876,8 @@ function UserForm({
     role: 'consulta' as Role,
     banned: false,
     nivelIds: [] as string[],
+    accesoRecursos: 'todos' as AccesoRecursos,
+    recursoIds: [] as string[],
   }
   const [draft, setDraft] = React.useState(() =>
     editing
@@ -878,9 +888,12 @@ function UserForm({
           role: editing.role,
           banned: editing.banned,
           nivelIds: editing.nivelIds,
+          accesoRecursos: editing.accesoRecursos,
+          recursoIds: editing.recursoIds,
         }
       : empty,
   )
+  const esStaff = draft.role === 'admin' || draft.role === 'editor'
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -905,6 +918,8 @@ function UserForm({
               banned: draft.banned,
               password: draft.password,
               nivelIds: draft.nivelIds,
+              accesoRecursos: draft.accesoRecursos,
+              recursoIds: draft.recursoIds,
             }),
           })
         : await fetch('/api/usuarios', {
@@ -916,6 +931,8 @@ function UserForm({
               password: draft.password,
               role: draft.role,
               nivelIds: draft.nivelIds,
+              accesoRecursos: draft.accesoRecursos,
+              recursoIds: draft.recursoIds,
             }),
           })
       if (!res.ok) {
@@ -1001,6 +1018,42 @@ function UserForm({
               placeholder="Seleccione niveles"
             />
           </AdminField>
+          <AdminField
+            label="Acceso a recursos"
+            hint={esStaff ? 'Admin y editor ven todos los recursos' : undefined}
+          >
+            <RadioGroup
+              value={draft.accesoRecursos}
+              onValueChange={(value) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  accesoRecursos: value === 'seleccionados' ? 'seleccionados' : 'todos',
+                }))
+              }
+            >
+              <RadioItem value="todos" label="Todos" disabled={esStaff} />
+              <RadioItem
+                value="seleccionados"
+                label="Solo los seleccionados"
+                disabled={esStaff}
+              />
+            </RadioGroup>
+          </AdminField>
+          {!esStaff && draft.accesoRecursos === 'seleccionados' ? (
+            <AdminField label="Recursos">
+              <MultiSelect<string>
+                value={draft.recursoIds}
+                onChange={(next) => setDraft((prev) => ({ ...prev, recursoIds: next }))}
+                options={[...recursos]
+                  .sort((a, b) => a.titulo.localeCompare(b.titulo))
+                  .map((r) => ({
+                    value: r.id,
+                    label: `${r.titulo} — ${nivelNombre(niveles, r.nivelId)}`,
+                  }))}
+                placeholder="Seleccione recursos"
+              />
+            </AdminField>
+          ) : null}
           {editing ? (
             <AdminField label="Estado">
               <Switch
@@ -1025,7 +1078,7 @@ function UserForm({
   }
 
 function UsersAdmin() {
-  const { niveles } = useHubData()
+  const { niveles, recursos } = useHubData()
   const [usuarios, setUsuarios] = React.useState<HubUserRow[]>([])
   const [loadError, setLoadError] = React.useState<string | null>(null)
   const [open, setOpen] = React.useState(false)
@@ -1121,6 +1174,14 @@ function UsersAdmin() {
                     .map((id) => niveles.find((n) => n.id === id)?.nombre)
                     .filter(Boolean)
                     .join(', ') || '—'}
+                  {u.accesoRecursos === 'seleccionados' ? (
+                    <>
+                      {' '}
+                      <span className="badge badge--informative">
+                        {u.recursoIds.length} recurso{u.recursoIds.length === 1 ? '' : 's'}
+                      </span>
+                    </>
+                  ) : null}
                 </td>
                 <td>
                   <span className={u.banned ? 'badge badge--warning' : 'badge badge--success'}>
@@ -1147,6 +1208,7 @@ function UsersAdmin() {
         open={open}
         editing={editing}
         niveles={niveles}
+        recursos={recursos}
         onClose={() => setOpen(false)}
         onSaved={reload}
       />
@@ -1397,9 +1459,9 @@ function MotivosAdmin() {
 
 // ── Admin page ─────────────────────────────────────────────────────────────
 
-export function AdminPage() {
-  const session = authClient.useSession()
-  const role = (session.data?.user as { role?: Role } | undefined)?.role
+// `role` comes from the server session so SSR and the first client render
+// agree on which tabs exist (a client-side session hook is empty during SSR).
+export function AdminPage({ role }: { role: Role }) {
   const isAdmin = role === 'admin'
   const {
     recursos,

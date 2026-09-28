@@ -86,12 +86,12 @@ export const MENSAJE_ACCESO_VENCIDO =
 export const MENSAJE_SIN_CORTE =
   'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.'
 
-// spec §3.4 y §10. "Clases parcialmente suspendidas" es un resultado
+// spec §3.4 y §10. El funcionamiento parcialmente interrumpido es un resultado
 // informativo: se muestra, nunca se ofrece como opción de carga.
 export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
-  normal: 'Clases normales',
-  parcial: 'Clases parcialmente suspendidas',
-  suspendido: 'Clases suspendidas',
+  normal: 'Funcionamiento escolar normal',
+  parcial: 'Funcionamiento escolar parcialmente interrumpido',
+  suspendido: 'Funcionamiento escolar interrumpido',
 }
 
 // spec §3.5.

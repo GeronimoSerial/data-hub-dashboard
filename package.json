@@ -8,6 +8,7 @@
     "start": "next start",
     "extract": "node scripts/extract-map-data.mjs",
     "import:geo-static": "node scripts/importar-geo-static.mjs",
+    "extract:natalidad": "node scripts/extract-natalidad.mjs",
     "build:sobreoferta": "node scripts/build-sobreoferta.mjs",
     "lint": "eslint .",
     "test": "vitest run"

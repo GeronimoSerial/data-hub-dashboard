@@ -104,6 +104,10 @@ export const user = pgTable('user', {
   banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
   banExpires: timestamp('ban_expires', { mode: 'date' }),
+  // 'todos' | 'seleccionados': si es 'seleccionados', el acceso de un usuario
+  // consulta se restringe a los recursos listados en user_recursos (además
+  // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
+  accesoRecursos: text('acceso_recursos').notNull().default('todos'),
 })
 
 export const session = pgTable(
@@ -185,6 +189,21 @@ export const userNiveles = pgTable(
       .references(() => niveles.id),
   },
   (t) => [primaryKey({ columns: [t.userId, t.nivelId] })],
+)
+
+// Recursos individuales habilitados para un usuario cuando
+// user.accesoRecursos = 'seleccionados'. Mismo patrón que userNiveles: sin
+// esta fila el recurso queda fuera del alcance del usuario (independiente de
+// la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
+export const userRecursos = pgTable(
+  'user_recursos',
+  {
+    userId: text('user_id').notNull(),
+    recursoId: text('recurso_id')
+      .notNull()
+      .references(() => recursos.id),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.recursoId] })],
 )
 
 // Motivos de problemática: dato con ABM (ver app/api/infraestructura/motivos),

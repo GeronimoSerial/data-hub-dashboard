@@ -25,6 +25,7 @@ import {
   user,
 } from './schema'
 import { upsertRecursoInfraestructura } from '@/lib/infraestructura/recurso-seed'
+import { upsertRecursoNatalidad } from '@/lib/mapas/recurso-seed-natalidad'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
 import {
   ensureMotivoNombreUnico,
@@ -175,6 +176,7 @@ async function seedHub() {
   // Fuera del if: corre siempre, también sobre una base ya poblada, y nunca
   // toca la audiencia configurada del recurso (ver recurso-seed.ts).
   await upsertRecursoInfraestructura()
+  await upsertRecursoNatalidad()
 
   // Motivos de infraestructura: siembra idempotente (onConflictDoNothing,
   // ver sembrarMotivos). Corre siempre, no sólo en la siembra inicial, para
