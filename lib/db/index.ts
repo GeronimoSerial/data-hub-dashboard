@@ -1,4 +1,4 @@
-import { Pool } from 'pg'
+import { Pool, types } from 'pg'
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 import { PGlite } from '@electric-sql/pglite'
@@ -9,6 +9,14 @@ import { getPglitePath } from '@/lib/data-dir'
 import { resolveDriver } from './driver'
 import { buildPgPoolConfig } from './config-postgres'
 import * as schema from './schema'
+
+// BIGINT/int8 (OID 20) vuelve como string por defecto en node-postgres para
+// no perder precisión sobre 2^53. Los ids derivados por hash de DB1
+// (ge_section_id/ge_person_id) nunca superan 48 bits, así que es seguro
+// parsearlos como number; evita que el resto del código tenga que manejar
+// string vs number para estas columnas. PGlite ya devuelve number nativo,
+// este parser sólo aplica al driver `pg`.
+types.setTypeParser(types.builtins.INT8, (val) => parseInt(val, 10))
 
 // DB1/F2: `NodePgDatabase` (postgres) y `PgliteDatabase` (pglite) extienden la
 // misma clase base `PgDatabase`. Antes `Db` era una UNIÓN de las dos clases

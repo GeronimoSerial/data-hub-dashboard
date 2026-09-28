@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, boolean, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, boolean, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
 
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
@@ -330,7 +330,7 @@ export const infraAfectacionSeccion = pgTable(
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    geSectionId: integer('ge_section_id').notNull(),
+    geSectionId: bigint('ge_section_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.geSectionId] })],
 )
@@ -345,7 +345,7 @@ export const infraAfectacionAlumno = pgTable(
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    gePersonId: integer('ge_person_id').notNull(),
+    gePersonId: bigint('ge_person_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.gePersonId] })],
 )

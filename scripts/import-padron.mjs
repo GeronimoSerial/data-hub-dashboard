@@ -46,7 +46,7 @@ registerHooks({
   },
 })
 
-const { ensureGeSchema, activarCorte, crearEjecutorSql } = await import(
+const { ensureGeSchema, activarCorte, crearEjecutorSql, ejecutarEnTransaccion } = await import(
   '../lib/infraestructura/ge-db.ts'
 )
 const { getRawClient } = await import('../lib/db/index.ts')
@@ -302,39 +302,45 @@ function leerClaveIdentidad() {
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Ejecuta `fn` sobre `items` en lotes de TAMANO_LOTE, cediendo el control
- * entre lotes para no monopolizar CPU y disco mientras escribe.
+ * Ejecuta `fn` sobre `items` en lotes de TAMANO_LOTE, cada lote dentro de una
+ * transacción atómica (BEGIN/COMMIT con ROLLBACK ante error) y cediendo el
+ * control entre lotes para no monopolizar CPU y disco mientras escribe.
  *
- * `conexion` es un contenedor mutable { client } con el EjecutorSql compartido;
- * la forma se conserva para que los llamadores no cambien.
+ * `conexion` es un contenedor mutable { client, raw }: `client` es el
+ * EjecutorSql compartido para lecturas previas y `raw` es el cliente crudo
+ * (pg.Pool o PGlite) que ejecutarEnTransaccion necesita para abrir la sesión
+ * del lote. `fn` recibe el tx atado a esa transacción, no `conexion.client`:
+ * todas las escrituras del lote deben ir por la misma sesión.
  */
-async function ejecutarEnLotes(conexion, items, fn) {
+export async function ejecutarEnLotes(conexion, items, fn) {
   for (let i = 0; i < items.length; i += TAMANO_LOTE) {
     const lote = items.slice(i, i + TAMANO_LOTE)
-    for (const item of lote) await fn(conexion.client, item)
+    await ejecutarEnTransaccion(conexion.raw, async (tx) => {
+      for (const item of lote) await fn(tx, item)
+    })
     if (PAUSA_ENTRE_LOTES_MS > 0) await dormir(PAUSA_ENTRE_LOTES_MS)
   }
 }
 
-async function insertarSecciones(conexion, corteId, secciones) {
+export async function insertarSecciones(conexion, corteId, secciones) {
   await ejecutarEnLotes(conexion, [...secciones.entries()], async (client, [geSectionId, sec]) => {
     await client.execute({
-      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?) ON CONFLICT DO NOTHING',
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?) ON CONFLICT (corte_id, ge_section_id) DO NOTHING',
       args: [corteId, geSectionId, sec.cueAnexo, sec.curso, sec.division, sec.nivel, sec.turno],
     })
   })
 }
 
-async function insertarMembresias(conexion, corteId, membresias) {
+export async function insertarMembresias(conexion, corteId, membresias) {
   await ejecutarEnLotes(conexion, membresias, async (client, m) => {
     await client.execute({
-      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?) ON CONFLICT DO NOTHING',
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?) ON CONFLICT (corte_id, ge_section_id, ge_person_id) DO NOTHING',
       args: [corteId, m.geSectionId, m.gePersonId],
     })
   })
 }
 
-async function insertarIdentidades(conexion, personas) {
+export async function insertarIdentidades(conexion, personas) {
   const existentesRes = await conexion.client.execute(
     'SELECT ge_person_id FROM ge.ge_alumno_identidad',
   )
@@ -345,7 +351,7 @@ async function insertarIdentidades(conexion, personas) {
   await ejecutarEnLotes(conexion, pendientes, async (client, [gePersonId, p]) => {
     const payload = cifrarIdentidad(p.nombre, p.apellido, clave)
     await client.execute({
-      sql: 'INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?,?) ON CONFLICT DO NOTHING',
+      sql: 'INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?,?) ON CONFLICT (ge_person_id) DO NOTHING',
       args: [gePersonId, payload],
     })
   })
@@ -455,9 +461,11 @@ async function main() {
   console.time('importar-padron')
   const inicio = Date.now()
 
-  // El cliente es el EjecutorSql compartido de la base; el contenedor mutable
-  // { client } se mantiene para que ejecutarEnLotes reciba la misma forma.
-  const conexion = { client: crearEjecutorSql(getRawClient()) }
+  // El contenedor mutable lleva el EjecutorSql compartido y, además, el
+  // cliente crudo: ejecutarEnTransaccion lo necesita para reservar la sesión
+  // del lote (pg.Pool) o reusar la única (PGlite).
+  const raw = getRawClient()
+  const conexion = { client: crearEjecutorSql(raw), raw }
 
   await ensureGeSchema(conexion.client)
 

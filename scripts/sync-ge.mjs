@@ -230,5 +230,10 @@ async function runFixture() {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   if (process.argv.includes('--fixture')) {
     await runFixture()
+
+    // Salida explícita. El cliente de la base es compartido (en producción un
+    // pg.Pool) y no se cierra por invocación de script; como el fixture ya
+    // terminó, cortamos acá y el código de salida vuelve a significar lo que dice.
+    process.exit(0)
   }
 }
