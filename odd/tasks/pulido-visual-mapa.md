@@ -1,9 +1,10 @@
-# Pulido visual del mapa de infraestructura y del hub
+# Pulido visual del mapa de infraestructura
 
 ## Objetivo
 
-Pulido estético y de comprensión completo del hub, con foco en `/mapas/infraestructura`
-(Operativa, Radar, Evolución). Hoy se ve mal: colores poco claros, iconografía que no se
+Pulido estético y de comprensión completo de `/mapas/infraestructura` (Operativa, Radar,
+Evolución y ficha de escuela). Solo el mapa de infraestructura: el resto del hub queda fuera
+de alcance (aclaración explícita del usuario). Hoy se ve mal: colores poco claros, iconografía que no se
 entiende (círculos sobre círculos, círculos grises sin sentido), labels confusos, pestañas no
 centradas y sin estado activo, tooltip roto. Además, seleccionar una escuela desde el mapa
 no muestra nada.
@@ -71,18 +72,20 @@ Revisión directa en navegador (Chrome DevTools, 1440+ px, tema claro y oscuro) 
     rango con datos o al período vigente.
 25. Sin footer; ranking de departamentos sin apoyo visual (barras).
 
-### Global
-26. Footer no alineado al contenedor del header (≈40 px de diferencia).
-27. Portada: panel de totales arranca más abajo que el título.
+### Transversal al mapa
+26. (Fuera de alcance: footer global del hub desalineado.)
+27. (Fuera de alcance: portada del hub.)
 28. Modo oscuro: mapa base sigue claro, textos secundarios con contraste bajo
     (contador del panel), foco amarillo persistente en "Admin".
 29. Verificar responsive (≤ 768 px) de mapa, panel y ficha.
+
+Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 
 ## Alcance
 
 - `components/mapas/**`, `components/infraestructura/**`, `app/(hub)/mapas/**`,
   `lib/mapas/severidad-visual.ts`, `lib/mapas/peligro-capas.ts`, `components/mapas/overlay-styles.ts`,
-  estilos globales y layout del hub cuando haga falta.
+  y estilos propios del mapa. No tocar portada, catálogo, header ni footer globales del hub.
 - Ficha de escuela para cualquier escuela del padrón (hallazgos 7 y 22), con los datos ya
   disponibles en las APIs existentes (`/api/mapas/infraestructura/*`, `/api/infraestructura/radar`).
   Si falta un dato, reportarlo; no inventar endpoints sin consultar.
@@ -113,10 +116,10 @@ Revisión directa en navegador (Chrome DevTools, 1440+ px, tema claro y oscuro) 
       propia, horizontes deshabilitados distinguibles, buscador disponible.
 - [ ] V7 — Pestañas y Evolución: centrado, estado activo, gráfico con rango útil, ranking con
       barras, footer.
-- [ ] V8 — Global: alineación de footer/portada, modo oscuro (mapa base oscuro, contraste),
+- [ ] V8 — Transversal al mapa: modo oscuro del mapa (mapa base oscuro, contraste),
       controles de MapLibre en español, responsive.
 - [ ] V9 — Verificación en navegador de cada sección (claro/oscuro, desktop/móvil) con capturas.
-- [ ] V10 — QA estético completo, al detalle, hecho por el coordinador en el navegador cuando
+- [ ] V10 — QA estético completo del mapa de infraestructura, al detalle, hecho por el coordinador en el navegador cuando
       el N2 termina (pedido explícito del usuario). Recorre los 29 hallazgos y cada estado:
       hover, foco, capas combinadas, Radar por horizonte, ficha, Evolución, claro/oscuro,
       móvil. Lo que no pase vuelve al N2 como corrección.
