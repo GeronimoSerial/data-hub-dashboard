@@ -18,6 +18,6 @@ export async function GET(request: Request) {
   const resultado = await obtenerEvolucionMapa()
 
   return jsonComprimido(request, resultado, {
-    headers: { 'Cache-Control': 'private, no-store' },
+    headers: { 'Cache-Control': 'private, no-cache' },
   })
 }

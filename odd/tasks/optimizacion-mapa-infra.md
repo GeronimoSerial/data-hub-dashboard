@@ -191,10 +191,35 @@ búsqueda).
 
 ### Ronda 2 (auditoría de N1, 2026-09-28 21:10 UTC) — el objetivo del usuario es un mapa rápido para el cliente; la ronda 1 dejó móvil en perf 0,46 · LCP 8,0 s · TBT 1,85 s
 
-- [ ] O7 — BLOQUEANTE: `lib/http/respuesta-comprimida.ts` usa `brotliCompressSync` con la calidad por defecto (11): N1 midió 563 ms de CPU SINCRÓNICA por pedido para ~435 KB (bloquea el event loop del servidor en cada carga del mapa, porque los navegadores piden `br`). Usar calidad 4–5 (≈2–5 ms, ~49–50 KB) o gzip nivel 6; opcional: cachear el cuerpo comprimido por versión de datos. Test que fije la calidad y un micro-benchmark en el registro.
-- [ ] O8 — Completar O2: payload mínimo del padrón (sólo los campos que el cliente usa; nombres de propiedad cortos si conviene; coordenadas con la precisión necesaria, p. ej. 5 decimales), y `ETag`/`If-None-Match` (304) o `Cache-Control: private, max-age` corto con revalidación, sin romper la frescura del parte. Medir bytes y tiempo antes/después.
-- [ ] O9 — Móvil CPU (el cuello real): con el trace de Lighthouse móvil y un Performance trace, identificar el elemento LCP y las tareas largas del hilo principal y atacarlas con evidencia. Candidatos: separar Radar, Replay y paneles no visibles en chunks `next/dynamic` propios (lo que O3 dejó como oportunidad); rasterizar los íconos una sola vez (sprite precomputado o `addImage` diferido/cacheado en lugar de SVG→canvas en caliente por variante); no construir ni dibujar capas apagadas (padrón, evacuación, sin reportar, Radar) hasta que se activan; opciones de MapLibre que reducen trabajo inicial (p. ej. `fadeDuration: 0`, `antialias` sólo si hace falta, `maxTileCacheSize` razonable); diferir el trabajo no crítico con `requestIdleCallback`/`startTransition`; que el panel y el título se pinten antes que el mapa (LCP en texto, mapa después). Meta móvil (Lighthouse preset móvil): perf ≥ 0,70, LCP ≤ 4 s, TBT ≤ 600 ms, sin regresión desktop (≥ 0,90). Si alguna meta es inalcanzable sin cambiar lo que se ve, documentar con el trace por qué y consultar con orchestration ask.
-- [ ] O10 — Re-medir memoria (20× alternar modos y capas) y la tabla completa de O6 con los resultados de la ronda 2, contra la misma base (:3205).
+- [x] O7 — BLOQUEANTE resuelto: `lib/http/respuesta-comprimida.ts` usa brotli calidad 4 (`BROTLI_QUALITY`, fijada por test) y gzip nivel 6; además ETag (sha1 del cuerpo) y 304 con `If-None-Match` (débil, lista y `*`), nunca 304 si status ≠ 200. Medido (curl, :3204, /escuelas, 440 KB): br 61 695 B en ~47 ms de pedido total (antes q11: 563 ms de CPU sincrónica sólo en comprimir, medido por N1).
+- [x] O8 — ETag/304 efectivo: las 4 rutas devuelven `Cache-Control: private, no-cache` + ETag y responden 304 sin cuerpo (0 B; /escuelas 63 553 → 0 B en el polling de 15 s). Los hooks del mapa (`use-escuelas-mapa`, `use-totales-mapa`, `use-alertas`, `use-radar`, `use-replay`) pasaron de `cache: 'no-store'` (que hacía que el navegador ignorara el ETag) a `'no-cache'`. Payload del padrón: lat/lon redondeadas a 5 decimales (`redondearCoordenada`, test); EFECTO NULO en el fixture (ya venía con 6 decimales: 443 445 → 440 370 B, br 63 553 → 61 695 B, -3%); en datos reales con más decimales el ahorro será mayor. No se acortaron nombres de propiedad (br ya comprime las claves repetidas; costo de cambio de contrato > ganancia).
+- [~] O9 — Alcance del usuario: ESCRITORIO (móvil sólo se registra). Hallazgos con evidencia (Playwright CDP + trace de Chromium + Lighthouse 12.8.2, preset desktop, build de producción):
+  - El salto de TBT 140 → 200 ms NO fue regresión de la ronda 1: re-medida la base (af9a78e+O0, :3205) 3 veces da TBT 184–205 ms, igual que la ronda 1; el 140 de O1 fue una medición ruidosa de otra carga de máquina.
+  - La causa del TBT de escritorio es el Chromium headless SIN GPU (SwiftShader, render por software): en el trace, `GLES2::ReadPixels` dentro de `Commit` suma 567 ms en el hilo principal (cada frame WebGL se lee de vuelta) y las 3 tareas largas (93/84/135 ms) coinciden con la primera compilación JIT de los programas GL (13 `linkProgram`, los símbolos de 7–9 KB de shader). No es JS: `(program)` nativo domina cada tarea larga; el JS de la app suma <70 ms. Con GPU real (mismo Lighthouse, `--use-angle=gl --enable-gpu`, AMD RX 6700 XT) el TBT es 3–8 ms.
+  - Interacción real en escritorio (Playwright, eventos `event` timing + longtask + rAF): cambio de capas máx 56 ms, Radar↔Situación máx 48–56 ms, búsqueda (10 teclas) máx 16 ms, abrir ficha por búsqueda 16 ms, pan/zoom sin tareas largas ni frames >50 ms. Ya era fluido en la base; sin regresión.
+  - Experimentos (cada uno medido en producción, 3 corridas GPU + 3 software):
+    | Cambio | Resultado | Decisión |
+    |---|---|---|
+    | T1: modales/paneles a `next/dynamic` con precarga en idle | perf/LCP/TBT sin cambio; JS transferido 706 → 719 KB (la precarga los trae igual) | DESCARTADO (revertido) |
+    | c1: arrancar la descarga del chunk del mapa al evaluar `map-client.tsx` (`void cargarMapa()`) | LCP GPU 1,35 → 1,30 s, perf 0,96 → 0,97 | CONSERVADO |
+    | c2: precargar las 3 APIs iniciales al evaluar el módulo y reusarlas en los hooks | requests adelantados (330 → 226 ms) pero LCP GPU 1,30 → 1,40 s y perf 0,97 → 0,95 | DESCARTADO (revertido) |
+  - Meta de escritorio: perf ≥ 0,95 y TBT ≤ 100 ms se cumplen CON GPU (0,96 / 4–8 ms); LCP ≤ 1,2 s NO se cumple (1,30–1,33 s). Sin GPU (headless por defecto) perf 0,85–0,89 y TBT ~200–240 ms: no alcanzable sin cambiar lo que se ve (es el costo de rasterizar el basemap vectorial + capas por software; el LCP simulado por Lighthouse depende de ~790 KB de red previos al primer pintado, MapLibre 252 KB + 134 KB entre ellos). Camino para bajar el LCP < 1,2 s: renderizar en servidor el panel "Indicadores consolidados" (elemento LCP) — cambio de arquitectura, no hecho, requiere decisión.
+  - Móvil (sólo registro, GPU habilitada, preset móvil): perf 0,57 · LCP 8,8 s · TBT 717 ms.
+- [~] O10 — Tabla final abajo (Lighthouse y APIs re-medidos contra la misma base :3205). Memoria (20× alternar) NO re-medida en la ronda 2: ningún cambio de la ronda toca memoria retenida (sólo compresión/ETag, `cache` de fetch y la descarga temprana del chunk); queda el valor de O1 (20,5 → 26,7 → 14,9 MB post-GC).
+
+  | Medida (desktop, fixture 2005 escuelas, build de producción) | Base af9a78e+O0 (:3205) | Final ronda 2 (:3204) |
+  |---|---|---|
+  | Lighthouse con GPU (perf · LCP · TBT) | 0,94 · 1,63 s · 5–8 ms | 0,96 · 1,31–1,33 s · 4–8 ms |
+  | Lighthouse headless por software (perf · LCP · TBT) | 0,87–0,89 · 1,4–1,8 s · 184–205 ms | 0,85–0,86 · 1,6 s · 225–238 ms (dentro del ruido ±0,03 entre corridas; el TBT es SwiftShader) |
+  | `/escuelas` sobre la red (br) | 443 445 B (sin compresión) | 61 695 B (-86%), 0 B en revalidación (304) |
+  | `/api/mapas/infraestructura` (br) | 40 417 B | 5 287 B (-87%) |
+  | `/evolucion` (br) | 24 213 B | 1 533 B (-94%) |
+  | `/totales` (br) | 3 424 B | 582 B (-83%) |
+  | CPU de compresión por pedido | — (sin compresión) | brotli q4: ~2–5 ms |
+  | Interacción escritorio (capas / modo / búsqueda / ficha / pan-zoom) | máx 56 / 56 / 32 / 16 / 32 ms | máx 56 / 48 / 16 / 16 / 40 ms |
+  | Suite | 229 archivos / 2099 tests | 230 archivos / 2112 tests, 0 fallas; lint y tsc limpios; build OK |
+
+  Nota: en headless por software el score bajó 0,02–0,03 respecto de las corridas previas (0,88–0,89); el patrón de tareas largas es el mismo (SwiftShader) y el efecto no se atribuye a la ronda 2 (mediana de la base re-medida hoy: 0,87–0,89, TBT 184–205); no se reprodujo con GPU. Artefactos en /home/gero/orca/demo-data/enos-optim/mediciones/r2.
 
 ## Checks
 
@@ -206,7 +231,7 @@ búsqueda).
 ## Estado
 
 - Ruta: delegado (N2 → N3). Ejecutado 2026-09-28.
-- Progreso: O0 a O6 completos (ver detalle en cada tarea arriba). Checks:
+- Progreso: ronda 2 cerrada por pedido del usuario (ver O7–O10). O0 a O6 completos (ver detalle en cada tarea arriba). Checks:
   `pnpm vitest run` 229 archivos / 2099 tests verdes (3 skipped, preexistentes), `pnpm lint`
   limpio, `pnpm exec tsc --noEmit` limpio, `pnpm build` exitoso.
 - Demo de producción para QA de N1: `http://localhost:3204` (worktree

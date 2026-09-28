@@ -111,7 +111,7 @@ describe('GET /api/mapas/infraestructura/totales', () => {
     expect(typeof body.provincia.escuelasAfectadas).toBe('number')
     expect(typeof body.provincia.porcentajeAfectadas).toBe('number')
     expect(body.provincia.totalEscuelas).toBe(2)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
   it('acota los totales al departamento pedido en ?territorio=', async () => {

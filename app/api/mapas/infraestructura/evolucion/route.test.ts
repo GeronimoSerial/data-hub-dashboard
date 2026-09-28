@@ -77,7 +77,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
     expect(Array.isArray(body.rankingDepartamentos)).toBe(true)
     expect(Array.isArray(body.distribucionMotivo)).toBe(true)
     expect(Array.isArray(body.alumnosAcumulados)).toBe(true)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
   it('no filtra nada nominal en el payload', async () => {

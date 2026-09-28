@@ -4,10 +4,19 @@ import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 
-const MapInfraestructuraPage = dynamic(
-  () => import('@/components/mapas/map-infraestructura-page'),
-  { ssr: false, loading: () => <p>Cargando mapa…</p> },
-)
+const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
+
+const MapInfraestructuraPage = dynamic(cargarMapa, {
+  ssr: false,
+  loading: () => <p>Cargando mapa…</p>,
+})
+
+// Arranca la descarga del chunk apenas se evalúa este módulo, en paralelo con
+// la hidratación, en vez de esperar a que React monte el componente. En el
+// servidor no se ejecuta porque no hay `window`.
+if (typeof window !== 'undefined') {
+  void cargarMapa()
+}
 
 // Carga diferida al igual que el mapa: Recharts pesa y sólo hace falta cuando
 // alguien abre la pestaña de evolución, así el primer viewport del mapa no

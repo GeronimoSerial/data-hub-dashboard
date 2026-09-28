@@ -167,7 +167,7 @@ export function useReplay(
         `${RUTA_REPLAY}${construirQueryString(filtrosRef.current)}`,
         {
           signal: controller.signal,
-          cache: 'no-store',
+          cache: 'no-cache',
           headers: { Accept: 'application/json' },
         },
       )

@@ -108,7 +108,7 @@ describe('GET /api/mapas/infraestructura', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.indicadores.escuelas).toBe(body.partes.length)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
   it('no filtra nada nominal en el payload', async () => {
