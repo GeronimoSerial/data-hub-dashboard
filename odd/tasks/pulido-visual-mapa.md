@@ -327,13 +327,13 @@ Q13/Q14 confirmados correctos en navegador por N1. Aparecieron 3 hallazgos nuevo
 
 Resuelto en navegador: Q1 (clusters cuentan afectadas), Q2/Q3/Q4 (Radar sin anillos grises, sin velo, leyenda azul con muestras), Q13 (ícono School y selección por clic en el padrón), Q14/Q15/Q16 (ficha propia, encima de los paneles, datos compactos), Q17 (normales claras, afectadas en rojo lleno), Q19 (gama tonal roja/azul), Q20 hover sin popup y popup de departamento al clic.
 
-- [ ] R1 — Atribución de MapLibre duplicada: hay DOS `.maplibregl-ctrl-attrib` en `maplibregl-ctrl-bottom-right` (se agrega el control dos veces). En móvil las dos barras se apilan sobre "Buscar escuelas" y "Pantalla completa". Dejar una sola, compacta (botón "i" colapsable en móvil).
-- [ ] R2 — Modo oscuro: el contenedor del canvas tiene `filter: brightness(1.1) invert(0.72) contrast(1.2) hue-rotate(195deg)`, que invierte TODO lo dibujado: los rojos de severidad salen salmón pastel y la escala se pierde (Q9 sigue abierto en la práctica). Sacar el filtro CSS y usar un estilo de mapa base oscuro real (verificar qué estilo oscuro ofrece el proveedor actual; si no hay, atenuar sólo las capas del mapa base por `paint`, nunca las capas propias). Los colores de severidad y Radar tienen que ser idénticos en claro y oscuro salvo el ajuste previsto en la paleta.
-- [ ] R3 — Clic en cluster: hoy sólo hace zoom. Q20 pedía popup con el resumen ("N escuelas · M afectadas (x críticas, y altas)") y una acción "Acercar"; el zoom ocurre sólo al elegir "Acercar".
-- [ ] R4 — "Quitar filtro" de departamento no vuelve a encuadrar la provincia: al quitarlo, volver a la vista inicial (fitBounds de Corrientes).
-- [ ] R5 — Leyenda de Radar: "Sin dato" con muestra gris aunque ya no se dibuja; usar muestra vacía (sólo contorno) y el texto "Sin dato (no se colorea)".
-- [ ] R6 — Íconos de escuelas sin afectación: el fondo es gris claro; tiene que ser blanco puro con contorno gris fino (Q17), para que no lea como "gris".
-- [ ] R7 — Popups: texto todo en negrita pesada; cuerpo en peso normal y sólo los números en negrita.
+- [x] R1 — Atribución de MapLibre duplicada: `attributionControl={false}` en `<MapGL>` (react-map-gl agregaba su propio control además del explícito). Una sola `.maplibregl-ctrl-attrib`, verificado claro/oscuro 1440px y 390px, sin solapar "Buscar escuelas"/"Pantalla completa" en móvil.
+- [x] R2 — Modo oscuro: sacado el filtro CSS `brightness/invert/contrast/hue-rotate`. El proveedor SÍ ofrece un estilo oscuro real (`https://tiles.openfreemap.org/styles/dark`, no probado antes); `mapStyle` lo usa en tema oscuro. Colores de severidad y Radar idénticos en claro y oscuro (verificado con capturas). Revertido también el ícono de escuela "normal" compensado para el filtro viejo (ya no hace falta).
+- [x] R3 — Clic en cluster ahora abre un popup con el resumen ("N escuelas · M afectadas (x críticas, y altas)") y un botón "Acercar"; el zoom sólo ocurre al elegir esa acción. Verificado con clic real en el popup y en "Acercar" (claro y oscuro).
+- [x] R4 — "Quitar filtro" de departamento vuelve a encuadrar la provincia (`fitBounds(LIMITES_CORRIENTES)`), tanto desde el botón como desde el toggle de deselección por clic. Verificado: el contador vuelve a "2005 escuelas" y el mapa muestra la provincia completa.
+- [x] R5 — Leyenda de Radar: "Sin dato" ahora con muestra vacía (sólo contorno, `background: transparent`) y el texto "Sin dato (no se colorea)". Verificado.
+- [x] R6 — Íconos de escuelas sin afectación: el círculo de severidad detrás del ícono (gris, pensado para afectadas) ahora queda con opacidad 0 cuando la escuela no tiene afectación; el ícono blanco queda limpio, sin halo gris. Verificado con captura recortada centrada en el ícono.
+- [x] R7 — Popups: `font-weight: 400` en el contenedor, `font-weight: 600` sólo en `<strong>` (antes el CSS forzaba negrita en todo el texto, pisando el markup). Verificado en el popup de departamento.
 
 ## Checks
 
@@ -343,15 +343,13 @@ Resuelto en navegador: Q1 (clusters cuentan afectadas), Q2/Q3/Q4 (Radar sin anil
 ## Estado
 
 - Ruta: delegado (N2 → N3), cerrado por N2.
-- Progreso: V1-V8 completos (pasada anterior) + V11 completo (Q1-Q12 del QA de N1),
-  Q13-Q20 (pedidos directos del usuario vía N1, incluye Q17 reabierto una vez) y V9
-  (capturas Playwright, resuelto tras el fix de PGlite de 9b1e0f2). Todo el código
-  verificado por mí (N2): `pnpm exec tsc --noEmit` limpio, suite completa **224
-  archivos / 1990 tests** (+3 skipped preexistentes) bajo flock, `pnpm lint` limpio,
-  `pnpm build` exitoso. Verificación visual real hecha por mí para Q17 (comparé
-  capturas propias claro/oscuro al mismo zoom); el resto de V11/Q13-Q20 tiene
-  código+tests verdes pero la verificación visual sistemática de cada hallazgo queda
-  para el QA de N1 en el navegador (13 capturas de referencia en
-  `/home/gero/orca/demo-data/enos-pulido/capturas/`). Demo levantada y estable en
-  :3202. Ver `docs/ejecucion-enos/pulido/registro.md`, sección "V11", para el detalle
-  completo de cada corrección.
+- Progreso: V1-V8, V11 (Q1-Q20) y V9 completos (pasadas anteriores). V12 (R1-R7,
+  segundo QA de N1) completo en esta pasada: los 7 hallazgos corregidos por N3,
+  verificados por mí (N2) leyendo cada diff, y con revisión visual real en
+  navegador (Playwright, `capturas-v12.mjs`) hecha y mirada por mí, no delegada —
+  a diferencia de V11/Q13-Q20, donde la revisión visual sistemática quedó
+  pendiente para N1. Verificación funcional completa: `pnpm exec tsc --noEmit`
+  limpio, suite completa **224 archivos / 1990 tests** (+3 skipped preexistentes)
+  bajo flock, `pnpm lint` limpio, `pnpm build` exitoso. Demo levantada y estable
+  en :3202 (reusada, no reiniciada). Ver `docs/ejecucion-enos/pulido/registro.md`,
+  sección "V12", para el detalle completo de cada corrección y evidencia.

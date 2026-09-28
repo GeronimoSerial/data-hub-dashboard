@@ -2172,46 +2172,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 [data-theme='dark'] .map-panel .map-hint,
 [data-theme='dark'] .map-control-card .map-hint { color: var(--ink); }
 
-/* V8 (hallazgo 28): los tres estilos base de BASEMAPS son claros y no hay uno
-   oscuro. Sin agregar un proveedor de tiles nuevo (decisión de infraestructura
-   ajena a esta tarea), se oscurece el canvas de MapLibre sólo en tema oscuro.
-   El ancestro `.mapa-pestanas-cuerpo` (presente sólo en el mapa de
-   infraestructura) acota el efecto a esa página: `.map-root` también lo usa el
-   mapa de matrícula, que así queda fuera de alcance.
-
-   QA N1: el filtro anterior `brightness(0.65) invert(1) contrast(0.9)
-   hue-rotate(180deg)` recortaba el canal R de Crítica (quedaba en #FF9F8F,
-   salmón pastel) y hundía el contraste del número blanco a 1.98:1. Se baja el
-   invert a 0.72 (mezcla parcial: `invert()` acepta fracción), se sube el
-   contrast a 1.2 y se corre el hue-rotate a 195deg para despegar rojo y naranja.
-   El canvas WebGL es uno solo: no se puede separar el mapa base de las capas de
-   datos con CSS, así que el ajuste es global y busca que la PALETA sobreviva.
-
-   Evidencia recalculada en Q19 (2026-09-28) tras el cambio de paleta a las
-   escalas tonales de `lib/mapas/paleta-tonal.ts` (severidad rojo tonal, peligro
-   azul tonal). Se re-aplicó UNA vez la matemática de
-   `brightness/invert/contrast/hue-rotate` (sRGB) a los 8 colores reales: ningún
-   tono colapsa y los valores del filtro se MANTUVIERON. ANTES -> DESPUÉS
-   (contraste del texto blanco encima):
-     SEVERIDAD (escala rojo tonal)
-       Baja    #fecaca -> #564743   (8.84:1)
-       Media   #f87171 -> #a36756   (4.54:1)
-       Alta    #dc2626 -> #e1846b   (2.72:1)
-       Crítica #7f1d1d -> #ce9c8f   (2.39:1)
-       ΔE00 mínimo 9.5 (Alta/Crítica); el resto >= 14.8.
-     PELIGRO (escala azul tonal)
-       verde    #eff6ff -> #3c3c3c   (11.00:1)
-       amarillo #93c5fd -> #445774   (7.33:1)
-       naranja  #3b82f6 -> #697ac3   (4.05:1)
-       rojo     #1e3a8a -> #9e9dd2   (2.55:1)
-       ΔE00 mínimo 13.9 (naranja/rojo).
-   Conocido: Alta/Crítica es el par más próximo (ΔE00 9.5, rojizos comprimidos
-   por el filtro) pero sigue sobre el JND; probar hue-rotate 165/180/210deg en
-   Q19 no mejora el mínimo, por eso se conserva 195deg. Persiste el gap de
-   contraste del blanco sobre Crítica (2.39:1). */
-[data-theme='dark'] .mapa-pestanas-cuerpo .map-root .maplibregl-canvas-container {
-  filter: brightness(1.1) invert(0.72) contrast(1.2) hue-rotate(195deg);
-}
+/* R2 (segundo QA visual): el filtro CSS `brightness/invert/contrast/hue-rotate`
+   de V8/Q9/Q19 invertía TODO el canvas WebGL (mapa base + capas propias), así
+   que los rojos de severidad y los azules de Radar salían distintos en oscuro
+   (salmón pastel) rompiendo la paleta tonal. Reemplazado por un estilo de mapa
+   base oscuro real del proveedor (`https://tiles.openfreemap.org/styles/dark`,
+   ver `mapStyle` en map-infraestructura-page.tsx), que no toca las capas
+   propias: los colores de severidad y peligro quedan idénticos en claro y
+   oscuro. */
 
 @media (max-width: 720px) {
   .map-indicadores-grid { grid-template-columns: 1fr; }

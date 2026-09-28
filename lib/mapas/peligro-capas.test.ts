@@ -58,7 +58,7 @@ describe('ETIQUETA_NIVEL_PELIGRO', () => {
     for (const nivel of NIVELES_PELIGRO) {
       expect(ETIQUETA_NIVEL_PELIGRO[nivel].trim().length).toBeGreaterThan(0)
     }
-    expect(ETIQUETA_NIVEL_PELIGRO.sin_dato).toBe('Sin dato')
+    expect(ETIQUETA_NIVEL_PELIGRO.sin_dato).toBe('Sin dato (no se colorea)')
   })
 })
 

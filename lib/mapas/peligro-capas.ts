@@ -53,7 +53,7 @@ export const ETIQUETA_NIVEL_PELIGRO: Record<NivelPeligro, string> = {
   amarillo: 'Medio',
   naranja: 'Alto',
   rojo: 'Muy alto',
-  sin_dato: 'Sin dato',
+  sin_dato: 'Sin dato (no se colorea)',
 }
 
 // ── Coropleta departamental ─────────────────────────────────────────────────

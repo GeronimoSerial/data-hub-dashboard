@@ -300,6 +300,7 @@ vi.mock('react-map-gl/maplibre', () => {
       () => ({
         getMap: () => ({
           flyTo: FLY_TO_MOCK,
+          fitBounds: vi.fn(),
           resize: vi.fn(),
           stop: vi.fn(),
           // `infra-partes-src` tiene que existir para que

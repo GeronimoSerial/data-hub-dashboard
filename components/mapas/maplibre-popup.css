@@ -29,7 +29,7 @@
   box-shadow: var(--e-1);
   padding: 0.25rem 0.5rem;
   font-size: var(--t-small);
-  font-weight: 600;
+  font-weight: 400;
   /*
     Hallazgo 6: la oración de departamento es larga. Con `nowrap` y sin
     `max-width` se estiraba y desbordaba la caja blanca cerca del borde del
@@ -43,6 +43,26 @@
   line-height: 1.35;
 }
 
+.mapa-tooltip .maplibregl-popup-content strong {
+  font-weight: 600;
+}
+
 .mapa-tooltip .maplibregl-popup-tip {
   display: none;
+}
+
+.mapa-tooltip-cluster.maplibregl-popup,
+.mapa-tooltip-cluster .maplibregl-popup-content {
+  pointer-events: auto;
+}
+
+.mapa-tooltip-cluster button {
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--t-small);
+  cursor: pointer;
 }

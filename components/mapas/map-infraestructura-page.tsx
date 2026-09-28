@@ -131,7 +131,6 @@ import {
   ID_IMAGEN_ESCUELA_CRITICA,
   ID_IMAGEN_ESCUELA_MEDIA,
   ID_IMAGEN_ESCUELA_NORMAL,
-  ID_IMAGEN_ESCUELA_NORMAL_OSCURO,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
@@ -687,6 +686,7 @@ export default function MapInfraestructuraPage(props: {
   // información aparece recién con el CLIC (ver `handleClick`), nunca con el
   // mouse quieto encima.
   const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
+  const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   const [escuelaResaltada, setEscuelaResaltada] = useState<{ cueAnexo: string; lng: number; lat: number } | null>(null)
   const [puntosVisibles, setPuntosVisibles] = useState(true)
   const entradaPuntosPendiente = useRef(false)
@@ -883,6 +883,15 @@ export default function MapInfraestructuraPage(props: {
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
   }, [departamentoInfoClic])
+
+  useEffect(() => {
+    if (!clusterInfoClic) return
+    const alPresionarTecla = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setClusterInfoClic(null)
+    }
+    window.addEventListener('keydown', alPresionarTecla)
+    return () => window.removeEventListener('keydown', alPresionarTecla)
+  }, [clusterInfoClic])
 
   const dataVisible = useMemo(
     () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
@@ -1326,7 +1335,9 @@ export default function MapInfraestructuraPage(props: {
       }))
   }, [radarData, departamentoRadarSeleccionado])
 
-  const mapStyle = BASEMAPS[basemap].styleUrl
+  // R2: en tema oscuro se usa el estilo oscuro real del proveedor en vez del
+  // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
+  const mapStyle = mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
   // Q6a: identidad de la escuela seleccionada. El padrón COMPLETO
   // (`dataEscuelasMapa`, afectadas y sin afectación reportada) indexa por
   // cueAnexo; cubre también las escuelas que NO están en `partesPorCue`, así
@@ -1403,6 +1414,7 @@ export default function MapInfraestructuraPage(props: {
     // Cualquier clic cierra el popup de departamento vigente; si el clic cae
     // sobre un departamento, se vuelve a abrir más abajo con sus números.
     setDepartamentoInfoClic(null)
+    setClusterInfoClic(null)
 
     // Radar primero: la coropleta es una capa interactiva; el punto de riesgo
     // ya no llega por acá (es un <Marker> DOM con su propio `onClick`, ver
@@ -1424,7 +1436,7 @@ export default function MapInfraestructuraPage(props: {
           item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID,
       )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
-      void acercarAlCluster(feature)
+      setClusterInfoClic(feature)
       return
     }
     if (feature?.properties?.cueAnexo) {
@@ -1446,6 +1458,9 @@ export default function MapInfraestructuraPage(props: {
       entradaPuntosPendiente.current = true
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
+      if (siguiente === null) {
+        mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+      }
       // Mismo resumen que antes mostraba el hover, ahora atado al clic. Al
       // deseleccionar (toggle sobre el mismo departamento) queda cerrado.
       setDepartamentoInfoClic(
@@ -1546,6 +1561,7 @@ export default function MapInfraestructuraPage(props: {
     // El popup de departamento no puede quedar "clavado" al cambiar de modo:
     // se limpia acá, junto con el resto de la limpieza del cambio de modo.
     setDepartamentoInfoClic(null)
+    setClusterInfoClic(null)
   }
 
   // "Volver a la situación actual" del modo Replay: restaura el modo,
@@ -1557,6 +1573,7 @@ export default function MapInfraestructuraPage(props: {
     const previo = estadoPrevioReplayRef.current
     setPlayingReplay(false)
     setDepartamentoInfoClic(null)
+    setClusterInfoClic(null)
     if (!previo) {
       setModo('actual')
       return
@@ -1605,6 +1622,7 @@ export default function MapInfraestructuraPage(props: {
       <div className={styles.mapRoot}>
         <MapGL
           ref={mapRef}
+          attributionControl={false}
           mapStyle={mapStyle}
           locale={LOCALE_MAPLIBRE_ES}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
@@ -1822,7 +1840,7 @@ export default function MapInfraestructuraPage(props: {
                 filter={filtroPuntosPartes(capasVisibles.escuelas)}
                 paint={{
                   ...circlePaintPartes(),
-                  'circle-opacity': puntosVisibles ? 0.9 : 0,
+                  'circle-opacity': (['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 0, puntosVisibles ? 0.9 : 0]) as unknown as number,
                   'circle-opacity-transition': { duration: 180, delay: 0 },
                 }}
               />
@@ -1839,9 +1857,10 @@ export default function MapInfraestructuraPage(props: {
                 Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
                 SÓLO en esta capa; el SVG base compartido queda igual para no
                 agrandar de rebote los íconos Tent/DoorOpen de cluster. La
-                variante normal se elige por tema: en oscuro se usa la
-                dedicada (`ID_IMAGEN_ESCUELA_NORMAL_OSCURO`), las de severidad
-                son las mismas en ambos temas.
+                variante normal es la misma en ambos temas (R2: se sacó el
+                filtro CSS de modo oscuro, ya no hace falta compensar colores
+                de entrada; ver comentario en globals.css). Las de severidad
+                también son las mismas en ambos temas.
               */}
               {iconosClusterListos && (
                 <Layer
@@ -1852,7 +1871,7 @@ export default function MapInfraestructuraPage(props: {
                     'icon-image': [
                       'case',
                       ['!=', ['get', 'estado'], 'afectada'],
-                      mode === 'dark' ? ID_IMAGEN_ESCUELA_NORMAL_OSCURO : ID_IMAGEN_ESCUELA_NORMAL,
+                      ID_IMAGEN_ESCUELA_NORMAL,
                       ['==', ['get', 'severidad'], 'Crítica'], ID_IMAGEN_ESCUELA_CRITICA,
                       ['==', ['get', 'severidad'], 'Alta'], ID_IMAGEN_ESCUELA_ALTA,
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
@@ -2057,6 +2076,37 @@ export default function MapInfraestructuraPage(props: {
                   En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
                   <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
                 </p>
+              </Popup>
+            )
+          })()}
+          {clusterInfoClic && clusterInfoClic.geometry.type === 'Point' && (() => {
+            const [lng, lat] = clusterInfoClic.geometry.coordinates
+            const props = clusterInfoClic.properties ?? {}
+            const total = Number(props.point_count ?? 0)
+            const afectadas = Number(props.escuelasAfectadas ?? 0)
+            const criticas = Number(props.criticas ?? 0)
+            const altas = Number(props.altas ?? 0)
+            return (
+              <Popup
+                longitude={lng}
+                latitude={lat}
+                closeButton={false}
+                closeOnClick={false}
+                offset={OFFSET_POPUP_DEPARTAMENTO}
+                className='mapa-tooltip mapa-tooltip-cluster'
+              >
+                <p>
+                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> afectadas ({criticas} críticas, {altas} altas)
+                </p>
+                <button
+                  type='button'
+                  onClick={() => {
+                    void acercarAlCluster(clusterInfoClic)
+                    setClusterInfoClic(null)
+                  }}
+                >
+                  Acercar
+                </button>
               </Popup>
             )
           })()}
@@ -2309,6 +2359,7 @@ export default function MapInfraestructuraPage(props: {
                     entradaPuntosPendiente.current = true
                     setPuntosVisibles(false)
                     setDepartamentoSeleccionado(null)
+                    mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
                   }}>Quitar filtro</button>
                 </div>
               )}

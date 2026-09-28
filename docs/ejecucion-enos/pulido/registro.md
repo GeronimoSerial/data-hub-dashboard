@@ -741,6 +741,115 @@ recorte de `recortarSerieAlRangoConDatos`.
   código y tests verdes pero la revisión visual sistemática, hallazgo por
   hallazgo, queda para el QA de N1 en el navegador.
 
+## V12 — Correcciones del segundo QA de N1 en navegador (R1-R7)
+
+Todas las ediciones de código y tests las hizo un N3 (`opencode-go/deepseek-v4.1-flash`,
+`XDG_DATA_HOME=$HOME/.cache/enos-n3/pulido3`), de a una o pocas ediciones puntuales
+por invocación (los pedidos con muchas ediciones o bloques JSX grandes en un solo
+prompt colgaban el proceso hasta el timeout sin aplicar nada; funcionó de forma
+confiable con "buscá esta línea/bloque exacto, reemplazalo por" o, para bloques
+grandes, escribiendo el bloque a un archivo de scratch y pidiéndole al N3 que lo
+leyera e insertara). Yo (N2) sólo leí diffs, corrí verificación y armé las
+capturas; no edité código.
+
+- **R1 — Atribución de MapLibre duplicada**: `react-map-gl` agrega su propio
+  `AttributionControl` por defecto además del `<AttributionControl compact />`
+  explícito ya existente. Fix: `attributionControl={false}` en `<MapGL>`
+  (`components/mapas/map-infraestructura-page.tsx`). Verificado: 1 sola
+  `.maplibregl-ctrl-attrib` en capturas claro/oscuro 1440px y 390px
+  (`v12-*-r1-atribucion.png`), sin solapar "Buscar escuelas"/"Pantalla completa"
+  en móvil.
+- **R2 — Filtro CSS de modo oscuro invertía las capas propias**: se investigó
+  el catálogo del proveedor (`https://tiles.openfreemap.org/styles/dark`
+  responde 200 con un estilo oscuro real, `background-color: rgb(12,12,12)`) —
+  la nota anterior en este registro ("no hay basemap oscuro en OpenFreeMap") era
+  incorrecta, no se había probado la URL. Fix: `mapStyle` usa ese estilo real
+  cuando `mode === 'dark'` en vez de `BASEMAPS[basemap].styleUrl`; se sacó el
+  `filter: brightness/invert/contrast/hue-rotate` de `app/globals.css` (Q9/Q19,
+  ya no aplica sobre el canvas); se revirtió el ícono de escuela "normal"
+  compensado para modo oscuro (`ID_IMAGEN_ESCUELA_NORMAL_OSCURO`) a usar
+  siempre `ID_IMAGEN_ESCUELA_NORMAL` (ya no hace falta compensar una inversión
+  que no existe más), con el import y comentario muertos limpiados.
+  Verificado: `v12-oscuro-1440x900-r2-colores-tema.png` y las variantes
+  390px — los clusters de severidad son el mismo rojo tonal en claro y
+  oscuro (antes salían salmón pastel).
+- **R3 — Clic en cluster hacía zoom directo**: ahora abre un popup
+  (`.mapa-tooltip-cluster`) con el resumen "N escuelas · M afectadas (x
+  críticas, y altas)" y un botón "Acercar" que dispara el zoom de expansión
+  (antes `acercarAlCluster` corría directo en el clic). Nuevo estado
+  `clusterInfoClic`, limpiado en los mismos puntos que `departamentoInfoClic`
+  (clic fuera, cambio de modo, Escape, volver de Replay). CSS nuevo en
+  `maplibre-popup.css`: `.mapa-tooltip` tiene `pointer-events: none` a
+  propósito (tooltip viejo que seguía al mouse); el popup de cluster necesita
+  `pointer-events: auto` sobre sí mismo para que el botón sea clickeable,
+  agregado como excepción puntual (`.mapa-tooltip-cluster.maplibregl-popup`).
+  Verificado con clic real en el popup y en "Acercar"
+  (`v12-*-r3-cluster-popup.png`, `v12-*-r3-cluster-acercar.png`, el segundo
+  muestra el mapa efectivamente acercado).
+- **R4 — "Quitar filtro" no reencuadraba la provincia**: `fitBounds(LIMITES_CORRIENTES,
+  { padding: 24 })` agregado tanto al botón "Quitar filtro" como al toggle de
+  deselección por clic en el mismo departamento (mismo criterio: volver a la
+  vista inicial cuando `departamentoSeleccionado` pasa a `null`). Verificado
+  (`v12-*-r4-quitar-filtro.png`): tras quitar el filtro el contador vuelve a
+  "2005 escuelas" y el mapa muestra la provincia completa, no un departamento.
+- **R5 — Leyenda de Radar, "Sin dato" con muestra gris**: la muestra ahora es
+  `background: transparent` (sólo el contorno) cuando `nivel === 'sin_dato'`
+  (antes pintaba el mismo gris `#8a8886` aunque esa capa no se dibuja);
+  etiqueta cambiada a "Sin dato (no se colorea)". Verificado
+  (`v12-*-r5-leyenda-radar.png`).
+- **R6 — Ícono de escuela sin afectación con fondo gris**: el SVG del ícono
+  (`SVG_ICONO_ESCUELA_NORMAL`) ya era blanco; el gris venía del círculo
+  `circle` de severidad debajo (`COLOR_SIN_AFECTACION`, 14px de radio,
+  pensado para escuelas AFECTADAS — el mismo gris se usa legítimamente en la
+  leyenda y en clusters sin afectación, no se tocó esa constante). Fix:
+  `circle-opacity` de esa capa pasa a una expresión `case` que da 0 cuando
+  `estado === 'sin_afectacion_reportada'` (antes era un booleano fijo según
+  `puntosVisibles`). Verificado con una captura recortada 180x180 centrada en
+  el ícono (`v12-*-r6-escuela-sin-afectacion-zoom.png`): fondo blanco puro,
+  sin halo gris.
+- **R7 — Popups en negrita pesada completa**: `.mapa-tooltip
+  .maplibregl-popup-content` tenía `font-weight: 600` en TODO el texto,
+  aunque el JSX ya usaba `<strong>` sólo en los números — la regla CSS pisaba
+  la intención del markup. Fix: `font-weight: 400` en el contenedor +
+  `.mapa-tooltip .maplibregl-popup-content strong { font-weight: 600 }`.
+  (Nota: la primera edición del N3 cerró la regla CSS antes de tiempo,
+  dejando 4 declaraciones — `max-width`/`white-space`/`overflow-wrap`/
+  `line-height` — huérfanas fuera de cualquier selector; lo detecté leyendo
+  el diff completo, no sólo el fragmento pedido, y lo corregí con un segundo
+  N3 antes de seguir.) Verificado (`v12-*-r7-popup-departamento.png`): sólo
+  el nombre del departamento y los números quedan en negrita.
+
+Verificación final (corrida por mí, N2, después de aceptar los 7 diffs de R1-R7
+y los 2 fixes de tests que rompieron por R4/R5):
+
+- `pnpm exec tsc --noEmit`: sin errores.
+- `flock $HOME/.cache/enos-n3/heavy.lock pnpm vitest run --maxWorkers=2`:
+  primera corrida con **1 test fallo + 2 excepciones no capturadas** (ver
+  abajo); segunda corrida después del fix, **224 archivos / 1990 tests
+  verde** (+3 skipped preexistentes), 211s.
+  - Falla 1: `lib/mapas/peligro-capas.test.ts` esperaba
+    `ETIQUETA_NIVEL_PELIGRO.sin_dato === 'Sin dato'`, literal viejo — se
+    actualizó al nuevo copy de R5 (`'Sin dato (no se colorea)'`), cambio de
+    test legítimo, no un revert.
+  - Excepciones: el mock de `MapGL` en
+    `components/mapas/map-infraestructura-page.test.tsx` no tenía
+    `fitBounds` en el objeto que devuelve `getMap()`, y R4 ahora lo llama.
+    Se agregó `fitBounds: vi.fn()` al mock.
+- `pnpm lint`: sin salida (limpio).
+- `pnpm build`: exitoso.
+- Capturas Playwright vía un script nuevo, `capturas-v12.mjs` (mismo patrón
+  de login real por form que `capturas-v11.mjs`, en
+  `/home/gero/orca/demo-data/enos-pulido/`, fuera del repo): 7 escenas
+  (R1-R7) en claro/1440px, R1/R2 también en oscuro/1440px, claro/390px y
+  oscuro/390px, y R3-R7 también corridas en oscuro/1440px para descartar
+  regresiones de tema. Todas "OK" (ningún throw), y las revisé una por una
+  visualmente yo mismo (no sólo el exit code del script) antes de marcar
+  cada R como resuelto arriba. Capturas en
+  `/home/gero/orca/demo-data/enos-pulido/capturas/v12-*.png`.
+- Demo :3202 reusada sin reiniciar, sigue arriba al cierre de esta tarea.
+  Comando para relanzarla si hace falta: el mismo de la sección "Demo local"
+  arriba (`source .env.demo && pnpm dev -p 3202`).
+
 ## Hallazgos que no se pudieron resolver (o quedaron como decisión de producto)
 
 - **Hallazgo 19 / Radar**: el buscador de escuela en modo Radar sigue
@@ -752,14 +861,14 @@ recorte de `recortarSerieAlRangoConDatos`.
   intencional (`isBleedViewerPath` da pantalla completa a todo `/mapas/*`),
   no un olvido. Sólo se resuelve si el producto decide sacrificar pantalla
   completa por consistencia con el resto del hub.
-- **Filtro CSS del mapa oscuro (hallazgo 28 / Q9)**: mejorado con evidencia
-  calculada (ver "V11" arriba), pero sigue siendo una aproximación
-  (`brightness/invert/contrast/hue-rotate` sobre el canvas), no un estilo
-  cartográfico oscuro real. El contraste del texto blanco sobre el color
-  Crítica queda en 3.42:1 (mejor que el 1.98:1 original, pero debajo del
-  4.5:1 AA para texto normal) — no hay un basemap oscuro disponible en el
-  catálogo de OpenFreeMap usado hoy sin agregar un proveedor de tiles nuevo
-  (decisión de infraestructura/costo que no tomé).
+- **Filtro CSS del mapa oscuro (hallazgo 28 / Q9)**: RESUELTO en V12/R2 — la
+  nota de acá abajo (V1-V11) decía que no había basemap oscuro en OpenFreeMap
+  sin agregar un proveedor nuevo; era incorrecto, no se había probado la URL.
+  `https://tiles.openfreemap.org/styles/dark` existe y responde 200. Se sacó
+  el filtro CSS por completo y se usa ese estilo real en modo oscuro; los
+  colores de severidad y Radar ya no se distorsionan, quedan idénticos en
+  claro y oscuro (ver sección "V12" arriba). Dejo el párrafo original abajo
+  tachado conceptualmente, sin borrarlo, como registro del error.
 - **Q8 / mapa base y POI de transporte a zoom alto**: el ícono de escuela
   (Q13a) resuelve la legibilidad del punto en sí, pero no se investigó si
   conviene cambiar el mapa base por defecto o atenuar los POI de colectivo —
