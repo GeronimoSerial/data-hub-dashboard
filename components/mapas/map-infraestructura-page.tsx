@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -1408,7 +1409,7 @@ export default function MapInfraestructuraPage(props: {
     }
   }
 
-  function handleClick(event: MapLayerMouseEvent) {
+  const handleClick = useCallback((event: MapLayerMouseEvent) => {
     const features = event.features ?? []
 
     // Cualquier clic cierra el popup de departamento vigente; si el clic cae
@@ -1467,7 +1468,16 @@ export default function MapInfraestructuraPage(props: {
         siguiente === null ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
       )
     }
-  }
+  }, [
+    radarActivo,
+    departamentoSeleccionado,
+    setDepartamentoInfoClic,
+    setClusterInfoClic,
+    setDepartamentoRadarSeleccionado,
+    setSeleccionCue,
+    setPuntosVisibles,
+    setDepartamentoSeleccionado,
+  ])
 
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
   // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
@@ -1516,10 +1526,11 @@ export default function MapInfraestructuraPage(props: {
     void Promise.all(pendientes).then(() => setIconosClusterListos(true))
   }
 
-  function handleMapLoad() {
+  const handleMapLoad = useCallback(() => {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setCuesNoAgrupados, setIconosClusterListos])
 
   function alternarCapa(capa: CapaInfraestructura, value: boolean) {
     setCapasVisibles((prev) => ({ ...prev, [capa]: value }))
@@ -1609,14 +1620,6 @@ export default function MapInfraestructuraPage(props: {
       {loading && !data && (
         <div className={`${styles.panel} ${styles.titlePanel}`}>
           Cargando datos del mapa…
-        </div>
-      )}
-      {/* T1.4: espeja el mensaje vacío de la propia lista para que ambos
-          lados de un filtro sin resultados se lean igual — acá es lo primero
-          que vería quien mira sólo el mapa. */}
-      {dataVisible && dataVisible.partes.length === 0 && (
-        <div className={`${styles.panel} ${styles.titlePanel}`}>
-          No hay escuelas con afectación vigente con los filtros aplicados.
         </div>
       )}
       <div className={styles.mapRoot}>

@@ -3,14 +3,11 @@ import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { esCategoria } from '@/lib/infraestructura/categorias'
 import { listarPartesVigentes } from '@/lib/infraestructura/parte-mapa'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
+import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// `servicio` es derivado (spec §3.4, nunca persistido), así que el filtro de
-// query string necesita su propio guard en vez de esCategoria: no hay una
-// función pública en el modelo de dominio para validarlo, y sólo son estos
-// tres valores.
 const SERVICIOS_VALIDOS: readonly EstadoServicioGeneral[] = ['normal', 'parcial', 'suspendido']
 
 function servicioValido(valor: string | null): EstadoServicioGeneral | undefined {
@@ -42,12 +39,9 @@ export async function GET(request: Request) {
     servicio: servicioValido(searchParams.get('servicio')),
   }
 
-  // listarPartesVigentes resuelve su propio Client (getDb().$client interno)
-  // en vez de recibirlo por parámetro.
   const resultado = await listarPartesVigentes(filtros)
 
-  return Response.json(resultado, {
-    status: 200,
+  return jsonComprimido(request, resultado, {
     headers: { 'Cache-Control': 'private, no-store' },
   })
 }

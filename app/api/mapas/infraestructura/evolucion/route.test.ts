@@ -54,7 +54,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
   it('rechaza sin sesión y no entrega el conjunto de evolución', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/mapas/infraestructura/evolucion'))
     expect(res.status).toBe(401)
     const body = await res.json()
     expect(body.rankingDepartamentos).toBeUndefined()
@@ -70,7 +70,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       recursoIds: [],
     })
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/mapas/infraestructura/evolucion'))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(Array.isArray(body.serieEscuelasServicioCaido)).toBe(true)
@@ -90,7 +90,7 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
       recursoIds: [],
     })
     const { GET } = await import('./route')
-    const res = await GET()
+    const res = await GET(new Request('http://localhost/api/mapas/infraestructura/evolucion'))
     const raw = await res.text()
     expect(raw).not.toMatch(/gePersonId|ge_person_id/i)
   })
