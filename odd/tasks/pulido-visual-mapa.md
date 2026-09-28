@@ -131,5 +131,5 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 
 ## Estado
 
-- Ruta: delegado (N2 → N3), a lanzar al terminar DB1 según pedido del usuario ("al final").
-- Progreso: revisión hecha; implementación pendiente.
+- Ruta: delegado (N2 → N3). Lanzado 2026-09-28 05:27 UTC tras el merge de DB1 (7670dd9): dispatch ctx_6ddae845cdf4, worktree enos-pulido (rama feat/enos-pulido). Spec: /home/gero/orca/demo-data/specs/spec-n2-pulido.md.
+- Progreso: revisión hecha; implementación en curso.
