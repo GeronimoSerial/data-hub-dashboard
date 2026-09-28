@@ -67,7 +67,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
 
     expect(fc.features).toHaveLength(1)
     const props = fc.features[0].properties
-    expect(props.color).toBe('#F4492E')
+    expect(props.color).toBe('#7f1d1d')
     expect(props.severidad).toBe('Crítica')
     expect(props.estado).toBe('afectada')
   })

@@ -129,13 +129,17 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 - [x] V8 — Transversal al mapa: modo oscuro del mapa (mapa base oscuro, contraste),
       controles de MapLibre en español, responsive. Completa; verificación visual (V9)
       pendiente, sobre todo del filtro CSS del mapa oscuro.
-- [ ] V9 — Verificación en navegador de cada sección (claro/oscuro, desktop/móvil) con capturas.
-      NO HECHA por N2: chrome-devtools-mcp/claude-in-chrome no disponibles para mí, y el
-      camino alternativo (Playwright headless propio) topó con un bug de entorno real —
-      Chromium en este entorno nunca adjunta la cookie de sesión a una navegación de página
-      (probado con 5+ métodos distintos; curl sí funciona siempre con el mismo cookie).
-      Decisión de N1 (2026-09-28): cortar V9 acá, se absorbe en el QA visual de V10 con
-      navegador real. Ver detalle y evidencia en el registro.
+- [x] V9 — Verificación en navegador de cada sección con capturas: RESUELTA. El bloqueo de
+      cookie de la sesión anterior era el bug de doble instancia de PGlite, corregido en
+      9b1e0f2 — con ese fix, Playwright headless funciona normal (login real por form, sin
+      ningún workaround de cookies). 13 capturas en
+      /home/gero/orca/demo-data/enos-pulido/capturas/: claro 1440x900 (8 escenas: operativa,
+      tooltip-cluster, radar-panel, radar-capas, leyenda-radar, leyenda-situacion,
+      escuela-icono, ficha-panel), oscuro 1440x900 (3 escenas: operativa, tooltip-cluster,
+      leyenda-situacion — completo quedaría bueno tener las 5 restantes, no bloqueante),
+      claro 390x844 (2 escenas: operativa, ficha-panel). Script reutilizable:
+      /home/gero/orca/demo-data/enos-pulido/capturas-v11.mjs. Scripts de debug viejos (44
+      archivos) y capturas de descarte limpiados.
 - [ ] V10 — QA estético completo del mapa de infraestructura, al detalle, hecho por el coordinador en el navegador cuando
       el N2 termina (pedido explícito del usuario). Recorre los 29 hallazgos y cada estado:
       hover, foco, capas combinadas, Radar por horizonte, ficha, Evolución, claro/oscuro,
@@ -150,49 +154,174 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 
 ### V11 — Correcciones del QA de N1 (bloquean el cierre)
 
-- [ ] Q1 — Clusters engañosos: el número es el total de escuelas del padrón agrupadas y el
-      color la peor severidad, así que un círculo rojo "490" en San Cosme se lee como 490
-      escuelas críticas. El cluster tiene que comunicar AFECTADAS: número = escuelas
-      afectadas del grupo, color = peor severidad; un grupo sin afectadas no se dibuja
-      como alerta (sólo aparece, discreto y sin color de severidad, si está activa la capa
-      del padrón). Tooltip del cluster: "490 escuelas · 3 afectadas (1 crítica, 2 altas)".
-      Leyenda acorde.
-- [ ] Q2 — Radar, riesgo por escuela: vuelven los círculos grises con anillo. Reemplazar por
-      ícono Lucide coloreado por nivel de riesgo; "sin dato" no se dibuja como marcador.
-- [ ] Q3 — Radar, peligro por departamento sin evidencia: pinta la provincia con un velo gris.
-      Sin dato = sin relleno; el estado vacío se comunica en el panel, no tapando el mapa.
-- [ ] Q4 — Radar, leyenda: hoy es una lista con viñetas e íconos sin muestra de color. Usar
-      muestras del MISMO color que el mapa + ícono, alineados, sin viñetas.
-- [ ] Q5 — Escuela seleccionada: se marca con un anillo amarillo. Usar un marcador claro
-      (p. ej. MapPin de Lucide o el ícono de la escuela agrandado con contorno), no un anillo.
-- [ ] Q6 — Ficha:
-      a) encabezado con nombre, CUE, localidad y departamento para CUALQUIER escuela (hoy la
-         de una escuela sin afectación dice sólo "FICHA DEL PARTE");
-      b) los estados vacíos ("Sin afectaciones…", "Sin datos del padrón…") en texto normal
-         secundario, no en tamaño de titular;
-      c) panel lateral NO modal: sin velo que oscurezca y bloquee el mapa y el header; el
-         mapa sigue usable; cerrar con Esc y con el botón, alineado dentro del panel;
-      d) severidad con un único código (ícono + color + texto), no círculo/cuadrado/triángulo
-         según el nivel (hallazgo 21 sigue abierto);
-      e) accesos: riesgo de acceso de la escuela si el radar lo tiene (o "Sin dato de
-         acceso"), y enlaces a su historial de partes y a cargar o actualizar el parte;
-      f) "Ver alumnos alcanzados" como acción secundaria liviana, no un botón grande por
-         afectación.
-- [ ] Q7 — Tooltip: cerca del borde superior queda cortado debajo de la barra de pestañas.
-      Reposicionar según el espacio disponible (anchor automático).
-- [ ] Q8 — Escuelas a zoom alto: puntos de ~8 px que se pierden entre los íconos de
-      colectivo del mapa base. Ícono de escuela (School de Lucide) de tamaño legible,
-      coloreado por severidad; mapa base por defecto "Mapa claro" o con los POI de
-      transporte atenuados.
-- [ ] Q9 — Modo oscuro: los clusters pasan a salmón pastel, se pierde la escala de severidad
-      y el contraste del número. Escala de severidad con contraste AA también en oscuro.
-- [ ] Q10 — Móvil (390 px): el botón "Buscar escuelas" queda tapado por la atribución del
-      mapa, que también pisa "Pantalla completa". Reubicar para que nada se superponga.
-- [ ] Q11 — Leyenda de Situación actual: ítems de varias líneas con el ícono desalineado;
-      "Sin reportar" usa un halo diminuto (usar un ícono Lucide, p. ej. Clock o
-      SignalZero); textos más cortos.
-- [ ] Q12 — Evolución (menor): línea escalonada (los datos son diarios, la curva suavizada
-      sugiere valores intermedios), tooltip por punto y marcas del eje regulares.
+- [x] Q1 — Clusters engañosos: el número del cluster ahora muestra `escuelasAfectadas` (no el
+      total agrupado), vacío si es 0 (no se lee como alerta). Tooltip con desglose
+      "N escuelas · M afectadas (X críticas, Y altas)" (clusterProperties `criticas`/`altas`
+      nuevos). Leyenda actualizada. `components/mapas/map-infraestructura-page.tsx`
+      (líneas ~1858-1870, ~1911, ~2077-2095), `components/mapas/legend-panel.tsx` (~217).
+      tsc + vitest verdes (101→177 tests). Verificación visual en navegador pendiente.
+- [x] Q2 — Radar, riesgo por escuela: reemplazadas las 2 capas circle (círculo+halo) por
+      `<Marker>` DOM con ícono `TriangleAlert` coloreado por nivel (`colorPuntoRiesgo()` en
+      `lib/mapas/peligro-capas.ts`); `sin_dato` filtrado, no se dibuja. tsc + vitest verdes
+      (177 tests). Verificación visual pendiente.
+- [x] Q3 — Radar, peligro por departamento: `paintCoropletaPeligro()` (lib/mapas/peligro-capas.ts)
+      con `fill-opacity` data-driven, 0 para `sin_dato` (antes 0.55 fijo siempre). tsc + vitest
+      verdes. Verificación visual pendiente.
+- [x] Q4 — Radar, leyenda: agregado el CSS que faltaba para `.peligro-legend*`
+      (app/globals.css, ~línea 72) — el JSX ya traía swatch+ícono+etiqueta pero sin ninguna
+      regla CSS, se veía como lista con viñetas del navegador. tsc + vitest verdes.
+      Verificación visual pendiente.
+- [x] Q5 — Escuela seleccionada: reemplazado el `<Source>/<Layer>` circle (anillo) por
+      `<Marker>` + ícono `MapPin` de lucide-react en `COLOR_FOCO_SELECCION`, anchor="bottom".
+      `components/mapas/map-infraestructura-page.tsx`. tsc + vitest verdes. Verificación
+      visual pendiente.
+- [x] Q6 — Ficha (integrada con Q14, panel propio):
+      a) hecho — nueva prop `escuela` (identidad del padrón completo, `dataEscuelasMapa`)
+         pasada a `FichaParteModal`, título/CUE/localidad/departamento siempre visibles;
+      b) hecho — estados vacíos con clase `estado-actual-bloque__vigencia` (texto secundario)
+         en vez de `__valor` (titular);
+      c) hecho vía Q14 (panel propio, ver abajo);
+      d) hecho — nuevo `IndicadorSeveridadFicha` local (sólo en la ficha): ícono fijo
+         `CircleAlert` + color + texto, sin variar forma por nivel; NO se tocó el componente
+         compartido `EstadoActualSeveridad` (usado fuera del mapa, en afectacion-borrador.tsx/
+         afectacion-campos.tsx, fuera de alcance);
+      e) hecho — `FichaTerritorial` ya mostraba riesgo de acceso con fallback "Sin datos de
+         acceso"; agregado enlace "Cargar o actualizar el parte" a
+         `/infraestructura/cargar?cue=...` (ruta real confirmada, `app/(hub)/infraestructura/
+         cargar/page.tsx`);
+      f) hecho — "Ver alumnos alcanzados" pasó de `variant="secondary"` a `variant="ghost"`.
+      `components/infraestructura/ficha-parte-modal.tsx`. tsc + vitest verdes (370 tests).
+      Verificación visual pendiente.
+- [x] Q7 — Tooltip: los 3 `<Popup>` (departamento/escuela/cluster) sacaron el `anchor="bottom"`
+      fijo; sin esa prop, react-map-gl/maplibre calcula el anclaje automáticamente según el
+      espacio disponible (maplibre-gl@6.3.0 no acepta el string `"auto"` explícito, el
+      comportamiento automático es el default al omitir `anchor`). tsc + vitest verdes.
+      Verificación visual pendiente.
+- [x] Q8 — Absorbido por Q13a (ver abajo): el ícono School reemplaza al punto de 6px, con
+      halo de color de severidad alrededor (radio subido a 14px en `circlePaintPartes()`
+      para que el color siga visible bajo el ícono). No se tocó el mapa base por defecto
+      (queda "Mapa claro"/voyager); no se atenuaron los POI de transporte — no investigado,
+      queda como gap conocido si el ícono más grande no alcanza. Verificación visual pendiente.
+- [x] Q9 — Modo oscuro: filtro CSS del canvas ajustado con matemática calculada (no a ojo):
+      `brightness(1.1) invert(0.72) contrast(1.2) hue-rotate(195deg)`. Recalculado dos
+      veces: primero contra la paleta arcoíris vieja (Crítica 1.98:1 → 3.42:1 de
+      contraste), y de nuevo tras Q19 (paleta tonal roja/azul nueva) — con los tonos
+      nuevos el filtro se mantiene (ningún tono colapsa con otro de su escala, ΔE00 mín.
+      9.5), pero el contraste de texto claro sobre Crítica bajó a ~2.4:1 (el tono
+      resultante es más medio ahora); probados hue-rotate 165/180/210° sin mejora clara,
+      documentado como límite conocido del enfoque (un solo canvas WebGL compartido, no
+      se puede aplicar el filtro sólo al basemap). Evidencia completa (tabla de 8 colores
+      antes/después) como comentario en app/globals.css. tsc + vitest verdes.
+- [x] Q10 — Móvil: agregado `<AttributionControl position="bottom-right" compact />`
+      explícito (antes sin declarar, quedaba con el ancho default de maplibre-gl). Compact
+      solo no alcanzaba para "Pantalla completa" (misma esquina); refuerzo CSS sube
+      `.map-fullscreen-btn` y `.map-left-stack-toggle` a `bottom: 46px` dentro del media
+      query de 720px. tsc + vitest verdes. Verificación visual pendiente.
+- [x] Q11 — Leyenda de Situación actual: `.map-legend-item` pasó de `align-items: center` a
+      `flex-start` (correcto con texto multilínea) + `flex-shrink: 0` en los íconos
+      (app/globals.css). Ícono de "Sin reportar" cambiado de `CircleHelp` a `Clock`; copy de
+      los 5 ítems de estado y del cluster gris acortado a una línea manteniendo el
+      significado (`components/mapas/legend-panel.tsx`). tsc + vitest verdes. Verificación
+      visual pendiente.
+- [x] Q12 — Evolución: `GraficoSerieServicioCaido` (`components/infraestructura/
+      evolucion-graficos.tsx`) — línea `type="monotone"` → `"stepAfter"` (datos diarios, sin
+      valores intermedios inventados); tooltip ya existía, mejorado el formatter
+      ("N escuelas"); eje X con `interval` numérico calculado en vez de
+      `"preserveStartEnd"` para marcas parejas sin importar dónde arranca el recorte de
+      `recortarSerieAlRangoConDatos`. tsc + vitest verdes (268 tests). Verificación visual
+      pendiente.
+
+### Q13/Q14 — Pedido directo del usuario vía N1 (2026-09-28, PRIORIDAD ALTA, antes que el resto de V11)
+
+- [x] Q13 — Escuelas individuales del padrón:
+      a) hecho — nuevo ícono `School` de lucide-react registrado vía `map.addImage`
+         (`lib/mapas/iconos-mapa.ts`, `ID_IMAGEN_ESCUELA`/`SVG_ICONO_ESCUELA`, mismo patrón de
+         fondo blanco + contorno que Tent/DoorOpen), capa `symbol` nueva
+         `infra-partes-escuela-icono` sobre la capa `circle` existente. El círculo de color
+         (severidad) subió su radio a 14px para que quede un anillo de color visible alrededor
+         del ícono blanco (antes el badge de 22px tapaba por completo el círculo de 12px —
+         hallazgo real encontrado y corregido en la misma tarea);
+      b) hecho — la nueva capa symbol tiene un área de hit-testing mucho mayor (~22px vs 12px
+         del círculo) y se agregó a `capasInteractivas`, `handleClick` y `handleMouseMove`
+         junto a `CAPA_PARTES_ID`, así un clic/hover que acierte el ícono (no sólo el centro
+         exacto del círculo) abre la ficha / muestra el tooltip de escuela en vez de perder
+         contra el departamento de abajo.
+      `lib/mapas/iconos-mapa.ts`, `components/mapas/map-infraestructura-page.tsx`. tsc +
+      vitest verdes. Verificación visual en navegador (clic real sobre una escuela del padrón
+      en Capital, como probó N1) pendiente.
+- [x] Q14 — Ficha con panel propio: `SheetRoot`/`SheetContent` (primitiva genérica con
+      backdrop) reemplazado por un `<div className="map-ficha-panel">` a mano, sin backdrop,
+      `role="dialog" aria-modal="false"`, cierre con Esc (listener propio) y con botón (ícono
+      `X`), foco al abrir movido al botón de cerrar, transición de entrada corta
+      (`translateX` + opacity, 160ms), CSS propio con los tokens del resto del mapa
+      (`var(--card)`, `var(--ink)`, `var(--r-sm)`, `var(--e-float)`), ancho 400px en
+      escritorio anclado al borde derecho dentro de `.map-shell`, hoja inferior a pantalla
+      completa (`max-height: 80vh`) bajo 720px. `components/infraestructura/ficha-parte-modal.tsx`,
+      `app/globals.css`. tsc + vitest verdes (370 tests). Verificación visual pendiente.
+
+Verificación visual en navegador (capturas Playwright vía N3) de Q1-Q14 pendiente — código y
+tests verdes, falta el QA visual real antes del cierre.
+
+### Q15/Q16/Q17 — QA parcial de N1 en navegador sobre Q13/Q14 (2026-09-28, PRIORIDAD ALTA)
+
+Q13/Q14 confirmados correctos en navegador por N1. Aparecieron 3 hallazgos nuevos:
+
+- [x] Q15 — Confirmado: `.map-ficha-panel` y `.map-controls-stack` compartían `top/right: 12px`
+      y el MISMO `z-index: 3`; el orden del DOM decidía cuál ganaba, y perdía la ficha. Subido
+      `.map-ficha-panel` a `z-index: 4` (app/globals.css). tsc + vitest verdes (447 tests).
+      Verificación visual pendiente.
+- [x] Q16 — Los 3 datos de "Datos de la escuela" (niveles/matrícula/secciones) usaban
+      `estado-actual-bloque__valor` (escala de titular, diseñada para el dato principal de
+      OTRAS pantallas del hub, no tocada). Cambiados a `estado-actual-bloque__vigencia`
+      (texto secundario). `turnos` ya estaba correcto. Estado del servicio/establecimiento
+      siguen en titular a propósito (son el dato principal de la ficha).
+      `components/infraestructura/ficha-parte-modal.tsx`. Verificación visual pendiente.
+- [x] Q17 — REABIERTO por N1, ahora completo. Normal (sin afectación): fondo blanco,
+      borde gris fino `#9ca3af`, ícono gris oscuro `#4b5563` (tema claro); variante
+      dedicada para tema oscuro (`SVG_ICONO_ESCUELA_NORMAL_OSCURO`, seleccionada vía
+      `useThemeMode()`), con colores de entrada COMPENSADOS matemáticamente para que,
+      tras pasar por el filtro CSS del canvas, el resultado final sea gris pizarra
+      oscuro con ícono claro (el filtro invierte luminancia; se calculó el color de
+      entrada que produce el resultado deseado, mismo método que Q9). Afectadas: fondo
+      lleno del color de severidad (`PALETA_TONAL_SEVERIDAD`, ya vigente desde Q19),
+      trazo oscuro sobre Baja/Media y blanco sobre Alta/Crítica. Tamaño subido a
+      `icon-size: 1.2` sólo en la capa de escuela individual (no afecta los íconos de
+      cluster). Verificado con capturas Playwright propias (no delegadas): comparé el
+      MISMO ícono a igual zoom en claro y oscuro — en oscuro es un gris-pizarra
+      claramente distinto del blanco de tema claro, confirmando que la variante
+      dedicada se aplica (mi primera lectura de una captura panorámica había sido un
+      falso positivo por íconos demasiado chicos para juzgar el color a simple vista).
+      tsc + vitest verdes.
+- [x] Q18 — Nuevo: scroll horizontal en la ficha (contenido más ancho que el panel,
+      probablemente algún bloque sin `overflow-wrap`/`min-width: 0` dentro de
+      `.map-ficha-panel` o `.ficha-parte-sheet__body`). Agregado `overflow-x: hidden`,
+      `overflow-wrap: break-word`, `min-width: 0` a `.map-ficha-panel`
+      (app/globals.css). tsc verde.
+
+### Q19/Q20 — Pedido directo del usuario vía N1 (2026-09-28, PRIORIDAD ALTA, antes de V9)
+
+- [x] Q19 — Paleta tonal de una sola gama. Decisión de producto del usuario (vía
+      `orca orchestration ask`): severidad en ROJO (Baja `#fecaca`, Media `#f87171`,
+      Alta `#dc2626`, Crítica `#7f1d1d`), Radar en AZUL (mismo patrón que
+      `PALETA_SECUENCIAL` de natalidad: `#eff6ff`/`#93c5fd`/`#3b82f6`/`#1e3a8a`), nunca
+      semáforo. Módulo único `lib/mapas/paleta-tonal.ts` (`PALETA_TONAL_SEVERIDAD`,
+      `PALETA_TONAL_PELIGRO`), consumido por `lib/infraestructura/severidad.ts` y
+      `lib/mapas/peligro-capas.ts` (fuente única, sin duplicar hex). Contraste
+      ajustado: texto del número de cluster y trazo de los íconos de escuela por
+      severidad pasan a oscuro sobre Baja/Media (fondos claros) y claro sobre
+      Alta/Crítica (fondos oscuros). Durante la verificación se encontró y corrigió
+      un bug real no relacionado (bucle infinito en el mock de test de MapGL, ver
+      registro). tsc + vitest verdes (447 tests, ~22s).
+- [x] Q20 — Tooltip sólo al hacer clic, sin popups de hover. Sacados `handleMouseMove`/
+      `handleMouseLeave` y el estado `hoverInfo` (con su tipo `HoverMapa`, código muerto
+      asociado limpiado: `offsetTooltip`, `iconoTooltipEscuela`,
+      `TEXTO_SIN_AFECTACION_REPORTADA`). Los popups de 'escuela' y 'cluster' se
+      eliminaron sin reemplazo (el clic ya abre la ficha / hace zoom de expansión,
+      redundante mostrar un popup además). Departamento: nuevo estado
+      `departamentoInfoClic`, mismo contenido/estilo que el popup viejo, atado al clic
+      sobre la capa de departamento (toggle de selección); se cierra con cualquier otro
+      clic, al cambiar de modo, o con Esc (listener propio). tsc + vitest verdes (104
+      tests, área mapas).
 
 ## Checks
 
@@ -202,9 +331,15 @@ Los hallazgos 26 y 27 quedan registrados pero fuera de alcance.
 ## Estado
 
 - Ruta: delegado (N2 → N3), cerrado por N2.
-- Progreso: V1-V8 completos e implementados (íconos, tooltip, ficha con panel
-  lateral y datos de padrón, panel izquierdo, Radar, pestañas/Evolución,
-  transversal), `pnpm exec tsc --noEmit`, suite completa (223 archivos /
-  1982 tests) y `pnpm build` verdes. V9 no hecha (bloqueo de entorno real,
-  no de la app — ver registro), derivada a V10 por decisión de N1. Demo
-  levantada y estable en :3202 para el QA de N1.
+- Progreso: V1-V8 completos (pasada anterior) + V11 completo (Q1-Q12 del QA de N1),
+  Q13-Q20 (pedidos directos del usuario vía N1, incluye Q17 reabierto una vez) y V9
+  (capturas Playwright, resuelto tras el fix de PGlite de 9b1e0f2). Todo el código
+  verificado por mí (N2): `pnpm exec tsc --noEmit` limpio, suite completa **224
+  archivos / 1990 tests** (+3 skipped preexistentes) bajo flock, `pnpm lint` limpio,
+  `pnpm build` exitoso. Verificación visual real hecha por mí para Q17 (comparé
+  capturas propias claro/oscuro al mismo zoom); el resto de V11/Q13-Q20 tiene
+  código+tests verdes pero la verificación visual sistemática de cada hallazgo queda
+  para el QA de N1 en el navegador (13 capturas de referencia en
+  `/home/gero/orca/demo-data/enos-pulido/capturas/`). Demo levantada y estable en
+  :3202. Ver `docs/ejecucion-enos/pulido/registro.md`, sección "V11", para el detalle
+  completo de cada corrección.

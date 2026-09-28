@@ -8,6 +8,7 @@ import {
   type CSSProperties,
 } from 'react'
 import MapGL, {
+  AttributionControl,
   Layer,
   Marker,
   NavigationControl,
@@ -46,6 +47,7 @@ import {
   CircleHelp,
   CircleSlash,
   DoorOpen,
+  MapPin,
   Tent,
   TriangleAlert,
   type LucideIcon,
@@ -56,6 +58,7 @@ import { BasemapControl } from '@/components/mapas/basemap-control'
 import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
+import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Indicadores } from '@/components/infraestructura/indicadores'
 import { ListaAlertas } from '@/components/infraestructura/lista-alertas'
@@ -79,6 +82,7 @@ import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import { ReplayPanel } from '@/components/mapas/replay-panel'
 import {
+  colorPuntoRiesgo,
   construirCoropletaPeligro,
   construirPuntosRiesgo,
   construirPuntosRiesgoAcceso,
@@ -115,7 +119,6 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
   iconoEstadoEscuela,
-  RADIO_DOT_BASE,
   rangoSeveridad,
   type IconoEstadoEscuela,
 } from '@/lib/mapas/severidad-visual'
@@ -123,6 +126,12 @@ import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
   ID_IMAGEN_CLUSTER_EVACUADO,
+  ID_IMAGEN_ESCUELA_ALTA,
+  ID_IMAGEN_ESCUELA_BAJA,
+  ID_IMAGEN_ESCUELA_CRITICA,
+  ID_IMAGEN_ESCUELA_MEDIA,
+  ID_IMAGEN_ESCUELA_NORMAL,
+  ID_IMAGEN_ESCUELA_NORMAL_OSCURO,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
@@ -171,6 +180,14 @@ const ICONO_BADGE_ESTADO_TAMANO = 12
 const CAPA_CLUSTER_CENTRO_EVACUADOS_ID = 'infra-cluster-centro-evacuados'
 const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
 
+// Q13a/Q13b: ícono de escuela individual (no clusterizada). Es una capa
+// `symbol` propia por ENCIMA del círculo de severidad de CAPA_PARTES_ID (el
+// círculo se conserva debajo): identifica la escuela de un vistazo y, además
+// de eso, su área (~22 px) agranda el hit-testing del click/hover. Con el
+// círculo de 6 px el click sobre una escuela del padrón casi siempre perdía
+// contra el polígono del departamento de abajo.
+const CAPA_PARTES_ESCUELA_ICONO_ID = 'infra-partes-escuela-icono'
+
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
 // `--marker` (= `--yellow`, globals.css) que el hub usa para selección/foco.
 // MapLibre no resuelve var() en el paint, así que se repite el literal.
@@ -191,16 +208,21 @@ const CAPA_DEPARTAMENTOS_BORDE_ID = 'infra-departamentos-borde'
 // riesgo viven en una fuente aparte. Si no fuera una fuente nueva, `Source` de
 // react-map-gl no permitiría dos `data` distintos para el mismo id.
 const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
-const CAPA_RIESGO_CIRCLE_ID = 'infra-riesgo-circle'
 
-// Puntos de riesgo: círculo RELLENO con un halo (stroke) más ancho que el de
-// "afectación confirmada", para que ambas señales se lean juntas cuando la
-// misma escuela tiene las dos. Regla de aceptación del batch: "una escuela con
-// ambas señales muestra ambas, nunca se fusionan" — el color de relleno viene
-// de `paintPuntosRiesgo` (paleta de peligro) y el halo se resuelve acá en la
-// integración, no en el módulo puro.
+// Puntos de riesgo (Radar): un ÍCONO Lucide por escuela, ya no capas `circle`.
+// El par círculo+halo anterior dibujaba dos formas apiladas por punto (justo
+// el patrón "círculos sobre círculos" ilegible que ya se retiró del resto del
+// mapa). Ahora la señal de riesgo es un <Marker> DOM con un TriangleAlert
+// coloreado por nivel: un canal visual propio que no compite con el relleno de
+// severidad ni con el badge de estado. `RADIO_PUNTO_RIESGO_BASE` se conserva
+// porque el modo Replay reusa `circlePaintRiesgo` para SU propia capa de
+// riesgo, que es independiente y no se toca acá.
 const RADIO_PUNTO_RIESGO_BASE = 7
-const RADIO_HALO_RIESGO_EXTRA = 5
+
+// id lógico del contenedor del ícono de riesgo: mismo patrón `data-capa` que
+// el badge de estado, para tests y estilos sin depender del texto accesible.
+const CAPA_RIESGO_ICONO_ID = 'infra-riesgo-icono'
+const TAMANO_ICONO_RIESGO = 18
 
 function circlePaintRiesgo(): CircleLayerSpecification['paint'] {
   return {
@@ -213,21 +235,6 @@ function circlePaintRiesgo(): CircleLayerSpecification['paint'] {
   }
 }
 
-// Halo distintivo del riesgo: anillo SIN relleno alrededor del punto, para
-// separarlo visualmente de la forma de "afectación confirmada" (que tiene
-// relleno por severidad y anillo por servicio). El halo no toca ninguno de
-// esos dos canales: es sólo un contorno extra.
-export function circlePaintHaloRiesgo(): CircleLayerSpecification['paint'] {
-  return {
-    'circle-radius': RADIO_PUNTO_RIESGO_BASE + RADIO_HALO_RIESGO_EXTRA,
-    'circle-color': 'transparent',
-    'circle-stroke-color': '#1c1c1c',
-    'circle-stroke-width': 1,
-    'circle-stroke-opacity': 0.5,
-  }
-}
-
-const CAPA_HALO_RIESGO_ID = 'infra-riesgo-halo'
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
 
 // ── Modo Replay (E7c) ────────────────────────────────────────────────────────
@@ -440,7 +447,10 @@ export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<nu
 
 export function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
-    'circle-radius': RADIO_DOT_BASE,
+    // Radio mayor que RADIO_DOT_BASE a propósito: el ícono de escuela (badge
+    // blanco ~22px) se dibuja encima y necesita un anillo de color visible
+    // alrededor para que la severidad siga leyéndose.
+    'circle-radius': 14,
     'circle-color': ['get', 'color'],
     'circle-opacity': 0.9,
     'circle-stroke-color': ANILLO_COLOR,
@@ -553,69 +563,19 @@ const ETIQUETA_ICONO_ESTADO: Record<IconoEstadoEscuela, string> = {
   CircleHelp: 'Sin reportar',
 }
 
-// Copy del tooltip cuando el objeto apuntado no tiene afectación reportada.
-// No se reusa ETIQUETA_SIN_AFECTACION ('Sin afectación') porque el tooltip
-// necesita la oración completa; el badge y la ficha siguen con su etiqueta.
-const TEXTO_SIN_AFECTACION_REPORTADA = 'Sin afectación reportada'
-
-// ── Tooltip ÚNICO del mapa (V3) ─────────────────────────────────────────────
+// ── Popup de CLIC del departamento ──────────────────────────────────────────
 //
-// Un solo estado de hover, con la variante discriminada por `tipo`, en vez de
-// tres estados en paralelo que podrían quedar visibles a la vez. La PRIORIDAD
-// de qué objeto manda se resuelve en `handleMouseMove` (escuela/cluster pisan
-// al departamento, que siempre está debajo) y acá sólo se renderiza UN Popup.
-export type HoverMapa =
-  | {
-      tipo: 'escuela'
-      lng: number
-      lat: number
-      nombre: string
-      severidad: string
-      icono: IconoEstadoEscuela | null
-    }
-  | {
-      tipo: 'cluster'
-      lng: number
-      lat: number
-      cantidad: number
-      severidad: string
-    }
-  | { tipo: 'departamento'; lng: number; lat: number; nombre: string }
+// El resumen de un departamento (total, afectadas, porcentaje) ya no aparece
+// al pasar el mouse: se guarda acá y se muestra recién al hacer CLIC sobre la
+// capa del departamento (ver `handleClick`). Un solo estado, un solo Popup.
+// Se cierra al volver a clickear el mismo departamento (toggle), al clickear
+// otro (se reemplaza), al clickear una escuela/cluster, al cambiar de modo o
+// con Esc.
+type InfoDepartamentoClic = { lng: number; lat: number; nombre: string }
 
-// Separa la caja del cursor lo justo para no tapar el punto/badge/burbuja
-// apuntado (hallazgo 6: "tapa el elemento apuntado"). El popup va anclado por
-// abajo (queda arriba del punto); el offset vertical negativo lo aleja un poco
-// más, con margen para el badge DOM (18 px, corrido a [11, -11]) y para el
-// radio máximo del cluster. `departamento` no tiene marcador debajo, así que
-// se conforma con un offset mínimo.
-function offsetTooltip(tipo: HoverMapa['tipo']): [number, number] {
-  if (tipo === 'cluster') return [0, -(RADIO_CLUSTER_MAYOR + 6)]
-  if (tipo === 'escuela') return [0, -24]
-  return [0, -12]
-}
-
-// Badge de estado de una escuela a partir de las propiedades del feature del
-// mapa (no del EscuelaMapa): mismo criterio y mismos toggles que `badgesEstado`,
-// para que el tooltip nunca diga un estado distinto del ícono dibujado. Las
-// propiedades de un feature son `any`, por eso se comparan con `=== true`.
-function iconoTooltipEscuela(
-  propiedades: Record<string, unknown>,
-  capas: { evacuacion: boolean; sinReportar: boolean },
-): IconoEstadoEscuela | null {
-  const esCentroEvacuados = propiedades.esCentroEvacuados === true
-  const esEvacuado = propiedades.esEvacuado === true
-  return iconoEstadoEscuela({
-    estadoEstablecimiento: !capas.evacuacion
-      ? 'habitual'
-      : esCentroEvacuados
-        ? 'centro_evacuados'
-        : esEvacuado
-          ? 'evacuado'
-          : 'habitual',
-    servicio: typeof propiedades.servicio === 'string' ? propiedades.servicio : 'normal',
-    sinReportar: capas.sinReportar && propiedades.sinReportar === true,
-  })
-}
+// El departamento no tiene marcador debajo, así que el popup se conforma con
+// un offset vertical mínimo para no tapar el punto clickeado.
+const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
 
 // Badge: círculo claro detrás del ícono para que se lea sobre cualquier color
 // de severidad (incluida Crítica, rojo oscuro). Sólo decorativo: el evento
@@ -632,6 +592,24 @@ function estiloBadgeEstado(): CSSProperties {
     justifyContent: 'center',
     pointerEvents: 'none',
     boxShadow: '0 0 0 1px rgba(28, 28, 28, 0.15)',
+  }
+}
+
+// Ícono de riesgo: SIN fondo ni anillo (justo lo que se retiró), sólo un
+// drop-shadow claro/oscuro que lo separa del mapa y del punto de severidad
+// que puede estar debajo. El color lo pone Lucide vía `color` con la paleta de
+// peligro. Es clickeable (abre el panel de riesgo de la escuela), así que el
+// `pointerEvents` queda por defecto.
+function estiloIconoRiesgo(): CSSProperties {
+  return {
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    margin: 0,
+    lineHeight: 0,
+    cursor: 'pointer',
+    filter:
+      'drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 1px rgba(28, 28, 28, 0.4))',
   }
 }
 
@@ -679,6 +657,7 @@ export default function MapInfraestructuraPage(props: {
   visible?: boolean
 }) {
   const styles = useOverlayStyles()
+  const { mode } = useThemeMode()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
@@ -704,10 +683,10 @@ export default function MapInfraestructuraPage(props: {
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
-  // V3: un solo estado de hover para las tres variantes de tooltip. Reemplaza
-  // al viejo `departamentoHover` y resuelve en un único lugar cuál se muestra
-  // (ver `handleMouseMove`), sin poder pintar dos Popups a la vez.
-  const [hoverInfo, setHoverInfo] = useState<HoverMapa | null>(null)
+  // Resumen del departamento clickeado. Reemplaza al tooltip de hover: la
+  // información aparece recién con el CLIC (ver `handleClick`), nunca con el
+  // mouse quieto encima.
+  const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
   const [escuelaResaltada, setEscuelaResaltada] = useState<{ cueAnexo: string; lng: number; lat: number } | null>(null)
   const [puntosVisibles, setPuntosVisibles] = useState(true)
   const entradaPuntosPendiente = useRef(false)
@@ -892,6 +871,18 @@ export default function MapInfraestructuraPage(props: {
       mapa.stop()
     }
   }, [props.visible])
+
+  // Cierre con Esc del popup de departamento, atado al clic. Sólo se registra
+  // mientras hay un popup abierto; se limpia al cerrarlo o desmontar (mismo
+  // patrón que `FichaParteModal`).
+  useEffect(() => {
+    if (!departamentoInfoClic) return
+    const alPresionarTecla = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setDepartamentoInfoClic(null)
+    }
+    window.addEventListener('keydown', alPresionarTecla)
+    return () => window.removeEventListener('keydown', alPresionarTecla)
+  }, [departamentoInfoClic])
 
   const dataVisible = useMemo(
     () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
@@ -1104,13 +1095,14 @@ export default function MapInfraestructuraPage(props: {
     [escuelasConCoordenadas, riesgoPorCue],
   )
 
-  // Hallazgo 18: los puntos de riesgo (compuesto y de acceso) se dibujan junto
-  // a los clusters de severidad. A zoom bajo ambos representan las MISMAS
-  // escuelas, así que los círculos individuales quedaban superpuestos al
-  // cluster (el ruido de "círculos grises sobre los clusters"). Se muestran
-  // sólo cuando la escuela está desagrupada, con el MISMO criterio que el
-  // badge de estado (`cuesNoAgrupados`). Si todavía no se calculó (null), se
-  // ocultan: mejor nada que el ruido, y el primer `moveend` los resuelve.
+  // Hallazgo 18: el riesgo de ACCESO se dibuja junto a los clusters de
+  // severidad. A zoom bajo ambos representan las MISMAS escuelas, así que los
+  // círculos individuales quedaban superpuestos al cluster (el ruido de
+  // "círculos grises sobre los clusters"). Se muestran sólo cuando la escuela
+  // está desagrupada, con el MISMO criterio que el badge de estado
+  // (`cuesNoAgrupados`). El riesgo compuesto dejó de ser una capa `circle`
+  // (ahora es <Marker> DOM, ver `marcadoresRiesgo`), pero conserva este mismo
+  // gate para no superponer íconos a los clusters.
   const filtroRiesgoDesagrupado = useMemo<FilterSpecification>(() => {
     return [
       'in',
@@ -1118,6 +1110,24 @@ export default function MapInfraestructuraPage(props: {
       ['literal', cuesNoAgrupados ? [...cuesNoAgrupados] : []],
     ]
   }, [cuesNoAgrupados])
+
+  // Reemplazo del par circle+halo de riesgo por íconos Lucide (<Marker> DOM):
+  // se itera el MISMO GeoJSON de puntos de riesgo. Se filtran los `sin_dato`
+  // —fallback explícito de `construirPuntosRiesgo` para escuelas sin cobertura
+  // de riesgo— porque la ausencia de dato no es una señal que deba dibujarse.
+  // Se aplica el gate de desagrupado (`cuesNoAgrupados`) igual que antes.
+  const marcadoresRiesgo = useMemo(() => {
+    if (cuesNoAgrupados === null) return []
+    return puntosRiesgoGeojson.features
+      .filter((feature) => feature.properties.nivelRiesgo !== 'sin_dato')
+      .filter((feature) => cuesNoAgrupados.has(feature.properties.cueAnexo))
+      .map((feature) => ({
+        cueAnexo: feature.properties.cueAnexo,
+        nivelRiesgo: feature.properties.nivelRiesgo,
+        lng: feature.geometry.coordinates[0],
+        lat: feature.geometry.coordinates[1],
+      }))
+  }, [puntosRiesgoGeojson, cuesNoAgrupados])
 
   // Riesgo de acceso (E6): mismo patrón que riesgoPorCue/puntosRiesgoGeojson
   // de arriba, pero leyendo `nivelRiesgoAcceso` del item del radar en vez de
@@ -1317,6 +1327,19 @@ export default function MapInfraestructuraPage(props: {
   }, [radarData, departamentoRadarSeleccionado])
 
   const mapStyle = BASEMAPS[basemap].styleUrl
+  // Q6a: identidad de la escuela seleccionada. El padrón COMPLETO
+  // (`dataEscuelasMapa`, afectadas y sin afectación reportada) indexa por
+  // cueAnexo; cubre también las escuelas que NO están en `partesPorCue`, así
+  // el encabezado de la ficha siempre puede mostrar nombre/CUE/localidad/
+  // departamento, exista o no una afectación vigente.
+  const escuelasPorCue = useMemo(() => {
+    const index = new Map<string, EscuelaMapa>()
+    for (const escuela of dataEscuelasMapa?.escuelas ?? []) index.set(escuela.cueAnexo, escuela)
+    return index
+  }, [dataEscuelasMapa])
+
+  const escuelaSeleccionada = seleccionCue ? (escuelasPorCue.get(seleccionCue) ?? null) : null
+
   // F3.2: ya no hace falta la coordenada del punto seleccionado (era sólo
   // para anclar el Popup de MapLibre); el modal no depende de la posición
   // del punto en el mapa.
@@ -1341,13 +1364,16 @@ export default function MapInfraestructuraPage(props: {
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
     CAPA_PARTES_ID,
+    // Q13b: el ícono de escuela es el área de hit-testing real del punto
+    // individual (~22 px contra los 12 px del círculo). Sin esto, el click
+    // sobre una escuela del padrón lo gana el polígono del departamento.
+    CAPA_PARTES_ESCUELA_ICONO_ID,
     CAPA_PARTES_CLUSTER_ID,
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
     // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
     // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
     ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
-    ...(radarActivo && capasRadarVisibles.riesgo ? [CAPA_RIESGO_CIRCLE_ID] : []),
   ]
 
   // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
@@ -1374,20 +1400,15 @@ export default function MapInfraestructuraPage(props: {
   function handleClick(event: MapLayerMouseEvent) {
     const features = event.features ?? []
 
-    // Radar primero: si alguna de sus capas está entre las features del click,
-    // se atiende ese gesto y se corta. En modo Radar las capas de partes pueden
-    // seguir montadas detrás (decisión 2: SUMAR), así que el orden importa —
-    // un click sobre un punto de riesgo abre el panel de riesgo, no la ficha.
+    // Cualquier clic cierra el popup de departamento vigente; si el clic cae
+    // sobre un departamento, se vuelve a abrir más abajo con sus números.
+    setDepartamentoInfoClic(null)
+
+    // Radar primero: la coropleta es una capa interactiva; el punto de riesgo
+    // ya no llega por acá (es un <Marker> DOM con su propio `onClick`, ver
+    // `marcadoresRiesgo`). En modo Radar las capas de partes pueden seguir
+    // montadas detrás (decisión 2: SUMAR), así que el orden importa.
     if (radarActivo) {
-      const puntoRiesgo = features.find(
-        (item) =>
-          item.layer?.id === CAPA_RIESGO_CIRCLE_ID || item.layer?.id === CAPA_HALO_RIESGO_ID,
-      )
-      const cueRiesgo = puntoRiesgo?.properties?.cueAnexo
-      if (typeof cueRiesgo === 'string') {
-        setCueRadarSeleccionado(cueRiesgo)
-        return
-      }
       const peligro = features.find((item) => item.layer?.id === CAPA_PELIGRO_FILL_ID)
       const nombrePeligro = peligro?.properties?.nombre
       if (typeof nombrePeligro === 'string') {
@@ -1397,7 +1418,11 @@ export default function MapInfraestructuraPage(props: {
     }
 
     const feature = features.find((item) => item.layer?.id === CAPA_PARTES_CLUSTER_ID)
-      ?? features.find((item) => item.layer?.id === CAPA_PARTES_ID)
+      ?? features.find(
+        (item) =>
+          item.layer?.id === CAPA_PARTES_ID ||
+          item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID,
+      )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
       void acercarAlCluster(feature)
       return
@@ -1421,69 +1446,12 @@ export default function MapInfraestructuraPage(props: {
       entradaPuntosPendiente.current = true
       setPuntosVisibles(false)
       setDepartamentoSeleccionado(siguiente)
+      // Mismo resumen que antes mostraba el hover, ahora atado al clic. Al
+      // deseleccionar (toggle sobre el mismo departamento) queda cerrado.
+      setDepartamentoInfoClic(
+        siguiente === null ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
+      )
     }
-  }
-
-  // V3: PRIORIDAD de tooltip en un solo lugar. El relleno del departamento está
-  // SIEMPRE debajo de todo, así que cuando el cursor está sobre una escuela o
-  // un cluster, MapLibre devuelve AMBAS features en `event.features`: si hay
-  // una feature de CAPA_PARTES_ID o CAPA_PARTES_CLUSTER_ID, esa manda y se
-  // corta; sólo si no hay ninguna se cae al departamento.
-  function handleMouseMove(event: MapLayerMouseEvent) {
-    const features = event.features ?? []
-
-    const escuela = features.find((item) => item.layer?.id === CAPA_PARTES_ID)
-    if (escuela) {
-      const propiedades = (escuela.properties ?? {}) as Record<string, unknown>
-      const afectada = propiedades.estado === 'afectada'
-      setHoverInfo({
-        tipo: 'escuela',
-        lng: event.lngLat.lng,
-        lat: event.lngLat.lat,
-        nombre: String(propiedades.nombre ?? ''),
-        severidad: afectada ? String(propiedades.severidad ?? '') : TEXTO_SIN_AFECTACION_REPORTADA,
-        icono: iconoTooltipEscuela(propiedades, {
-          evacuacion: capasVisibles.evacuacion,
-          sinReportar: capasVisibles.sinReportar,
-        }),
-      })
-      return
-    }
-
-    const cluster = features.find((item) => item.layer?.id === CAPA_PARTES_CLUSTER_ID)
-    if (cluster) {
-      const propiedades = (cluster.properties ?? {}) as Record<string, unknown>
-      const rango = Number(propiedades.severidadRango ?? 0)
-      // Un cluster de puras escuelas sin afectación tiene severidadRango 0 (el
-      // mismo 0 que 'Baja'); igual que el color del cluster (ver
-      // colorPorSeveridadRango), no se le inventa severidad: se informa que no
-      // hay afectación reportada.
-      const sinAfectacion = Number(propiedades.escuelasAfectadas ?? 0) === 0
-      setHoverInfo({
-        tipo: 'cluster',
-        lng: event.lngLat.lng,
-        lat: event.lngLat.lat,
-        cantidad: Number(propiedades.point_count ?? 0),
-        severidad: sinAfectacion
-          ? TEXTO_SIN_AFECTACION_REPORTADA
-          : (SEVERIDADES[rango] ?? SEVERIDADES[0]),
-      })
-      return
-    }
-
-    const departamento = features.find(
-      (item) => item.layer?.id === CAPA_DEPARTAMENTOS_RELLENO_ID || item.layer?.id === 'infra-departamentos-etiqueta',
-    )
-    const nombre = departamento?.properties?.nombre
-    if (typeof nombre === 'string') {
-      setHoverInfo({ tipo: 'departamento', nombre, lng: event.lngLat.lng, lat: event.lngLat.lat })
-    } else {
-      setHoverInfo(null)
-    }
-  }
-
-  function handleMouseLeave() {
-    setHoverInfo(null)
   }
 
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
@@ -1575,10 +1543,9 @@ export default function MapInfraestructuraPage(props: {
     setModo(siguiente)
     setCueRadarSeleccionado(null)
     setDepartamentoRadarSeleccionado(null)
-    // V3 (hallazgo 6): el tooltip no puede quedar "clavado" al cambiar de modo.
-    // `onMouseMove` no vuelve a dispararse hasta que el cursor se mueve, así
-    // que se limpia acá, junto con el resto de la limpieza del cambio de modo.
-    setHoverInfo(null)
+    // El popup de departamento no puede quedar "clavado" al cambiar de modo:
+    // se limpia acá, junto con el resto de la limpieza del cambio de modo.
+    setDepartamentoInfoClic(null)
   }
 
   // "Volver a la situación actual" del modo Replay: restaura el modo,
@@ -1589,7 +1556,7 @@ export default function MapInfraestructuraPage(props: {
   function volverDeReplay() {
     const previo = estadoPrevioReplayRef.current
     setPlayingReplay(false)
-    setHoverInfo(null)
+    setDepartamentoInfoClic(null)
     if (!previo) {
       setModo('actual')
       return
@@ -1656,8 +1623,6 @@ export default function MapInfraestructuraPage(props: {
           // imágenes registradas; `styledata` vuelve a registrarlas.
           onStyleData={registrarIconosCluster}
           onMoveEnd={actualizarCuesNoAgrupados}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
           onIdle={() => {
             if (entradaPuntosPendiente.current) {
               entradaPuntosPendiente.current = false
@@ -1666,6 +1631,13 @@ export default function MapInfraestructuraPage(props: {
           }}
         >
           <NavigationControl position="top-left" />
+          {/* UX móvil (390px): el default de MapLibre ancla la atribución abajo
+              como franja de ancho variable y tapaba los controles flotantes
+              (`.map-left-stack-toggle` y `.map-fullscreen-btn`, ambos a
+              `bottom: 25px`). En modo `compact` colapsa a un ícono chico en la
+              esquina inferior derecha; el refuerzo CSS del media query de
+              720px sube los botones para que el ícono no los pise. */}
+          <AttributionControl position="bottom-right" compact />
 
           <Source id="infra-mascara-src" type="geojson" data={MASCARA_URL}>
             <Layer id={CAPA_MASCARA_ID} type="fill" paint={fillPaintMascara()} />
@@ -1734,31 +1706,8 @@ export default function MapInfraestructuraPage(props: {
             </Source>
           )}
 
-          {radarActivo && (
-            <Source id="infra-riesgo-src" type="geojson" data={puntosRiesgoGeojson}>
-              {/* Halo primero en el árbol: queda por debajo del punto, se lee
-                  como contorno alrededor y nunca lo tapa. */}
-              {capasRadarVisibles.riesgo && (
-                <Layer
-                  id={CAPA_HALO_RIESGO_ID}
-                  type="circle"
-                  paint={circlePaintHaloRiesgo()}
-                  filter={filtroRiesgoDesagrupado}
-                />
-              )}
-              {capasRadarVisibles.riesgo && (
-                <Layer
-                  id={CAPA_RIESGO_CIRCLE_ID}
-                  type="circle"
-                  paint={circlePaintRiesgo()}
-                  filter={filtroRiesgoDesagrupado}
-                />
-              )}
-            </Source>
-          )}
-
           {/*
-            Riesgo de acceso (E6): capa HERMANA de infra-riesgo-src, apagada
+            Riesgo de acceso (E6): capa HERMANA de los puntos de riesgo, apagada
             por defecto (capasRadarVisibles['riesgo-acceso'] arranca en
             false). Gateada explícitamente por `!modoReplay` además de
             `radarActivo` (aunque ya son mutuamente excluyentes por
@@ -1856,6 +1805,8 @@ export default function MapInfraestructuraPage(props: {
                 // menos una afectada, para no pintar el primero con el color
                 // de severidad 'Baja' (su severidadRango también es 0).
                 escuelasAfectadas: ['+', ['case', ['==', ['get', 'estado'], 'afectada'], 1, 0]],
+                criticas: ['+', ['case', ['==', ['get', 'severidad'], 'Crítica'], 1, 0]],
+                altas: ['+', ['case', ['==', ['get', 'severidad'], 'Alta'], 1, 0]],
               }}
             >
               {/*
@@ -1875,6 +1826,49 @@ export default function MapInfraestructuraPage(props: {
                   'circle-opacity-transition': { duration: 180, delay: 0 },
                 }}
               />
+              {/*
+                Q13a: ícono de escuela individual sobre el círculo de
+                severidad (que se conserva debajo). Mismo filtro que
+                CAPA_PARTES_ID para que acompañe el toggle del padrón, y el
+                mismo gate de imágenes registradas que las capas symbol de
+                cluster. `icon-allow-overlap` para que no desaparezcan al
+                estar juntas. Q13b: esta capa también es interactiva (ver
+                `capasInteractivas`), así el click/hover acierta el ícono
+                completo y no sólo el centro del círculo.
+
+                Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
+                SÓLO en esta capa; el SVG base compartido queda igual para no
+                agrandar de rebote los íconos Tent/DoorOpen de cluster. La
+                variante normal se elige por tema: en oscuro se usa la
+                dedicada (`ID_IMAGEN_ESCUELA_NORMAL_OSCURO`), las de severidad
+                son las mismas en ambos temas.
+              */}
+              {iconosClusterListos && (
+                <Layer
+                  id={CAPA_PARTES_ESCUELA_ICONO_ID}
+                  type="symbol"
+                  filter={filtroPuntosPartes(capasVisibles.escuelas)}
+                  layout={{
+                    'icon-image': [
+                      'case',
+                      ['!=', ['get', 'estado'], 'afectada'],
+                      mode === 'dark' ? ID_IMAGEN_ESCUELA_NORMAL_OSCURO : ID_IMAGEN_ESCUELA_NORMAL,
+                      ['==', ['get', 'severidad'], 'Crítica'], ID_IMAGEN_ESCUELA_CRITICA,
+                      ['==', ['get', 'severidad'], 'Alta'], ID_IMAGEN_ESCUELA_ALTA,
+                      ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
+                      ID_IMAGEN_ESCUELA_BAJA,
+                    ],
+                    'icon-size': 1.2,
+                    'icon-anchor': 'center',
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                  }}
+                  paint={{
+                    'icon-opacity': puntosVisibles ? 1 : 0,
+                    'icon-opacity-transition': { duration: 180, delay: 0 },
+                  }}
+                />
+              )}
               {/*
                 Clusters (T1.1b): el color ya no es un gris neutro fijo — los
                 clusters pintan del color de la severidad MÁS ALTA presente
@@ -1903,7 +1897,7 @@ export default function MapInfraestructuraPage(props: {
                 type="symbol"
                 filter={filtroClusterPartes(capasVisibles.escuelas)}
                 layout={{
-                  'text-field': ['get', 'point_count_abbreviated'],
+                  'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']],
                   'text-size': 12,
                   // Misma fuente que el resto de los símbolos del mapa (ver
                   // map-view.tsx); no se inventa una nueva.
@@ -1911,7 +1905,13 @@ export default function MapInfraestructuraPage(props: {
                   'text-allow-overlap': false,
                 }}
                 paint={{
-                  'text-color': '#ffffff',
+                  // Contraste del conteo: sobre los fondos claros de la escala
+                  // tonal (Baja#fecaca/Media#f87171) un trazo blanco se pierde,
+                  // así que se usa texto oscuro; sobre Alta/Crítica el fondo es
+                  // oscuro y se conserva el blanco. El umbral sale del orden
+                  // real de SEVERIDADES (Baja 0, Media 1, Alta 2, Crítica 3):
+                  // rango <= 1 => fondo claro => texto oscuro.
+                  'text-color': ['case', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff'],
                   'text-opacity': puntosVisibles ? 1 : 0,
                   'text-opacity-transition': { duration: 180, delay: 0 },
                 }}
@@ -2000,114 +2000,89 @@ export default function MapInfraestructuraPage(props: {
           })}
 
           {/*
-            V3: UN solo Popup para las tres variantes. La prioridad ya quedó
-            resuelta en `handleMouseMove` (escuela/cluster > departamento), así
-            que acá nunca se muestran dos cajas a la vez. Se conserva el mismo
-            estilo base que el tooltip de departamento (ver
-            maplibre-popup.css) y `offsetTooltip` separa la caja del punto.
+            Riesgo climático por escuela: un TriangleAlert Lucide coloreado por
+            nivel (paleta de peligro vía `colorPuntoRiesgo`), en un <Marker>
+            DOM. Reemplaza el par circle+halo de MapLibre — dos formas apiladas
+            por punto. Se posiciona arriba-izquierda para no chocar con el
+            badge de estado (arriba-derecha). Clickeable: abre el panel de
+            explicación por escuela. Los `sin_dato` ya vienen filtrados en
+            `marcadoresRiesgo`.
           */}
-          {hoverInfo && (() => {
-            if (hoverInfo.tipo === 'departamento') {
-              const clave = normalizarNombreDepartamento(hoverInfo.nombre)
-              const totales = totalesPorDepartamento.get(clave)
-              if (!totales) return null
-              return (
-                <Popup
-                  longitude={hoverInfo.lng}
-                  latitude={hoverInfo.lat}
-                  closeButton={false}
-                  closeOnClick={false}
-                  anchor="bottom"
-                  offset={offsetTooltip('departamento')}
-                  className="mapa-tooltip mapa-tooltip-departamento"
-                >
-                  <p>
-                    En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                    <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
-                  </p>
-                </Popup>
-              )
-            }
+          {radarActivo && capasRadarVisibles.riesgo && marcadoresRiesgo.map((marcador) => (
+            <Marker
+              key={marcador.cueAnexo}
+              longitude={marcador.lng}
+              latitude={marcador.lat}
+              anchor="center"
+              offset={[-11, -11]}
+            >
+              <button
+                type="button"
+                data-capa={CAPA_RIESGO_ICONO_ID}
+                style={estiloIconoRiesgo()}
+                aria-label={`Riesgo ${marcador.nivelRiesgo}: ${marcador.cueAnexo}`}
+                title={`Riesgo ${marcador.nivelRiesgo}`}
+                onClick={() => setCueRadarSeleccionado(marcador.cueAnexo)}
+              >
+                <TriangleAlert
+                  size={TAMANO_ICONO_RIESGO}
+                  strokeWidth={2.4}
+                  color={colorPuntoRiesgo(marcador.nivelRiesgo)}
+                  aria-hidden="true"
+                />
+              </button>
+            </Marker>
+          ))}
 
-            if (hoverInfo.tipo === 'escuela') {
-              const etiquetaEstado = hoverInfo.icono
-                ? ETIQUETA_ICONO_ESTADO[hoverInfo.icono]
-                : null
-              return (
-                <Popup
-                  longitude={hoverInfo.lng}
-                  latitude={hoverInfo.lat}
-                  closeButton={false}
-                  closeOnClick={false}
-                  anchor="bottom"
-                  offset={offsetTooltip('escuela')}
-                  className="mapa-tooltip mapa-tooltip-escuela"
-                >
-                  <p>
-                    <strong>{hoverInfo.nombre}</strong>
-                    <br />
-                    Severidad: <strong>{hoverInfo.severidad}</strong>
-                    {etiquetaEstado !== null && (
-                      <>
-                        <br />
-                        Estado: <strong>{etiquetaEstado}</strong>
-                      </>
-                    )}
-                  </p>
-                </Popup>
-              )
-            }
-
+          {/*
+            Popup del departamento clickeado: mismo contenido y estilo que el
+            viejo tooltip de hover, pero atado al CLIC (ver `handleClick`). Las
+            escuelas y los clusters no tienen popup: el clic ya abre la ficha o
+            hace zoom de expansión.
+          */}
+          {departamentoInfoClic && (() => {
+            const clave = normalizarNombreDepartamento(departamentoInfoClic.nombre)
+            const totales = totalesPorDepartamento.get(clave)
+            if (!totales) return null
             return (
               <Popup
-                longitude={hoverInfo.lng}
-                latitude={hoverInfo.lat}
+                longitude={departamentoInfoClic.lng}
+                latitude={departamentoInfoClic.lat}
                 closeButton={false}
                 closeOnClick={false}
-                anchor="bottom"
-                offset={offsetTooltip('cluster')}
-                className="mapa-tooltip mapa-tooltip-cluster"
+                offset={OFFSET_POPUP_DEPARTAMENTO}
+                className="mapa-tooltip mapa-tooltip-departamento"
               >
                 <p>
-                  <strong>{hoverInfo.cantidad}</strong> escuelas agrupadas
-                  <br />
-                  Severidad máxima: <strong>{hoverInfo.severidad}</strong>
+                  En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                  <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
                 </p>
               </Popup>
             )
           })()}
 
           {/* V2 (hallazgo 5): realce de foco de la escuela seleccionada, sea
-              por el buscador o por la ficha abierta. Anillo SIN relleno, más
-              grande que el punto, en el color de foco del hub (`--marker`).
-              No toca circlePaintPartes: se ve encima tanto de un punto
-              individual como de un cluster todavía sin desagrupar mientras el
-              flyTo llega al zoom que lo desagrupa. */}
-          {puntosResaltados.length > 0 && (
-            <Source
-              id="infra-escuela-resaltada-src"
-              type="geojson"
-              data={{
-                type: 'FeatureCollection',
-                features: puntosResaltados.map((punto) => ({
-                  type: 'Feature' as const,
-                  geometry: { type: 'Point' as const, coordinates: [punto.lng, punto.lat] },
-                  properties: {},
-                })),
-              }}
+              por el buscador o por la ficha abierta. Un pin DOM (MapPin) en el
+              color de foco del hub (`--marker`), anclado por su punta inferior
+              al punto de la escuela. Reemplaza al anillo circular de MapLibre:
+              sin fondo ni anillo, así se ve encima tanto de un punto individual
+              como de un cluster todavía sin desagrupar mientras el flyTo llega
+              al zoom que lo desagrupa. */}
+          {puntosResaltados.map((punto) => (
+            <Marker
+              key={`infra-escuela-resaltada-${punto.lng}-${punto.lat}`}
+              longitude={punto.lng}
+              latitude={punto.lat}
+              anchor="bottom"
             >
-              <Layer
-                id="infra-escuela-resaltada"
-                type="circle"
-                paint={{
-                  'circle-radius': 12,
-                  'circle-color': 'transparent',
-                  'circle-stroke-color': COLOR_FOCO_SELECCION,
-                  'circle-stroke-width': 3,
-                }}
+              <MapPin
+                size={26}
+                strokeWidth={2.4}
+                color={COLOR_FOCO_SELECCION}
+                aria-hidden="true"
               />
-            </Source>
-          )}
+            </Marker>
+          ))}
 
 
         </MapGL>
@@ -2126,12 +2101,13 @@ export default function MapInfraestructuraPage(props: {
         onOpenChange={(next) => {
           if (!next) {
             setSeleccionCue(null)
-            // V3 (hallazgo 6): al cerrar la ficha el cursor sigue quieto, así
-            // que el tooltip no se limpiaría solo: se limpia acá explícitamente.
-            setHoverInfo(null)
+            // El popup de departamento vive en el mapa, no en la ficha: al
+            // cerrar la ficha se limpia para no quedar descolgado.
+            setDepartamentoInfoClic(null)
           }
         }}
         parteResumen={parteSeleccionado}
+        escuela={escuelaSeleccionada}
         mostrarEnlaceNominal={props.mostrarEnlaceNominal}
         onVerAlumnosAlcanzados={setNominalAfectacionId}
         onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}

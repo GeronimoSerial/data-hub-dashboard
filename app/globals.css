@@ -1802,6 +1802,65 @@ time {
   max-width: none;
   flex: 0 0 auto;
 }
+
+/* Panel propio del mapa para la ficha del parte (hallazgo estético): NO es el
+   Sheet genérico — vive dentro de .map-shell, sin backdrop ni foco atrapado,
+   así no tapa ni bloquea el resto del mapa. Reusa los mismos tokens que el
+   resto de los overlays del mapa. */
+.map-ficha-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(400px, calc(100vw - 24px));
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  min-width: 0;
+  overscroll-behavior: contain;
+  padding: 1rem 1.1rem;
+  transition: transform 160ms ease, opacity 160ms ease;
+  animation: map-ficha-panel-entrada 160ms ease;
+}
+@keyframes map-ficha-panel-entrada {
+  from { transform: translateX(12px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.map-ficha-panel__encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+.map-ficha-panel__titulo { margin: 0; font-size: 1.05rem; line-height: 1.3; min-width: 0; }
+.map-ficha-panel__cerrar {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: var(--r-sm);
+}
+.map-ficha-panel__cerrar:hover { background: var(--fill); }
+@media (max-width: 720px) {
+  .map-ficha-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 80vh;
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+  }
+}
+
 .map-departamento-seleccionado {
   display: flex;
   align-items: center;
@@ -1992,7 +2051,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-legend-item-stack { margin: var(--s-1) 0; }
 .map-section-title { font-weight: 600; margin-top: var(--s-1); margin-bottom: 2px; }
 .map-emphasis { font-weight: 600; color: var(--ink); }
-.map-legend-item { display: flex; align-items: center; gap: var(--s-1); margin: 3px 0; }
+.map-legend-item { display: flex; align-items: flex-start; gap: var(--s-1); margin: 3px 0; }
+.map-legend-item svg { flex-shrink: 0; margin-top: 2px; }
 .peligro-legend__provisorio {
   display: flex;
   align-items: center;
@@ -2003,6 +2063,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   line-height: 1.4;
 }
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.peligro-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.peligro-legend__item { display: flex; align-items: center; gap: var(--s-2); }
+.peligro-legend__muestra { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--ink); flex-shrink: 0; }
+.peligro-legend__icono { flex-shrink: 0; }
+.peligro-legend__etiqueta { font-size: var(--t-small); }
+.peligro-legend__titulo { font-weight: 600; margin: 0 0 0.35rem; }
 .map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
 /* El contenedor de MapLibre (.maplibregl-popup-content) se deja transparente y sin
@@ -2111,9 +2177,40 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    ajena a esta tarea), se oscurece el canvas de MapLibre sólo en tema oscuro.
    El ancestro `.mapa-pestanas-cuerpo` (presente sólo en el mapa de
    infraestructura) acota el efecto a esa página: `.map-root` también lo usa el
-   mapa de matrícula, que así queda fuera de alcance. */
+   mapa de matrícula, que así queda fuera de alcance.
+
+   QA N1: el filtro anterior `brightness(0.65) invert(1) contrast(0.9)
+   hue-rotate(180deg)` recortaba el canal R de Crítica (quedaba en #FF9F8F,
+   salmón pastel) y hundía el contraste del número blanco a 1.98:1. Se baja el
+   invert a 0.72 (mezcla parcial: `invert()` acepta fracción), se sube el
+   contrast a 1.2 y se corre el hue-rotate a 195deg para despegar rojo y naranja.
+   El canvas WebGL es uno solo: no se puede separar el mapa base de las capas de
+   datos con CSS, así que el ajuste es global y busca que la PALETA sobreviva.
+
+   Evidencia recalculada en Q19 (2026-09-28) tras el cambio de paleta a las
+   escalas tonales de `lib/mapas/paleta-tonal.ts` (severidad rojo tonal, peligro
+   azul tonal). Se re-aplicó UNA vez la matemática de
+   `brightness/invert/contrast/hue-rotate` (sRGB) a los 8 colores reales: ningún
+   tono colapsa y los valores del filtro se MANTUVIERON. ANTES -> DESPUÉS
+   (contraste del texto blanco encima):
+     SEVERIDAD (escala rojo tonal)
+       Baja    #fecaca -> #564743   (8.84:1)
+       Media   #f87171 -> #a36756   (4.54:1)
+       Alta    #dc2626 -> #e1846b   (2.72:1)
+       Crítica #7f1d1d -> #ce9c8f   (2.39:1)
+       ΔE00 mínimo 9.5 (Alta/Crítica); el resto >= 14.8.
+     PELIGRO (escala azul tonal)
+       verde    #eff6ff -> #3c3c3c   (11.00:1)
+       amarillo #93c5fd -> #445774   (7.33:1)
+       naranja  #3b82f6 -> #697ac3   (4.05:1)
+       rojo     #1e3a8a -> #9e9dd2   (2.55:1)
+       ΔE00 mínimo 13.9 (naranja/rojo).
+   Conocido: Alta/Crítica es el par más próximo (ΔE00 9.5, rojizos comprimidos
+   por el filtro) pero sigue sobre el JND; probar hue-rotate 165/180/210deg en
+   Q19 no mejora el mínimo, por eso se conserva 195deg. Persiste el gap de
+   contraste del blanco sobre Crítica (2.39:1). */
 [data-theme='dark'] .mapa-pestanas-cuerpo .map-root .maplibregl-canvas-container {
-  filter: brightness(0.65) invert(1) contrast(0.9) hue-rotate(180deg);
+  filter: brightness(1.1) invert(0.72) contrast(1.2) hue-rotate(195deg);
 }
 
 @media (max-width: 720px) {
@@ -2256,6 +2353,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     overflow-y: auto;
   }
   .map-controls-stack-toggle { display: inline-flex; }
+
+  /* Refuerzo UX móvil (390px): el `AttributionControl` compacto de MapLibre
+     queda pegado a la esquina inferior derecha (~24x24, margin 10px) y tanto
+     `.map-fullscreen-btn` (bottom/right) como `.map-left-stack-toggle`
+     (bottom:25/left:25) caían dentro de esa franja. Se suben a 46px para
+     dejar libre la esquina del ícono "i" sin que ningún control se pise. */
+  .map-fullscreen-btn,
+  .map-left-stack-toggle { bottom: 46px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3010,8 +3115,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* Ficha del parte como panel lateral (hallazgo 20): mismo ancho y
    comportamiento que el historial del mapa. El scroll va en el body interno
    (no en la sheet) para que el botón de cierre no se vaya con el contenido. */
-.ui-sheet--right.map-ficha-sheet { width: min(38rem, 100vw); }
-.ficha-parte-sheet__body { padding: 0 var(--s-5) var(--s-5); overflow: auto; }
+/* El panel propio (.map-ficha-panel) ya trae padding y su propio scroll, así
+   que el body sólo agrupa contenido, sin sumar sangría ni un segundo scroll. */
+.ficha-parte-sheet__body { padding: 0; }
 
 .ficha-parte-modal__aviso {
   margin: 0;

@@ -7,6 +7,13 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
 const CUE = '1801605-04'
 
+const escuela = {
+  nombre: 'Escuela 1',
+  cueAnexo: CUE,
+  localidad: 'Corrientes',
+  departamento: 'Capital',
+}
+
 const parteResumen: ParteMapa = {
   parteId: 'p1',
   cueAnexo: CUE,
@@ -121,6 +128,7 @@ describe('FichaParteModal', () => {
         open={false}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -137,6 +145,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -159,6 +168,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -213,6 +223,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={null}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -259,6 +270,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={null}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -270,6 +282,53 @@ describe('FichaParteModal', () => {
     )
   })
 
+  // Q6a: una escuela clickeada desde el padrón sin afectación vigente
+  // (`parteResumen === null`) igual muestra su identidad en el encabezado,
+  // tomada del padrón completo.
+  it('muestra nombre y ubicación desde `escuela` aunque no haya parte', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.includes('/parte?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            ok: true,
+            periodo: { id: 'per1', nombre: 'Invierno 2026' },
+            parte: null,
+            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
+            afectaciones: [],
+            secciones: [],
+            ultimaActualizacion: null,
+          }),
+        } as Response)
+      }
+      if (url.includes('/historial?')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ ok: true, movimientos: [] }),
+        } as Response)
+      }
+      return Promise.reject(new Error(`URL inesperada: ${url}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <FichaParteModal
+        cueAnexo={CUE}
+        open={true}
+        onOpenChange={() => {}}
+        parteResumen={null}
+        escuela={escuela}
+        mostrarEnlaceNominal={false}
+        onVerAlumnosAlcanzados={() => {}}
+        onVerHistorialCompleto={() => {}}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Escuela 1' })).toBeInTheDocument()
+    expect(screen.getByText('1801605-04 · Corrientes, Capital')).toBeInTheDocument()
+  })
+
   it('muestra el botón nominal por afectación sólo cuando mostrarEnlaceNominal es true', async () => {
     stubFetch()
     const onVerAlumnos = vi.fn()
@@ -279,6 +338,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={true}
         onVerAlumnosAlcanzados={onVerAlumnos}
         onVerHistorialCompleto={() => {}}
@@ -301,6 +361,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -320,6 +381,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={onVerHistorial}
@@ -339,6 +401,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -356,6 +419,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -369,6 +433,7 @@ describe('FichaParteModal', () => {
         open={false}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}
@@ -380,6 +445,7 @@ describe('FichaParteModal', () => {
         open={true}
         onOpenChange={() => {}}
         parteResumen={parteResumen}
+        escuela={escuela}
         mostrarEnlaceNominal={false}
         onVerAlumnosAlcanzados={() => {}}
         onVerHistorialCompleto={() => {}}

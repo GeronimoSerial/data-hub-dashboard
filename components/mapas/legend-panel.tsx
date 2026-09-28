@@ -9,7 +9,7 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { PeligroLegend } from '@/components/mapas/peligro-legend'
-import { CircleHelp, CircleSlash, DoorOpen, Tent, TriangleAlert } from 'lucide-react'
+import { CircleSlash, Clock, DoorOpen, Tent, TriangleAlert } from 'lucide-react'
 
 // Color neutro del borde del punto y del trazo de los íconos del badge. Mismo
 // valor que ANILLO_COLOR en map-infraestructura-page.tsx: el color de severidad
@@ -174,8 +174,7 @@ export function InfraLegendPanel({
 
           <div className={styles.legendItem}>
             <span className={styles.swatch} style={{ background: COLOR_SIN_AFECTACION }} />
-            Sin afectación reportada: un grupo (cluster) enteramente gris agrupa sólo escuelas sin
-            novedad
+            Sin afectación reportada (cluster gris)
           </div>
 
           <br />
@@ -187,11 +186,11 @@ export function InfraLegendPanel({
           */}
           <div className={styles.legendItem}>
             <Tent size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
-            Centro de evacuados: la escuela aloja gente
+            Centro de evacuados
           </div>
           <div className={styles.legendItem}>
             <DoorOpen size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
-            Evacuado: daño en el establecimiento
+            Evacuado
           </div>
           <div className={styles.legendItem}>
             <CircleSlash size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
@@ -202,9 +201,8 @@ export function InfraLegendPanel({
             Servicio parcial
           </div>
           <div className={styles.legendItem}>
-            <CircleHelp size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
-            Sin reportar: más de {UMBRAL_SIN_REPORTAR_HORAS} h sin actualización — ausencia de
-            información, no severidad
+            <Clock size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Sin reportar (+{UMBRAL_SIN_REPORTAR_HORAS} h sin actualizar)
           </div>
 
           <div className={styles.hint}>
@@ -214,8 +212,9 @@ export function InfraLegendPanel({
 
           <br />
           <div className={styles.hint}>
-            Grupos (clusters): el número es la cantidad de escuelas agrupadas (no de alumnos) y el
-            color, la severidad más alta entre ellas.
+            Grupos (clusters): el número es la cantidad de escuelas AFECTADAS dentro del grupo (no
+            el total agrupado ni de alumnos); si el grupo no tiene ninguna afectada, no muestra
+            número. El color es la severidad más alta entre las escuelas agrupadas.
           </div>
 
           <br />

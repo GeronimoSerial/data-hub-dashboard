@@ -3,7 +3,7 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { RADIO_DOT_BASE, rangoSeveridad } from '@/lib/mapas/severidad-visual'
+import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
@@ -134,9 +134,9 @@ describe('expresionRadioCluster', () => {
 })
 
 describe('circlePaintPartes', () => {
-  it('radio fijo RADIO_DOT_BASE y todas las claves del paint del punto', () => {
+  it('radio fijo 14 (mayor que RADIO_DOT_BASE) y todas las claves del paint del punto', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-radius']).toBe(RADIO_DOT_BASE)
+    expect(paint['circle-radius']).toBe(14)
     expect(Object.keys(paint).sort()).toEqual([
       'circle-color',
       'circle-opacity',
@@ -292,9 +292,9 @@ describe('paintPuntosRiesgoAcceso', () => {
   it('usa el color real de cada nivel y cae en el gris de fallback ante cualquier otro valor', () => {
     const paint = paintPuntosRiesgoAcceso()!
     const expresion = paint['circle-color'] as unknown[]
-    expect(evaluarMatch(expresion, 'bajo')).toBe('#719c29')
-    expect(evaluarMatch(expresion, 'moderado')).toBe('#facd05')
-    expect(evaluarMatch(expresion, 'alto')).toBe('#f68e13')
+    expect(evaluarMatch(expresion, 'bajo')).toBe('#eff6ff')
+    expect(evaluarMatch(expresion, 'moderado')).toBe('#93c5fd')
+    expect(evaluarMatch(expresion, 'alto')).toBe('#3b82f6')
     // 'sin_cobertura' (el `null` crudo nunca llega acá) y valores inesperados.
     expect(evaluarMatch(expresion, 'sin_cobertura')).toBe('#8a8886')
     expect(evaluarMatch(expresion, 'valor-inesperado')).toBe('#8a8886')
