@@ -8,8 +8,7 @@ ficha. Optimización transversal: cliente, API, consultas y red.
 
 ## Orden
 
-Último N2 de la cadena: DB1 → pulido visual (`odd/tasks/pulido-visual-mapa.md`) →
-optimización. Parte del código ya pulido y sobre PostgreSQL (DB1 mergeado).
+Último N2 de la cadena: DB1 → pulido visual (`odd/tasks/pulido-visual-mapa.md`) → integración de main → optimización. Parte de feat/renovación en 692f27d: código pulido, sobre PostgreSQL y con main integrado (mapa de natalidad, roles).
 
 ## Línea base (2026-09-28, `next dev`, demo ficticia, 2005 escuelas del fixture)
 
@@ -54,6 +53,7 @@ búsqueda).
 
 ## Tareas
 
+- [ ] O0 — Residuo visual del pulido: un .map-panel.map-title-panel viejo (components/mapas/title-panel.tsx o su uso en map-infraestructura-page.tsx) queda detrás del panel izquierdo y, cuando no hay afectadas, su texto "No hay escuelas con afectación vigente con los filtros aplicados." asoma a la derecha del panel. Eliminarlo o integrarlo al panel izquierdo (el mismo mensaje ya aparece dentro de Filtros del mapa); verificar en navegador con 0 afectadas.
 - [ ] O1 — Medición base en producción: Lighthouse (desktop y móvil), trace de Performance
       (carga, pan/zoom, cambio de capas, Radar, ficha), tamaños de bundle y payloads,
       memoria al alternar modos 20 veces.
