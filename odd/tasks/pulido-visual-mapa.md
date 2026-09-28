@@ -323,6 +323,18 @@ Q13/Q14 confirmados correctos en navegador por N1. Aparecieron 3 hallazgos nuevo
       clic, al cambiar de modo, o con Esc (listener propio). tsc + vitest verdes (104
       tests, área mapas).
 
+### V12 — Segundo QA de N1 (2026-09-28 15:40 UTC, chrome-devtools, :3202, 1448 px y 390 px, claro y oscuro)
+
+Resuelto en navegador: Q1 (clusters cuentan afectadas), Q2/Q3/Q4 (Radar sin anillos grises, sin velo, leyenda azul con muestras), Q13 (ícono School y selección por clic en el padrón), Q14/Q15/Q16 (ficha propia, encima de los paneles, datos compactos), Q17 (normales claras, afectadas en rojo lleno), Q19 (gama tonal roja/azul), Q20 hover sin popup y popup de departamento al clic.
+
+- [ ] R1 — Atribución de MapLibre duplicada: hay DOS `.maplibregl-ctrl-attrib` en `maplibregl-ctrl-bottom-right` (se agrega el control dos veces). En móvil las dos barras se apilan sobre "Buscar escuelas" y "Pantalla completa". Dejar una sola, compacta (botón "i" colapsable en móvil).
+- [ ] R2 — Modo oscuro: el contenedor del canvas tiene `filter: brightness(1.1) invert(0.72) contrast(1.2) hue-rotate(195deg)`, que invierte TODO lo dibujado: los rojos de severidad salen salmón pastel y la escala se pierde (Q9 sigue abierto en la práctica). Sacar el filtro CSS y usar un estilo de mapa base oscuro real (verificar qué estilo oscuro ofrece el proveedor actual; si no hay, atenuar sólo las capas del mapa base por `paint`, nunca las capas propias). Los colores de severidad y Radar tienen que ser idénticos en claro y oscuro salvo el ajuste previsto en la paleta.
+- [ ] R3 — Clic en cluster: hoy sólo hace zoom. Q20 pedía popup con el resumen ("N escuelas · M afectadas (x críticas, y altas)") y una acción "Acercar"; el zoom ocurre sólo al elegir "Acercar".
+- [ ] R4 — "Quitar filtro" de departamento no vuelve a encuadrar la provincia: al quitarlo, volver a la vista inicial (fitBounds de Corrientes).
+- [ ] R5 — Leyenda de Radar: "Sin dato" con muestra gris aunque ya no se dibuja; usar muestra vacía (sólo contorno) y el texto "Sin dato (no se colorea)".
+- [ ] R6 — Íconos de escuelas sin afectación: el fondo es gris claro; tiene que ser blanco puro con contorno gris fino (Q17), para que no lea como "gris".
+- [ ] R7 — Popups: texto todo en negrita pesada; cuerpo en peso normal y sólo los números en negrita.
+
 ## Checks
 
 - `pnpm test` (vitest) verde; `pnpm lint`; `pnpm build`.
