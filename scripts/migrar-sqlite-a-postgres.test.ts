@@ -271,4 +271,57 @@ describe('migrar (SQLite -> Postgres/PGlite)', () => {
     const ids = await destino.clienteDestino.execute('SELECT id FROM ge.ge_corte ORDER BY id')
     expect(ids.rows.map((r) => Number(r.id))).toEqual([1, 2])
   })
+
+  it('migra ids de 48 bits que antes desbordaban INTEGER (B3)', async () => {
+    const destino = await crearDestino()
+    const origen = crearOrigen()
+    await prepararOrigen(origen)
+
+    // Ids reales de 48 bits, del mismo tamaño que los que produce
+    // derivarEnteroEstable(): exceden el rango de INTEGER (32 bits) pero entran
+    // en BIGINT y en Number.MAX_SAFE_INTEGER. Con las columnas ge_section_id /
+    // ge_person_id ya migradas a BIGINT en el DDL real, deben persistirse tal cual.
+    const gePersonId = 263305058916592
+    const geSectionId = 234111257617849
+    expect(gePersonId).toBeGreaterThan(2147483647)
+    expect(geSectionId).toBeGreaterThan(2147483647)
+
+    await origen.ge.batch(
+      [
+        { sql: `INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (?, ?, ?, ?)`, args: [1, 2026, '2026-01-01T00:00:00.000Z', 'vigente'] },
+        { sql: `INSERT INTO ge_localizacion (cue_anexo, nombre, departamento, localidad) VALUES (?, ?, ?, ?)`, args: ['cue1', 'Escuela 1', 'Capital', 'Centro'] },
+        { sql: `INSERT INTO ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?, ?)`, args: [gePersonId, 'cifrado-48b'] },
+        { sql: `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?, ?, ?, ?, ?, ?, ?)`, args: [1, geSectionId, 'cue1', '1', 'A', 'primaria', 'manana'] },
+        { sql: `INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?, ?, ?)`, args: [1, geSectionId, gePersonId] },
+      ],
+      'write',
+    )
+
+    await migrar({
+      ...destino,
+      schemaPg: schema,
+      snapshot,
+      abrirOrigen: origen.abrirOrigen,
+      log: () => {},
+    })
+
+    const identidad = await destino.clienteDestino.execute(
+      'SELECT ge_person_id FROM ge.ge_alumno_identidad',
+    )
+    const seccion = await destino.clienteDestino.execute(
+      'SELECT ge_section_id FROM ge.ge_seccion',
+    )
+    const membresia = await destino.clienteDestino.execute(
+      'SELECT ge_section_id, ge_person_id FROM ge.ge_alumno_seccion',
+    )
+
+    expect(identidad.rows).toHaveLength(1)
+    expect(seccion.rows).toHaveLength(1)
+    expect(membresia.rows).toHaveLength(1)
+
+    expect(Number(identidad.rows[0].ge_person_id)).toBe(gePersonId)
+    expect(Number(seccion.rows[0].ge_section_id)).toBe(geSectionId)
+    expect(Number(membresia.rows[0].ge_section_id)).toBe(geSectionId)
+    expect(Number(membresia.rows[0].ge_person_id)).toBe(gePersonId)
+  })
 })

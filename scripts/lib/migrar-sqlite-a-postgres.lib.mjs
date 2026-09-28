@@ -58,9 +58,10 @@ export const COLUMNAS_GE = {
 
 // Tipo por tabla/columna de ge.*, espejo de GE_DDL (lib/infraestructura/ge-db.ts).
 // El pipeline lo usa para decidir conversiones (jsonb/boolean/timestamp); acá no
-// hay ninguna de esas: sólo integer/text/real, que pasan directo. Se declara
-// explícito para que `convertirFila` reciba un `tipo` real y no dependa de un
-// default implícito. Si GE_DDL cambia, este mapa debe cambiar junto con él.
+// hay ninguna de esas: sólo integer/bigint/text/real, que pasan directo (ver
+// convertirFila). Se declara explícito para que `convertirFila` reciba un `tipo`
+// real y no dependa de un default implícito. Si GE_DDL cambia, este mapa debe
+// cambiar junto con él.
 export const TIPOS_GE = {
   'ge.ge_corte': {
     id: 'integer',
@@ -78,10 +79,10 @@ export const TIPOS_GE = {
     lon: 'real',
     geo_calidad: 'text',
   },
-  'ge.ge_alumno_identidad': { ge_person_id: 'integer', payload_cifrado: 'text' },
+  'ge.ge_alumno_identidad': { ge_person_id: 'bigint', payload_cifrado: 'text' },
   'ge.ge_seccion': {
     corte_id: 'integer',
-    ge_section_id: 'integer',
+    ge_section_id: 'bigint',
     cue_anexo: 'text',
     curso: 'text',
     division: 'text',
@@ -90,8 +91,8 @@ export const TIPOS_GE = {
   },
   'ge.ge_alumno_seccion': {
     corte_id: 'integer',
-    ge_section_id: 'integer',
-    ge_person_id: 'integer',
+    ge_section_id: 'bigint',
+    ge_person_id: 'bigint',
   },
 }
 

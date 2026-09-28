@@ -86,6 +86,48 @@ export function crearEjecutorSql(raw: EjecutorSqlRaw): EjecutorSql {
   }
 }
 
+// DB1/B1: ejecuta `fn` dentro de una transacción real (BEGIN/COMMIT) sobre la
+// MISMA sesión, con ROLLBACK ante cualquier error. Es lo que devuelve la
+// atomicidad por lote al import de padrón: si el lote falla a mitad, no queda
+// un import parcial en autocommit.
+//
+// - pg.Pool: hay que reservar una conexión física con .connect() porque cada
+//   query del pool puede salir en una conexión distinta; sin reservar, BEGIN y
+//   COMMIT no comparten sesión y no hay transacción. Al terminar, release().
+// - PGlite: es una sola conexión siempre, sin .connect(); se usa directo.
+// - drizzle-like: NO soportado a propósito. Mezclar un tx de drizzle con un
+//   cliente crudo es exactamente el patrón que causó el deadlock de PGlite
+//   documentado arriba; para ese caso va db.transaction() de drizzle.
+export async function ejecutarEnTransaccion<T>(
+  raw: EjecutorSqlRaw,
+  fn: (tx: EjecutorSql) => Promise<T>,
+): Promise<T> {
+  if (esDrizzleLike(raw)) {
+    throw new Error(
+      'ejecutarEnTransaccion no soporta clientes drizzle-like; usá db.transaction() de drizzle',
+    )
+  }
+
+  const reservaConexion = typeof (raw as { connect?: unknown }).connect === 'function'
+  const conn = reservaConexion
+    ? await (raw as unknown as { connect: () => Promise<EjecutorDriverLike> }).connect()
+    : raw
+  const tx = crearEjecutorSql(conn)
+  try {
+    await tx.execute('BEGIN')
+    const resultado = await fn(tx)
+    await tx.execute('COMMIT')
+    return resultado
+  } catch (err) {
+    await tx.execute('ROLLBACK').catch(() => {})
+    throw err
+  } finally {
+    if (reservaConexion) {
+      ;(conn as unknown as { release: () => void }).release()
+    }
+  }
+}
+
 // TODO(DB1-F2): eliminar cuando scripts/seed-demo-partes.mjs y
 // lib/infraestructura/rotacion-clave.test.ts dejen de usar ge.sqlite.
 export function getGeSqlitePath(): string {
@@ -104,7 +146,7 @@ const GE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS ge.ge_seccion (
     corte_id INTEGER NOT NULL,
-    ge_section_id INTEGER NOT NULL,
+    ge_section_id BIGINT NOT NULL,
     cue_anexo TEXT NOT NULL,
     curso TEXT NOT NULL,
     division TEXT NOT NULL,
@@ -114,8 +156,8 @@ const GE_DDL: string[] = [
   )`,
   `CREATE TABLE IF NOT EXISTS ge.ge_alumno_seccion (
     corte_id INTEGER NOT NULL,
-    ge_section_id INTEGER NOT NULL,
-    ge_person_id INTEGER NOT NULL,
+    ge_section_id BIGINT NOT NULL,
+    ge_person_id BIGINT NOT NULL,
     PRIMARY KEY (corte_id, ge_section_id, ge_person_id)
   )`,
   `CREATE TABLE IF NOT EXISTS ge.ge_localizacion (
@@ -129,7 +171,7 @@ const GE_DDL: string[] = [
     geo_calidad TEXT
   )`,
   `CREATE TABLE IF NOT EXISTS ge.ge_alumno_identidad (
-    ge_person_id INTEGER PRIMARY KEY,
+    ge_person_id BIGINT PRIMARY KEY,
     payload_cifrado TEXT NOT NULL
   )`,
   `CREATE INDEX IF NOT EXISTS idx_ge_seccion_corte_cue ON ge.ge_seccion (corte_id, cue_anexo)`,
