@@ -1,11 +1,12 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerEvolucionMapa } from '@/lib/infraestructura/evolucion'
+import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
@@ -16,8 +17,7 @@ export async function GET() {
 
   const resultado = await obtenerEvolucionMapa()
 
-  return Response.json(resultado, {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
+  return jsonComprimido(request, resultado, {
+    headers: { 'Cache-Control': 'private, no-cache' },
   })
 }

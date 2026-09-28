@@ -114,6 +114,13 @@ function coordenada(original: unknown): number | null {
   return original === null || original === undefined ? null : Number(original)
 }
 
+// Las coordenadas del padrón llegan con hasta 15 decimales (double de SQLite);
+// para el mapa no aportan precisión real y sólo inflan el payload, así que se
+// fijan a 5 decimales (~1 m). null se conserva tal cual.
+export function redondearCoordenada(valor: number | null): number | null {
+  return valor === null ? null : Math.round(valor * 1e5) / 1e5
+}
+
 function stringValor(original: unknown): string {
   return original === null || original === undefined ? '' : String(original)
 }
@@ -604,8 +611,8 @@ export async function listarEscuelasMapa(
       nombre: fila.nombre,
       departamento: fila.departamento,
       localidad: fila.localidad,
-      lat: fila.lat,
-      lon: fila.lon,
+      lat: redondearCoordenada(fila.lat),
+      lon: redondearCoordenada(fila.lon),
       estado: parte ? 'afectada' : 'sin_afectacion_reportada',
       ...(parte ? { parte } : {}),
     })

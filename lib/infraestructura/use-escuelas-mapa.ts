@@ -40,7 +40,7 @@ export function useEscuelasMapa(filtros: FiltrosMapa): {
         `${RUTA_ESCUELAS}${construirQueryStringFiltrosMapa(filtrosRef.current)}`,
         {
           signal: controller.signal,
-          cache: 'no-store',
+          cache: 'no-cache',
           headers: { Accept: 'application/json' },
         },
       )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
 import { buscarEscuelas, normalizarTextoBusqueda, type EscuelaBuscable } from '@/lib/mapas/buscar-escuelas'
 
@@ -56,7 +56,8 @@ export function EscuelaSearchBox<T extends EscuelaBuscable>({
   const [cerradoManualmente, setCerradoManualmente] = useState(false)
 
   const queryRecortada = query.trim()
-  const resultados = useMemo(() => buscarEscuelas(escuelas, query, 8), [escuelas, query])
+  const queryDiferida = useDeferredValue(query)
+  const resultados = useMemo(() => buscarEscuelas(escuelas, queryDiferida, 8), [escuelas, queryDiferida])
   const abierto = queryRecortada.length >= 2 && !cerradoManualmente
 
   function seleccionar(item: T | null) {

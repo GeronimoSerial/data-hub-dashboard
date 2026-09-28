@@ -121,7 +121,7 @@ describe('GET /api/mapas/infraestructura/escuelas', () => {
       expect(escuela.parte).toBeUndefined()
     }
 
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
   it('acota el padrón al departamento pedido en ?territorio=', async () => {

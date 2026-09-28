@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FiltrosMapa } from './parte-mapa'
-import type { TotalesMapaResultado } from './totales-mapa'
 import { construirQueryStringFiltrosMapa } from './query-string-filtros-mapa'
+import type { TotalesMapaResultado } from './totales-mapa'
 
 const RUTA_TOTALES = '/api/mapas/infraestructura/totales'
 const INTERVALO_POLLING_MS = 15000
@@ -41,7 +41,7 @@ export function useTotalesMapa(filtros: FiltrosMapa): {
         `${RUTA_TOTALES}${construirQueryStringFiltrosMapa(filtrosRef.current)}`,
         {
           signal: controller.signal,
-          cache: 'no-store',
+          cache: 'no-cache',
           headers: { Accept: 'application/json' },
         },
       )

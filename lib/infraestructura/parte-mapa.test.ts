@@ -14,7 +14,7 @@ import {
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
-import { listarEscuelasMapa, listarPartesVigentes, type FiltrosMapa } from './parte-mapa'
+import { listarEscuelasMapa, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
 // tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
@@ -499,5 +499,34 @@ describe('listarEscuelasMapa', () => {
     expect(escuelas.map((e) => e.cueAnexo)).toEqual(['MAPA-G-1'])
     expect(escuelas[0].estado).toBe('sin_afectacion_reportada')
     expect(totalPadron).toBe(1)
+  })
+
+  it('redondea lat/lon del padrón a 5 decimales y conserva los sin ubicación', async () => {
+    await sembrarEscuelaPadron({
+      cue: 'MAPA-H-1',
+      departamento: 'MAPA-REDONDEO',
+      localidad: 'MAPA-REDONDEO',
+      lat: 12.345678901234567,
+      lon: -54.321987654321098,
+    })
+
+    const { escuelas, sinUbicacion } = await listarEscuelasMapa({ territorio: 'MAPA-REDONDEO' })
+
+    expect(escuelas).toHaveLength(1)
+    expect(escuelas[0].lat).toBe(12.34568)
+    expect(escuelas[0].lon).toBe(-54.32199)
+    expect(sinUbicacion).toEqual([])
+  })
+})
+
+describe('redondearCoordenada', () => {
+  it('fija el valor a 5 decimales', () => {
+    expect(redondearCoordenada(12.345678901234567)).toBe(12.34568)
+    expect(redondearCoordenada(-54.321987654321098)).toBe(-54.32199)
+    expect(redondearCoordenada(0)).toBe(0)
+  })
+
+  it('conserva null', () => {
+    expect(redondearCoordenada(null)).toBeNull()
   })
 })
