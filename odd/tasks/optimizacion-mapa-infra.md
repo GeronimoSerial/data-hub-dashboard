@@ -62,6 +62,7 @@ búsqueda).
 - [ ] O4 — Consultas PostgreSQL de las APIs del mapa: índices, planes, sin N+1.
 - [ ] O5 — Render e interacción del mapa: sources/capas reutilizadas, filtros sin recrear,
       búsqueda con debounce, memoria estable.
+- [ ] O5b — Memoizar handleMapLoad (components/mapas/map-infraestructura-page.tsx) y demás callbacks pasados a MapGL/capas: hoy crean una referencia nueva en cada render (detectado por el N2 del pulido al colgarse un test con un mock de onLoad sin memoizar, 2026-09-28).
 - [ ] O6 — Medición final y tabla antes/después en este documento.
 
 ## Checks
