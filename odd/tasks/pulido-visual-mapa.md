@@ -116,6 +116,10 @@ Revisión directa en navegador (Chrome DevTools, 1440+ px, tema claro y oscuro) 
 - [ ] V8 — Global: alineación de footer/portada, modo oscuro (mapa base oscuro, contraste),
       controles de MapLibre en español, responsive.
 - [ ] V9 — Verificación en navegador de cada sección (claro/oscuro, desktop/móvil) con capturas.
+- [ ] V10 — QA estético completo, al detalle, hecho por el coordinador en el navegador cuando
+      el N2 termina (pedido explícito del usuario). Recorre los 29 hallazgos y cada estado:
+      hover, foco, capas combinadas, Radar por horizonte, ficha, Evolución, claro/oscuro,
+      móvil. Lo que no pase vuelve al N2 como corrección.
 
 ## Checks
 
