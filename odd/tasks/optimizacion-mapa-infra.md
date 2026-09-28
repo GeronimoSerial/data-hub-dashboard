@@ -189,6 +189,13 @@ búsqueda).
     score móvil de Lighthouse, el próximo paso concreto es partir Radar/Replay del
     componente principal (refactor más grande, no incluido en este alcance).
 
+### Ronda 2 (auditoría de N1, 2026-09-28 21:10 UTC) — el objetivo del usuario es un mapa rápido para el cliente; la ronda 1 dejó móvil en perf 0,46 · LCP 8,0 s · TBT 1,85 s
+
+- [ ] O7 — BLOQUEANTE: `lib/http/respuesta-comprimida.ts` usa `brotliCompressSync` con la calidad por defecto (11): N1 midió 563 ms de CPU SINCRÓNICA por pedido para ~435 KB (bloquea el event loop del servidor en cada carga del mapa, porque los navegadores piden `br`). Usar calidad 4–5 (≈2–5 ms, ~49–50 KB) o gzip nivel 6; opcional: cachear el cuerpo comprimido por versión de datos. Test que fije la calidad y un micro-benchmark en el registro.
+- [ ] O8 — Completar O2: payload mínimo del padrón (sólo los campos que el cliente usa; nombres de propiedad cortos si conviene; coordenadas con la precisión necesaria, p. ej. 5 decimales), y `ETag`/`If-None-Match` (304) o `Cache-Control: private, max-age` corto con revalidación, sin romper la frescura del parte. Medir bytes y tiempo antes/después.
+- [ ] O9 — Móvil CPU (el cuello real): con el trace de Lighthouse móvil y un Performance trace, identificar el elemento LCP y las tareas largas del hilo principal y atacarlas con evidencia. Candidatos: separar Radar, Replay y paneles no visibles en chunks `next/dynamic` propios (lo que O3 dejó como oportunidad); rasterizar los íconos una sola vez (sprite precomputado o `addImage` diferido/cacheado en lugar de SVG→canvas en caliente por variante); no construir ni dibujar capas apagadas (padrón, evacuación, sin reportar, Radar) hasta que se activan; opciones de MapLibre que reducen trabajo inicial (p. ej. `fadeDuration: 0`, `antialias` sólo si hace falta, `maxTileCacheSize` razonable); diferir el trabajo no crítico con `requestIdleCallback`/`startTransition`; que el panel y el título se pinten antes que el mapa (LCP en texto, mapa después). Meta móvil (Lighthouse preset móvil): perf ≥ 0,70, LCP ≤ 4 s, TBT ≤ 600 ms, sin regresión desktop (≥ 0,90). Si alguna meta es inalcanzable sin cambiar lo que se ve, documentar con el trace por qué y consultar con orchestration ask.
+- [ ] O10 — Re-medir memoria (20× alternar modos y capas) y la tabla completa de O6 con los resultados de la ronda 2, contra la misma base (:3205).
+
 ## Checks
 
 - `pnpm test`, `pnpm lint`, `pnpm build`.
