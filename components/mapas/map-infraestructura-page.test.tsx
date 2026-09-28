@@ -2,11 +2,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useImperativeHandle, type JSX } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 
 const CUE = '1801605-04'
+// Escuela del padrón SIN afectación vigente (no está en partesPorCue): es el
+// caso del hallazgo 7, el click que antes no abría nada.
+const CUE_SIN_AFECTACION = '1801605-99'
 
 // M1: el buscador de escuelas llama a `mapRef.current?.getMap()?.flyTo(...)`
 // al seleccionar un resultado. `vi.hoisted` porque el factory de
@@ -52,12 +55,13 @@ const PARTE: ParteMapa = {
 vi.mock('@/components/infraestructura/ficha-parte-modal', () => ({
   FichaParteModal: (props: {
     open: boolean
+    cueAnexo: string
     onOpenChange: (open: boolean) => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
   }): JSX.Element | null =>
     props.open ? (
-      <div data-testid="mock-ficha-modal">
+      <div data-testid="mock-ficha-modal" data-cue={props.cueAnexo}>
         <button onClick={() => props.onOpenChange(false)}>cerrar-ficha</button>
         <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
         <button onClick={() => props.onVerHistorialCompleto()}>abrir-historial-desde-ficha</button>
@@ -134,7 +138,7 @@ const FIXTURE_ESCUELAS_MAPA = {
       parte: PARTE,
     },
     {
-      cueAnexo: '1801605-99',
+      cueAnexo: CUE_SIN_AFECTACION,
       nombre: 'Escuela sin afectación',
       departamento: 'Capital',
       localidad: 'Corrientes',
@@ -273,9 +277,10 @@ vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
 // del componente real) y deja pasar el resto de los hijos sin más.
 vi.mock('react-map-gl/maplibre', () => {
-  type FeatureMock = { layer?: { id: string }; properties: Record<string, string> }
-  type MouseEventMock = { features: FeatureMock[] }
-  type HoverEventMock = { features: FeatureMock[]; lngLat: { lng: number; lat: number } }
+  type FeatureMock = { layer?: { id: string }; properties: Record<string, unknown> }
+  // El clic de departamento arrastra coordenadas: el popup de clic se ancla
+  // en el `lngLat` del evento, igual que el evento real de MapLibre.
+  type MouseEventMock = { features: FeatureMock[]; lngLat?: { lng: number; lat: number } }
 
   // M1: el componente guarda `mapRef` con `useRef<MapRef>(null)` y lo pasa
   // como `ref` a <MapGL>. El doble tiene que exponer `getMap()` (el
@@ -287,8 +292,7 @@ vi.mock('react-map-gl/maplibre', () => {
     {
       children?: React.ReactNode
       onClick?: (event: MouseEventMock) => void
-      onMouseMove?: (event: HoverEventMock) => void
-      onMouseLeave?: () => void
+      onLoad?: () => void
     }
   >(function MapGL(props, ref) {
     useImperativeHandle(
@@ -296,14 +300,31 @@ vi.mock('react-map-gl/maplibre', () => {
       () => ({
         getMap: () => ({
           flyTo: FLY_TO_MOCK,
+          fitBounds: vi.fn(),
           resize: vi.fn(),
           stop: vi.fn(),
-          getSource: () => undefined,
-          querySourceFeatures: () => [],
+          // `infra-partes-src` tiene que existir para que
+          // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
+          // las dos escuelas del padrón como desagrupadas, así los <Marker>
+          // DOM (badge de estado y riesgo) se renderizan en jsdom.
+          getSource: (id: string) => (id === 'infra-partes-src' ? {} : undefined),
+          querySourceFeatures: () => [
+            { properties: { cueAnexo: CUE } },
+            { properties: { cueAnexo: CUE_SIN_AFECTACION } },
+          ],
         }),
       }),
       [],
     )
+    // El doble no tiene eventos reales de MapLibre: dispara `onLoad` al montar
+    // para que el componente calcule `cuesNoAgrupados` y monte los marcadores.
+    // Se lee `props.onLoad` (no la referencia capturada) y se depende de `[]`:
+    // el evento `onLoad` real de MapLibre se dispara UNA sola vez al terminar de
+    // cargar el mapa, nunca de nuevo por cambios de props.
+    useEffect(() => {
+      props.onLoad?.()
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- se dispara una sola vez al montar, como el evento real de MapLibre
+    }, [])
     return (
       <div data-testid="mock-maplibre">
         <button
@@ -311,27 +332,48 @@ vi.mock('react-map-gl/maplibre', () => {
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE } }] })}
         />
         <button
-          data-testid="mock-click-departamento"
-          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }] })}
-        />
-        <button
-          data-testid="mock-click-peligro"
-          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-peligro-fill' }, properties: { nombre: 'CAPITAL' } }] })}
-        />
-        <button
-          data-testid="mock-click-riesgo"
-          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-riesgo-circle' }, properties: { cueAnexo: CUE } }] })}
-        />
-        <button
-          data-testid="mock-hover-departamento"
+          data-testid="mock-click-parte-sin-afectacion"
           onClick={() =>
-            props.onMouseMove?.({
+            props.onClick?.({
+              features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE_SIN_AFECTACION } }],
+            })
+          }
+        />
+        {/* El click real ahora acierta el ícono de escuela (capa `symbol`),
+            no el círculo chico de abajo: la feature que MapLibre entrega
+            pertenece a `infra-partes-escuela-icono`. */}
+        <button
+          data-testid="mock-click-escuela-icono"
+          onClick={() =>
+            props.onClick?.({
+              features: [
+                { layer: { id: 'infra-partes-escuela-icono' }, properties: { cueAnexo: CUE_SIN_AFECTACION } },
+              ],
+            })
+          }
+        />
+        <button
+          data-testid="mock-click-departamento"
+          onClick={() =>
+            props.onClick?.({
               features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }],
               lngLat: { lng: -58.8, lat: -27.5 },
             })
           }
         />
-        <button data-testid="mock-mouse-leave" onClick={() => props.onMouseLeave?.()} />
+        <button
+          data-testid="mock-click-departamento-empedrado"
+          onClick={() =>
+            props.onClick?.({
+              features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Empedrado' } }],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        <button
+          data-testid="mock-click-peligro"
+          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-peligro-fill' }, properties: { nombre: 'CAPITAL' } }] })}
+        />
         {props.children}
       </div>
     )
@@ -342,6 +384,7 @@ vi.mock('react-map-gl/maplibre', () => {
     Layer: () => null,
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
     NavigationControl: () => null,
+    AttributionControl: () => null,
     Popup: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
     // `data` no se renderiza en el DOM real (MapLibre lo consume vía WebGL),
     // pero se expone acá como atributo serializado: es la única forma de
@@ -426,7 +469,44 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    expect(await screen.findByTestId('mock-ficha-modal')).toBeInTheDocument()
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE)
+  })
+
+  // Hallazgo 7 (regresión central de V4): una escuela del padrón SIN
+  // afectación vigente tiene que abrir su ficha igual. Antes el handler sólo
+  // llamaba a setSeleccionCue si `partesPorCue` ya tenía ese CUE, así que el
+  // click no hacía nada.
+  it('abre la ficha al hacer click en una escuela del padrón sin afectación', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mock-click-parte-sin-afectacion'))
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
+  })
+
+  // La capa `symbol` del ícono de escuela es la que el usuario realmente
+  // clickea (el círculo queda debajo y es más chico). El handler tiene que
+  // reconocer también esa capa, no sólo `infra-partes`.
+  it('abre la ficha al hacer click en el ícono de una escuela del padrón', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mock-click-escuela-icono'))
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
+  })
+
+  // Q20: el hover se sacó. Clickear el ícono de una escuela abre su ficha,
+  // no un tooltip; el popup de departamento nunca aparece con un mouse quieto.
+  it('clickear el ícono de una escuela abre su ficha y no un tooltip', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-escuela-icono'))
+
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
   })
 
   it('abre el modal nominal desde la ficha', async () => {
@@ -553,10 +633,23 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    await userEvent.click(screen.getByTestId('mock-click-riesgo'))
+    // El punto de riesgo ahora es un <Marker> DOM (ícono Lucide) con su
+    // propio onClick, no una capa circle de MapLibre.
+    await userEvent.click(await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` }))
     expect(await screen.findByTestId('risk-explanation-cue')).toHaveTextContent(CUE)
     // Estado independiente del modo actual: sin ficha de partes abierta.
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+
+  it('dibuja el riesgo como ícono DOM filtrado y ya no monta la fuente circle', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+    const icono = await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` })
+    expect(icono).toHaveAttribute('data-capa', 'infra-riesgo-icono')
+    // La fuente/capas circle viejas de riesgo compuesto desaparecieron. La de
+    // acceso (`infra-riesgo-acceso-src`) sigue intacta, es otra dimensión.
+    expect(screen.queryByTestId('mock-source-infra-riesgo-src')).not.toBeInTheDocument()
   })
 
   it('al seleccionar una escuela del radar pide el detalle por snapshotId y muestra sus factores', async () => {
@@ -566,7 +659,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
     expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
 
-    await userEvent.click(screen.getByTestId('mock-click-riesgo'))
+    await userEvent.click(await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` }))
     await screen.findByTestId('risk-explanation-cue')
 
     // El snapshotId de la escuela del radar (RADAR_DATA.escuelas.items[0]),
@@ -708,8 +801,8 @@ describe('MapInfraestructuraPage — modo Replay', () => {
   })
 })
 
-describe('M1: hover de departamento y buscador de escuelas', () => {
-  // El popup de hover arma su texto con <strong> intercalados ("En
+describe('M1: clic de departamento y buscador de escuelas', () => {
+  // El popup de departamento arma su texto con <strong> intercalados ("En
   // <strong>Capital</strong> hay <strong>10</strong> escuelas…"), así que el
   // matcher por defecto de getByText (que sólo mira los text nodes DIRECTOS)
   // no lo ve. Se matchea por tagName + textContent completo del <p>.
@@ -717,21 +810,21 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     element?.tagName === 'P' &&
     /En Capital hay 10 escuelas/.test(element.textContent ?? '')
 
-  it('hover de departamento muestra total, afectadas y porcentaje, y desaparece al salir', async () => {
+  it('clic de departamento muestra total, afectadas y porcentaje, y se cierra con Esc', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     expect(
       screen.queryByText((_contenido, element) => esParrafoHover(element)),
     ).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByTestId('mock-hover-departamento'))
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
 
     const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
     expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
     expect(popup).toHaveTextContent('3 están afectadas')
     expect(popup).toHaveTextContent('30%')
 
-    await userEvent.click(screen.getByTestId('mock-mouse-leave'))
+    await userEvent.keyboard('{Escape}')
     await waitFor(() =>
       expect(
         screen.queryByText((_contenido, element) => esParrafoHover(element)),
@@ -739,7 +832,61 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     )
   })
 
-  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y no abre ficha', async () => {
+  it('clickear el mismo departamento de nuevo cierra el popup', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(
+      await screen.findByText((_contenido, element) => esParrafoHover(element)),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('clickear otro departamento reemplaza el popup', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(
+      await screen.findByText((_contenido, element) => esParrafoHover(element)),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento-empedrado'))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  // Q20: el hover se sacó; estos dos casos ahora clickean una escuela/cluster.
+  // El clic sobre la escuela abre su ficha (no un tooltip) y el clic sobre un
+  // cluster dispara el zoom de expansión, así que el popup de departamento no
+  // aplica: se borran los tests "el tooltip X gana al de departamento" porque
+  // ya no hay tooltips de hover.
+
+  it('al cambiar de modo se limpia el popup de departamento (no queda clavado)', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(
+      await screen.findByText((_contenido, element) => esParrafoHover(element)),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await waitFor(() =>
+      expect(
+        screen.queryByText((_contenido, element) => esParrafoHover(element)),
+      ).not.toBeInTheDocument(),
+    )
+  })
+
+  it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y abre la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     // El aria-label completo distingue el buscador de escuelas del filtro
@@ -752,8 +899,10 @@ describe('M1: hover de departamento y buscador de escuelas', () => {
     expect(FLY_TO_MOCK).toHaveBeenCalledWith(
       expect.objectContaining({ center: [-58.8, -27.5] }),
     )
-    // Sin afectación reportada: no hay ParteMapa, por lo tanto no se abre la ficha.
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    // Hallazgo 7: sin afectación reportada igual se abre la ficha de la
+    // escuela (la ausencia de parte la resuelve el propio modal).
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
   })
 })
 

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['@libsql/client', 'libsql'],
+  serverExternalPackages: ['@libsql/client', 'libsql', '@electric-sql/pglite'],
   async rewrites() {
     const html = [
       '/tablero',

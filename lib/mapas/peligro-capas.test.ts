@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FeatureCollection, Geometry } from 'geojson'
 import {
   COLOR_NIVEL_PELIGRO,
+  colorPuntoRiesgo,
   construirCoropletaPeligro,
   construirPuntosRiesgo,
   esNivelPeligro,
@@ -43,10 +44,10 @@ describe('COLOR_NIVEL_PELIGRO', () => {
   it('define exactamente los 5 niveles con sus hex oficiales', () => {
     expect(Object.keys(COLOR_NIVEL_PELIGRO).sort()).toEqual([...NIVELES_PELIGRO].sort())
     expect(COLOR_NIVEL_PELIGRO).toEqual({
-      verde: '#719c29',
-      amarillo: '#facd05',
-      naranja: '#f68e13',
-      rojo: '#f4492e',
+      verde: '#eff6ff',
+      amarillo: '#93c5fd',
+      naranja: '#3b82f6',
+      rojo: '#1e3a8a',
       sin_dato: '#8a8886',
     })
   })
@@ -57,7 +58,7 @@ describe('ETIQUETA_NIVEL_PELIGRO', () => {
     for (const nivel of NIVELES_PELIGRO) {
       expect(ETIQUETA_NIVEL_PELIGRO[nivel].trim().length).toBeGreaterThan(0)
     }
-    expect(ETIQUETA_NIVEL_PELIGRO.sin_dato).toBe('Sin dato')
+    expect(ETIQUETA_NIVEL_PELIGRO.sin_dato).toBe('Sin dato (no se colorea)')
   })
 })
 
@@ -137,6 +138,16 @@ describe('paintCoropletaPeligro', () => {
     ])
     expect(expresion[expresion.length - 1]).toBe(COLOR_NIVEL_PELIGRO.sin_dato)
   })
+
+  it('deja `sin_dato` sin relleno (opacity 0) y pinta el resto semitransparente', () => {
+    const paint = paintCoropletaPeligro()!
+    expect(paint['fill-opacity']).toEqual([
+      'case',
+      ['==', ['get', 'nivelPeligro'], 'sin_dato'],
+      0,
+      0.55,
+    ])
+  })
 })
 
 describe('construirPuntosRiesgo', () => {
@@ -194,5 +205,19 @@ describe('paintPuntosRiesgo', () => {
       COLOR_NIVEL_PELIGRO.rojo,
       COLOR_NIVEL_PELIGRO.sin_dato,
     ])
+  })
+})
+
+describe('colorPuntoRiesgo', () => {
+  it('devuelve el hex plano de la MISMA paleta para cada nivel de riesgo', () => {
+    expect(colorPuntoRiesgo('bajo')).toBe(COLOR_NIVEL_PELIGRO.verde)
+    expect(colorPuntoRiesgo('moderado')).toBe(COLOR_NIVEL_PELIGRO.amarillo)
+    expect(colorPuntoRiesgo('alto')).toBe(COLOR_NIVEL_PELIGRO.naranja)
+    expect(colorPuntoRiesgo('muy_alto')).toBe(COLOR_NIVEL_PELIGRO.rojo)
+  })
+
+  it('cae a sin_dato (gris neutro) para valores desconocidos', () => {
+    expect(colorPuntoRiesgo('sin_dato')).toBe(COLOR_NIVEL_PELIGRO.sin_dato)
+    expect(colorPuntoRiesgo('bogus')).toBe(COLOR_NIVEL_PELIGRO.sin_dato)
   })
 })

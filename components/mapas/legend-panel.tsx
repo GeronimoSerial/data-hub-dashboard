@@ -9,6 +9,13 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { PeligroLegend } from '@/components/mapas/peligro-legend'
+import { CircleSlash, Clock, DoorOpen, Tent, TriangleAlert } from 'lucide-react'
+
+// Color neutro del borde del punto y del trazo de los íconos del badge. Mismo
+// valor que ANILLO_COLOR en map-infraestructura-page.tsx: el color de severidad
+// ya está tomado por el relleno, así que el estado usa un neutro, nunca una
+// segunda escala de color.
+const COLOR_NEUTRO_ESTADO = '#1c1c1c'
 
 type Props = {
   summary: Summary
@@ -101,10 +108,11 @@ export function LegendPanel({
 //
 // Dominio distinto del resto de este archivo (evolución de matrícula) y,
 // desde Fase 2, distinto también de la leyenda anterior: una escuela = un
-// punto, y los canales visuales son color (severidad), tamaño (fijo, igual
-// para todas) y anillo (servicio) — ver map-infraestructura-page.tsx para la codificación
-// exacta. El símbolo por categoría desapareció (la categoría pasó a filtro y
-// a la ficha), así que esta leyenda ya no lo explica.
+// punto, y los canales visuales son color (severidad) y badge de estado
+// (íconos lucide-react, uno solo por escuela) — ver map-infraestructura-page.tsx
+// para la codificación exacta. El tamaño es fijo por escuela; los clusters
+// crecen con la cantidad agrupada. El símbolo por categoría desapareció (la
+// categoría pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
 //
 // Esta leyenda ya no recibe `indicadores`: los números consolidados los
 // muestra <Indicadores>, arriba en la misma columna. Tenerlos en los dos
@@ -142,99 +150,81 @@ export function InfraLegendPanel({
     // arriba, en esta misma columna, y repetirlos era duplicar una fuente.
     <details className={`${styles.panel} ${styles.legendPanel}`}>
       <summary className={styles.legendSummary}>Referencias</summary>
-      <div className={styles.hint}>
-        Color: severidad de la peor afectación vigente. Tamaño: fijo, igual para todas las
-        escuelas. Anillo: estado del servicio educativo.
-      </div>
-
-      {SEVERIDADES.map((severidad) => (
-        <div key={severidad} className={styles.legendItem}>
-          <span className={styles.swatch} style={{ background: colorSeveridad(severidad) }} />
-          {severidad}
-        </div>
-      ))}
-
-      <div className={styles.legendItem}>
-        <span className={styles.swatch} style={{ background: COLOR_SIN_AFECTACION }} />
-        Sin afectación reportada
-      </div>
-
-      <br />
       {/*
-        El anillo no puede usar color (ya está tomado por severidad): se
-        distingue por grosor y opacidad de trazo. Estos tres swatches son
-        ilustrativos de esa codificación, no una escala de color nueva.
+        Leyenda propia de cada modo. En Radar/Replay (`mostrarLeyendaPeligro`)
+        el contenido de "Situación actual" (severidad + badges de estado +
+        hints de tamaño/cluster) NO aplica: se oculta entero y la leyenda pasa
+        a ser la del peligro meteorológico (más el bloque de riesgo de acceso
+        si está activo). Fuera de Radar/Replay se mantiene igual que antes.
       */}
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '3px solid #1c1c1c', borderRadius: '50%' }}
-        />
-        Servicio suspendido (anillo grueso)
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{
-            background: 'transparent',
-            border: '2px solid #1c1c1c',
-            borderRadius: '50%',
-            opacity: 0.55,
-          }}
-        />
-        Servicio parcial (anillo fino)
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '1px solid #1c1c1c', borderRadius: '50%' }}
-        />
-        Servicio normal (sin anillo)
-      </div>
+      {!mostrarLeyendaPeligro && (
+        <>
+          <div className={styles.hint}>
+            Color: severidad de la peor afectación vigente. Tamaño: fijo para cada escuela
+            individual; los grupos (clusters) sí crecen con la cantidad de escuelas agrupadas, de
+            forma intencional. Ícono: estado del establecimiento (ver más abajo).
+          </div>
 
-      <br />
-      {/*
-        Evacuación (F2.3): dos formas, no dos colores — evacuado y
-        centro_evacuados son opuestos (daño vs. recurso) y en emergencia el
-        recurso es lo primero que se busca, así que no pueden compartir
-        símbolo. Capa aparte, apagada por defecto (ver InfraLayerControl).
-      */}
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '2px solid #1c1c1c' }}
-        />
-        Evacuado (cuadrado): daño en el establecimiento
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{
-            background: 'transparent',
-            borderLeft: '6px solid transparent',
-            borderRight: '6px solid transparent',
-            borderBottom: '12px solid #1c1c1c',
-            width: 0,
-            height: 0,
-          }}
-        />
-        Centro de evacuados (triángulo): la escuela aloja gente
-      </div>
-      <div className={styles.legendItem}>
-        <span
-          className={styles.swatch}
-          style={{ background: 'transparent', border: '2px solid #6b7280', borderRadius: '50%' }}
-        />
-        Sin reportar (halo gris): más de {UMBRAL_SIN_REPORTAR_HORAS} h sin actualización — ausencia
-        de información, no severidad
-      </div>
+          {SEVERIDADES.map((severidad) => (
+            <div key={severidad} className={styles.legendItem}>
+              <span className={styles.swatch} style={{ background: colorSeveridad(severidad) }} />
+              {severidad}
+            </div>
+          ))}
 
-      <br />
-      <div className={styles.hint}>
-        Departamentos: la intensidad del relleno (no el color) sube con la cantidad de escuelas
-        con servicio suspendido o parcial en ese departamento; la etiqueta muestra el nombre y, si
-        hay alguna, el conteo.
-      </div>
+          <div className={styles.legendItem}>
+            <span className={styles.swatch} style={{ background: COLOR_SIN_AFECTACION }} />
+            Sin afectación reportada (cluster gris)
+          </div>
+
+          <br />
+          {/*
+            Badge de estado (V2): un solo ícono por escuela, sin color propio de
+            severidad (el color del punto ya comunica gravedad). El orden de las
+            filas replica la prioridad de `iconoEstadoEscuela`
+            (lib/mapas/severidad-visual.ts): de mayor a menor urgencia.
+          */}
+          <div className={styles.legendItem}>
+            <Tent size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Centro de evacuados
+          </div>
+          <div className={styles.legendItem}>
+            <DoorOpen size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Evacuado
+          </div>
+          <div className={styles.legendItem}>
+            <CircleSlash size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Servicio suspendido
+          </div>
+          <div className={styles.legendItem}>
+            <TriangleAlert size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Servicio parcial
+          </div>
+          <div className={styles.legendItem}>
+            <Clock size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
+            Sin reportar (+{UMBRAL_SIN_REPORTAR_HORAS} h sin actualizar)
+          </div>
+
+          <div className={styles.hint}>
+            Si una escuela cumple más de una condición, se muestra sólo la de mayor urgencia (el
+            orden de arriba hacia abajo).
+          </div>
+
+          <br />
+          <div className={styles.hint}>
+            Grupos (clusters): el número es la cantidad de escuelas AFECTADAS dentro del grupo (no
+            el total agrupado ni de alumnos); si el grupo no tiene ninguna afectada, no muestra
+            número. El color es la severidad más alta entre las escuelas agrupadas.
+          </div>
+
+          <br />
+          <div className={styles.hint}>
+            Departamentos: la intensidad del relleno (no el color) sube con la cantidad de escuelas
+            con servicio suspendido o parcial en ese departamento; la etiqueta muestra el nombre y,
+            si hay alguna, el conteo.
+          </div>
+        </>
+      )}
 
       {departamentosSinMatch.length > 0 && (
         <div className={`${styles.hint} ${styles.statusError}`}>

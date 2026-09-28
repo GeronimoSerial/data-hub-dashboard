@@ -15,26 +15,26 @@ import type {
 } from 'maplibre-gl'
 import type { NivelPeligro } from '@/lib/infraestructura/riesgo/peligro/nivel'
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
+import { PALETA_TONAL_PELIGRO } from '@/lib/mapas/paleta-tonal'
 
 // ── Colores de nivel de peligro ─────────────────────────────────────────────
 //
 // GOTCHA: una paint expression de MapLibre NO puede leer variables CSS, así
-// que estos 5 colores se repiten acá como hex literales. Son la copia en
-// TypeScript de los tokens definidos en app/globals.css:
+// que estos colores se repiten acá como hex literales. Escala tonal de una
+// sola gama (azul, claro→oscuro) definida en lib/mapas/paleta-tonal.ts
+// (PALETA_TONAL_PELIGRO), la única fuente de verdad para el Radar. NO usa
+// semáforo verde/amarillo/naranja/rojo: la severidad de afectación vive en
+// otra gama (rojo) para no confundir ambos dominios en el mapa.
 //
-//   --nivel-peligro-verde    → var(--green)     → #719c29  (globals.css:131)
-//   --nivel-peligro-amarillo → var(--yellow)    → #facd05  (globals.css:132)
-//   --nivel-peligro-naranja  → var(--orange)    → #f68e13  (globals.css:133)
-//   --nivel-peligro-rojo     → var(--red)       → #f4492e  (globals.css:134)
 //   --nivel-peligro-sin-dato → var(--ink-faint) → #8a8886  (globals.css:135)
 //
-// Si alguno de esos tokens cambia en globals.css, HAY QUE actualizar este mapa
-// A MANO: no existe forma de resolverlos desde el motor de estilos del mapa.
+// `sin_dato` se conserva como gris neutro por simetría y porque el tipo lo
+// exige: no se pinta (fill-opacity/circle-opacity 0), pero el campo existe.
 export const COLOR_NIVEL_PELIGRO: Record<NivelPeligro, string> = {
-  verde: '#719c29',
-  amarillo: '#facd05',
-  naranja: '#f68e13',
-  rojo: '#f4492e',
+  verde: PALETA_TONAL_PELIGRO.verde,
+  amarillo: PALETA_TONAL_PELIGRO.amarillo,
+  naranja: PALETA_TONAL_PELIGRO.naranja,
+  rojo: PALETA_TONAL_PELIGRO.rojo,
   sin_dato: '#8a8886',
 }
 
@@ -53,7 +53,7 @@ export const ETIQUETA_NIVEL_PELIGRO: Record<NivelPeligro, string> = {
   amarillo: 'Medio',
   naranja: 'Alto',
   rojo: 'Muy alto',
-  sin_dato: 'Sin dato',
+  sin_dato: 'Sin dato (no se colorea)',
 }
 
 // ── Coropleta departamental ─────────────────────────────────────────────────
@@ -116,7 +116,10 @@ export function construirCoropletaPeligro(
 /**
  * Paint de la capa `fill` de la coropleta: un `match` sobre `nivelPeligro` con
  * un color hex por nivel y `sin_dato` como fallback final (cubre feature sin
- * la propiedad o con un valor inesperado).
+ * la propiedad o con un valor inesperado). El color `sin_dato` se conserva por
+ * simetría con el resto de la paleta, pero NUNCA se ve: `fill-opacity` es una
+ * expresión data-driven que lo deja en 0, así un departamento sin dato no se
+ * pinta (el estado vacío se comunica en el panel/leyenda, no tapando el mapa).
  */
 export function paintCoropletaPeligro(): FillLayerSpecification['paint'] {
   const expresion: unknown[] = ['match', ['get', 'nivelPeligro']]
@@ -128,6 +131,12 @@ export function paintCoropletaPeligro(): FillLayerSpecification['paint'] {
 
   return {
     'fill-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
+    // Data-driven: `sin_dato` queda SIN relleno (opacity 0), el resto se pinta
+    // semitransparente a propósito. La coropleta es contexto de fondo del modo
+    // Radar, no el dato principal. Opaca (el default de MapLibre es 1) tapaba
+    // por completo departamentos, clusters y escuelas montados debajo. 0.55
+    // deja leer el nivel de peligro sin anular las capas inferiores.
+    'fill-opacity': ['case', ['==', ['get', 'nivelPeligro'], 'sin_dato'], 0, 0.55],
   }
 }
 
@@ -228,6 +237,20 @@ export function paintPuntosRiesgo(): CircleLayerSpecification['paint'] {
   return {
     'circle-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
   }
+}
+
+/**
+ * Versión PLANA de `paintPuntosRiesgo` para consumidores que NO son MapLibre
+ * (p. ej. un <Marker> DOM con un ícono Lucide coloreado). Devuelve el hex de
+ * la MISMA paleta `COLOR_NIVEL_PELIGRO` para un `nivelRiesgo` del radar, con
+ * `sin_dato` como fallback para valores desconocidos. La integración filtra
+ * los puntos `sin_dato` antes de dibujar, pero se conserva el fallback por
+ * simetría con la versión MapLibre: un valor inesperado nunca deja el color
+ * en `undefined`.
+ */
+export function colorPuntoRiesgo(nivelRiesgo: string): string {
+  const puente = NIVEL_RIESGO_A_PELIGRO.find(([nivel]) => nivel === nivelRiesgo)
+  return puente ? COLOR_NIVEL_PELIGRO[puente[1]] : COLOR_NIVEL_PELIGRO.sin_dato
 }
 
 // ── Puntos de riesgo de acceso ──────────────────────────────────────────────

@@ -12,15 +12,16 @@
 }
 
 /*
-  Tooltip del departamento bajo el cursor. pointer-events: none es obligatorio,
-  no cosmético: el popup sigue al mouse, y si capturara eventos se interpondría
-  entre el cursor y el mapa, cortando el propio hover que lo hizo aparecer.
+  Tooltip del mapa bajo el cursor (departamento, escuela o cluster). El
+  `pointer-events: none` es obligatorio, no cosmético: el popup sigue al mouse,
+  y si capturara eventos se interpondría entre el cursor y el mapa, cortando el
+  propio hover que lo hizo aparecer.
 */
-.mapa-tooltip-departamento {
+.mapa-tooltip {
   pointer-events: none;
 }
 
-.mapa-tooltip-departamento .maplibregl-popup-content {
+.mapa-tooltip .maplibregl-popup-content {
   background: color-mix(in srgb, var(--card) 96%, transparent);
   color: var(--ink);
   border: 1px solid var(--line);
@@ -28,10 +29,40 @@
   box-shadow: var(--e-1);
   padding: 0.25rem 0.5rem;
   font-size: var(--t-small);
-  font-weight: 600;
-  white-space: nowrap;
+  font-weight: 400;
+  /*
+    Hallazgo 6: la oración de departamento es larga. Con `nowrap` y sin
+    `max-width` se estiraba y desbordaba la caja blanca cerca del borde del
+    mapa. Se limita el ancho y se permite el corte en varias líneas para las
+    tres variantes; `overflow-wrap` evita que un nombre de escuela largo sin
+    espacios vuelva a desbordar.
+  */
+  max-width: 260px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
 }
 
-.mapa-tooltip-departamento .maplibregl-popup-tip {
+.mapa-tooltip .maplibregl-popup-content strong {
+  font-weight: 600;
+}
+
+.mapa-tooltip .maplibregl-popup-tip {
   display: none;
+}
+
+.mapa-tooltip-cluster.maplibregl-popup,
+.mapa-tooltip-cluster .maplibregl-popup-content {
+  pointer-events: auto;
+}
+
+.mapa-tooltip-cluster button {
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--t-small);
+  cursor: pointer;
 }

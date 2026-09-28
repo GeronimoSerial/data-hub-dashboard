@@ -47,24 +47,24 @@ const filtrosVacios = {
 }
 
 describe('ListaAlertas', () => {
-  it('selecciona una escuela al hacer click y no ofrece acciones de gestión', () => {
-    const onSeleccionar = vi.fn()
+  // Hallazgo 8: el buscador de escuelas es único y vive en el mapa
+  // (EscuelaSearchBox), que busca sobre el padrón completo. Este panel ya no
+  // ofrece una segunda caja de búsqueda con la misma etiqueta.
+  it('no renderiza un buscador de escuelas propio ni acciones de gestión', () => {
     render(
       <ListaAlertas
         partes={[parte]}
         filtros={filtrosVacios}
         onFiltroChange={vi.fn()}
-        seleccionadaCue={null}
-        onSeleccionar={onSeleccionar}
+        filtrosAbiertos={false}
+        onFiltrosAbiertosChange={vi.fn()}
       />,
     )
 
-    expect(screen.queryByText('Escuela 1')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByPlaceholderText(/nombre, cue o localidad/i), {
-      target: { value: 'escuela' },
-    })
-    fireEvent.click(screen.getByText('Escuela 1'))
-    expect(onSeleccionar).toHaveBeenCalledWith('1801605-04')
+    expect(
+      screen.queryByPlaceholderText(/nombre, cue o localidad/i),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Buscar escuela')).not.toBeInTheDocument()
 
     for (const label of ['crear', 'editar', 'finalizar', 'nueva alerta']) {
       expect(
@@ -73,20 +73,28 @@ describe('ListaAlertas', () => {
     }
   })
 
-  it('muestra el estado de servicio en la fila', () => {
+  it('muestra los filtros avanzados del mapa', () => {
     render(
       <ListaAlertas
         partes={[parte]}
         filtros={filtrosVacios}
         onFiltroChange={vi.fn()}
-        seleccionadaCue={null}
-        onSeleccionar={vi.fn()}
+        filtrosAbiertos={true}
+        onFiltrosAbiertosChange={vi.fn()}
       />,
     )
-    fireEvent.change(screen.getByPlaceholderText(/nombre, cue o localidad/i), {
-      target: { value: '1801605' },
-    })
-    expect(screen.getByText(/clases suspendidas/i)).toBeInTheDocument()
+
+    expect(screen.getByText('Filtros del mapa')).toBeInTheDocument()
+    for (const label of [
+      'Territorio',
+      'Nivel',
+      'Motivo',
+      'Severidad',
+      'Categoría',
+      'Servicio',
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
   })
 
   it('notifica el cambio de un filtro sin tocar los demás', () => {
@@ -96,16 +104,34 @@ describe('ListaAlertas', () => {
         partes={[]}
         filtros={filtrosVacios}
         onFiltroChange={onFiltroChange}
-        seleccionadaCue={null}
-        onSeleccionar={vi.fn()}
+        filtrosAbiertos={true}
+        onFiltrosAbiertosChange={vi.fn()}
       />,
     )
 
-    fireEvent.click(screen.getByText('Filtros del mapa'))
     fireEvent.change(screen.getByPlaceholderText(/departamento o localidad/i), {
       target: { value: 'Paraná' },
     })
     expect(onFiltroChange).toHaveBeenCalledWith('territorio', 'Paraná')
+  })
+
+  it('propaga la apertura del bloque de filtros al padre', () => {
+    const onFiltrosAbiertosChange = vi.fn()
+    const { container } = render(
+      <ListaAlertas
+        partes={[parte]}
+        filtros={filtrosVacios}
+        onFiltroChange={vi.fn()}
+        filtrosAbiertos={false}
+        onFiltrosAbiertosChange={onFiltrosAbiertosChange}
+      />,
+    )
+
+    const details = container.querySelector('details.map-filtros-avanzados') as HTMLDetailsElement
+    expect(details).not.toBeNull()
+    details.open = true
+    fireEvent(details, new Event('toggle'))
+    expect(onFiltrosAbiertosChange).toHaveBeenCalledWith(true)
   })
 
   it('avisa cuando no hay escuelas con los filtros aplicados', () => {
@@ -114,8 +140,8 @@ describe('ListaAlertas', () => {
         partes={[]}
         filtros={filtrosVacios}
         onFiltroChange={vi.fn()}
-        seleccionadaCue={null}
-        onSeleccionar={vi.fn()}
+        filtrosAbiertos={false}
+        onFiltrosAbiertosChange={vi.fn()}
       />,
     )
     expect(

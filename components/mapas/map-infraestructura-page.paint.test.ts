@@ -3,12 +3,11 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { RADIO_DOT_BASE, rangoSeveridad } from '@/lib/mapas/severidad-visual'
+import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
   circlePaintPartes,
-  circlePaintSinReportar,
   colorPorSeveridadRango,
   construirFeatureCollection,
   esSinReportar,
@@ -18,7 +17,6 @@ import {
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
   RADIO_CLUSTER_MENOR,
-  SIN_REPORTAR_RADIO_EXTRA,
 } from './map-infraestructura-page'
 
 const CUE = '1801605-04'
@@ -136,47 +134,24 @@ describe('expresionRadioCluster', () => {
 })
 
 describe('circlePaintPartes', () => {
-  it('radio fijo RADIO_DOT_BASE y todas las claves del paint del punto', () => {
+  it('radio fijo 14 (mayor que RADIO_DOT_BASE) y todas las claves del paint del punto', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-radius']).toBe(RADIO_DOT_BASE)
+    expect(paint['circle-radius']).toBe(14)
     expect(Object.keys(paint).sort()).toEqual([
       'circle-color',
       'circle-opacity',
       'circle-radius',
       'circle-stroke-color',
-      'circle-stroke-opacity',
       'circle-stroke-width',
     ])
   })
 
-  it('el anillo de servicio distingue suspendido/parcial del resto por grosor y opacidad', () => {
+  it('el borde es neutro y fijo: el servicio ya no se codifica con grosor/opacidad', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-stroke-width']).toEqual([
-      'match',
-      ['get', 'servicio'],
-      'suspendido',
-      4,
-      'parcial',
-      2,
-      1,
-    ])
-    expect(paint['circle-stroke-opacity']).toEqual([
-      'match',
-      ['get', 'servicio'],
-      'suspendido',
-      1,
-      'parcial',
-      0.55,
-      0.9,
-    ])
-  })
-})
-
-describe('circlePaintSinReportar', () => {
-  it('es un anillo más grande que el punto (RADIO_DOT_BASE + extra), sin relleno', () => {
-    const paint = circlePaintSinReportar()!
-    expect(paint['circle-radius']).toBe(RADIO_DOT_BASE + SIN_REPORTAR_RADIO_EXTRA)
-    expect(paint['circle-color']).toBe('transparent')
+    expect(paint['circle-stroke-width']).toBe(1)
+    // El estado del servicio pasó al badge de íconos (V2): el paint del punto
+    // ya no debe tener ninguna expresión data-driven sobre `servicio`.
+    expect(paint).not.toHaveProperty('circle-stroke-opacity')
   })
 })
 
@@ -317,9 +292,9 @@ describe('paintPuntosRiesgoAcceso', () => {
   it('usa el color real de cada nivel y cae en el gris de fallback ante cualquier otro valor', () => {
     const paint = paintPuntosRiesgoAcceso()!
     const expresion = paint['circle-color'] as unknown[]
-    expect(evaluarMatch(expresion, 'bajo')).toBe('#719c29')
-    expect(evaluarMatch(expresion, 'moderado')).toBe('#facd05')
-    expect(evaluarMatch(expresion, 'alto')).toBe('#f68e13')
+    expect(evaluarMatch(expresion, 'bajo')).toBe('#eff6ff')
+    expect(evaluarMatch(expresion, 'moderado')).toBe('#93c5fd')
+    expect(evaluarMatch(expresion, 'alto')).toBe('#3b82f6')
     // 'sin_cobertura' (el `null` crudo nunca llega acá) y valores inesperados.
     expect(evaluarMatch(expresion, 'sin_cobertura')).toBe('#8a8886')
     expect(evaluarMatch(expresion, 'valor-inesperado')).toBe('#8a8886')

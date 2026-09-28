@@ -8,6 +8,7 @@ import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { normalizeCue } from '@/lib/infraestructura/cue'
+import { obtenerDatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { armarFichaParte } from '@/lib/infraestructura/parte-consulta'
@@ -42,9 +43,18 @@ export async function GET(request: Request) {
     return Response.json({ error: 'No hay un corte vigente de Gestión Educativa' }, { status: 503 })
   }
 
+  // Independiente de la afectación: el padrón del corte vigente se calcula
+  // siempre que haya CUE válido y corte (incluso para escuelas con
+  // `parte: null`). Es sólo un agregado por escuela — nunca identidad de
+  // alumno.
+  const datosPadron = await obtenerDatosPadronEscuela(client, corte.id, cue.value)
+
   const ficha = await armarFichaParte(cue.value, corte.id)
   if (!ficha) {
-    return Response.json({ ok: true, periodo: null, parte: null }, { status: 200, headers: CACHE_HEADERS })
+    return Response.json(
+      { ok: true, periodo: null, parte: null, datosPadron },
+      { status: 200, headers: CACHE_HEADERS },
+    )
   }
 
   return Response.json(
@@ -65,6 +75,7 @@ export async function GET(request: Request) {
         totales: afectacion.totales,
       })),
       secciones: ficha.secciones,
+      datosPadron,
       ultimaActualizacion: ficha.ultimaActualizacion,
     },
     { status: 200, headers: CACHE_HEADERS },

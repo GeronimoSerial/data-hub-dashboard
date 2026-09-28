@@ -46,7 +46,6 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { registerHooks } from 'node:module'
-import { createClient } from '@libsql/client'
 
 // Carga .env manualmente: este script se invoca como `node scripts/...`, sin
 // pasar por Next.js (que lo haría solo) ni por vitest (los tests setean las
@@ -103,7 +102,8 @@ registerHooks({
   },
 })
 
-const { getGeSqlitePath, getCorteVigente } = await import('../lib/infraestructura/ge-db.ts')
+const { crearEjecutorSql, ejecutarEnTransaccion, getCorteVigente } = await import('../lib/infraestructura/ge-db.ts')
+const { getRawClient } = await import('../lib/db/index.ts')
 // Igual que import-padron.mjs: importamos el módulo de cifrado aislado, no
 // identidad.ts, para no arrastrar drizzle-orm/el resto del ORM a la mitad de
 // este script que sólo necesita cifrar dos strings.
@@ -112,7 +112,6 @@ const { cifrarIdentidad } = await import('../lib/infraestructura/identidad-cript
 // Funciones puras (sin I/O) reusadas tal cual del dominio: nada de esto
 // reimplementa una regla de negocio, sólo arma los datos que esas reglas
 // consumen.
-const { getSqlitePath } = await import('../lib/data-dir.ts')
 const { diffParte } = await import('../lib/infraestructura/movimiento-diff.ts')
 const { crearSnapshotVacio } = await import('../lib/infraestructura/trayectoria-tipos.ts')
 const { SEVERIDADES } = await import('../lib/infraestructura/validacion.ts')
@@ -239,26 +238,6 @@ function diasAtras(dias, desde = Date.now()) {
   return horasAtras(dias * 24, desde)
 }
 
-// Mismo patrón de rollback-en-catch que activarCorte (ge-db.ts) y
-// consultarYRegistrarAfectados (identidad.ts): corre `fn` con una
-// transacción de escritura, hace commit si todo sale bien y rollback si no,
-// sin tragarse el error original.
-async function enTransaccion(client, fn) {
-  const tx = await client.transaction('write')
-  try {
-    const resultado = await fn(tx)
-    await tx.commit()
-    return resultado
-  } catch (err) {
-    try {
-      await tx.rollback()
-    } catch {
-      // noop: si el commit ya cerró la transacción, el error original manda
-    }
-    throw err
-  }
-}
-
 async function limpiarHub(hub) {
   // Orden: hijos antes que padres (no confiamos en que la conexión tenga
   // PRAGMA foreign_keys=ON habilitado; el borrado explícito no depende de
@@ -273,15 +252,15 @@ async function limpiarHub(hub) {
 
 async function limpiarGe(ge, corteId) {
   await ge.execute({
-    sql: 'DELETE FROM ge_alumno_seccion WHERE corte_id = ? AND ge_person_id <= ?',
+    sql: 'DELETE FROM ge.ge_alumno_seccion WHERE corte_id = ? AND ge_person_id <= ?',
     args: [corteId, ID_DEMO_BASE],
   })
   await ge.execute({
-    sql: 'DELETE FROM ge_alumno_identidad WHERE ge_person_id <= ?',
+    sql: 'DELETE FROM ge.ge_alumno_identidad WHERE ge_person_id <= ?',
     args: [ID_DEMO_BASE],
   })
   await ge.execute({
-    sql: 'DELETE FROM ge_seccion WHERE corte_id = ? AND ge_section_id <= ?',
+    sql: 'DELETE FROM ge.ge_seccion WHERE corte_id = ? AND ge_section_id <= ?',
     args: [corteId, ID_DEMO_BASE],
   })
 }
@@ -352,7 +331,7 @@ async function sembrarMatricula(ge, corteId, establecimientos) {
       const division = elegir(DIVISIONES)
 
       await ge.execute({
-        sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
         args: [corteId, geSectionId, est.cueAnexo, curso, division, combo.nivel, combo.turno],
       })
 
@@ -363,12 +342,12 @@ async function sembrarMatricula(ge, corteId, establecimientos) {
         const { nombre, apellido } = nombreAlumno()
 
         await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
+          sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
           args: [corteId, geSectionId, gePersonId],
         })
         const payloadCifrado = cifrarIdentidad(nombre, apellido)
         await ge.execute({
-          sql: `INSERT INTO ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?, ?)
+          sql: `INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?, ?)
                 ON CONFLICT(ge_person_id) DO UPDATE SET payload_cifrado = excluded.payload_cifrado`,
           args: [gePersonId, payloadCifrado],
         })
@@ -803,80 +782,76 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 async function main() {
   const limpiarSolo = process.argv.includes('--limpiar')
 
-  const ge = createClient({ url: `file:${getGeSqlitePath()}` })
-  const hub = createClient({ url: `file:${getSqlitePath()}` })
+  const raw = crearEjecutorSql(getRawClient())
+  const ge = raw
+  const hub = raw
 
-  try {
-    const corte = await getCorteVigente(ge)
-    if (!corte) {
-      throw new Error(
-        'No hay corte vigente en ge.sqlite. Corré primero node scripts/sync-ge.mjs --fixture.',
-      )
-    }
-
-    if (limpiarSolo) {
-      await enTransaccion(hub, (tx) => limpiarHub(tx))
-      await enTransaccion(ge, (tx) => limpiarGe(tx, corte.id))
-      console.log('Datos de demo eliminados (hub.sqlite + ge.sqlite).')
-      return
-    }
-
-    // Período vigente: se REUSA el que ya exista, nunca se crea uno nuevo
-    // salvo que no haya ninguno (instrucción explícita).
-    let periodoRes = await hub.execute("SELECT id FROM infra_periodo WHERE estado = 'vigente' LIMIT 1")
-    let periodoId
-    if (periodoRes.rows.length > 0) {
-      periodoId = String(periodoRes.rows[0].id)
-    } else {
-      periodoId = 'demo-periodo-enos'
-      const ahoraIso = new Date().toISOString()
-      await hub.execute({
-        sql: `INSERT INTO infra_periodo (id, nombre, inicio_en, fin_en, estado, creada_en) VALUES (?,?,?,?,'vigente',?)`,
-        args: [periodoId, 'Período de demo (creado por seed-demo-partes.mjs)', ahoraIso, null, ahoraIso],
-      })
-      console.log(`ADVERTENCIA: no había ningún infra_periodo vigente. Se creó uno nuevo: ${periodoId}`)
-    }
-
-    const localizacionesRes = await ge.execute('SELECT cue_anexo, departamento FROM ge_localizacion')
-    const localizaciones = localizacionesRes.rows.map((r) => ({
-      cueAnexo: String(r.cue_anexo),
-      departamento: String(r.departamento),
-    }))
-
-    const establecimientos = elegirEstablecimientos(localizaciones, 150)
-    console.log(
-      `Parte A: ${establecimientos.length} establecimientos elegidos en ${new Set(establecimientos.map((e) => e.departamento)).size} departamentos.`,
+  const corte = await getCorteVigente(ge)
+  if (!corte) {
+    throw new Error(
+      'No hay corte vigente en ge.sqlite. Corré primero node scripts/sync-ge.mjs --fixture.',
     )
-
-    // Parte A entera (limpieza + siembra) en UNA transacción: miles de
-    // inserts uno por uno, cada uno con su propio commit/fsync, tardaban
-    // varios minutos. Agrupados en una sola transacción de escritura, SQLite
-    // sólo fsync-ea una vez al final — la corrida pasa de minutos a segundos
-    // sin cambiar una sola fila de lo que se inserta.
-    const { establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal } =
-      await enTransaccion(ge, async (tx) => {
-        await limpiarGe(tx, corte.id)
-        return sembrarMatricula(tx, corte.id, establecimientos)
-      })
-    console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en ge.sqlite (corte ${corte.id}).`)
-
-    // Mismo criterio para Parte B.
-    const resumen = await enTransaccion(hub, async (tx) => {
-      await limpiarHub(tx)
-      return sembrarPartes(tx, periodoId, corte.id, establecimientosConSecciones, alumnosPorSeccionGlobal)
-    })
-
-    console.log(
-      `Parte B: ${resumen.partes} partes, ${resumen.afectaciones} afectaciones, ${resumen.servicios} filas de servicio_alcance, ${resumen.movimientos} movimientos.`,
-    )
-    console.log(
-      `  Desglose por estado de servicio (esperado, ver verificación con listarPartesVigentes): normal=${resumen.porEstadoServicio.normal}, parcial=${resumen.porEstadoServicio.parcial}, suspendido=${resumen.porEstadoServicio.suspendido}`,
-    )
-    console.log(`  Con retiradaEn (además de las 3 todo-retirado): ${resumen.serviciosRestaurados} servicios y ${resumen.afectacionesRetiradas} afectaciones.`)
-  } finally {
-    ge.close()
-    hub.close()
   }
+
+  if (limpiarSolo) {
+    await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarHub(tx))
+    await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
+    console.log('Datos de demo eliminados (hub.sqlite + ge.sqlite).')
+    return
+  }
+
+  // Período vigente: se REUSA el que ya exista, nunca se crea uno nuevo
+  // salvo que no haya ninguno (instrucción explícita).
+  let periodoRes = await hub.execute("SELECT id FROM infra_periodo WHERE estado = 'vigente' LIMIT 1")
+  let periodoId
+  if (periodoRes.rows.length > 0) {
+    periodoId = String(periodoRes.rows[0].id)
+  } else {
+    periodoId = 'demo-periodo-enos'
+    const ahoraIso = new Date().toISOString()
+    await hub.execute({
+      sql: `INSERT INTO infra_periodo (id, nombre, inicio_en, fin_en, estado, creada_en) VALUES (?,?,?,?,'vigente',?)`,
+      args: [periodoId, 'Período de demo (creado por seed-demo-partes.mjs)', ahoraIso, null, ahoraIso],
+    })
+    console.log(`ADVERTENCIA: no había ningún infra_periodo vigente. Se creó uno nuevo: ${periodoId}`)
+  }
+
+  const localizacionesRes = await ge.execute('SELECT cue_anexo, departamento FROM ge.ge_localizacion')
+  const localizaciones = localizacionesRes.rows.map((r) => ({
+    cueAnexo: String(r.cue_anexo),
+    departamento: String(r.departamento),
+  }))
+
+  const establecimientos = elegirEstablecimientos(localizaciones, 150)
+  console.log(
+    `Parte A: ${establecimientos.length} establecimientos elegidos en ${new Set(establecimientos.map((e) => e.departamento)).size} departamentos.`,
+  )
+
+  // Parte A entera (limpieza + siembra) en UNA transacción: miles de
+  // inserts uno por uno, cada uno con su propio commit/fsync, tardaban
+  // varios minutos. Agrupados en una sola transacción de escritura, SQLite
+  // sólo fsync-ea una vez al final — la corrida pasa de minutos a segundos
+  // sin cambiar una sola fila de lo que se inserta.
+  const { establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal } =
+    await ejecutarEnTransaccion(getRawClient(), async (tx) => {
+      await limpiarGe(tx, corte.id)
+      return sembrarMatricula(tx, corte.id, establecimientos)
+    })
+  console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en ge.sqlite (corte ${corte.id}).`)
+
+  // Mismo criterio para Parte B.
+  const resumen = await ejecutarEnTransaccion(getRawClient(), async (tx) => {
+    await limpiarHub(tx)
+    return sembrarPartes(tx, periodoId, corte.id, establecimientosConSecciones, alumnosPorSeccionGlobal)
+  })
+
+  console.log(
+    `Parte B: ${resumen.partes} partes, ${resumen.afectaciones} afectaciones, ${resumen.servicios} filas de servicio_alcance, ${resumen.movimientos} movimientos.`,
+  )
+  console.log(
+    `  Desglose por estado de servicio (esperado, ver verificación con listarPartesVigentes): normal=${resumen.porEstadoServicio.normal}, parcial=${resumen.porEstadoServicio.parcial}, suspendido=${resumen.porEstadoServicio.suspendido}`,
+  )
+  console.log(`  Con retiradaEn (además de las 3 todo-retirado): ${resumen.serviciosRestaurados} servicios y ${resumen.afectacionesRetiradas} afectaciones.`)
 }
 
 await main()

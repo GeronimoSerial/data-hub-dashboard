@@ -43,7 +43,7 @@ export function PeligroLegend({
             <li key={nivel} className="peligro-legend__item">
               <span
                 className="peligro-legend__muestra"
-                style={{ backgroundColor: COLOR_NIVEL_PELIGRO[nivel] }}
+                style={{ backgroundColor: nivel === 'sin_dato' ? 'transparent' : COLOR_NIVEL_PELIGRO[nivel] }}
                 aria-hidden="true"
               />
               <Icono className="peligro-legend__icono" size={16} aria-hidden="true" />

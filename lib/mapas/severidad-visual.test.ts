@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rangoSeveridad } from './severidad-visual'
+import { iconoEstadoEscuela, rangoSeveridad } from './severidad-visual'
 
 describe('rangoSeveridad', () => {
   it('respeta el orden de severidad usado en los clusters', () => {
@@ -8,5 +8,49 @@ describe('rangoSeveridad', () => {
 
   it('trata un valor desconocido como la severidad más baja', () => {
     expect(rangoSeveridad('Desconocida')).toBe(0)
+  })
+})
+
+describe('iconoEstadoEscuela', () => {
+  const base = {
+    estadoEstablecimiento: 'habitual',
+    servicio: 'normal',
+    sinReportar: false,
+  }
+
+  it('mapea cada condición a su ícono lucide', () => {
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'centro_evacuados' })).toBe('Tent')
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'evacuado' })).toBe('DoorOpen')
+    expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido' })).toBe('CircleSlash')
+    expect(iconoEstadoEscuela({ ...base, servicio: 'parcial' })).toBe('TriangleAlert')
+    expect(iconoEstadoEscuela({ ...base, sinReportar: true })).toBe('CircleHelp')
+  })
+
+  it('no devuelve badge para una escuela normal que reporta', () => {
+    expect(iconoEstadoEscuela(base)).toBeNull()
+  })
+
+  it('respeta el orden de prioridad cuando se cumple más de una condición', () => {
+    // centro_evacuados gana sobre evacuado, servicio y sin reportar.
+    expect(
+      iconoEstadoEscuela({
+        estadoEstablecimiento: 'centro_evacuados',
+        servicio: 'suspendido',
+        sinReportar: true,
+      }),
+    ).toBe('Tent')
+    // evacuado gana sobre servicio y sin reportar.
+    expect(
+      iconoEstadoEscuela({ estadoEstablecimiento: 'evacuado', servicio: 'suspendido', sinReportar: true }),
+    ).toBe('DoorOpen')
+    // suspendido gana sobre parcial y sin reportar.
+    expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido', sinReportar: true })).toBe('CircleSlash')
+    // parcial gana sobre sin reportar.
+    expect(iconoEstadoEscuela({ ...base, servicio: 'parcial', sinReportar: true })).toBe('TriangleAlert')
+  })
+
+  it('trata un valor desconocido como "sin condición" salvo el flag de sin reportar', () => {
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro' })).toBeNull()
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro', sinReportar: true })).toBe('CircleHelp')
   })
 })

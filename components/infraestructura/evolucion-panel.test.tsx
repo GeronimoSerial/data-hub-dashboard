@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { EvolucionMapa } from '@/lib/infraestructura/evolucion'
-import { EvolucionPanel } from './evolucion-panel'
+import { EvolucionPanel, recortarSerieAlRangoConDatos } from './evolucion-panel'
 
 // Respuesta de ejemplo con forma EXACTA de EvolucionMapa: si el panel
 // pidiera otro campo, el tipado en runtime se caería acá y no en producción.
@@ -91,5 +91,42 @@ describe('EvolucionPanel — consumo del endpoint de evolución', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/HTTP 500/)
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+})
+
+describe('recortarSerieAlRangoConDatos — recorte de presentación (hallazgo 24)', () => {
+  function punto(dia: number, escuelas: number) {
+    return { fecha: `2026-01-${String(dia).padStart(2, '0')}`, escuelas }
+  }
+
+  it('recorta los días iniciales en cero y deja margen de contexto antes del primer dato', () => {
+    const serie = [punto(1, 0), punto(2, 0), punto(3, 0), punto(4, 0), punto(5, 3), punto(6, 4)]
+
+    expect(recortarSerieAlRangoConDatos(serie)).toEqual([
+      punto(2, 0),
+      punto(3, 0),
+      punto(4, 0),
+      punto(5, 3),
+      punto(6, 4),
+    ])
+  })
+
+  it('no recorta cuando el primer punto ya tiene datos', () => {
+    const serie = [punto(1, 2), punto(2, 3)]
+    expect(recortarSerieAlRangoConDatos(serie)).toEqual(serie)
+  })
+
+  it('devuelve la serie completa si todos los días están en cero', () => {
+    const serie = [punto(1, 0), punto(2, 0), punto(3, 0)]
+    expect(recortarSerieAlRangoConDatos(serie)).toEqual(serie)
+  })
+
+  it('devuelve un array vacío si no hay puntos', () => {
+    expect(recortarSerieAlRangoConDatos([])).toEqual([])
+  })
+
+  it('respeta el margen indicado', () => {
+    const serie = [punto(1, 0), punto(2, 0), punto(3, 0), punto(4, 5)]
+    expect(recortarSerieAlRangoConDatos(serie, 1)).toEqual([punto(3, 0), punto(4, 5)])
   })
 })

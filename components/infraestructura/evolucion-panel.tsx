@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 // Frontera servidor/cliente: ver el comentario largo en evolucion-graficos.tsx.
 // Sólo TYPES cruzan hacia acá; ningún valor de evolucion.ts se ejecuta en el
 // navegador.
-import type { EvolucionMapa } from '@/lib/infraestructura/evolucion'
+import type { EvolucionMapa, PuntoEscuelasServicioCaido } from '@/lib/infraestructura/evolucion'
 import {
   GraficoAlumnosAcumulados,
   GraficoMotivos,
@@ -21,6 +21,23 @@ const VISTAS: readonly Vista[] = ['serie', 'ranking', 'motivos', 'acumulado']
 
 function esVista(valor: string): valor is Vista {
   return (VISTAS as readonly string[]).includes(valor)
+}
+
+// Hallazgo 24: la serie nace en el inicio REAL del período, que puede ser
+// meses antes de la primera afectación. Esos días en cero en la cabecera
+// desperdician ~90 % del ancho del gráfico, así que —sólo para dibujar— se
+// recorta hasta el primer día con escuelas caídas, dejando unos días de
+// contexto previo para que se lea el "estaba en cero y después subió" en vez
+// de arrancar de golpe. Si ningún día tiene datos se devuelve la serie
+// completa: un período sin caídos nunca es lo mismo que "no hay serie" y no
+// corresponde inventar un recorte sobre un array todo en cero.
+export function recortarSerieAlRangoConDatos(
+  puntos: readonly PuntoEscuelasServicioCaido[],
+  margen = 3,
+): PuntoEscuelasServicioCaido[] {
+  const primerConDatos = puntos.findIndex((punto) => punto.escuelas > 0)
+  if (primerConDatos === -1) return [...puntos]
+  return puntos.slice(Math.max(0, primerConDatos - margen))
 }
 
 export function EvolucionPanel(): JSX.Element {
@@ -75,6 +92,14 @@ export function EvolucionPanel(): JSX.Element {
     )
   }
 
+  // Hallazgo 25: máximo del ranking para escalar las barras de apoyo visual.
+  // Nace en 0 y no en -Infinity para el caso sin filas; el ancho se calcula
+  // sólo cuando el máximo es positivo, así que el 0 queda cubierto.
+  const maxEscuelasAfectadas = Math.max(
+    0,
+    ...datos.rankingDepartamentos.map((fila) => fila.escuelasAfectadas),
+  )
+
   return (
     <div className="evolucion-panel">
       <div>
@@ -105,7 +130,9 @@ export function EvolucionPanel(): JSX.Element {
           {datos.serieEscuelasServicioCaido.length === 0 ? (
             <p className="map-hint">No hay escuelas con servicio caído en el período vigente.</p>
           ) : (
-            <GraficoSerieServicioCaido puntos={datos.serieEscuelasServicioCaido} />
+            <GraficoSerieServicioCaido
+              puntos={recortarSerieAlRangoConDatos(datos.serieEscuelasServicioCaido)}
+            />
           )}
         </section>
       )}
@@ -127,6 +154,7 @@ export function EvolucionPanel(): JSX.Element {
                     <th scope="col">Departamento</th>
                     <th scope="col">Escuelas afectadas</th>
                     <th scope="col">Alumnos alcanzados</th>
+                    <th scope="col">Proporción</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -135,6 +163,20 @@ export function EvolucionPanel(): JSX.Element {
                       <th scope="row">{fila.departamento}</th>
                       <td>{fila.escuelasAfectadas}</td>
                       <td>{fila.alumnosAlcanzados}</td>
+                      <td className="evolucion-barra-celda">
+                        {/* Decorativa: el número ya está en la columna anterior. */}
+                        <span className="evolucion-barra" aria-hidden="true">
+                          <span
+                            className="evolucion-barra__relleno"
+                            style={{
+                              width:
+                                maxEscuelasAfectadas > 0
+                                  ? `${(fila.escuelasAfectadas / maxEscuelasAfectadas) * 100}%`
+                                  : '0%',
+                            }}
+                          />
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

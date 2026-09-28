@@ -159,6 +159,17 @@ describe('reservarPresupuestoMes concurrencia real entre dos conexiones Postgres
         poolA = dbModuleA.getRawClient() as Pool
         const { reservarPresupuestoMes: reservarA } = await import('./presupuesto')
 
+        // El cache de conexiones vive en globalThis por connectionString (ver
+        // lib/db/index.ts), así que sin borrar esta entrada la segunda
+        // importación reutilizaría el pool de A y ya no habría dos conexiones
+        // físicas: `expect(poolA).not.toBe(poolB)` fallaría. `cerrarCliente:
+        // false` porque poolA sigue vivo y en uso toda la carrera y la
+        // limpieza final (el helper cierra por defecto).
+        await dbModuleA.__eliminarInstanciaCacheadaParaTests({
+          connectionString: databaseUrlTest,
+          cerrarCliente: false,
+        })
+
         vi.resetModules()
         const dbModuleB = await import('@/lib/db')
         poolB = dbModuleB.getRawClient() as Pool

@@ -163,6 +163,13 @@ export function GraficoSerieServicioCaido(props: {
   puntos: PuntoEscuelasServicioCaido[]
 }) {
   const paleta = usePaletaGraficos()
+  // Los datos son diarios: no existe un valor "entre días". Una curva suave
+  // inventaría valores intermedios, así que la línea es ESCALONADA y cambia
+  // una sola vez por día (stepAfter). El eje X fija un interval numérico
+  // —no `preserveStartEnd`, que respeta los extremos y puede dejar el resto
+  // desparejo— para que las marcas queden igualmente espaciadas sin importar
+  // desde qué punto arrancó el recorte.
+  const intervaloTicks = Math.max(0, Math.ceil(props.puntos.length / 8) - 1)
   return (
     <GraficoContenedor etiqueta="Serie temporal de escuelas con servicio caído">
       <LineChart data={props.puntos} margin={{ top: 8, right: 12, bottom: 4, left: -4 }}>
@@ -170,8 +177,7 @@ export function GraficoSerieServicioCaido(props: {
         <XAxis
           dataKey="fecha"
           tickFormatter={fechaCorta}
-          minTickGap={28}
-          interval="preserveStartEnd"
+          interval={intervaloTicks}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -189,9 +195,10 @@ export function GraficoSerieServicioCaido(props: {
           itemStyle={estiloDatoTooltip}
           cursor={{ stroke: paleta.grilla, strokeWidth: 1 }}
           labelFormatter={etiquetaFechaCorta}
+          formatter={(valor) => [`${formatearMiles(Number(valor))} escuelas`, null]}
         />
         <Line
-          type="monotone"
+          type="stepAfter"
           dataKey="escuelas"
           name="Escuelas con servicio caído"
           stroke={paleta.serieServicio}
