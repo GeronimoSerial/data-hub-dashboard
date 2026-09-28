@@ -7,6 +7,7 @@ import type { PgliteDatabase } from 'drizzle-orm/pglite'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import { getPglitePath } from '@/lib/data-dir'
 import { resolveDriver } from './driver'
+import { buildPgPoolConfig } from './config-postgres'
 import * as schema from './schema'
 
 // DB1/F2: `NodePgDatabase` (postgres) y `PgliteDatabase` (pglite) extienden la
@@ -63,11 +64,11 @@ export function getDb(_opciones?: OpcionesGetDb) {
   if (_db) return _db
 
   if (resolveDriver() === 'postgres') {
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: resolveSslConfig(),
-      max: process.env.DATABASE_POOL_MAX ? Number(process.env.DATABASE_POOL_MAX) : undefined,
-    })
+    const connectionString = process.env.DATABASE_URL
+    if (!connectionString) {
+      throw new Error('DATABASE_URL es obligatoria cuando el driver es postgres')
+    }
+    const pool = new Pool(buildPgPoolConfig(connectionString))
     _rawClient = pool
     _db = drizzlePg(pool, { schema }) as unknown as Db
     return _db
@@ -106,15 +107,4 @@ export async function migrarDb(): Promise<void> {
     const { migrate } = await import('drizzle-orm/pglite/migrator')
     await migrate(db as PgliteDatabase<typeof schema>, { migrationsFolder: './drizzle' })
   }
-}
-
-// DATABASE_SSL: 'require' fuerza TLS sin validar CA (RDS con el bundle
-// default suele alcanzar); 'true'/'1' fuerza TLS validando; cualquier otro
-// valor (o ausente) deja SSL apagado, que es lo correcto contra el podman
-// local de F2/F3 y contra un Postgres de desarrollo sin TLS.
-function resolveSslConfig(): boolean | { rejectUnauthorized: boolean } {
-  const valor = process.env.DATABASE_SSL
-  if (valor === 'require') return { rejectUnauthorized: false }
-  if (valor === 'true' || valor === '1') return { rejectUnauthorized: true }
-  return false
 }
