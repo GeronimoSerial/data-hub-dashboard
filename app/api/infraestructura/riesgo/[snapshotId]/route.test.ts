@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
   infraGeoProfile,
@@ -8,8 +8,12 @@ import {
   infraRiskRun,
   infraRiskSnapshot,
 } from '@/lib/db/schema'
-import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import {
+  mockAcceso,
+  RUN_VIGENTE as RUN,
+  USER,
+} from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
 // antes de que el beforeAll fije DATA_DIR.
@@ -17,22 +21,18 @@ vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
   verificarAccesoLectura: vi.fn(),
 }))
 
-const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
-
-function mockAcceso(acceso: AccesoLectura) {
-  vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
-}
-
-const RUN = 'run-vigente'
 const SNAPSHOT = 'snapshot-1'
 const CUE = '1000000-01'
 
 usarDbTemporal('riesgo-detalle-route-', { seed: false })
 
+let GET: typeof Ruta.GET
+
 beforeAll(async () => {
   const seed = await import('@/lib/db/seed')
   await seed.ensureSeeded()
   PERIODO = seed.PERIODO_ENOS_2026_2027_ID
+  GET = (await import('./route')).GET
 })
 
 let PERIODO = ''
@@ -135,7 +135,6 @@ function req() {
 describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(SNAPSHOT))
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('No autenticado')
@@ -143,7 +142,6 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(SNAPSHOT))
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -151,14 +149,12 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
 
   it('rechaza 403 a un usuario sin acceso al recurso (p. ej. el director)', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(SNAPSHOT))
     expect(res.status).toBe(403)
   })
 
   it('devuelve 404 si el snapshot no existe', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('snapshot-inexistente'))
     expect(res.status).toBe(404)
     expect((await res.json()).error).toBe('Snapshot no encontrado')
@@ -194,7 +190,6 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
     })
 
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('snapshot-preparando'))
     expect(res.status).toBe(404)
     expect((await res.json()).error).toBe('Snapshot no encontrado')
@@ -202,7 +197,6 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
 
   it('rechaza snapshotId vacío con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(''))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('snapshotId inválido')
@@ -210,7 +204,6 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
 
   it('con acceso devuelve el snapshot y sus factores', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(SNAPSHOT))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')

@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -20,6 +21,9 @@ function mockAcceso(acceso: AccesoLectura) {
 }
 
 usarDbTemporal('episodios-route-')
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 async function limpiarEpisodios() {
   const db = getDb()
@@ -104,7 +108,6 @@ function req(qs = '') {
 describe('GET /api/infraestructura/episodios-derivados', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -114,7 +117,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -122,7 +124,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('con ACL ok y sin filtros devuelve items ordenados por inicioEn desc', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -154,7 +155,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('filtra por estado', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?estado=abierto'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -166,7 +166,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('filtra por departamento (comparación exacta, dato normalizado)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?departamento=PARANA'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -182,8 +181,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('filtra por rango inicioEn con desde y hasta', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
-
     const desde = await (
       await GET(req('?desde=2026-03-11T00:00:00Z'))
     ).json()
@@ -204,8 +201,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('pagina con total y totalPages correctos', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
-
     const primera = await (await GET(req('?page=1&pageSize=2'))).json()
     expect(primera.items.map((i: { id: string }) => i.id)).toEqual([
       'ep-concordia-cerrado',
@@ -226,7 +221,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('rechaza estado inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?estado=lo_que_sea'))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -236,7 +230,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('rechaza desde inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?desde=no-es-fecha'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('desde')
@@ -244,7 +237,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('rechaza page inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?page=0'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('page')
@@ -252,7 +244,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
 
   it('rechaza pageSize fuera de rango con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?pageSize=500'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('pageSize')
@@ -300,8 +291,6 @@ describe('GET /api/infraestructura/episodios-derivados', () => {
         calculadoEn: '2026-03-15T01:00:00Z',
       },
     ])
-
-    const { GET } = await import('./route')
 
     const sinFiltros = await (await GET(req())).json()
     expect(sinFiltros.total).toBe(2)

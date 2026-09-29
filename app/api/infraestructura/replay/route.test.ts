@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -25,6 +26,8 @@ function mockAcceso(acceso: AccesoLectura) {
 }
 
 usarDbTemporal('replay-route-')
+
+let GET: typeof Ruta.GET
 
 beforeAll(async () => {
   fx = crearFixtureEscenarioCompleto()
@@ -63,6 +66,7 @@ beforeAll(async () => {
   await db.insert(infraAfectacion).values(afectacionRow)
   await db.insert(infraRiskRun).values(fx.snapshot.run)
   await db.insert(infraRiskSnapshot).values(fx.snapshot.porEscuela)
+  GET = (await import('./route')).GET
 })
 
 let fx: FixtureEscenarioCompleto
@@ -82,7 +86,6 @@ function qsBase(fx: FixtureEscenarioCompleto, vista: 'conocido' | 'reconstruido'
 describe('GET /api/infraestructura/replay', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req(qsBase(fx, 'conocido')))
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('No autenticado')
@@ -90,7 +93,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('rechaza con sesión pero sin acceso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(qsBase(fx, 'conocido')))
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -98,7 +100,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('con ACL ok devuelve cuadros con Cache-Control private, no-store', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(qsBase(fx, 'conocido')))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -110,7 +111,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('vista conocido NO ve la corrección tardía antes de creadaEn', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(qsBase(fx, 'conocido')))
     const body = await res.json()
     for (const cuadro of body.cuadros) {
@@ -120,7 +120,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('vista reconstruido SÍ ve la afectación (rigeDesde anterior al corte)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(qsBase(fx, 'reconstruido')))
     const body = await res.json()
     for (const cuadro of body.cuadros) {
@@ -130,7 +129,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('rechaza parámetros inválidos con 400 (falta desde/hasta/episodio)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?territorioId=X&vista=conocido'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBeTruthy()
@@ -138,7 +136,6 @@ describe('GET /api/infraestructura/replay', () => {
 
   it('404 con episodioDerivadoId inexistente', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?episodioDerivadoId=no-existe&vista=conocido'))
     expect(res.status).toBe(404)
   })

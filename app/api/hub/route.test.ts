@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -10,6 +11,8 @@ vi.mock('@/lib/session', () => ({
 }))
 
 usarDbTemporal('hub-route-', { seed: false })
+
+let GET: typeof Ruta.GET
 
 beforeAll(async () => {
   const { ensureSeeded } = await import('@/lib/db/seed')
@@ -36,6 +39,7 @@ beforeAll(async () => {
     recursoId: 'hub-route-restringido',
     nivelId: 'secundario',
   })
+  GET = (await import('./route')).GET
 })
 
 beforeEach(() => {
@@ -59,7 +63,6 @@ type MarkedRecurso = { id: string; acceso: 'abrir' | 'ingresar' | 'restringido' 
 describe('GET /api/hub', () => {
   it('sin sesión devuelve todo el catálogo publicado, marcado como ingresar', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
     expect(data.recursos.length).toBeGreaterThan(0)
@@ -70,7 +73,6 @@ describe('GET /api/hub', () => {
 
   it('consulta+todos: el recurso restringido a otro nivel queda restringido, no se oculta', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
@@ -84,7 +86,6 @@ describe('GET /api/hub', () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ nivelIds: ['secundario'] }),
     )
-    const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
@@ -101,7 +102,6 @@ describe('GET /api/hub', () => {
         nivelIds: ['secundario'],
       }),
     )
-    const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]
@@ -120,7 +120,6 @@ describe('GET /api/hub', () => {
     vi.mocked(getSessionUser).mockResolvedValue(
       consulta({ role: 'admin' as const }),
     )
-    const { GET } = await import('./route')
     const res = await GET()
     const data = await res.json()
     const recursos = data.recursos as MarkedRecurso[]

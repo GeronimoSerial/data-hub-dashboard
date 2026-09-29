@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -21,6 +22,8 @@ function mockAcceso(acceso: AccesoLectura) {
 const CUE = '1801605-04'
 
 usarDbTemporal('geo-perfiles-route-')
+
+let GET: typeof Ruta.GET
 
 beforeAll(async () => {
   await getDb().insert(infraGeoProfile).values([
@@ -56,6 +59,7 @@ beforeAll(async () => {
     version: 'v1',
     calculadoEn: '2026-01-01T00:00:00Z',
   })
+  GET = (await import('./route')).GET
 })
 
 beforeEach(() => {
@@ -73,7 +77,6 @@ function req() {
 describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(CUE))
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -82,7 +85,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(CUE))
     expect(res.status).toBe(403)
     const body = await res.json()
@@ -91,7 +93,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('con acceso devuelve el perfil completo, incluyendo motivoExclusion null', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(CUE))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -105,7 +106,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('devuelve el perfil de exclusión tal cual (motivoExclusion no null)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('1801605-05'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -114,7 +114,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('incluye rioAsociacion cuando el CUE tiene fila en infraGeoRio', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(CUE))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -126,7 +125,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('devuelve rioAsociacion null (200, no 404) si la asociación de río todavía no corrió', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('1801605-05'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -136,7 +134,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('devuelve 404 si no hay fila para el CUE-anexo', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('9999999-99'))
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -145,7 +142,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('rechaza cueAnexo inválido (vacío) con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(''))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -154,7 +150,6 @@ describe('GET /api/infraestructura/geo-perfiles/[cueAnexo]', () => {
 
   it('rechaza cueAnexo demasiado largo con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('x'.repeat(51)))
     expect(res.status).toBe(400)
   })

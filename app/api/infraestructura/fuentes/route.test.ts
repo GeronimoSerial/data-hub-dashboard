@@ -55,24 +55,17 @@ beforeEach(() => {
 })
 
 describe('GET /api/infraestructura/fuentes', () => {
-  it('rechaza sin sesión con 401', async () => {
-    mockAcceso({ ok: false, status: 401 })
+  it.each([
+    ['rechaza sin sesión con 401', 401, 'No autenticado'],
+    ['rechaza con sesión pero sin acceso al recurso con 403', 403, 'No tiene acceso a este recurso'],
+  ] as const)('%s', async (_titulo, status, error) => {
+    mockAcceso({ ok: false, status })
     const { GET } = await import('./route')
     const res = await GET()
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(status)
     const body = await res.json()
     expect(body.fuentes).toBeUndefined()
-    expect(body.error).toBe('No autenticado')
-  })
-
-  it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
-    mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
-    const res = await GET()
-    expect(res.status).toBe(403)
-    const body = await res.json()
-    expect(body.fuentes).toBeUndefined()
-    expect(body.error).toBe('No tiene acceso a este recurso')
+    expect(body.error).toBe(error)
   })
 
   it('con acceso devuelve las fuentes con frescuraMinutos derivada en el handler', async () => {

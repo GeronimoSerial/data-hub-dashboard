@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
   hazardClimatology,
@@ -11,10 +11,17 @@ import {
   infraRiskRun,
   infraRiskSnapshot,
 } from '@/lib/db/schema'
-import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerNivelesPeligro } from '@/lib/infraestructura/riesgo/peligro/nivel'
 import type * as NivelPeligroModule from '@/lib/infraestructura/riesgo/peligro/nivel'
+import {
+  mockAcceso,
+  PUBLICADO_EN,
+  RUN_VIGENTE,
+  sembrarMotorBase,
+  sembrarPeligroRadar,
+  USER,
+} from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
 // antes de que el beforeAll fije DATA_DIR.
@@ -33,16 +40,6 @@ vi.mock('@/lib/infraestructura/riesgo/peligro/nivel', async (importOriginal) => 
   }
 })
 
-const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
-
-function mockAcceso(acceso: AccesoLectura) {
-  vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
-}
-
-const RUN_VIGENTE = 'run-vigente'
-const RUN_VIEJO = 'run-viejo'
-const PUBLICADO_EN = '2026-01-02T00:00:00Z'
-
 // cueAnexo → departamento y celda (geometryRef) con la que se agrega el peligro.
 const GEO = [
   { cueAnexo: '1000000-01', departamento: 'ALFA', geometryRef: 'celda-a' },
@@ -58,9 +55,11 @@ beforeAll(async () => {
   const seed = await import('@/lib/db/seed')
   await seed.ensureSeeded()
   PERIODO = seed.PERIODO_ENOS_2026_2027_ID
+  GET = (await import('./route')).GET
 })
 
 let PERIODO = ''
+let GET: typeof Ruta.GET
 
 async function limpiarMotor() {
   const db = getDb()
@@ -93,160 +92,8 @@ async function sembrarFixture() {
 
   // Peligro: celda-a tiene ensemble en 24h (rojo) y 72h (amarillo). En 240h no
   // hay determinístico → sin_dato. celda-b y celda-c no tienen dato alguno.
-  await db.insert(hazardEnsembleProb).values([
-    {
-      id: 'e1',
-      geometryRef: 'celda-a',
-      variable: 'precipitacion_24h',
-      corridaEn: '2026-01-01T00:00:00Z',
-      validoEn: '2026-01-02T00:00:00Z',
-      horizonteHoras: 24,
-      miembrosTotal: 51,
-      miembrosValidos: 51,
-      probabilidadP95: 0.6,
-      probabilidadP99: 0.6,
-      dispersion: 1,
-      version: 'ensemble-v1',
-      ingeridoEn: '2026-01-01T00:00:00Z',
-    },
-    {
-      id: 'e2',
-      geometryRef: 'celda-a',
-      variable: 'precipitacion_24h',
-      corridaEn: '2026-01-01T00:00:00Z',
-      validoEn: '2026-01-04T00:00:00Z',
-      horizonteHoras: 72,
-      miembrosTotal: 51,
-      miembrosValidos: 51,
-      probabilidadP95: 0.2,
-      probabilidadP99: 0,
-      dispersion: 1,
-      version: 'ensemble-v1',
-      ingeridoEn: '2026-01-01T00:00:00Z',
-    },
-  ])
-
-  await db.insert(infraRiskRun).values([
-    {
-      id: RUN_VIGENTE,
-      periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
-      iniciadoEn: '2026-01-01T00:00:00Z',
-      publicadoEn: PUBLICADO_EN,
-      estado: 'vigente',
-      cobertura: { procesadas: 5, conEvidencia: 4, sinEvidencia: 1 },
-      creadaEn: '2026-01-01T00:00:00Z',
-    },
-    {
-      id: RUN_VIEJO,
-      periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
-      iniciadoEn: '2025-12-01T00:00:00Z',
-      publicadoEn: '2025-12-02T00:00:00Z',
-      estado: 'vencido',
-      cobertura: null,
-      creadaEn: '2025-12-01T00:00:00Z',
-    },
-  ])
-
-  await db.insert(infraRiskSnapshot).values([
-    {
-      id: 's1',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-01',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 80,
-      nivelRiesgo: 'muy_alto',
-      scoreAmenaza: 70,
-      scoreVulnerabilidad: 60,
-      confianza: 'alta',
-      exposicionMatricula: 100,
-      exposicionSecciones: 5,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's2',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-02',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 50,
-      nivelRiesgo: 'moderado',
-      scoreAmenaza: 40,
-      scoreVulnerabilidad: 35,
-      confianza: 'media',
-      exposicionMatricula: 80,
-      exposicionSecciones: 4,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's3',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-03',
-      horizonteHoras: 24,
-      evidenciaValida: false,
-      scoreRiesgo: null,
-      nivelRiesgo: null,
-      scoreAmenaza: null,
-      scoreVulnerabilidad: null,
-      confianza: 'baja',
-      exposicionMatricula: null,
-      exposicionSecciones: null,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's4',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-04',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 30,
-      nivelRiesgo: 'bajo',
-      scoreAmenaza: 20,
-      scoreVulnerabilidad: 15,
-      confianza: 'media',
-      exposicionMatricula: 60,
-      exposicionSecciones: 3,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's5',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-05',
-      horizonteHoras: 72,
-      evidenciaValida: true,
-      scoreRiesgo: 60,
-      nivelRiesgo: 'alto',
-      scoreAmenaza: 55,
-      scoreVulnerabilidad: 45,
-      confianza: 'alta',
-      exposicionMatricula: 90,
-      exposicionSecciones: 4,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-05T00:00:00Z',
-    },
-    {
-      id: 's6',
-      runId: RUN_VIEJO,
-      cueAnexo: '1000000-01',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 999,
-      nivelRiesgo: 'muy_alto',
-      scoreAmenaza: 99,
-      scoreVulnerabilidad: 99,
-      confianza: 'alta',
-      exposicionMatricula: 100,
-      exposicionSecciones: 5,
-      calculadoEn: '2025-12-02T00:00:00Z',
-      validoHasta: '2025-12-03T00:00:00Z',
-    },
-  ])
+  await sembrarMotorBase(PERIODO)
+  await sembrarPeligroRadar()
 }
 
 // Pronóstico determinístico para una celda SIN climatología: dispara el camino
@@ -352,7 +199,6 @@ function claves(payload: unknown, acc: Set<string> = new Set()): Set<string> {
 describe('GET /api/infraestructura/radar', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -362,7 +208,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -371,7 +216,6 @@ describe('GET /api/infraestructura/radar', () => {
   it('sin run vigente devuelve 200 con todo vacío (no es un error)', async () => {
     mockAcceso({ ok: true, user: USER })
     await limpiarMotor()
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -395,7 +239,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('con run vigente devuelve corte, cobertura, escuelas, kpis y peligro por departamento', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -440,7 +283,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('filtra escuelas y kpis por horizonte sin recortar los horizontes del peligro', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req('?horizonte=24'))).json()
 
     expect(body.escuelas.total).toBe(4)
@@ -455,7 +297,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('filtra escuelas, kpis y departamentos por departamento', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req('?departamento=BETA'))).json()
 
     expect(body.escuelas.total).toBe(1)
@@ -471,7 +312,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('filtra por nivel de riesgo y mantiene los kpis sobre el mismo universo', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
 
     const alto = await (await GET(req('?nivel=alto'))).json()
     expect(alto.escuelas.total).toBe(1)
@@ -493,7 +333,6 @@ describe('GET /api/infraestructura/radar', () => {
       .set({ nivelRiesgoAcceso: 'alto', scoreRiesgoAcceso: 75, confianzaAcceso: 'media' })
       .where(eq(infraRiskSnapshot.id, 's2'))
 
-    const { GET } = await import('./route')
     const body = await (await GET(req('?horizonte=24'))).json()
 
     const item = body.escuelas.items.find((i: { snapshotId: string }) => i.snapshotId === 's2')
@@ -560,7 +399,6 @@ describe('GET /api/infraestructura/radar', () => {
       .set({ nivelRiesgoAcceso: 'alto', exposicionMatricula: 100 })
       .where(eq(infraRiskSnapshot.id, 's1'))
 
-    const { GET } = await import('./route')
     // SIN query string: es el estado inicial real de la UI (sin `?horizonte=`).
     const body = await (await GET(req())).json()
 
@@ -572,7 +410,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('pagina escuelas con total y totalPages correctos', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
 
     const primera = await (await GET(req('?horizonte=24&page=1&pageSize=2'))).json()
     expect(primera.escuelas.items.map((i: { snapshotId: string }) => i.snapshotId)).toEqual([
@@ -591,7 +428,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('devuelve puntos para todo el universo filtrado, aunque pageSize recorte items', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req('?page=1&pageSize=1'))).json()
 
     // La lista lateral queda recortada a una fila...
@@ -612,7 +448,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('acota puntos al mismo filtro de horizonte que el universo de escuelas', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req('?horizonte=24&pageSize=1'))).json()
 
     expect(body.escuelas.total).toBe(4)
@@ -624,7 +459,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('acota puntos al mismo filtro de departamento que el universo de escuelas', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req('?departamento=BETA'))).json()
 
     expect(body.escuelas.total).toBe(1)
@@ -641,7 +475,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('rechaza parámetros inválidos con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
 
     const horizonteInvalido = await GET(req('?horizonte=99'))
     expect(horizonteInvalido.status).toBe(400)
@@ -663,7 +496,6 @@ describe('GET /api/infraestructura/radar', () => {
   it('marca hayNivelProvisorio true si una celda usa umbral provisorio (sin climatología)', async () => {
     mockAcceso({ ok: true, user: USER })
     await sembrarPronosticoSinClimatologia()
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
 
@@ -677,7 +509,6 @@ describe('GET /api/infraestructura/radar', () => {
     mockAcceso({ ok: true, user: USER })
     await sembrarPronosticoSinClimatologia()
     await sembrarClimatologiaCompleta()
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
 
@@ -687,7 +518,6 @@ describe('GET /api/infraestructura/radar', () => {
 
   it('no expone ningún campo nominal (escuela, alumno, docente ni persona)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const body = await (await GET(req())).json()
 
     const prohibidas = [...claves(body)].filter((clave) =>

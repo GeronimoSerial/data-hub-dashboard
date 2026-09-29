@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -21,6 +22,9 @@ function mockAcceso(acceso: AccesoLectura) {
 const EPISODIO = 'ep-1'
 
 usarDbTemporal('episodios-detalle-route-')
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 async function limpiarEpisodios() {
   const db = getDb()
@@ -85,7 +89,6 @@ function req() {
 describe('GET /api/infraestructura/episodios-derivados/[id]', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(EPISODIO))
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('No autenticado')
@@ -93,7 +96,6 @@ describe('GET /api/infraestructura/episodios-derivados/[id]', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(EPISODIO))
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -101,7 +103,6 @@ describe('GET /api/infraestructura/episodios-derivados/[id]', () => {
 
   it('devuelve 404 si el episodio no existe', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('ep-inexistente'))
     expect(res.status).toBe(404)
     const body = await res.json()
@@ -111,7 +112,6 @@ describe('GET /api/infraestructura/episodios-derivados/[id]', () => {
 
   it('rechaza id vacío con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(''))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('id inválido')
@@ -119,7 +119,6 @@ describe('GET /api/infraestructura/episodios-derivados/[id]', () => {
 
   it('con acceso devuelve el episodio y sus miembros ordenados', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(EPISODIO))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')

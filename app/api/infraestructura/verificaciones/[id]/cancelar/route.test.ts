@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -51,29 +52,24 @@ function cancelar(id: string, body?: unknown) {
   return { request, context: { params: Promise.resolve({ id }) } }
 }
 
-describe('POST /api/infraestructura/verificaciones/[id]/cancelar', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { POST } = await import('./route')
-    const { request, context } = cancelar('cualquiera', {})
-    const res = await POST(request, context)
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
+let POST: typeof Ruta.POST
+beforeAll(async () => { POST = (await import('./route')).POST })
 
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { POST } = await import('./route')
+describe('POST /api/infraestructura/verificaciones/[id]/cancelar', () => {
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const { request, context } = cancelar('cualquiera', {})
     const res = await POST(request, context)
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('cancela una verificación pendiente', async () => {
     const creada = await crearPendiente('CUE-CANCELA-OK')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = cancelar(creada.verificacion.id, { motivo: 'duplicada' })
     const res = await POST(request, context)
     expect(res.status).toBe(200)
@@ -89,8 +85,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/cancelar', () => {
   it('devuelve 409 si ya estaba cancelada', async () => {
     const creada = await crearPendiente('CUE-CANCELA-DOBLE')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
-
     const primerIntento = cancelar(creada.verificacion.id)
     const primera = await POST(primerIntento.request, primerIntento.context)
     expect(primera.status).toBe(200)
@@ -113,7 +107,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/cancelar', () => {
     expect(respuesta.ok).toBe(true)
 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = cancelar(creada.verificacion.id, {})
     const res = await POST(request, context)
     expect(res.status).toBe(409)
@@ -123,7 +116,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/cancelar', () => {
 
   it('devuelve 404 si el id no existe', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = cancelar('verificacion-inexistente', {})
     const res = await POST(request, context)
     expect(res.status).toBe(404)

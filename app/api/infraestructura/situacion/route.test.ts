@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -17,6 +18,9 @@ vi.mock('@/lib/session', () => ({
 }))
 
 usarDbTemporal('situacion-route-')
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
@@ -36,7 +40,6 @@ function url(qs = ''): Request {
 describe('GET /api/infraestructura/situacion', () => {
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(url())
     expect(res.status).toBe(401)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -44,14 +47,12 @@ describe('GET /api/infraestructura/situacion', () => {
 
   it('rechaza a consulta (no staff) con 403 — panel ejecutivo interno', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
     const res = await GET(url())
     expect(res.status).toBe(403)
   })
 
   it('sin ningún corte todavía, responde 200 con corte null y atraso.atrasado true', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET(url())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -63,7 +64,6 @@ describe('GET /api/infraestructura/situacion', () => {
 
   it('territorioId sin territorioTipo devuelve 400', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET(url('?territorioId=PARANA'))
     expect(res.status).toBe(400)
   })
@@ -88,7 +88,6 @@ describe('GET /api/infraestructura/situacion', () => {
     })
     await generarCorte({ ahora: new Date(), jobRunId: null })
 
-    const { GET } = await import('./route')
     const res = await GET(url())
     expect(res.status).toBe(200)
     const body = await res.json()

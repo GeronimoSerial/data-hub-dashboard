@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import type { SessionUser } from '@/lib/acl'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerExposicionRuta } from '@/lib/infraestructura/exposicion-ruta'
@@ -10,6 +11,9 @@ vi.mock('@/lib/infraestructura/exposicion-ruta', async (importOriginal) => {
   const actual = await importOriginal<typeof ExposicionRutaModulo>()
   return { ...actual, obtenerExposicionRuta: vi.fn() }
 })
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 function usuario(): SessionUser {
   return { id: 'u-1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos', recursoIds: [] }
@@ -27,21 +31,18 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacio
 
   it('responde 401 antes de consultar', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     expect((await GET(req(), ctx('CUE-1'))).status).toBe(401)
     expect(obtenerExposicionRuta).not.toHaveBeenCalled()
   })
 
   it('responde 403 antes de consultar', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     expect((await GET(req(), ctx('CUE-1'))).status).toBe(403)
     expect(obtenerExposicionRuta).not.toHaveBeenCalled()
   })
 
   it('rechaza cueAnexo inválido', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario() })
-    const { GET } = await import('./route')
     const res = await GET(req(''), ctx(''))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('cueAnexo inválido')
@@ -57,7 +58,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacio
       fuente: 'WRI Aqueduct v2', celdas: [{ lon: -60, lat: -31, profundidadM: 0.2 }],
       fechaCorrida: '2026-01-01', licencia: 'CC-BY-4.0', importadoEn: '2026-01-02',
     })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('CUE-1'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
@@ -67,7 +67,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacio
   it('responde 200 cuando no hay cobertura', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario() })
     vi.mocked(obtenerExposicionRuta).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('CUE-1'))
     expect(res.status).toBe(200)
     expect((await res.json()).disponible).toBe(false)

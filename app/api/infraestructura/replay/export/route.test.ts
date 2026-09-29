@@ -1,4 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
+import type * as RutaReplay from '../route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
@@ -28,6 +30,8 @@ function mockAcceso(acceso: AccesoLectura) {
 }
 
 usarDbTemporal('replay-export-route-')
+
+let GET: typeof Ruta.GET, GET_REPLAY: typeof RutaReplay.GET
 
 beforeAll(async () => {
   fx = crearFixtureEscenarioCompleto()
@@ -66,6 +70,8 @@ beforeAll(async () => {
   await db.insert(infraAfectacion).values(afectacionRow)
   await db.insert(infraRiskRun).values(fx.snapshot.run)
   await db.insert(infraRiskSnapshot).values(fx.snapshot.porEscuela)
+  GET = (await import('./route')).GET
+  GET_REPLAY = (await import('../route')).GET
 })
 
 let fx: FixtureEscenarioCompleto
@@ -89,14 +95,12 @@ function qsBase(vista: 'conocido' | 'reconstruido', formato?: 'json' | 'csv') {
 describe('GET /api/infraestructura/replay/export', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(reqExport(qsBase('conocido')))
     expect(res.status).toBe(401)
   })
 
   it('JSON: incluye zona horaria, versión de reglas y cobertura, Cache-Control private no-store', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(reqExport(qsBase('reconstruido')))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -120,7 +124,6 @@ describe('GET /api/infraestructura/replay/export', () => {
 
   it('CSV: cabecera y una fila por cuadro, Content-Type text/csv', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(reqExport(qsBase('reconstruido', 'csv')))
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toContain('text/csv')
@@ -134,11 +137,8 @@ describe('GET /api/infraestructura/replay/export', () => {
 
   it('export = replay en conteos (mismo filtro, misma cantidad de cuadros y de afectaciones por cuadro)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET: getReplay } = await import('../route')
-    const { GET: getExport } = await import('./route')
-
-    const replayBody = await (await getReplay(reqReplay(qsBase('reconstruido')))).json()
-    const exportBody = await (await getExport(reqExport(qsBase('reconstruido')))).json()
+    const replayBody = await (await GET_REPLAY(reqReplay(qsBase('reconstruido')))).json()
+    const exportBody = await (await GET(reqExport(qsBase('reconstruido')))).json()
 
     expect(exportBody.cuadros).toHaveLength(replayBody.cuadros.length)
     for (let i = 0; i < replayBody.cuadros.length; i++) {
@@ -154,7 +154,6 @@ describe('GET /api/infraestructura/replay/export', () => {
 
   it('rechaza formato inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(reqExport(`${qsBase('conocido')}&formato=xml`))
     expect(res.status).toBe(400)
   })

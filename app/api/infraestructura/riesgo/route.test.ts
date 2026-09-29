@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
   infraGeoProfile,
@@ -8,23 +8,20 @@ import {
   infraRiskRun,
   infraRiskSnapshot,
 } from '@/lib/db/schema'
-import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import {
+  mockAcceso,
+  PUBLICADO_EN,
+  RUN_VIGENTE,
+  sembrarMotorBase,
+  USER,
+} from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
 // antes de que el beforeAll fije DATA_DIR.
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({
   verificarAccesoLectura: vi.fn(),
 }))
-
-const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
-
-function mockAcceso(acceso: AccesoLectura) {
-  vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
-}
-
-const RUN_VIGENTE = 'run-vigente'
-const RUN_VIEJO = 'run-viejo'
 
 const GEO = [
   { cueAnexo: '1000000-01', departamento: 'PARANA' },
@@ -36,10 +33,13 @@ const GEO = [
 
 usarDbTemporal('riesgo-route-', { seed: false })
 
+let GET: typeof Ruta.GET
+
 beforeAll(async () => {
   const seed = await import('@/lib/db/seed')
   await seed.ensureSeeded()
   PERIODO = seed.PERIODO_ENOS_2026_2027_ID
+  GET = (await import('./route')).GET
 })
 
 let PERIODO = ''
@@ -70,127 +70,7 @@ async function sembrarFixture() {
     })),
   )
 
-  await db.insert(infraRiskRun).values([
-    {
-      id: RUN_VIGENTE,
-      periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
-      iniciadoEn: '2026-01-01T00:00:00Z',
-      publicadoEn: '2026-01-02T00:00:00Z',
-      estado: 'vigente',
-      cobertura: { procesadas: 5, conEvidencia: 4, sinEvidencia: 1 },
-      creadaEn: '2026-01-01T00:00:00Z',
-    },
-    {
-      id: RUN_VIEJO,
-      periodoId: PERIODO,
-      modeloVersion: 'riesgo-v0',
-      iniciadoEn: '2025-12-01T00:00:00Z',
-      publicadoEn: '2025-12-02T00:00:00Z',
-      estado: 'vencido',
-      cobertura: null,
-      creadaEn: '2025-12-01T00:00:00Z',
-    },
-  ])
-
-  await db.insert(infraRiskSnapshot).values([
-    {
-      id: 's1',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-01',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 80,
-      nivelRiesgo: 'muy_alto',
-      scoreAmenaza: 70,
-      scoreVulnerabilidad: 60,
-      confianza: 'alta',
-      exposicionMatricula: 100,
-      exposicionSecciones: 5,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's2',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-02',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 50,
-      nivelRiesgo: 'moderado',
-      scoreAmenaza: 40,
-      scoreVulnerabilidad: 35,
-      confianza: 'media',
-      exposicionMatricula: 80,
-      exposicionSecciones: 4,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's3',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-03',
-      horizonteHoras: 24,
-      evidenciaValida: false,
-      scoreRiesgo: null,
-      nivelRiesgo: null,
-      scoreAmenaza: null,
-      scoreVulnerabilidad: null,
-      confianza: 'baja',
-      exposicionMatricula: null,
-      exposicionSecciones: null,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's4',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-04',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 30,
-      nivelRiesgo: 'bajo',
-      scoreAmenaza: 20,
-      scoreVulnerabilidad: 15,
-      confianza: 'media',
-      exposicionMatricula: 60,
-      exposicionSecciones: 3,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-03T00:00:00Z',
-    },
-    {
-      id: 's5',
-      runId: RUN_VIGENTE,
-      cueAnexo: '1000000-05',
-      horizonteHoras: 72,
-      evidenciaValida: true,
-      scoreRiesgo: 60,
-      nivelRiesgo: 'alto',
-      scoreAmenaza: 55,
-      scoreVulnerabilidad: 45,
-      confianza: 'alta',
-      exposicionMatricula: 90,
-      exposicionSecciones: 4,
-      calculadoEn: '2026-01-02T00:00:00Z',
-      validoHasta: '2026-01-05T00:00:00Z',
-    },
-    {
-      id: 's6',
-      runId: RUN_VIEJO,
-      cueAnexo: '1000000-01',
-      horizonteHoras: 24,
-      evidenciaValida: true,
-      scoreRiesgo: 999,
-      nivelRiesgo: 'muy_alto',
-      scoreAmenaza: 99,
-      scoreVulnerabilidad: 99,
-      confianza: 'alta',
-      exposicionMatricula: 100,
-      exposicionSecciones: 5,
-      calculadoEn: '2025-12-02T00:00:00Z',
-      validoHasta: '2025-12-03T00:00:00Z',
-    },
-  ])
+  await sembrarMotorBase(PERIODO)
 }
 
 beforeEach(async () => {
@@ -205,7 +85,6 @@ function req(qs = '') {
 describe('GET /api/infraestructura/riesgo', () => {
   it('rechaza sin sesión con 401', async () => {
     mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -215,7 +94,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
     const body = await res.json()
@@ -226,7 +104,6 @@ describe('GET /api/infraestructura/riesgo', () => {
     // El director queda excluido dentro de verificarAccesoLectura, que ya está
     // implementado; acá se simula su resultado (403) igual que en los otros tests.
     mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
   })
@@ -234,7 +111,6 @@ describe('GET /api/infraestructura/riesgo', () => {
   it('sin run vigente devuelve 200 con lista vacía (no es un error)', async () => {
     mockAcceso({ ok: true, user: USER })
     await limpiarMotor()
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -247,7 +123,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('devuelve items ordenados por scoreRiesgo desc, con null (sin evidencia) al final', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -258,7 +133,7 @@ describe('GET /api/infraestructura/riesgo', () => {
     expect(body.runVigente).toEqual({
       id: RUN_VIGENTE,
       modeloVersion: 'riesgo-v0',
-      publicadoEn: '2026-01-02T00:00:00Z',
+      publicadoEn: PUBLICADO_EN,
     })
 
     expect(body.items.map((i: { snapshotId: string }) => i.snapshotId)).toEqual([
@@ -277,7 +152,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('filtra por horizonte', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?horizonte=24'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -295,7 +169,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('filtra por departamento (comparación exacta, dato normalizado)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?departamento=CONCORDIA'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -306,7 +179,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('pagina con total y totalPages correctos', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
 
     const primera = await (await GET(req('?horizonte=24&page=1&pageSize=2'))).json()
     expect(primera.items.map((i: { snapshotId: string }) => i.snapshotId)).toEqual(['s1', 's2'])
@@ -323,7 +195,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('un periodoId que no es el vigente devuelve lista vacía y runVigente null', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?periodoId=periodo-inexistente'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -334,7 +205,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('un periodoId que coincide con el vigente devuelve el ranking', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(`?periodoId=${PERIODO}`))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -344,7 +214,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('rechaza horizonte inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?horizonte=99'))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -354,7 +223,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('rechaza page inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?page=0'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('page')
@@ -362,7 +230,6 @@ describe('GET /api/infraestructura/riesgo', () => {
 
   it('rechaza pageSize fuera de rango con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?pageSize=500'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toContain('pageSize')

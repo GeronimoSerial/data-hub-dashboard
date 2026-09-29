@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getSessionUser } from '@/lib/session'
@@ -108,30 +109,24 @@ function claves(obj: unknown, acc: string[] = []): string[] {
   return acc
 }
 
-describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
-  it('rechaza sin sesión con 401 (y no-store)', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
-    const res = await GET(req(), ctx(CUE_CON_DATOS))
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    const body = await res.json()
-    expect(body.error).toBe('No autenticado')
-  })
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
-  it('rechaza con sesión no-staff con 403 (y no-store)', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
+describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
+  it.each([
+    ['rechaza sin sesión con 401 (y no-store)', null, 401, 'No autenticado'],
+    ['rechaza con sesión no-staff con 403 (y no-store)', consulta(), 403, 'No tiene acceso a este recurso'],
+  ] as const)('%s', async (_titulo, user, status, error) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const res = await GET(req(), ctx(CUE_CON_DATOS))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
     const body = await res.json()
-    expect(body.error).toBe('No tiene acceso a este recurso')
+    expect(body.error).toBe(error)
   })
 
   it('rechaza cueAnexo inválido (vacío) con 400', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
     const res = await GET(req(''), ctx(''))
     expect(res.status).toBe(400)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -139,7 +134,6 @@ describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
 
   it('con staff y datos presentes devuelve el shape completo y null se preserva', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx(CUE_CON_DATOS))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -162,7 +156,6 @@ describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
 
   it('sin fila de aislamiento responde 200 con disponible false (nunca 404)', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
     const res = await GET(req(CUE_SIN_AISLAMIENTO), ctx(CUE_SIN_AISLAMIENTO))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -176,7 +169,6 @@ describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
 
   it('con cueAnexo que no existe en el padrón territorial devuelve 404', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
     const res = await GET(req(CUE_INEXISTENTE), ctx(CUE_INEXISTENTE))
     expect(res.status).toBe(404)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -186,8 +178,6 @@ describe('GET /api/infraestructura/accesos/[cueAnexo]', () => {
 
   it('nunca incluye campos nominales de alumnos/matrícula/personas', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
-
     for (const cue of [CUE_CON_DATOS, CUE_SIN_AISLAMIENTO]) {
       const res = await GET(req(cue), ctx(cue))
       const body = await res.json()

@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -56,20 +57,17 @@ function getRequest(url: string) {
   return new Request(url)
 }
 
-describe('GET /api/infraestructura/verificaciones', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
-    const res = await GET(getRequest('http://localhost/api/infraestructura/verificaciones'))
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
+let GET: typeof Ruta.GET, POST: typeof Ruta.POST
+beforeAll(async () => { ({ GET, POST } = await import('./route')) })
 
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
+describe('GET /api/infraestructura/verificaciones', () => {
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const res = await GET(getRequest('http://localhost/api/infraestructura/verificaciones'))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
@@ -91,7 +89,6 @@ describe('GET /api/infraestructura/verificaciones', () => {
     expect(filaA?.tokenHash).toBeTypeOf('string')
 
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET(
       getRequest(
         `http://localhost/api/infraestructura/verificaciones?periodoId=${periodoId}`,
@@ -111,7 +108,6 @@ describe('GET /api/infraestructura/verificaciones', () => {
 
   it('rechaza un estado inválido con 400', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET(
       getRequest('http://localhost/api/infraestructura/verificaciones?estado=inventado'),
     )
@@ -121,35 +117,21 @@ describe('GET /api/infraestructura/verificaciones', () => {
 })
 
 describe('POST /api/infraestructura/verificaciones', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { POST } = await import('./route')
-    const res = await POST(
-      new Request('http://localhost/api/infraestructura/verificaciones', {
-        method: 'POST',
-        body: JSON.stringify({ cueAnexo: 'y' }),
-      }),
-    )
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { POST } = await import('./route')
-    const res = await POST(
-      new Request('http://localhost/api/infraestructura/verificaciones', {
-        method: 'POST',
-        body: JSON.stringify({ cueAnexo: 'y' }),
-      }),
-    )
-    expect(res.status).toBe(403)
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
+    const res = await POST(new Request('http://localhost/api/infraestructura/verificaciones', {
+      method: 'POST',
+      body: JSON.stringify({ cueAnexo: 'y' }),
+    }))
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('crea una verificación anclada al período vigente y devuelve el token una sola vez', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const res = await POST(
       new Request('http://localhost/api/infraestructura/verificaciones', {
         method: 'POST',
@@ -178,7 +160,6 @@ describe('POST /api/infraestructura/verificaciones', () => {
     const restaurar = await sinPeriodoVigente()
     try {
       vi.mocked(getSessionUser).mockResolvedValue(editor())
-      const { POST } = await import('./route')
       const res = await POST(
         new Request('http://localhost/api/infraestructura/verificaciones', {
           method: 'POST',

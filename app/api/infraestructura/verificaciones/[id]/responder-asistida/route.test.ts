@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -48,35 +49,27 @@ function responder(id: string, body: unknown) {
   return { request, context: { params: Promise.resolve({ id }) } }
 }
 
-describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { POST } = await import('./route')
-    const { request, context } = responder('cualquiera', {
-      canal: 'telefono',
-      resultado: 'sin_afectacion',
-    })
-    const res = await POST(request, context)
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
+let POST: typeof Ruta.POST
+beforeAll(async () => { POST = (await import('./route')).POST })
 
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { POST } = await import('./route')
+describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () => {
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const { request, context } = responder('cualquiera', {
       canal: 'telefono',
       resultado: 'sin_afectacion',
     })
     const res = await POST(request, context)
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('responde sin_afectacion por teléfono sobre una pendiente', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-OK')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
       resultado: 'sin_afectacion',
@@ -96,7 +89,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
   it('rechaza con_afectacion con 400 desde el parseo de Zod sin lanzar excepción', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-AFECTACION')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
       resultado: 'con_afectacion',
@@ -111,7 +103,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
   it('ignora un movimientoId extra en el body (Zod lo descarta)', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-IGNORA-MOVIMIENTO')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
     const { request, context } = responder(creada.verificacion.id, {
       canal: 'telefono',
       resultado: 'sin_afectacion',
@@ -127,8 +118,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
   it('responde dos veces con el mismo resultado (replay idempotente)', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-REPLAY')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
-
     const primera = responder(creada.verificacion.id, {
       canal: 'whatsapp',
       resultado: 'no_disponible',
@@ -150,8 +139,6 @@ describe('POST /api/infraestructura/verificaciones/[id]/responder-asistida', () 
   it('devuelve 409 si el segundo resultado contradice al primero', async () => {
     const creada = await crearPendiente('CUE-ASISTIDA-CONTRADICCION')
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { POST } = await import('./route')
-
     const primera = responder(creada.verificacion.id, {
       canal: 'presencial',
       resultado: 'sin_afectacion',

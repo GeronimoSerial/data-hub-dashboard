@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { aDtoPublico } from '@/lib/infraestructura/briefing-ia/dto'
 import type { BriefingPersistido } from '@/lib/infraestructura/briefing-ia/repositorio'
 import { obtenerBriefingPorId } from '@/lib/infraestructura/briefing-ia/repositorio'
@@ -25,6 +26,9 @@ vi.mock('@/lib/db/seed', () => ({
 vi.mock('@/lib/infraestructura/briefing-ia/repositorio', () => ({
   obtenerBriefingPorId: vi.fn(),
 }))
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 const BRIEFING: BriefingPersistido = {
   id: 'brief-1',
@@ -68,7 +72,6 @@ beforeEach(() => {
 describe('GET /api/infraestructura/briefings/[id]', () => {
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req(BRIEFING.id), ctx(BRIEFING.id))
     expect(res.status).toBe(401)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -78,7 +81,6 @@ describe('GET /api/infraestructura/briefings/[id]', () => {
 
   it('rechaza a consulta (no staff) con 403', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
     const res = await GET(req(BRIEFING.id), ctx(BRIEFING.id))
     expect(res.status).toBe(403)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -87,7 +89,6 @@ describe('GET /api/infraestructura/briefings/[id]', () => {
 
   it('rechaza id vacío con 400', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET(req(''), ctx(''))
     expect(res.status).toBe(400)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -98,7 +99,6 @@ describe('GET /api/infraestructura/briefings/[id]', () => {
   it('devuelve 404 si el briefing no existe', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerBriefingPorId).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req('brief-inexistente'), ctx('brief-inexistente'))
     expect(res.status).toBe(404)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -108,7 +108,6 @@ describe('GET /api/infraestructura/briefings/[id]', () => {
   it('con staff devuelve el briefing completo', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerBriefingPorId).mockResolvedValue(BRIEFING)
-    const { GET } = await import('./route')
     const res = await GET(req(BRIEFING.id), ctx(BRIEFING.id))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -144,7 +143,6 @@ describe('GET /api/infraestructura/briefings/[id]', () => {
     }
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerBriefingPorId).mockResolvedValue(rechazado)
-    const { GET } = await import('./route')
     const res = await GET(req(rechazado.id), ctx(rechazado.id))
     expect(res.status).toBe(200)
     const body = await res.json()

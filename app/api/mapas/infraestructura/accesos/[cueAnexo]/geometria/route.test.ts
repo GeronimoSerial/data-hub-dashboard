@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import type { SessionUser } from '@/lib/acl'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerGeometriaAcceso } from '@/lib/infraestructura/territorio-mapa'
@@ -14,6 +15,9 @@ vi.mock('@/lib/infraestructura/territorio-mapa', async (importOriginal) => {
   const actual = await importOriginal<typeof TerritorioMapaModulo>()
   return { ...actual, obtenerGeometriaAcceso: vi.fn() }
 })
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 function usuario(): SessionUser {
   return {
@@ -42,7 +46,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria', () => {
 
   it('sin sesión responde 401 y no toca el loader', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 401 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('CUE-1'))
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('No autenticado')
@@ -51,7 +54,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria', () => {
 
   it('sin audiencia permitida responde 403 y no toca el loader', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
-    const { GET } = await import('./route')
     const res = await GET(req(), ctx('CUE-1'))
     expect(res.status).toBe(403)
     expect((await res.json()).error).toBe('No tiene acceso a este recurso')
@@ -60,7 +62,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria', () => {
 
   it('con cueAnexo vacío responde 400 sin llamar al loader', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario() })
-    const { GET } = await import('./route')
     const res = await GET(req(''), ctx(''))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('cueAnexo inválido')
@@ -70,7 +71,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria', () => {
   it('sin geometría importada responde 200 con disponible false (nunca 404)', async () => {
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario() })
     vi.mocked(obtenerGeometriaAcceso).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req('CUE-1'), ctx('CUE-1'))
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
@@ -103,7 +103,6 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/geometria', () => {
       importadoEn: '2026-01-01T00:00:00Z',
     })
 
-    const { GET } = await import('./route')
     const res = await GET(req('CUE-1'), ctx('CUE-1'))
     expect(res.status).toBe(200)
     const body = await res.json()

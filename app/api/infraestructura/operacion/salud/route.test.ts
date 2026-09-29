@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
@@ -19,6 +20,8 @@ vi.mock('@/lib/session', () => ({
 
 usarDbTemporal('salud-route-')
 
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
 })
@@ -42,25 +45,18 @@ async function contarJobs() {
 }
 
 describe('GET /api/infraestructura/operacion/salud', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const res = await GET()
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
-    const res = await GET()
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 
   it('admite a editor (staff) y devuelve flags, jobs y generadoEn', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET()
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -76,7 +72,6 @@ describe('GET /api/infraestructura/operacion/salud', () => {
 
   it('admite a admin y devuelve la misma forma', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(admin())
-    const { GET } = await import('./route')
     const res = await GET()
     expect(res.status).toBe(200)
     const data = await res.json()
@@ -88,7 +83,6 @@ describe('GET /api/infraestructura/operacion/salud', () => {
   it('no dispara ningún job: infra_job_run no cambia como efecto del GET', async () => {
     const antes = await contarJobs()
     vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
     const res = await GET()
     expect(res.status).toBe(200)
     const despues = await contarJobs()

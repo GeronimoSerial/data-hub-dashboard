@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
 import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraParte, recursoAudienciaNiveles } from '@/lib/db/schema'
@@ -13,6 +14,8 @@ const CUE = '1801605-60'
 const CUE_SIN_PARTE = '1801605-61'
 
 usarDbTemporal('mapa-parte-route-', { seed: false })
+
+let GET: typeof Ruta.GET
 
 beforeAll(async () => {
   const client = crearEjecutorSql(getRawClient())
@@ -70,6 +73,7 @@ beforeAll(async () => {
   })
   await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 6010 })
   await db.insert(infraAfectacionAlumno).values({ afectacionId, gePersonId: 501 })
+  GET = (await import('./route')).GET
 })
 
 beforeEach(() => {
@@ -108,7 +112,6 @@ function tieneIdentidadDeAlumno(valor: unknown): boolean {
 describe('GET /api/mapas/infraestructura/parte', () => {
   it('rechaza sin sesión', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
   })
@@ -128,7 +131,6 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       accesoRecursos: 'todos',
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
 
@@ -144,7 +146,6 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       accesoRecursos: 'todos',
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -185,7 +186,6 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req(CUE_SIN_PARTE))
     expect(res.status).toBe(200)
 
@@ -211,7 +211,6 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     const body = await res.json()
 

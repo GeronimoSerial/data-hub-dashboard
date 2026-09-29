@@ -1,13 +1,12 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
   hazardClimatology,
   hazardForecast,
   hazardObservation,
 } from '@/lib/db/schema'
-import type { AccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import {
   obtenerNivelCaudal,
@@ -16,6 +15,10 @@ import {
   type NivelPeligro,
   type NivelPeligroCelda,
 } from '@/lib/infraestructura/riesgo/peligro/nivel'
+import {
+  mockAcceso,
+  USER,
+} from '@/lib/infraestructura/riesgo/__fixtures__/motor-api'
 
 // Factory puro (sin importOriginal) para no arrastrar @/lib/session -> @/lib/db
 // antes de que el beforeAll fije DATA_DIR.
@@ -30,12 +33,6 @@ vi.mock('@/lib/infraestructura/riesgo/peligro/nivel', () => ({
   obtenerNivelesPeligro: vi.fn(),
   obtenerNivelCaudal: vi.fn(),
 }))
-
-const USER: SessionUser = { id: 'u1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
-
-function mockAcceso(acceso: AccesoLectura) {
-  vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
-}
 
 const CELDA = '-31.7_-60.5'
 const OTRA_CELDA = '-32.0_-61.0'
@@ -132,6 +129,7 @@ beforeAll(async () => {
       obs('o6', CELDA, 6.6, '2026-01-01T06:00:00Z'),
       obs('o7', OTRA_CELDA, 9.9, '2026-01-01T07:00:00Z'),
     ])
+  GET = (await import('./route')).GET
 })
 
 function obs(id: string, geometryRef: string, valor: number, observadoEn: string) {
@@ -183,28 +181,22 @@ function nivelCelda(
   }
 }
 
-describe('GET /api/infraestructura/peligro', () => {
-  it('rechaza sin sesión con 401', async () => {
-    mockAcceso({ ok: false, status: 401 })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(401)
-    const body = await res.json()
-    expect(body.pronostico).toBeUndefined()
-  })
+let GET: typeof Ruta.GET
 
-  it('rechaza con sesión pero sin acceso al recurso con 403', async () => {
-    mockAcceso({ ok: false, status: 403 })
-    const { GET } = await import('./route')
+describe('GET /api/infraestructura/peligro', () => {
+  it.each([
+    ['rechaza sin sesión con 401', 401],
+    ['rechaza con sesión pero sin acceso al recurso con 403', 403],
+  ] as const)('%s', async (_titulo, status) => {
+    mockAcceso({ ok: false, status })
     const res = await GET(req())
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     const body = await res.json()
     expect(body.pronostico).toBeUndefined()
   })
 
   it('sin geometryRef devuelve todas las celdas con pronostico ordenado por validoEn', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -227,7 +219,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('filtra pronostico y climatologia por geometryRef', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(`?geometryRef=${encodeURIComponent(CELDA)}`))
     expect(res.status).toBe(200)
 
@@ -246,7 +237,6 @@ describe('GET /api/infraestructura/peligro', () => {
       nivelCelda(CELDA, 72, 'amarillo'),
       nivelCelda(CELDA, 240, 'sin_dato'),
     ])
-    const { GET } = await import('./route')
     const res = await GET(req(`?geometryRef=${encodeURIComponent(CELDA)}`))
     expect(res.status).toBe(200)
 
@@ -267,7 +257,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('sin geometryRef no calcula niveles (arreglo vacío, no consulta el padrón)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -285,7 +274,6 @@ describe('GET /api/infraestructura/peligro', () => {
       validoHasta: '2026-01-02T00:00:00Z',
     }
     vi.mocked(obtenerNivelCaudal).mockResolvedValue(caudal)
-    const { GET } = await import('./route')
     const res = await GET(req('?puntoRioId=rio-1'))
     expect(res.status).toBe(200)
 
@@ -296,7 +284,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('sin puntoRioId devuelve caudal null', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -306,7 +293,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('con geometryRef devuelve como máximo 5 observaciones, más recientes primero', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(`?geometryRef=${encodeURIComponent(CELDA)}`))
     expect(res.status).toBe(200)
 
@@ -333,7 +319,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('sin geometryRef no consulta observaciones (arreglo vacío)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -342,7 +327,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('sin geometryRef tampoco calcula acumulados observados (arreglo vacío)', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -351,7 +335,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('con geometryRef expone observadoAcumulado (24h/72h) con cobertura explícita, campo additivo', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req(`?geometryRef=${encodeURIComponent(CELDA)}`))
     expect(res.status).toBe(200)
 
@@ -377,7 +360,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('rechaza puntoRioId inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?puntoRioId='))
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -386,7 +368,6 @@ describe('GET /api/infraestructura/peligro', () => {
 
   it('rechaza geometryRef inválido con 400', async () => {
     mockAcceso({ ok: true, user: USER })
-    const { GET } = await import('./route')
     const res = await GET(req('?geometryRef='))
     expect(res.status).toBe(400)
     const body = await res.json()

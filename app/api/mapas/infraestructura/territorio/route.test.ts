@@ -35,21 +35,15 @@ describe('GET /api/mapas/infraestructura/territorio', () => {
     vi.mocked(cargarTerritorioMapa).mockReset()
   })
 
-  it('sin sesión responde 401 y no toca la carga de datos', async () => {
-    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 401 })
+  it.each([
+    ['sin sesión responde 401 y no toca la carga de datos', 401, 'No autenticado'],
+    ['sin audiencia permitida responde 403 y no toca la carga de datos', 403, 'No tiene acceso a este recurso'],
+  ] as const)('%s', async (_titulo, status, error) => {
+    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status })
     const { GET } = await import('./route')
     const res = await GET(req())
-    expect(res.status).toBe(401)
-    expect((await res.json()).error).toBe('No autenticado')
-    expect(cargarTerritorioMapa).not.toHaveBeenCalled()
-  })
-
-  it('sin audiencia permitida responde 403 y no toca la carga de datos', async () => {
-    vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: false, status: 403 })
-    const { GET } = await import('./route')
-    const res = await GET(req())
-    expect(res.status).toBe(403)
-    expect((await res.json()).error).toBe('No tiene acceso a este recurso')
+    expect(res.status).toBe(status)
+    expect((await res.json()).error).toBe(error)
     expect(cargarTerritorioMapa).not.toHaveBeenCalled()
   })
 

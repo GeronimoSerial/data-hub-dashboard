@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
 import { recursoAudienciaNiveles } from '@/lib/db/schema'
@@ -13,6 +14,8 @@ const CUE_ER = '1801605-04'
 const CUE_GCHU = '1801605-05'
 
 usarDbTemporal('infraestructura-totales-route-', { seed: false })
+
+let GET: typeof Ruta.GET
 
 beforeAll(async () => {
   const client = crearEjecutorSql(getRawClient())
@@ -35,6 +38,7 @@ beforeAll(async () => {
   // puedeAbrir() con audiencias distintas sobre ese recurso.
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
+  GET = (await import('./route')).GET
 })
 
 beforeEach(() => {
@@ -48,7 +52,6 @@ function req(qs = '') {
 describe('GET /api/mapas/infraestructura/totales', () => {
   it('rechaza sin sesión y no entrega ningún agregado', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
     const body = await res.json()
@@ -71,7 +74,6 @@ describe('GET /api/mapas/infraestructura/totales', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
     const body = await res.json()
@@ -89,7 +91,6 @@ describe('GET /api/mapas/infraestructura/totales', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -110,7 +111,6 @@ describe('GET /api/mapas/infraestructura/totales', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req('?territorio=ER'))
     expect(res.status).toBe(200)
     const body = await res.json()
@@ -128,7 +128,6 @@ describe('GET /api/mapas/infraestructura/totales', () => {
       accesoRecursos: 'todos' as const,
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     const raw = await res.text()
     expect(raw).not.toMatch(/gePersonId|ge_person_id|alumnosAlcanzados/i)

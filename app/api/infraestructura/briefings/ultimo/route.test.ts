@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { aDtoPublico } from '@/lib/infraestructura/briefing-ia/dto'
 import type { BriefingPersistido } from '@/lib/infraestructura/briefing-ia/repositorio'
 import { obtenerUltimoBriefing } from '@/lib/infraestructura/briefing-ia/repositorio'
@@ -25,6 +26,9 @@ vi.mock('@/lib/db/seed', () => ({
 vi.mock('@/lib/infraestructura/briefing-ia/repositorio', () => ({
   obtenerUltimoBriefing: vi.fn(),
 }))
+
+let GET: typeof Ruta.GET
+beforeAll(async () => { GET = (await import('./route')).GET })
 
 const BRIEFING: BriefingPersistido = {
   id: 'brief-2',
@@ -64,7 +68,6 @@ beforeEach(() => {
 describe('GET /api/infraestructura/briefings/ultimo', () => {
   it('rechaza sin sesión con 401', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -74,7 +77,6 @@ describe('GET /api/infraestructura/briefings/ultimo', () => {
 
   it('rechaza a consulta (no staff) con 403', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -84,7 +86,6 @@ describe('GET /api/infraestructura/briefings/ultimo', () => {
   it('devuelve 404 si todavía no hay briefings', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerUltimoBriefing).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(404)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -94,7 +95,6 @@ describe('GET /api/infraestructura/briefings/ultimo', () => {
   it('con staff devuelve el último briefing completo', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerUltimoBriefing).mockResolvedValue(BRIEFING)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -129,7 +129,6 @@ describe('GET /api/infraestructura/briefings/ultimo', () => {
     }
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     vi.mocked(obtenerUltimoBriefing).mockResolvedValue(rechazado)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     const body = await res.json()

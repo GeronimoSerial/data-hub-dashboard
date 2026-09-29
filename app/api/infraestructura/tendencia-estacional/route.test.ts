@@ -81,19 +81,14 @@ function consulta() {
 }
 
 describe('GET /api/infraestructura/tendencia-estacional', () => {
-  it('rechaza sin sesión con 401', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(null)
+  it.each([
+    ['rechaza sin sesión con 401', null, 401],
+    ['rechaza a consulta (no staff) con 403', consulta(), 403],
+  ] as const)('%s', async (_titulo, user, status) => {
+    vi.mocked(getSessionUser).mockResolvedValue(user)
     const { GET } = await import('./route')
     const res = await GET(new Request('http://localhost/api/infraestructura/tendencia-estacional'))
-    expect(res.status).toBe(401)
-    expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-
-  it('rechaza a consulta (no staff) con 403', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(consulta())
-    const { GET } = await import('./route')
-    const res = await GET(new Request('http://localhost/api/infraestructura/tendencia-estacional'))
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(status)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
   })
 

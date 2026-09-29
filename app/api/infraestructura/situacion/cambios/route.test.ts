@@ -35,24 +35,17 @@ describe('GET /api/infraestructura/situacion/cambios', () => {
     expect(res.status).toBe(401)
   })
 
-  it('sin "desde" devuelve 400', async () => {
+  it.each([
+    ['sin "desde" devuelve 400', ''],
+    ['con "desde" inválido devuelve 400', '?desde=no-es-una-fecha'],
+    [
+      'territorioId sin territorioTipo devuelve 400',
+      '?desde=2026-01-01T00:00:00.000Z&territorioId=PARANA',
+    ],
+  ])('%s', async (_titulo, qs) => {
     vi.mocked(getSessionUser).mockResolvedValue(editor())
     const { GET } = await import('./route')
-    const res = await GET(url(''))
-    expect(res.status).toBe(400)
-  })
-
-  it('con "desde" inválido devuelve 400', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
-    const res = await GET(url('?desde=no-es-una-fecha'))
-    expect(res.status).toBe(400)
-  })
-
-  it('territorioId sin territorioTipo devuelve 400', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue(editor())
-    const { GET } = await import('./route')
-    const res = await GET(url('?desde=2026-01-01T00:00:00.000Z&territorioId=PARANA'))
+    const res = await GET(url(qs))
     expect(res.status).toBe(400)
   })
 

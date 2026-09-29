@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type * as Ruta from './route'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
 import { infraMovimiento, infraParte, recursoAudienciaNiveles } from '@/lib/db/schema'
@@ -13,6 +14,7 @@ const CUE = '1801605-61'
 
 usarDbTemporal('mapa-historial-route-', { seed: false })
 
+let GET: typeof Ruta.GET
 beforeAll(async () => {
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
@@ -60,6 +62,7 @@ beforeAll(async () => {
     rigeDesde: ahora,
     creadaEn: ahora,
   })
+  GET = (await import('./route')).GET
 })
 
 beforeEach(() => {
@@ -73,7 +76,6 @@ function req(cue = CUE): Request {
 describe('GET /api/mapas/infraestructura/historial', () => {
   it('rechaza sin sesión', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null)
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(401)
   })
@@ -93,7 +95,6 @@ describe('GET /api/mapas/infraestructura/historial', () => {
       accesoRecursos: 'todos',
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(403)
 
@@ -109,7 +110,6 @@ describe('GET /api/mapas/infraestructura/historial', () => {
       accesoRecursos: 'todos',
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req())
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
@@ -130,7 +130,6 @@ describe('GET /api/mapas/infraestructura/historial', () => {
       accesoRecursos: 'todos',
       recursoIds: [],
     })
-    const { GET } = await import('./route')
     const res = await GET(req('1801605-62'))
     expect(res.status).toBe(200)
     const body = await res.json()
