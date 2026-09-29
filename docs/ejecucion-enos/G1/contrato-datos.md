@@ -111,6 +111,62 @@ Columnas:
 retorno**. NUNCA es un pronóstico ni un dato en tiempo real. No debe
 presentarse ni consumirse como una predicción de un evento en curso.
 
+## Archivo 3: `accesos_osm_geometria-v{N}-{fecha_extracto}.ndjson.gz`
+
+Tercer archivo de salida, **gzip NDJSON** (no CSV): un objeto JSON por
+escuela, ordenado por `cue_anexo`. El gzip se escribe con `mtime=0`, de modo
+que una misma entrada produce **bytes idénticos** (artefacto reproducible,
+apto para diff). Lo escribe **únicamente** el camino de extracto local de
+`calcular_aislamiento`; el camino de fallback por Overpass no tiene capa de
+agua y **no escribe geometría**.
+
+Columnas de cada objeto:
+
+| Columna | Tipo | Descripción |
+| --- | --- | --- |
+| `cue_anexo` | string | Código de anexo, formato `XXXXXXX-XX`. |
+| `version_job` | string | Versión del job (por ejemplo `'1'`). |
+| `fecha_extracto_osm` | fecha ISO | Fecha del extracto de OpenStreetMap usado. |
+| `licencia` | string fija | `'© OpenStreetMap contributors, ODbL'`. |
+| `ruta` | GeoJSON LineString \| null | Camino realmente usado por la métrica, en coordenadas `[lon, lat]` con 6 decimales. |
+| `cruces` | array | Lista de objetos `{ lon, lat, clasificacion }` con los cruces de agua detectados sobre `ruta`. |
+| `motivo_sin_geometria` | null \| `'sin_conexion_red'` \| `'ruta_degenerada'` | Motivo por el que no hay ruta dibujable. |
+
+### Semántica de `ruta`
+
+`ruta` es el **camino realmente usado por la métrica**: el camino más corto
+de Dijkstra desde el nodo vial más cercano a la escuela hasta la cabecera
+departamental. Para cada salto se toma, entre las aristas paralelas, la de
+**menor `length`** (la que usó Dijkstra) y su **geometría real de OSM** (el
+atributo `geometry` de la arista, o sus dos nodos OSM si no existe — nunca
+una recta inventada). La ruta **arranca en el nodo vial tras el snap**, no en
+el punto de la escuela: `snap_distancia_m` en el CSV del Archivo 1 indica a
+qué distancia quedó el punto original.
+
+### Semántica de `cruces`
+
+`cruces` se produce en el **mismo bucle y con la misma deduplicación** que los
+conteos del Archivo 1, por lo que se cumple siempre:
+
+- `len(cruces) == cruces_agua_count`
+- cantidad de cruces con `clasificacion == 'puente'` == `cruces_agua_con_puente_count`
+- `vado` + `sin_evidencia` juntos == `cruces_agua_con_vado_count`
+
+La métrica nunca asume que un cruce sin evidencia es seguro: la separación
+entre `vado` y `sin_evidencia` es **solo para la visualización**. La
+clasificación `con_puente` gana sobre `es_ford` (un cruce con puente nunca se
+reporta como vado).
+
+### Importación
+
+`node scripts/importar-geo-static.mjs --geometria <file>` carga el archivo en
+la tabla `infra_acceso_osm_geometria` (migración 0003), con clave primaria
+`(cue_anexo, version_job)`. Las filas inválidas se cuentan y se omiten sin
+interrumpir la importación.
+
+**Importante:** es contexto territorial derivado de OpenStreetMap. NUNCA es un
+pronóstico ni el estado confirmado del edificio.
+
 ## Refresco
 
 - **Aislamiento OSM:** refresco **trimestral** (depende de la fecha del extracto
