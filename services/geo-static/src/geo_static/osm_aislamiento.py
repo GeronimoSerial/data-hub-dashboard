@@ -85,6 +85,23 @@ Dos cambios independientes:
    cambian (`cruces_agua_con_vado_count` sigue contando vado y sin_evidencia
    juntos).
 
+## N3-E — orientacion de la geometria al sentido de la arista
+
+Bug corregido: en `construir_indice_aristas` / `_snap_arista_batch` /
+`_evaluar_escuela_arista` (N3-C), `frac` es la posicion sobre la geometria de
+la arista y se asumia que corria de `u` a `v`. En el grafo real de pyrosm eso
+es falso: la copia reversa de una via de doble mano conserva la orientacion de
+la copia directa (el primer vertice de `geometry` esta en `v`, verificado en
+1801072-00, 1801623-01, 1801078-00, 1801075-00). Con `frac` invertido el costo
+parcial `(1 - frac) * length` y el tramo dibujado describen el lado equivocado
+de la arista, y la longitud exportada quedaba 3-13 % por encima de
+`distancia_cabecera_departamental_m` para ~5-15 % de las escuelas.
+`_orientar_geometria` revierte la geometria cuando su primer vertice esta mas
+cerca de `v` que de `u` (`shapely.reverse`) ANTES de proyectar; `geometrias` y
+`proyectadas` guardan la geometria orientada (0 en `u`, 1 en `v`) y
+`indice["pos"]` mapea `(u, v, k)` a su posicion. Una arista cerrada (`u == v`)
+se deja como esta.
+
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
 `calcular_metricas_escuela` (per-escuela, se mantiene para compatibilidad y
@@ -760,6 +777,44 @@ def _proyectar_geometrias(geometrias, transformer) -> list:
     )
 
 
+def _orientar_geometria(geometria, grafo, u, v):
+    """Orienta la geometria de la arista dirigida `(u, v)` para que su primer
+    vertice quede en `u` (N3-E).
+
+    En el grafo real de pyrosm la copia reversa de una via de doble mano
+    conserva la orientacion de la copia directa: el atributo `geometry` de la
+    arista `(v, u)` sigue yendo de `u` a `v`. Como `frac` (posicion sobre la
+    geometria) se interpreta despues como 0 en `u` y 1 en `v`, una geometria
+    mal orientada describe el lado equivocado de la arista: el costo parcial
+    `(1 - frac) * length` y el tramo dibujado quedan invertidos.
+
+    Se compara la distancia del primer vertice de la geometria a `u` y a `v`
+    con las coordenadas de nodo (`grafo.nodes[n]["x"/"y"]`) y se revierte con
+    `shapely.reverse` cuando el primer vertice esta mas cerca de `v`. Una
+    arista cerrada (`u == v`) o con extremos coincidentes se deja como esta
+    (no hay orientacion preferida). Devuelve la geometria original si no se
+    puede orientar (nodo ausente o geometria vacia).
+    """
+    if geometria is None or geometria.is_empty or u == v:
+        return geometria
+    if u not in grafo.nodes or v not in grafo.nodes:
+        return geometria
+
+    import shapely
+
+    coordenadas = shapely.get_coordinates(geometria)
+    if coordenadas.shape[0] == 0:
+        return geometria
+    primero = coordenadas[0]
+    ux, uy = grafo.nodes[u]["x"], grafo.nodes[u]["y"]
+    vx, vy = grafo.nodes[v]["x"], grafo.nodes[v]["y"]
+    dist_u = (primero[0] - ux) ** 2 + (primero[1] - uy) ** 2
+    dist_v = (primero[0] - vx) ** 2 + (primero[1] - vy) ** 2
+    if dist_v < dist_u:
+        return shapely.reverse(geometria)
+    return geometria
+
+
 def construir_indice_aristas(grafo) -> dict:
     """Indice espacial (STRtree) de TODAS las aristas dirigidas, proyectadas a
     EPSG:32721 (UTM 21S), para snapear una escuela a la ARISTA mas cercana en
@@ -769,10 +824,22 @@ def construir_indice_aristas(grafo) -> dict:
     distancia escuela -> nodo vs escuela -> arista difiere p50 17 m, p90 59 m,
     p99 425 m, max 935 m; 112 escuelas > 100 m, 46 > 250 m, 15 > 500 m.
 
+    ## N3-E — geometria orientada al sentido de la arista
+
+    Cada geometria se orienta a su arista dirigida `(u, v)` con
+    `_orientar_geometria` ANTES de proyectar: en el grafo real la copia reversa
+    de una via de doble mano conserva la orientacion de la copia directa, y sin
+    orientar `frac` describe el lado equivocado (costo parcial y tramo dibujado
+    invertidos; la longitud exportada quedaba 3-13 % por encima de
+    `distancia_cabecera_departamental_m` para ~5-15 % de las escuelas). Asi
+    `geometrias` y `proyectadas` guardan la geometria ORIENTADA (0 en `u`, 1 en
+    `v`).
+
     Se construye UNA sola vez por corrida. Devuelve `claves` (lista de
-    `(u, v, k)` en el mismo orden que el arbol), `geometrias` (lon/lat
-    originales), `proyectadas` (EPSG:32721) y el `transformer`, para reutilizar
-    en cada snap sin reproyectar.
+    `(u, v, k)` en el mismo orden que el arbol), `pos` (dict `(u, v, k) ->
+    indice` para recuperar la geometria orientada de una arista), `geometrias`
+    (lon/lat orientadas), `proyectadas` (EPSG:32721) y el `transformer`, para
+    reutilizar en cada snap sin reproyectar.
     """
     from pyproj import Transformer
     from shapely.strtree import STRtree
@@ -780,8 +847,12 @@ def construir_indice_aristas(grafo) -> dict:
     transformer = Transformer.from_crs(4326, 32721, always_xy=True)
     claves = []
     geometrias = []
+    pos = {}
     for u, v, k, datos in grafo.edges(keys=True, data=True):
-        geometria = _geometria_arista(datos, grafo, u, v)
+        geometria = _orientar_geometria(
+            _geometria_arista(datos, grafo, u, v), grafo, u, v
+        )
+        pos[(u, v, k)] = len(claves)
         claves.append((u, v, k))
         geometrias.append(geometria)
     proyectadas = _proyectar_geometrias(geometrias, transformer)
@@ -790,6 +861,7 @@ def construir_indice_aristas(grafo) -> dict:
         "claves": claves,
         "geometrias": geometrias,
         "proyectadas": proyectadas,
+        "pos": pos,
         "transformer": transformer,
     }
 
@@ -938,7 +1010,14 @@ def _evaluar_escuela_arista(
     u, v, k = snap["u"], snap["v"], snap["k"]
     frac = snap["frac"]
     datos_e = (grafo.get_edge_data(u, v) or {}).get(k, {})
-    geometria_e = _geometria_arista(datos_e, grafo, u, v)
+    # N3-E: usar la geometria ORIENTADA al sentido de la arista (guardada en el
+    # indice), no la cruda de OSM. Sin esto `frac` (medido sobre la geometria)
+    # describe el lado equivocado de la arista en la copia reversa de una via
+    # de doble mano: el substring parcial, la proyeccion de los cruces (`t`) y
+    # el costo parcial quedan invertidos.
+    pos_e = indice["pos"][(u, v, k)]
+    geometria_e = indice["geometrias"][pos_e]
+    geometria_proyectada_e = indice["proyectadas"][pos_e]
 
     opciones = []
     if v in distancias_cab:
@@ -991,7 +1070,6 @@ def _evaluar_escuela_arista(
     if _es_tramo_sin_pavimentar(mejor["datos"]):
         tramos_sin_pavimentar += 1
 
-    geometria_proyectada_e = _proyectar_geometria(geometria_e, indice["transformer"])
     cruces_parciales = _cruces_en_tramo_parcial(
         indice,
         geometria_proyectada_e,

@@ -11,6 +11,7 @@ existe), eligiendo el menor costo `costo_parcial + distancias_cab[salida]`.
 import math
 
 import networkx as nx
+import pytest
 from pyproj import Transformer
 from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import transform as shapely_transform
@@ -346,3 +347,175 @@ class TestProyeccionVectorizadaIndiceAristas:
         for proyectada, geometria in zip(indice["proyectadas"], indice["geometrias"]):
             esperada = shapely_transform(TRANSFORMER.transform, geometria)
             assert proyectada.equals_exact(esperada, 1e-6)
+
+
+# ---------------------------------------------------------------------------
+# N3-E: la geometria se orienta al sentido de la arista dirigida.
+# ---------------------------------------------------------------------------
+
+
+class TestOrientacionGeometriaArista:
+    """En el grafo real de pyrosm la copia reversa `(B, A)` de una via de doble
+    mano conserva la geometria de la copia directa (orientada `A -> B`), o sea
+    invertida respecto de su propio `u -> v`. Sin orientar, `frac` describe el
+    lado equivocado de la arista (costo parcial y tramo dibujado invertidos)."""
+
+    def _grafo_reversa_unica(self):
+        """Una sola copia dirigida `(B, A)` que lleva la geometria `[A, B]`
+        (orientacion de la copia directa, invertida respecto de `B -> A`). Al
+        ser la unica arista, el snap cae en ella de forma determinista."""
+        g = nx.MultiDiGraph()
+        g.add_node("A", x=A[0], y=A[1])
+        g.add_node("B", x=B[0], y=B[1])
+        g.add_edge(
+            "B",
+            "A",
+            key=0,
+            geometry=LineString([A, B]),
+            length=_largo([A, B]),
+            surface="paved",
+            highway="secondary",
+        )
+        return g
+
+    def test_orienta_a_la_arista_dirigida(self):
+        g = self._grafo_reversa_unica()
+        indice = construir_indice_aristas(g)
+
+        # La copia (B, A) se orienta B -> A pese a que su geometria cruda
+        # venia A -> B.
+        assert list(indice["geometrias"][indice["pos"][("B", "A", 0)]].coords) == [B, A]
+        # `pos` permite recuperar la geometria orientada por clave de arista.
+        assert set(indice["pos"]) == {("B", "A", 0)}
+
+    def test_salida_adelante_por_el_extremo_v_de_la_copia_reversa(self):
+        """La escuela snapea a la copia reversa mal orientada y sale por `v= A`
+        (cabecera A): el costo y el tramo dibujado deben corresponder a los
+        primeros 0.3*L desde A, no a la cola medida sobre la geometria cruda.
+        Falla sin el fix (usaria `1 - frac` con `frac` medido desde A)."""
+        g = self._grafo_reversa_unica()
+        indice = construir_indice_aristas(g)
+        lat, lon = -27.4995, -58.87
+        snap = snap_a_arista(g, indice, lat, lon)
+        assert (snap["u"], snap["v"]) == ("B", "A")
+
+        largo = _largo([A, B])
+        frac, punto_proyeccion, dist_perp = _proyeccion_y_frac([B, A], lat, lon)
+        esperado = (1 - frac) * largo
+
+        geometrias = []
+        metricas = calcular_metricas_departamento(
+            g,
+            g.reverse(copy=False),
+            _escuela(lat, lon),
+            "A",
+            cruces_por_arista={},
+            geometrias_out=geometrias,
+            indice_aristas=indice,
+        )[0]
+
+        # (i) costo de salida por v (extremo A).
+        assert metricas["distancia_cabecera_departamental_m"] == pytest.approx(
+            esperado, abs=1e-6
+        )
+        assert metricas["snap_distancia_m"] == pytest.approx(dist_perp, abs=1e-6)
+
+        coords = geometrias[0]["ruta"]["coordinates"]
+        # (iii) el primer vertice exportado es el punto de proyeccion.
+        assert coords[0] == [
+            round(punto_proyeccion.x, 6),
+            round(punto_proyeccion.y, 6),
+        ]
+        assert _m((coords[0][0], coords[0][1]), (lon, lat)) == pytest.approx(
+            metricas["snap_distancia_m"], abs=1.0
+        )
+        assert coords[-1] == [round(A[0], 6), round(A[1], 6)]
+        # (ii) la longitud exportada coincide con la distancia del tramo parcial.
+        assert abs(_largo(coords) - esperado) / esperado < 0.005
+
+    def _grafo_reversa_unica_mas_retorno(self):
+        """La copia `(B, A)` mal orientada (la via real) mas una copia de
+        retorno `(A, B)` corrida hacia el sur: misma longitud, pero mas lejos
+        de la escuela, para que el snap caiga siempre en `(B, A)`."""
+        g = self._grafo_reversa_unica()
+        desplazado = [
+            (A[0], A[1] - 0.002),
+            (B[0], B[1] - 0.002),
+        ]
+        g.add_edge(
+            "A",
+            "B",
+            key=0,
+            geometry=LineString(desplazado),
+            length=_largo(desplazado),
+            surface="paved",
+            highway="secondary",
+        )
+        return g
+
+    def test_salida_reversa_por_el_extremo_u_de_la_copia_reversa(self):
+        """Misma via: la escuela snapea a (B, A) y sale por `u = B` (cabecera
+        B) recorriendo el tramo parcial desde la proyeccion hasta B. Falla sin
+        el fix (costaria `frac` medido desde A y dibujaria el extremo A)."""
+        g = self._grafo_reversa_unica_mas_retorno()
+        indice = construir_indice_aristas(g)
+        lat, lon = -27.4995, -58.83
+        snap = snap_a_arista(g, indice, lat, lon)
+        assert (snap["u"], snap["v"]) == ("B", "A")
+
+        largo = _largo([A, B])
+        largo_retorno = _largo([(A[0], A[1] - 0.002), (B[0], B[1] - 0.002)])
+        frac, punto_proyeccion, dist_perp = _proyeccion_y_frac([B, A], lat, lon)
+        # El costo de la salida reversa usa la longitud de la arista de retorno
+        # `(A, B)`; el corrimiento en latitud la deja equivalente a la via real.
+        esperado = frac * largo_retorno
+        assert largo_retorno == pytest.approx(largo, rel=1e-4)
+
+        geometrias = []
+        metricas = calcular_metricas_departamento(
+            g,
+            g.reverse(copy=False),
+            _escuela(lat, lon),
+            "B",
+            cruces_por_arista={},
+            geometrias_out=geometrias,
+            indice_aristas=indice,
+        )[0]
+
+        # (i) costo de salida por u (extremo B): `frac` medido desde B sobre la
+        # geometria orientada, no `1 - frac` sobre la cruda.
+        assert metricas["distancia_cabecera_departamental_m"] == pytest.approx(
+            esperado, abs=1e-6
+        )
+        assert metricas["snap_distancia_m"] == pytest.approx(dist_perp, abs=1e-6)
+
+        coords = geometrias[0]["ruta"]["coordinates"]
+        # (iii) primer vertice = punto de proyeccion, a snap_distancia_m.
+        assert coords[0] == [
+            round(punto_proyeccion.x, 6),
+            round(punto_proyeccion.y, 6),
+        ]
+        assert _m((coords[0][0], coords[0][1]), (lon, lat)) == pytest.approx(
+            metricas["snap_distancia_m"], abs=1.0
+        )
+        assert coords[-1] == [round(B[0], 6), round(B[1], 6)]
+        # (ii) longitud exportada == distancia del tramo parcial.
+        assert abs(_largo(coords) - esperado) / esperado < 0.005
+
+    def test_arista_cerrada_conserva_la_geometria(self):
+        """Una arista con `u == v` (lazo) no tiene orientacion preferida: la
+        geometria se guarda tal cual."""
+        bucle = [A, (-58.89, -27.50), A]
+        g = nx.MultiDiGraph()
+        g.add_node("A", x=A[0], y=A[1])
+        g.add_edge(
+            "A",
+            "A",
+            key=0,
+            geometry=LineString(bucle),
+            length=_largo(bucle),
+            surface="paved",
+            highway="secondary",
+        )
+        indice = construir_indice_aristas(g)
+        assert list(indice["geometrias"][indice["pos"][("A", "A", 0)]].coords) == bucle
