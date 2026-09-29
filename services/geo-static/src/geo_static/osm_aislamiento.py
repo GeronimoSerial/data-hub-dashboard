@@ -30,6 +30,26 @@ escuelas con cruces, `cruces_agua_con_vado_count` en 0 siempre, y por lo
 tanto indice 2 estructuralmente inalcanzable. Corregido centralizando la
 normalizacion en `_primer_valor` (ver su docstring).
 
+## N3-B — red rural (track + service) y motivos verificables
+
+La red se construye incluyendo `highway=track` y `service` (accesos rurales de
+Corrientes, visibles en la cartografia base) ademas de las vias ya
+consideradas. `pyrosm.config.osm_filters.driving_filter` excluye `track` y, por
+defecto, `service`; con track+service el grafo pasa de 273k/590k a 443k nodos /
+940k aristas y 8 de las 16 escuelas antes `sin_conexion_red` quedan a 21-2.217 m
+de la red (p. ej. 1801075-00, a 118 m de un track, antes a 2.9 km; 1800521-00, a
+26 m, antes a 3.9 km). Las exclusiones de vias privadas / `motor_vehicle=no`
+del filtro de pyrosm se conservan.
+
+`pyrosm.to_graph` conserva solo la componente gigante: las vias que existen en
+OSM pero pertenecen a un componente aislado no se conectan (nunca se inventa un
+enlace). Esas aristas se registran en `aristas_no_conectadas_out` y alimentan
+los motivos `red_vial_no_conectada` / `sin_via_osm_cercana`, que reemplazan al
+generico `sin_conexion_red` (que queda solo como fallback). Verificado: 3
+escuelas de Ituzaingo tienen una `unclassified` sin pavimentar a 34-62 m, pero
+esa via pertenece a un componente aislado (126 ways, 122,7 km) separado de la
+red principal por 1.405 m.
+
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
 `calcular_metricas_escuela` (per-escuela, se mantiene para compatibilidad y
@@ -52,6 +72,40 @@ UMBRAL_VIA_PAVIMENTADA_CERCANA_M = 3000.0
 UMBRAL_VIA_NO_ALCANZABLE_M = 20000.0
 SUPERFICIES_NO_PAVIMENTADAS = {"unpaved", "dirt", "ground", "gravel", "sand"}
 HIGHWAYS_SIN_SURFACE_ES_NO_PAVIMENTADO = {"track", "unclassified"}
+
+# Valores de `highway` considerados conduccibles tras leer el extracto local
+# (N3-B). Incluye `track` y `service` ademas de las vias antes consideradas:
+# los accesos rurales de Corrientes son mayoritariamente tracks y estan
+# visibles en la cartografia base. Se mantienen las exclusiones de vias
+# privadas / `motor_vehicle=no` del filtro de pyrosm. Los valores basura que
+# aparecen en el extracto ('dummy', 'Charata', 'ladder') no estan en este set y
+# se descartan al filtrar las aristas.
+HIGHWAYS_CONDUCIBLES = {
+    "motorway",
+    "motorway_link",
+    "trunk",
+    "trunk_link",
+    "primary",
+    "primary_link",
+    "secondary",
+    "secondary_link",
+    "tertiary",
+    "tertiary_link",
+    "unclassified",
+    "residential",
+    "living_street",
+    "service",
+    "road",
+    "track",
+}
+
+# Motivos por los que una escuela queda sin indice (N3-B). Reemplazan al
+# generico `sin_conexion_red` en el camino con extracto local: una via de OSM
+# existe cerca pero pertenece a un componente NO conectado a la red principal
+# (`red_vial_no_conectada`) o no hay ninguna via conduccible de OSM en el radio
+# de snap (`sin_via_osm_cercana`: islas / banados / coordenada mal cargada).
+MOTIVO_RED_NO_CONECTADA = "red_vial_no_conectada"
+MOTIVO_SIN_VIA_CERCANA = "sin_via_osm_cercana"
 
 # Tipos de waterway considerados "cruce relevante" para el indice de
 # aislamiento. Se incluye `drain` (canales de desagüe/esteros, muy comunes en
@@ -213,8 +267,9 @@ def construir_red_local(
     bbox_sur: float,
     bbox_este: float,
     bbox_oeste: float,
+    aristas_no_conectadas_out: Optional[list] = None,
 ):
-    """Construye la red vial 'driving' desde un extracto local .osm.pbf (pyrosm).
+    """Construye la red vial conduccible desde un extracto local .osm.pbf (pyrosm).
 
     Camino de produccion desde G1-fix1: no golpea la red ni Overpass. El pbf
     (extracto Geofabrik de Argentina) se lee con pyrosm recortando por bbox y
@@ -222,10 +277,32 @@ def construir_red_local(
     aristas con atributos OSM como highway/surface/bridge), apto para
     `ox.distance.nearest_nodes` y el resto del calculo en osm_aislamiento.
 
+    ## N3-B — red rural
+
+    A diferencia de `driving_filter` por defecto, se incluyen `highway=track` y
+    `service` (accesos rurales; ver nota de modulo) quitando `track` de la lista
+    de exclusión y pidiendo `include_service_roads=True`; las exclusiones de
+    vias privadas / `motor_vehicle=no` se conservan. Tras `get_network` se
+    filtran las aristas a `HIGHWAYS_CONDUCIBLES`, lo que descarta los valores
+    basura del extracto ('dummy', 'Charata', 'ladder').
+
+    `pyrosm.to_graph` conserva solo la componente gigante. Si
+    `aristas_no_conectadas_out` es una lista, se le agrega `(geometry, highway)`
+    por cada arista conservada cuyo `u` o `v` NO sea nodo del grafo devuelto:
+    son las vias conduccibles que existen en OSM pero no estan conectadas a la
+    red principal (no se inventa ningun enlace). `u`/`v` son los ids OSM de los
+    nodos y coinciden con las claves del grafo (verificado en pyrosm 0.13.1:
+    `to_networkx` conserva `from_id_col='u'`/`to_id_col='v'` y usa el id OSM
+    como clave de nodo).
+
     Ojo: pyrosm espera el bbox en orden [oeste, sur, este, norte], distinto
     del orden (norte, sur, este, oeste) que usa el resto del modulo.
     """
     from pyrosm import OSM
+    from pyrosm.config.osm_filters import driving_filter, MultiValue
+
+    filtro = driving_filter(include_service_roads=True)
+    filtro["highway"] = MultiValue([h for h in filtro["highway"] if h != "track"])
 
     osm = OSM(
         pbf_path,
@@ -233,10 +310,100 @@ def construir_red_local(
     )
     nodes, edges = osm.get_network(
         network_type="driving",
+        custom_filter=filtro,
+        filter_type="exclude",
         nodes=True,
         extra_attributes=["surface", "bridge", "tunnel", "ford"],
     )
-    return osm.to_graph(nodes, edges, graph_type="networkx", osmnx_compatible=True)
+    edges = edges[edges["highway"].isin(HIGHWAYS_CONDUCIBLES)]
+    grafo = osm.to_graph(nodes, edges, graph_type="networkx", osmnx_compatible=True)
+
+    if aristas_no_conectadas_out is not None:
+        nodos_grafo = set(grafo.nodes)
+        for _, arista in edges.iterrows():
+            if arista["u"] not in nodos_grafo or arista["v"] not in nodos_grafo:
+                aristas_no_conectadas_out.append(
+                    (arista["geometry"], _primer_valor(arista["highway"]))
+                )
+    return grafo
+
+
+def construir_indice_no_conectadas(aristas_no_conectadas: list) -> dict:
+    """Indice espacial (STRtree) de las vias conduccibles NO conectadas a la red
+    principal (N3-B).
+
+    `aristas_no_conectadas` es la lista `(geometry, highway)` que llena
+    `construir_red_local`. Se proyecta cada geometria a EPSG:32721 (UTM 21S) y
+    se construye un `shapely.strtree.STRtree`; la distorsion de distancia a esta
+    escala (5 km) sobre Corrientes es despreciable frente a los umbrales usados.
+    Devuelve el arbol junto con las geometrias proyectadas, la clase (`highway`)
+    de cada una y el transformador, para reutilizar en cada clasificacion sin
+    reproyectar.
+    """
+    from pyproj import Transformer
+    from shapely.ops import transform as shapely_transform
+    from shapely.strtree import STRtree
+
+    transformer = Transformer.from_crs(4326, 32721, always_xy=True)
+    geometrias = []
+    clases = []
+    for geometria, highway in aristas_no_conectadas:
+        if geometria is None:
+            continue
+        geometrias.append(shapely_transform(transformer.transform, geometria))
+        clases.append(highway)
+    return {
+        "arbol": STRtree(geometrias),
+        "geometrias": geometrias,
+        "clases": clases,
+        "transformer": transformer,
+    }
+
+
+def clasificar_sin_conexion(
+    lat: float,
+    lon: float,
+    indice,
+    umbral_m: float = UMBRAL_SNAP_SIN_CONEXION_M,
+) -> tuple[str, dict]:
+    """Clasifica por que una escuela quedo `sin_conexion_red` (N3-B).
+
+    - Una via conduccible NO conectada a la red principal a menos de `umbral_m`
+      de la escuela -> `MOTIVO_RED_NO_CONECTADA`: hay camino en OSM pero
+      pertenece a un componente aislado (la ruta es imposible sin inventar un
+      enlace). Los datos incluyen la distancia al punto mas cercano de esa via,
+      su clase (`highway`) y ese punto en lon/lat.
+    - Caso contrario (o indice vacio) -> `MOTIVO_SIN_VIA_CERCANA`: no hay
+      ninguna via conduccible de OSM en el radio de snap.
+    """
+    sin_via = {"via_no_conectada_m": None, "via_no_conectada_clase": None}
+    if indice is None or not indice["geometrias"]:
+        return MOTIVO_SIN_VIA_CERCANA, dict(sin_via)
+
+    from shapely.geometry import Point
+    from shapely.ops import nearest_points
+
+    transformer = indice["transformer"]
+    punto = Point(*transformer.transform(lon, lat))
+    idx = indice["arbol"].nearest(punto)
+    if idx is None:
+        return MOTIVO_SIN_VIA_CERCANA, dict(sin_via)
+
+    geometria = indice["geometrias"][idx]
+    distancia_m = float(punto.distance(geometria))
+    if distancia_m > umbral_m:
+        return MOTIVO_SIN_VIA_CERCANA, dict(sin_via)
+
+    _, punto_cercano = nearest_points(punto, geometria)
+    lon_cercano, lat_cercano = transformer.transform(
+        punto_cercano.x, punto_cercano.y, direction="INVERSE"
+    )
+    return MOTIVO_RED_NO_CONECTADA, {
+        "via_no_conectada_m": distancia_m,
+        "via_no_conectada_clase": indice["clases"][idx],
+        "punto_via_lon": float(lon_cercano),
+        "punto_via_lat": float(lat_cercano),
+    }
 
 
 def construir_geometrias_agua_local(
