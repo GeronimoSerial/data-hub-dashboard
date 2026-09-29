@@ -118,7 +118,7 @@ describe('useGeometriaAcceso', () => {
     const { result } = renderHook(() => useGeometriaAcceso('CUE-A', true))
     await flush()
 
-    expect(result.current.error).toBe('No se pudo cargar la ruta de acceso.')
+    expect(result.current.error).toBe('No se pudo cargar el camino de esta escuela. Probá de nuevo en unos minutos.')
     expect(result.current.data).toBeNull()
   })
 })
