@@ -240,28 +240,40 @@ const MARGEN_VARIACION = 40
 // comparar entre departamentos aunque haya uno elegido.
 const OPACIDAD_ATENUADA = 0.35
 
-export function GraficoVariacionPorDepartamento(props: {
-  barras: BarraVariacionDepartamento[]
+type FilaBarraHorizontal = { clave: string; departamento: string }
+
+type GraficoBarrasHorizontalesProps<T extends FilaBarraHorizontal> = {
+  etiqueta: string
+  filas: T[]
+  dataKey: string
+  nombreSerie: string
   seleccionado?: string
   onSeleccionar?: (clave: string) => void
-}) {
+  claveFila: (fila: T) => string
+  keyFila: (fila: T) => string
+  colorFila: (fila: T, paleta: Paleta) => string
+  formatearEje?: (valor: number) => string
+  formatearTooltip: (valor: unknown) => string
+  formatearEtiqueta: (valor: unknown) => string
+  referencia?: { valor: number; etiqueta: string }
+}
+
+function GraficoBarrasHorizontales<T extends FilaBarraHorizontal>(
+  props: GraficoBarrasHorizontalesProps<T>,
+) {
   const paleta = usePaleta()
-  const alto = props.barras.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
+  const alto = props.filas.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
   const hayResaltado = props.seleccionado != null && props.seleccionado !== 'Todos'
   return (
-    <GraficoContenedor etiqueta="Variación de nacidos vivos por departamento" alto={alto}>
+    <GraficoContenedor etiqueta={props.etiqueta} alto={alto}>
       <BarChart
-        data={props.barras}
+        data={props.filas}
         layout="vertical"
         barCategoryGap={4}
         margin={{ top: 8, right: 44, bottom: 4, left: 4 }}
       >
         <CartesianGrid horizontal={false} stroke={paleta.grilla} strokeWidth={1} />
-        <XAxis
-          type="number"
-          tickFormatter={(v: number) => `${v}%`}
-          {...propsEje(paleta)}
-        />
+        <XAxis type="number" tickFormatter={props.formatearEje} {...propsEje(paleta)} />
         <YAxis
           type="category"
           dataKey="departamento"
@@ -274,24 +286,24 @@ export function GraficoVariacionPorDepartamento(props: {
           labelStyle={ESTILO_ETIQUETA_TOOLTIP}
           itemStyle={ESTILO_DATO_TOOLTIP}
           cursor={{ fill: paleta.resalte }}
-          formatter={formatearValorTooltipPct}
+          formatter={props.formatearTooltip}
         />
         <Bar
-          dataKey="pct"
-          name="Variación"
+          dataKey={props.dataKey}
+          name={props.nombreSerie}
           isAnimationActive={false}
           onClick={(data) => {
-            const barra = data.payload as BarraVariacionDepartamento | undefined
-            if (barra) props.onSeleccionar?.(barra.clave)
+            const fila = data.payload as T | undefined
+            if (fila) props.onSeleccionar?.(fila.clave)
           }}
           cursor={props.onSeleccionar ? 'pointer' : undefined}
         >
-          {props.barras.map((barra, i) => {
-            const esSeleccionado = barra.clave === props.seleccionado
-            const colorBase = barra.pct == null ? paleta.eje : barra.pct < 0 ? paleta.negativo : paleta.positivo
+          {props.filas.map((fila, i) => {
+            const esSeleccionado = props.claveFila(fila) === props.seleccionado
+            const colorBase = props.colorFila(fila, paleta)
             return (
               <Cell
-                key={`${barra.departamento}-${i}`}
+                key={`${props.keyFila(fila)}-${i}`}
                 fill={colorBase}
                 fillOpacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA : 1}
                 stroke={esSeleccionado ? colorBase : undefined}
@@ -300,34 +312,70 @@ export function GraficoVariacionPorDepartamento(props: {
             )
           })}
           <LabelList
-            dataKey="pct"
+            dataKey={props.dataKey}
             position="right"
             content={(labelProps) => {
               const { x, y, width, height, value, index } = labelProps
               if (x == null || y == null || value == null || index == null) return undefined
-              const barra = props.barras[Number(index)]
-              const esSeleccionado = barra?.clave === props.seleccionado
-              const texto =
-                typeof value === 'number' ? `${value > 0 ? '+' : ''}${value.toFixed(1)}%` : 'S/D'
-              const cx = Number(x) + Number(width ?? 0) + 4
-              const cy = Number(y) + Number(height ?? 0) / 2 + 3
+              const fila = props.filas[Number(index)]
+              const esSeleccionado =
+                fila == null
+                  ? props.seleccionado == null
+                  : props.claveFila(fila) === props.seleccionado
               return (
                 <text
-                  x={cx}
-                  y={cy}
+                  x={Number(x) + Number(width ?? 0) + 4}
+                  y={Number(y) + Number(height ?? 0) / 2 + 3}
                   fontSize={11}
                   fontWeight={esSeleccionado ? 700 : 400}
                   fill={hayResaltado && !esSeleccionado ? paleta.texto : 'currentColor'}
                   opacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA + 0.3 : 1}
                 >
-                  {texto}
+                  {props.formatearEtiqueta(value)}
                 </text>
               )
             }}
           />
         </Bar>
+        {props.referencia != null && (
+          <ReferenceLine x={props.referencia.valor} stroke={paleta.negativo} strokeDasharray="4 3">
+            <Label
+              value={props.referencia.etiqueta}
+              position="insideTopRight"
+              fill={paleta.texto}
+              fontSize={11}
+            />
+          </ReferenceLine>
+        )}
       </BarChart>
     </GraficoContenedor>
+  )
+}
+
+export function GraficoVariacionPorDepartamento(props: {
+  barras: BarraVariacionDepartamento[]
+  seleccionado?: string
+  onSeleccionar?: (clave: string) => void
+}) {
+  return (
+    <GraficoBarrasHorizontales
+      etiqueta="Variación de nacidos vivos por departamento"
+      filas={props.barras}
+      dataKey="pct"
+      nombreSerie="Variación"
+      seleccionado={props.seleccionado}
+      onSeleccionar={props.onSeleccionar}
+      claveFila={(barra) => barra.clave}
+      keyFila={(barra) => barra.departamento}
+      colorFila={(barra, paleta) =>
+        barra.pct == null ? paleta.eje : barra.pct < 0 ? paleta.negativo : paleta.positivo
+      }
+      formatearEje={(valor) => `${valor}%`}
+      formatearTooltip={formatearValorTooltipPct}
+      formatearEtiqueta={(valor) =>
+        typeof valor === 'number' ? `${valor > 0 ? '+' : ''}${valor.toFixed(1)}%` : 'S/D'
+      }
+    />
   )
 }
 
@@ -341,95 +389,29 @@ export function GraficoNacidosPorSeccion(props: {
   seleccionado?: string
   onSeleccionar?: (clave: string) => void
 }) {
-  const paleta = usePaleta()
-  const alto = props.filas.length * ALTO_FILA_VARIACION + MARGEN_VARIACION
-  const hayResaltado = props.seleccionado != null && props.seleccionado !== 'Todos'
   return (
-    <GraficoContenedor etiqueta="Nacidos por sección de Sala de 3 a 5, por departamento" alto={alto}>
-      <BarChart
-        data={props.filas}
-        layout="vertical"
-        barCategoryGap={4}
-        margin={{ top: 8, right: 44, bottom: 4, left: 4 }}
-      >
-        <CartesianGrid horizontal={false} stroke={paleta.grilla} strokeWidth={1} />
-        <XAxis
-          type="number"
-          {...propsEje(paleta)}
-        />
-        <YAxis
-          type="category"
-          dataKey="departamento"
-          interval={0}
-          width={130}
-          {...propsEje(paleta)}
-        />
-        <Tooltip
-          contentStyle={estiloTooltip(paleta)}
-          labelStyle={ESTILO_ETIQUETA_TOOLTIP}
-          itemStyle={ESTILO_DATO_TOOLTIP}
-          cursor={{ fill: paleta.resalte }}
-          formatter={(v: unknown) => (typeof v === 'number' ? v.toFixed(1) : 'Sin secciones (excluido)')}
-        />
-        <Bar
-          dataKey="nacidosPorSeccion"
-          name="Nacidos por sección"
-          isAnimationActive={false}
-          onClick={(data) => {
-            const fila = data.payload as FilaNacidosPorSeccion | undefined
-            if (fila) props.onSeleccionar?.(fila.clave)
-          }}
-          cursor={props.onSeleccionar ? 'pointer' : undefined}
-        >
-          {props.filas.map((f, i) => {
-            const esSeleccionado = f.clave === props.seleccionado
-            return (
-              <Cell
-                key={`${f.clave}-${i}`}
-                fill={paleta.inicial}
-                fillOpacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA : 1}
-                stroke={esSeleccionado ? paleta.inicial : undefined}
-                strokeWidth={esSeleccionado ? 1 : 0}
-              />
-            )
-          })}
-          <LabelList
-            dataKey="nacidosPorSeccion"
-            position="right"
-            content={(labelProps) => {
-              const { x, y, width, height, value, index } = labelProps
-              if (x == null || y == null || value == null || index == null) return undefined
-              const fila = props.filas[Number(index)]
-              const esSeleccionado = fila?.clave === props.seleccionado
-              const texto = typeof value === 'number' ? value.toFixed(1) : 'S/D'
-              const cx = Number(x) + Number(width ?? 0) + 4
-              const cy = Number(y) + Number(height ?? 0) / 2 + 3
-              return (
-                <text
-                  x={cx}
-                  y={cy}
-                  fontSize={11}
-                  fontWeight={esSeleccionado ? 700 : 400}
-                  fill={hayResaltado && !esSeleccionado ? paleta.texto : 'currentColor'}
-                  opacity={hayResaltado && !esSeleccionado ? OPACIDAD_ATENUADA + 0.3 : 1}
-                >
-                  {texto}
-                </text>
-              )
-            }}
-          />
-        </Bar>
-        {props.provincia.nacidosPorSeccion != null && (
-          <ReferenceLine x={props.provincia.nacidosPorSeccion} stroke={paleta.negativo} strokeDasharray="4 3">
-            <Label
-              value={`Provincia: ${props.provincia.nacidosPorSeccion.toFixed(1)}`}
-              position="insideTopRight"
-              fill={paleta.texto}
-              fontSize={11}
-            />
-          </ReferenceLine>
-        )}
-      </BarChart>
-    </GraficoContenedor>
+    <GraficoBarrasHorizontales
+      etiqueta="Nacidos por sección de Sala de 3 a 5, por departamento"
+      filas={props.filas}
+      dataKey="nacidosPorSeccion"
+      nombreSerie="Nacidos por sección"
+      seleccionado={props.seleccionado}
+      onSeleccionar={props.onSeleccionar}
+      claveFila={(fila) => fila.clave}
+      keyFila={(fila) => fila.clave}
+      colorFila={(_fila, paleta) => paleta.inicial}
+      formatearTooltip={(valor) =>
+        typeof valor === 'number' ? valor.toFixed(1) : 'Sin secciones (excluido)'
+      }
+      formatearEtiqueta={(valor) => (typeof valor === 'number' ? valor.toFixed(1) : 'S/D')}
+      referencia={
+        props.provincia.nacidosPorSeccion == null
+          ? undefined
+          : {
+              valor: props.provincia.nacidosPorSeccion,
+              etiqueta: `Provincia: ${props.provincia.nacidosPorSeccion.toFixed(1)}`,
+            }
+      }
+    />
   )
 }

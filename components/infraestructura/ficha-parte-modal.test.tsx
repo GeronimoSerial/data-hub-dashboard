@@ -86,31 +86,16 @@ function respuestaHistorial() {
   }
 }
 
-function stubFetch() {
+function stubFetch(modo: 'normal' | 'sin-padron' | 'sin-parte' = 'normal') {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input)
     if (url.includes('/parte?')) {
-      return Promise.resolve({ ok: true, json: async () => respuestaParte() } as Response)
-    }
-    if (url.includes('/historial?')) {
-      return Promise.resolve({ ok: true, json: async () => respuestaHistorial() } as Response)
-    }
-    return Promise.reject(new Error(`URL inesperada: ${url}`))
-  })
-  vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
-}
-
-// Parte sin afectación y sin filas del padrón GE: el caso "no hay nada que
-// mostrar en Datos de la escuela" con la escuela encontrada igual en el padrón
-// de escuelas.
-function stubFetchSinPadron() {
-  const fetchMock = vi.fn((input: RequestInfo | URL) => {
-    const url = String(input)
-    if (url.includes('/parte?')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({
+      let cuerpo
+      if (modo === 'normal') {
+        cuerpo = respuestaParte()
+      } else if (modo === 'sin-padron') {
+        // Parte sin filas GE: la escuela está en el padrón de escuelas, pero no en el corte vigente.
+        cuerpo = {
           ok: true,
           periodo: { id: 'per1', nombre: 'Invierno 2026' },
           parte: null,
@@ -119,19 +104,50 @@ function stubFetchSinPadron() {
           secciones: [],
           datosPadron: null,
           ultimaActualizacion: null,
-        }),
-      } as Response)
+        }
+      } else {
+        // Parte sin afectación ni filas GE; la escuela no está en el corte del padrón.
+        cuerpo = {
+          ok: true,
+          periodo: { id: 'per1', nombre: 'Invierno 2026' },
+          parte: null,
+          servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
+          afectaciones: [],
+          secciones: [],
+          ultimaActualizacion: null,
+        }
+      }
+      return Promise.resolve({ ok: true, json: async () => cuerpo } as Response)
     }
     if (url.includes('/historial?')) {
-      return Promise.resolve({
-        ok: true,
-        json: async () => ({ ok: true, movimientos: [] }),
-      } as Response)
+      const cuerpo = modo === 'normal' ? respuestaHistorial() : { ok: true, movimientos: [] }
+      return Promise.resolve({ ok: true, json: async () => cuerpo } as Response)
     }
     return Promise.reject(new Error(`URL inesperada: ${url}`))
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
+}
+
+type PropsFicha = Parameters<typeof FichaParteModal>[0]
+
+const PROPS_FICHA: PropsFicha = {
+  cueAnexo: CUE,
+  open: true,
+  onOpenChange: () => {},
+  parteResumen,
+  escuela,
+  mostrarEnlaceNominal: false,
+  onVerAlumnosAlcanzados: () => {},
+  onVerHistorialCompleto: () => {},
+}
+
+function elementoFicha(overrides: Partial<PropsFicha> = {}) {
+  return <FichaParteModal {...PROPS_FICHA} {...overrides} />
+}
+
+function renderFicha(overrides: Partial<PropsFicha> = {}) {
+  return render(elementoFicha(overrides))
 }
 
 beforeEach(() => {
@@ -145,35 +161,13 @@ afterEach(() => {
 describe('FichaParteModal', () => {
   it('no fetchea nada mientras el modal está cerrado', () => {
     const fetchMock = stubFetch()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={false}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha({ open: false })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('muestra servicio, estado del establecimiento, afectaciones y totales', async () => {
     stubFetch()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha()
 
     expect(await screen.findByText(/clases suspendidas/i)).toBeInTheDocument()
     expect(screen.getByText(/establecimiento evacuado/i)).toBeInTheDocument()
@@ -185,18 +179,7 @@ describe('FichaParteModal', () => {
   // ya devuelve para cualquier CUE, tenga o no afectación.
   it('muestra niveles, matrícula total, secciones y turnos en "Datos de la escuela"', async () => {
     stubFetch()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha()
 
     expect(await screen.findByTestId('ficha-parte-padron-niveles')).toHaveTextContent(
       'Nivel educativo: PRIMARIA',
@@ -214,20 +197,8 @@ describe('FichaParteModal', () => {
   // dice explícitamente, nunca una tabla vacía ni ceros inventados. La frase
   // habla del CORTE de Gestión Escolar, no del padrón de escuelas (hallazgo 6).
   it('con la escuela en el padrón y `datosPadron: null` habla del corte de Gestión Escolar', async () => {
-    stubFetchSinPadron()
-
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={null}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    stubFetch('sin-padron')
+    renderFicha({ parteResumen: null })
 
     const aviso = await screen.findByTestId('ficha-parte-sin-padron')
     expect(aviso).toHaveTextContent(
@@ -239,20 +210,8 @@ describe('FichaParteModal', () => {
   // Sin `escuela` el CUE no está en el padrón cargado: es otra ausencia y
   // necesita otra frase.
   it('con `escuela: null` y `datosPadron: null` dice que no figura en el padrón cargado', async () => {
-    stubFetchSinPadron()
-
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={null}
-        escuela={null}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    stubFetch('sin-padron')
+    renderFicha({ parteResumen: null, escuela: null })
 
     const aviso = await screen.findByTestId('ficha-parte-sin-padron')
     expect(aviso).toHaveTextContent(
@@ -264,44 +223,8 @@ describe('FichaParteModal', () => {
   // Hallazgo 7/22: una escuela sin afectación vigente no tiene que verse como
   // una pantalla vacía o rota: se dice explícitamente que no hay afectaciones.
   it('muestra un mensaje explícito cuando la escuela no tiene afectaciones', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.includes('/parte?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            ok: true,
-            periodo: { id: 'per1', nombre: 'Invierno 2026' },
-            parte: null,
-            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
-            afectaciones: [],
-            secciones: [],
-            ultimaActualizacion: null,
-          }),
-        } as Response)
-      }
-      if (url.includes('/historial?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ ok: true, movimientos: [] }),
-        } as Response)
-      }
-      return Promise.reject(new Error(`URL inesperada: ${url}`))
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={null}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    stubFetch('sin-parte')
+    renderFicha({ parteResumen: null })
 
     expect(await screen.findByTestId('ficha-parte-sin-afectaciones')).toHaveTextContent(
       'Sin afectaciones reportadas para esta escuela.',
@@ -312,44 +235,8 @@ describe('FichaParteModal', () => {
   // (`parteResumen === null`) igual muestra su identidad en el encabezado,
   // tomada del padrón completo.
   it('muestra nombre y ubicación desde `escuela` aunque no haya parte', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.includes('/parte?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            ok: true,
-            periodo: { id: 'per1', nombre: 'Invierno 2026' },
-            parte: null,
-            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
-            afectaciones: [],
-            secciones: [],
-            ultimaActualizacion: null,
-          }),
-        } as Response)
-      }
-      if (url.includes('/historial?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ ok: true, movimientos: [] }),
-        } as Response)
-      }
-      return Promise.reject(new Error(`URL inesperada: ${url}`))
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={null}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    stubFetch('sin-parte')
+    renderFicha({ parteResumen: null })
 
     expect(screen.getByRole('heading', { name: 'Escuela 1' })).toBeInTheDocument()
     expect(screen.getByText('1801605-04 · Corrientes, Capital')).toBeInTheDocument()
@@ -358,18 +245,7 @@ describe('FichaParteModal', () => {
   it('muestra el botón nominal por afectación sólo cuando mostrarEnlaceNominal es true', async () => {
     stubFetch()
     const onVerAlumnos = vi.fn()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={true}
-        onVerAlumnosAlcanzados={onVerAlumnos}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha({ mostrarEnlaceNominal: true, onVerAlumnosAlcanzados: onVerAlumnos })
 
     // Se espera a que resuelva el fetch (reemplaza el placeholder) antes de
     // clickear, para no clickear un botón del placeholder que ya se desmontó.
@@ -381,18 +257,7 @@ describe('FichaParteModal', () => {
 
   it('no muestra el botón nominal cuando mostrarEnlaceNominal es false', async () => {
     stubFetch()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha()
 
     await screen.findByText(/3 secciones · 74 alumnos/)
     expect(screen.queryByRole('button', { name: 'Ver alumnos alcanzados' })).not.toBeInTheDocument()
@@ -401,18 +266,7 @@ describe('FichaParteModal', () => {
   it('muestra el bloque "qué cambió" con los primeros movimientos y permite ver el historial completo', async () => {
     stubFetch()
     const onVerHistorial = vi.fn()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={onVerHistorial}
-      />,
-    )
+    renderFicha({ onVerHistorialCompleto: onVerHistorial })
 
     expect(await screen.findByText('Clases normales → Clases suspendidas')).toBeInTheDocument()
     await userEvent.click(await screen.findByRole('button', { name: 'Ver historial completo' }))
@@ -421,62 +275,18 @@ describe('FichaParteModal', () => {
 
   it('muestra el placeholder de parteResumen mientras espera el fetch', () => {
     stubFetch()
-    render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    renderFicha()
     // Antes de que resuelva el fetch, ya se ve el motivo desde parteResumen.
     expect(screen.getByText('Inundación')).toBeInTheDocument()
   })
 
   it('vuelve a pedir todo si se cierra y se reabre el modal', async () => {
     const fetchMock = stubFetch()
-    const { rerender } = render(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    const { rerender } = renderFicha()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
 
-    rerender(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={false}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
-    rerender(
-      <FichaParteModal
-        cueAnexo={CUE}
-        open={true}
-        onOpenChange={() => {}}
-        parteResumen={parteResumen}
-        escuela={escuela}
-        mostrarEnlaceNominal={false}
-        onVerAlumnosAlcanzados={() => {}}
-        onVerHistorialCompleto={() => {}}
-      />,
-    )
+    rerender(elementoFicha({ open: false }))
+    rerender(elementoFicha())
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4))
   })
 })

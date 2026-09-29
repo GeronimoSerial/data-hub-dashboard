@@ -2,45 +2,22 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
-import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
-
-const turnos = [
-  {
-    turno: 'Mañana',
-    niveles: [
-      {
-        nivel: 'Primario',
-        secciones: [
-          { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
-          { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
-        ],
-      },
-    ],
-  },
-  {
-    turno: 'Tarde',
-    niveles: [
-      {
-        nivel: 'Secundario',
-        secciones: [
-          { geSectionId: 20, curso: '4°', division: 'A', nivel: 'Secundario', turno: 'Tarde', matricula: 30, alumnos: [] },
-        ],
-      },
-    ],
-  },
-]
-
-const motivos: MotivoRow[] = [
-  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
-  { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
-  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
-]
+import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 
 const props = { cue: '12345678', turnos, motivos }
 
-function renderFormulario() {
-  return render(<ReporteInicialForm cue={props.cue} turnos={props.turnos} motivos={props.motivos} />)
+const MENSAJE_REPORTE_EXITOSO =
+  'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+
+function renderFormulario(overrides: Partial<typeof props> = {}) {
+  return render(<ReporteInicialForm {...props} {...overrides} />)
+}
+
+function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status = 201) {
+  const fetchMock = vi.fn(async () => jsonResponse(respuesta, status))
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
 }
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -71,6 +48,11 @@ function llegarAConfirmar() {
   continuar()
   completarEstadoEstablecimiento()
   continuar()
+}
+
+function guardarReporte() {
+  llegarAConfirmar()
+  fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
 }
 
 beforeEach(() => {
@@ -266,8 +248,7 @@ describe('ReporteInicialForm', () => {
     exista ningún botón de submit en el formulario.
   */
   it('el botón de guardar es un nodo distinto del de continuar, no el mismo con otro type', () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch()
 
     const { container } = renderFormulario()
 
@@ -289,13 +270,10 @@ describe('ReporteInicialForm', () => {
   })
 
   it('al guardar hace POST a /api/problematicas/parte con una sola afectación', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch()
 
     renderFormulario()
-
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -319,21 +297,22 @@ describe('ReporteInicialForm', () => {
   })
 
   it('una respuesta exitosa reemplaza el asistente por la confirmación del reporte', async () => {
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({ ok: true, parteId: 'p1', movimientoId: 'm1', tipo: 'reporte_inicial', cambios: [] }, 201),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch({
+      ok: true,
+      parteId: 'p1',
+      movimientoId: 'm1',
+      tipo: 'reporte_inicial',
+      cambios: [],
+    })
 
     renderFormulario()
-
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     // El texto habla del reporte, no de "la actualización": esta pantalla es
     // el primer reporte y no hay nada previo que actualizar.
     expect(
       await screen.findByText(
-        'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+        MENSAJE_REPORTE_EXITOSO,
       ),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
@@ -342,21 +321,18 @@ describe('ReporteInicialForm', () => {
   // El reporte guardado no puede dejar al director en un callejón sin salida:
   // necesita una forma de volver y una de declarar un hecho distinto.
   it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch()
 
     renderFormulario()
+    guardarReporte()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
-
-    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
 
     const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
     expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
 
     // No hay redirección automática: el mensaje y las acciones siguen ahí.
-    expect(screen.getByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')).toBeInTheDocument()
+    expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
@@ -368,13 +344,10 @@ describe('ReporteInicialForm', () => {
   })
 
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 422))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch({ error: 'boom' }, 422)
 
     renderFormulario()
-
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
@@ -389,8 +362,7 @@ describe('ReporteInicialForm', () => {
 
     renderFormulario()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(
       await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
@@ -403,8 +375,7 @@ describe('ReporteInicialForm', () => {
 
     renderFormulario()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(await screen.findByRole('status')).toHaveTextContent('Enviando…')
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
@@ -418,15 +389,14 @@ describe('ReporteInicialForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(await screen.findByText('Pendiente de envío — se enviará al recuperar conexión')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
     window.dispatchEvent(new Event('online'))
 
-    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.', undefined, { timeout: 5000 })
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO, undefined, { timeout: 5000 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
@@ -445,8 +415,7 @@ describe('ReporteInicialForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(
       await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
@@ -459,7 +428,7 @@ describe('ReporteInicialForm', () => {
     // inesperado no hizo que se acuñara una nueva.
     fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
     await screen.findByText(
-      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+      MENSAJE_REPORTE_EXITOSO,
     )
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -470,12 +439,10 @@ describe('ReporteInicialForm', () => {
   })
 
   it('un 422 no se reintenta: muestra el error y el borrador queda editable', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ error: 'dato inválido' }, 422))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch({ error: 'dato inválido' }, 422)
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -483,12 +450,10 @@ describe('ReporteInicialForm', () => {
   })
 
   it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({}, 401))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch({}, 401)
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
@@ -520,14 +485,12 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   })
 
   it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
-    const primero = render(
-      <ReporteInicialForm cue="11111111" turnos={turnos} motivos={motivos} />,
-    )
+    const primero = renderFormulario({ cue: '11111111' })
     completarQuePaso()
     continuar()
     primero.unmount()
 
-    render(<ReporteInicialForm cue="22222222" turnos={turnos} motivos={motivos} />)
+    renderFormulario({ cue: '22222222' })
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
   })
@@ -555,27 +518,21 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   })
 
   it('un guardado exitoso limpia la clave del borrador', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+    stubFetch()
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
-    await screen.findByText(
-      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
-    )
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
     await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
   })
 
   it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+    stubFetch()
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
-    await screen.findByText(
-      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
-    )
+    guardarReporte()
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
 
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
@@ -592,8 +549,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     null y el guard del reintento lo bloqueaba hasta un guardado manual.
   */
   it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch()
 
     // Cola de envío dejada pendiente por una sesión anterior.
     localStorage.setItem(
@@ -647,7 +603,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
 
     expect(
       await screen.findByText(
-        'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+        MENSAJE_REPORTE_EXITOSO,
         undefined,
         { timeout: 5000 },
       ),

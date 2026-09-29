@@ -385,22 +385,17 @@ describe('RiskExplanationPanel — variante escuela', () => {
 })
 
 describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)', () => {
-  it('no se muestra si tendenciaEstacional no se pasa (flag apagado)', () => {
-    render(
-      <RiskExplanationPanel
-        tipo="departamento"
-      />,
-    )
-    expect(screen.queryByTestId('risk-explanation-seasonal')).not.toBeInTheDocument()
-  })
-
-  it('no se muestra si tendenciaEstacional es null (consultada, sin datos)', () => {
-    render(
-      <RiskExplanationPanel
-        tipo="departamento"
-        tendenciaEstacional={null}
-      />,
-    )
+  it.each([
+    {
+      titulo: 'no se muestra si tendenciaEstacional no se pasa (flag apagado)',
+      props: {},
+    },
+    {
+      titulo: 'no se muestra si tendenciaEstacional es null (consultada, sin datos)',
+      props: { tendenciaEstacional: null },
+    },
+  ])('$titulo', ({ props }) => {
+    render(<RiskExplanationPanel tipo="departamento" {...props} />)
     expect(screen.queryByTestId('risk-explanation-seasonal')).not.toBeInTheDocument()
   })
 

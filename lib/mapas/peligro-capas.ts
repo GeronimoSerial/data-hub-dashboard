@@ -7,7 +7,7 @@
 // única fuente de verdad. El import es sólo de tipo, así que este módulo sigue
 // siendo apto para el navegador (no arrastra la capa de base de datos).
 
-import type { FeatureCollection, Geometry, Point } from 'geojson'
+import type { Feature, FeatureCollection, Geometry, Point } from 'geojson'
 import type {
   CircleLayerSpecification,
   DataDrivenPropertyValueSpecification,
@@ -169,6 +169,17 @@ export interface EscuelaConCoordenadas {
   lon: number
 }
 
+function construirPuntoGeoJSON<TPropiedades>(
+  escuela: EscuelaConCoordenadas,
+  propiedades: TPropiedades,
+): Feature<Point, TPropiedades> {
+  return {
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [escuela.lon, escuela.lat] },
+    properties: propiedades,
+  }
+}
+
 export interface RiesgoEscuela {
   nivelRiesgo: string | null
   confianza: string
@@ -194,18 +205,11 @@ export function construirPuntosRiesgo(
 ): FeatureCollection<Point, PropiedadesPuntoRiesgo> {
   const features = escuelasConCoordenadas.map((escuela) => {
     const riesgo = riesgoPorCue.get(escuela.cueAnexo)
-    return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [escuela.lon, escuela.lat] as [number, number],
-      },
-      properties: {
-        cueAnexo: escuela.cueAnexo,
-        nivelRiesgo: riesgo?.nivelRiesgo ?? 'sin_dato',
-        confianza: riesgo?.confianza ?? 'baja',
-      },
-    }
+    return construirPuntoGeoJSON(escuela, {
+      cueAnexo: escuela.cueAnexo,
+      nivelRiesgo: riesgo?.nivelRiesgo ?? 'sin_dato',
+      confianza: riesgo?.confianza ?? 'baja',
+    })
   })
 
   return { type: 'FeatureCollection', features }
@@ -281,17 +285,10 @@ export function construirPuntosRiesgoAcceso(
 ): FeatureCollection<Point, PropiedadesPuntoRiesgoAcceso> {
   const features = escuelasConCoordenadas.map((escuela) => {
     const riesgo = riesgoAccesoPorCue.get(escuela.cueAnexo)
-    return {
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [escuela.lon, escuela.lat] as [number, number],
-      },
-      properties: {
-        cueAnexo: escuela.cueAnexo,
-        nivelAcceso: riesgo?.nivel ?? 'sin_cobertura',
-      },
-    }
+    return construirPuntoGeoJSON(escuela, {
+      cueAnexo: escuela.cueAnexo,
+      nivelAcceso: riesgo?.nivel ?? 'sin_cobertura',
+    })
   })
 
   return { type: 'FeatureCollection', features }

@@ -6,6 +6,7 @@ import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
+import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
 const CUE = '1801605-04'
 // Escuela del padrón SIN afectación vigente (no está en partesPorCue): es el
@@ -214,26 +215,10 @@ const estadoGeometria = vi.hoisted(() => ({
 
 // Fixture ESTABLE (misma identidad en cada render): el componente lo consume
 // en `useMemo`, así que devolver un literal nuevo cada vez sería ruido.
-const TERRITORIO_MAPA_MOCK = {
-  aislamiento: {
-    fuente: 'OpenStreetMap' as const,
-    atribucion: '© OpenStreetMap contributors' as const,
-    licencia: 'ODbL',
-    fechaExtractoOsm: '2026-01-01',
-    versionJob: '1',
-    escuelas: {},
-  },
-  susceptibilidad: {
-    fuente: 'physrisk' as const,
-    indicador: 'inundacion_fluvial' as const,
-    escenario: 'historico' as const,
-    unidad: 'm' as const,
-    periodoRetornoAnios: 100,
-    fechaCorrida: '2026-01-01',
-    licencia: 'Apache-2.0',
-    escuelas: {},
-  },
-}
+const TERRITORIO_MAPA_MOCK = territorioCon({}, {}, {
+  aislamiento: { fechaExtractoOsm: '2026-01-01', versionJob: '1' },
+  susceptibilidad: { fechaCorrida: '2026-01-01' },
+})
 
 vi.mock('@/lib/infraestructura/use-territorio-mapa', () => ({
   useTerritorioMapa: (habilitado: boolean) => {
@@ -447,96 +432,45 @@ vi.mock('react-map-gl/maplibre', () => {
       props.onLoad?.()
       // eslint-disable-next-line react-hooks/exhaustive-deps -- se dispara una sola vez al montar, como el evento real de MapLibre
     }, [])
+    const feature = (layerId: string, properties: Record<string, unknown>): FeatureMock => ({
+      layer: { id: layerId },
+      properties,
+    })
+    const clickCases: Array<
+      [string, FeatureMock | FeatureMock[], MouseEventMock['lngLat']?]
+    > = [
+      ['mock-click-parte', feature('infra-partes', { cueAnexo: CUE })],
+      ['mock-click-parte-sin-afectacion', feature('infra-partes', { cueAnexo: CUE_SIN_AFECTACION })],
+      // El click real ahora acierta el ícono de escuela (capa `symbol`),
+      // no el círculo chico de abajo: la feature que MapLibre entrega
+      // pertenece a `infra-partes-escuela-icono`.
+      ['mock-click-escuela-icono', feature('infra-partes-escuela-icono', { cueAnexo: CUE_SIN_AFECTACION })],
+      ['mock-click-departamento', feature('infra-departamentos-relleno', { nombre: 'Capital' }), { lng: -58.8, lat: -27.5 }],
+      ['mock-click-departamento-empedrado', feature('infra-departamentos-relleno', { nombre: 'Empedrado' }), { lng: -58.8, lat: -27.5 }],
+      ['mock-click-peligro', feature('infra-peligro-fill', { nombre: 'CAPITAL' })],
+      // Q3: los íconos territoriales (aislamiento/inundación/cruces) se
+      // dibujan ENCIMA del polígono del departamento, así que el click real
+      // devuelve las DOS features. El doble reproduce ese caso: si el
+      // handler no los atiende con prioridad, gana el departamento y el
+      // gesto termina filtrando la provincia en vez de abrir la escuela.
+      ['mock-click-aislamiento', [feature('infra-aislamiento-symbol', { cueAnexo: CUE }), feature('infra-departamentos-relleno', { nombre: 'Capital' })], { lng: -58.83, lat: -27.47 }],
+      ['mock-click-inundacion', [feature('infra-inundacion-symbol', { cueAnexo: CUE_SIN_AFECTACION }), feature('infra-departamentos-relleno', { nombre: 'Capital' })], { lng: -58.8, lat: -27.5 }],
+      ['mock-click-cruce', [feature('infra-cruces-acceso-symbol', { clasificacion: 'sin_evidencia' }), feature('infra-departamentos-relleno', { nombre: 'Capital' })], { lng: -58.81, lat: -27.48 }],
+    ]
     return (
       <div data-testid="mock-maplibre">
-        <button
-          data-testid="mock-click-parte"
-          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE } }] })}
-        />
-        <button
-          data-testid="mock-click-parte-sin-afectacion"
-          onClick={() =>
-            props.onClick?.({
-              features: [{ layer: { id: 'infra-partes' }, properties: { cueAnexo: CUE_SIN_AFECTACION } }],
-            })
-          }
-        />
-        {/* El click real ahora acierta el ícono de escuela (capa `symbol`),
-            no el círculo chico de abajo: la feature que MapLibre entrega
-            pertenece a `infra-partes-escuela-icono`. */}
-        <button
-          data-testid="mock-click-escuela-icono"
-          onClick={() =>
-            props.onClick?.({
-              features: [
-                { layer: { id: 'infra-partes-escuela-icono' }, properties: { cueAnexo: CUE_SIN_AFECTACION } },
-              ],
-            })
-          }
-        />
-        <button
-          data-testid="mock-click-departamento"
-          onClick={() =>
-            props.onClick?.({
-              features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } }],
-              lngLat: { lng: -58.8, lat: -27.5 },
-            })
-          }
-        />
-        <button
-          data-testid="mock-click-departamento-empedrado"
-          onClick={() =>
-            props.onClick?.({
-              features: [{ layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Empedrado' } }],
-              lngLat: { lng: -58.8, lat: -27.5 },
-            })
-          }
-        />
-        <button
-          data-testid="mock-click-peligro"
-          onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-peligro-fill' }, properties: { nombre: 'CAPITAL' } }] })}
-        />
-        {/* Q3: los íconos territoriales (aislamiento/inundación/cruces) se
-            dibujan ENCIMA del polígono del departamento, así que el click real
-            devuelve las DOS features. El doble reproduce ese caso: si el
-            handler no los atiende con prioridad, gana el departamento y el
-            gesto termina filtrando la provincia en vez de abrir la escuela. */}
-        <button
-          data-testid="mock-click-aislamiento"
-          onClick={() =>
-            props.onClick?.({
-              features: [
-                { layer: { id: 'infra-aislamiento-symbol' }, properties: { cueAnexo: CUE } },
-                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
-              ],
-              lngLat: { lng: -58.83, lat: -27.47 },
-            })
-          }
-        />
-        <button
-          data-testid="mock-click-inundacion"
-          onClick={() =>
-            props.onClick?.({
-              features: [
-                { layer: { id: 'infra-inundacion-symbol' }, properties: { cueAnexo: CUE_SIN_AFECTACION } },
-                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
-              ],
-              lngLat: { lng: -58.8, lat: -27.5 },
-            })
-          }
-        />
-        <button
-          data-testid="mock-click-cruce"
-          onClick={() =>
-            props.onClick?.({
-              features: [
-                { layer: { id: 'infra-cruces-acceso-symbol' }, properties: { clasificacion: 'sin_evidencia' } },
-                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
-              ],
-              lngLat: { lng: -58.81, lat: -27.48 },
-            })
-          }
-        />
+        {clickCases.map(([testId, target, lngLat]) => (
+          <button
+            key={testId}
+            data-testid={testId}
+            onClick={() =>
+              props.onClick?.({
+                features: Array.isArray(target) ? target : [target],
+                ...(lngLat ? { lngLat } : {}),
+              })
+            }
+          />
+        ))}
         {props.children}
       </div>
     )

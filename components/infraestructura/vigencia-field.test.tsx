@@ -84,36 +84,30 @@ describe('VigenciaField', () => {
     expect(new Date(emitido as string).getTime()).toBeGreaterThan(new Date(AHORA).getTime())
   })
 
-  // Issue #29: una fecha del futuro se rechaza. Tipear pasa por alto el
-  // min/max nativo del input, así que el handler de cambio tiene que
-  // rechazarla igual, sin tocar el valor emitido, y avisar por qué.
-  it('rechaza una fecha del futuro y avisa, sin tocar el valor', async () => {
+  it.each([
+    {
+      // Issue #29: una fecha del futuro se rechaza. Tipear pasa por alto el
+      // min/max nativo del input, así que el handler de cambio tiene que
+      // rechazarla igual, sin tocar el valor emitido, y avisar por qué.
+      titulo: 'rechaza una fecha del futuro y avisa, sin tocar el valor',
+      fueraDeVentana: 'futura',
+    },
+    {
+      // Issue #30: una fecha de hace más de 12 meses se rechaza con el mismo
+      // mecanismo.
+      titulo: 'rechaza una fecha de hace más de 12 meses y avisa, sin tocar el valor',
+      fueraDeVentana: 'anterior',
+    },
+  ] as const)('$titulo', async ({ fueraDeVentana }) => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     render(<VigenciaField value={AHORA} onChange={onChange} />)
 
     await user.click(screen.getByRole('button', { name: 'Cambiar' }))
-    const manana = new Date()
-    manana.setDate(manana.getDate() + 1)
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(manana) } })
-
-    expect(onChange).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'La fecha debe estar entre hace 12 meses y el momento actual.',
-    )
-  })
-
-  // Issue #30: una fecha de hace más de 12 meses se rechaza con el mismo
-  // mecanismo.
-  it('rechaza una fecha de hace más de 12 meses y avisa, sin tocar el valor', async () => {
-    const user = userEvent.setup()
-    const onChange = vi.fn()
-    render(<VigenciaField value={AHORA} onChange={onChange} />)
-
-    await user.click(screen.getByRole('button', { name: 'Cambiar' }))
-    const vieja = new Date()
-    vieja.setMonth(vieja.getMonth() - 13)
-    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(vieja) } })
+    const fecha = new Date()
+    if (fueraDeVentana === 'futura') fecha.setDate(fecha.getDate() + 1)
+    else fecha.setMonth(fecha.getMonth() - 13)
+    fireEvent.change(screen.getByLabelText('Fecha'), { target: { value: formatoFecha(fecha) } })
 
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('alert')).toHaveTextContent(

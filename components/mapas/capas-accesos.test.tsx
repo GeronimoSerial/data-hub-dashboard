@@ -3,13 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { CruceAccesoOsm } from '@/lib/db/schema'
-import type {
-  GeometriaAccesoRespuesta,
-  TerritorioMapa,
-} from '@/lib/infraestructura/territorio-mapa'
+import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { COLOR_RUTA_ACCESO, TEXTOS_ACCESOS, textoConPeriodo } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
+import { territorioCon } from '@/components/test-utils/territorio-mapa'
 import {
   CAPAS_ACCESOS_LABELS,
   AccesosLayerControl,
@@ -108,26 +106,10 @@ const visibles = (activas: CapaAccesos[]): Record<CapaAccesos, boolean> => ({
   rutaSeleccion: activas.includes('rutaSeleccion'),
 })
 
-const territorio: TerritorioMapa = {
-  aislamiento: {
-    fuente: 'OpenStreetMap',
-    atribucion: '© OpenStreetMap contributors',
-    licencia: 'ODbL',
-    fechaExtractoOsm: '2026-06-01',
-    versionJob: '1',
-    escuelas: {},
-  },
-  susceptibilidad: {
-    fuente: 'physrisk',
-    indicador: 'inundacion_fluvial',
-    escenario: 'historico',
-    unidad: 'm',
-    periodoRetornoAnios: 100,
-    fechaCorrida: '2026-05-15',
-    licencia: 'Apache-2.0',
-    escuelas: {},
-  },
-}
+const territorio = territorioCon({}, {}, {
+  aislamiento: { versionJob: '1' },
+  susceptibilidad: { fechaCorrida: '2026-05-15' },
+})
 
 const resumen: ReturnType<typeof resumirCobertura> = {
   aislamiento: { 0: 5, 1: 3, 2: 2, 3: 1, sin_datos_red: 4, sin_cobertura: 7 },
@@ -194,25 +176,21 @@ describe('CapasAccesosTerritoriales', () => {
     expect(screen.queryAllByTestId(/^mock-layer-/)).toHaveLength(0)
   })
 
-  it('no monta símbolos si los íconos todavía no están registrados', () => {
+  it.each([
+    {
+      titulo: 'no monta símbolos si los íconos todavía no están registrados',
+      overrides: { iconosListos: false },
+    },
+    {
+      titulo: 'no monta una capa territorial si su dato es null',
+      overrides: { puntosAislamiento: null, puntosInundacion: null },
+    },
+  ])('$titulo', ({ overrides }) => {
     render(
       <CapasAccesosTerritoriales
         {...base}
         visibles={visibles(['aislamiento', 'inundacion'])}
-        iconosListos={false}
-      />,
-    )
-    expect(screen.queryByTestId(`mock-layer-${CAPA_AISLAMIENTO_ID}`)).not.toBeInTheDocument()
-    expect(screen.queryByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)).not.toBeInTheDocument()
-  })
-
-  it('no monta una capa territorial si su dato es null', () => {
-    render(
-      <CapasAccesosTerritoriales
-        {...base}
-        visibles={visibles(['aislamiento', 'inundacion'])}
-        puntosAislamiento={null}
-        puntosInundacion={null}
+        {...overrides}
       />,
     )
     expect(screen.queryByTestId(`mock-layer-${CAPA_AISLAMIENTO_ID}`)).not.toBeInTheDocument()

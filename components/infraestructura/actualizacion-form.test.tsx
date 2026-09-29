@@ -2,46 +2,17 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActualizacionForm } from './actualizacion-form'
-import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
-
-const turnos = [
-  {
-    turno: 'Mañana',
-    niveles: [
-      {
-        nivel: 'Primario',
-        secciones: [
-          { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
-          { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
-        ],
-      },
-    ],
-  },
-  {
-    turno: 'Tarde',
-    niveles: [
-      {
-        nivel: 'Secundario',
-        secciones: [
-          { geSectionId: 20, curso: '4°', division: 'A', nivel: 'Secundario', turno: 'Tarde', matricula: 30, alumnos: [] },
-        ],
-      },
-    ],
-  },
-]
-
-const motivos: MotivoRow[] = [
-  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
-  { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
-  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
-]
+import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 
 const props = {
   cue: '12345678',
   turnos,
   motivos,
 }
+
+const MENSAJE_ACTUALIZACION_EXITOSA =
+  'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.'
 
 // Forma real de GET /api/problematicas/parte?cue=... (mismo contrato que
 // EstadoActualParte): una afectación vigente sin cambios.
@@ -95,10 +66,8 @@ function stubFetchInicial(overrides = {}) {
   return fetchMock
 }
 
-function renderFormulario() {
-  return render(
-    <ActualizacionForm cue={props.cue} turnos={props.turnos} motivos={props.motivos} />,
-  )
+function renderFormulario(overrides: Partial<typeof props> = {}) {
+  return render(<ActualizacionForm {...props} {...overrides} />)
 }
 
 /** Espera a que cargue el parte. La lista se lee sin abrir nada. */
@@ -113,6 +82,13 @@ async function esperarParteCargado() {
 async function editarAfectacionVigente() {
   await esperarParteCargado()
   fireEvent.click(screen.getByRole('button', { name: 'Cambió algo' }))
+}
+
+async function guardarActualizacion() {
+  await editarAfectacionVigente()
+  fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+  fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+  fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
 }
 
 beforeEach(() => {
@@ -181,18 +157,9 @@ describe('ActualizacionForm', () => {
   it('guardar una actualización hace POST con el payload esperado y muestra la confirmación', async () => {
     const fetchMock = stubFetchInicial()
     renderFormulario()
+    await guardarActualizacion()
 
-    await editarAfectacionVigente()
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
-
-    expect(
-      await screen.findByText(
-        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)).toBeInTheDocument()
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -210,15 +177,9 @@ describe('ActualizacionForm', () => {
   it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
     stubFetchInicial()
     renderFormulario()
+    await guardarActualizacion()
 
-    await editarAfectacionVigente()
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
-
-    await screen.findByText(
-      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-    )
+    await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)
 
     const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
     expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
@@ -274,11 +235,7 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await editarAfectacionVigente()
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await guardarActualizacion()
 
     expect(
       await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
@@ -307,10 +264,7 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await editarAfectacionVigente()
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await guardarActualizacion()
 
     expect(
       await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
@@ -319,11 +273,7 @@ describe('ActualizacionForm', () => {
 
     // Reintento manual: reutiliza la MISMA idempotencyKey.
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
-    expect(
-      await screen.findByText(
-        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)).toBeInTheDocument()
     expect(posteos).toBe(2)
 
     const claves = fetchMock.mock.calls
@@ -345,10 +295,7 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await editarAfectacionVigente()
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await guardarActualizacion()
 
     expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
 
@@ -372,10 +319,7 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await editarAfectacionVigente()
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await guardarActualizacion()
 
     expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
 
@@ -397,10 +341,7 @@ describe('ActualizacionForm', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
-    await editarAfectacionVigente()
-    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
-    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
-    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await guardarActualizacion()
 
     expect(
       await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
@@ -409,11 +350,7 @@ describe('ActualizacionForm', () => {
 
     fireEvent(window, new Event('online'))
 
-    expect(
-      await screen.findByText(
-        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-      ),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)).toBeInTheDocument()
     expect(posteos).toBe(2)
 
     const claves = fetchMock.mock.calls
@@ -628,9 +565,7 @@ describe('ActualizacionForm — borrador local (#32) e historial del navegador (
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
 
-    await screen.findByText(
-      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-    )
+    await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)
     await waitFor(() => {
       expect(localStorage.getItem(clave)).toBeNull()
     })
@@ -643,9 +578,7 @@ describe('ActualizacionForm — borrador local (#32) e historial del navegador (
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
     fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
-    await screen.findByText(
-      'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-    )
+    await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)
 
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
@@ -715,9 +648,7 @@ describe('ActualizacionForm — envío pendiente restaurado de la cola offline',
     window.dispatchEvent(new Event('online'))
 
     expect(
-      await screen.findByText(
-        'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.',
-      ),
+      await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA),
     ).toBeInTheDocument()
     expect(posteos()).toHaveLength(1)
   })

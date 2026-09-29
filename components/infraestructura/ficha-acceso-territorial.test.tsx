@@ -5,10 +5,9 @@ import userEvent from '@testing-library/user-event'
 import type {
   AislamientoEscuelaMapa,
   GeometriaAccesoRespuesta,
-  SusceptibilidadEscuelaMapa,
-  TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
+import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
 // Mock liviano de la ficha territorial pesada (hace fetches propios) para el
 // test de gateo del modal. La sección bajo prueba es presentacional y no
@@ -21,36 +20,6 @@ import { FichaAccesoTerritorial, type FichaAccesoTerritorialProps } from './fich
 import { FichaParteModal } from './ficha-parte-modal'
 
 const CUE = '1801605-04'
-
-const AISLAMIENTO_META = {
-  fuente: 'OpenStreetMap' as const,
-  atribucion: '© OpenStreetMap contributors' as const,
-  licencia: 'ODbL',
-  fechaExtractoOsm: '2026-06-01',
-  versionJob: '3',
-}
-
-const SUSCEPTIBILIDAD_META = {
-  fuente: 'physrisk' as const,
-  indicador: 'inundacion_fluvial' as const,
-  escenario: 'historico' as const,
-  unidad: 'm' as const,
-  periodoRetornoAnios: 100,
-  fechaCorrida: '2026-05-01',
-  licencia: 'Apache-2.0',
-}
-
-function territorioCon(
-  aislamiento: Record<string, AislamientoEscuelaMapa> | null,
-  susceptibilidad: Record<string, SusceptibilidadEscuelaMapa> | null,
-): TerritorioMapa {
-  return {
-    aislamiento:
-      aislamiento === null ? null : { ...AISLAMIENTO_META, escuelas: aislamiento },
-    susceptibilidad:
-      susceptibilidad === null ? null : { ...SUSCEPTIBILIDAD_META, escuelas: susceptibilidad },
-  }
-}
 
 function filaAislamiento(overrides: Partial<AislamientoEscuelaMapa> = {}): AislamientoEscuelaMapa {
   return {
@@ -74,6 +43,14 @@ function props(overrides: Partial<FichaAccesoTerritorialProps> = {}): FichaAcces
     geometriaError: null,
     ...overrides,
   }
+}
+
+function elementoFicha(overrides: Partial<FichaAccesoTerritorialProps> = {}) {
+  return <FichaAccesoTerritorial {...props(overrides)} />
+}
+
+function renderFicha(overrides: Partial<FichaAccesoTerritorialProps> = {}) {
+  return render(elementoFicha(overrides))
 }
 
 function geometriaNoDisponible(motivo: string | undefined): GeometriaAccesoRespuesta {
@@ -115,18 +92,14 @@ afterEach(() => {
 
 describe('FichaAccesoTerritorial - estados', () => {
   it('muestra el título y el estado de carga territorial', () => {
-    render(<FichaAccesoTerritorial {...props({ territorioLoading: true })} />)
+    renderFicha({ territorioLoading: true })
 
     expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino y agua estimada')
     expect(screen.getByRole('status')).toHaveTextContent('Cargando datos territoriales…')
   })
 
   it('muestra el error territorial en un role alert con el mensaje recibido', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorioError: 'No se pudieron cargar las capas territoriales.' })}
-      />,
-    )
+    renderFicha({ territorioError: 'No se pudieron cargar las capas territoriales.' })
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'No se pudieron cargar las capas territoriales.',
@@ -134,7 +107,7 @@ describe('FichaAccesoTerritorial - estados', () => {
   })
 
   it('sin bloques importados dice las dos ausencias explícitas', () => {
-    render(<FichaAccesoTerritorial {...props({ territorio: territorioCon(null, null) })} />)
+    renderFicha({ territorio: territorioCon(null, null) })
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
@@ -145,7 +118,7 @@ describe('FichaAccesoTerritorial - estados', () => {
   })
 
   it('sin ninguna capa importada no ofrece un detalle vacío', () => {
-    render(<FichaAccesoTerritorial {...props({ territorio: territorioCon(null, null) })} />)
+    renderFicha({ territorio: territorioCon(null, null) })
 
     expect(screen.queryByTestId('ficha-acceso-detalle')).not.toBeInTheDocument()
   })
@@ -153,28 +126,28 @@ describe('FichaAccesoTerritorial - estados', () => {
 
 describe('FichaAccesoTerritorial - exposición de la ruta', () => {
   it('muestra celdas con profundidad, profundidad máxima y cobertura parcial', () => {
-    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion() })} />)
+    renderFicha({ exposicion: exposicion() })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada junto al camino: 2 zonas de ~1 km (hasta 1,25 m). Dato en 75 % de la ruta.',
     )
   })
 
   it('muestra sin profundidad cuando hay dato disponible sin celdas afectadas', () => {
-    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion({ estado: 'sin_profundidad', resumen: { celdasTotal: 4, celdasConDato: 4, celdasConProfundidad: 0, profundidadMaxM: null, cobertura: 1 } }) })} />)
+    renderFicha({ exposicion: exposicion({ estado: 'sin_profundidad', resumen: { celdasTotal: 4, celdasConDato: 4, celdasConProfundidad: 0, profundidadMaxM: null, cobertura: 1 } }) })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada junto al camino: ninguna según el modelo.',
     )
   })
 
   it('para exposición no disponible dice sin dato y nunca cero o sin inundación', () => {
-    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion({ disponible: false, estado: 'sin_dato' }) })} />)
+    renderFicha({ exposicion: exposicion({ disponible: false, estado: 'sin_dato' }) })
     const linea = screen.getByTestId('ficha-acceso-exposicion-ruta')
     expect(linea).toHaveTextContent('Agua estimada junto al camino: sin dato.')
     expect(linea).not.toHaveTextContent(/0|sin inundación/)
   })
 
   it('incluye resolución y límites del indicador en el detalle de referencia', () => {
-    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion() })} />)
+    renderFicha({ exposicion: exposicion() })
     const detalle = screen.getByTestId('ficha-acceso-exposicion-detalle')
     expect(detalle).toHaveTextContent('30 arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce')
     expect(detalle).toHaveTextContent('WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0)')
@@ -183,17 +156,17 @@ describe('FichaAccesoTerritorial - exposición de la ruta', () => {
   })
 
   it('mantiene el comportamiento anterior cuando no recibe las props opcionales', () => {
-    render(<FichaAccesoTerritorial {...props()} />)
+    renderFicha()
     expect(screen.queryByTestId('ficha-acceso-exposicion-ruta')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-acceso-exposicion-detalle')).not.toBeInTheDocument()
   })
 
   it('muestra carga y error de exposición en la línea de ruta', () => {
-    const { rerender } = render(<FichaAccesoTerritorial {...props({ exposicionLoading: true })} />)
+    const { rerender } = renderFicha({ exposicionLoading: true })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada en el camino: cargando…',
     )
-    rerender(<FichaAccesoTerritorial {...props({ exposicionError: 'falló' })} />)
+    rerender(elementoFicha({ exposicionError: 'falló' }))
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada en el camino: sin dato.',
     )
@@ -202,11 +175,7 @@ describe('FichaAccesoTerritorial - exposición de la ruta', () => {
 
 describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   it('muestra exactamente tres líneas, fuera del detalle y sin metodología', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
-      />,
-    )
+    renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     const detalle = screen.getByTestId('ficha-acceso-detalle')
     const lineas = [
@@ -231,11 +200,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     [2, 'media'],
     [3, 'alta'],
   ] as const)('etiqueta el nivel %i como dificultad "%s"', (nivel, nombre) => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: territorioCon({ [CUE]: filaAislamiento({ nivel }) }, null) })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon({ [CUE]: filaAislamiento({ nivel }) }, null) })
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-indice')).toHaveTextContent(
       `Llegar por camino: dificultad ${nombre}`,
@@ -243,13 +208,9 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('"sin_datos_red" es "no calculable", nunca un nivel 0', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon({ [CUE]: filaAislamiento({ nivel: 'sin_datos_red' }) }, null),
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: territorioCon({ [CUE]: filaAislamiento({ nivel: 'sin_datos_red' }) }, null),
+    })
 
     const indice = screen.getByTestId('ficha-acceso-aislamiento-indice')
     expect(indice).toHaveTextContent('Llegar por camino: no calculable')
@@ -258,16 +219,12 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('con cruces muestra el conteo y cuántos están sin puente registrado', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(
-            { [CUE]: filaAislamiento({ cruces: 2, conPuente: 1, sinPuente: 1 }) },
-            null,
-          ),
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: territorioCon(
+        { [CUE]: filaAislamiento({ cruces: 2, conPuente: 1, sinPuente: 1 }) },
+        null,
+      ),
+    })
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-cruces')).toHaveTextContent(
       'Cruces de agua en el camino: 2 (1 sin puente registrado)',
@@ -275,32 +232,24 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('indica cuando todos los cruces tienen puente registrado', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(
-            { [CUE]: filaAislamiento({ cruces: 2, conPuente: 2, sinPuente: 0 }) },
-            null,
-          ),
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: territorioCon(
+        { [CUE]: filaAislamiento({ cruces: 2, conPuente: 2, sinPuente: 0 }) },
+        null,
+      ),
+    })
     expect(screen.getByTestId('ficha-acceso-aislamiento-cruces')).toHaveTextContent(
       'Cruces de agua en el camino: 2 (todos con puente registrado)',
     )
   })
 
   it('sin cruces lo dice sin un desglose en cero', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(
-            { [CUE]: filaAislamiento({ cruces: 0, conPuente: 0, sinPuente: 0 }) },
-            null,
-          ),
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: territorioCon(
+        { [CUE]: filaAislamiento({ cruces: 0, conPuente: 0, sinPuente: 0 }) },
+        null,
+      ),
+    })
 
     const cruces = screen.getByTestId('ficha-acceso-aislamiento-cruces')
     expect(cruces).toHaveTextContent('Sin cruces de agua en el camino')
@@ -308,7 +257,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('con la escuela fuera del archivo importado las tres líneas dicen "sin dato"', () => {
-    render(<FichaAccesoTerritorial {...props({ territorio: territorioCon({}, {}) })} />)
+    renderFicha({ territorio: territorioCon({}, {}) })
 
     const acceso = screen.getByTestId('ficha-acceso-aislamiento-sin-cobertura')
     expect(acceso).toHaveTextContent('Llegar por camino: sin dato')
@@ -322,11 +271,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('0 m es "sin agua estimada", nunca "0,00 m"', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
 
     const valor = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
     expect(valor).toHaveTextContent('Agua estimada en la escuela: ninguna según el modelo')
@@ -338,13 +283,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     [0.3, '0,30 m de agua estimada'],
     [0.7, '0,70 m de agua estimada'],
   ] as const)('formatea %s m como "%s"', (profundidad, esperado) => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: profundidad } }),
-        })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: profundidad } }) })
 
     const agua = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
     expect(agua).toHaveTextContent(
@@ -354,13 +293,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it('sin valor physrisk lo dice explícitamente y no imputa 0', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: null } }),
-        })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: null } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-valor')).toHaveTextContent(
       'Agua estimada en la escuela: sin dato',
@@ -372,40 +305,28 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
 describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
   it('el botón llama una sola vez a `onVerRutaEnMapa`', async () => {
     const onVerRutaEnMapa = vi.fn()
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometria: GEOMETRIA_DISPONIBLE,
-          onVerRutaEnMapa,
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometria: GEOMETRIA_DISPONIBLE,
+      onVerRutaEnMapa,
+    })
 
     await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
     expect(onVerRutaEnMapa).toHaveBeenCalledTimes(1)
   })
 
   it('sin `onVerRutaEnMapa` no hay botón, aunque haya recorrido', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
-      />,
-    )
+    renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     expect(screen.queryByTestId('ficha-acceso-ver-ruta')).not.toBeInTheDocument()
   })
 
   it('mientras carga el recorrido el botón está deshabilitado', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometriaLoading: true,
-          onVerRutaEnMapa: () => {},
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometriaLoading: true,
+      onVerRutaEnMapa: () => {},
+    })
 
     const boton = screen.getByTestId('ficha-acceso-ver-ruta')
     expect(boton).toBeDisabled()
@@ -413,15 +334,11 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
   })
 
   it('sin recorrido por falta de conexión a la red no ofrece botón y explica el motivo', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometria: geometriaNoDisponible('sin_conexion_red'),
-          onVerRutaEnMapa: () => {},
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometria: geometriaNoDisponible('sin_conexion_red'),
+      onVerRutaEnMapa: () => {},
+    })
 
     expect(screen.queryByTestId('ficha-acceso-ver-ruta')).not.toBeInTheDocument()
     expect(screen.getByTestId('ficha-acceso-sin-ruta')).toHaveTextContent(
@@ -441,29 +358,21 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
     ['sin_geometria', 'No hay recorrido calculado para esta escuela.'],
     [undefined, 'No hay recorrido calculado para esta escuela.'],
   ] as const)('motivo "%s" -> "%s"', (motivo, esperado) => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometria: geometriaNoDisponible(motivo),
-          onVerRutaEnMapa: () => {},
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometria: geometriaNoDisponible(motivo),
+      onVerRutaEnMapa: () => {},
+    })
 
     expect(screen.getByTestId('ficha-acceso-sin-ruta')).toHaveTextContent(esperado)
   })
 
   it('con error de geometría muestra el error recibido y no ofrece botón', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometriaError: 'Falló la geometría.',
-          onVerRutaEnMapa: () => {},
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometriaError: 'Falló la geometría.',
+      onVerRutaEnMapa: () => {},
+    })
 
     expect(screen.getByTestId('ficha-acceso-ruta-error')).toHaveTextContent('Falló la geometría.')
     expect(screen.queryByTestId('ficha-acceso-ver-ruta')).not.toBeInTheDocument()
@@ -471,11 +380,7 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
   })
 
   it('sin geometría todavía no anuncia que no hay recorrido', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, onVerRutaEnMapa: () => {} })}
-      />,
-    )
+    renderFicha({ territorio: TERRITORIO_COMPLETO, onVerRutaEnMapa: () => {} })
 
     expect(screen.queryByTestId('ficha-acceso-sin-ruta')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-acceso-ruta-error')).not.toBeInTheDocument()
@@ -484,11 +389,7 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
 
 describe('FichaAccesoTerritorial - detalle secundario', () => {
   it('el detalle está cerrado y concentra escala, período, fuentes y descargos', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
-      />,
-    )
+    renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     const detalle = screen.getByTestId('ficha-acceso-detalle')
     expect(detalle).not.toHaveAttribute('open')
@@ -515,11 +416,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('resume la ruta dibujada sólo cuando la geometría está disponible', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
-      />,
-    )
+    renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     expect(screen.getByTestId('ficha-acceso-ruta')).toHaveTextContent(
       'Cruces en el camino dibujado: 1 con puente · 2 vado · 3 sin puente registrado.',
@@ -527,7 +424,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('sin geometría no inventa un resumen de ruta', () => {
-    render(<FichaAccesoTerritorial {...props({ territorio: TERRITORIO_COMPLETO })} />)
+    renderFicha({ territorio: TERRITORIO_COMPLETO })
 
     expect(screen.queryByTestId('ficha-acceso-ruta')).not.toBeInTheDocument()
   })
@@ -537,16 +434,12 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     [true, 'Sí'],
     [false, 'No'],
   ] as const)('alternativa sin cruce %s -> "%s"', (alternativa, texto) => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: territorioCon(
-            { [CUE]: filaAislamiento({ alternativaSinCruce: alternativa }) },
-            null,
-          ),
-        })}
-      />,
-    )
+    renderFicha({
+      territorio: territorioCon(
+        { [CUE]: filaAislamiento({ alternativaSinCruce: alternativa }) },
+        null,
+      ),
+    })
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-alternativa')).toHaveTextContent(
       `Camino alternativo sin cruces: ${texto}`,
@@ -554,11 +447,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('con 0 m explica en el detalle que el modelo no estima agua ahí', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-profundidad')).toHaveTextContent(
       'El modelo no estima agua en ese punto (0 m).',
@@ -566,7 +455,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('sin dato de physrisk explica en el detalle que no se calcula nada', () => {
-    render(<FichaAccesoTerritorial {...props({ territorio: territorioCon({}, {}) })} />)
+    renderFicha({ territorio: territorioCon({}, {}) })
 
     expect(screen.getByTestId('ficha-acceso-detalle-sin-cobertura')).toHaveTextContent(
       'Sin dato: esta escuela no está en los datos calculados',
@@ -574,11 +463,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('expone la fuente y las fechas del aislamiento', () => {
-    render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: territorioCon({ [CUE]: filaAislamiento({ nivel: 3 }) }, null) })}
-      />,
-    )
+    renderFicha({ territorio: territorioCon({ [CUE]: filaAislamiento({ nivel: 3 }) }, null) })
 
     const fuente = screen.getByTestId('ficha-acceso-aislamiento-fuente')
     expect(fuente).toHaveTextContent('OpenStreetMap')
@@ -589,15 +474,12 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('no duplica la atribución cuando `licencia` ya la contiene', () => {
-    const territorio: TerritorioMapa = {
-      aislamiento: {
-        ...AISLAMIENTO_META,
-        licencia: '© OpenStreetMap contributors, ODbL',
-        escuelas: { [CUE]: filaAislamiento({ nivel: 1 }) },
-      },
-      susceptibilidad: null,
-    }
-    render(<FichaAccesoTerritorial {...props({ territorio })} />)
+    const territorio = territorioCon(
+      { [CUE]: filaAislamiento({ nivel: 1 }) },
+      null,
+      { aislamiento: { licencia: '© OpenStreetMap contributors, ODbL' } },
+    )
+    renderFicha({ territorio })
 
     const fuente = screen.getByTestId('ficha-acceso-aislamiento-fuente')
     expect(fuente).toHaveTextContent(
@@ -608,14 +490,10 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('la palabra "pronóstico" sólo aparece negada, y cierra con la nota de contexto', () => {
-    const { container } = render(
-      <FichaAccesoTerritorial
-        {...props({
-          territorio: TERRITORIO_COMPLETO,
-          geometria: GEOMETRIA_DISPONIBLE,
-        })}
-      />,
-    )
+    const { container } = renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometria: GEOMETRIA_DISPONIBLE,
+    })
 
     const texto = container.querySelector('[data-testid="ficha-acceso-detalle"]')?.textContent ?? ''
     const ocurrencias = (texto.match(/\bpronóstico\b/gi) ?? []).length
@@ -632,11 +510,10 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it('mantiene los términos técnicos dentro del detalle', () => {
-    const { container } = render(
-      <FichaAccesoTerritorial
-        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
-      />,
-    )
+    const { container } = renderFicha({
+      territorio: TERRITORIO_COMPLETO,
+      geometria: GEOMETRIA_DISPONIBLE,
+    })
     const detalle = container.querySelector('details')
     const visible = (container.textContent ?? '').replace(detalle?.textContent ?? '', '')
     expect(visible).not.toMatch(/OSM|OpenStreetMap|physrisk|período de retorno|escenario/i)
