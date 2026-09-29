@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
 export const runtime = 'nodejs'
@@ -32,10 +33,7 @@ export async function GET(request: Request) {
   }
   const { territorioTipo, territorioId } = parsed.data
   if (territorioId && !territorioTipo) {
-    return Response.json(
-      { error: 'territorioId requiere territorioTipo' },
-      { status: 400 },
-    )
+    return jsonError('territorioId requiere territorioTipo', 400)
   }
 
   const estado = await obtenerEstadoSituacion({ territorioTipo, territorioId })

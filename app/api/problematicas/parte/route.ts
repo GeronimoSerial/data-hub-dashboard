@@ -37,6 +37,8 @@ import {
   type ParteActual,
 } from '@/lib/infraestructura/parte-consulta'
 import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
 import type {
   Afectacion,
@@ -53,10 +55,6 @@ import {
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// El estado actual del parte incluye nombres de alumnos (spec §18.12): nunca
-// se cachea, ni siquiera del lado del navegador.
-const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
 const MENSAJE_SIN_SITUACION =
   'No hay una situación hidrometeorológica en seguimiento para este establecimiento.'
@@ -194,10 +192,7 @@ export async function GET(request: Request) {
   if (!ficha) {
     // Sin período vigente: no es un error, es "sin situación en seguimiento"
     // (spec §17).
-    return Response.json(
-      { ok: true, periodo: null, parte: null, mensaje: MENSAJE_SIN_SITUACION },
-      { status: 200, headers: CACHE_HEADERS },
-    )
+    return jsonNoStore({ ok: true, periodo: null, parte: null, mensaje: MENSAJE_SIN_SITUACION })
   }
 
   // La ficha compartida (armarFichaParte) no resuelve nombres — ver
@@ -243,7 +238,7 @@ export async function GET(request: Request) {
     totales: afectacion.totales,
   }))
 
-  return Response.json(
+  return jsonNoStore(
     {
       ok: true,
       periodo: ficha.periodo,
@@ -253,7 +248,6 @@ export async function GET(request: Request) {
       secciones: ficha.secciones,
       ultimaActualizacion: ficha.ultimaActualizacion,
     },
-    { status: 200, headers: CACHE_HEADERS },
   )
 }
 
@@ -448,34 +442,22 @@ export async function POST(request: Request) {
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
-      return Response.json(
-        { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-        { status: 400 },
-      )
+      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
   }
   for (const modificacion of input.afectacionesModificadas) {
     if (modificacion.secciones && seccionInvalida(modificacion.secciones)) {
-      return Response.json(
-        { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-        { status: 400 },
-      )
+      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
   }
   if (input.servicioEducativo?.alcance.tipo === 'seccion' && seccionInvalida(input.servicioEducativo.alcance.secciones)) {
-    return Response.json(
-      { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-      { status: 400 },
-    )
+    return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
   }
   if (
     input.servicioEducativo?.alcance.tipo === 'turno' &&
     input.servicioEducativo.alcance.turnos.some((t) => !turnosCueSet.has(t))
   ) {
-    return Response.json(
-      { error: 'Alguno de los turnos no pertenece al establecimiento indicado' },
-      { status: 400 },
-    )
+    return jsonError('Alguno de los turnos no pertenece al establecimiento indicado', 400)
   }
 
   async function alumnosPertenecenASecciones(geSectionIds: number[], alumnoIds: number[] | undefined) {
@@ -489,10 +471,7 @@ export async function POST(request: Request) {
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (!(await alumnosPertenecenASecciones(entrada.secciones, entrada.alumnos))) {
-      return Response.json(
-        { error: 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas' },
-        { status: 400 },
-      )
+      return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
     }
   }
 
@@ -508,10 +487,7 @@ export async function POST(request: Request) {
   ]
   if (idsReferenciados.length > 0) {
     if (!parteExistente) {
-      return Response.json(
-        { error: 'La afectación indicada no existe en el parte actual' },
-        { status: 400 },
-      )
+      return jsonError('La afectación indicada no existe en el parte actual', 400)
     }
     const existentes = await db
       .select()
@@ -521,10 +497,7 @@ export async function POST(request: Request) {
     for (const id of idsReferenciados) {
       const fila = existentesPorId.get(id)
       if (!fila || fila.retiradaEn !== null) {
-        return Response.json(
-          { error: 'La afectación indicada no existe o ya fue retirada' },
-          { status: 400 },
-        )
+        return jsonError('La afectación indicada no existe o ya fue retirada', 400)
       }
     }
 
@@ -539,10 +512,7 @@ export async function POST(request: Request) {
         seccionesEfectivas = actuales.map((s) => s.geSectionId)
       }
       if (!(await alumnosPertenecenASecciones(seccionesEfectivas, modificacion.alumnos))) {
-        return Response.json(
-          { error: 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas' },
-          { status: 400 },
-        )
+        return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
       }
     }
   }
@@ -817,10 +787,7 @@ export async function POST(request: Request) {
     })
   } catch (err) {
     if (err instanceof RollbackDiffVacio) {
-      return Response.json(
-        { error: 'Todavía no realizó cambios en el parte actual' },
-        { status: 409 },
-      )
+      return jsonError('Todavía no realizó cambios en el parte actual', 409)
     }
     // Violación del constraint único de idempotency_key. En SQLite (driver
     // libsql, fallback para entornos que aún no migraron) el texto es

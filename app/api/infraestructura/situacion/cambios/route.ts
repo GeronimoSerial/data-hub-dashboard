@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { obtenerCambiosDesde } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,17 +30,11 @@ export async function GET(request: Request) {
     territorioId: searchParams.get('territorioId') ?? undefined,
   })
   if (!parsed.success) {
-    return Response.json(
-      { error: 'Parámetro "desde" requerido (ISO-8601)' },
-      { status: 400 },
-    )
+    return jsonError('Parámetro "desde" requerido (ISO-8601)', 400)
   }
   const { desde, territorioTipo, territorioId } = parsed.data
   if (territorioId && !territorioTipo) {
-    return Response.json(
-      { error: 'territorioId requiere territorioTipo' },
-      { status: 400 },
-    )
+    return jsonError('territorioId requiere territorioTipo', 400)
   }
 
   // El selector "Cambios desde" de la UI define explícitamente que devuelve
@@ -50,8 +46,5 @@ export async function GET(request: Request) {
     territorioId,
   })
 
-  return Response.json(cambios, {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  return jsonNoStore(cambios)
 }

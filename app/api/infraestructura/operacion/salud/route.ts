@@ -2,6 +2,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerEstadoOperativo } from '@/lib/infraestructura/riesgo/salud'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,5 @@ export async function GET() {
   if (guard) return respuestaGuard(guard)
 
   const estado = await obtenerEstadoOperativo()
-  return Response.json(estado, {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  return jsonNoStore(estado)
 }

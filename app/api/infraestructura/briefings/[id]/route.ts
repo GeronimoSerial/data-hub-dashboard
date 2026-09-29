@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { aDtoPublico } from '@/lib/infraestructura/briefing-ia/dto'
 import { obtenerBriefingPorId } from '@/lib/infraestructura/briefing-ia/repositorio'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
 
@@ -24,10 +26,7 @@ export async function GET(_request: Request, ctx: Ctx) {
   const { id } = await ctx.params
   const parsed = idSchema.safeParse(id)
   if (!parsed.success) {
-    return Response.json(
-      { error: 'id inválido' },
-      { status: 400, headers: { 'Cache-Control': 'private, no-store' } },
-    )
+    return jsonError('id inválido', 400, { 'Cache-Control': 'private, no-store' })
   }
 
   const briefing = await obtenerBriefingPorId(parsed.data)
@@ -35,14 +34,8 @@ export async function GET(_request: Request, ctx: Ctx) {
   // El 404 es intencionalmente idéntico al de "no existe" para no distinguir
   // entre un briefing inexistente y uno que no debería verse.
   if (!briefing) {
-    return Response.json(
-      { error: 'No encontrado' },
-      { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
-    )
+    return jsonError('No encontrado', 404, { 'Cache-Control': 'private, no-store' })
   }
 
-  return Response.json(aDtoPublico(briefing), {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  return jsonNoStore(aDtoPublico(briefing))
 }

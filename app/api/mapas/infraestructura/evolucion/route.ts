@@ -1,4 +1,5 @@
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerEvolucionMapa } from '@/lib/infraestructura/evolucion'
 import { jsonComprimido } from '@/lib/http/respuesta-comprimida'
@@ -10,10 +11,7 @@ export async function GET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const resultado = await obtenerEvolucionMapa()
 

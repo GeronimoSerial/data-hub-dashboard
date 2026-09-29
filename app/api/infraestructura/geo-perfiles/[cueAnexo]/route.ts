@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,11 +20,7 @@ export async function GET(_request: Request, ctx: Ctx) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const { cueAnexo } = await ctx.params
   const parsed = cueAnexoSchema.safeParse(cueAnexo)
@@ -41,10 +39,7 @@ export async function GET(_request: Request, ctx: Ctx) {
   // El 100% del padrón debería tener fila (con perfil válido o con
   // motivoExclusion), así que "no hay fila" es una anomalía, no "sin cobertura".
   if (!perfil) {
-    return Response.json(
-      { error: 'Sin perfil geográfico para ese CUE-anexo' },
-      { status: 404 },
-    )
+    return jsonError('Sin perfil geográfico para ese CUE-anexo', 404)
   }
 
   const [rio] = await db

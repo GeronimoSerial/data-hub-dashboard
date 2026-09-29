@@ -5,6 +5,7 @@ import { hazardSeasonalTrend } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -92,8 +93,5 @@ export async function GET(request: Request) {
     })
   }
 
-  return Response.json(
-    { items },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
-  )
+  return jsonNoStore({ items })
 }

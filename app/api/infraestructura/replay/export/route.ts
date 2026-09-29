@@ -10,6 +10,7 @@
 // dominio); se documenta además la zona argentina para lectura humana.
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { EPISODIOS_REGLA_VERSION } from '@/lib/infraestructura/episodios-derivados/regla'
 import { MOTOR_VERSION } from '@/lib/infraestructura/riesgo/motor/config'
@@ -95,10 +96,7 @@ function aCsv(conteos: ConteoCuadro[]): string {
 
 export async function GET(request: Request) {
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 

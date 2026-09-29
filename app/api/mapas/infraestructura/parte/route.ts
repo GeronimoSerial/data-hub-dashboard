@@ -6,26 +6,21 @@
 // `totales` por afectación y nunca la lista de alumnos.
 import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { obtenerDatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { armarFichaParte } from '@/lib/infraestructura/parte-consulta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
-
 export async function GET(request: Request) {
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    return Response.json(
-      { error: acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso' },
-      { status: acceso.status },
-    )
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 
@@ -51,13 +46,10 @@ export async function GET(request: Request) {
 
   const ficha = await armarFichaParte(cue.value, corte.id)
   if (!ficha) {
-    return Response.json(
-      { ok: true, periodo: null, parte: null, datosPadron },
-      { status: 200, headers: CACHE_HEADERS },
-    )
+    return jsonNoStore({ ok: true, periodo: null, parte: null, datosPadron })
   }
 
-  return Response.json(
+  return jsonNoStore(
     {
       ok: true,
       periodo: ficha.periodo,
@@ -78,6 +70,5 @@ export async function GET(request: Request) {
       datosPadron,
       ultimaActualizacion: ficha.ultimaActualizacion,
     },
-    { status: 200, headers: CACHE_HEADERS },
   )
 }

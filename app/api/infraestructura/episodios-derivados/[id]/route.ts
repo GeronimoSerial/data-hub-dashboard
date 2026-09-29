@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { infraEpisodioDerivado, infraEpisodioMiembro } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 export const runtime = 'nodejs'
@@ -16,11 +17,7 @@ const idSchema = z.string().min(1).max(100)
 
 export async function GET(_request: Request, ctx: Ctx) {
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 

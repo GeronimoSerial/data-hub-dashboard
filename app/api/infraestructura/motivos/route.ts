@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db'
 import { infraAfectacion, infraMotivo } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { esCategoria } from '@/lib/infraestructura/categorias'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
 
 export const runtime = 'nodejs'
@@ -93,10 +94,7 @@ export async function POST(request: Request) {
     .from(infraMotivo)
     .where(eq(infraMotivo.nombre, row.nombre))
   if (existente.some((m) => m.id !== row.id)) {
-    return Response.json(
-      { error: 'Ya existe un motivo con ese nombre' },
-      { status: 400 },
-    )
+    return jsonError('Ya existe un motivo con ese nombre', 400)
   }
 
   await db
@@ -135,10 +133,7 @@ export async function DELETE(request: Request) {
     .from(infraAfectacion)
     .where(eq(infraAfectacion.motivo, motivo.nombre))
   if (n > 0) {
-    return Response.json(
-      { error: 'No se puede eliminar: hay afectaciones que usan este motivo' },
-      { status: 400 },
-    )
+    return jsonError('No se puede eliminar: hay afectaciones que usan este motivo', 400)
   }
 
   await db.delete(infraMotivo).where(eq(infraMotivo.id, id))

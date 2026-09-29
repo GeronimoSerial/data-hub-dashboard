@@ -1,6 +1,8 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { aDtoPublico } from '@/lib/infraestructura/briefing-ia/dto'
 import { obtenerUltimoBriefing } from '@/lib/infraestructura/briefing-ia/repositorio'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
 
@@ -16,14 +18,8 @@ export async function GET(_request: Request) {
 
   const briefing = await obtenerUltimoBriefing()
   if (!briefing) {
-    return Response.json(
-      { error: 'No hay briefings generados todavía' },
-      { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
-    )
+    return jsonError('No hay briefings generados todavía', 404, { 'Cache-Control': 'private, no-store' })
   }
 
-  return Response.json(aDtoPublico(briefing), {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  return jsonNoStore(aDtoPublico(briefing))
 }

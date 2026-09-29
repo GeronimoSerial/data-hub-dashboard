@@ -3,6 +3,7 @@ import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
 import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,10 +48,7 @@ export async function GET(request: Request) {
   const resultado = await resolverContextoPorCue(client, cue)
 
   if (!resultado.ok) {
-    return Response.json(
-      { error: MENSAJES_ERROR[resultado.error.kind] },
-      { status: STATUS_ERROR[resultado.error.kind] },
-    )
+    return jsonError(MENSAJES_ERROR[resultado.error.kind], STATUS_ERROR[resultado.error.kind])
   }
 
   return Response.json(resultado.contexto)

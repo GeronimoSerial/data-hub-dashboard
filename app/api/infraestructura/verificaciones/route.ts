@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
@@ -40,10 +42,7 @@ export async function GET(request: Request) {
   const estado = estadoRaw as (typeof ESTADOS)[number] | undefined
 
   const verificaciones = await listarVerificaciones({ periodoId, cueAnexo, estado })
-  return Response.json(
-    { ok: true, verificaciones: verificaciones.map(sinTokenHash) },
-    { status: 200, headers: NO_STORE },
-  )
+  return jsonNoStore({ ok: true, verificaciones: verificaciones.map(sinTokenHash) })
 }
 
 export async function POST(request: Request) {
@@ -61,10 +60,7 @@ export async function POST(request: Request) {
 
   const parsed = crearVerificacionInputSchema.safeParse(body)
   if (!parsed.success) {
-    return Response.json(
-      { error: parsed.error.issues[0]?.message ?? 'Cuerpo inválido' },
-      { status: 400, headers: NO_STORE },
-    )
+    return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
   const resultado = await crearVerificacion({
@@ -74,17 +70,14 @@ export async function POST(request: Request) {
   })
 
   if (!resultado.ok) {
-    return Response.json(
-      { error: 'No hay un período vigente' },
-      { status: resultado.status, headers: NO_STORE },
-    )
+    return jsonError('No hay un período vigente', resultado.status, NO_STORE)
   }
 
   // El token en claro viaja SOLO en esta respuesta: quien llama arma el enlace
   // público (origin + /problematicas/verificaciones/{id}?token=...). La ruta no
   // compone la URL completa, sólo devuelve el token crudo.
-  return Response.json(
+  return jsonNoStore(
     { ok: true, verificacion: sinTokenHash(resultado.verificacion), token: resultado.token },
-    { status: 201, headers: NO_STORE },
+    201,
   )
 }

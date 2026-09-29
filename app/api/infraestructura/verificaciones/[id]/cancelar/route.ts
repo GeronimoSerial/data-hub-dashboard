@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
@@ -58,10 +60,7 @@ export async function POST(
 
   const parsed = cancelarVerificacionInputSchema.safeParse(body)
   if (!parsed.success) {
-    return Response.json(
-      { error: parsed.error.issues[0]?.message ?? 'Cuerpo inválido' },
-      { status: 400, headers: NO_STORE },
-    )
+    return jsonError(parsed.error.issues[0]?.message ?? 'Cuerpo inválido', 400, NO_STORE)
   }
 
   const resultado = await cancelarVerificacion({
@@ -71,14 +70,8 @@ export async function POST(
   })
 
   if (!resultado.ok) {
-    return Response.json(
-      { error: mensajeMotivo(resultado.motivo) },
-      { status: resultado.status, headers: NO_STORE },
-    )
+    return jsonError(mensajeMotivo(resultado.motivo), resultado.status, NO_STORE)
   }
 
-  return Response.json(
-    { ok: true, verificacion: sinTokenHash(resultado.verificacion) },
-    { status: 200, headers: NO_STORE },
-  )
+  return jsonNoStore({ ok: true, verificacion: sinTokenHash(resultado.verificacion) })
 }

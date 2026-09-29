@@ -3,8 +3,11 @@ import { z } from 'zod'
 import { getDb } from '@/lib/db'
 import { infraEpisodioDerivado } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { EPISODIOS_REGLA_VERSION } from '@/lib/infraestructura/episodios-derivados/regla'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,11 +27,7 @@ export async function GET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 
@@ -44,10 +43,7 @@ export async function GET(request: Request) {
   })
   if (!parsed.success) {
     const issue = parsed.error.issues[0]
-    return Response.json(
-      { error: `Parámetro inválido: ${issue.path.join('.')}` },
-      { status: 400 },
-    )
+    return jsonError(`Parámetro inválido: ${issue.path.join('.')}`, 400)
   }
   const { estado, departamento, desde, hasta, page, pageSize } = parsed.data
 
@@ -96,14 +92,5 @@ export async function GET(request: Request) {
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
-  return Response.json(
-    {
-      items,
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize),
-    },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
-  )
+  return jsonNoStore({ items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) })
 }

@@ -3,6 +3,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerIndiceAislamientoDeCue } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/aislamiento'
 import { crearAdapterTerritorio } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/territorio'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
 export const runtime = 'nodejs'
@@ -47,13 +48,10 @@ export async function GET(_request: Request, ctx: Ctx) {
   // cobertura, no un error (mismo criterio que `rioAsociacion: null` en
   // geo-perfiles). Se responde 200 con `disponible: false`, nunca 404.
   if (!indice) {
-    return Response.json(
-      { cueAnexo: parsed.data, disponible: false, motivo: 'sin_cobertura_osm' },
-      { status: 200, headers: SIN_STORE },
-    )
+    return jsonNoStore({ cueAnexo: parsed.data, disponible: false, motivo: 'sin_cobertura_osm' })
   }
 
-  return Response.json(
+  return jsonNoStore(
     {
       cueAnexo: parsed.data,
       disponible: true,
@@ -70,6 +68,5 @@ export async function GET(_request: Request, ctx: Ctx) {
       licencia: indice.licencia,
       atribucion: '© OpenStreetMap contributors',
     },
-    { status: 200, headers: SIN_STORE },
   )
 }

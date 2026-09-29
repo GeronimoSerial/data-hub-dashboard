@@ -7,7 +7,10 @@ import {
   infraRiskSnapshot,
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
 import { calcularMatriculaCondicionadaPorAcceso } from '@/lib/infraestructura/riesgo/kpi-acceso'
 import {
@@ -70,7 +73,7 @@ interface DepartamentoRadar {
 }
 
 function respuestaVacia(page: number, pageSize: number) {
-  return Response.json(
+  return jsonNoStore(
     {
       corte: null,
       cobertura: null,
@@ -84,7 +87,6 @@ function respuestaVacia(page: number, pageSize: number) {
       },
       hayNivelProvisorio: false,
     },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
 }
 
@@ -155,11 +157,7 @@ export async function GET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded) antes de fallar.
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 
@@ -183,10 +181,7 @@ export async function GET(request: Request) {
   })
   if (!parsed.success) {
     const issue = parsed.error.issues[0]
-    return Response.json(
-      { error: `Parámetro inválido: ${issue.path.join('.')}` },
-      { status: 400 },
-    )
+    return jsonError(`Parámetro inválido: ${issue.path.join('.')}`, 400)
   }
   const { departamento, nivel, page, pageSize } = parsed.data
 
@@ -324,7 +319,7 @@ export async function GET(request: Request) {
     cuesConAfectacionConfirmada,
   })
 
-  return Response.json(
+  return jsonNoStore(
     {
       corte,
       cobertura: runVigente.cobertura,
@@ -344,6 +339,5 @@ export async function GET(request: Request) {
       },
       hayNivelProvisorio,
     },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
   )
 }

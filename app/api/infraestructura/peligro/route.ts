@@ -7,6 +7,8 @@ import {
   hazardObservation,
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { obtenerAcumuladosObservados } from '@/lib/infraestructura/riesgo/peligro/observado'
 import {
@@ -27,11 +29,7 @@ export async function GET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const { searchParams } = new URL(request.url)
   const parsed = geometryRefSchema.safeParse(
@@ -127,8 +125,5 @@ export async function GET(request: Request) {
   const observadoAcumulado =
     geometryRef === undefined ? [] : await obtenerAcumuladosObservados({ geometryRef })
 
-  return Response.json(
-    { pronostico, climatologia, niveles, caudal, observado, observadoAcumulado },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
-  )
+  return jsonNoStore({ pronostico, climatologia, niveles, caudal, observado, observadoAcumulado })
 }

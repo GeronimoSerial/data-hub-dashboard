@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import {
   construirRespuestaGeometria,
@@ -23,11 +24,7 @@ const cueAnexoSchema = z.string().min(1).max(50)
 export async function GET(request: Request, ctx: Ctx) {
   // ACL PRIMERO.
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 

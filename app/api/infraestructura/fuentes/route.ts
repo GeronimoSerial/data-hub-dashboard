@@ -1,6 +1,8 @@
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 
 export const runtime = 'nodejs'
@@ -10,11 +12,7 @@ export async function GET() {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error =
-      acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const filas = await getDb().select().from(hazardSourceHealth)
 
@@ -35,8 +33,5 @@ export async function GET() {
         : Math.round((Date.now() - new Date(f.ultimoExitoEn).getTime()) / 60000),
   }))
 
-  return Response.json(
-    { fuentes },
-    { status: 200, headers: { 'Cache-Control': 'private, no-store' } },
-  )
+  return jsonNoStore({ fuentes })
 }

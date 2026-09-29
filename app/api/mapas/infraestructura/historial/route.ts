@@ -5,6 +5,7 @@
 // lectura amplio del hub en vez de la cookie del director.
 import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { normalizeCue } from '@/lib/infraestructura/cue'
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
@@ -18,12 +19,7 @@ const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
 export async function GET(request: Request) {
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    return Response.json(
-      { error: acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso' },
-      { status: acceso.status },
-    )
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 

@@ -7,7 +7,9 @@
 // query params <-> Response.
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { generarReplay } from '@/lib/infraestructura/replay/consulta'
 import { PASO_REPLAY_HORAS_DEFAULT, vistaReplaySchema } from '@/lib/infraestructura/replay/tipos'
 
@@ -28,10 +30,7 @@ export async function GET(request: Request) {
   // ACL primero: una request sin sesión no debe disparar trabajo de DB
   // (ensureSeeded, luego el motor de replay) antes de fallar.
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    const error = acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso'
-    return Response.json({ error }, { status: acceso.status })
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   await ensureSeeded()
 
@@ -52,10 +51,7 @@ export async function GET(request: Request) {
 
   try {
     const resultado = await generarReplay(parsed.data)
-    return Response.json(resultado, {
-      status: 200,
-      headers: { 'Cache-Control': 'private, no-store' },
-    })
+    return jsonNoStore(resultado)
   } catch (error) {
     // generarReplay lanza Error con mensaje ya saneado (episodio no
     // encontrado, falta desde/hasta): 404 para el primer caso, 400 para el

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerUltimoCorte } from '@/lib/infraestructura/riesgo/situacion/corte'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
 export const runtime = 'nodejs'
@@ -62,10 +63,7 @@ export async function GET(request: Request) {
 
   const corte = await obtenerUltimoCorte()
   if (!corte) {
-    return Response.json(
-      { error: 'Todavía no hay ningún corte generado' },
-      { status: 404, headers: { 'Cache-Control': 'private, no-store' } },
-    )
+    return jsonError('Todavía no hay ningún corte generado', 404, { 'Cache-Control': 'private, no-store' })
   }
 
   if (parsed.data.formato === 'csv') {
