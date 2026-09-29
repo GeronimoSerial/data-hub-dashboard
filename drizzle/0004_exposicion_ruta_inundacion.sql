@@ -1,0 +1,20 @@
+CREATE TABLE "infra_exposicion_ruta_inundacion" (
+	"cue_anexo" text NOT NULL,
+	"version_job" text NOT NULL,
+	"estado" text NOT NULL,
+	"motivo_sin_dato" text,
+	"celdas_total" integer NOT NULL,
+	"celdas_con_dato" integer NOT NULL,
+	"celdas_con_profundidad" integer NOT NULL,
+	"profundidad_max_m" real,
+	"cobertura" real NOT NULL,
+	"periodo_retorno_anios" integer NOT NULL,
+	"resolucion_arcsec" integer NOT NULL,
+	"escenario" text NOT NULL,
+	"fuente" text NOT NULL,
+	"celdas" jsonb NOT NULL,
+	"fecha_corrida" text NOT NULL,
+	"licencia" text NOT NULL,
+	"importado_en" text NOT NULL,
+	CONSTRAINT "infra_exposicion_ruta_inundacion_cue_anexo_version_job_pk" PRIMARY KEY("cue_anexo","version_job")
+);

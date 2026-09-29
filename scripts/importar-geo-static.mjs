@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
  * Importador de las capas territoriales estáticas de G1 (aislamiento OSM,
- * susceptibilidad estática physrisk y geometría OSM del cálculo de aislamiento)
+ * susceptibilidad estática physrisk, geometría OSM y exposición de ruta inundable)
  * desde los CSV/NDJSON versionados que producen los jobs offline de
  * services/geo-static/ hacia SQLite (infra_aislamiento_osm,
- * infra_susceptibilidad_estatica, infra_acceso_osm_geometria).
+ * infra_susceptibilidad_estatica, infra_acceso_osm_geometria,
+ * infra_exposicion_ruta_inundacion).
  *
  * Uso reproducible:
  *   node scripts/importar-geo-static.mjs --aislamiento <path.csv>
  *   node scripts/importar-geo-static.mjs --susceptibilidad <path.csv>
  *   node scripts/importar-geo-static.mjs --geometria <path.ndjson.gz>
+ *   node scripts/importar-geo-static.mjs --exposicion-ruta <path.ndjson.gz>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --susceptibilidad <s.csv>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --geometria <g.ndjson.gz>
  */
@@ -53,6 +55,7 @@ function parsearArgs(argv) {
     if (argv[i] === '--aislamiento') args.aislamiento = argv[++i]
     else if (argv[i] === '--susceptibilidad') args.susceptibilidad = argv[++i]
     else if (argv[i] === '--geometria') args.geometria = argv[++i]
+    else if (argv[i] === '--exposicion-ruta') args.exposicionRuta = argv[++i]
   }
   return args
 }
@@ -348,18 +351,108 @@ export async function importarGeometria(path, { db, tabla }) {
   return { procesadas: lineas.length, ok, fallidas }
 }
 
+function mapearFilaExposicionRuta(fila) {
+  return {
+    cueAnexo: fila.cue_anexo,
+    versionJob: fila.version_job,
+    estado: fila.estado,
+    motivoSinDato: fila.motivo_sin_dato,
+    celdasTotal: fila.celdas_total,
+    celdasConDato: fila.celdas_con_dato,
+    celdasConProfundidad: fila.celdas_con_profundidad,
+    profundidadMaxM: fila.profundidad_max_m,
+    cobertura: fila.cobertura,
+    periodoRetornoAnios: fila.periodo_retorno_anios,
+    resolucionArcsec: fila.resolucion_arcsec,
+    escenario: fila.escenario,
+    fuente: fila.fuente,
+    celdas: Array.isArray(fila.celdas) ? fila.celdas.map((celda) => ({
+      lon: celda?.lon,
+      lat: celda?.lat,
+      profundidadM: celda?.profundidad_m,
+    })) : fila.celdas,
+    fechaCorrida: fila.fecha_corrida,
+    licencia: fila.licencia,
+    importadoEn: new Date().toISOString(),
+  }
+}
+
+const profundidadNoNegativaSchema = z.number().finite().min(0)
+const schemaFilaExposicionRuta = z.object({
+  cueAnexo: z.string().min(1),
+  versionJob: z.string().min(1),
+  estado: z.enum(['sin_ruta', 'sin_dato', 'sin_profundidad', 'con_profundidad']),
+  motivoSinDato: z.string().nullable(),
+  celdasTotal: z.number().int().min(0),
+  celdasConDato: z.number().int().min(0),
+  celdasConProfundidad: z.number().int().min(0),
+  profundidadMaxM: profundidadNoNegativaSchema.nullable(),
+  cobertura: z.number().finite().min(0).max(1),
+  periodoRetornoAnios: z.number().int().min(0),
+  resolucionArcsec: z.number().int().min(0),
+  escenario: z.string().min(1),
+  fuente: z.string().min(1),
+  celdas: z.array(z.object({
+    lon: z.number().finite(),
+    lat: z.number().finite(),
+    profundidadM: profundidadNoNegativaSchema.nullable(),
+  })),
+  fechaCorrida: z.string().min(1),
+  licencia: z.string().min(1),
+  importadoEn: z.string(),
+})
+
+const setExposicionRutaExcluido = {
+  estado: sql`excluded.estado`, motivoSinDato: sql`excluded.motivo_sin_dato`,
+  celdasTotal: sql`excluded.celdas_total`, celdasConDato: sql`excluded.celdas_con_dato`,
+  celdasConProfundidad: sql`excluded.celdas_con_profundidad`, profundidadMaxM: sql`excluded.profundidad_max_m`,
+  cobertura: sql`excluded.cobertura`, periodoRetornoAnios: sql`excluded.periodo_retorno_anios`,
+  resolucionArcsec: sql`excluded.resolucion_arcsec`, escenario: sql`excluded.escenario`,
+  fuente: sql`excluded.fuente`, celdas: sql`excluded.celdas`, fechaCorrida: sql`excluded.fecha_corrida`,
+  licencia: sql`excluded.licencia`, importadoEn: sql`excluded.importado_en`,
+}
+
+export async function importarExposicionRuta(path, { db, tabla }) {
+  const lineas = leerNdjsonGz(path)
+  let fallidas = 0
+  const validas = []
+  for (const linea of lineas) {
+    let cruda
+    try { cruda = JSON.parse(linea) } catch {
+      console.warn('[importar-geo-static] fila invalida (?): JSON malformado'); fallidas++; continue
+    }
+    if (cruda === null || typeof cruda !== 'object' || Array.isArray(cruda)) {
+      console.warn('[importar-geo-static] fila invalida (?): se esperaba un objeto JSON'); fallidas++; continue
+    }
+    const parseo = schemaFilaExposicionRuta.safeParse(mapearFilaExposicionRuta(cruda))
+    if (!parseo.success) {
+      console.warn(`[importar-geo-static] fila invalida (${cruda.cue_anexo ?? '?'}): ${formatearIssues(parseo.error)}`)
+      fallidas++; continue
+    }
+    validas.push(parseo.data)
+  }
+  for (let i = 0; i < validas.length; i += TAMANO_LOTE_GEOMETRIA) {
+    await db.insert(tabla).values(validas.slice(i, i + TAMANO_LOTE_GEOMETRIA)).onConflictDoUpdate({
+      target: [tabla.cueAnexo, tabla.versionJob], set: setExposicionRutaExcluido,
+    })
+  }
+  const ok = validas.length
+  console.log(`[importar-geo-static] exposicion-ruta: procesadas ${lineas.length}, ok ${ok}, fallidas ${fallidas}`)
+  return { procesadas: lineas.length, ok, fallidas }
+}
+
 async function main() {
   const args = parsearArgs(process.argv.slice(2))
-  if (!args.aislamiento && !args.susceptibilidad && !args.geometria) {
+  if (!args.aislamiento && !args.susceptibilidad && !args.geometria && !args.exposicionRuta) {
     console.error(
-      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>]',
+      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>]',
     )
     process.exit(1)
   }
 
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   const { getDb } = await import('../lib/db/index.ts')
-  const { infraAislamientoOsm, infraSusceptibilidadEstatica, infraAccesoOsmGeometria } =
+  const { infraAislamientoOsm, infraSusceptibilidadEstatica, infraAccesoOsmGeometria, infraExposicionRutaInundacion } =
     await import('../lib/db/schema.ts')
   await ensureSeeded()
   const db = getDb()
@@ -372,6 +465,9 @@ async function main() {
   }
   if (args.geometria) {
     await importarGeometria(args.geometria, { db, tabla: infraAccesoOsmGeometria })
+  }
+  if (args.exposicionRuta) {
+    await importarExposicionRuta(args.exposicionRuta, { db, tabla: infraExposicionRutaInundacion })
   }
 }
 

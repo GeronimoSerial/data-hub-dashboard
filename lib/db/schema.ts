@@ -1171,6 +1171,34 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
+
+export type CeldaExposicionRuta = {
+  lon: number
+  lat: number
+  profundidadM: number | null
+}
+
+// Indicador historico/estatico por celda de ~1 km; NUNCA pronostico ni estado
+// del camino. `sin_ruta` y `sin_dato` significan SIN DATO, no profundidad 0.
+export const infraExposicionRutaInundacion = pgTable('infra_exposicion_ruta_inundacion', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  estado: text('estado').notNull(),
+  motivoSinDato: text('motivo_sin_dato'),
+  celdasTotal: integer('celdas_total').notNull(),
+  celdasConDato: integer('celdas_con_dato').notNull(),
+  celdasConProfundidad: integer('celdas_con_profundidad').notNull(),
+  profundidadMaxM: real('profundidad_max_m'),
+  cobertura: real('cobertura').notNull(),
+  periodoRetornoAnios: integer('periodo_retorno_anios').notNull(),
+  resolucionArcsec: integer('resolucion_arcsec').notNull(),
+  escenario: text('escenario').notNull(),
+  fuente: text('fuente').notNull(),
+  celdas: jsonb('celdas').$type<CeldaExposicionRuta[]>().notNull(),
+  fechaCorrida: text('fecha_corrida').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 // ============================================================
 // Fin bloque G1
 // ============================================================
