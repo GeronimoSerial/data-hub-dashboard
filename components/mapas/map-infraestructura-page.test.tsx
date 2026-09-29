@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 
 const CUE = '1801605-04'
@@ -15,7 +15,14 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // al seleccionar un resultado. `vi.hoisted` porque el factory de
 // `vi.mock('react-map-gl/maplibre', ...)` lo referencia y ese factory se
 // hoistea por encima del resto del archivo.
-const { FLY_TO_MOCK } = vi.hoisted(() => ({ FLY_TO_MOCK: vi.fn() }))
+// Q3: `fitBounds` es el encuadre de la ruta (al elegir una escuela y al
+// pulsar "Ver recorrido"). Es un spy además de `flyTo` para poder contar
+// cuántas veces se encuadró: encuadrar de más es un bug tan visible como no
+// encuadrar.
+const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
+  FLY_TO_MOCK: vi.fn(),
+  FIT_BOUNDS_MOCK: vi.fn(),
+}))
 
 // T5a: cues que el doble del mapa devuelve como DESAGRUPADAS en
 // `querySourceFeatures`. Lista mutable para que un test puntual pueda sumar
@@ -58,6 +65,9 @@ const PARTE: ParteMapa = {
 // eso ya lo cubren sus propios *.test.tsx. Por eso los tres se mockean acá:
 // dobles de prueba que sólo exponen los props que importan para esta
 // orquestación (open/id, onOpenChange, y los dos callbacks de encadenado).
+// Q3: el bloque territorial llega como un objeto (`accesoTerritorial`) con el
+// botón "Ver recorrido"; el doble lo expone sólo cuando la página se lo pasa,
+// que es justo cuando hay dominio territorial prendido.
 vi.mock('@/components/infraestructura/ficha-parte-modal', () => ({
   FichaParteModal: (props: {
     open: boolean
@@ -65,12 +75,18 @@ vi.mock('@/components/infraestructura/ficha-parte-modal', () => ({
     onOpenChange: (open: boolean) => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
+    accesoTerritorial?: { onVerRutaEnMapa?: () => void }
   }): JSX.Element | null =>
     props.open ? (
       <div data-testid="mock-ficha-modal" data-cue={props.cueAnexo}>
         <button onClick={() => props.onOpenChange(false)}>cerrar-ficha</button>
         <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
         <button onClick={() => props.onVerHistorialCompleto()}>abrir-historial-desde-ficha</button>
+        {props.accesoTerritorial?.onVerRutaEnMapa && (
+          <button onClick={() => props.accesoTerritorial?.onVerRutaEnMapa?.()}>
+            ver-recorrido-desde-ficha
+          </button>
+        )}
       </div>
     ) : null,
 }))
@@ -130,8 +146,11 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
 // (afectadas + sin afectación reportada), no sólo de las escuelas con parte.
 // El mock global de `fetch` devuelve un FeatureCollection (no la forma
 // EscuelasMapaResultado), así que este hook también se dobla acá — mismo
-// patrón que useAlertas: objeto ESTABLE para no re-disparar efectos.
-const FIXTURE_ESCUELAS_MAPA = {
+// patrón que useAlertas: objeto ESTABLE para no re-disparar efectos. Con el
+// TIPO real del contrato, no con el que se deduce del literal: `lat`/`lon`
+// admiten `null` (escuela del padrón sin geolocalizar) y eso es justo lo que
+// necesita el test del aviso del buscador.
+const FIXTURE_ESCUELAS_MAPA: EscuelasMapaResultado = {
   escuelas: [
     {
       cueAnexo: CUE,
@@ -193,6 +212,15 @@ const llamadasGeometria = vi.hoisted(() => ({
   habilitados: [] as boolean[],
 }))
 
+// Estado mutable del doble de geometría, para poder simular los dos casos
+// que el encuadre de la ruta tiene que distinguir: la escuela elegida sin ruta
+// (`disponible: false`) y la geometría que llega TARDE, de otra escuela
+// (`cueForzado`), que es la carrera contra la que el efecto se protege.
+const estadoGeometria = vi.hoisted(() => ({
+  disponible: true,
+  cueForzado: null as string | null,
+}))
+
 // Fixture ESTABLE (misma identidad en cada render): el componente lo consume
 // en `useMemo`, así que devolver un literal nuevo cada vez sería ruido.
 const TERRITORIO_MAPA_MOCK = {
@@ -246,9 +274,21 @@ vi.mock('@/lib/infraestructura/use-geometria-acceso', () => ({
   useGeometriaAcceso: (cueAnexo: string | null, habilitado: boolean) => {
     llamadasGeometria.cues.push(cueAnexo)
     llamadasGeometria.habilitados.push(habilitado)
-    return habilitado && cueAnexo !== null
-      ? { data: { ...GEOMETRIA_ACCESO_MOCK, cueAnexo }, loading: false, error: null }
-      : { data: null, loading: false, error: null }
+    if (!habilitado || cueAnexo === null) {
+      return { data: null, loading: false, error: null }
+    }
+    return {
+      data: {
+        ...GEOMETRIA_ACCESO_MOCK,
+        cueAnexo: estadoGeometria.cueForzado ?? cueAnexo,
+        disponible: estadoGeometria.disponible,
+        // Sin `disponible` la API no manda ruta: `construirRutaAcceso` devuelve
+        // null y no hay bbox que encuadrar.
+        ...(estadoGeometria.disponible ? {} : { ruta: undefined, cruces: undefined }),
+      },
+      loading: false,
+      error: null,
+    }
   },
 }))
 
@@ -388,7 +428,7 @@ vi.mock('react-map-gl/maplibre', () => {
       () => ({
         getMap: () => ({
           flyTo: FLY_TO_MOCK,
-          fitBounds: vi.fn(),
+          fitBounds: FIT_BOUNDS_MOCK,
           resize: vi.fn(),
           stop: vi.fn(),
           // `infra-partes-src` tiene que existir para que
@@ -461,6 +501,47 @@ vi.mock('react-map-gl/maplibre', () => {
           data-testid="mock-click-peligro"
           onClick={() => props.onClick?.({ features: [{ layer: { id: 'infra-peligro-fill' }, properties: { nombre: 'CAPITAL' } }] })}
         />
+        {/* Q3: los íconos territoriales (aislamiento/inundación/cruces) se
+            dibujan ENCIMA del polígono del departamento, así que el click real
+            devuelve las DOS features. El doble reproduce ese caso: si el
+            handler no los atiende con prioridad, gana el departamento y el
+            gesto termina filtrando la provincia en vez de abrir la escuela. */}
+        <button
+          data-testid="mock-click-aislamiento"
+          onClick={() =>
+            props.onClick?.({
+              features: [
+                { layer: { id: 'infra-aislamiento-symbol' }, properties: { cueAnexo: CUE } },
+                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
+              ],
+              lngLat: { lng: -58.83, lat: -27.47 },
+            })
+          }
+        />
+        <button
+          data-testid="mock-click-inundacion"
+          onClick={() =>
+            props.onClick?.({
+              features: [
+                { layer: { id: 'infra-inundacion-symbol' }, properties: { cueAnexo: CUE_SIN_AFECTACION } },
+                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
+              ],
+              lngLat: { lng: -58.8, lat: -27.5 },
+            })
+          }
+        />
+        <button
+          data-testid="mock-click-cruce"
+          onClick={() =>
+            props.onClick?.({
+              features: [
+                { layer: { id: 'infra-cruces-acceso-symbol' }, properties: { clasificacion: 'sin_evidencia' } },
+                { layer: { id: 'infra-departamentos-relleno' }, properties: { nombre: 'Capital' } },
+              ],
+              lngLat: { lng: -58.81, lat: -27.48 },
+            })
+          }
+        />
         {props.children}
       </div>
     )
@@ -510,8 +591,54 @@ async function renderMapa(props: {
   desmontarMapa = unmount
 }
 
+// Elige una escuela por el buscador (la ruta que usa el usuario: escribir el
+// nombre y pickear el resultado) y devuelve la ficha ya abierta. Compartido
+// por los bloques que necesitan una selección real — con su flyTo, su
+// encuadre de ruta y su aviso — y no sólo un click sobre el mapa.
+async function seleccionarPorBuscador(nombre: string) {
+  const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
+  await userEvent.type(input, nombre)
+  await userEvent.click(await screen.findByText(new RegExp(nombre, 'i')))
+  return screen.findByTestId('mock-ficha-modal')
+}
+
+// Viewport del mapa. jsdom arranca en 1024x768, que es justo el breakpoint en
+// el que la ficha pasa de panel lateral a hoja inferior: los tests fijan el
+// tamaño a propósito para no depender de ese default. `spyOn` sobre el getter
+// (y no `vi.stubGlobal`) porque el componente lee `window.innerWidth`: en el
+// entorno jsdom de Vitest el global no es el objeto window. `vi.restoreAllMocks`
+// del beforeEach los vuelve a dejar como estaban.
+// También alcanza para decidir si la ficha es hoja inferior o panel lateral:
+// el componente pregunta por matchMedia (breakpoint de 1080px de globals.css) y
+// cae al ancho de la ventana cuando el entorno no lo expone — que es lo que
+// pasa con el jsdom de esta suite, donde `window.matchMedia` no existe.
+function viewport(ancho: number, alto: number) {
+  vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(ancho)
+  vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(alto)
+}
+
+// Detecta el popup de clic del departamento ("En <depto> hay N escuelas · …").
+// No alcanza con buscar "escuelas ·": el indicador de totales permanente
+// (`infra-totales-indicador`) y el popup de cluster imprimen un resumen igual, así
+// que se ancla en la fórmula propia del popup de departamento para no dar por
+// presente un texto que siempre lo está.
+// Se usa como matcher de texto de Testing Library, que la invoca como
+// `(contenido, elemento)`: el segundo parámetro es el que lleva el tag. Por eso
+// el primero se descarta con `_`.
+function esParrafoPopupDepartamento(_contenido: string, elemento: Element | null): boolean {
+  if (elemento?.tagName !== 'P') return false
+  return /^\s*En .+ hay .+escuelas ·/.test(elemento.textContent ?? '')
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
+  // Los spies del doble del mapa son `vi.fn()` de módulo: se limpian a mano
+  // para que el conteo de encuadres (`toHaveBeenCalledTimes`) sea el de este
+  // test y no la suma de los anteriores.
+  FLY_TO_MOCK.mockClear()
+  FIT_BOUNDS_MOCK.mockClear()
+  estadoGeometria.disponible = true
+  estadoGeometria.cueForzado = null
   llamadasRadar.activos.length = 0
   llamadasReplay.activos.length = 0
   llamadasSnapshot.snapshotIds.length = 0
@@ -581,25 +708,20 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
   // La capa `symbol` del ícono de escuela es la que el usuario realmente
   // clickea (el círculo queda debajo y es más chico). El handler tiene que
-  // reconocer también esa capa, no sólo `infra-partes`.
-  it('abre la ficha al hacer click en el ícono de una escuela del padrón', async () => {
+  // reconocer también esa capa, no sólo `infra-partes`. Y como desde Q20 el
+  // hover se sacó, ese click abre la ficha y NADA más: ni tooltip, ni popup de
+  // departamento (que sólo aparece si el click cae en el polígono).
+  it('clickear el ícono de una escuela del padrón abre su ficha y nada más', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-escuela-icono'))
-    const ficha = await screen.findByTestId('mock-ficha-modal')
-    expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
-  })
-
-  // Q20: el hover se sacó. Clickear el ícono de una escuela abre su ficha,
-  // no un tooltip; el popup de departamento nunca aparece con un mouse quieto.
-  it('clickear el ícono de una escuela abre su ficha y no un tooltip', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-
-    await userEvent.click(screen.getByTestId('mock-click-escuela-icono'))
 
     const ficha = await screen.findByTestId('mock-ficha-modal')
     expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
+    // El click noSeleccionó el departamento que está debajo del ícono.
+    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
   })
 
   it('abre el modal nominal desde la ficha', async () => {
@@ -1152,5 +1274,458 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     // Tras entrar a Replay el último valor que recibe el hook es false: la
     // geometría no se pide aunque el flag territorial esté prendido.
     expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
+  })
+})
+
+// Q1: la ficha abierta/cerrada pasó a ser un estado DISTINTO del de selección.
+// Antes, cerrarla (X o Esc) borraba `seleccionCue` y con él el resaltado, la
+// ruta de acceso y su leyenda, sin ninguna forma de volver atrás salvo elegir
+// otra escuela. Estos tests fijan el contrato nuevo: cerrar la ficha conserva
+// la selección y deja un grupo de acciones para reabrirla o quitarla.
+describe('Q1: cerrar la ficha conserva la selección', () => {
+  it('cerrar la ficha no borra la selección: la ruta sigue y aparece "Ver ficha"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    expect(ficha).toHaveAttribute('data-cue', CUE)
+
+    // Con la escuela elegida, la leyenda muestra la ruta disponible.
+    expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+
+    // La selección NO se fue con la ficha: la ruta de la escuela sigue dibujada
+    // y la leyenda la sigue describiendo.
+    expect(screen.getByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
+    // Y hay una forma explícita de volver a la ficha.
+    expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
+  })
+
+  it('"Ver ficha" reabre la ficha y el grupo de acciones desaparece', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+
+    await userEvent.click(screen.getByTestId('reabrir-ficha'))
+
+    const ficha = await screen.findByTestId('mock-ficha-modal')
+    expect(ficha).toHaveAttribute('data-cue', CUE)
+    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+  it('"Quitar selección" borra la selección completa (sin ruta y sin grupo)', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+    expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+
+    await userEvent.click(screen.getByTestId('quitar-seleccion'))
+
+    // Sin selección no hay ruta disponible, no hay ficha y no queda el grupo
+    // flotando sobre el mapa.
+    expect(screen.queryByTestId('leyenda-ruta-disponible')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('leyenda-ruta-sin-seleccion')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+  it('volver a elegir la MISMA escuela reabre la ficha que estaba cerrada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+
+    // Mismo cue, distinto cue no: si la selección no limpiara el estado de
+    // "ficha cerrada", la segunda búsqueda no abriría nada.
+    const ficha = await seleccionarPorBuscador('Escuela 1')
+    expect(ficha).toHaveAttribute('data-cue', CUE)
+  })
+
+  it('el grupo sólo existe con selección viva y ficha cerrada', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    // Sin selección no hay grupo.
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+
+    await seleccionarPorBuscador('Escuela 1')
+    // Con la ficha abierta tampoco: el grupo es para el estado "cerrada".
+    expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    expect(await screen.findByTestId('quitar-seleccion')).toBeInTheDocument()
+    // Ambos botones son botones de verdad, no <div> con onClick.
+    expect(screen.getByTestId('reabrir-ficha').tagName).toBe('BUTTON')
+    expect(screen.getByTestId('reabrir-ficha')).toHaveAttribute('type', 'button')
+    expect(screen.getByTestId('reabrir-ficha')).toHaveAttribute(
+      'aria-label',
+      'Reabrir la ficha de Escuela 1',
+    )
+  })
+
+  it('el shell marca data-ficha-abierta según el estado real de la ficha', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+    const shell = screen.getByTestId('mock-maplibre').closest('.map-shell')
+    expect(shell).toHaveAttribute('data-ficha-abierta', 'false')
+
+    await seleccionarPorBuscador('Escuela 1')
+    await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'true'))
+
+    await userEvent.click(screen.getByText('cerrar-ficha'))
+    // Cerrada con selección viva: el atributo dice "false" pero el grupo
+    // sigue — es lo que permite al CSS correr los controles de capas.
+    await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'false'))
+    expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
+  })
+
+  it('elegir una escuela en el buscador cierra el cajón izquierdo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    const cajon = document.getElementById('infra-left-stack')
+    expect(cajon).toHaveAttribute('data-open', 'false')
+
+    // En <= 720px el cajón es un overlay fijo z-index 20 que tapa la ficha
+    // (z-index 4): elegir una escuela desde el buscador sin cerrarlo hacía
+    // parecer que la selección se deshecía sola.
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuelas' }))
+    expect(cajon).toHaveAttribute('data-open', 'true')
+
+    await seleccionarPorBuscador('Escuela 1')
+
+    expect(cajon).toHaveAttribute('data-open', 'false')
+    expect(await screen.findByTestId('mock-ficha-modal')).toBeInTheDocument()
+  })
+
+  it('la leyenda de accesos va antes de "Indicadores consolidados"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    // La leyenda explica las capas territoriales y cambia con la selección: al
+    // final del panel quedaba empujada debajo del pliegue de indicadores y el
+    // usuario nunca la veía.
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Dificultad de acceso por caminos (0 a 3)' }),
+    )
+
+    const leyenda = await screen.findByTestId('leyenda-aislamiento')
+    const indicadores = screen.getByText('Indicadores consolidados')
+    expect(
+      leyenda.compareDocumentPosition(indicadores) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+})
+
+// Q3: encuadre de la ruta de acceso. Elegir una escuela vuela a zoom 14 sobre
+// ella, así que una ruta de decenas de kilómetros quedaba como un trazo
+// vertical de un píxel: el mapa nunca encuadraba el recorrido que la ficha
+// acaba de describir. Estos tests fijan las tres respuestas que el
+// componente tiene que dar: encuadrar cuando la geometría llega, encuadrar
+// cuando el usuario lo pide explícitamente, y NO encuadrar cuando no hay
+// nada que encuadrar.
+describe('Q3: encuadre de la ruta de acceso', () => {
+  it('al elegir una escuela encuadra la ruta una sola vez, con el padding del viewport', async () => {
+    viewport(1440, 900)
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+
+    // Un único encuadre: el de la ruta que acaba de llegar.
+    expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1)
+    const [bbox, opciones] = FIT_BOUNDS_MOCK.mock.calls[0]
+    // El bbox es el de la geometría del doble ([-58.83,-27.47] → [-58.8,-27.5]).
+    expect(bbox).toEqual([
+      [-58.83, -27.5],
+      [-58.8, -27.47],
+    ])
+    // Con la ficha abierta, el padding deja libre la columna izquierda (400)
+    // y la ficha, su toggle y el margen derecho (574px): la ruta queda en la
+    // franja que el usuario realmente ve.
+    expect(opciones).toEqual({
+      padding: { top: 60, bottom: 60, left: 400, right: 574 },
+      duration: 700,
+    })
+  })
+
+  it('no encuadra una geometría que es de otra escuela (respuesta tarde)', async () => {
+    // El doble devuelve geometría de OTRO cue que la que se acaba de elegir:
+    // es la carrera entre el pedido y una selección nueva. Encadrarla dejaría
+    // al usuario mirando la ruta de la escuela anterior.
+    estadoGeometria.cueForzado = '1801605-00'
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+
+    expect(FIT_BOUNDS_MOCK).not.toHaveBeenCalled()
+    // El vuelo a la escuela se mantiene: es la respuesta honesta.
+    expect(FLY_TO_MOCK).toHaveBeenCalledWith(
+      expect.objectContaining({ center: [-58.83, -27.47] }),
+    )
+  })
+
+  it('sin ruta disponible no encuadra nada y deja el vuelo a la escuela', async () => {
+    estadoGeometria.disponible = false
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await seleccionarPorBuscador('Escuela 1')
+
+    expect(FIT_BOUNDS_MOCK).not.toHaveBeenCalled()
+    expect(FLY_TO_MOCK).toHaveBeenCalled()
+  })
+
+  it('con la capa de ruta apagada no se pide geometría ni se encuadra', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    await userEvent.click(casilla)
+    await seleccionarPorBuscador('Escuela 1')
+
+    // La capa apagada significa "no me muestres la ruta": ni geometría ni
+    // encuadre. El vuelo a la escuela es lo que corresponde.
+    expect(casilla).not.toBeChecked()
+    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
+    expect(FIT_BOUNDS_MOCK).not.toHaveBeenCalled()
+  })
+
+  it('"Ver recorrido" encuadra al instante con la ruta ya encendida', async () => {
+    viewport(1440, 900)
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await seleccionarPorBuscador('Escuela 1')
+    // Se descarta el encuadre automático de la selección para verificar sólo
+    // el del botón.
+    FIT_BOUNDS_MOCK.mockClear()
+
+    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+
+    expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1)
+    expect(FIT_BOUNDS_MOCK).toHaveBeenCalledWith(
+      [
+        [-58.83, -27.5],
+        [-58.8, -27.47],
+      ],
+      {
+        padding: { top: 60, bottom: 60, left: 400, right: 574 },
+        duration: 600,
+      },
+    )
+    // En pantalla ancha la ficha es un panel lateral que no tapa la ruta: se
+    // queda abierta.
+    expect(screen.getByTestId('mock-ficha-modal')).toBeInTheDocument()
+  })
+
+  it('"Ver recorrido" con la ruta apagada enciende la capa y encuadra cuando llega', async () => {
+    viewport(1440, 900)
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await seleccionarPorBuscador('Escuela 1')
+
+    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    await userEvent.click(casilla)
+    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
+    FIT_BOUNDS_MOCK.mockClear()
+
+    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+
+    expect(casilla).toBeChecked()
+    await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
+  })
+
+  it('"Ver recorrido" en pantalla angosta cierra la ficha y conserva la selección', async () => {
+    viewport(500, 900)
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await seleccionarPorBuscador('Escuela 1')
+
+    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    await userEvent.click(casilla)
+    FIT_BOUNDS_MOCK.mockClear()
+
+    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+
+    // La hoja inferior tapaba la ruta entera, así que se cierra… pero la
+    // selección vive: el grupo flotante devuelve la ficha.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
+    expect(casilla).toBeChecked()
+    await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
+  })
+
+  it('"Quitar selección" limpia el aviso de la escuela sin ubicación', async () => {
+    const ESCUELA_SIN_UBICACION: EscuelaMapa = {
+      cueAnexo: '1801605-77',
+      nombre: 'Escuela del interior',
+      departamento: 'Empedrado',
+      localidad: 'Empedrado',
+      lat: null,
+      lon: null,
+      estado: 'sin_afectacion_reportada',
+    }
+    // Array NUEVO en vez de `push` sobre el padrón compartido: `buscarEscuelas`
+    // indexa el padrón en un WeakMap POR IDENTIDAD de array (para no
+    // renormalizar las ~2000 escuelas en cada tecla), así que mutar el array
+    // estable deja el índice viejo y la escuela recién agregada NUNCA aparece
+    // en los resultados — el buscador responde "Sin resultados".
+    const padronOriginal = FIXTURE_ESCUELAS_MAPA.escuelas
+    FIXTURE_ESCUELAS_MAPA.escuelas = [...padronOriginal, ESCUELA_SIN_UBICACION]
+
+    try {
+      await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+      // El resultado se elige por texto y no por `role="option"`: en este
+      // entorno el popover del combobox queda `data-anchor-hidden` (el ancla
+      // mide 0px dentro del shell inert), o sea fuera del árbol de
+      // accesibilidad, y `getByRole` no lo encuentra aunque el <option>
+      // exista. Es el mismo camino que usa `seleccionarPorBuscador`.
+      const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
+      await userEvent.type(input, 'Escuela del interior')
+      await userEvent.click(await screen.findByText('Escuela del interior'))
+
+      // Antes el handler salía en silencio: ficha nenhuma, explicación
+      // ninguna. Ahora se explica por qué no se puede señalar.
+      const aviso = await screen.findByTestId('aviso-busqueda-sin-ubicacion')
+      expect(aviso).toHaveTextContent('La escuela "Escuela del interior" no tiene ubicación cargada')
+      expect(aviso).toHaveTextContent('se muestra la ficha, pero no se puede señalar en el mapa')
+      expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute(
+        'data-cue',
+        ESCUELA_SIN_UBICACION.cueAnexo,
+      )
+      // Sin punto al que volar: no hay flyTo que finja una señalización.
+      expect(FLY_TO_MOCK).not.toHaveBeenCalled()
+
+      // Con una escuela ubicada el aviso desaparece: no queda pegado.
+      await seleccionarPorBuscador('Escuela 1')
+      expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
+
+      // Y con la ficha cerrada, "Quitar selección" también lo limpia.
+      await userEvent.click(screen.getByText('cerrar-ficha'))
+      await userEvent.click(await screen.findByTestId('quitar-seleccion'))
+      expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
+    } finally {
+      FIXTURE_ESCUELAS_MAPA.escuelas = padronOriginal
+    }
+  })
+})
+
+// Q3: los íconos de las capas territoriales (aislamiento, inundación y cruces
+// de agua) se dibujan ENCIMA del polígono del departamento y no estaban en
+// `capasInteractivas`: el click caía en el departamento y terminaba
+// filtrando la provincia entera en vez de abrir la escuela del ícono.
+describe('Q3: los íconos territoriales no caen en el departamento', () => {
+  it('clickear el ícono de aislamiento abre esa escuela y no filtra el departamento', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: 'Dificultad de acceso por caminos (0 a 3)' }),
+    )
+
+    await userEvent.click(screen.getByTestId('mock-click-aislamiento'))
+
+    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute('data-cue', CUE)
+    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
+    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+  })
+
+  it('clickear el ícono de inundación abre esa escuela y no filtra el departamento', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /Inundación histórica por desborde de ríos/i }),
+    )
+
+    await userEvent.click(screen.getByTestId('mock-click-inundacion'))
+
+    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute(
+      'data-cue',
+      CUE_SIN_AFECTACION,
+    )
+    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
+    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+  })
+
+  it('clickear un cruce de agua muestra su popup con el matiz del "sin puente"', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-cruce'))
+
+    expect(await screen.findByText('Sin puente registrado')).toBeInTheDocument()
+    // "Sin puente registrado" NO afirma que falte el puente: sólo que OSM no
+    // tiene el tag. El popup lo dice, o el director se lleva una conclusión
+    // equivocada.
+    expect(screen.getByText(/no confirma que falte el puente/i)).toBeInTheDocument()
+    expect(screen.queryByText(/puede no estar cargado en OpenStreetMap/i)).toBeInTheDocument()
+    // Un cruce es un dato, no una selección: no abre ficha ni filtra.
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+
+    // Cualquier otro clic lo cierra (mismo criterio que el popup de
+    // departamento).
+    await userEvent.click(screen.getByTestId('mock-click-parte'))
+    await waitFor(() => expect(screen.queryByText('Sin puente registrado')).not.toBeInTheDocument())
+  })
+})
+
+// Q3: el padding de `fitBounds` se calcula desde el viewport y desde lo que
+// tapa el mapa. Estos tests son sobre la función pura: los tres regímenes del
+// CSS (columna + panel lateral, columna + hoja inferior, sólo hoja inferior
+// alta) y el recorte que evita que MapLibre se quede sin caja para el bbox.
+describe('paddingEncuadre', () => {
+  async function paddingEncuadre() {
+    const mod = await import('./map-infraestructura-page')
+    return mod.paddingEncuadre
+  }
+
+  it('por encima de 1080px deja libre la columna izquierda y el panel de la ficha', async () => {
+    viewport(1440, 900)
+    const calcular = await paddingEncuadre()
+
+    expect(calcular(true)).toEqual({ top: 60, bottom: 60, left: 400, right: 574 })
+    // Sin ficha el mismo encuadre no descuenta el panel derecho.
+    expect(calcular(false)).toEqual({ top: 60, bottom: 60, left: 400, right: 356 })
+  })
+
+  it('de 721 a 1080px la ficha es hoja inferior: el padding va abajo', async () => {
+    viewport(1024, 768)
+    const calcular = await paddingEncuadre()
+
+    // 768 * 0.55 = 422, más los 60 base.
+    expect(calcular(true)).toEqual({ top: 60, bottom: 482, left: 400, right: 356 })
+  })
+
+  it('hasta 720px desaparece la columna izquierda y la hoja es más alta', async () => {
+    viewport(500, 800)
+    const calcular = await paddingEncuadre()
+
+    // 800 * 0.6 = 480, más los 60 base; sin columna a la izquierda.
+    expect(calcular(true)).toEqual({ top: 60, bottom: 540, left: 60, right: 60 })
+    expect(calcular(false)).toEqual({ top: 60, bottom: 60, left: 60, right: 60 })
+  })
+
+  it('recorta en proporción cuando la ficha lateral no deja caja horizontal', async () => {
+    // 1100px: columna (400) + ficha, toggle y margen (574) = 974 contra el tope del
+    // 80% (880). Se achica el par, no cada lado por su cuenta.
+    viewport(1100, 900)
+    const calcular = await paddingEncuadre()
+
+    const padding = calcular(true)
+    const { left = 0, right = 0 } = padding
+    expect(left + right).toBe(880)
+    expect(padding).toEqual({ top: 60, bottom: 60, left: 361, right: 519 })
+  })
+
+  it('recorta en proporción cuando la hoja inferior no deja caja vertical', async () => {
+    // 200px de alto: la hoja (55% = 110) + 60 base supera el tope del 80%
+    // (160). MapLibre lanzaría con el padding sin recortar.
+    viewport(1024, 200)
+    const calcular = await paddingEncuadre()
+
+    const padding = calcular(true)
+    const { top = 0, bottom = 0 } = padding
+    expect(top + bottom).toBe(160)
+    expect(padding).toEqual({ top: 42, bottom: 118, left: 400, right: 356 })
   })
 })

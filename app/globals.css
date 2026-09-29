@@ -1909,6 +1909,20 @@ time {
   border-radius: var(--r-sm);
 }
 .map-ficha-panel__cerrar:hover { background: var(--fill); }
+/* Hasta 1080px no hay ancho para una columna lateral de 400px junto a los
+   controles. La ficha pasa a ser una hoja inferior, anclada abajo y con
+   `max-height`, que no se superpone nunca a `.map-controls-stack` (arriba a la
+   derecha) ni a los toggles de mobile. */
+@media (max-width: 1080px) {
+  .map-ficha-panel {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-height: 55vh;
+  }
+}
 @media (max-width: 720px) {
   .map-ficha-panel {
     top: auto;
@@ -1916,9 +1930,40 @@ time {
     right: 0;
     bottom: 0;
     width: 100%;
-    max-height: 80vh;
+    max-height: 60vh;
     border-radius: var(--r-sm) var(--r-sm) 0 0;
   }
+}
+
+/* Bloques de ayuda desplegables (`<details>` nativo) de la ficha y de la
+   leyenda de accesos. Abajo del todo de la ficha, sin caja ni fondo propio: son
+   texto de referencia (de dónde sale el dato, qué significa el índice) y
+   compiten por altura con el contenido. El `summary` hereda la escala chica
+   para que se lea como un enlace, no como un encabezado de sección. */
+.ficha-territorial__ayuda,
+.ayuda-leyenda { margin-top: 0.35rem; }
+.ficha-territorial__ayuda > summary,
+.ayuda-leyenda > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--t-small);
+}
+.ficha-territorial__ayuda p,
+.ayuda-leyenda p,
+.ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
+
+/* Acciones de una selección viva con la ficha cerrada ("Ver ficha" /
+   "Quitar selección"). Flotan centradas en el borde inferior, fuera del camino
+   de los toggles: en desktop no chocan con nada porque la ficha abierta
+   (cuando existe) es la que ocupa la derecha. */
+.map-seleccion-acciones {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 5;
+  display: flex;
+  gap: var(--s-2);
 }
 
 .map-departamento-seleccionado {
@@ -2074,6 +2119,28 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   width: min(17.5rem, calc(100vw - 24px));
 }
 
+/* Con la ficha abierta, el control de base/capas se corría a la izquierda de
+   la hoja: sin esto quedaba debajo de ella (ficha z-index 4 > stack z-index
+   3) y no se podía tocar ninguna capa sin cerrar la ficha. El `right` es el
+   ancho de la ficha más sus 12px de offset lateral más 12px de separación.
+   Sólo desktop: hasta 1080px la ficha es una hoja inferior (ver más abajo el
+   media query) y nunca se superpone a los controles. */
+@media (min-width: 1081px) {
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack {
+    right: calc(min(400px, 100vw - 24px) + 24px);
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
+    display: none;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
+    display: inline-flex;
+    right: calc(min(400px, 100vw - 24px) + 24px);
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
+    top: 52px;
+  }
+}
+
 /* Contraparte de .map-left-stack-toggle para el panel de base/capas (T1.3
    extendido): oculto por defecto, sólo el media query de 720px lo muestra. En
    mobile este panel arranca colapsado en este botón chico arriba a la
@@ -2113,6 +2180,21 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-emphasis { font-weight: 600; color: var(--ink); }
 .map-legend-item { display: flex; align-items: flex-start; gap: var(--s-1); margin: 3px 0; }
 .map-legend-item svg { flex-shrink: 0; margin-top: 2px; }
+/* Leyenda territorial del mapa de accesos: los tres bloques (aislamiento,
+   inundación, ruta) viven en UNA tarjeta opaca en vez de sueltos sobre el
+   mapa. `styles.panel` (.map-panel) ya aporta fondo, borde y sombra, y dentro
+   de `.map-left-stack` la regla `.map-left-stack > .map-panel` la devuelve al
+   flujo; acá sólo se ajusta el interior: los bloques se separan con una línea
+   y las filas se aprietan, porque la columna es angosta y con las tres capas
+   prendidas el texto tiene que caber sin scrollear. Los `img` de los íconos
+   fijan su caja para que el data URI no estire la fila.
+   El `cursor: pointer` del `<summary>` ya lo da `.ayuda-leyenda > summary`. */
+.map-leyenda-accesos { display: flex; flex-direction: column; gap: var(--s-2); }
+.map-leyenda-accesos > * + * { border-top: 1px solid var(--line); padding-top: var(--s-2); }
+.map-leyenda-accesos .map-legend-item-stack { margin: 0; }
+.map-leyenda-accesos .map-legend-item { gap: 0.4rem; line-height: 1.3; }
+.map-leyenda-accesos img { width: 18px; height: 18px; flex: none; }
+.map-leyenda-accesos .map-hint { line-height: 1.35; }
 .peligro-legend__provisorio {
   display: flex;
   align-items: center;
@@ -2389,6 +2471,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
      dejar libre la esquina del ícono "i" sin que ningún control se pise. */
   .map-fullscreen-btn,
   .map-left-stack-toggle { bottom: 46px; }
+
+  .map-shell[data-ficha-abierta="true"] .map-left-stack-toggle,
+  .map-shell[data-ficha-abierta="true"] .map-fullscreen-btn {
+    bottom: calc(60vh + 12px);
+  }
+
+  /* `.map-seleccion-acciones` se sube a 96px para pasar por encima del toggle
+     "Buscar escuelas" (bottom: 46px) y del AttributionControl, que en 390px
+     ocupan la franja inferior. */
+  .map-seleccion-acciones { bottom: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
