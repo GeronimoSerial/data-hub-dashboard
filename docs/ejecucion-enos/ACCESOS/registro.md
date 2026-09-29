@@ -85,3 +85,9 @@ escuelas con parte obtenía un punto.
    ```
    node scripts/importar-geo-static.mjs --aislamiento <csv> --geometria <ndjson.gz>
    ```
+
+## Actualización — exactitud geográfica (job v2)
+
+La corrida descrita arriba es `version_job` 1 (snap al nodo, red sin `track`/`service`, centroide proxy como cabecera). La auditoría de exactitud
+(16 escuelas sin ruta, 7 coordenadas del padrón fuera de su departamento, cabeceras desplazadas hasta 55 km, snap al nodo) y la corrida
+`version_job` 2 están en `docs/ejecucion-enos/ACCESOS/exactitud-geo.md`. Los archivos `v1` se conservan como «antes».
