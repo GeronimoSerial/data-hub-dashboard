@@ -9,33 +9,22 @@ import type {
   ResultadoBriefingAsistido,
 } from './generar-briefing-asistido'
 import type { CorteSituacion, PuertoCorteSituacion } from './puertos'
+import { corteSituacionBase } from './test-utils/corte-fixture'
 import type { ResultadoProveedorIA } from './proveedor-openrouter'
 import type { BriefingPersistido, DatosNuevoBriefing } from './repositorio'
 import type { SalidaBriefingIA } from './esquema'
 
 const FECHA_FIJA = new Date('2026-09-20T12:00:00.000Z')
 
-// Crea un CorteSituacion con valores por defecto razonables, permitiendo
-// pisar cualquier campo puntualmente.
-function crearCorte(overrides: Partial<CorteSituacion> = {}): CorteSituacion {
-  const base: CorteSituacion = {
-    id: 'corte-1',
-    generadoEn: '2026-09-20T00:00:00.000Z',
-    riskRunId: null,
-    cobertura: null,
-    conteosPorNivelRiesgo: { alto: 10, bajo: 5 },
-    kpis: {
-      escuelasAfectacionConfirmadaVigente: 3,
-      escuelasRiesgoAlto24h: 7,
-      fuentesVencidas: 1,
-    },
-    fuentesSalud: [],
-    episodiosAbiertos: 0,
-    episodiosCerradosDesdeAnterior: 0,
-    generadoPorJobRunId: null,
-    creadaEn: '2026-09-20T00:00:00.000Z',
-  }
-  return { ...base, ...overrides }
+const CORTE_DEFAULTS: Partial<CorteSituacion> = {
+  generadoEn: '2026-09-20T00:00:00.000Z',
+  creadaEn: '2026-09-20T00:00:00.000Z',
+  conteosPorNivelRiesgo: { alto: 10, bajo: 5 },
+  kpis: {
+    escuelasAfectacionConfirmadaVigente: 3,
+    escuelasRiesgoAlto24h: 7,
+    fuentesVencidas: 1,
+  },
 }
 
 // Puerto fake en memoria. obtenerCorteAnterior ignora el parámetro recibido
@@ -96,7 +85,7 @@ function crearOpciones(
   overrides: Partial<OpcionesBriefingAsistido> = {},
 ): OpcionesBriefingAsistido {
   return {
-    puerto: crearPuertoFake(crearCorte(), crearCorte({ id: 'corte-0' })),
+    puerto: crearPuertoFake(corteSituacionBase(CORTE_DEFAULTS), corteSituacionBase({ ...CORTE_DEFAULTS, id: 'corte-0' })),
     ahora: FECHA_FIJA,
     presupuestoUsdMes: 5,
     reservarPresupuesto: async () => ({ reservado: true, mes: '2026-09-01T00:00:00.000Z' }),
@@ -162,7 +151,8 @@ describe('generarBriefingAsistido', () => {
   })
 
   it('corte vacío con IA citando métricas en cero persiste fuente ia', async () => {
-    const corteVacio = crearCorte({
+    const corteVacio = corteSituacionBase({
+      ...CORTE_DEFAULTS,
       cobertura: null,
       conteosPorNivelRiesgo: {},
       kpis: {
@@ -192,12 +182,14 @@ describe('generarBriefingAsistido', () => {
   })
 
   it('corte con cambios cita la métrica de nivel alto con su valor actual', async () => {
-    const actual = crearCorte({
+    const actual = corteSituacionBase({
+      ...CORTE_DEFAULTS,
       id: 'corte-actual',
       generadoEn: '2026-09-20T00:00:00.000Z',
       conteosPorNivelRiesgo: { alto: 50, bajo: 5 },
     })
-    const anterior = crearCorte({
+    const anterior = corteSituacionBase({
+      ...CORTE_DEFAULTS,
       id: 'corte-anterior',
       generadoEn: '2026-09-19T00:00:00.000Z',
       conteosPorNivelRiesgo: { alto: 2, bajo: 5 },
@@ -220,14 +212,15 @@ describe('generarBriefingAsistido', () => {
   })
 
   it('corte con fuente vencida cita fuentes.vencidas_conteo', async () => {
-    const corte = crearCorte({
+    const corte = corteSituacionBase({
+      ...CORTE_DEFAULTS,
       fuentesSalud: [
         { provider: 'proveedor-a', estado: 'ok', frescuraMinutos: 10, vencida: true },
       ],
     })
 
     const { resultado, guardados } = await ejecutar({
-      puerto: crearPuertoFake(corte, crearCorte()),
+      puerto: crearPuertoFake(corte, corteSituacionBase(CORTE_DEFAULTS)),
       generarConIA: async () =>
         respuestaIA({
           contenido: contenidoJson([
@@ -401,7 +394,7 @@ describe('generarBriefingAsistido', () => {
   // fallando, para verificar que el fallback determinista se arma igual.
   it('primer corte sin anterior arma el fallback plantilla correctamente', async () => {
     const { resultado, guardados } = await ejecutar({
-      puerto: crearPuertoFake(crearCorte(), null),
+      puerto: crearPuertoFake(corteSituacionBase(CORTE_DEFAULTS), null),
       generarConIA: async () =>
         respuestaIA({ ok: false, contenido: null, motivoFallo: 'http_error' }),
     })

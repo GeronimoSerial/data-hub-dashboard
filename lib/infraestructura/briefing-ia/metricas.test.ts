@@ -1,32 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { derivarMetricasAutorizadas, mapaMetricasPorId } from './metricas'
-import type { CorteSituacion } from './puertos'
-
-function crearCorte(parcial: Partial<CorteSituacion> = {}): CorteSituacion {
-  return {
-    id: 'corte-1',
-    generadoEn: '2026-09-27T06:00:00Z',
-    riskRunId: null,
-    cobertura: null,
-    conteosPorNivelRiesgo: {},
-    kpis: {
-      escuelasAfectacionConfirmadaVigente: 0,
-      escuelasRiesgoAlto24h: 0,
-      fuentesVencidas: 0,
-    },
-    fuentesSalud: [],
-    episodiosAbiertos: 0,
-    episodiosCerradosDesdeAnterior: 0,
-    generadoPorJobRunId: null,
-    creadaEn: '2026-09-27T06:00:00Z',
-    ...parcial,
-  }
-}
+import { corteSituacionBase } from './test-utils/corte-fixture'
 
 describe('derivarMetricasAutorizadas', () => {
   it('corte con cobertura null omite las métricas de cobertura', () => {
     const metricas = derivarMetricasAutorizadas(
-      crearCorte({ conteosPorNivelRiesgo: { alto: 2 } }),
+      corteSituacionBase({ conteosPorNivelRiesgo: { alto: 2 } }),
     )
 
     expect(metricas.some((metrica) => metrica.id.startsWith('cobertura.'))).toBe(false)
@@ -34,14 +13,14 @@ describe('derivarMetricasAutorizadas', () => {
   })
 
   it('corte con conteosPorNivelRiesgo vacío no aporta métricas de nivel', () => {
-    const metricas = derivarMetricasAutorizadas(crearCorte())
+    const metricas = derivarMetricasAutorizadas(corteSituacionBase())
 
     expect(metricas.some((metrica) => metrica.id.startsWith('nivel.'))).toBe(false)
   })
 
   it('orden determinista y alfabético en las claves dinámicas', () => {
     const metricas = derivarMetricasAutorizadas(
-      crearCorte({
+      corteSituacionBase({
         cobertura: { departamentos: 10, escuelas: 50, secciones: 5 },
         conteosPorNivelRiesgo: { muy_alto: 3, bajo: 7, alto: 2 },
       }),
@@ -66,7 +45,7 @@ describe('derivarMetricasAutorizadas', () => {
 
   it('nunca incluye provider ni estado de fuentesSalud en ids o etiquetas', () => {
     const metricas = derivarMetricasAutorizadas(
-      crearCorte({
+      corteSituacionBase({
         fuentesSalud: [
           { provider: 'smn', estado: 'degradado', frescuraMinutos: 90, vencida: true },
           { provider: 'ign', estado: 'ok', frescuraMinutos: 5, vencida: false },
@@ -83,7 +62,7 @@ describe('derivarMetricasAutorizadas', () => {
   })
 
   it('dos llamadas con el mismo input devuelven exactamente el mismo array', () => {
-    const corte = crearCorte({
+    const corte = corteSituacionBase({
       cobertura: { escuelas: 50 },
       conteosPorNivelRiesgo: { alto: 2, muy_alto: 1 },
     })
@@ -94,7 +73,7 @@ describe('derivarMetricasAutorizadas', () => {
 
 describe('mapaMetricasPorId', () => {
   it('indexa cada métrica por su id', () => {
-    const corte = crearCorte({
+    const corte = corteSituacionBase({
       kpis: {
         escuelasAfectacionConfirmadaVigente: 4,
         escuelasRiesgoAlto24h: 9,

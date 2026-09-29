@@ -1,9 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraMovimiento, infraParte, infraServicioAlcance } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import {
@@ -16,20 +14,9 @@ import {
 
 const CUE = '1801605-31'
 
-let dir: string
-let prevDataDir: string | undefined
-let prevAdminEmail: string | undefined
-let prevAdminPassword: string | undefined
+usarDbTemporal('parte-consulta', { seed: false, env: { ADMIN_EMAIL: undefined, ADMIN_PASSWORD: undefined } })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'parte-consulta-'))
-  prevDataDir = process.env.DATA_DIR
-  prevAdminEmail = process.env.ADMIN_EMAIL
-  prevAdminPassword = process.env.ADMIN_PASSWORD
-  process.env.DATA_DIR = dir
-  delete process.env.ADMIN_EMAIL
-  delete process.env.ADMIN_PASSWORD
-
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   await client.execute(
@@ -58,16 +45,6 @@ beforeAll(async () => {
   }
 
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL
-  else process.env.ADMIN_EMAIL = prevAdminEmail
-  if (prevAdminPassword === undefined) delete process.env.ADMIN_PASSWORD
-  else process.env.ADMIN_PASSWORD = prevAdminPassword
-  rmSync(dir, { recursive: true, force: true })
 })
 
 describe('obtenerPeriodoVigente', () => {

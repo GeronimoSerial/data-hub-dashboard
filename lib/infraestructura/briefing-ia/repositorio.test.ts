@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import { infraBriefing, infraSituacionCorte } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { corteSituacionBase } from './test-utils/corte-fixture'
 import type { DatosNuevoBriefing } from './repositorio'
 import {
   insertarBriefingSiNoExiste,
@@ -26,23 +27,11 @@ beforeEach(async () => {
 // mergeada): cada corteId usado en un test necesita su fila mínima antes de
 // insertar el briefing, o la FK rechaza el insert.
 async function crearCorte(id: string): Promise<void> {
-  await getDb().insert(infraSituacionCorte).values({
+  await getDb().insert(infraSituacionCorte).values(corteSituacionBase({
     id,
     generadoEn: '2026-01-01T00:00:00.000Z',
-    riskRunId: null,
-    cobertura: null,
-    conteosPorNivelRiesgo: {},
-    kpis: {
-      escuelasAfectacionConfirmadaVigente: 0,
-      escuelasRiesgoAlto24h: 0,
-      fuentesVencidas: 0,
-    },
-    fuentesSalud: [],
-    episodiosAbiertos: 0,
-    episodiosCerradosDesdeAnterior: 0,
-    generadoPorJobRunId: null,
     creadaEn: '2026-01-01T00:00:00.000Z',
-  })
+  }))
 }
 
 function datos(

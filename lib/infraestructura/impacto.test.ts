@@ -1,26 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '../db'
 import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { calcularImpactoSecciones, obtenerCorteYSeccionesDeAfectacion } from './impacto'
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), 'impacto-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-})
-
-afterEach(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('impacto', { seed: false })
 
 // DB1/F2: GE vive en el schema `ge` de la base PGlite compartida, así que cada
 // test limpia sus tablas y vuelve a sembrar (antes cada test abría su ge.sqlite).

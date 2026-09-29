@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '../db'
 import { infraAfectacion, infraAfectacionSeccion, infraParte } from '../db/schema'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
@@ -14,24 +12,18 @@ import {
   listarIdentidadesPorPersonas,
 } from './identidad'
 
-let dir: string
-let prevDataDir: string | undefined
 let prevKey: string | undefined
 
+usarDbTemporal('identidad', { seed: false })
+
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), 'identidad-'))
-  prevDataDir = process.env.DATA_DIR
   prevKey = process.env.NOMINAL_ENCRYPTION_KEY
-  process.env.DATA_DIR = dir
   process.env.NOMINAL_ENCRYPTION_KEY = randomBytes(32).toString('base64')
 })
 
 afterEach(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
   if (prevKey === undefined) delete process.env.NOMINAL_ENCRYPTION_KEY
   else process.env.NOMINAL_ENCRYPTION_KEY = prevKey
-  rmSync(dir, { recursive: true, force: true })
 })
 
 describe('cifrarIdentidad', () => {

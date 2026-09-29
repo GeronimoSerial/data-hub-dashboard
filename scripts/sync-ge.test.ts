@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from '../lib/infraestructura/ge-db'
 import { getRawClient } from '../lib/db'
 import {
@@ -13,8 +11,7 @@ import {
   upsertLocalizaciones,
 } from './sync-ge.mjs'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('sync-ge', { seed: false })
 
 // DB1/F2: GE ya no es un ge.sqlite por test, sino el schema `ge` de la base
 // PGlite compartida por todo el archivo; cada test limpia sus tablas para
@@ -28,18 +25,7 @@ async function resetGe(): Promise<void> {
   await client.execute('DELETE FROM ge.ge_corte')
 }
 
-beforeEach(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'sync-ge-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-  await resetGe()
-})
-
-afterEach(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+beforeEach(resetGe)
 
 describe('parseLocalizacionesJson', () => {
   it('extrae registros validos y descarta cues invalidos', () => {

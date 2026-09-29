@@ -1,20 +1,12 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { getDb, getRawClient } from '@/lib/db'
-import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import {
-  infraAfectacion,
-  infraAfectacionAlumno,
-  infraAfectacionSeccion,
-  infraParte,
-  infraServicioAlcance,
-} from '@/lib/db/schema'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { getRawClient } from '@/lib/db'
+import { ensureSeeded } from '@/lib/db/seed'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
 import { listarEscuelasMapa, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
+import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
 // tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
@@ -28,10 +20,7 @@ vi.mock('./parte-consulta', async (importOriginal) => {
   }
 })
 
-let dir: string
-let prevDataDir: string | undefined
-let prevAdminEmail: string | undefined
-let prevAdminPassword: string | undefined
+usarDbTemporal('parte-mapa', { seed: false, env: { ADMIN_EMAIL: undefined, ADMIN_PASSWORD: undefined } })
 
 // Corte "vigente" del fixture: 10 CUEs, cada uno con 2 secciones (mañana con
 // 3 alumnos, tarde con 2 alumnos), suficiente para ejercitar servicio
@@ -77,105 +66,9 @@ async function sembrarGe(): Promise<void> {
 }
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'parte-mapa-'))
-  prevDataDir = process.env.DATA_DIR
-  prevAdminEmail = process.env.ADMIN_EMAIL
-  prevAdminPassword = process.env.ADMIN_PASSWORD
-  process.env.DATA_DIR = dir
-  delete process.env.ADMIN_EMAIL
-  delete process.env.ADMIN_PASSWORD
-
   await sembrarGe()
   await ensureSeeded()
 })
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL
-  else process.env.ADMIN_EMAIL = prevAdminEmail
-  if (prevAdminPassword === undefined) delete process.env.ADMIN_PASSWORD
-  else process.env.ADMIN_PASSWORD = prevAdminPassword
-  rmSync(dir, { recursive: true, force: true })
-})
-
-// Crea un parte "vacío" (sin afectaciones ni servicio) para el CUE indicado
-// y devuelve su id, para que cada test agregue encima sólo lo que necesita.
-async function crearParte(cue: string, corteId = 1): Promise<string> {
-  const db = getDb()
-  const id = crypto.randomUUID()
-  const ahora = new Date().toISOString()
-  await db.insert(infraParte).values({
-    id,
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    cueAnexo: cue,
-    estadoEstablecimiento: 'habitual',
-    estadoEstablecimientoRigeDesde: ahora,
-    corteId,
-    creadaEn: ahora,
-    actualizadaEn: ahora,
-  })
-  return id
-}
-
-async function crearAfectacion(params: {
-  parteId: string
-  motivo?: string
-  categoria?: 'establecimiento' | 'alumnos'
-  severidad?: 'Baja' | 'Media' | 'Alta' | 'Crítica'
-  descripcion?: string | null
-  rigeDesde?: string
-  retiradaEn?: string | null
-  secciones: number[]
-  alumnos?: number[]
-}): Promise<string> {
-  const db = getDb()
-  const id = crypto.randomUUID()
-  const ahora = new Date().toISOString()
-  await db.insert(infraAfectacion).values({
-    id,
-    parteId: params.parteId,
-    motivo: params.motivo ?? 'Inundación',
-    categoria: params.categoria ?? 'establecimiento',
-    severidad: params.severidad ?? 'Alta',
-    descripcion: params.descripcion ?? null,
-    rigeDesde: params.rigeDesde ?? ahora,
-    creadaEn: ahora,
-    retiradaEn: params.retiradaEn ?? null,
-  })
-  if (params.secciones.length > 0) {
-    await db
-      .insert(infraAfectacionSeccion)
-      .values(params.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
-  }
-  if (params.alumnos && params.alumnos.length > 0) {
-    await db
-      .insert(infraAfectacionAlumno)
-      .values(params.alumnos.map((gePersonId) => ({ afectacionId: id, gePersonId })))
-  }
-  return id
-}
-
-async function crearServicioAlcance(params: {
-  parteId: string
-  tipo: 'establecimiento' | 'turno' | 'seccion'
-  referenciaId?: string | null
-  estado: 'normal' | 'suspendido'
-  rigeDesde?: string
-}): Promise<void> {
-  const db = getDb()
-  const ahora = new Date().toISOString()
-  await db.insert(infraServicioAlcance).values({
-    id: crypto.randomUUID(),
-    parteId: params.parteId,
-    tipo: params.tipo,
-    referenciaId: params.referenciaId ?? null,
-    estado: params.estado,
-    rigeDesde: params.rigeDesde ?? ahora,
-    creadaEn: ahora,
-    retiradaEn: null,
-  })
-}
 
 describe('listarPartesVigentes', () => {
   it('filtra un departamento del GeoJSON aunque GE use mayúsculas y tildes distintas', async () => {

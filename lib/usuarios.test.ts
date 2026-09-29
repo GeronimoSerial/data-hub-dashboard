@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from './acl'
 import {
   LAST_ADMIN_ERROR,
@@ -246,21 +244,11 @@ describe('authApiError', () => {
 // Base seedeada real (mismo patrón que lib/db/seed.test.ts): getDb() memoiza
 // la conexión a nivel de módulo, así que aislamos con un DATA_DIR propio.
 describe('recursoIds contra la base', () => {
-  let dir: string
-  let prevDataDir: string | undefined
+  usarDbTemporal('usuarios-recursos', { seed: false })
 
   beforeAll(async () => {
-    dir = mkdtempSync(path.join(tmpdir(), 'usuarios-recursos-'))
-    prevDataDir = process.env.DATA_DIR
-    process.env.DATA_DIR = dir
     const { ensureSeeded } = await import('./db/seed')
     await ensureSeeded()
-  })
-
-  afterAll(() => {
-    if (prevDataDir === undefined) delete process.env.DATA_DIR
-    else process.env.DATA_DIR = prevDataDir
-    rmSync(dir, { recursive: true, force: true })
   })
 
   it('unknownRecursoIds is empty for an empty list', async () => {
