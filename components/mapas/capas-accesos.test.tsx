@@ -7,6 +7,7 @@ import type {
   GeometriaAccesoRespuesta,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
+import { CAPA_CELDAS_EXPOSICION_ID } from '@/lib/mapas/exposicion-ruta-capas'
 import { COLOR_RUTA_ACCESO, TEXTOS_ACCESOS, textoConPeriodo } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import {
@@ -95,6 +96,11 @@ const fcCruces = (): GeoJSON.FeatureCollection => ({
     },
   ],
 })
+
+const fcCeldas: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
+  type: 'FeatureCollection',
+  features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]] }, properties: { profundidadM: 0.5 } }],
+}
 
 const visibles = (activas: CapaAccesos[]): Record<CapaAccesos, boolean> => ({
   aislamiento: activas.includes('aislamiento'),
@@ -249,6 +255,16 @@ describe('CapasAccesosTerritoriales', () => {
     ).toMatchObject({ 'line-color': '#111827' })
   })
 
+  it('monta celdas debajo de la ruta y solo con la ruta seleccionada visible', () => {
+    const { container, rerender } = render(
+      <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles(['rutaSeleccion'])} />,
+    )
+    expect(screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).toHaveAttribute('data-layer-type', 'fill')
+    expect(container.querySelector(`[data-testid="mock-layer-${CAPA_CELDAS_EXPOSICION_ID}"]`)?.parentElement?.nextElementSibling?.querySelector(`[data-testid="mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}"]`)).not.toBeNull()
+    rerender(<CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />)
+    expect(screen.queryByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).not.toBeInTheDocument()
+  })
+
   it('monta los cruces con la ruta, permitiendo solapamiento', () => {
     render(
       <CapasAccesosTerritoriales {...base} visibles={visibles(['rutaSeleccion'])} />,
@@ -394,6 +410,16 @@ describe('LeyendaAccesos — inundación', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — ruta', () => {
+  it('muestra la referencia de celdas únicamente cuando hay celdas en la ruta seleccionada', () => {
+    const { rerender } = renderLeyenda({
+      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
+      geometria: geometriaDisponible, celdasExposicion: fcCeldas,
+    })
+    expect(screen.getByText('Celdas de ~1 km con inundación histórica estimada (no es el trazado de un río)')).toBeInTheDocument()
+    rerender(<LeyendaAccesos visibles={visibles(['rutaSeleccion'])} territorio={territorio} territorioLoading={false} territorioError={null} resumen={resumen} seleccion={{ nombre: 'Escuela Uno' }} geometria={geometriaDisponible} geometriaLoading={false} geometriaError={null} celdasExposicion={null} />)
+    expect(screen.queryByText(/Celdas de ~1 km/)).not.toBeInTheDocument()
+  })
+
   it('sin selección pide elegir una escuela', () => {
     renderLeyenda({ visibles: visibles(['rutaSeleccion']) })
     expect(screen.getByTestId('leyenda-ruta-sin-seleccion')).toHaveTextContent(
