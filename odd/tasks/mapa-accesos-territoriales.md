@@ -52,15 +52,15 @@ commits are work units).
   ACL `verificarAccesoLectura`. Tests. Route: delegated (N3).
 - [x] T4 Radar coverage (API part; map wiring in T5a): radar API returns compact `puntos` for the whole filtered universe; map point layers use
   `puntos` + padrón coordinates instead of page 1 + partes. Tests. Route: delegated (N3).
-- [ ] T5 UI, split into N3 briefs (all delegated, map page edits serialized):
-  - [ ] T5a map page uses radar `puntos` + padrón coordinates (fix coverage).
-  - [ ] T5b pure builders/icons `lib/mapas/accesos-capas.ts` + hooks `use-territorio-mapa`, `use-geometria-acceso`.
-  - [ ] T5c1 `components/mapas/capas-accesos.tsx` (layers + legend) + `AccesosLayerControl`.
-  - [ ] T5d ficha section `ficha-acceso-territorial.tsx` + `FichaParteModal.accesoTerritorial`.
-  - [ ] T5c2 map page wiring (gated by HAZARD_CONTEXT_ENABLED, never in Replay).
-- [ ] T6 Real run: regenerate CSV + geometry from the extract, verify CSV equality, import into demo DB, inspect a
+- [x] T5 UI, split into N3 briefs (all delegated, map page edits serialized):
+  - [x] T5a map page uses radar `puntos` + padrón coordinates (fix coverage).
+  - [x] T5b pure builders/icons `lib/mapas/accesos-capas.ts` + hooks `use-territorio-mapa`, `use-geometria-acceso`.
+  - [x] T5c1 `components/mapas/capas-accesos.tsx` (layers + legend) + `AccesosLayerControl`.
+  - [x] T5d ficha section `ficha-acceso-territorial.tsx` + `FichaParteModal.accesoTerritorial`.
+  - [x] T5c2 map page wiring (gated by HAZARD_CONTEXT_ENABLED, never in Replay).
+- [x] T6 Real run: regenerate CSV + geometry from the extract, verify CSV equality, import into demo DB, inspect a
   school with crossings on the map.
-- [ ] T7 Docs: G1 contract + registro update (provenance, cost, limitations).
+- [x] T7 Docs: G1 contract + registro update (provenance, cost, limitations).
 
 ## Progress / evidence
 - Resumed 2026-09-28 22:20 after Orca restart (N1 msg). PBF resumed from 81 MB; completed 431,636,976 bytes,
@@ -72,5 +72,17 @@ commits are work units).
 - T6 real job running since 22:34 (`systemd-run` unit `enos-job-aislamiento`, heavy lock, log
   `~/.cache/enos-n3/accesos/job-aislamiento.log`).
 
+- T5a `02bc2b1`, T5b `61225e1`, T5c1 `3cc70f7`, T5d `4fc39a2`, T5c2 `dfe9cce`, T8 attribution fix `a8d6060` (all N3,
+  focused vitest re-run by N2). `pnpm lint` 0, `tsc --noEmit` 0, `pnpm build` 0.
+- T6 `ea711ce`: job 1528.7 s, 2001 rows, 1985 with route, crossings 1645 puente / 6 vado / 1373 sin_evidencia, 0 mismatches
+  vs CSV counts. The regenerated CSV differs from the old committed one in 26 rows (index unchanged); the ORIGINAL code
+  (083f569) on the same extract gives a byte-identical CSV (`cmp`), so the old CSV was stale, not a semantic change.
+  Demo `enos-accesos-3206` (isolated PGlite copy `~/orca/demo-data/enos-accesos`): imports 2001/2001 ×3, map shows static
+  layers for the padrón and route+crossings for 1800072-00 (25 crossings: 8 puente, 17 sin evidencia); screenshot
+  `~/orca/demo-data/enos-accesos/captura-ruta-1800072-00.jpeg`.
+- T7 `73ebfa2`: contrato Archivo 3 + `docs/ejecucion-enos/ACCESOS/registro.md`.
+- Full vitest: first run hit the 580 s wrapper under load (4 DB files timed out at 5 s); those 4 files pass alone (16/16).
+
 ## Next step
-T5a/T5b running; then T5c1+T5d, T5c2, T6 verification/import, T7 docs.
+N1 gate/integration. Limitations: 4 padrón schools without location are not in the legend counts; physrisk depth > 0 only
+for 67 schools; route starts at snapped road node.
