@@ -165,9 +165,9 @@ function etiquetaHorizonte(horas: HorizontePeligroPanel): string {
 }
 
 function etiquetaBase(base: BaseNivelPanel): string {
-  if (base === 'ensemble') return 'ensemble'
+  if (base === 'ensemble') return 'conjunto de pronósticos (ensemble)'
   if (base === 'deterministico') return 'determinístico'
-  return 'sin dato de amenaza'
+  return 'Sin dato'
 }
 
 /** El color es refuerzo: el nivel siempre se muestra como texto, nunca sólo color. */
@@ -195,9 +195,9 @@ function etiquetaNivelRiesgo(nivelRiesgo: string): string {
   return nivelRiesgo
 }
 
-// Etiqueta de la dimensión "Acceso". `null` es "sin datos", NUNCA "bajo".
+// Etiqueta de la dimensión "Acceso". `null` es "Sin dato", NUNCA "Bajo".
 function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
-  if (nivel === null) return 'Sin datos de acceso'
+  if (nivel === null) return 'Sin dato'
   if (nivel === 'bajo') return 'Bajo'
   if (nivel === 'moderado') return 'Moderado'
   return 'Alto'
@@ -254,7 +254,7 @@ function TarjetaTendenciaEstacional({
         {formatearFecha(tendencia.validoHasta) ?? tendencia.validoHasta}
       </p>
       <p className="risk-explanation-panel__dato" data-testid="risk-explanation-seasonal-probabilidad">
-        Probabilidad de precipitación por encima del escenario de control:{' '}
+        Probabilidad de lluvia mayor que la del pronóstico base (escenario de control){' '}
         <strong>{textoPorcentaje(tendencia.probabilidadSobreNormal)}</strong> (
         {tendencia.miembrosValidos} de {tendencia.miembrosTotal} miembros del ensamble)
       </p>
@@ -276,7 +276,7 @@ function PanelDepartamento(
 
       {niveles.length === 0 ? (
         <p role="status" data-testid="risk-explanation-sin-datos">
-          Sin datos de peligro para mostrar en este departamento.
+          Sin dato de peligro para mostrar en este departamento.
         </p>
       ) : (
         <ul className="risk-explanation-panel__niveles">
@@ -364,7 +364,7 @@ function PanelEscuela(
       </p>
 
       <p className="risk-explanation-panel__dato" data-testid="risk-explanation-nivel-riesgo">
-        Nivel de riesgo: {nivelRiesgo === null ? 'Sin dato' : etiquetaNivelRiesgo(nivelRiesgo)}
+        Nivel de riesgo pronosticado: {nivelRiesgo === null ? 'Sin dato' : etiquetaNivelRiesgo(nivelRiesgo)}
       </p>
       <p className="risk-explanation-panel__dato" data-testid="risk-explanation-confianza">
         Confianza: {ETIQUETA_CONFIANZA[confianza]}
@@ -380,17 +380,17 @@ function PanelEscuela(
         <section
           className="risk-explanation-panel__acceso"
           data-testid="risk-explanation-acceso"
-          aria-label="Riesgo de acceso"
+          aria-label="Riesgo pronosticado de llegar a la escuela"
         >
           <p className="risk-explanation-panel__subtitulo">
             <strong>Acceso</strong>
           </p>
           <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-nivel">
-            Riesgo de acceso: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
+            Riesgo pronosticado de llegar: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
           </p>
           {riesgoAcceso === null || riesgoAcceso.nivel === null ? (
             <p className="risk-explanation-panel__dato" data-testid="risk-explanation-acceso-sin-dato">
-              Sin datos de acceso
+              Sin dato
             </p>
           ) : (
             <>

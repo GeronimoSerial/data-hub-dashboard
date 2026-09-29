@@ -154,12 +154,12 @@ describe('ReplayPanel', () => {
     const datos = respuestaConCuadros(2)
     datos.siguienteDesde = '2026-01-03T00:00:00Z'
     render(<ReplayPanel {...props({ data: datos })} />)
-    expect(screen.getByText(/supera el máximo de cuadros/i)).toBeInTheDocument()
+    expect(screen.getByText(/supera el máximo de momentos/i)).toBeInTheDocument()
   })
 
   it('sin siguienteDesde no muestra el aviso de ventana truncada', () => {
     render(<ReplayPanel {...props({ data: respuestaConCuadros(2) })} />)
-    expect(screen.queryByText(/supera el máximo de cuadros/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/supera el máximo de momentos/i)).not.toBeInTheDocument()
   })
 
   it('con un resultado sin cuadros no muestra el bloque de timeline y avisa "sin datos"', () => {

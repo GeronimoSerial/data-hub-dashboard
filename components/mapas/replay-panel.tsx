@@ -172,7 +172,7 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
       <p className={styles.hint} role="status" data-testid="replay-indicador-historia">
         {cuadroActual
           ? `Estás viendo historia: ${formatearInstante(cuadroActual.instante)}`
-          : 'Elegí un departamento y una ventana de fechas para empezar el replay.'}
+          : 'Elegí un departamento y un rango de fechas para ver cómo evolucionó la situación (replay).'}
       </p>
 
       <div className="map-replay-panel__seleccion">
@@ -245,7 +245,7 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
 
       {data && totalCuadros === 0 && (
         <p role="status" className={styles.hint} data-testid="replay-sin-cuadros">
-          Sin datos para este período.
+          Sin dato para este período.
         </p>
       )}
 
@@ -293,7 +293,7 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
 
           {data?.siguienteDesde && (
             <p className="map-replay-panel__truncado" role="status">
-              La ventana elegida supera el máximo de cuadros por consulta: se
+              La ventana elegida supera el máximo de momentos por consulta: se
               muestra sólo hasta {formatearInstante(data.siguienteDesde)}.
               Elegí una ventana más corta para ver el resto.
             </p>

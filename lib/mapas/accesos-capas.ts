@@ -84,7 +84,7 @@ export const TEXTOS_ACCESOS = {
     'Cuanto más alto el número, más difícil es llegar: 0 muy baja, 1 baja, 2 media, 3 alta.',
   noRepresentaAcceso:
     'No dice si hoy el camino está cortado, no es un pronóstico y no muestra el estado del edificio. El riesgo de acceso pronosticado está en el modo Radar y la situación de hoy, en los partes.',
-  tituloInundacion: 'Agua estimada en la escuela por crecida de río',
+  tituloInundacion: 'Agua estimada por crecida de río (en la escuela)',
   subtituloInundacion:
     'Metros de agua estimados en el punto de la escuela para una crecida que ocurre, en promedio, una vez cada {periodo} años.',
   queMideInundacion:

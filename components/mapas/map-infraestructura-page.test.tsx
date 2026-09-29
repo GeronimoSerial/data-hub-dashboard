@@ -746,7 +746,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     // Estado previo: se activa la capa "sin reportar", apagada por defecto.
-    const capaSinReportar = screen.getByRole('checkbox', { name: /sin reportar/i })
+    const capaSinReportar = screen.getByRole('checkbox', { name: /sin novedades hace más de 72 h/i })
     await userEvent.click(capaSinReportar)
     expect(capaSinReportar).toBeChecked()
 
@@ -764,7 +764,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
 
     // La capa que se activó antes de abrir los modales sigue activa.
-    expect(screen.getByRole('checkbox', { name: /sin reportar/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: /sin novedades hace más de 72 h/i })).toBeChecked()
   })
 })
 
@@ -944,7 +944,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     ).toBeInTheDocument()
     // El checkbox de la capa de partes sigue presente: no se desmontó.
     expect(
-      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
+      screen.getByRole('checkbox', { name: /todas las escuelas/i }),
     ).toBeInTheDocument()
   })
 })
@@ -1175,10 +1175,10 @@ describe('M2: capa de padrón apagada por defecto', () => {
     expect(indicador).toHaveTextContent(/30%/)
   })
 
-  it('la casilla de "Todas las escuelas (padrón)" arranca destildada', async () => {
+  it('la casilla de "Todas las escuelas" arranca destildada', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    const checkbox = screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i })
+    const checkbox = screen.getByRole('checkbox', { name: /todas las escuelas/i })
     expect(checkbox).not.toBeChecked()
   })
 
@@ -1187,7 +1187,7 @@ describe('M2: capa de padrón apagada por defecto', () => {
 
     const antes = screen.getByTestId('infra-totales-indicador').textContent
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /todas las escuelas \(padrón\)/i }),
+      screen.getByRole('checkbox', { name: /todas las escuelas/i }),
     )
 
     const despues = screen.getByTestId('infra-totales-indicador')
@@ -1201,7 +1201,7 @@ describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i })
     expect(checkbox).not.toBeChecked()
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
@@ -1210,7 +1210,7 @@ describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    const checkbox = screen.getByRole('checkbox', { name: /riesgo de acceso/i })
+    const checkbox = screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i })
     await userEvent.click(checkbox)
     expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
 
@@ -1222,7 +1222,7 @@ describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    await userEvent.click(screen.getByRole('checkbox', { name: /riesgo de acceso/i }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i }))
     expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
@@ -1411,7 +1411,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     // final del panel quedaba empujada debajo del pliegue de indicadores y el
     // usuario nunca la veía.
     await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad de acceso por caminos (0 a 3)' }),
+      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
     )
 
     const leyenda = await screen.findByTestId('leyenda-aislamiento')
@@ -1482,7 +1482,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
   it('con la capa de ruta apagada no se pide geometría ni se encuadra', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
     await userEvent.click(casilla)
     await seleccionarPorBuscador('Escuela 1')
 
@@ -1524,7 +1524,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await seleccionarPorBuscador('Escuela 1')
 
-    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
     await userEvent.click(casilla)
     expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
     FIT_BOUNDS_MOCK.mockClear()
@@ -1540,7 +1540,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await seleccionarPorBuscador('Escuela 1')
 
-    const casilla = screen.getByRole('checkbox', { name: /ruta y cruces de agua/i })
+    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
     await userEvent.click(casilla)
     FIT_BOUNDS_MOCK.mockClear()
 
@@ -1618,7 +1618,7 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
   it('clickear el ícono de aislamiento abre esa escuela y no filtra el departamento', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad de acceso por caminos (0 a 3)' }),
+      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
     )
 
     await userEvent.click(screen.getByTestId('mock-click-aislamiento'))
@@ -1632,7 +1632,7 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
   it('clickear el ícono de inundación abre esa escuela y no filtra el departamento', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /Inundación histórica por desborde de ríos/i }),
+      screen.getByRole('checkbox', { name: /Agua estimada por crecida de río \(en la escuela\)/i }),
     )
 
     await userEvent.click(screen.getByTestId('mock-click-inundacion'))

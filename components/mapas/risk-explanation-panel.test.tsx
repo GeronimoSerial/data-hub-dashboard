@@ -120,7 +120,7 @@ describe('RiskExplanationPanel — variante departamento', () => {
 
     const fila72 = screen.getByTestId('risk-explanation-horizonte-72')
     expect(within(fila72).getByText('Sin dato')).toBeInTheDocument()
-    expect(within(fila72).getByText('(sin dato de amenaza)')).toBeInTheDocument()
+    expect(within(fila72).getByText('(Sin dato)')).toBeInTheDocument()
   })
 
   it('muestra "No disponible" para caudal y lluvia nulos, nunca 0', () => {
@@ -357,7 +357,7 @@ describe('RiskExplanationPanel — variante escuela', () => {
     const acceso = screen.getByTestId('risk-explanation-acceso')
     expect(acceso).toHaveTextContent('Acceso')
     expect(screen.getByTestId('risk-explanation-acceso-nivel')).toHaveTextContent(
-      'Riesgo de acceso: Alto',
+      'Riesgo pronosticado de llegar: Alto',
     )
     expect(screen.getByTestId('risk-explanation-acceso-explicacion')).toHaveTextContent(
       'aislamiento OSM 3/3',
@@ -367,7 +367,7 @@ describe('RiskExplanationPanel — variante escuela', () => {
     )
   })
 
-  it('un riesgoAcceso con nivel null muestra "Sin datos de acceso", nunca "Bajo"', () => {
+  it('un riesgoAcceso con nivel null muestra "Sin dato", nunca "Bajo"', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
@@ -382,7 +382,7 @@ describe('RiskExplanationPanel — variante escuela', () => {
 
     const acceso = screen.getByTestId('risk-explanation-acceso')
     expect(screen.getByTestId('risk-explanation-acceso-nivel')).toHaveTextContent(
-      'Sin datos de acceso',
+      'Sin dato',
     )
     expect(acceso).not.toHaveTextContent('Bajo')
   })

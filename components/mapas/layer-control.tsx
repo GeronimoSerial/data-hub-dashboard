@@ -4,6 +4,7 @@ import { COPY } from '@/lib/copy/didactica'
 import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Checkbox } from '@/components/ui/checkbox'
+import { TEXTOS_ACCESOS } from '@/lib/mapas/accesos-capas'
 
 type Props = {
   overlays: Record<OverlayKey, boolean>
@@ -55,13 +56,13 @@ export function LayerControl({ overlays, onChange }: Props) {
 export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinReportar'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Todas las escuelas (padrón)',
+  escuelas: 'Todas las escuelas',
   // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
   // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
   // responden a la misma pregunta operativa ("¿hay algo pasando con el
   // edificio en sí?"), la leyenda es la que distingue cuál es cuál.
-  evacuacion: 'Evacuación (evacuado / centro de evacuados)',
-  sinReportar: 'Sin reportar (más de 72 h sin actualización)',
+  evacuacion: 'Evacuación (edificio evacuado o centro de evacuados)',
+  sinReportar: 'Sin novedades hace más de 72 h',
 }
 
 const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = [
@@ -112,12 +113,12 @@ export function InfraLayerControl({
 export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 
 export const CAPAS_RADAR_LABELS: Record<CapaRadar, string> = {
-  peligro: 'Peligro meteorológico estimado (por departamento)',
+  peligro: 'Peligro por clima estimado (por departamento)',
   riesgo: 'Riesgo pronosticado por escuela',
   // Dimensión SEPARADA del riesgo compuesto: el acceso no es una severidad ni
   // un estado del edificio, por eso es una capa propia y no una codificación
   // de color de una capa existente.
-  'riesgo-acceso': 'Riesgo de acceso',
+  'riesgo-acceso': 'Riesgo pronosticado de llegar a la escuela',
 }
 
 const ORDEN_CAPAS_RADAR: CapaRadar[] = ['peligro', 'riesgo', 'riesgo-acceso']
@@ -138,7 +139,7 @@ export function RadarLayerControl({
       aria-labelledby="radar-layer-control-heading"
     >
       <h2 className={styles.controlHeading} id="radar-layer-control-heading">
-        Capas del radar
+        Capas del radar (pronóstico)
       </h2>
       {ORDEN_CAPAS_RADAR.map((capa) => (
         <Checkbox
@@ -162,9 +163,9 @@ export function RadarLayerControl({
 export type CapaAccesos = 'aislamiento' | 'inundacion' | 'rutaSeleccion'
 
 export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
-  aislamiento: 'Dificultad de acceso por caminos (0 a 3)',
-  inundacion: 'Inundación histórica por desborde de ríos',
-  rutaSeleccion: 'Ruta y cruces de agua de la escuela seleccionada',
+  aislamiento: `${TEXTOS_ACCESOS.tituloAcceso} (0 a 3)`,
+  inundacion: TEXTOS_ACCESOS.tituloInundacion,
+  rutaSeleccion: 'Camino y cruces de agua de la escuela elegida',
 }
 
 const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = ['aislamiento', 'inundacion', 'rutaSeleccion']
