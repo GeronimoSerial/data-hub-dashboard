@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
@@ -22,17 +20,9 @@ function mockAcceso(acceso: AccesoLectura) {
 
 const CUE = '1801605-04'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('geo-perfiles-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'geo-perfiles-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   await getDb().insert(infraGeoProfile).values([
     {
       cueAnexo: CUE,
@@ -66,12 +56,6 @@ beforeAll(async () => {
     version: 'v1',
     calculadoEn: '2026-01-01T00:00:00Z',
   })
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {

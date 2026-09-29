@@ -8,11 +8,9 @@
 // la conexión en el primer uso, así que un directorio nuevo por test dejaría a
 // los tests siguientes hablándole a una base ya borrada.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq } from 'drizzle-orm'
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import {
   infraAfectacion,
@@ -26,8 +24,23 @@ import {
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import { recomputarEpisodiosDerivados } from './recompute'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('recompute-episodios-')
+
+beforeAll(async () => {
+  const db = getDb()
+  await db
+    .update(infraPeriodo)
+    .set({ estado: 'historico' })
+    .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
+  await db.insert(infraPeriodo).values({
+    id: PERIODO_ID,
+    nombre: 'Período episodios test',
+    inicioEn: '2026-01-01T00:00:00.000Z',
+    finEn: null,
+    estado: 'vigente',
+    creadaEn: '2026-01-01T00:00:00.000Z',
+  })
+})
 
 // Período vigente propio del test. ensureSeeded() ya siembra uno 'vigente'
 // (índice único parcial sobre estado), así que primero lo pasamos a
@@ -46,35 +59,6 @@ const CUE_EXCLUIDA_POR_MOTIVO = '1801605-03'
 const CUE_SIN_PERFIL = '1801605-04'
 
 let idMovimientoEsperado: string
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'recompute-episodios-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
-  const db = getDb()
-  await db
-    .update(infraPeriodo)
-    .set({ estado: 'historico' })
-    .where(eq(infraPeriodo.id, PERIODO_ENOS_2026_2027_ID))
-  await db.insert(infraPeriodo).values({
-    id: PERIODO_ID,
-    nombre: 'Período episodios test',
-    inicioEn: '2026-01-01T00:00:00.000Z',
-    finEn: null,
-    estado: 'vigente',
-    creadaEn: '2026-01-01T00:00:00.000Z',
-  })
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 async function limpiar(): Promise<void> {
   const db = getDb()

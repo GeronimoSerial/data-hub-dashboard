@@ -1,10 +1,8 @@
 // Tests de las consultas del Centro de Situación (E5) contra una base libsql
 // real, aislada en un tmpdir (mismo patrón que corte.test.ts / nivel.test.ts).
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import {
   infraEpisodioDerivado,
   infraGeoProfile,
@@ -24,24 +22,9 @@ import type {
 } from './consulta'
 import { insertarRunVigente, limpiarDatosSituacion } from './__fixtures__/persistencia'
 
-let dir: string
-let prevDataDir: string | undefined
-let prevEnosJobsEnabled: string | undefined
-
-let db: ReturnType<typeof GetDb>
-let generarCorte: typeof GenerarCorte
-let obtenerEstadoSituacion: typeof ObtenerEstadoSituacion
-let obtenerTopPrioridades: typeof ObtenerTopPrioridades
-let obtenerCambiosDesde: typeof ObtenerCambiosDesde
+usarDbTemporal('situacion-consulta-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'situacion-consulta-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   db = getDb()
 
@@ -51,11 +34,13 @@ beforeAll(async () => {
   ))
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let prevEnosJobsEnabled: string | undefined
+
+let db: ReturnType<typeof GetDb>
+let generarCorte: typeof GenerarCorte
+let obtenerEstadoSituacion: typeof ObtenerEstadoSituacion
+let obtenerTopPrioridades: typeof ObtenerTopPrioridades
+let obtenerCambiosDesde: typeof ObtenerCambiosDesde
 
 beforeEach(() => {
   prevEnosJobsEnabled = process.env.ENOS_JOBS_ENABLED

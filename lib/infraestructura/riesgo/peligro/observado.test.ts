@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { hazardObservation } from '@/lib/db/schema'
 import { crearGeneradoresGranulos } from '../__fixtures__/granulos'
 import type { getDb as GetDb } from '@/lib/db'
@@ -12,8 +10,15 @@ import type {
   obtenerAcumuladosObservados as ObtenerAcumuladosObservados,
 } from './observado'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('observado-')
+
+beforeAll(async () => {
+  const dbModule = await import('@/lib/db')
+  db = dbModule.getDb()
+  ;({ calcularAcumuladoObservado, obtenerAcumuladoObservado, obtenerAcumuladosObservados } = await import(
+    './observado'
+  ))
+})
 
 let db: ReturnType<typeof GetDb>
 let calcularAcumuladoObservado: typeof CalcularAcumuladoObservado
@@ -22,26 +27,6 @@ let obtenerAcumuladosObservados: typeof ObtenerAcumuladosObservados
 
 const CELDA = '-27.5_-58.8'
 const { granulo, granulosConsecutivos } = crearGeneradoresGranulos(CELDA)
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'observado-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  const dbModule = await import('@/lib/db')
-  db = dbModule.getDb()
-  ;({ calcularAcumuladoObservado, obtenerAcumuladoObservado, obtenerAcumuladosObservados } = await import(
-    './observado'
-  ))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(async () => {
   await db.delete(hazardObservation)

@@ -1,24 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { correrEvaluacionReplay } from './evaluar-replay.mjs'
 
-let dir: string
-let prevDataDir: string | undefined
-
-const DEPARTAMENTO = 'Paraná'
-const CUE_ANEXO = '007123'
-const T_ALERTA = '2026-03-10T06:00:00.000Z'
-const T_AFECTACION = '2026-03-10T18:00:00.000Z'
+usarDbTemporal('evaluar-replay-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'evaluar-replay-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
   const { getDb } = await import('@/lib/db')
   const schema = await import('@/lib/db/schema')
   const db = getDb()
@@ -86,11 +72,10 @@ beforeAll(async () => {
   })
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+const DEPARTAMENTO = 'Paraná'
+const CUE_ANEXO = '007123'
+const T_ALERTA = '2026-03-10T06:00:00.000Z'
+const T_AFECTACION = '2026-03-10T18:00:00.000Z'
 
 describe('correrEvaluacionReplay', () => {
   it('evalúa el episodio como precedido por riesgo alto (12h de anticipación) y no lanza contra la red', async () => {

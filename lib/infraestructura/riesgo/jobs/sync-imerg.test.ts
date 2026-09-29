@@ -1,14 +1,16 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { celdaDeCoordenada } from '../celda'
 import { mapearAsciiImergACeldas, parsearRespuestaAsciiImerg } from '../providers/imerg'
 import type { ejecutarSyncImerg as EjecutarSyncImerg } from './sync-imerg'
 import type { PuertoObservacionSatelital } from '../adaptadores-ingesta/puertos'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('sync-imerg-')
+
+beforeAll(async () => {
+  ;({ ejecutarSyncImerg } = await import('./sync-imerg'))
+})
 
 let ejecutarSyncImerg: typeof EjecutarSyncImerg
 
@@ -105,22 +107,6 @@ async function saludImerg() {
   const filas = await (await db()).select().from(hazardSourceHealth)
   return filas.find((fila) => fila.provider === 'nasa-imerg')
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'sync-imerg-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarSyncImerg } = await import('./sync-imerg'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarSyncImerg', () => {
   it('sin token no llama a la red y deja la salud en no_disponible', async () => {

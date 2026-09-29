@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import { infraEpisodioDerivado, infraEpisodioMiembro } from '@/lib/db/schema'
@@ -22,8 +20,7 @@ function mockAcceso(acceso: AccesoLectura) {
 
 const EPISODIO = 'ep-1'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('episodios-detalle-route-')
 
 async function limpiarEpisodios() {
   const db = getDb()
@@ -69,21 +66,6 @@ async function sembrarFixture() {
     },
   ])
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'episodios-detalle-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const seed = await import('@/lib/db/seed')
-  await seed.ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(async () => {
   vi.mocked(verificarAccesoLectura).mockReset()

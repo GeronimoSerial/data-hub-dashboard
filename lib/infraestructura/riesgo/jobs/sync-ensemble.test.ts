@@ -1,9 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { HazardEnsembleProbPunto } from '../providers/ensemble'
 import type {
   obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal,
@@ -11,8 +9,27 @@ import type {
 import type { ejecutarSyncEnsemble as EjecutarSyncEnsemble } from './sync-ensemble'
 import type { PuertoPronosticoEnsemble } from '../adaptadores-ingesta/puertos'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('sync-ensemble-')
+
+beforeAll(async () => {
+  ;({ ejecutarSyncEnsemble } = await import('./sync-ensemble'))
+
+  const { getDb } = await import('@/lib/db')
+  const { hazardClimatology, infraGeoProfile } = await import('@/lib/db/schema')
+  const db = getDb()
+
+  await db.insert(infraGeoProfile).values(
+    CELDAS.map((geometryRef, indice) => ({
+      cueAnexo: `180000${indice + 1}-00`,
+      geometryRef,
+      motivoExclusion: null,
+      perfilVersion: 'geo-perfil-v1',
+      calculadoEn: '2026-09-26T00:00:00.000Z',
+    })),
+  )
+
+  await db.insert(hazardClimatology).values(CELDAS.flatMap((celda) => filasClimatologia(celda)))
+})
 
 let ejecutarSyncEnsemble: typeof EjecutarSyncEnsemble
 
@@ -91,38 +108,6 @@ function filasClimatologia(geometryRef: string) {
     { ...base, id: randomUUID(), percentil: 'p99', valor: P99_DEFAULT },
   ]
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'sync-ensemble-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarSyncEnsemble } = await import('./sync-ensemble'))
-
-  const { getDb } = await import('@/lib/db')
-  const { hazardClimatology, infraGeoProfile } = await import('@/lib/db/schema')
-  const db = getDb()
-
-  await db.insert(infraGeoProfile).values(
-    CELDAS.map((geometryRef, indice) => ({
-      cueAnexo: `180000${indice + 1}-00`,
-      geometryRef,
-      motivoExclusion: null,
-      perfilVersion: 'geo-perfil-v1',
-      calculadoEn: '2026-09-26T00:00:00.000Z',
-    })),
-  )
-
-  await db.insert(hazardClimatology).values(CELDAS.flatMap((celda) => filasClimatologia(celda)))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarSyncEnsemble', () => {
   it('corrida normal inserta filas con climatología precargada y deja la salud en ok', async () => {

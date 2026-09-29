@@ -1,33 +1,19 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraJobRun } from '@/lib/db/schema'
 import type { EstadoJobRun, obtenerEstadoOperativo as ObtenerEstadoOperativoFn } from './salud'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('salud-')
+
+beforeAll(async () => {
+  ;({ obtenerEstadoOperativo } = await import('./salud'))
+})
+
 let obtenerEstadoOperativo: typeof ObtenerEstadoOperativoFn
 
 // getDb() memoiza la conexión a nivel de módulo, así que DATA_DIR debe
 // setearse ANTES del primer getDb(); mismo patrón que job-run.test.ts.
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'salud-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ obtenerEstadoOperativo } = await import('./salud'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
-
 type FilaJobRun = typeof infraJobRun.$inferInsert
 
 function fila(over: Partial<FilaJobRun> & Pick<FilaJobRun, 'id' | 'tipo' | 'estado' | 'actualizadaEn'>): FilaJobRun {

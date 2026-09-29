@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { Pool } from 'pg'
 import type { adquirirLease as AdquirirLease, publicarResultado as PublicarResultado, renovarLease as RenovarLease } from './job-run'
 
@@ -22,8 +20,12 @@ import type { adquirirLease as AdquirirLease, publicarResultado as PublicarResul
 // Sin DATABASE_URL_TEST ese describe se saltea con motivo explícito y la
 // suite normal sigue corriendo 100% sobre PGlite en memoria, sin Docker.
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('job-run-')
+
+beforeAll(async () => {
+  ;({ adquirirLease, renovarLease, publicarResultado } = await import('./job-run'))
+})
+
 let adquirirLease: typeof AdquirirLease
 let renovarLease: typeof RenovarLease
 let publicarResultado: typeof PublicarResultado
@@ -31,22 +33,6 @@ let publicarResultado: typeof PublicarResultado
 // Aislar la DB en un directorio temporal por archivo de test: getDb() memoiza
 // la conexión a nivel de módulo (ver lib/db/index.ts), así que DATA_DIR debe
 // setearse ANTES de cualquier import dinámico, igual que en lib/db/seed.test.ts.
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'job-run-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ adquirirLease, renovarLease, publicarResultado } = await import('./job-run'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
-
 describe('adquirirLease', () => {
   it('crea la fila la primera vez y devuelve adquirido:true', async () => {
     const r = await adquirirLease({

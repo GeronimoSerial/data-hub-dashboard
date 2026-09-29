@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth } from '@/lib/db/schema'
@@ -21,19 +19,9 @@ function mockAcceso(acceso: AccesoLectura) {
   vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
 }
 
-let dir: string
-let prevDataDir: string | undefined
-
-const EXITO_RECIENTE = new Date(Date.now() - 10 * 60_000).toISOString()
+usarDbTemporal('fuentes-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'fuentes-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   await getDb()
     .insert(hazardSourceHealth)
     .values([
@@ -60,11 +48,7 @@ beforeAll(async () => {
     ])
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+const EXITO_RECIENTE = new Date(Date.now() - 10 * 60_000).toISOString()
 
 beforeEach(() => {
   vi.mocked(verificarAccesoLectura).mockReset()

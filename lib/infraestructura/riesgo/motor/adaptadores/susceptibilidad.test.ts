@@ -3,10 +3,8 @@
 // DATA_DIR temporal + ensureSeeded y borrado entre tests. La prueba de carga
 // batch usa el punto de inyección `cargarFilas` para contar que UNA sola
 // llamada a la "db" resuelve N cueAnexos distintos (tarea 3d).
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { getDb as GetDb } from '@/lib/db'
 import type { infraSusceptibilidadEstatica } from '@/lib/db/schema'
 import type {
@@ -17,8 +15,15 @@ import { ultimaFilaConservadoraPorCue } from './susceptibilidad'
 
 type FilaInsert = typeof infraSusceptibilidadEstatica.$inferInsert
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('adapter-susceptibilidad-')
+
+beforeAll(async () => {
+  const { getDb } = await import('@/lib/db')
+  const schema = await import('@/lib/db/schema')
+  db = getDb()
+  tabla = schema.infraSusceptibilidadEstatica
+  ;({ crearAdapterSusceptibilidad } = await import('./susceptibilidad'))
+})
 
 let db: ReturnType<typeof GetDb>
 let tabla: typeof infraSusceptibilidadEstatica
@@ -44,27 +49,6 @@ function fila(cueAnexo: string, over: Partial<FilaInsert> = {}): FilaInsert {
 async function cargarFilasDb(): Promise<FilaSusceptibilidadEstatica[]> {
   return db.select().from(tabla)
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'adapter-susceptibilidad-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
-  const { getDb } = await import('@/lib/db')
-  const schema = await import('@/lib/db/schema')
-  db = getDb()
-  tabla = schema.infraSusceptibilidadEstatica
-  ;({ crearAdapterSusceptibilidad } = await import('./susceptibilidad'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(async () => {
   await db.delete(tabla)

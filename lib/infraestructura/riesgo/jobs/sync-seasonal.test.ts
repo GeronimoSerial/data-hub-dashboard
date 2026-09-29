@@ -1,15 +1,16 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
 import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
 import type { obtenerTendenciaEstacional as ObtenerTendenciaEstacionalReal } from '../providers/seasonal'
 import type { ejecutarSyncSeasonal as EjecutarSyncSeasonal } from './sync-seasonal'
 import type { PuertoTendenciaEstacional } from '../adaptadores-ingesta/puertos'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('sync-seasonal-')
+
+beforeAll(async () => {
+  ;({ ejecutarSyncSeasonal } = await import('./sync-seasonal'))
+})
 
 let ejecutarSyncSeasonal: typeof EjecutarSyncSeasonal
 
@@ -53,22 +54,6 @@ function seasonalFake(opciones?: {
     return { estadisticas, erroresPorDepartamento, llamadasRealizadas: 1 }
   }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'sync-seasonal-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarSyncSeasonal } = await import('./sync-seasonal'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarSyncSeasonal', () => {
   it('corrida normal inserta una fila por departamento y deja la salud en ok', async () => {

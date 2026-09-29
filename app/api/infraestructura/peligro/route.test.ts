@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
@@ -42,17 +40,9 @@ function mockAcceso(acceso: AccesoLectura) {
 const CELDA = '-31.7_-60.5'
 const OTRA_CELDA = '-32.0_-61.0'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('peligro-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'peligro-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   await getDb()
     .insert(hazardForecast)
     .values([
@@ -160,12 +150,6 @@ function obs(id: string, geometryRef: string, valor: number, observadoEn: string
     ingeridoEn: '2026-01-01T08:00:00Z',
   }
 }
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(() => {
   vi.mocked(verificarAccesoLectura).mockReset()

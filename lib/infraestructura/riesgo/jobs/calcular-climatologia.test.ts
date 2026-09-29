@@ -1,16 +1,42 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { ejecutarCalculoClimatologia as EjecutarCalculoClimatologia } from './calcular-climatologia'
 import type {
   obtenerSeriesHistoricas as ObtenerSeriesHistoricas,
   ResultadoSeriesHistoricas,
 } from '../providers/climatologia'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('calcular-climatologia-')
+
+beforeAll(async () => {
+  ;({ ejecutarCalculoClimatologia } = await import('./calcular-climatologia'))
+
+  const { getDb } = await import('@/lib/db')
+  const { infraGeoProfile } = await import('@/lib/db/schema')
+  await getDb()
+    .insert(infraGeoProfile)
+    .values([
+      {
+        cueAnexo: '1800001-00',
+        geometryRef: CELDA_A,
+        lat: 1,
+        lon: 1,
+        motivoExclusion: null,
+        perfilVersion: 'geo-perfil-v1',
+        calculadoEn: '2026-09-26T00:00:00.000Z',
+      },
+      {
+        cueAnexo: '1800002-00',
+        geometryRef: CELDA_B,
+        lat: 2,
+        lon: 2,
+        motivoExclusion: null,
+        perfilVersion: 'geo-perfil-v1',
+        calculadoEn: '2026-09-26T00:00:00.000Z',
+      },
+    ])
+})
 
 let ejecutarCalculoClimatologia: typeof EjecutarCalculoClimatologia
 
@@ -55,47 +81,6 @@ function serieConCeldaCaidaFake(): typeof ObtenerSeriesHistoricas {
     return { ...resultadoBase(), seriesPorCelda, erroresPorCelda }
   }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'calcular-climatologia-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarCalculoClimatologia } = await import('./calcular-climatologia'))
-
-  const { getDb } = await import('@/lib/db')
-  const { infraGeoProfile } = await import('@/lib/db/schema')
-  await getDb()
-    .insert(infraGeoProfile)
-    .values([
-      {
-        cueAnexo: '1800001-00',
-        geometryRef: CELDA_A,
-        lat: 1,
-        lon: 1,
-        motivoExclusion: null,
-        perfilVersion: 'geo-perfil-v1',
-        calculadoEn: '2026-09-26T00:00:00.000Z',
-      },
-      {
-        cueAnexo: '1800002-00',
-        geometryRef: CELDA_B,
-        lat: 2,
-        lon: 2,
-        motivoExclusion: null,
-        perfilVersion: 'geo-perfil-v1',
-        calculadoEn: '2026-09-26T00:00:00.000Z',
-      },
-    ])
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarCalculoClimatologia', () => {
   it('primera corrida inserta 6 filas por celda (2 celdas × 6)', async () => {

@@ -3,11 +3,9 @@
 // ensureSeeded() una vez y getDb() memoizado. La base es un archivo por
 // worker de vitest, así que cada archivo de test arranca limpio.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { and, count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import {
   infraAfectacion,
@@ -31,23 +29,7 @@ import {
   verificacionHabilitaSesionEscritura,
 } from './verificaciones'
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'verificaciones-e1-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('verificaciones-e1-')
 
 // CUE único por test: infra_parte tiene índice único (cueAnexo, periodoId) y
 // todos los tests comparten el período sembrado.

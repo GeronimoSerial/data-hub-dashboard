@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
@@ -29,18 +27,9 @@ function mockAcceso(acceso: AccesoLectura) {
   vi.mocked(verificarAccesoLectura).mockResolvedValue(acceso)
 }
 
-let dir: string
-let prevDataDir: string | undefined
-let fx: FixtureEscenarioCompleto
+usarDbTemporal('replay-export-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'replay-export-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   fx = crearFixtureEscenarioCompleto()
   const db = getDb()
 
@@ -79,11 +68,7 @@ beforeAll(async () => {
   await db.insert(infraRiskSnapshot).values(fx.snapshot.porEscuela)
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let fx: FixtureEscenarioCompleto
 
 beforeEach(() => {
   vi.mocked(verificarAccesoLectura).mockReset()

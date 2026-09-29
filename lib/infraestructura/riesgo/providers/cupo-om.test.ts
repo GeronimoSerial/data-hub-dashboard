@@ -20,12 +20,10 @@
 //
 // Sin DATABASE_URL_TEST ese describe se saltea con motivo explícito y la
 // suite normal sigue corriendo 100% sobre PGlite en memoria, sin Docker.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { and, eq } from 'drizzle-orm'
 import type { Pool } from 'pg'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type {
   agregarApiKey as AgregarApiKey,
   construirBaseUrl as ConstruirBaseUrl,
@@ -37,8 +35,21 @@ import type {
   reservarCupo as ReservarCupo,
 } from './cupo-om'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('cupo-om-')
+
+beforeAll(async () => {
+  ;({
+    pesoLlamada,
+    limiteVentana,
+    reservarCupo,
+    registrarCooldown,
+    estaEnCooldown,
+    obtenerResumenCupo,
+    construirBaseUrl,
+    agregarApiKey,
+  } = await import('./cupo-om'))
+})
+
 let prevEnvVars: Record<string, string | undefined> = {}
 
 let pesoLlamada: typeof PesoLlamada
@@ -60,31 +71,6 @@ const ENV_LIMITES = [
   'OPEN_METEO_LIMITE_MES',
   'OPEN_METEO_LIMITE_MES_PAGO',
 ]
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'cupo-om-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({
-    pesoLlamada,
-    limiteVentana,
-    reservarCupo,
-    registrarCooldown,
-    estaEnCooldown,
-    obtenerResumenCupo,
-    construirBaseUrl,
-    agregarApiKey,
-  } = await import('./cupo-om'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 afterEach(() => {
   for (const nombre of ENV_LIMITES) {

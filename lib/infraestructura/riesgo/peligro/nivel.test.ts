@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import {
   hazardClimatology,
   hazardEnsembleProb,
@@ -19,27 +17,9 @@ import type {
   obtenerNivelesPeligro as ObtenerNivelesPeligro,
 } from './nivel'
 
-let dir: string
-let prevDataDir: string | undefined
-
-let db: ReturnType<typeof GetDb>
-let nivelDesdeEnsemble: typeof NivelDesdeEnsemble
-let nivelDesdeDeterministico: typeof NivelDesdeDeterministico
-let obtenerNivelesPeligro: typeof ObtenerNivelesPeligro
-let obtenerNivelCaudal: typeof ObtenerNivelCaudal
-let agregarNivelPorDepartamento: typeof AgregarNivelPorDepartamento
-
-const CORRIDA_NUEVA = '2026-09-26T00:00:00.000Z'
-const CORRIDA_VIEJA = '2026-09-25T00:00:00.000Z'
+usarDbTemporal('nivel-peligro-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'nivel-peligro-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   db = getDb()
 
@@ -52,11 +32,15 @@ beforeAll(async () => {
   } = await import('./nivel'))
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let db: ReturnType<typeof GetDb>
+let nivelDesdeEnsemble: typeof NivelDesdeEnsemble
+let nivelDesdeDeterministico: typeof NivelDesdeDeterministico
+let obtenerNivelesPeligro: typeof ObtenerNivelesPeligro
+let obtenerNivelCaudal: typeof ObtenerNivelCaudal
+let agregarNivelPorDepartamento: typeof AgregarNivelPorDepartamento
+
+const CORRIDA_NUEVA = '2026-09-26T00:00:00.000Z'
+const CORRIDA_VIEJA = '2026-09-25T00:00:00.000Z'
 
 beforeEach(async () => {
   await db.delete(hazardEnsembleProb)

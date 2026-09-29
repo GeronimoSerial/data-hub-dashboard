@@ -1,13 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { ejecutarCalculoClimatologiaCaudal as EjecutarCalculoClimatologiaCaudal } from './calcular-climatologia-caudal'
 import type { obtenerSeriesHistoricasCaudal as ObtenerSeriesHistoricasCaudal } from '../providers/climatologia-caudal'
 import { PUNTOS_RIO } from '../puntos-rio'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('calcular-climatologia-caudal-')
+
+beforeAll(async () => {
+  ;({ ejecutarCalculoClimatologiaCaudal } = await import('./calcular-climatologia-caudal'))
+})
 
 let ejecutarCalculoClimatologiaCaudal: typeof EjecutarCalculoClimatologiaCaudal
 
@@ -42,22 +43,6 @@ function seriesConPuntoCaidoFake(): typeof ObtenerSeriesHistoricasCaudal {
     return { seriesPorPunto, erroresPorPunto }
   }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'calcular-climatologia-caudal-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarCalculoClimatologiaCaudal } = await import('./calcular-climatologia-caudal'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarCalculoClimatologiaCaudal', () => {
   it('primera corrida inserta 3 filas por punto para los 8 puntos de PUNTOS_RIO', async () => {

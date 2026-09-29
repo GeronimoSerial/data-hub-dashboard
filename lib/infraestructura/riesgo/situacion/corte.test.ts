@@ -7,11 +7,9 @@
 // primer uso, así que un directorio por test dejaría a los siguientes tests
 // hablándole a una base ya borrada.
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq, sql } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import {
   hazardSourceHealth,
   infraAfectacion,
@@ -33,25 +31,9 @@ import type {
 } from './corte'
 import { insertarRunVigente, limpiarDatosSituacion } from './__fixtures__/persistencia'
 
-let dir: string
-let prevDataDir: string | undefined
-
-let db: ReturnType<typeof GetDb>
-let generarCorte: typeof GenerarCorte
-let obtenerUltimoCorte: typeof ObtenerUltimoCorte
-let obtenerCorteAnterior: typeof ObtenerCorteAnterior
-let reconstruirBriefingDesdeCorte: typeof ReconstruirBriefingDesdeCorte
-
-const AHORA = '2026-09-27T12:00:00.000Z'
+usarDbTemporal('situacion-corte-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'situacion-corte-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   db = getDb()
 
@@ -63,11 +45,13 @@ beforeAll(async () => {
   } = await import('./corte'))
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let db: ReturnType<typeof GetDb>
+let generarCorte: typeof GenerarCorte
+let obtenerUltimoCorte: typeof ObtenerUltimoCorte
+let obtenerCorteAnterior: typeof ObtenerCorteAnterior
+let reconstruirBriefingDesdeCorte: typeof ReconstruirBriefingDesdeCorte
+
+const AHORA = '2026-09-27T12:00:00.000Z'
 
 beforeEach(() => limpiarDatosSituacion(db))
 

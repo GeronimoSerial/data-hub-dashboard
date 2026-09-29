@@ -2,10 +2,8 @@
 // adapter delega en peligro/nivel.ts (E3a), que lee de la DB. Por eso el
 // patrón es el mismo que nivel.test.ts: DATA_DIR temporal + ensureSeeded y
 // borrado de las tablas hazard_* entre tests. Nunca se golpea la red.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { hazardClimatology, hazardEnsembleProb, hazardForecast } from '@/lib/db/schema'
 import type { getDb as GetDb } from '@/lib/db'
 import type { NivelCaudalPunto, NivelPeligroCelda } from '../puertos'
@@ -17,30 +15,16 @@ const CORRIDA = '2026-09-26T00:00:00.000Z'
 const GEOM = 'geom-1'
 const PUNTO = 'punto-1'
 
-let dir: string
-let prevDataDir: string | undefined
-
-let db: ReturnType<typeof GetDb>
-let crearAdapterPeligro: typeof CrearAdapterPeligro
+usarDbTemporal('adapter-peligro-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'adapter-peligro-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   db = getDb()
   ;({ crearAdapterPeligro } = await import('./peligro'))
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let db: ReturnType<typeof GetDb>
+let crearAdapterPeligro: typeof CrearAdapterPeligro
 
 beforeEach(async () => {
   await db.delete(hazardEnsembleProb)

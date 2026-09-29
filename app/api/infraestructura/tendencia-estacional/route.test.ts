@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
 // Mismo motivo que operacion/salud/route.test.ts: reimplementar staffGuard
@@ -18,17 +16,9 @@ vi.mock('@/lib/session', () => ({
   },
 }))
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('tendencia-estacional-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'tendencia-estacional-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   const { hazardSeasonalTrend } = await import('@/lib/db/schema')
   const db = getDb()
@@ -77,12 +67,6 @@ beforeAll(async () => {
       ingeridoEn: '2026-09-27T09:00:00.000Z',
     },
   ])
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {

@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { and, eq } from 'drizzle-orm'
 import { crearPuertosFake, type EscenarioFake } from '../motor/__fixtures__/puertos-fake'
 import type {
@@ -12,8 +10,12 @@ import type {
 } from '../motor/puertos'
 import type { calcularYPublicarRiesgo as CalcularYPublicarRiesgo } from './calcular-riesgo'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('calcular-riesgo-')
+
+beforeAll(async () => {
+  ;({ calcularYPublicarRiesgo } = await import('./calcular-riesgo'))
+})
+
 let calcularYPublicarRiesgo: typeof CalcularYPublicarRiesgo
 
 const CUE_A = '1800001-00'
@@ -79,22 +81,6 @@ function escenario(): EscenarioFake {
     lluvia72h: { [GEOM_B]: 80 },
   }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'calcular-riesgo-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ calcularYPublicarRiesgo } = await import('./calcular-riesgo'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('calcularYPublicarRiesgo', () => {
   it('T1: corrida normal publica un único run vigente con escuelas x 3 horizontes y factores', async () => {

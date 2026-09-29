@@ -3,10 +3,8 @@
 // patrón de DB en memoria que observado.test.ts: DATA_DIR temporal +
 // ensureSeeded y borrado de la tabla entre tests. Nunca se golpea la red (no
 // hay ningún fetch a IMERG/Earthdata acá).
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { hazardObservation } from '@/lib/db/schema'
 import { crearGeneradoresGranulos } from '../../__fixtures__/granulos'
 import type { getDb as GetDb } from '@/lib/db'
@@ -17,30 +15,16 @@ const AS_OF = '2026-09-26T12:00:00.000Z'
 const CELDA = 'geom-1'
 const { granulosConsecutivos } = crearGeneradoresGranulos(CELDA)
 
-let dir: string
-let prevDataDir: string | undefined
-
-let db: ReturnType<typeof GetDb>
-let crearAdapterLluvia: typeof CrearAdapterLluvia
+usarDbTemporal('adapter-lluvia-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'adapter-lluvia-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   db = getDb()
   ;({ crearAdapterLluvia } = await import('./lluvia'))
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let db: ReturnType<typeof GetDb>
+let crearAdapterLluvia: typeof CrearAdapterLluvia
 
 beforeEach(async () => {
   await db.delete(hazardObservation)

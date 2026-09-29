@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { PUNTOS_RIO } from '../puntos-rio'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import type {
@@ -10,8 +8,27 @@ import type {
   ejecutarSyncPronosticoCaudal as EjecutarSyncPronosticoCaudal,
 } from './sync-pronostico-caudal'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('sync-pronostico-caudal-')
+
+beforeAll(async () => {
+  ;({ ejecutarSyncPronosticoCaudal } = await import('./sync-pronostico-caudal'))
+
+  // Perfiles geográficos de prueba: 3 filas con geometryRef válido para que el
+  // selectDistinct produzca 3 celdas.
+  const { getDb } = await import('@/lib/db')
+  const { infraGeoProfile } = await import('@/lib/db/schema')
+  await getDb()
+    .insert(infraGeoProfile)
+    .values(
+      CELDAS.map((geometryRef, indice) => ({
+        cueAnexo: `180000${indice + 1}-00`,
+        geometryRef,
+        motivoExclusion: null,
+        perfilVersion: 'geo-perfil-v1',
+        calculadoEn: '2026-09-26T00:00:00.000Z',
+      })),
+    )
+})
 
 let ejecutarSyncPronosticoCaudal: typeof EjecutarSyncPronosticoCaudal
 
@@ -60,38 +77,6 @@ function floodFake(): ProveedorConDiagnostico {
     },
   }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'sync-pronostico-caudal-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-  ;({ ejecutarSyncPronosticoCaudal } = await import('./sync-pronostico-caudal'))
-
-  // Perfiles geográficos de prueba: 3 filas con geometryRef válido para que el
-  // selectDistinct produzca 3 celdas.
-  const { getDb } = await import('@/lib/db')
-  const { infraGeoProfile } = await import('@/lib/db/schema')
-  await getDb()
-    .insert(infraGeoProfile)
-    .values(
-      CELDAS.map((geometryRef, indice) => ({
-        cueAnexo: `180000${indice + 1}-00`,
-        geometryRef,
-        motivoExclusion: null,
-        perfilVersion: 'geo-perfil-v1',
-        calculadoEn: '2026-09-26T00:00:00.000Z',
-      })),
-    )
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('ejecutarSyncPronosticoCaudal', () => {
   it('primera corrida inserta filas de ambos proveedores y deja la salud en ok', async () => {

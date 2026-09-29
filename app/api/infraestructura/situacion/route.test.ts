@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
 // Mismo motivo que operacion/salud/route.test.ts: reimplementa staffGuard acá
@@ -18,23 +16,7 @@ vi.mock('@/lib/session', () => ({
   },
 }))
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'situacion-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('situacion-route-')
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()

@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getSessionUser } from '@/lib/session'
 
@@ -30,17 +28,9 @@ function consulta(): SessionUser {
   return { id: 'user-1', role: 'consulta', banned: false, nivelIds: [], accesoRecursos: 'todos' as const, recursoIds: [] }
 }
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('accesos-route-')
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'accesos-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
   const { getDb } = await import('@/lib/db')
   const { infraGeoProfile, infraAislamientoOsm } = await import('@/lib/db/schema')
 
@@ -88,12 +78,6 @@ beforeAll(async () => {
     licencia: 'ODbL-1.0',
     importadoEn: '2026-01-01T00:00:00Z',
   })
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {
