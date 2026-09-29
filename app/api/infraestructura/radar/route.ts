@@ -75,6 +75,7 @@ function respuestaVacia(page: number, pageSize: number) {
       corte: null,
       cobertura: null,
       departamentos: [],
+      puntos: [],
       escuelas: { items: [], page, pageSize, total: 0, totalPages: 0 },
       kpis: {
         riesgoAltoTotal: 0,
@@ -285,9 +286,14 @@ export async function GET(request: Request) {
   // La afectación confirmada sale de `listarEscuelasMapa` (la MISMA fuente que
   // usa el mapa), así una escuela con daño confirmado nunca vuelve a sumar su
   // matrícula acá.
+  // Esta consulta es la ÚNICA sin paginar del universo filtrado: además del
+  // KPI, alimenta `puntos` (cobertura del mapa) sin round-trips extra.
   const snapshotsAcceso = await db
     .select({
       cueAnexo: infraRiskSnapshot.cueAnexo,
+      horizonteHoras: infraRiskSnapshot.horizonteHoras,
+      nivelRiesgo: infraRiskSnapshot.nivelRiesgo,
+      confianza: infraRiskSnapshot.confianza,
       nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
       exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
     })
@@ -297,6 +303,18 @@ export async function GET(request: Request) {
       eq(infraRiskSnapshot.cueAnexo, infraGeoProfile.cueAnexo),
     )
     .where(where)
+
+  // `puntos` existe para que el mapa cubra TODO el universo filtrado (una
+  // escuela = un punto), no sólo la página del ranking. `escuelas` sigue
+  // siendo el ranking paginado tal cual.
+  const puntos = snapshotsAcceso.map((snapshot) => ({
+    cueAnexo: snapshot.cueAnexo,
+    horizonteHoras: snapshot.horizonteHoras,
+    nivelRiesgo: snapshot.nivelRiesgo,
+    confianza: snapshot.confianza,
+    nivelRiesgoAcceso: snapshot.nivelRiesgoAcceso,
+  }))
+
   const { escuelas: escuelasMapa } = await listarEscuelasMapa()
   const cuesConAfectacionConfirmada = new Set(
     escuelasMapa.filter((escuela) => escuela.estado === 'afectada').map((e) => e.cueAnexo),
@@ -311,6 +329,7 @@ export async function GET(request: Request) {
       corte,
       cobertura: runVigente.cobertura,
       departamentos,
+      puntos,
       escuelas: {
         items,
         page,

@@ -76,10 +76,22 @@ export interface RadarEscuela {
   validoHasta: string
 }
 
+export interface RadarPunto {
+  cueAnexo: string
+  horizonteHoras: number
+  nivelRiesgo: string | null
+  confianza: string
+  nivelRiesgoAcceso: string | null
+}
+
 export interface RespuestaRadar {
   corte: RadarCorte | null
   cobertura: RadarCobertura | null
   departamentos: RadarDepartamento[]
+  // Punto compacto por escuela para la cobertura del mapa: cubre TODO el
+  // universo filtrado (el mismo que `escuelas.total`), no sólo la página del
+  // ranking. `escuelas.items` sigue siendo la lista lateral paginada.
+  puntos: RadarPunto[]
   escuelas: {
     items: RadarEscuela[]
     page: number

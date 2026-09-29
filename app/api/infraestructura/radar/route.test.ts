@@ -392,6 +392,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.corte).toBeNull()
     expect(body.cobertura).toBeNull()
     expect(body.departamentos).toEqual([])
+    expect(body.puntos).toEqual([])
     expect(body.escuelas).toEqual({
       items: [],
       page: 1,
@@ -597,6 +598,56 @@ describe('GET /api/infraestructura/radar', () => {
     expect(segunda.escuelas.items.map((i: { snapshotId: string }) => i.snapshotId)).toEqual([
       's4',
       's3',
+    ])
+  })
+
+  it('devuelve puntos para todo el universo filtrado, aunque pageSize recorte items', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const body = await (await GET(req('?page=1&pageSize=1'))).json()
+
+    // La lista lateral queda recortada a una fila...
+    expect(body.escuelas.items).toHaveLength(1)
+    // ...pero los puntos cubren el universo completo de `escuelas.total`.
+    expect(body.escuelas.total).toBe(5)
+    expect(body.puntos).toHaveLength(5)
+    expect(
+      body.puntos.map((p: { cueAnexo: string }) => p.cueAnexo).sort(),
+    ).toEqual([
+      '1000000-01',
+      '1000000-02',
+      '1000000-03',
+      '1000000-04',
+      '1000000-05',
+    ])
+  })
+
+  it('acota puntos al mismo filtro de horizonte que el universo de escuelas', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const body = await (await GET(req('?horizonte=24&pageSize=1'))).json()
+
+    expect(body.escuelas.total).toBe(4)
+    expect(body.puntos).toHaveLength(4)
+    expect(
+      body.puntos.every((p: { horizonteHoras: number }) => p.horizonteHoras === 24),
+    ).toBe(true)
+  })
+
+  it('acota puntos al mismo filtro de departamento que el universo de escuelas', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const { GET } = await import('./route')
+    const body = await (await GET(req('?departamento=BETA'))).json()
+
+    expect(body.escuelas.total).toBe(1)
+    expect(body.puntos).toEqual([
+      {
+        cueAnexo: '1000000-03',
+        horizonteHoras: 24,
+        nivelRiesgo: null,
+        confianza: 'baja',
+        nivelRiesgoAcceso: null,
+      },
     ])
   })
 
