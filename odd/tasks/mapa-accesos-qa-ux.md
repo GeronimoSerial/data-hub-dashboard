@@ -71,7 +71,7 @@ commits on the feature branch; no push.
 
 ## Pending / limitations
 - Radar mode with the ficha open was not exercised in the browser; the 721-1080 px bottom sheet covers the lower part of the left column until the ficha is closed; icon selection was not tested on a school that sits inside a cluster.
-- Engram mirror `odd/mapa-accesos-qa-ux/tasks` is pending (mem_save failed with "multiple active runtime sessions").
+- Engram mirror saved through the CLI (`engram save … --topic odd/mapa-accesos-qa-ux/tasks`, observation #4868) because the MCP `mem_save` failed with "multiple active runtime sessions".
 
 ## Next step
 Cleanup N2 / N1: reduce the diff into review slices, then integrate. Demo `enos-accesos-3206` serves the final build.
