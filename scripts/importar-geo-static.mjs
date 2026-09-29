@@ -170,12 +170,12 @@ function formatearIssues(error) {
     .join('; ')
 }
 
-export async function importarAislamiento(path, { db, tabla }) {
-  const filas = leerCsv(path).map(mapearFilaAislamiento)
+async function importarCsv(path, { db, tabla }, mapearFila, schemaFila, etiqueta) {
+  const filas = leerCsv(path).map(mapearFila)
   let ok = 0
   let fallidas = 0
   for (const fila of filas) {
-    const parseo = schemaFilaAislamiento.safeParse(fila)
+    const parseo = schemaFila.safeParse(fila)
     if (!parseo.success) {
       console.warn(
         `[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${formatearIssues(parseo.error)}`,
@@ -189,36 +189,21 @@ export async function importarAislamiento(path, { db, tabla }) {
       .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: parseo.data })
     ok++
   }
-  console.log(`[importar-geo-static] aislamiento: procesadas ${filas.length}, ok ${ok}, fallidas ${fallidas}`)
+  console.log(`[importar-geo-static] ${etiqueta}: procesadas ${filas.length}, ok ${ok}, fallidas ${fallidas}`)
   return { procesadas: filas.length, ok, fallidas }
 }
 
-export async function importarSusceptibilidad(path, { db, tabla }) {
-  const filas = leerCsv(path).map(mapearFilaSusceptibilidad)
-  let ok = 0
-  let fallidas = 0
-  for (const fila of filas) {
-    const parseo = schemaFilaSusceptibilidad.safeParse(fila)
-    if (!parseo.success) {
-      console.warn(
-        `[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${formatearIssues(parseo.error)}`,
-      )
-      fallidas++
-      continue
-    }
-    await db
-      .insert(tabla)
-      .values(parseo.data)
-      .onConflictDoUpdate({ target: [tabla.cueAnexo, tabla.versionJob], set: parseo.data })
-    ok++
-  }
-  console.log(`[importar-geo-static] susceptibilidad: procesadas ${filas.length}, ok ${ok}, fallidas ${fallidas}`)
-  return { procesadas: filas.length, ok, fallidas }
+export async function importarAislamiento(path, opts) {
+  return importarCsv(path, opts, mapearFilaAislamiento, schemaFilaAislamiento, 'aislamiento')
+}
+
+export async function importarSusceptibilidad(path, opts) {
+  return importarCsv(path, opts, mapearFilaSusceptibilidad, schemaFilaSusceptibilidad, 'susceptibilidad')
 }
 
 /** Lee un NDJSON comprimido con gzip y devuelve sus lineas no vacias (texto
  * crudo, sin parsear: una linea con JSON malformado no debe abortar el
- * archivo, se reporta como fallida en importarGeometria). */
+ * archivo, se reporta como fallida en importarNdjson). */
 function leerNdjsonGz(path) {
   const texto = gunzipSync(readFileSync(path)).toString('utf-8')
   return texto
@@ -288,7 +273,7 @@ const setGeometriaExcluido = {
 
 const TAMANO_LOTE_GEOMETRIA = 200
 
-export async function importarGeometria(path, { db, tabla }) {
+async function importarNdjson(path, { db, tabla }, mapearFila, schemaFila, set, etiqueta) {
   const lineas = leerNdjsonGz(path)
   let fallidas = 0
   const validas = []
@@ -306,7 +291,7 @@ export async function importarGeometria(path, { db, tabla }) {
       fallidas++
       continue
     }
-    const parseo = schemaFilaGeometria.safeParse(mapearFilaGeometria(cruda))
+    const parseo = schemaFila.safeParse(mapearFila(cruda))
     if (!parseo.success) {
       console.warn(
         `[importar-geo-static] fila invalida (${cruda.cue_anexo ?? '?'}): ${formatearIssues(parseo.error)}`,
@@ -324,13 +309,19 @@ export async function importarGeometria(path, { db, tabla }) {
       .values(lote)
       .onConflictDoUpdate({
         target: [tabla.cueAnexo, tabla.versionJob],
-        set: setGeometriaExcluido,
+        set,
       })
   }
 
   const ok = validas.length
-  console.log(`[importar-geo-static] geometria: procesadas ${lineas.length}, ok ${ok}, fallidas ${fallidas}`)
+  console.log(`[importar-geo-static] ${etiqueta}: procesadas ${lineas.length}, ok ${ok}, fallidas ${fallidas}`)
   return { procesadas: lineas.length, ok, fallidas }
+}
+
+export async function importarGeometria(path, opts) {
+  return importarNdjson(
+    path, opts, mapearFilaGeometria, schemaFilaGeometria, setGeometriaExcluido, 'geometria',
+  )
 }
 
 function mapearFilaExposicionRuta(fila) {
@@ -394,33 +385,15 @@ const setExposicionRutaExcluido = {
   licencia: sql`excluded.licencia`, importadoEn: sql`excluded.importado_en`,
 }
 
-export async function importarExposicionRuta(path, { db, tabla }) {
-  const lineas = leerNdjsonGz(path)
-  let fallidas = 0
-  const validas = []
-  for (const linea of lineas) {
-    let cruda
-    try { cruda = JSON.parse(linea) } catch {
-      console.warn('[importar-geo-static] fila invalida (?): JSON malformado'); fallidas++; continue
-    }
-    if (cruda === null || typeof cruda !== 'object' || Array.isArray(cruda)) {
-      console.warn('[importar-geo-static] fila invalida (?): se esperaba un objeto JSON'); fallidas++; continue
-    }
-    const parseo = schemaFilaExposicionRuta.safeParse(mapearFilaExposicionRuta(cruda))
-    if (!parseo.success) {
-      console.warn(`[importar-geo-static] fila invalida (${cruda.cue_anexo ?? '?'}): ${formatearIssues(parseo.error)}`)
-      fallidas++; continue
-    }
-    validas.push(parseo.data)
-  }
-  for (let i = 0; i < validas.length; i += TAMANO_LOTE_GEOMETRIA) {
-    await db.insert(tabla).values(validas.slice(i, i + TAMANO_LOTE_GEOMETRIA)).onConflictDoUpdate({
-      target: [tabla.cueAnexo, tabla.versionJob], set: setExposicionRutaExcluido,
-    })
-  }
-  const ok = validas.length
-  console.log(`[importar-geo-static] exposicion-ruta: procesadas ${lineas.length}, ok ${ok}, fallidas ${fallidas}`)
-  return { procesadas: lineas.length, ok, fallidas }
+export async function importarExposicionRuta(path, opts) {
+  return importarNdjson(
+    path,
+    opts,
+    mapearFilaExposicionRuta,
+    schemaFilaExposicionRuta,
+    setExposicionRutaExcluido,
+    'exposicion-ruta',
+  )
 }
 
 async function main() {

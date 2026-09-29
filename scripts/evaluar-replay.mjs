@@ -33,7 +33,7 @@ import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-// Mismo hook de resolución TS que scripts/job-episodios-derivados.mjs.
+// Mismo hook de resolución TS que scripts/jobs.mjs.
 registerTsResolver(root)
 
 const NIVELES_RIESGO_ALTO = new Set(['alto', 'muy_alto'])

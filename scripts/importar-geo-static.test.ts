@@ -28,6 +28,9 @@ const tablaFalsa = {
   versionJob: 'version_job',
 }
 
+const CABECERA_AISLAMIENTO = 'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia'
+const CABECERA_SUSCEPTIBILIDAD = 'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia'
+
 let dir: string
 
 beforeEach(() => {
@@ -38,14 +41,32 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
+function escribirCsv(nombre: string, cabecera: string, filas: string[]) {
+  const path = join(dir, nombre)
+  writeFileSync(path, [cabecera, ...filas].join('\n'))
+  return path
+}
+
+async function rechazaCsv(
+  importador: typeof importarAislamiento | typeof importarSusceptibilidad,
+  archivo: string,
+  filas: string[],
+) {
+  const cabecera = importador === importarAislamiento
+    ? CABECERA_AISLAMIENTO
+    : CABECERA_SUSCEPTIBILIDAD
+  const path = escribirCsv(archivo, cabecera, filas)
+  const { db, llamadas } = crearDbFalsa()
+  const resultado = await importador(path, { db: db as never, tabla: tablaFalsa as never })
+  expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+  expect(llamadas).toHaveLength(0)
+}
+
 describe('importarAislamiento', () => {
   it('parsea una fila valida y llama al upsert con los valores esperados', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+    const path = escribirCsv('aislamiento.csv', CABECERA_AISLAMIENTO, [
       '1801605-04,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento.csv')
-    writeFileSync(path, csv)
+    ])
 
     const { db, llamadas } = crearDbFalsa()
     const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
@@ -62,12 +83,9 @@ describe('importarAislamiento', () => {
   })
 
   it('convierte campos vacios a null y booleano en 0', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+    const path = escribirCsv('aislamiento2.csv', CABECERA_AISLAMIENTO, [
       '1801605-05,,,,,,,0,,sin_conexion_red,9000,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento2.csv')
-    writeFileSync(path, csv)
+    ])
 
     const { db, llamadas } = crearDbFalsa()
     await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
@@ -80,13 +98,10 @@ describe('importarAislamiento', () => {
   })
 
   it('reporta una fila invalida sin abortar el resto del archivo', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
+    const path = escribirCsv('aislamiento3.csv', CABECERA_AISLAMIENTO, [
       ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
       '1801605-06,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento3.csv')
-    writeFileSync(path, csv)
+    ])
 
     const { db, llamadas } = crearDbFalsa()
     const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
@@ -95,60 +110,32 @@ describe('importarAislamiento', () => {
     expect(llamadas).toHaveLength(1)
   })
 
-  it('rechaza indice_aislamiento no numerico sin llamar a la db', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
-      '1801605-07,1500.5,1500.5,2,0,0,0,1,no-es-numero,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento-indice-invalido.csv')
-    writeFileSync(path, csv)
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
-  })
-
-  it('rechaza cue_anexo vacio sin llamar a la db', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
-      ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento-cue-vacio.csv')
-    writeFileSync(path, csv)
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
-  })
-
-  it('rechaza fecha_extracto_osm con formato no ISO sin llamar a la db', async () => {
-    const csv = [
-      'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia',
-      '1801605-08,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,26-09-2026,"© OpenStreetMap contributors, ODbL"',
-    ].join('\n')
-    const path = join(dir, 'aislamiento-fecha-invalida.csv')
-    writeFileSync(path, csv)
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarAislamiento(path, { db: db as never, tabla: tablaFalsa as never })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
+  it.each([
+    {
+      titulo: 'rechaza indice_aislamiento no numerico sin llamar a la db',
+      archivo: 'aislamiento-indice-invalido.csv',
+      fila: '1801605-07,1500.5,1500.5,2,0,0,0,1,no-es-numero,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+    },
+    {
+      titulo: 'rechaza cue_anexo vacio sin llamar a la db',
+      archivo: 'aislamiento-cue-vacio.csv',
+      fila: ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+    },
+    {
+      titulo: 'rechaza fecha_extracto_osm con formato no ISO sin llamar a la db',
+      archivo: 'aislamiento-fecha-invalida.csv',
+      fila: '1801605-08,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,26-09-2026,"© OpenStreetMap contributors, ODbL"',
+    },
+  ])('$titulo', async ({ archivo, fila }) => {
+    await rechazaCsv(importarAislamiento, archivo, [fila])
   })
 })
 
 describe('importarSusceptibilidad', () => {
   it('parsea una fila valida con fuente no_disponible', async () => {
-    const csv = [
-      'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia',
+    const path = escribirCsv('susceptibilidad.csv', CABECERA_SUSCEPTIBILIDAD, [
       '1801605-04,,,,,100,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
-    ].join('\n')
-    const path = join(dir, 'susceptibilidad.csv')
-    writeFileSync(path, csv)
+    ])
 
     const { db, llamadas } = crearDbFalsa()
     const resultado = await importarSusceptibilidad(path, { db: db as never, tabla: tablaFalsa as never })
@@ -160,34 +147,19 @@ describe('importarSusceptibilidad', () => {
     expect(fila.periodoRetornoAnios).toBe(100)
   })
 
-  it('rechaza periodo_retorno_anios no numerico sin llamar a la db', async () => {
-    const csv = [
-      'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia',
-      '1801605-09,,,,,abc,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
-    ].join('\n')
-    const path = join(dir, 'susceptibilidad-periodo-invalido.csv')
-    writeFileSync(path, csv)
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarSusceptibilidad(path, { db: db as never, tabla: tablaFalsa as never })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
-  })
-
-  it('rechaza periodo_retorno_anios vacio (null) sin llamar a la db', async () => {
-    const csv = [
-      'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia',
-      '1801605-10,,,,,,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
-    ].join('\n')
-    const path = join(dir, 'susceptibilidad-periodo-vacio.csv')
-    writeFileSync(path, csv)
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarSusceptibilidad(path, { db: db as never, tabla: tablaFalsa as never })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
+  it.each([
+    {
+      titulo: 'rechaza periodo_retorno_anios no numerico sin llamar a la db',
+      archivo: 'susceptibilidad-periodo-invalido.csv',
+      fila: '1801605-09,,,,,abc,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
+    },
+    {
+      titulo: 'rechaza periodo_retorno_anios vacio (null) sin llamar a la db',
+      archivo: 'susceptibilidad-periodo-vacio.csv',
+      fila: '1801605-10,,,,,,no_disponible,1,2026-09-26,"Apache-2.0, OS-Climate physrisk"',
+    },
+  ])('$titulo', async ({ archivo, fila }) => {
+    await rechazaCsv(importarSusceptibilidad, archivo, [fila])
   })
 })
 
@@ -267,39 +239,21 @@ describe('importarGeometria', () => {
     expect(fila.motivoSinGeometria).toBe('sin_conexion_red')
   })
 
-  it('rechaza ruta null sin motivo_sin_geometria', async () => {
-    const path = escribirNdjsonGz('geometria-motivo-null.ndjson.gz', [
-      filaGeometriaBase({ ruta: null, motivo_sin_geometria: null }),
-    ])
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarGeometria(path, {
-      db: db as never,
-      tabla: tablaGeometriaFalsa as never,
-    })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
-  })
-
-  it('rechaza una clasificacion de cruce desconocida', async () => {
-    const path = escribirNdjsonGz('geometria-clasificacion.ndjson.gz', [
-      filaGeometriaBase({ cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'tunel' }] }),
-    ])
-
-    const { db, llamadas } = crearDbFalsa()
-    const resultado = await importarGeometria(path, {
-      db: db as never,
-      tabla: tablaGeometriaFalsa as never,
-    })
-
-    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
-    expect(llamadas).toHaveLength(0)
-  })
-
-  it('rechaza una coordenada fuera de rango', async () => {
-    const path = escribirNdjsonGz('geometria-coordenada.ndjson.gz', [
-      filaGeometriaBase({
+  it.each([
+    {
+      titulo: 'rechaza ruta null sin motivo_sin_geometria',
+      archivo: 'geometria-motivo-null.ndjson.gz',
+      overrides: { ruta: null, motivo_sin_geometria: null },
+    },
+    {
+      titulo: 'rechaza una clasificacion de cruce desconocida',
+      archivo: 'geometria-clasificacion.ndjson.gz',
+      overrides: { cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'tunel' }] },
+    },
+    {
+      titulo: 'rechaza una coordenada fuera de rango',
+      archivo: 'geometria-coordenada.ndjson.gz',
+      overrides: {
         ruta: {
           type: 'LineString',
           coordinates: [
@@ -307,9 +261,10 @@ describe('importarGeometria', () => {
             [-58.81, -27.41],
           ],
         },
-      }),
-    ])
-
+      },
+    },
+  ])('$titulo', async ({ archivo, overrides }) => {
+    const path = escribirNdjsonGz(archivo, [filaGeometriaBase(overrides)])
     const { db, llamadas } = crearDbFalsa()
     const resultado = await importarGeometria(path, {
       db: db as never,
