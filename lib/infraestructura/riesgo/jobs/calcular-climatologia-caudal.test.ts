@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardClimatology, infraJobRun } from '@/lib/db/schema'
 import type { ejecutarCalculoClimatologiaCaudal as EjecutarCalculoClimatologiaCaudal } from './calcular-climatologia-caudal'
 import type { obtenerSeriesHistoricasCaudal as ObtenerSeriesHistoricasCaudal } from '../providers/climatologia-caudal'
 import { PUNTOS_RIO } from '../puntos-rio'
@@ -57,8 +59,6 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const filas = await getDb().select().from(hazardClimatology)
     expect(filas).toHaveLength(PUNTOS_RIO.length * 3)
 
@@ -71,8 +71,6 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
   })
 
   it('repetir la misma corrida (mismo período/versión) no adquiere lease y no duplica filas', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = await db.select().from(hazardClimatology)
@@ -102,8 +100,6 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const filas = await getDb().select().from(hazardClimatology)
     // 24 de la versión v0.1 + 21 de la v0.2 (sólo los puntos que respondieron ok)
     expect(filas).toHaveLength(PUNTOS_RIO.length * 3 + (PUNTOS_RIO.length - 1) * 3)
@@ -128,8 +124,6 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
       }),
     ).rejects.toThrow(errorOriginal)
 
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun } = await import('@/lib/db/schema')
     const { eq } = await import('drizzle-orm')
     const [fila] = await getDb()
       .select()

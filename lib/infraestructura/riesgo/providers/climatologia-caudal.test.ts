@@ -6,6 +6,7 @@ import {
 } from './climatologia-caudal'
 import type { HazardClimatologiaCaudalPunto } from './climatologia-caudal'
 import type { PuntoRio } from '../puntos-rio'
+import { fetchOk } from './__fixtures__/fetch'
 
 // Serie sintética conocida: 10 días con caudal 0 + 10 días con caudal
 // {1..9, 100}. Se pasa desordenada a propósito para probar el orden interno.
@@ -86,10 +87,6 @@ describe('calcularPercentilesCaudal', () => {
 })
 
 describe('obtenerSeriesHistoricasCaudal', () => {
-  function fetchOk(body: unknown) {
-    return vi.fn(async (_url: string) => new Response(JSON.stringify(body), { status: 200 }))
-  }
-
   it('descarta los días null en vez de imputarlos como 0 m3s', async () => {
     const fetchImpl = fetchOk({
       daily: {

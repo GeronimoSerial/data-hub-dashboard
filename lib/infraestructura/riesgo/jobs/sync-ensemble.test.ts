@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardClimatology, hazardEnsembleProb, hazardSourceHealth, infraJobRun } from '@/lib/db/schema'
+import { borrarPerfilesGeo, insertarPerfilesGeo } from './__fixtures__/perfiles-geo'
 import type { HazardEnsembleProbPunto } from '../providers/ensemble'
 import type {
   obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal,
@@ -14,17 +17,12 @@ usarDbTemporal('sync-ensemble-')
 beforeAll(async () => {
   ;({ ejecutarSyncEnsemble } = await import('./sync-ensemble'))
 
-  const { getDb } = await import('@/lib/db')
-  const { hazardClimatology, infraGeoProfile } = await import('@/lib/db/schema')
   const db = getDb()
 
-  await db.insert(infraGeoProfile).values(
+  await insertarPerfilesGeo(
     CELDAS.map((geometryRef, indice) => ({
       cueAnexo: `180000${indice + 1}-00`,
       geometryRef,
-      motivoExclusion: null,
-      perfilVersion: 'geo-perfil-v1',
-      calculadoEn: '2026-09-26T00:00:00.000Z',
     })),
   )
 
@@ -138,8 +136,6 @@ describe('ejecutarSyncEnsemble', () => {
     expect(argsCapturados?.umbralP95PorCelda.get(CELDAS[0])).toBe(P95_DEFAULT)
     expect(argsCapturados?.umbralP99PorCelda.get(CELDAS[0])).toBe(P99_DEFAULT)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardEnsembleProb, hazardSourceHealth } = await import('@/lib/db/schema')
     const db = getDb()
 
     const filas = await db.select().from(hazardEnsembleProb)
@@ -156,8 +152,6 @@ describe('ejecutarSyncEnsemble', () => {
   })
 
   it('repetir el sync en la misma ventana de 6h no adquiere lease y no duplica filas', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardEnsembleProb } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = (await db.select().from(hazardEnsembleProb)).length
@@ -180,21 +174,11 @@ describe('ejecutarSyncEnsemble — celda sin climatología', () => {
   const CUE_SIN = '1800099-00'
 
   beforeAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb().insert(infraGeoProfile).values({
-      cueAnexo: CUE_SIN,
-      geometryRef: CELDA_SIN,
-      motivoExclusion: null,
-      perfilVersion: 'geo-perfil-v1',
-      calculadoEn: '2026-09-26T00:00:00.000Z',
-    })
+    await insertarPerfilesGeo([{ cueAnexo: CUE_SIN, geometryRef: CELDA_SIN }])
   })
 
   afterAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb().delete(infraGeoProfile).where(inArray(infraGeoProfile.cueAnexo, [CUE_SIN]))
+    await borrarPerfilesGeo([CUE_SIN])
   })
 
   it('una celda sin climatología no rompe el resto y queda fuera de las filas persistidas', async () => {
@@ -212,8 +196,6 @@ describe('ejecutarSyncEnsemble — celda sin climatología', () => {
     expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length * PUNTOS_POR_CELDA_DEFAULT)
     expect(resultado.resultado.llamadasRealizadas).toBe(1)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardEnsembleProb, hazardSourceHealth } = await import('@/lib/db/schema')
     const db = getDb()
 
     const deLaCeldaSin = await db
@@ -248,31 +230,19 @@ type RenovarLeaseParamsTest = {
 
 describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => {
   beforeAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology, infraGeoProfile } = await import('@/lib/db/schema')
     const db = getDb()
-    await db.insert(infraGeoProfile).values(
-      CELDAS_EXTRA.map(({ cueAnexo, geometryRef }) => ({
-        cueAnexo,
-        geometryRef,
-        motivoExclusion: null,
-        perfilVersion: 'geo-perfil-v1',
-        calculadoEn: '2026-09-26T00:00:00.000Z',
-      })),
-    )
+    await insertarPerfilesGeo(CELDAS_EXTRA)
     await db
       .insert(hazardClimatology)
       .values(CELDAS_EXTRA.flatMap(({ geometryRef }) => filasClimatologia(geometryRef)))
   })
 
   afterAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology, infraGeoProfile } = await import('@/lib/db/schema')
     const refs = CELDAS_EXTRA.map(({ geometryRef }) => geometryRef)
     const cueAnexos = CELDAS_EXTRA.map(({ cueAnexo }) => cueAnexo)
     const db = getDb()
     await db.delete(hazardClimatology).where(inArray(hazardClimatology.geometryRef, refs))
-    await db.delete(infraGeoProfile).where(inArray(infraGeoProfile.cueAnexo, cueAnexos))
+    await borrarPerfilesGeo(cueAnexos)
   })
 
   it('renueva el lease más de una vez cuando las celdas superan el umbral de tanda', async () => {
@@ -308,8 +278,6 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
     const ahora = new Date('2026-09-26T19:00:00.000Z') // bloque 18-24
     const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => false)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardEnsembleProb } = await import('@/lib/db/schema')
     const db = getDb()
     const antes = (await db.select().from(hazardEnsembleProb)).length
 
@@ -351,8 +319,6 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
       }),
     ).rejects.toThrow(errorOriginal)
 
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun } = await import('@/lib/db/schema')
     const { eq } = await import('drizzle-orm')
     const [fila] = await getDb()
       .select()
@@ -413,8 +379,6 @@ describe('ejecutarSyncEnsemble — renovación de lease durante el loop', () => 
       expect(resultado.resultado.llamadasRealizadas).toBeGreaterThan(0)
     }
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardEnsembleProb } = await import('@/lib/db/schema')
     const corridasVistas = [...new Set(args.map((a) => a.asOf))]
     const filas = await getDb()
       .select()

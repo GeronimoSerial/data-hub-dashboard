@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardObservation, hazardSourceHealth, infraJobRun } from '@/lib/db/schema'
 import { celdaDeCoordenada } from '../celda'
 import { mapearAsciiImergACeldas, parsearRespuestaAsciiImerg } from '../providers/imerg'
 import type { ejecutarSyncImerg as EjecutarSyncImerg } from './sync-imerg'
 import type { PuertoObservacionSatelital } from '../adaptadores-ingesta/puertos'
+import { cmrConEntradas } from '../adaptadores-ingesta/__fixtures__/contrato'
 
 usarDbTemporal('sync-imerg-')
 
@@ -41,38 +44,18 @@ const CELDAS_ESPERADAS = new Set(PUNTOS_MAPEADOS.map((punto) => punto.geometryRe
 
 type FetchImpl = typeof fetch
 
-// Construye un payload de CMR sintético con `entries.length` gránulos, cada
-// uno con una URL de datos distinta (por timestamp) para que
-// `construirUrlSubsetImerg` genere URLs de subset distintas y el mock pueda
-// enrutarlas. Mismo shape que el fixture real, sin tocar la red.
-function cmrPayloadSintetico(entries: Array<{ inicioEn: string; finEn: string }>) {
-  return {
-    feed: {
-      entry: entries.map((entrada) => {
-        const sello = entrada.inicioEn.replace(/[-:.]/g, '')
-        return {
-          title: `GPM_3IMERGHHE.07:3B-HHR-E.${sello}.HDF5`,
-          time_start: entrada.inicioEn,
-          time_end: entrada.finEn,
-          links: [
-            {
-              rel: 'http://esipfed.org/ns/fedsearch/1.1/data#',
-              href: `https://data.gesdisc.earthdata.nasa.gov/data/GPM_L3/${sello}.HDF5`,
-            },
-          ],
-        }
-      }),
-    },
-  }
-}
-
-const CMR_REAL = cmrPayloadSintetico([{ inicioEn: GRANULO_INICIO, finEn: GRANULO_FIN }])
+// Construye un payload CMR sintético con títulos y URLs distintos por timestamp.
+const CMR_REAL = cmrConEntradas([{ inicioEn: GRANULO_INICIO, finEn: GRANULO_FIN }])
 
 // Mock de `fetchImpl`: responde el payload de CMR sintético a cualquier
 // búsqueda de gránulos, y el fixture ASCII real a cualquier subset OPeNDAP
 // (el contenido no depende del gránulo pedido en estos tests: lo que importa
 // es que cada URL de subset distinta se registre como una llamada aparte).
-function fetchConFixtures(cmrPayload: unknown = CMR_REAL, urlsQueFallan: Set<string> = new Set()) {
+function fetchConFixtures(
+  cmrPayload: unknown = CMR_REAL,
+  urlsQueFallan: Set<string> = new Set(),
+  subsetQueFalla?: (url: string) => boolean,
+) {
   return vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
     const url = String(input)
     if (url.includes('/search/granules.json')) {
@@ -82,7 +65,7 @@ function fetchConFixtures(cmrPayload: unknown = CMR_REAL, urlsQueFallan: Set<str
       })
     }
     if (url.includes('gesdisc.eosdis.nasa.gov/opendap/')) {
-      if (urlsQueFallan.has(url)) {
+      if (urlsQueFallan.has(url) || subsetQueFalla?.(url)) {
         return new Response('boom', { status: 500 })
       }
       return new Response(fixtureAscii, { status: 200, headers: { 'content-type': 'text/plain' } })
@@ -91,19 +74,24 @@ function fetchConFixtures(cmrPayload: unknown = CMR_REAL, urlsQueFallan: Set<str
   })
 }
 
-async function db() {
-  const { getDb } = await import('@/lib/db')
+function sync(over: Parameters<typeof ejecutarSyncImerg>[0] = {}) {
+  return ejecutarSyncImerg({
+    earthdataToken: 'token-fake',
+    fetchImpl: fetchConFixtures() as unknown as FetchImpl,
+    ...over,
+  })
+}
+
+function db() {
   return getDb()
 }
 
 async function contarObservaciones(): Promise<number> {
-  const { hazardObservation } = await import('@/lib/db/schema')
   const filas = await (await db()).select().from(hazardObservation)
   return filas.filter((fila) => fila.provider === 'nasa-imerg').length
 }
 
 async function saludImerg() {
-  const { hazardSourceHealth } = await import('@/lib/db/schema')
   const filas = await (await db()).select().from(hazardSourceHealth)
   return filas.find((fila) => fila.provider === 'nasa-imerg')
 }
@@ -115,9 +103,10 @@ describe('ejecutarSyncImerg', () => {
     })
     const ahora = new Date('2026-09-26T00:15:00.000Z')
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora,
       fetchImpl: fetchImpl as unknown as FetchImpl,
+      earthdataToken: undefined,
     })
 
     expect(resultado).toEqual({
@@ -143,7 +132,7 @@ describe('ejecutarSyncImerg', () => {
       throw new Error('no debe llamarse a la red con token vacío')
     })
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora: new Date('2026-09-26T00:45:00.000Z'),
       fetchImpl: fetchImpl as unknown as FetchImpl,
       earthdataToken: '',
@@ -166,10 +155,9 @@ describe('ejecutarSyncImerg', () => {
     const ahora = new Date('2026-09-26T19:05:00.000Z') // bloque 19:00, gránulo real 18:30 aún no ingerido
     const antes = await contarObservaciones()
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora,
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -193,7 +181,6 @@ describe('ejecutarSyncImerg', () => {
       'Bearer token-fake',
     )
 
-    const { hazardObservation } = await import('@/lib/db/schema')
     const filas = (await (await db()).select().from(hazardObservation)).filter(
       (fila) => fila.provider === 'nasa-imerg',
     )
@@ -218,19 +205,12 @@ describe('ejecutarSyncImerg', () => {
   })
 
   it('CMR sin gránulo no crashea: degradado, contador 0 y lease liberado', async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/search/granules.json')) {
-        return new Response(JSON.stringify({ feed: { entry: [] } }), { status: 200 })
-      }
-      throw new Error(`no debería pedir subset sin gránulo: ${url}`)
-    })
+    const fetchImpl = fetchConFixtures({ feed: { entry: [] } })
     const ahora = new Date('2026-09-26T02:05:00.000Z') // bloque 02:00
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora,
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -247,7 +227,6 @@ describe('ejecutarSyncImerg', () => {
     const salud = await saludImerg()
     expect(salud?.estado).toBe('degradado')
 
-    const { infraJobRun } = await import('@/lib/db/schema')
     const run = (await (await db()).select().from(infraJobRun)).find(
       (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-26T02:00',
     )
@@ -259,21 +238,14 @@ describe('ejecutarSyncImerg', () => {
   it('falla el subsetting del gránulo más reciente (HTTP 500): degradado, no crashea y libera el lease', async () => {
     const inicio = '2026-09-26T03:00:00.000Z'
     const fin = '2026-09-26T03:29:59.999Z'
-    const cmr = cmrPayloadSintetico([{ inicioEn: inicio, finEn: fin }])
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/search/granules.json')) {
-        return new Response(JSON.stringify(cmr), { status: 200 })
-      }
-      return new Response('boom', { status: 500 })
-    })
+    const cmr = cmrConEntradas([{ inicioEn: inicio, finEn: fin }])
+    const fetchImpl = fetchConFixtures(cmr, new Set(), () => true)
     const ahora = new Date('2026-09-26T03:35:00.000Z') // bloque 03:30
     const antes = await contarObservaciones()
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora,
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -291,7 +263,6 @@ describe('ejecutarSyncImerg', () => {
     const salud = await saludImerg()
     expect(salud?.estado).toBe('degradado')
 
-    const { infraJobRun } = await import('@/lib/db/schema')
     const run = (await (await db()).select().from(infraJobRun)).find(
       (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-26T03:30',
     )
@@ -303,20 +274,18 @@ describe('ejecutarSyncImerg', () => {
   it('segunda corrida en la misma ventana de 30 min no adquiere lease ni duplica', async () => {
     const inicio = '2026-09-26T04:00:00.000Z'
     const fin = '2026-09-26T04:29:59.999Z'
-    const cmr = cmrPayloadSintetico([{ inicioEn: inicio, finEn: fin }])
+    const cmr = cmrConEntradas([{ inicioEn: inicio, finEn: fin }])
     const fetchImpl = fetchConFixtures(cmr)
-    const primera = await ejecutarSyncImerg({
+    const primera = await sync({
       ahora: new Date('2026-09-26T04:05:00.000Z'), // bloque 04:00
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
     expect(primera.ok).toBe(true)
     const despuesPrimera = await contarObservaciones()
 
-    const segunda = await ejecutarSyncImerg({
+    const segunda = await sync({
       ahora: new Date('2026-09-26T04:20:00.000Z'), // MISMO bloque 04:00
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(segunda).toEqual({ ok: false, motivo: 'lease_no_disponible' })
@@ -327,10 +296,9 @@ describe('ejecutarSyncImerg', () => {
     const fetchImpl = fetchConFixtures() // CMR_REAL = gránulo 18:30, ya ingerido en el 1er test
     const antes = await contarObservaciones()
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora: new Date('2026-09-26T19:35:00.000Z'), // bloque 19:30, misma ventana con el mismo gránulo real
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -342,7 +310,6 @@ describe('ejecutarSyncImerg', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(await contarObservaciones()).toBe(antes)
 
-    const { hazardObservation } = await import('@/lib/db/schema')
     const filas = (await (await db()).select().from(hazardObservation)).filter(
       (fila) => fila.provider === 'nasa-imerg' && fila.observadoEn === GRANULO_INICIO,
     )
@@ -355,14 +322,13 @@ describe('ejecutarSyncImerg', () => {
       { inicioEn: '2026-09-26T10:00:00.000Z', finEn: '2026-09-26T10:29:59.999Z' },
       { inicioEn: '2026-09-26T09:30:00.000Z', finEn: '2026-09-26T09:59:59.999Z' },
     ]
-    const cmr = cmrPayloadSintetico(entradas)
+    const cmr = cmrConEntradas(entradas)
     const fetchImpl = fetchConFixtures(cmr)
     const antes = await contarObservaciones()
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora: new Date('2026-09-26T11:05:00.000Z'), // bloque 11:00
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -378,7 +344,6 @@ describe('ejecutarSyncImerg', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(4)
     expect((await contarObservaciones()) - antes).toBe(CELDAS_ESPERADAS * 3)
 
-    const { hazardObservation } = await import('@/lib/db/schema')
     const observadosEn = new Set(
       (await (await db()).select().from(hazardObservation))
         .filter((fila) => fila.provider === 'nasa-imerg')
@@ -393,27 +358,17 @@ describe('ejecutarSyncImerg', () => {
       { inicioEn: '2026-09-26T13:00:00.000Z', finEn: '2026-09-26T13:29:59.999Z' },
       { inicioEn: '2026-09-26T12:30:00.000Z', finEn: '2026-09-26T12:59:59.999Z' },
     ]
-    const cmr = cmrPayloadSintetico(entradas)
+    const cmr = cmrConEntradas(entradas)
     // El del medio (13:00) falla; el más reciente (13:30) y el más viejo
     // (12:30) se procesan igual. Buscamos por substring del sello (mismo
-    // esquema que cmrPayloadSintetico) en la URL de subset generada.
+    // esquema que cmrConEntradas) en la URL de subset generada.
     const selloFallido = '13:00:00.000Z'.replace(/[-:.]/g, '')
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
-      const url = String(input)
-      if (url.includes('/search/granules.json')) {
-        return new Response(JSON.stringify(cmr), { status: 200 })
-      }
-      if (url.includes(selloFallido)) {
-        return new Response('boom', { status: 500 })
-      }
-      return new Response(fixtureAscii, { status: 200, headers: { 'content-type': 'text/plain' } })
-    })
+    const fetchImpl = fetchConFixtures(cmr, new Set(), (url) => url.includes(selloFallido))
     const antes = await contarObservaciones()
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora: new Date('2026-09-26T14:05:00.000Z'), // bloque 14:00
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado).toEqual({
@@ -439,13 +394,12 @@ describe('ejecutarSyncImerg', () => {
       const fin = new Date(inicio.getTime() + 29 * 60 * 1000 + 59999)
       return { inicioEn: inicio.toISOString(), finEn: fin.toISOString() }
     })
-    const cmr = cmrPayloadSintetico(entradas)
+    const cmr = cmrConEntradas(entradas)
     const fetchImpl = fetchConFixtures(cmr)
 
-    const resultado = await ejecutarSyncImerg({
+    const resultado = await sync({
       ahora: new Date('2026-09-26T16:05:00.000Z'), // bloque 16:00
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: 'token-fake',
     })
 
     expect(resultado.ok).toBe(true)
@@ -500,7 +454,7 @@ describe('ejecutarSyncImerg', () => {
       },
     }
 
-    const resultado = await ejecutarSyncImerg({ ahora, puerto: puertoFake, earthdataToken: 'token-fake' })
+    const resultado = await sync({ ahora, puerto: puertoFake })
 
     expect(resultado).toEqual({
       ok: true,
@@ -513,7 +467,6 @@ describe('ejecutarSyncImerg', () => {
     })
     expect((await contarObservaciones()) - antes).toBe(1)
 
-    const { hazardObservation } = await import('@/lib/db/schema')
     const filas = (await (await db()).select().from(hazardObservation)).filter(
       (fila) => fila.provider === 'nasa-imerg' && fila.geometryRef === '-27.5_-58.8',
     )

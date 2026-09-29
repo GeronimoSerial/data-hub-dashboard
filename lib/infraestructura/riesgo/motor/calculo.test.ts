@@ -102,6 +102,18 @@ function antecedente(
   }
 }
 
+function calcular(
+  over: Partial<Parameters<typeof calcularRiesgoEscuela>[0]> &
+    Pick<Parameters<typeof calcularRiesgoEscuela>[0], 'puertos'>,
+) {
+  return calcularRiesgoEscuela({
+    cueAnexo: CUE,
+    horizonte: 24,
+    asOf: AS_OF,
+    ...over,
+  })
+}
+
 // Escenario con los 6 sub-componentes presentes y valores moderados.
 function escenarioBase(): EscenarioFake {
   return {
@@ -134,18 +146,8 @@ describe('calcularRiesgoEscuela', () => {
   it('T1: escenario completo es determinista', async () => {
     const escenario = escenarioBase()
 
-    const primera = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
-    const segunda = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const primera = await calcular({ puertos: crearPuertosFake(escenario) })
+    const segunda = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(segunda).toEqual(primera)
     expect(primera.evidenciaValida).toBe(true)
@@ -159,12 +161,7 @@ describe('calcularRiesgoEscuela', () => {
   })
 
   it('T2: los factores reconstruyen scoreAmenaza y scoreVulnerabilidad', async () => {
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenarioBase()),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenarioBase()) })
 
     const sumaAmenaza = resultado.factores
       .filter((factor) => factor.tipo === 'amenaza')
@@ -204,12 +201,7 @@ describe('calcularRiesgoEscuela', () => {
       },
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.scoreAmenaza).toBe(100)
     expect(resultado.scoreVulnerabilidad).toBe(100)
@@ -236,12 +228,7 @@ describe('calcularRiesgoEscuela', () => {
       },
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.evidenciaValida).toBe(true)
     expect(resultado.scoreAmenaza).toBe(0)
@@ -259,12 +246,7 @@ describe('calcularRiesgoEscuela', () => {
       lluvia24h: { [GEOM]: null },
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.evidenciaValida).toBe(false)
     expect(resultado.scoreAmenaza).toBeNull()
@@ -280,12 +262,7 @@ describe('calcularRiesgoEscuela', () => {
       territorio: { [CUE]: perfilValido({ motivoExclusion: 'sin_geometria' }) },
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.evidenciaValida).toBe(false)
     expect(resultado.scoreRiesgo).toBeNull()
@@ -316,18 +293,8 @@ describe('calcularRiesgoEscuela', () => {
       },
     }
 
-    const viejo = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: asOfViejo,
-      puertos: crearPuertosFake(escenario),
-    })
-    const nuevo = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const viejo = await calcular({ asOf: asOfViejo, puertos: crearPuertosFake(escenario) })
+    const nuevo = await calcular({ puertos: crearPuertosFake(escenario) })
 
     const factorViejo = viejo.factores.find((factor) => factor.fuente === 'historial')
     const factorNuevo = nuevo.factores.find((factor) => factor.fuente === 'historial')
@@ -343,12 +310,7 @@ describe('calcularRiesgoEscuela', () => {
       aislamiento: {},
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.evidenciaValida).toBe(true)
     expect(resultado.scoreRiesgo).not.toBeNull()
@@ -361,12 +323,7 @@ describe('calcularRiesgoEscuela', () => {
       aislamiento: {},
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
 
     expect(resultado.evidenciaValida).toBe(true)
     expect(resultado.scoreRiesgo).not.toBeNull()
@@ -380,18 +337,8 @@ describe('calcularRiesgoEscuela', () => {
       peligro: { [GEOM]: [celda('naranja', { metodo: 'umbral_provisorio' })] },
     }
 
-    const percentiles = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(conPercentiles),
-    })
-    const provisorio = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(conProvisorio),
-    })
+    const percentiles = await calcular({ puertos: crearPuertosFake(conPercentiles) })
+    const provisorio = await calcular({ puertos: crearPuertosFake(conProvisorio) })
 
     // El factor de amenaza se agrega igual al score...
     expect(provisorio.scoreAmenaza).not.toBeNull()
@@ -426,12 +373,7 @@ describe('calcularRiesgoEscuela', () => {
       },
     }
 
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: asOfViejo,
-      puertos: crearPuertosFake(escenario),
-    })
+    const resultado = await calcular({ asOf: asOfViejo, puertos: crearPuertosFake(escenario) })
 
     const factorHistorial = resultado.factores.find((factor) => factor.fuente === 'historial')
     expect(factorHistorial?.valor).toBe(0)
@@ -475,18 +417,8 @@ describe('calcularRiesgoEscuela', () => {
       },
     }
 
-    const conZ = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: asOfZ,
-      puertos: puertosSinFiltroFake,
-    })
-    const conOffset = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: asOfOffset,
-      puertos: puertosSinFiltroFake,
-    })
+    const conZ = await calcular({ asOf: asOfZ, puertos: puertosSinFiltroFake })
+    const conOffset = await calcular({ asOf: asOfOffset, puertos: puertosSinFiltroFake })
 
     expect(conZ.factores.find((factor) => factor.fuente === 'historial')?.valor).toBe(1)
     expect(conOffset.factores.find((factor) => factor.fuente === 'historial')?.valor).toBe(1)
@@ -500,18 +432,8 @@ describe('calcularRiesgoEscuela', () => {
     }
     const sinSusceptibilidad: EscenarioFake = { ...escenarioBase(), susceptibilidad: {} }
 
-    const vacio = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(conCatalogoVacio),
-    })
-    const nulo = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(sinSusceptibilidad),
-    })
+    const vacio = await calcular({ puertos: crearPuertosFake(conCatalogoVacio) })
+    const nulo = await calcular({ puertos: crearPuertosFake(sinSusceptibilidad) })
 
     expect(vacio.factores.some((factor) => factor.fuente === 'susceptibilidad-physrisk')).toBe(false)
     // 1 componente faltante (el catálogo vacío) => confianza media, no alta.
@@ -521,12 +443,7 @@ describe('calcularRiesgoEscuela', () => {
   })
 
   it('T-ACC1: el aislamiento ya no es factor de vulnerabilidad y se expone como riesgoAcceso separado', async () => {
-    const resultado = await calcularRiesgoEscuela({
-      cueAnexo: CUE,
-      horizonte: 24,
-      asOf: AS_OF,
-      puertos: crearPuertosFake(escenarioBase()),
-    })
+    const resultado = await calcular({ puertos: crearPuertosFake(escenarioBase()) })
 
     // El aislamiento salió del IRO: no debe quedar como factor de vulnerabilidad...
     expect(

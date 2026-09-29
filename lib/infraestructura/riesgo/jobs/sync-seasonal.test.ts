@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardSeasonalTrend, hazardSourceHealth } from '@/lib/db/schema'
 import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
 import type { EstadisticaEstacionalDepartamento } from '../providers/seasonal'
 import type { obtenerTendenciaEstacional as ObtenerTendenciaEstacionalReal } from '../providers/seasonal'
@@ -77,8 +79,6 @@ describe('ejecutarSyncSeasonal', () => {
     expect(resultado.resultado.filasInsertadas).toBe(CENTROIDES_DEPARTAMENTOS_CORRIENTES.length)
     expect(llamadas).toBeGreaterThan(0)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardSeasonalTrend, hazardSourceHealth } = await import('@/lib/db/schema')
     const db = getDb()
 
     const filas = await db.select().from(hazardSeasonalTrend)
@@ -125,8 +125,6 @@ describe('ejecutarSyncSeasonal', () => {
       // antes de tocar la red), pero el job TERMINA (no tumba el proceso).
       expect(resultado.resultado.filasInsertadas).toBe(0)
 
-      const { getDb } = await import('@/lib/db')
-      const { hazardSourceHealth } = await import('@/lib/db/schema')
       const salud = await getDb().select().from(hazardSourceHealth)
       const seasonal = salud.find((f) => f.provider === 'open-meteo-seasonal')
       expect(seasonal?.estado).toBe('degradado')
@@ -137,8 +135,6 @@ describe('ejecutarSyncSeasonal', () => {
   })
 
   it('repetir el sync el MISMO día UTC no adquiere lease y no duplica filas', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardSeasonalTrend } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = (await db.select().from(hazardSeasonalTrend)).length
@@ -164,8 +160,6 @@ describe('ejecutarSyncSeasonal', () => {
 
     expect(resultado.ok).toBe(true)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardSeasonalTrend } = await import('@/lib/db/schema')
     const db = getDb()
     const filas = await db.select().from(hazardSeasonalTrend)
     // Dos emisiones distintas (2026-09-27 y 2026-09-28) por departamento.
@@ -189,8 +183,6 @@ describe('ejecutarSyncSeasonal', () => {
       CENTROIDES_DEPARTAMENTOS_CORRIENTES.length - 1,
     )
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardSourceHealth } = await import('@/lib/db/schema')
     const salud = await getDb().select().from(hazardSourceHealth)
     const seasonal = salud.find((f) => f.provider === 'open-meteo-seasonal')
     expect(seasonal?.estado).toBe('degradado')
@@ -240,8 +232,6 @@ describe('ejecutarSyncSeasonal', () => {
       true,
     )
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardSeasonalTrend } = await import('@/lib/db/schema')
     const emisionesVistas = [...new Set(llamadas.map((l) => l.emisionEn))]
     const filas = await getDb()
       .select()

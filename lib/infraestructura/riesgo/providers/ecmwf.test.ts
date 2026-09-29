@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { crearProviderEcmwf, TAMANO_LOTE_COORDENADAS } from './ecmwf'
 import { longitudesDeUrl } from './__fixtures__/url'
+import { fetchOk, fetchJsonPorUrl } from './__fixtures__/fetch'
 import type { HazardForecastPunto } from '../tipos-hazard'
 
 const fixtureJson = JSON.parse(
@@ -10,10 +11,6 @@ const fixtureJson = JSON.parse(
     'utf8',
   ),
 ) as unknown
-
-function fetchFixture() {
-  return vi.fn(async (_url: string) => new Response(JSON.stringify(fixtureJson), { status: 200 }))
-}
 
 const AHORA = new Date('2026-09-26T00:00:00Z')
 const GEOMETRY = '-27.5_-58.8'
@@ -59,7 +56,7 @@ describe('crearProviderEcmwf', () => {
   })
 
   it('genera puntos para las cinco variables usando fetchImpl inyectado', async () => {
-    const fetchImpl = fetchFixture()
+    const fetchImpl = fetchOk(fixtureJson)
     const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
 
     const puntos = await provider.obtenerPronostico({ geometryRefs: [GEOMETRY], ahora: AHORA })
@@ -75,7 +72,7 @@ describe('crearProviderEcmwf', () => {
   })
 
   it('deriva el paso real: 1h en las primeras horas del array', async () => {
-    const provider = crearProviderEcmwf({ fetchImpl: fetchFixture() as unknown as typeof fetch })
+    const provider = crearProviderEcmwf({ fetchImpl: fetchOk(fixtureJson) as unknown as typeof fetch })
     const puntos = await provider.obtenerPronostico({ geometryRefs: [GEOMETRY], ahora: AHORA })
 
     const primeros = puntos.filter((p) => p.horizonteHoras <= 5)
@@ -86,7 +83,7 @@ describe('crearProviderEcmwf', () => {
   })
 
   it('no emite horizontes negativos cuando ahora es anterior al primer timestamp', async () => {
-    const provider = crearProviderEcmwf({ fetchImpl: fetchFixture() as unknown as typeof fetch })
+    const provider = crearProviderEcmwf({ fetchImpl: fetchOk(fixtureJson) as unknown as typeof fetch })
     const puntos = await provider.obtenerPronostico({ geometryRefs: [GEOMETRY], ahora: AHORA })
 
     expect(puntos.length).toBeGreaterThan(0)
@@ -95,7 +92,7 @@ describe('crearProviderEcmwf', () => {
   })
 
   it('completa validoEn como ISO UTC y conserva geometryRef/corridaEn', async () => {
-    const provider = crearProviderEcmwf({ fetchImpl: fetchFixture() as unknown as typeof fetch })
+    const provider = crearProviderEcmwf({ fetchImpl: fetchOk(fixtureJson) as unknown as typeof fetch })
     const puntos = await provider.obtenerPronostico({ geometryRefs: [GEOMETRY], ahora: AHORA })
 
     const muestra = puntos[0]
@@ -121,10 +118,7 @@ describe('crearProviderEcmwf', () => {
   }, 15_000)
 
   it('agrupa 120 celdas en ceil(120/TAMANO_LOTE_COORDENADAS) llamadas y empareja por índice', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadEcmwfParaLongitudes(longitudes)), { status: 200 })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEcmwfParaLongitudes(longitudesDeUrl(url)))
     const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
 
     const celdas = celdasSinteticas(120)
@@ -145,10 +139,7 @@ describe('crearProviderEcmwf', () => {
   })
 
   it('asigna cada objeto del array a la celda correcta por posición', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadEcmwfParaLongitudes(longitudes)), { status: 200 })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEcmwfParaLongitudes(longitudesDeUrl(url)))
     const provider = crearProviderEcmwf({ fetchImpl: fetchImpl as unknown as typeof fetch })
 
     const celdas = ['-27_7', '-27_8', '-27_9']

@@ -234,14 +234,36 @@ function entradaCmr(params: {
   inicioEn: string
   finEn: string
   hrefDatos?: string
+  incluirMetadata?: boolean
 }): unknown {
-  const links: Array<{ rel: string; href: string }> = [
+  const links: Array<{ rel: string; href: string }> = params.incluirMetadata === false ? [] : [
     { rel: 'http://esipfed.org/ns/fedsearch/1.1/metadata#', href: 'https://example.invalid/s3credentials' },
   ]
   if (params.hrefDatos !== undefined) {
     links.push({ rel: 'http://esipfed.org/ns/fedsearch/1.1/data#', href: params.hrefDatos })
   }
   return { title: params.titulo, time_start: params.inicioEn, time_end: params.finEn, links }
+}
+
+// Construye un payload de CMR sintético con gránulos y una URL de datos distinta
+// por timestamp, para que `construirUrlSubsetImerg` genere URLs de subset
+// distintas y el mock pueda enrutarlas. Conserva el mismo shape que el fixture
+// real y no toca la red.
+export function cmrConEntradas(entradas: Array<{ inicioEn: string; finEn: string }>): unknown {
+  return {
+    feed: {
+      entry: entradas.map((entrada) => {
+        const sello = entrada.inicioEn.replace(/[-:.]/g, '')
+        return entradaCmr({
+          titulo: `GPM_3IMERGHHE.07:3B-HHR-E.${sello}.HDF5`,
+          inicioEn: entrada.inicioEn,
+          finEn: entrada.finEn,
+          hrefDatos: `https://data.gesdisc.earthdata.nasa.gov/data/GPM_L3/${sello}.HDF5`,
+          incluirMetadata: false,
+        })
+      }),
+    },
+  }
 }
 
 // Dos gránulos válidos (con link `.HDF5`).

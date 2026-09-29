@@ -30,45 +30,47 @@ let adquirirLease: typeof AdquirirLease
 let renovarLease: typeof RenovarLease
 let publicarResultado: typeof PublicarResultado
 
+function adquirir(
+  over: Partial<Parameters<typeof adquirirLease>[0]> &
+    Pick<Parameters<typeof adquirirLease>[0], 'claveIdempotente'>,
+) {
+  return adquirirLease({
+    tipo: 'diagnostico',
+    version: 'v1',
+    duracionLeaseMs: 60_000,
+    ...over,
+  })
+}
+
+function leaseRecuperado(claveIdempotente: string, ahora: Date) {
+  return adquirir({
+    claveIdempotente,
+    ahora: new Date(ahora.getTime() + 5_000),
+  })
+}
+
 // Aislar la DB en un directorio temporal por archivo de test: getDb() memoiza
 // la conexión a nivel de módulo (ver lib/db/index.ts), así que DATA_DIR debe
 // setearse ANTES de cualquier import dinámico, igual que en lib/db/seed.test.ts.
 describe('adquirirLease', () => {
   it('crea la fila la primera vez y devuelve adquirido:true', async () => {
-    const r = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-1',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-    })
+    const r = await adquirir({ claveIdempotente: 'clave-1' })
     expect(r.adquirido).toBe(true)
   })
 
   it('una segunda invocación con la misma clave mientras el lease sigue vigente no crea otra fila', async () => {
     const ahora = new Date('2026-01-01T00:00:00.000Z')
-    const primera = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-2',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora,
-    })
+    const primera = await adquirir({ claveIdempotente: 'clave-2', ahora })
     expect(primera.adquirido).toBe(true)
 
-    const segunda = await adquirirLease({
-      tipo: 'diagnostico',
+    const segunda = await adquirir({
       claveIdempotente: 'clave-2',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
       ahora: new Date(ahora.getTime() + 1_000),
     })
     expect(segunda).toEqual({ adquirido: false, motivo: 'en_progreso_vigente' })
     if (primera.adquirido) {
-      const otra = await adquirirLease({
-        tipo: 'diagnostico',
+      const otra = await adquirir({
         claveIdempotente: 'clave-2',
-        version: 'v1',
-        duracionLeaseMs: 60_000,
         ahora: new Date(ahora.getTime() + 2_000),
       })
       // mismo jobRunId reutilizado, nunca una segunda fila
@@ -78,13 +80,7 @@ describe('adquirirLease', () => {
 
   it('publicarResultado completado impide una nueva adquisición: dos invocaciones no publican dos resultados', async () => {
     const ahora = new Date('2026-01-02T00:00:00.000Z')
-    const primera = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-3',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora,
-    })
+    const primera = await adquirir({ claveIdempotente: 'clave-3', ahora })
     expect(primera.adquirido).toBe(true)
     if (!primera.adquirido) throw new Error('unreachable')
 
@@ -96,11 +92,8 @@ describe('adquirirLease', () => {
       ahora: new Date(ahora.getTime() + 1_000),
     })
 
-    const luego = await adquirirLease({
-      tipo: 'diagnostico',
+    const luego = await adquirir({
       claveIdempotente: 'clave-3',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
       ahora: new Date(ahora.getTime() + 2_000),
     })
     expect(luego).toEqual({ adquirido: false, motivo: 'ya_completado' })
@@ -108,24 +101,12 @@ describe('adquirirLease', () => {
 
   it('lease vencido (proceso muerto) permite recuperación controlada con intento incrementado', async () => {
     const ahora = new Date('2026-01-03T00:00:00.000Z')
-    const primera = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-4',
-      version: 'v1',
-      duracionLeaseMs: 1_000,
-      ahora,
-    })
+    const primera = await adquirir({ claveIdempotente: 'clave-4', duracionLeaseMs: 1_000, ahora })
     expect(primera.adquirido).toBe(true)
     if (!primera.adquirido) throw new Error('unreachable')
 
     // el lease vencido hace 1s atrás: ahora es posterior a leaseExpiraEn
-    const recuperacion = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-4',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora: new Date(ahora.getTime() + 5_000),
-    })
+    const recuperacion = await leaseRecuperado('clave-4', ahora)
     expect(recuperacion.adquirido).toBe(true)
     if (!recuperacion.adquirido) throw new Error('unreachable')
     expect(recuperacion.jobRunId).toBe(primera.jobRunId)
@@ -134,13 +115,7 @@ describe('adquirirLease', () => {
 
   it('publicarResultado sobre un job ya completado no cambia contadores/errorSaneado previos', async () => {
     const ahora = new Date('2026-01-04T00:00:00.000Z')
-    const primera = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-5',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora,
-    })
+    const primera = await adquirir({ claveIdempotente: 'clave-5', ahora })
     if (!primera.adquirido) throw new Error('unreachable')
 
     await publicarResultado({
@@ -174,13 +149,7 @@ describe('adquirirLease', () => {
 describe('renovarLease', () => {
   it('extiende leaseExpiraEn mientras el job sigue en_progreso', async () => {
     const ahora = new Date('2026-01-05T00:00:00.000Z')
-    const primera = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-6',
-      version: 'v1',
-      duracionLeaseMs: 5_000,
-      ahora,
-    })
+    const primera = await adquirir({ claveIdempotente: 'clave-6', duracionLeaseMs: 5_000, ahora })
     if (!primera.adquirido) throw new Error('unreachable')
 
     const renovado = await renovarLease({
@@ -193,11 +162,8 @@ describe('renovarLease', () => {
 
     // sin la renovación, este 'ahora' (6s después del inicio) habría vencido
     // el lease original de 5s; con la renovación sigue vigente.
-    const segunda = await adquirirLease({
-      tipo: 'diagnostico',
+    const segunda = await adquirir({
       claveIdempotente: 'clave-6',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
       ahora: new Date(ahora.getTime() + 6_000),
     })
     expect(segunda).toEqual({ adquirido: false, motivo: 'en_progreso_vigente' })
@@ -216,10 +182,8 @@ describe('renovarLease', () => {
 describe('fencing de lease (leaseOwner)', () => {
   it('proceso viejo no puede publicar sobre el lease de otro que lo recuperó', async () => {
     const ahora = new Date('2026-01-10T00:00:00.000Z')
-    const a = await adquirirLease({
-      tipo: 'diagnostico',
+    const a = await adquirir({
       claveIdempotente: 'clave-fencing-publicar',
-      version: 'v1',
       duracionLeaseMs: 1_000,
       ahora,
     })
@@ -227,13 +191,7 @@ describe('fencing de lease (leaseOwner)', () => {
     if (!a.adquirido) throw new Error('unreachable')
 
     // el lease de A vence y B recupera la MISMA fila con un leaseOwner distinto
-    const b = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-fencing-publicar',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora: new Date(ahora.getTime() + 5_000),
-    })
+    const b = await leaseRecuperado('clave-fencing-publicar', ahora)
     expect(b.adquirido).toBe(true)
     if (!b.adquirido) throw new Error('unreachable')
     expect(b.jobRunId).toBe(a.jobRunId)
@@ -260,23 +218,15 @@ describe('fencing de lease (leaseOwner)', () => {
 
   it('proceso viejo no puede renovar el lease de otro que lo recuperó', async () => {
     const ahora = new Date('2026-01-11T00:00:00.000Z')
-    const a = await adquirirLease({
-      tipo: 'diagnostico',
+    const a = await adquirir({
       claveIdempotente: 'clave-fencing-renovar',
-      version: 'v1',
       duracionLeaseMs: 1_000,
       ahora,
     })
     expect(a.adquirido).toBe(true)
     if (!a.adquirido) throw new Error('unreachable')
 
-    const b = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-fencing-renovar',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora: new Date(ahora.getTime() + 5_000),
-    })
+    const b = await leaseRecuperado('clave-fencing-renovar', ahora)
     expect(b.adquirido).toBe(true)
     if (!b.adquirido) throw new Error('unreachable')
 
@@ -302,23 +252,15 @@ describe('fencing de lease (leaseOwner)', () => {
 
   it('B publica exitosamente con su propio leaseOwner', async () => {
     const ahora = new Date('2026-01-12T00:00:00.000Z')
-    const a = await adquirirLease({
-      tipo: 'diagnostico',
+    const a = await adquirir({
       claveIdempotente: 'clave-fencing-b-publica',
-      version: 'v1',
       duracionLeaseMs: 1_000,
       ahora,
     })
     expect(a.adquirido).toBe(true)
     if (!a.adquirido) throw new Error('unreachable')
 
-    const b = await adquirirLease({
-      tipo: 'diagnostico',
-      claveIdempotente: 'clave-fencing-b-publica',
-      version: 'v1',
-      duracionLeaseMs: 60_000,
-      ahora: new Date(ahora.getTime() + 5_000),
-    })
+    const b = await leaseRecuperado('clave-fencing-b-publica', ahora)
     expect(b.adquirido).toBe(true)
     if (!b.adquirido) throw new Error('unreachable')
 
@@ -455,8 +397,8 @@ describe('adquirirLease concurrencia dentro de un proceso (PGlite)', () => {
     }
 
     const [resultadoA, resultadoB] = await Promise.all([
-      adquirirLease(params),
-      adquirirLease(params),
+      adquirir(params),
+      adquirir(params),
     ])
 
     const ganadores = [resultadoA, resultadoB].filter((r) => r.adquirido)

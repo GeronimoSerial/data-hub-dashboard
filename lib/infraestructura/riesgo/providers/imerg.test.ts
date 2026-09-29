@@ -31,6 +31,19 @@ const TITULO_REAL =
 const URL_DATOS_REAL =
   'https://data.gesdisc.earthdata.nasa.gov/data/GPM_L3/GPM_3IMERGHHE.07/2026/269/3B-HHR-E.MS.MRG.3IMERG.20260926-S183000-E185959.1110.V07C.HDF5'
 
+function mapear(
+  over: Partial<Parameters<typeof mapearAsciiImergACeldas>[0]> &
+    Pick<Parameters<typeof mapearAsciiImergACeldas>[0], 'parseado'>,
+) {
+  return mapearAsciiImergACeldas({
+    observadoEn: '2026-09-26T18:59:59.999Z',
+    validoDesde: '2026-09-26T18:30:00.000Z',
+    validoHasta: '2026-09-26T18:59:59.999Z',
+    celdaDeCoordenada,
+    ...over,
+  })
+}
+
 describe('esGranuloDeDatos', () => {
   it('acepta sólo el link cuyo href termina en .HDF5', () => {
     expect(
@@ -232,13 +245,7 @@ describe('mapearAsciiImergACeldas', () => {
   it('genera 37*42 observaciones desde el fixture real usando la celda real', () => {
     const parseado = parsearRespuestaAsciiImerg(fixtureAscii)
 
-    const puntos = mapearAsciiImergACeldas({
-      parseado,
-      observadoEn: '2026-09-26T18:59:59.999Z',
-      validoDesde: '2026-09-26T18:30:00.000Z',
-      validoHasta: '2026-09-26T18:59:59.999Z',
-      celdaDeCoordenada,
-    })
+    const puntos = mapear({ parseado })
 
     expect(puntos).toHaveLength(37 * 42)
     const muestra = puntos[0]
@@ -266,13 +273,7 @@ describe('mapearAsciiImergACeldas', () => {
       filasCalidad: [],
     }
 
-    const puntos = mapearAsciiImergACeldas({
-      parseado,
-      observadoEn: '2026-09-26T18:59:59.999Z',
-      validoDesde: '2026-09-26T18:30:00.000Z',
-      validoHasta: '2026-09-26T18:59:59.999Z',
-      celdaDeCoordenada,
-    })
+    const puntos = mapear({ parseado })
 
     expect(puntos).toHaveLength(1)
     expect(puntos[0].geometryRef).toBe(celdaDeCoordenada(-27.5, -58.8))
@@ -295,13 +296,7 @@ describe('mapearAsciiImergACeldas', () => {
       filasCalidad: [],
     }
 
-    const puntos = mapearAsciiImergACeldas({
-      parseado,
-      observadoEn: '2026-09-26T18:59:59.999Z',
-      validoDesde: '2026-09-26T18:30:00.000Z',
-      validoHasta: '2026-09-26T18:59:59.999Z',
-      celdaDeCoordenada,
-    })
+    const puntos = mapear({ parseado })
 
     expect(puntos).toHaveLength(1)
     expect(puntos[0].valor).toBe(2.0)
@@ -316,13 +311,7 @@ describe('mapearAsciiImergACeldas', () => {
       filasCalidad: [],
     }
 
-    const puntos = mapearAsciiImergACeldas({
-      parseado,
-      observadoEn: '2026-09-26T18:59:59.999Z',
-      validoDesde: '2026-09-26T18:30:00.000Z',
-      validoHasta: '2026-09-26T18:59:59.999Z',
-      celdaDeCoordenada,
-    })
+    const puntos = mapear({ parseado })
 
     expect(puntos[0].valor).toBe(0)
   })
@@ -335,13 +324,7 @@ describe('mapearAsciiImergACeldas', () => {
       filasCalidad: [{ lonIndiceRelativo: 0, valoresPorLat: [0.9, 0.5] }],
     }
 
-    const puntos = mapearAsciiImergACeldas({
-      parseado,
-      observadoEn: '2026-09-26T18:59:59.999Z',
-      validoDesde: '2026-09-26T18:30:00.000Z',
-      validoHasta: '2026-09-26T18:59:59.999Z',
-      celdaDeCoordenada,
-    })
+    const puntos = mapear({ parseado })
 
     expect(puntos).toHaveLength(2)
     expect(puntos[0].calidad).toBe(0.9)

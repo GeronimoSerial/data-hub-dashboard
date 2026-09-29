@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { and, eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db'
+import { infraJobRun, infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearPuertosFake, type EscenarioFake } from '../motor/__fixtures__/puertos-fake'
 import type {
   NivelCaudalPunto,
@@ -84,8 +86,6 @@ function escenario(): EscenarioFake {
 
 describe('calcularYPublicarRiesgo', () => {
   it('T1: corrida normal publica un único run vigente con escuelas x 3 horizontes y factores', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraRiskFactor, infraRiskRun, infraRiskSnapshot } = await import('@/lib/db/schema')
     const db = getDb()
 
     const ahora = new Date('2026-09-26T12:30:00.000Z')
@@ -123,8 +123,6 @@ describe('calcularYPublicarRiesgo', () => {
   })
 
   it('T2: repetir con el mismo bloque de 6h no adquiere lease y conserva el run vigente', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraRiskRun } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = await db.select().from(infraRiskRun).where(eq(infraRiskRun.estado, 'vigente'))
@@ -142,8 +140,6 @@ describe('calcularYPublicarRiesgo', () => {
   })
 
   it('T3: publicar un run de otro bloque marca vencido el anterior y nunca deja 2 vigentes', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraRiskRun } = await import('@/lib/db/schema')
     const db = getDb()
 
     const primero = await calcularYPublicarRiesgo({
@@ -170,8 +166,6 @@ describe('calcularYPublicarRiesgo', () => {
   })
 
   it('T4: sin periodo vigente el job lanza y deja el infra_job_run en fallido, no en_progreso', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun, infraPeriodo } = await import('@/lib/db/schema')
     const db = getDb()
 
     await db.update(infraPeriodo).set({ estado: 'historico' }).where(eq(infraPeriodo.estado, 'vigente'))
@@ -196,8 +190,6 @@ describe('calcularYPublicarRiesgo', () => {
   })
 
   it('T5: una excepción DESPUÉS de insertar el run deja el infraRiskRun en fallido, no preparando', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraRiskRun, infraPeriodo } = await import('@/lib/db/schema')
     const db = getDb()
 
     // T4 dejó el período en 'historico'; restaurar uno vigente para que este

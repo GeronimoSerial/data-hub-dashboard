@@ -1,7 +1,10 @@
-import { eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardForecast, hazardSourceHealth, infraJobRun } from '@/lib/db/schema'
 import { PUNTOS_RIO } from '../puntos-rio'
+import { borrarPerfilesGeo, insertarPerfilesGeo } from './__fixtures__/perfiles-geo'
 import type { HazardForecastPunto } from '../tipos-hazard'
 import type {
   ProveedorConDiagnostico,
@@ -15,19 +18,12 @@ beforeAll(async () => {
 
   // Perfiles geográficos de prueba: 3 filas con geometryRef válido para que el
   // selectDistinct produzca 3 celdas.
-  const { getDb } = await import('@/lib/db')
-  const { infraGeoProfile } = await import('@/lib/db/schema')
-  await getDb()
-    .insert(infraGeoProfile)
-    .values(
-      CELDAS.map((geometryRef, indice) => ({
-        cueAnexo: `180000${indice + 1}-00`,
-        geometryRef,
-        motivoExclusion: null,
-        perfilVersion: 'geo-perfil-v1',
-        calculadoEn: '2026-09-26T00:00:00.000Z',
-      })),
-    )
+  await insertarPerfilesGeo(
+    CELDAS.map((geometryRef, indice) => ({
+      cueAnexo: `180000${indice + 1}-00`,
+      geometryRef,
+    })),
+  )
 })
 
 let ejecutarSyncPronosticoCaudal: typeof EjecutarSyncPronosticoCaudal
@@ -38,7 +34,10 @@ const CELDAS = ['-27.4_-58.8', '-27.5_-58.9', '-28.0_-56.5']
 
 // Fakes sin red: implementan sólo lo que el job necesita (nombreProveedor +
 // diagnóstico por celda/punto).
-function ecmwfFake(erroresPorCelda: Record<string, string> = {}): ProveedorConDiagnostico {
+function ecmwfFake(
+  erroresPorCelda: Record<string, string> = {},
+  opciones: { llamadasRealizadas?: number } = {},
+): ProveedorConDiagnostico {
   return {
     nombreProveedor: 'open-meteo-ecmwf',
     async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
@@ -54,12 +53,18 @@ function ecmwfFake(erroresPorCelda: Record<string, string> = {}): ProveedorConDi
           unidad: 'mm',
           pasoHoras: 1,
         }))
-      return { puntos, erroresPorCelda }
+      return {
+        puntos,
+        erroresPorCelda,
+        ...(opciones.llamadasRealizadas === undefined
+          ? {}
+          : { llamadasRealizadas: opciones.llamadasRealizadas }),
+      }
     },
   }
 }
 
-function floodFake(): ProveedorConDiagnostico {
+function floodFake(opciones: { llamadasRealizadas?: number } = {}): ProveedorConDiagnostico {
   return {
     nombreProveedor: 'open-meteo-flood',
     async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
@@ -73,7 +78,13 @@ function floodFake(): ProveedorConDiagnostico {
         unidad: 'm3/s',
         pasoHoras: 6,
       }))
-      return { puntos, erroresPorCelda: {} }
+      return {
+        puntos,
+        erroresPorCelda: {},
+        ...(opciones.llamadasRealizadas === undefined
+          ? {}
+          : { llamadasRealizadas: opciones.llamadasRealizadas }),
+      }
     },
   }
 }
@@ -100,8 +111,6 @@ describe('ejecutarSyncPronosticoCaudal', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardForecast, hazardSourceHealth } = await import('@/lib/db/schema')
     const db = getDb()
 
     const filas = await db.select().from(hazardForecast)
@@ -122,8 +131,6 @@ describe('ejecutarSyncPronosticoCaudal', () => {
   })
 
   it('repetir el sync en la misma ventana de 6h no adquiere lease y no duplica filas', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardForecast } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = await db.select().from(hazardForecast)
@@ -159,8 +166,6 @@ describe('ejecutarSyncPronosticoCaudal', () => {
     // celdas caídas no emiten puntos: 2 de ECMWF + todos los de flood
     expect(resultado.resultado.filasInsertadas).toBe(CELDAS.length - 1 + PUNTOS_RIO.length)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardSourceHealth } = await import('@/lib/db/schema')
     const db = getDb()
     const salud = await db.select().from(hazardSourceHealth)
     const ecmwf = salud.find((f) => f.provider === 'open-meteo-ecmwf')
@@ -198,32 +203,11 @@ type RenovarLeaseParamsTest = {
 
 describe('ejecutarSyncPronosticoCaudal — renovación de lease durante el loop', () => {
   beforeAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb()
-      .insert(infraGeoProfile)
-      .values(
-        CELDAS_EXTRA.map(({ cueAnexo, geometryRef }) => ({
-          cueAnexo,
-          geometryRef,
-          motivoExclusion: null,
-          perfilVersion: 'geo-perfil-v1',
-          calculadoEn: '2026-09-26T00:00:00.000Z',
-        })),
-      )
+    await insertarPerfilesGeo(CELDAS_EXTRA)
   })
 
   afterAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb()
-      .delete(infraGeoProfile)
-      .where(
-        inArray(
-          infraGeoProfile.cueAnexo,
-          CELDAS_EXTRA.map(({ cueAnexo }) => cueAnexo),
-        ),
-      )
+    await borrarPerfilesGeo(CELDAS_EXTRA.map(({ cueAnexo }) => cueAnexo))
   })
 
   it('renueva el lease más de una vez cuando las celdas superan el umbral de tanda', async () => {
@@ -256,8 +240,6 @@ describe('ejecutarSyncPronosticoCaudal — renovación de lease durante el loop'
     const ahora = new Date('2026-09-26T19:00:00.000Z') // bloque 18-24
     const renovarLease = vi.fn(async (_params: RenovarLeaseParamsTest) => false)
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardForecast } = await import('@/lib/db/schema')
     const db = getDb()
     const antes = (await db.select().from(hazardForecast)).length
 
@@ -287,38 +269,8 @@ describe('ejecutarSyncPronosticoCaudal — conteo real de llamadas (regresión h
   it('usa el llamadasRealizadas que reporta el provider, no una llamada por celda/punto', async () => {
     // Simula un provider que batchea TODAS las celdas en 1 sola request HTTP
     // (como ecmwf.ts real con ≤50 coordenadas por lote), reportándolo.
-    const ecmwfBatcheado: ProveedorConDiagnostico = {
-      nombreProveedor: 'open-meteo-ecmwf',
-      async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
-        const puntos: HazardForecastPunto[] = geometryRefs.map((ref) => ({
-          variable: 'precipitacion',
-          geometryRef: ref,
-          corridaEn: ahora.toISOString(),
-          validoEn: ahora.toISOString(),
-          horizonteHoras: 0,
-          valor: 1.5,
-          unidad: 'mm',
-          pasoHoras: 1,
-        }))
-        return { puntos, erroresPorCelda: {}, llamadasRealizadas: 1 }
-      },
-    }
-    const floodBatcheado: ProveedorConDiagnostico = {
-      nombreProveedor: 'open-meteo-flood',
-      async obtenerPronosticoConDiagnostico({ geometryRefs, ahora }) {
-        const puntos: HazardForecastPunto[] = geometryRefs.map((id) => ({
-          variable: 'caudal',
-          geometryRef: id,
-          corridaEn: ahora.toISOString(),
-          validoEn: ahora.toISOString(),
-          horizonteHoras: 24,
-          valor: 123.4,
-          unidad: 'm3/s',
-          pasoHoras: 6,
-        }))
-        return { puntos, erroresPorCelda: {}, llamadasRealizadas: 1 }
-      },
-    }
+    const ecmwfBatcheado = ecmwfFake({}, { llamadasRealizadas: 1 })
+    const floodBatcheado = floodFake({ llamadasRealizadas: 1 })
 
     const ahora = new Date('2026-09-27T01:00:00.000Z') // bloque 00-06, día distinto: lease libre
     const resultado = await ejecutarSyncPronosticoCaudal({
@@ -386,32 +338,11 @@ function ecmwfFakeVolumenReal(): ProveedorConDiagnostico {
 
 describe('ejecutarSyncPronosticoCaudal — volumen realista (regresión RangeError)', () => {
   beforeAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb()
-      .insert(infraGeoProfile)
-      .values(
-        CELDAS_VOLUMEN_REAL.map(({ cueAnexo, geometryRef }) => ({
-          cueAnexo,
-          geometryRef,
-          motivoExclusion: null,
-          perfilVersion: 'geo-perfil-v1',
-          calculadoEn: '2026-09-26T00:00:00.000Z',
-        })),
-      )
+    await insertarPerfilesGeo(CELDAS_VOLUMEN_REAL)
   })
 
   afterAll(async () => {
-    const { getDb } = await import('@/lib/db')
-    const { infraGeoProfile } = await import('@/lib/db/schema')
-    await getDb()
-      .delete(infraGeoProfile)
-      .where(
-        inArray(
-          infraGeoProfile.cueAnexo,
-          CELDAS_VOLUMEN_REAL.map(({ cueAnexo }) => cueAnexo),
-        ),
-      )
+    await borrarPerfilesGeo(CELDAS_VOLUMEN_REAL.map(({ cueAnexo }) => cueAnexo))
   })
 
   it('procesa ~400 celdas x 240 pasos x 5 variables sin RangeError y mide tiempo/memoria', async () => {
@@ -471,8 +402,6 @@ describe('ejecutarSyncPronosticoCaudal — marca fallido ante una excepción con
       }),
     ).rejects.toThrow(errorOriginal)
 
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun } = await import('@/lib/db/schema')
     const db = getDb()
     const claveIdempotente = '2026-09-28T06' // bloque 06-12
     const [fila] = await db

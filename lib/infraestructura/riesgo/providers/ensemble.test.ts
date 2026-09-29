@@ -8,6 +8,7 @@ import {
 } from './ensemble'
 import type { HazardEnsembleProbPunto } from './ensemble'
 import { longitudesDeUrl } from './__fixtures__/url'
+import { fetchOk, fetchJsonPorUrl } from './__fixtures__/fetch'
 
 const fixtureJson = JSON.parse(
   readFileSync(
@@ -113,9 +114,7 @@ describe('calcularDispersion', () => {
 
 describe('obtenerProbabilidadesEnsemble', () => {
   it('procesa el fixture real de una celda y devuelve puntos con miembros válidos', async () => {
-    const fetchImpl = vi.fn(
-      async (_url: string) => new Response(JSON.stringify(fixtureJson), { status: 200 }),
-    )
+    const fetchImpl = fetchOk(fixtureJson)
     const geometryRef = '-27.5_-58.75'
     const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral([geometryRef], 5, 20)
 
@@ -149,12 +148,7 @@ describe('obtenerProbabilidadesEnsemble', () => {
   })
 
   it('agrupa N celdas en exactamente ceil(N/TAMANO_LOTE_COORDENADAS_ENSEMBLE) llamadas', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadEnsembleParaLongitudes(longitudes)), {
-        status: 200,
-      })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
     const celdas = celdasSinteticas(45)
     const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(
       celdas.map((c) => c.geometryRef),
@@ -182,12 +176,7 @@ describe('obtenerProbabilidadesEnsemble', () => {
   })
 
   it('manda una celda sin climatología a erroresPorCelda sin romper las demás del lote', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadEnsembleParaLongitudes(longitudes)), {
-        status: 200,
-      })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) => payloadEnsembleParaLongitudes(longitudesDeUrl(url)))
     const celdas = celdasSinteticas(3)
     const { umbralP95PorCelda, umbralP99PorCelda } = mapasUmbral(['-27_0', '-27_2'], -1, -1)
 

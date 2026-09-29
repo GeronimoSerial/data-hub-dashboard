@@ -1,5 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardClimatology, infraGeoProfile } from '@/lib/db/schema'
 import type { obtenerAvanceClimatologia as ObtenerAvanceClimatologia } from './avance-climatologia'
 
 let obtenerAvanceClimatologia: typeof ObtenerAvanceClimatologia
@@ -18,8 +20,6 @@ beforeAll(async () => {
 })
 
 async function insertarPerfilGeo(geometryRef: string) {
-  const { getDb } = await import('@/lib/db')
-  const { infraGeoProfile } = await import('@/lib/db/schema')
   await getDb()
     .insert(infraGeoProfile)
     .values({
@@ -41,8 +41,6 @@ async function insertarFilaClimatologia(params: {
   periodoDesde: string
   periodoHasta: string
 }) {
-  const { getDb } = await import('@/lib/db')
-  const { hazardClimatology } = await import('@/lib/db/schema')
   await getDb()
     .insert(hazardClimatology)
     .values({

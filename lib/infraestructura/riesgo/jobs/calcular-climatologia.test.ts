@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { getDb } from '@/lib/db'
+import { hazardClimatology, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
 import type { ejecutarCalculoClimatologia as EjecutarCalculoClimatologia } from './calcular-climatologia'
 import type {
   obtenerSeriesHistoricas as ObtenerSeriesHistoricas,
@@ -12,8 +14,6 @@ usarDbTemporal('calcular-climatologia-')
 beforeAll(async () => {
   ;({ ejecutarCalculoClimatologia } = await import('./calcular-climatologia'))
 
-  const { getDb } = await import('@/lib/db')
-  const { infraGeoProfile } = await import('@/lib/db/schema')
   await getDb()
     .insert(infraGeoProfile)
     .values([
@@ -96,15 +96,11 @@ describe('ejecutarCalculoClimatologia', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const filas = await getDb().select().from(hazardClimatology)
     expect(filas).toHaveLength(12)
   })
 
   it('repetir la misma corrida (mismo período/versión) no adquiere lease y no duplica filas', async () => {
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const db = getDb()
 
     const antes = await db.select().from(hazardClimatology)
@@ -135,8 +131,6 @@ describe('ejecutarCalculoClimatologia', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { hazardClimatology } = await import('@/lib/db/schema')
     const filas = await getDb().select().from(hazardClimatology)
     // 12 de la versión v1 + 6 de la v2 (sólo la celda que respondió ok)
     expect(filas).toHaveLength(18)
@@ -161,8 +155,6 @@ describe('ejecutarCalculoClimatologia', () => {
       }),
     ).rejects.toThrow(errorOriginal)
 
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun } = await import('@/lib/db/schema')
     const { eq } = await import('drizzle-orm')
     const [fila] = await getDb()
       .select()
@@ -205,8 +197,6 @@ describe('ejecutarCalculoClimatologia', () => {
       },
     })
 
-    const { getDb } = await import('@/lib/db')
-    const { infraJobRun } = await import('@/lib/db/schema')
     const { eq } = await import('drizzle-orm')
     const [jobRun] = await getDb()
       .select()
@@ -254,8 +244,6 @@ describe('ejecutarCalculoClimatologia', () => {
         resultado: { celdasProcesadas: 1, filasInsertadas: 6, celdasConError: [CELDA_B], cortadoPorCupo: true },
       })
 
-      const { getDb } = await import('@/lib/db')
-      const { hazardClimatology, infraJobRun } = await import('@/lib/db/schema')
       const { and, eq } = await import('drizzle-orm')
       const db = getDb()
 
@@ -300,8 +288,6 @@ describe('ejecutarCalculoClimatologia', () => {
       const puntosPedidos = obtenerSeries.mock.calls[0][0].puntos
       expect(puntosPedidos.map((p) => p.geometryRef)).toEqual([CELDA_B])
 
-      const { getDb } = await import('@/lib/db')
-      const { hazardClimatology } = await import('@/lib/db/schema')
       const { eq } = await import('drizzle-orm')
       const filas = await getDb().select().from(hazardClimatology).where(eq(hazardClimatology.version, VERSION))
       // 6 de CELDA_A (corrida anterior) + 6 de CELDA_B (esta corrida) = 12
@@ -315,8 +301,6 @@ describe('ejecutarCalculoClimatologia', () => {
       // una corrida previa con otra herramienta) — el cursor resumable debe
       // reconocerlas como "ya calculadas" y no gastar cupo en absoluto.
       const VERSION_PRECALCULADA = 'climatologia-v5-todo-precalculado'
-      const { getDb } = await import('@/lib/db')
-      const { hazardClimatology } = await import('@/lib/db/schema')
       const db = getDb()
 
       for (const celda of [CELDA_A, CELDA_B]) {

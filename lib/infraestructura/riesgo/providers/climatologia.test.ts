@@ -13,6 +13,8 @@ import {
 } from './climatologia'
 import { limiteVentana } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
+import { fetchOk, fetchJsonPorUrl } from './__fixtures__/fetch'
+import { longitudesDeUrl } from './__fixtures__/url'
 
 // Serie sintética conocida: 10 días secos (0 mm) + 10 días con lluvia
 // {1..9, 100}. Se pasa desordenada a propósito para probar el orden interno.
@@ -84,10 +86,6 @@ describe('obtenerSerieHistorica', () => {
   const fixtureUrl = new URL('../__fixtures__/hazard/era5-archive-2020q1.json', import.meta.url)
   const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as {
     daily: { time: string[]; precipitation_sum: Array<number | null> }
-  }
-
-  function fetchOk(body: unknown) {
-    return vi.fn(async (_url: string) => new Response(JSON.stringify(body), { status: 200 }))
   }
 
   it('devuelve ok:true con la serie no-null del fixture ERA5 2020Q1', async () => {
@@ -180,10 +178,6 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
     }))
   }
 
-  function longitudesDeUrl(url: string): number[] {
-    return (new URL(url).searchParams.get('longitude') ?? '').split(',').map(Number)
-  }
-
   function puntosSinteticos(cantidad: number) {
     return Array.from({ length: cantidad }, (_, indice) => ({
       geometryRef: `-27_${indice}`,
@@ -197,10 +191,9 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
   // por CELDAS sin que el troceo por PERÍODO multiplique la cantidad de
   // llamadas — eso se prueba aparte.
   it('agrupa 120 celdas en ceil(120/TAMANO_LOTE_COORDENADAS) llamadas y empareja por índice', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadArchivoParaLongitudes(longitudes)), { status: 200 })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) =>
+      payloadArchivoParaLongitudes(longitudesDeUrl(url)),
+    )
 
     const { seriesPorCelda, erroresPorCelda, llamadasRealizadas, celdasPorLlamada } =
       await obtenerSeriesHistoricas({
@@ -223,10 +216,9 @@ describe('obtenerSeriesHistoricas (por lotes)', () => {
   })
 
   it('asigna cada objeto del array a la celda correcta por posición', async () => {
-    const fetchImpl = vi.fn(async (url: string) => {
-      const longitudes = longitudesDeUrl(url)
-      return new Response(JSON.stringify(payloadArchivoParaLongitudes(longitudes)), { status: 200 })
-    })
+    const fetchImpl = fetchJsonPorUrl((url) =>
+      payloadArchivoParaLongitudes(longitudesDeUrl(url)),
+    )
 
     const { seriesPorCelda } = await obtenerSeriesHistoricas({
       puntos: puntosSinteticos(3),
