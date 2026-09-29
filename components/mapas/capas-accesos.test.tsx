@@ -7,7 +7,7 @@ import type {
   GeometriaAccesoRespuesta,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
-import { COLOR_RUTA_ACCESO } from '@/lib/mapas/accesos-capas'
+import { COLOR_RUTA_ACCESO, TEXTOS_ACCESOS, textoConPeriodo } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import {
   CAPAS_ACCESOS_LABELS,
@@ -281,22 +281,29 @@ describe('LeyendaAccesos — aislamiento', () => {
   it('muestra un ícono por nivel, la fila sin cobertura y los conteos', () => {
     renderLeyenda()
     const bloque = screen.getByTestId('leyenda-aislamiento-contenido')
-    expect(bloque.textContent).toContain('Muy bajo: 5')
-    expect(bloque.textContent).toContain('Bajo: 3')
-    expect(bloque.textContent).toContain('Medio: 2')
-    expect(bloque.textContent).toContain('Alto: 1')
-    expect(bloque.textContent).toContain('Sin conexión a la red OSM: 4')
-    expect(bloque.textContent).toContain('Sin cobertura OSM: 7')
-    // Un ícono por cada nivel (5) — la fila "sin cobertura" no lleva ícono.
+    // La etiqueta visible de cada nivel es su nombre corto
+    // (ETIQUETAS_AISLAMIENTO), no el "0/1/2/3" del índice: "Muy baja", "Baja",
+    // "Media", "Alta" y el nivel sin índice, "No calculable".
+    expect(bloque.textContent).toContain('Muy baja: 5')
+    expect(bloque.textContent).toContain('Baja: 3')
+    expect(bloque.textContent).toContain('Media: 2')
+    expect(bloque.textContent).toContain('Alta: 1')
+    expect(bloque.textContent).toContain('No calculable: 4')
+    expect(bloque.textContent).toContain('Sin dato: 7')
+    // Un ícono por cada nivel (5) — la fila "sin dato" no lleva ícono.
     expect(bloque.querySelectorAll('img')).toHaveLength(5)
+    expect(bloque.textContent).toContain(TEXTOS_ACCESOS.subtituloAcceso)
     expect(bloque.textContent).toContain('extracto 2026-06-01')
   })
 
   it('incluye el descargo de que no es pronóstico', () => {
     renderLeyenda()
-    expect(
-      screen.getByTestId('leyenda-aislamiento-contenido').textContent,
-    ).toContain('No es pronóstico ni estado del edificio')
+    // El descargo se muestra, pero DENTRO de la ayuda cerrada: lo visible es la
+    // tabla de conteos, no un muro de texto sobre el mapa.
+    const ayuda = screen.getByTestId('leyenda-aislamiento-ayuda')
+    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.noRepresentaAcceso)
+    expect(ayuda.textContent).toContain('No es un pronóstico')
+    expect((ayuda as HTMLDetailsElement).open).toBe(false)
   })
 
   it('muestra carga, error y falta de datos importados', () => {
@@ -351,15 +358,27 @@ describe('LeyendaAccesos — inundación', () => {
   it('muestra período de retorno, filas por clase, filas no dibujadas y descargo', () => {
     renderLeyenda({ visibles: visibles(['inundacion']) })
     const bloque = screen.getByTestId('leyenda-inundacion-contenido')
-    expect(bloque.textContent).toContain('período de retorno de 100 años')
+    // El período de retorno llega por `textoConPeriodo`, nunca escrito a mano.
+    expect(bloque.textContent).toContain(
+      textoConPeriodo(TEXTOS_ACCESOS.subtituloInundacion, 100),
+    )
+    expect(bloque.textContent).toContain('crecida de 100 años')
     expect(bloque.textContent).toContain('escenario histórico')
     expect(bloque.textContent).toContain('< 0,5 m: 4')
     expect(bloque.textContent).toContain('0,5 – 1 m: 5')
     expect(bloque.textContent).toContain('≥ 1 m: 6')
+    // Filas de lo que el modelo NO dibuja: sin profundidad y sin cobertura.
     expect(bloque.textContent).toContain('Sin profundidad estimada (0 m): 3')
-    expect(bloque.textContent).toContain('Sin cobertura physrisk: 2')
-    expect(bloque.textContent).toContain('no es un pronóstico ni el trazado de un río')
+    expect(bloque.textContent).toContain('Sin dato: 2')
     expect(bloque.textContent).toContain('OS-Climate physrisk (Apache-2.0) · corrida 2026-05-15')
+    // El descargo y las notas largas quedan en la ayuda cerrada.
+    const ayuda = screen.getByTestId('leyenda-inundacion-ayuda')
+    expect(ayuda.textContent).toContain(
+      textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, 100),
+    )
+    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.noRepresentaInundacion)
+    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.sinCobertura)
+    expect((ayuda as HTMLDetailsElement).open).toBe(false)
   })
 
   it('muestra falta de datos importados de physrisk', () => {
@@ -454,7 +473,10 @@ describe('LeyendaAccesos — ruta', () => {
     const bloque = screen.getByTestId('leyenda-ruta-disponible')
     expect(bloque.textContent).toContain('Puente: 2')
     expect(bloque.textContent).toContain('Vado: 1')
-    expect(bloque.textContent).toContain('Sin evidencia de puente: 3')
+    // La etiqueta de esa fila es "Sin puente registrado" (ETIQUETAS_CRUCE), no
+    // "Sin evidencia de puente": OSM no tiene tag de puente en el punto, y eso
+    // no confirma que el puente falte.
+    expect(bloque.textContent).toContain('Sin puente registrado: 3')
     expect(bloque.textContent).not.toContain('Sin cruces de agua en esta ruta')
   })
 })
@@ -468,6 +490,58 @@ describe('LeyendaAccesos — estado territorial compartido', () => {
     renderLeyenda({ visibles: visibles(['aislamiento', 'inundacion']), territorioLoading: true })
     expect(screen.getAllByTestId('leyenda-territorio-cargando')).toHaveLength(1)
     expect(screen.getAllByText('Cargando capas territoriales…')).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Tarjeta única de la leyenda
+// ---------------------------------------------------------------------------
+
+describe('LeyendaAccesos — tarjeta de la leyenda', () => {
+  it('muestra la ruta antes de los bloques territoriales', () => {
+    renderLeyenda()
+    const ruta = screen.getByTestId('leyenda-ruta')
+    const aislamiento = screen.getByTestId('leyenda-aislamiento')
+    const inundacion = screen.getByTestId('leyenda-inundacion')
+
+    expect(
+      ruta.compareDocumentPosition(aislamiento) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(
+      ruta.compareDocumentPosition(inundacion) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('envuelve los tres bloques visibles en una sola tarjeta .map-panel', () => {
+    renderLeyenda()
+    const secciones = screen.getAllByTestId('leyenda-accesos')
+    expect(secciones).toHaveLength(1)
+    const seccion = secciones[0]
+    // `styles.panel` da el fondo opaco; sin él el texto se imprimía sobre el
+    // mapa y los tres bloques se apilaban sin separación.
+    expect(seccion).toHaveClass('map-panel')
+    expect(seccion).toHaveClass('map-leyenda-accesos')
+    expect(seccion.tagName).toBe('SECTION')
+    expect(seccion).toHaveAttribute('aria-label', 'Referencias de las capas territoriales')
+    for (const id of ['leyenda-aislamiento', 'leyenda-inundacion', 'leyenda-ruta']) {
+      expect(seccion).toContainElement(screen.getByTestId(id))
+    }
+  })
+
+  it('no monta la tarjeta si no hay ningún bloque visible', () => {
+    renderLeyenda({ visibles: visibles([]) })
+    expect(screen.queryByTestId('leyenda-accesos')).not.toBeInTheDocument()
+  })
+
+  it('deja cerradas por defecto las ayudas de los tres bloques', () => {
+    renderLeyenda({ seleccion: { nombre: 'Escuela Uno' }, geometria: geometriaDisponible })
+    for (const id of [
+      'leyenda-aislamiento-ayuda',
+      'leyenda-inundacion-ayuda',
+      'leyenda-ruta-ayuda',
+    ]) {
+      expect((screen.getByTestId(id) as HTMLDetailsElement).open).toBe(false)
+    }
   })
 })
 

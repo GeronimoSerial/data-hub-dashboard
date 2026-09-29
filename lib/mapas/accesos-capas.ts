@@ -64,15 +64,89 @@ export function claseInundacion(m: number | null): ClaseInundacion {
 }
 
 // ---------------------------------------------------------------------------
-// Etiquetas de UI (copia en español, no redefinir en los componentes)
+// Copia de UI (fuente única en español, no redefinir literales en los
+// componentes)
 // ---------------------------------------------------------------------------
 
+// Textos largos de los bloques de accesos. Los componentes de leyenda y ficha
+// los consumen tal cual; así el mismo concepto no se redacta dos veces.
+// Los textos largos NO se muestran siempre: leyenda y ficha los dejan dentro de
+// un `<details>` de ayuda (cerrado por defecto) para que lo visible sea corto.
+// `{periodo}` se reemplaza con el período de retorno de los datos vía
+// `textoConPeriodo` (nunca se escribe el número a mano).
+export const TEXTOS_ACCESOS = {
+  tituloAcceso: 'Dificultad de acceso por caminos',
+  subtituloAcceso:
+    'Índice estático de 0 (muy baja) a 3 (alta), calculado con caminos y cruces de agua de OpenStreetMap',
+  queMideAcceso:
+    'Resume qué tan difícil es llegar por camino desde la escuela hasta la cabecera de su departamento, según la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap.',
+  nivelesAcceso:
+    'Niveles: 0 (muy baja) a 3 (alta) dificultad de acceso. Cuanto más alto, más difícil.',
+  noRepresentaAcceso:
+    'No es un pronóstico, no indica si hoy el camino está cortado ni el estado del edificio. El riesgo de acceso pronosticado está en el modo Radar y la situación actual en los partes.',
+  tituloInundacion: 'Inundación histórica por desborde de ríos',
+  subtituloInundacion:
+    'Profundidad de agua estimada (m) para una crecida de {periodo} años · escenario histórico',
+  queMideInundacion:
+    'Estima cuánta agua cubriría el lugar de la escuela en una crecida de río muy poco frecuente (en promedio, una vez cada {periodo} años). Es un cálculo de un modelo con clima histórico (WRI Aqueduct, vía OS-Climate physrisk), no un registro de inundaciones que ocurrieron.',
+  noRepresentaInundacion:
+    'No es un pronóstico, no indica que hoy haya agua ni muestra por dónde pasa un río.',
+  sinProfundidad: 'El modelo no estima agua en ese punto (0 m). No garantiza que nunca se inunde.',
+  sinCobertura:
+    'Sin dato: la escuela no figura en el archivo importado. No se calcula ni se asume un valor, y no equivale a nivel 0.',
+} as const
+
+// Rellena el período de retorno de los textos que lo usan. Si el dato no está
+// disponible se mantiene 100 (valor por defecto del dataset), pero los bloques
+// que lo muestran sólo se renderizan cuando hay metadatos de susceptibilidad.
+export function textoConPeriodo(
+  texto: string,
+  periodoRetornoAnios: number | null | undefined,
+): string {
+  return texto.replaceAll('{periodo}', String(periodoRetornoAnios ?? 100))
+}
+
+// Nombre corto + explicación en lenguaje llano de cada nivel. `detalle` son
+// las reglas del índice de aislamiento
+// (services/geo-static/src/geo_static/osm_aislamiento.py); no cambiar la
+// semántica sin cambiar el cálculo. Se muestran sólo dentro del `<details>` de
+// ayuda: lo visible es el nombre corto con su conteo.
+export const DESCRIPCIONES_AISLAMIENTO = {
+  0: {
+    nombre: 'Muy baja',
+    detalle:
+      'Camino de hasta 3 km hasta la cabecera, sin cruces de agua y con como mucho 1 tramo de tierra.',
+  },
+  1: {
+    nombre: 'Baja',
+    detalle:
+      'Ningún cruce de agua carece de puente registrado, pero el trayecto no es el más simple: más de 3 km, cruces con puente o varios tramos de tierra.',
+  },
+  2: {
+    nombre: 'Media',
+    detalle:
+      'Hay al menos un cruce de agua sin puente registrado, pero existe otro camino que lo evita.',
+  },
+  3: {
+    nombre: 'Alta',
+    detalle:
+      'Más de 20 km hasta la cabecera, o un cruce de agua sin puente registrado y ningún camino que lo evite.',
+  },
+  sin_datos_red: {
+    nombre: 'No calculable',
+    detalle:
+      'La escuela está a más de 5 km del camino más cercano cargado en OpenStreetMap, o no hay camino hasta la cabecera.',
+  },
+} as const
+
+// `ETIQUETAS_AISLAMIENTO[n]` es siempre `DESCRIPCIONES_AISLAMIENTO[n].nombre`:
+// una sola fuente para el nombre corto que usan leyenda, ficha y control.
 export const ETIQUETAS_AISLAMIENTO = {
-  0: 'Muy bajo',
-  1: 'Bajo',
-  2: 'Medio',
-  3: 'Alto',
-  sin_datos_red: 'Sin conexión a la red OSM',
+  0: DESCRIPCIONES_AISLAMIENTO[0].nombre,
+  1: DESCRIPCIONES_AISLAMIENTO[1].nombre,
+  2: DESCRIPCIONES_AISLAMIENTO[2].nombre,
+  3: DESCRIPCIONES_AISLAMIENTO[3].nombre,
+  sin_datos_red: DESCRIPCIONES_AISLAMIENTO.sin_datos_red.nombre,
 } as const
 
 export const ETIQUETAS_INUNDACION = {
@@ -84,7 +158,8 @@ export const ETIQUETAS_INUNDACION = {
 export const ETIQUETAS_CRUCE = {
   puente: 'Puente',
   vado: 'Vado',
-  sin_evidencia: 'Sin evidencia de puente',
+  // OSM no tiene tag de puente en ese punto; NO confirma que no haya puente.
+  sin_evidencia: 'Sin puente registrado',
 } as const
 
 // ---------------------------------------------------------------------------

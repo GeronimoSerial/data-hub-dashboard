@@ -10,11 +10,15 @@ import {
   construirPuntosAislamiento,
   construirPuntosInundacion,
   construirRutaAcceso,
+  DESCRIPCIONES_AISLAMIENTO,
+  ETIQUETAS_AISLAMIENTO,
   ICONOS_ACCESOS_MAPA,
   ID_ICONO_AISLAMIENTO,
   ID_ICONO_CRUCE,
   ID_ICONO_INUNDACION,
   resumirCobertura,
+  TEXTOS_ACCESOS,
+  textoConPeriodo,
   type ClasificacionCruce,
 } from './accesos-capas'
 
@@ -213,5 +217,44 @@ describe('ICONOS_ACCESOS_MAPA', () => {
     for (const icono of ICONOS_ACCESOS_MAPA) {
       expect(icono.svg.startsWith('<svg')).toBe(true)
     }
+  })
+})
+
+const NIVELES = [0, 1, 2, 3, 'sin_datos_red'] as const
+
+describe('DESCRIPCIONES_AISLAMIENTO', () => {
+  it('explica en lenguaje llano cada nivel, incluido el no calculable', () => {
+    for (const nivel of NIVELES) {
+      expect(DESCRIPCIONES_AISLAMIENTO[nivel].nombre.length).toBeGreaterThan(0)
+      expect(DESCRIPCIONES_AISLAMIENTO[nivel].detalle.length).toBeGreaterThan(20)
+    }
+  })
+
+  it('usa el nombre corto como etiqueta única de leyenda, ficha y control', () => {
+    for (const nivel of NIVELES) {
+      expect(ETIQUETAS_AISLAMIENTO[nivel]).toBe(DESCRIPCIONES_AISLAMIENTO[nivel].nombre)
+    }
+  })
+})
+
+describe('textoConPeriodo', () => {
+  it('reemplaza todas las apariciones de {periodo} con el valor recibido', () => {
+    expect(textoConPeriodo('{periodo} años y {periodo}', 250)).toBe('250 años y 250')
+  })
+
+  it('usa 100 cuando el dato no trae período de retorno', () => {
+    const conDefault = textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, null)
+    expect(conDefault).toContain('una vez cada 100 años')
+    expect(conDefault).not.toContain('{periodo}')
+    expect(textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, undefined)).toBe(conDefault)
+  })
+
+  it('el texto de inundación aclara que es un modelo, no un registro de inundaciones', () => {
+    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('modelo con clima histórico')
+    expect(TEXTOS_ACCESOS.queMideInundacion).not.toContain('registros históricos')
+  })
+
+  it('el texto de sin cobertura descarta explícitamente leerlo como nivel 0', () => {
+    expect(TEXTOS_ACCESOS.sinCobertura).toContain('no equivale a nivel 0')
   })
 })

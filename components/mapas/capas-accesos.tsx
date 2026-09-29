@@ -21,6 +21,7 @@ import type { SymbolLayerSpecification, LineLayerSpecification } from 'maplibre-
 import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
+  DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
   ETIQUETAS_CRUCE,
   ETIQUETAS_INUNDACION,
@@ -35,6 +36,8 @@ import {
   SVG_ICONO_INUNDACION_ALTA,
   SVG_ICONO_INUNDACION_BAJA,
   SVG_ICONO_INUNDACION_MEDIA,
+  TEXTOS_ACCESOS,
+  textoConPeriodo,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { GeometriaAccesoRespuesta, TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
@@ -218,8 +221,27 @@ export function LeyendaAccesos({
   // sola vez para los bloques visibles (no un alert duplicado por capa).
   const territorioListo = !territorioLoading && territorioError === null
 
+  // Una sola tarjeta opaca para los tres bloques. Antes cada bloque era un
+  // `legendItemStack` suelto: sin fondo, el texto se imprimía sobre el mapa y
+  // los tres se apilaban sin separación. `styles.panel` (.map-panel) da fondo
+  // `--card`, borde y sombra; dentro de `.map-left-stack` la regla
+  // `.map-left-stack > .map-panel` lo devuelve al flujo, así que se apila con
+  // los demás paneles en vez de anclarse por su cuenta.
   return (
-    <>
+    <section
+      className={`${styles.panel} map-leyenda-accesos`}
+      data-testid="leyenda-accesos"
+      aria-label="Referencias de las capas territoriales"
+    >
+      {visibles.rutaSeleccion && (
+        <BloqueRuta
+          seleccion={seleccion}
+          geometria={geometria}
+          geometriaLoading={geometriaLoading}
+          geometriaError={geometriaError}
+          onEncuadrarRuta={onEncuadrarRuta}
+        />
+      )}
       {hayBloqueTerritorio && territorioLoading && (
         <div className={styles.legendItemStack} data-testid="leyenda-territorio-cargando">
           <div className={styles.hint}>Cargando capas territoriales…</div>
@@ -238,16 +260,7 @@ export function LeyendaAccesos({
       {visibles.inundacion && territorioListo && (
         <BloqueInundacion territorio={territorio} resumen={resumen} />
       )}
-      {visibles.rutaSeleccion && (
-        <BloqueRuta
-          seleccion={seleccion}
-          geometria={geometria}
-          geometriaLoading={geometriaLoading}
-          geometriaError={geometriaError}
-          onEncuadrarRuta={onEncuadrarRuta}
-        />
-      )}
-    </>
+    </section>
   )
 }
 
@@ -267,15 +280,10 @@ function IconoSvg({ svg }: { svg: string }) {
   )
 }
 
-function FilaConIcono({
-  svg,
-  etiqueta,
-  conteo,
-}: {
-  svg: string
-  etiqueta: string
-  conteo: number
-}) {
+// Fila visible de la leyenda: ícono + nombre corto + conteo. La explicación en
+// lenguaje llano de cada fila vive en el `<details>` de ayuda del bloque, para
+// que la leyenda sea una tabla de conteos y no un muro de texto.
+function FilaConIcono({ svg, etiqueta, conteo }: { svg: string; etiqueta: string; conteo: number }) {
   const styles = useOverlayStyles()
   return (
     <div className={styles.legendItem}>
@@ -284,6 +292,27 @@ function FilaConIcono({
         {etiqueta}: <b>{conteo}</b>
       </span>
     </div>
+  )
+}
+
+// Ayuda de la leyenda de aislamiento: qué mide el índice, cómo se leen los
+// niveles (las reglas del cálculo) y qué NO representa. Cerrada por defecto.
+function AyudaLeyendaAislamiento() {
+  const styles = useOverlayStyles()
+  return (
+    <details className="ayuda-leyenda" data-testid="leyenda-aislamiento-ayuda">
+      <summary>Qué significa</summary>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.queMideAcceso}</div>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.nivelesAcceso}</div>
+      {NIVELES_AISLAMIENTO.map((nivel) => (
+        <div key={nivel} className={styles.hint}>
+          <b>{DESCRIPCIONES_AISLAMIENTO[nivel].nombre}:</b>{' '}
+          {DESCRIPCIONES_AISLAMIENTO[nivel].detalle}
+        </div>
+      ))}
+      <div className={styles.hint}>{TEXTOS_ACCESOS.sinCobertura}</div>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.noRepresentaAcceso}</div>
+    </details>
   )
 }
 
@@ -300,13 +329,14 @@ function BloqueAislamiento({
 
   return (
     <div className={styles.legendItemStack} data-testid="leyenda-aislamiento">
-      <b>Aislamiento de acceso (OSM)</b>
+      <b>{TEXTOS_ACCESOS.tituloAcceso}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-aislamiento-sin-datos">
           <div className={styles.hint}>Sin datos importados de OSM.</div>
         </div>
       ) : (
         <div data-testid="leyenda-aislamiento-contenido">
+          <div className={styles.hint}>{TEXTOS_ACCESOS.subtituloAcceso}</div>
           {NIVELES_AISLAMIENTO.map((nivel) => (
             <FilaConIcono
               key={nivel}
@@ -317,20 +347,34 @@ function BloqueAislamiento({
           ))}
           <div className={styles.legendItem}>
             <span>
-              Sin cobertura OSM: <b>{resumen.aislamiento.sin_cobertura}</b>
+              Sin dato: <b>{resumen.aislamiento.sin_cobertura}</b>
             </span>
           </div>
+          <AyudaLeyendaAislamiento />
           <div className={styles.hint}>
             © OpenStreetMap contributors (ODbL) · extracto{' '}
             {territorio?.aislamiento?.fechaExtractoOsm}
           </div>
-          <div className={styles.hint}>
-            Índice estático de caminos y cruces de agua hasta la cabecera
-            departamental. No es pronóstico ni estado del edificio.
-          </div>
         </div>
       )}
     </div>
+  )
+}
+
+// Ayuda de la leyenda de inundación: qué estima el modelo, qué NO es y qué
+// significan los conteos que no se dibujan. Cerrada por defecto.
+function AyudaLeyendaInundacion({ periodoRetornoAnios }: { periodoRetornoAnios: number | null }) {
+  const styles = useOverlayStyles()
+  return (
+    <details className="ayuda-leyenda" data-testid="leyenda-inundacion-ayuda">
+      <summary>Qué significa</summary>
+      <div className={styles.hint}>
+        {textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, periodoRetornoAnios)}
+      </div>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.sinProfundidad}</div>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.sinCobertura}</div>
+      <div className={styles.hint}>{TEXTOS_ACCESOS.noRepresentaInundacion}</div>
+    </details>
   )
 }
 
@@ -346,7 +390,7 @@ function BloqueInundacion({
 
   return (
     <div className={styles.legendItemStack} data-testid="leyenda-inundacion">
-      <b>Susceptibilidad histórica de inundación fluvial (physrisk)</b>
+      <b>{TEXTOS_ACCESOS.tituloInundacion}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-inundacion-sin-datos">
           <div className={styles.hint}>Sin datos importados de physrisk.</div>
@@ -354,9 +398,10 @@ function BloqueInundacion({
       ) : (
         <div data-testid="leyenda-inundacion-contenido">
           <div className={styles.hint}>
-            Profundidad estimada para período de retorno de{' '}
-            {territorio?.susceptibilidad?.periodoRetornoAnios} años · escenario
-            histórico
+            {textoConPeriodo(
+              TEXTOS_ACCESOS.subtituloInundacion,
+              territorio?.susceptibilidad?.periodoRetornoAnios,
+            )}
           </div>
           {NIVELES_INUNDACION.map((clase) => (
             <FilaConIcono
@@ -374,13 +419,12 @@ function BloqueInundacion({
           </div>
           <div className={styles.legendItem}>
             <span>
-              Sin cobertura physrisk: <b>{resumen.inundacion.sin_cobertura}</b>
+              Sin dato: <b>{resumen.inundacion.sin_cobertura}</b>
             </span>
           </div>
-          <div className={styles.hint}>
-            Indicador estático de largo plazo: no es un pronóstico ni el trazado
-            de un río.
-          </div>
+          <AyudaLeyendaInundacion
+            periodoRetornoAnios={territorio?.susceptibilidad?.periodoRetornoAnios ?? null}
+          />
           <div className={styles.hint}>
             OS-Climate physrisk (Apache-2.0) · corrida{' '}
             {territorio?.susceptibilidad?.fechaCorrida}
@@ -472,10 +516,7 @@ function BloqueRuta({
         <b>Ruta de acceso OSM · {seleccion.nombre}</b>
         <div className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: COLOR_RUTA_ACCESO }} />
-          <span>
-            Ruta usada en el cálculo (desde el punto de la red vial más cercano a
-            la escuela hasta la cabecera departamental)
-          </span>
+          <span>Ruta usada en el cálculo</span>
         </div>
         {FILAS_CRUCES.map((fila) => (
           <FilaConIcono
@@ -493,10 +534,28 @@ function BloqueRuta({
             Encuadrar ruta
           </Button>
         )}
-        <div className={styles.hint}>
-          Contexto territorial derivado de OpenStreetMap: no es pronóstico ni
-          estado confirmado del edificio.
-        </div>
+        {/* La explicación larga (qué punto de la red se usó, por qué "sin
+            puente registrado" no confirma que falte, y el descargo de que es
+            contexto) vive cerrada: con las tres capas prendidas la ruta es el
+            bloque con más texto y lo visible tiene que seguir siendo corto. */}
+        <details className="ayuda-leyenda" data-testid="leyenda-ruta-ayuda">
+          <summary>Qué significa</summary>
+          <div className={styles.hint}>
+            La ruta une el punto de la red vial más cercano a la escuela con la
+            cabecera departamental. Es la geometría que el cálculo usó: no se
+            dibujan rectas ni atajos que no estén en el dato.
+          </div>
+          {totalCruces > 0 && (
+            <div className={styles.hint}>
+              Sin puente registrado no confirma que falte el puente: puede no estar cargado en
+              OpenStreetMap.
+            </div>
+          )}
+          <div className={styles.hint}>
+            Contexto territorial derivado de OpenStreetMap: no es pronóstico ni estado confirmado
+            del edificio.
+          </div>
+        </details>
         <div className={styles.hint}>
           © OpenStreetMap contributors (ODbL) · extracto {geometria.fechaExtractoOsm}
         </div>

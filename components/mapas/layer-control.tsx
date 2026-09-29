@@ -162,9 +162,9 @@ export function RadarLayerControl({
 export type CapaAccesos = 'aislamiento' | 'inundacion' | 'rutaSeleccion'
 
 export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
-  aislamiento: 'Aislamiento de acceso (OSM, estático)',
-  inundacion: 'Susceptibilidad histórica de inundación fluvial (physrisk)',
-  rutaSeleccion: 'Ruta y cruces de agua de la escuela seleccionada (OSM)',
+  aislamiento: 'Dificultad de acceso por caminos (0 a 3)',
+  inundacion: 'Inundación histórica por desborde de ríos',
+  rutaSeleccion: 'Ruta y cruces de agua de la escuela seleccionada',
 }
 
 const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = ['aislamiento', 'inundacion', 'rutaSeleccion']
