@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
+import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 
 const CUE = '1801605-04'
 // Escuela del padrón SIN afectación vigente (no está en partesPorCue): es el
@@ -30,18 +31,10 @@ const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
 // defecto (las dos escuelas del padrón de abajo).
 const CUES_DESAGRUPADOS_MOCK = vi.hoisted(() => ({ cues: [] as string[] }))
 
-const PARTE: ParteMapa = {
-  parteId: 'p1',
+const PARTE: ParteMapa = crearParteMapa({
   cueAnexo: CUE,
-  nombre: 'Escuela 1',
-  departamento: 'Capital',
-  localidad: 'Corrientes',
-  lat: -27.47,
-  lon: -58.83,
   servicio: 'suspendido',
   estadoEstablecimiento: 'evacuado',
-  peorSeveridad: 'Alta',
-  categorias: ['establecimiento'],
   afectaciones: [
     {
       id: 'a1',
@@ -54,9 +47,7 @@ const PARTE: ParteMapa = {
   ],
   seccionesAlcanzadas: 3,
   alumnosAlcanzados: 74,
-  rigeDesde: '2026-08-01T00:00:00Z',
-  actualizadaEn: '2026-08-01T00:00:00Z',
-}
+})
 
 // F3.2/F3.3/F3.4: este test cubre la ORQUESTACIÓN de los tres modales desde
 // map-infraestructura-page (abrir ficha al click, encadenar nominal e

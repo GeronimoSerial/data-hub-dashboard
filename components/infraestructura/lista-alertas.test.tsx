@@ -2,24 +2,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ListaAlertas } from './lista-alertas'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 
 afterEach(() => {
   document.body.innerHTML = ''
 })
 
-const parte: ParteMapa = {
-  parteId: 'p1',
-  cueAnexo: '1801605-04',
-  nombre: 'Escuela 1',
+const parte = crearParteMapa({
   departamento: 'ER',
   localidad: 'Parana',
   lat: -31.7,
   lon: -60.5,
   servicio: 'suspendido',
-  estadoEstablecimiento: 'habitual',
-  peorSeveridad: 'Alta',
-  categorias: ['establecimiento'],
   afectaciones: [
     {
       id: 'a1',
@@ -32,9 +26,7 @@ const parte: ParteMapa = {
   ],
   seccionesAlcanzadas: 2,
   alumnosAlcanzados: 40,
-  rigeDesde: '2026-08-01T00:00:00Z',
-  actualizadaEn: '2026-08-01T00:00:00Z',
-}
+})
 
 const filtrosVacios = {
   territorio: '',

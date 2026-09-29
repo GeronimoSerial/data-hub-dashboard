@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FichaParteModal } from './ficha-parte-modal'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 
 const CUE = '1801605-04'
 
@@ -14,18 +14,10 @@ const escuela = {
   departamento: 'Capital',
 }
 
-const parteResumen: ParteMapa = {
-  parteId: 'p1',
+const parteResumen = crearParteMapa({
   cueAnexo: CUE,
-  nombre: 'Escuela 1',
-  departamento: 'Capital',
-  localidad: 'Corrientes',
-  lat: -27.47,
-  lon: -58.83,
   servicio: 'suspendido',
   estadoEstablecimiento: 'evacuado',
-  peorSeveridad: 'Alta',
-  categorias: ['establecimiento'],
   afectaciones: [
     {
       id: 'a1',
@@ -38,9 +30,7 @@ const parteResumen: ParteMapa = {
   ],
   seccionesAlcanzadas: 3,
   alumnosAlcanzados: 74,
-  rigeDesde: '2026-08-01T00:00:00Z',
-  actualizadaEn: '2026-08-01T00:00:00Z',
-}
+})
 
 function respuestaParte() {
   return {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
@@ -24,24 +25,7 @@ const CUE = '1801605-04'
 // Fixture base de un ParteMapa válido (ver lib/infraestructura/parte-mapa.ts
 // para el contrato de campos). Cada test varía sólo lo que necesita con un
 // spread `{ ...baseFixture, campo: valor }`.
-const baseFixture: ParteMapa = {
-  parteId: 'p1',
-  cueAnexo: CUE,
-  nombre: 'Escuela 1',
-  departamento: 'Capital',
-  localidad: 'Corrientes',
-  lat: -27.47,
-  lon: -58.83,
-  servicio: 'normal',
-  estadoEstablecimiento: 'habitual',
-  peorSeveridad: 'Alta',
-  categorias: ['establecimiento'],
-  afectaciones: [],
-  seccionesAlcanzadas: 0,
-  alumnosAlcanzados: 0,
-  rigeDesde: '2026-08-01T00:00:00Z',
-  actualizadaEn: '2026-08-01T00:00:00Z',
-}
+const baseFixture: ParteMapa = crearParteMapa({ cueAnexo: CUE })
 
 describe('colorPorSeveridadRango', () => {
   it('es una expresión `case` con la guarda de sin afectación, los pares condición/color y el color de Baja como default', () => {
