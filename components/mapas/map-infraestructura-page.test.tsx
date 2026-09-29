@@ -292,6 +292,10 @@ vi.mock('@/lib/infraestructura/use-geometria-acceso', () => ({
   },
 }))
 
+vi.mock('@/lib/infraestructura/use-exposicion-ruta', () => ({
+  useExposicionRuta: () => ({ data: null, loading: false, error: null }),
+}))
+
 // Mock del hook del radar (E4). Registra cada invocación con su flag `activo`
 // para poder afirmar que NO se dispara en modo "Situación actual" ni con el
 // flag apagado: el componente puede llamar al hook siempre (regla de hooks),

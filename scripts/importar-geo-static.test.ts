@@ -3,7 +3,7 @@ import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { importarAislamiento, importarSusceptibilidad, importarGeometria } from './importar-geo-static.mjs'
+import { importarAislamiento, importarSusceptibilidad, importarGeometria, importarExposicionRuta } from './importar-geo-static.mjs'
 
 function crearDbFalsa() {
   const llamadas: Array<{ tabla: string; valores: unknown }> = []
@@ -352,5 +352,55 @@ describe('importarGeometria', () => {
 
     expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
     expect(llamadas).toHaveLength(1)
+  })
+})
+
+const tablaExposicionRutaFalsa = {
+  _: { name: 'infra_exposicion_ruta_inundacion' }, cueAnexo: 'cue_anexo', versionJob: 'version_job',
+}
+
+function filaExposicionRuta(overrides: Record<string, unknown> = {}) {
+  return {
+    cue_anexo: '1801605-04', version_job: 'v1', estado: 'con_profundidad', motivo_sin_dato: null,
+    celdas_total: 2, celdas_con_dato: 2, celdas_con_profundidad: 1, profundidad_max_m: 0.7,
+    cobertura: 1, periodo_retorno_anios: 100, resolucion_arcsec: 30, escenario: 'historico',
+    fuente: 'WRI Aqueduct v2', fecha_corrida: '2026-09-29', licencia: 'Apache-2.0',
+    celdas: [{ lon: -58.8, lat: -27.4, profundidad_m: 0.7 }, { lon: -58.81, lat: -27.41, profundidad_m: null }],
+    ...overrides,
+  }
+}
+
+describe('importarExposicionRuta', () => {
+  it('mapea y conserva estados, celdas y null; upsert repetido es idempotente por clave', async () => {
+    const path = escribirNdjsonGz('exposicion.ndjson.gz', [
+      filaExposicionRuta(),
+      filaExposicionRuta({ cue_anexo: '1801605-05', estado: 'sin_profundidad', profundidad_max_m: null, celdas: [{ lon: 1, lat: 2, profundidad_m: null }] }),
+      filaExposicionRuta({ cue_anexo: '1801605-06', estado: 'sin_ruta', celdas_total: 0, celdas_con_dato: 0, celdas_con_profundidad: 0, profundidad_max_m: null, cobertura: 0, celdas: [] }),
+    ])
+    const { db, llamadas } = crearDbFalsa()
+    const primera = await importarExposicionRuta(path, { db: db as never, tabla: tablaExposicionRutaFalsa as never })
+    const segunda = await importarExposicionRuta(path, { db: db as never, tabla: tablaExposicionRutaFalsa as never })
+    expect(primera).toEqual({ procesadas: 3, ok: 3, fallidas: 0 })
+    expect(segunda).toEqual(primera)
+    expect(llamadas).toHaveLength(2)
+    expect(llamadas[0].valores).toHaveLength(3)
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(lote[0].estado).toBe('con_profundidad')
+    expect(lote[0].celdas).toEqual([{ lon: -58.8, lat: -27.4, profundidadM: 0.7 }, { lon: -58.81, lat: -27.41, profundidadM: null }])
+    expect(lote[1].profundidadMaxM).toBeNull()
+    expect(lote[2].estado).toBe('sin_ruta')
+    expect(lote[2].profundidadMaxM).toBeNull()
+    expect(lote[2].celdas).toEqual([])
+  })
+
+  it('cuenta cobertura fuera de rango y estado desconocido como filas fallidas', async () => {
+    const path = escribirNdjsonGz('exposicion-invalida.ndjson.gz', [
+      filaExposicionRuta({ cobertura: 2 }),
+      filaExposicionRuta({ estado: 'inundada' }),
+    ])
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarExposicionRuta(path, { db: db as never, tabla: tablaExposicionRutaFalsa as never })
+    expect(resultado).toEqual({ procesadas: 2, ok: 0, fallidas: 2 })
+    expect(llamadas).toHaveLength(0)
   })
 })

@@ -91,6 +91,8 @@ import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
 import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
+import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
+import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import { ReplayPanel } from '@/components/mapas/replay-panel'
@@ -1564,9 +1566,18 @@ export default function MapInfraestructuraPage(props: {
     loading: geometriaLoading,
     error: geometriaError,
   } = useGeometriaAcceso(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+  const {
+    data: exposicion,
+    loading: exposicionLoading,
+    error: exposicionError,
+  } = useExposicionRuta(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
+  const celdasExposicion = useMemo(
+    () => (exposicion?.cueAnexo === cueRuta ? construirCeldasExposicion(exposicion) : null),
+    [exposicion, cueRuta],
+  )
 
   // Nombre de la escuela seleccionada para el título de la leyenda (null si
   // la selección no está en el padrón cargado).
@@ -2182,6 +2193,7 @@ export default function MapInfraestructuraPage(props: {
               puntosAislamiento={puntosAislamiento}
               puntosInundacion={puntosInundacion}
               ruta={rutaGeojson}
+              celdasExposicion={celdasExposicion}
               cruces={crucesGeojson}
               visibles={capasAccesosVisibles}
               iconosListos={iconosClusterListos}
@@ -2603,6 +2615,9 @@ export default function MapInfraestructuraPage(props: {
                 geometria,
                 geometriaLoading,
                 geometriaError,
+                exposicion,
+                exposicionLoading,
+                exposicionError,
                 onVerRutaEnMapa: handleVerRutaEnMapa,
               }
             : undefined
@@ -2716,6 +2731,7 @@ export default function MapInfraestructuraPage(props: {
               resumen={resumenCobertura}
               seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
               geometria={geometria}
+              celdasExposicion={celdasExposicion}
               geometriaLoading={geometriaLoading}
               geometriaError={geometriaError}
               onEncuadrarRuta={encuadrarRuta}

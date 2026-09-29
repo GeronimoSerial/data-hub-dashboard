@@ -29,6 +29,13 @@
       "when": 1790645395600,
       "tag": "0003_acceso_osm_geometria",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790665257251,
+      "tag": "0004_exposicion_ruta_inundacion",
+      "breakpoints": true
     }
   ]
 }
