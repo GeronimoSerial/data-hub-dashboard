@@ -22,6 +22,7 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
   DESCRIPCIONES_AISLAMIENTO,
+  DESCRIPCIONES_CRUCE,
   ETIQUETAS_AISLAMIENTO,
   ETIQUETAS_CRUCE,
   ETIQUETAS_INUNDACION,
@@ -38,6 +39,7 @@ import {
   SVG_ICONO_INUNDACION_MEDIA,
   TEXTOS_ACCESOS,
   textoConPeriodo,
+  textoMotivoSinRuta,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { GeometriaAccesoRespuesta, TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
@@ -332,7 +334,7 @@ function BloqueAislamiento({
       <b>{TEXTOS_ACCESOS.tituloAcceso}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-aislamiento-sin-datos">
-          <div className={styles.hint}>Sin datos importados de OSM.</div>
+          <div className={styles.hint}>Sin datos de caminos cargados.</div>
         </div>
       ) : (
         <div data-testid="leyenda-aislamiento-contenido">
@@ -347,12 +349,12 @@ function BloqueAislamiento({
           ))}
           <div className={styles.legendItem}>
             <span>
-              Sin dato: <b>{resumen.aislamiento.sin_cobertura}</b>
+              Sin dato (escuela fuera de los datos): <b>{resumen.aislamiento.sin_cobertura}</b>
             </span>
           </div>
           <AyudaLeyendaAislamiento />
           <div className={styles.hint}>
-            © OpenStreetMap contributors (ODbL) · extracto{' '}
+            Mapa de caminos: © OpenStreetMap contributors (ODbL) · extracto{' '}
             {territorio?.aislamiento?.fechaExtractoOsm}
           </div>
         </div>
@@ -393,7 +395,7 @@ function BloqueInundacion({
       <b>{TEXTOS_ACCESOS.tituloInundacion}</b>
       {sinDatos ? (
         <div className={styles.legendItemStack} data-testid="leyenda-inundacion-sin-datos">
-          <div className={styles.hint}>Sin datos importados de physrisk.</div>
+          <div className={styles.hint}>Sin datos de agua estimada cargados.</div>
         </div>
       ) : (
         <div data-testid="leyenda-inundacion-contenido">
@@ -413,13 +415,13 @@ function BloqueInundacion({
           ))}
           <div className={styles.legendItem}>
             <span>
-              Sin profundidad estimada (0 m):{' '}
+              Sin agua estimada (0 m):{' '}
               <b>{resumen.inundacion.sin_profundidad}</b>
             </span>
           </div>
           <div className={styles.legendItem}>
             <span>
-              Sin dato: <b>{resumen.inundacion.sin_cobertura}</b>
+              Sin dato (escuela fuera de los datos): <b>{resumen.inundacion.sin_cobertura}</b>
             </span>
           </div>
           <AyudaLeyendaInundacion
@@ -433,19 +435,6 @@ function BloqueInundacion({
       )}
     </div>
   )
-}
-
-function mensajeMotivo(motivo: string | undefined): string {
-  switch (motivo) {
-    case 'sin_geometria_importada':
-      return 'La geometría de accesos no está importada para esta escuela.'
-    case 'sin_conexion_red':
-      return 'La escuela no conecta con la red vial OSM: no hay ruta calculada.'
-    case 'ruta_degenerada':
-      return 'La escuela está junto a la cabecera departamental: no hay ruta que dibujar.'
-    default:
-      return 'Sin geometría de acceso para esta escuela.'
-  }
 }
 
 function BloqueRuta({
@@ -467,7 +456,7 @@ function BloqueRuta({
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
         <div className={styles.hint} data-testid="leyenda-ruta-sin-seleccion">
-          Seleccioná una escuela para ver su ruta de acceso OSM.
+          Elegí una escuela para ver el camino calculado hasta la cabecera.
         </div>
       </div>
     )
@@ -477,7 +466,7 @@ function BloqueRuta({
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
         <div className={styles.hint} data-testid="leyenda-ruta-cargando">
-          Cargando ruta de acceso…
+          Cargando el camino…
         </div>
       </div>
     )
@@ -501,7 +490,7 @@ function BloqueRuta({
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
         <div className={styles.hint} data-testid="leyenda-ruta-motivo">
-          {mensajeMotivo(geometria?.motivo)}
+          {textoMotivoSinRuta(geometria?.motivo)}
         </div>
       </div>
     )
@@ -513,10 +502,10 @@ function BloqueRuta({
   return (
     <div className={styles.legendItemStack} data-testid="leyenda-ruta">
       <div data-testid="leyenda-ruta-disponible">
-        <b>Ruta de acceso OSM · {seleccion.nombre}</b>
+        <b>Camino calculado · {seleccion.nombre}</b>
         <div className={styles.legendItem}>
           <span className={styles.swatch} style={{ background: COLOR_RUTA_ACCESO }} />
-          <span>Ruta usada en el cálculo</span>
+          <span>Camino que usa el cálculo</span>
         </div>
         {FILAS_CRUCES.map((fila) => (
           <FilaConIcono
@@ -527,34 +516,26 @@ function BloqueRuta({
           />
         ))}
         {totalCruces === 0 && (
-          <div className={styles.hint}>Sin cruces de agua en esta ruta</div>
+          <div className={styles.hint}>No hay cruces de agua en este camino.</div>
         )}
         {onEncuadrarRuta && (
           <Button type="button" size="sm" variant="secondary" onClick={onEncuadrarRuta}>
-            Encuadrar ruta
+            {TEXTOS_ACCESOS.verRecorrido}
           </Button>
         )}
-        {/* La explicación larga (qué punto de la red se usó, por qué "sin
-            puente registrado" no confirma que falte, y el descargo de que es
-            contexto) vive cerrada: con las tres capas prendidas la ruta es el
+        {/* La explicación larga vive cerrada: con las tres capas prendidas la ruta es el
             bloque con más texto y lo visible tiene que seguir siendo corto. */}
         <details className="ayuda-leyenda" data-testid="leyenda-ruta-ayuda">
           <summary>Qué significa</summary>
           <div className={styles.hint}>
-            La ruta une el punto de la red vial más cercano a la escuela con la
-            cabecera departamental. Es la geometría que el cálculo usó: no se
-            dibujan rectas ni atajos que no estén en el dato.
+            El camino une el punto de la red vial más cercano a la escuela con la cabecera departamental. Es el que usó el cálculo: no es una recomendación ni dice si hoy se puede transitar.
           </div>
-          {totalCruces > 0 && (
-            <div className={styles.hint}>
-              Sin puente registrado no confirma que falte el puente: puede no estar cargado en
-              OpenStreetMap.
+          {(['puente', 'vado', 'sin_evidencia'] as const).map((tipo) => (
+            <div className={styles.hint} key={tipo}>
+              <b>{ETIQUETAS_CRUCE[tipo]}:</b> {DESCRIPCIONES_CRUCE[tipo]}
             </div>
-          )}
-          <div className={styles.hint}>
-            Contexto territorial derivado de OpenStreetMap: no es pronóstico ni estado confirmado
-            del edificio.
-          </div>
+          ))}
+          <div className={styles.hint}>{TEXTOS_ACCESOS.detalleDatos}</div>
         </details>
         <div className={styles.hint}>
           © OpenStreetMap contributors (ODbL) · extracto {geometria.fechaExtractoOsm}

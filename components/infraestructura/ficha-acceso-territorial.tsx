@@ -4,6 +4,7 @@ import {
   DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
   TEXTOS_ACCESOS,
+  textoMotivoSinRuta,
   textoConPeriodo,
 } from '@/lib/mapas/accesos-capas'
 import type {
@@ -49,25 +50,12 @@ function formatearMetros(valor: number): string {
 // motivo nuevo cae al texto genérico en vez de tragarse el dato. La fuente de
 // verdad es la leyenda del mapa; acá va en lenguaje llano porque la ficha la
 // va a leer alguien que no sabe de grafos ni de OSM.
-const MOTIVOS_RUTA: Record<string, string> = {
-  sin_conexion_red:
-    'la escuela está a más de 5 km del camino más cercano cargado en OpenStreetMap o no conecta con la cabecera.',
-  ruta_degenerada: 'la escuela está junto a la cabecera departamental.',
-  sin_geometria_importada: 'el recorrido no está importado para esta escuela.',
-}
-
-const MOTIVO_RUTA_GENERICO = 'no hay recorrido calculado para esta escuela.'
-
-function textoMotivoRuta(geometria: GeometriaAccesoRespuesta): string {
-  return MOTIVOS_RUTA[geometria.motivo ?? ''] ?? MOTIVO_RUTA_GENERICO
-}
-
 // Línea visible de dificultad: sólo el nombre del nivel, en minúscula porque ya
 // va después de "dificultad". 'sin_datos_red' usa su propio nombre ("no
 // calculable"): no hay índice que mostrar, y NO es un nivel 0.
 function textoDificultad(nivel: NivelAislamientoMapa): string {
-  if (nivel === 'sin_datos_red') return 'Acceso por camino: no calculable'
-  return `Acceso por camino: dificultad ${ETIQUETAS_AISLAMIENTO[nivel].toLowerCase()}`
+  if (nivel === 'sin_datos_red') return 'Llegar por camino: no calculable'
+  return `Llegar por camino: dificultad ${ETIQUETAS_AISLAMIENTO[nivel].toLowerCase()}`
 }
 
 // Detalle: acá sí aparece la escala, porque sin ella "dificultad alta" no dice
@@ -82,15 +70,15 @@ function textoIndiceDificultad(nivel: NivelAislamientoMapa): string {
 // (también cuenta el vado). Con cero cruces no se inventa un desglose en cero.
 function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
   if (fila === undefined || fila.cruces === null) return 'Cruces de agua: sin dato'
-  if (fila.cruces === 0) return 'Sin cruces de agua en la ruta'
-  return `Cruces de agua: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
+  if (fila.cruces === 0) return 'Sin cruces de agua en el camino'
+  return `Cruces de agua en el camino: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
 }
 
 // Línea visible de inundación: la profundidad estimada EN la escuela, no la de
 // un punto cercano. 0 m es "el modelo no estima agua ahí", nunca "0 = seca".
 function textoInundacion(profundidad: number): string {
-  if (!(profundidad > 0)) return 'Inundación histórica en la escuela: sin agua estimada'
-  return `Inundación histórica en la escuela: ${formatearMetros(profundidad)} m de agua estimada`
+  if (!(profundidad > 0)) return 'Agua estimada en la escuela: ninguna según el modelo'
+  return `Agua estimada en la escuela: ${formatearMetros(profundidad)} m (crecida poco frecuente)`
 }
 
 // Resumen de lo que el cálculo realmente dibujó. Sólo con geometría
@@ -98,7 +86,7 @@ function textoInundacion(profundidad: number): string {
 function textoResumenRuta(geometria: GeometriaAccesoRespuesta): string {
   const resumen = geometria.resumen
   return (
-    `Ruta en el mapa: ${resumen?.puente ?? 0} con puente · ` +
+    `Cruces en el camino dibujado: ${resumen?.puente ?? 0} con puente · ` +
     `${resumen?.vado ?? 0} vado · ${resumen?.sinEvidencia ?? 0} sin puente registrado.`
   )
 }
@@ -160,7 +148,7 @@ export function FichaAccesoTerritorial({
       data-testid="ficha-acceso-territorial"
     >
       <p className="ficha-territorial__titulo" id={ID_TITULO}>
-        <strong>Contexto territorial</strong>
+        <strong>Acceso por camino y agua estimada</strong>
       </p>
 
       {territorioLoading ? (
@@ -186,11 +174,11 @@ export function FichaAccesoTerritorial({
           <div className="ficha-territorial__dato" data-testid="ficha-acceso-aislamiento">
             {aislamiento === null ? (
               <p data-testid="ficha-acceso-aislamiento-sin-datos">
-                Sin datos de aislamiento OSM importados.
+                Sin datos de caminos cargados.
               </p>
             ) : filaAislamiento === undefined ? (
               <p data-testid="ficha-acceso-aislamiento-sin-cobertura">
-                Acceso por camino: sin dato
+                Llegar por camino: sin dato
               </p>
             ) : (
               <p data-testid="ficha-acceso-aislamiento-indice">
@@ -207,15 +195,15 @@ export function FichaAccesoTerritorial({
           <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
             {susceptibilidad === null ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
-                Sin datos physrisk importados.
+                Sin datos de agua estimada cargados.
               </p>
             ) : filaSusceptibilidad === undefined ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-cobertura">
-                Inundación histórica en la escuela: sin dato
+                Agua estimada en la escuela: sin dato
               </p>
             ) : profundidad === null ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-valor">
-                Inundación histórica en la escuela: sin dato
+                Agua estimada en la escuela: sin dato
               </p>
             ) : (
               <p data-testid="ficha-acceso-susceptibilidad-valor">
@@ -223,6 +211,8 @@ export function FichaAccesoTerritorial({
               </p>
             )}
           </div>
+
+          <p className="ficha-territorial__fuente">{TEXTOS_ACCESOS.detalleDatos}</p>
 
           {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
               sólo aparece si el padre sabe encuadrarlo. Si la geometría no
@@ -246,7 +236,7 @@ export function FichaAccesoTerritorial({
                 data-testid="ficha-acceso-ver-ruta"
                 onClick={() => onVerRutaEnMapa()}
               >
-                Ver recorrido
+                {TEXTOS_ACCESOS.verRecorrido}
               </Button>
             )
           ) : geometriaLoading ? (
@@ -264,7 +254,7 @@ export function FichaAccesoTerritorial({
             )
           ) : geometria !== null ? (
             <p className="ficha-territorial__estado" data-testid="ficha-acceso-sin-ruta">
-              Sin recorrido para mostrar: {textoMotivoRuta(geometria)}
+              <strong>{TEXTOS_ACCESOS.sinRuta}.</strong> {textoMotivoSinRuta(geometria.motivo)}
             </p>
           ) : null}
 
@@ -280,15 +270,14 @@ export function FichaAccesoTerritorial({
               </p>
               {filaAislamiento !== undefined && (
                 <>
-                  <p data-testid="ficha-acceso-detalle-indice">
+              <p data-testid="ficha-acceso-detalle-indice">
                     {textoIndiceDificultad(filaAislamiento.nivel)}
                   </p>
                   <p data-testid="ficha-acceso-detalle-nivel">
                     {significadoNivel(filaAislamiento.nivel)}
                   </p>
                   <p data-testid="ficha-acceso-aislamiento-alternativa">
-                    Alternativa sin cruce:{' '}
-                    {textoAlternativa(filaAislamiento.alternativaSinCruce)}
+                    Camino alternativo sin cruces: {filaAislamiento.alternativaSinCruce === null ? 'Sin dato' : textoAlternativa(filaAislamiento.alternativaSinCruce)}
                   </p>
                 </>
               )}
@@ -315,7 +304,7 @@ export function FichaAccesoTerritorial({
               )}
 
               <p className="ficha-territorial__subtitulo">
-                <strong>Inundación histórica</strong>
+                <strong>Agua estimada en la escuela</strong>
               </p>
               {susceptibilidad !== null && (
                 <>
@@ -332,8 +321,7 @@ export function FichaAccesoTerritorial({
                     )}
                   </p>
                   <p data-testid="ficha-acceso-susceptibilidad-periodo">
-                    Período de retorno {susceptibilidad.periodoRetornoAnios} años · escenario
-                    histórico
+                    {textoConPeriodo(TEXTOS_ACCESOS.periodoEscenario, susceptibilidad.periodoRetornoAnios)}
                   </p>
                 </>
               )}
@@ -362,7 +350,7 @@ export function FichaAccesoTerritorial({
               )}
 
               <p className="ficha-territorial__fuente" data-testid="ficha-acceso-nota">
-                Contexto territorial: no reemplaza el parte ni confirma el estado del edificio.
+                {TEXTOS_ACCESOS.detalleDatos}
               </p>
             </details>
           )}

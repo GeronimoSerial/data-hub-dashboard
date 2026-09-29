@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GeometriaAccesoRespuesta } from './territorio-mapa'
 
 const RUTA_BASE = '/api/mapas/infraestructura/accesos'
-const MENSAJE_ERROR = 'No se pudo cargar la ruta de acceso.'
+const MENSAJE_ERROR = 'No se pudo cargar el camino de esta escuela. Probá de nuevo en unos minutos.'
 const MAX_ENTRADAS_CACHE = 50
 
 // Cache a nivel de módulo por cueAnexo: la geometría de una escuela no cambia

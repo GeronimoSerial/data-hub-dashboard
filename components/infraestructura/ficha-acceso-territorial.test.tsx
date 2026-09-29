@@ -105,7 +105,7 @@ describe('FichaAccesoTerritorial - estados', () => {
   it('muestra el título y el estado de carga territorial', () => {
     render(<FichaAccesoTerritorial {...props({ territorioLoading: true })} />)
 
-    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Contexto territorial')
+    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino y agua estimada')
     expect(screen.getByRole('status')).toHaveTextContent('Cargando datos territoriales…')
   })
 
@@ -125,10 +125,10 @@ describe('FichaAccesoTerritorial - estados', () => {
     render(<FichaAccesoTerritorial {...props({ territorio: territorioCon(null, null) })} />)
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-sin-datos')).toHaveTextContent(
-      'Sin datos de aislamiento OSM importados.',
+      'Sin datos de caminos cargados.',
     )
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-datos')).toHaveTextContent(
-      'Sin datos physrisk importados.',
+      'Sin datos de agua estimada cargados.',
     )
   })
 
@@ -177,7 +177,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-indice')).toHaveTextContent(
-      `Acceso por camino: dificultad ${nombre}`,
+      `Llegar por camino: dificultad ${nombre}`,
     )
   })
 
@@ -191,7 +191,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     const indice = screen.getByTestId('ficha-acceso-aislamiento-indice')
-    expect(indice).toHaveTextContent('Acceso por camino: no calculable')
+    expect(indice).toHaveTextContent('Llegar por camino: no calculable')
     expect(indice).not.toHaveTextContent('de 3')
     expect(indice).not.toHaveTextContent('muy baja')
   })
@@ -209,7 +209,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-cruces')).toHaveTextContent(
-      'Cruces de agua: 2 (1 sin puente registrado)',
+      'Cruces de agua en el camino: 2 (1 sin puente registrado)',
     )
   })
 
@@ -226,7 +226,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     const cruces = screen.getByTestId('ficha-acceso-aislamiento-cruces')
-    expect(cruces).toHaveTextContent('Sin cruces de agua en la ruta')
+    expect(cruces).toHaveTextContent('Sin cruces de agua en el camino')
     expect(cruces).not.toHaveTextContent('sin puente registrado')
   })
 
@@ -234,13 +234,13 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     render(<FichaAccesoTerritorial {...props({ territorio: territorioCon({}, {}) })} />)
 
     const acceso = screen.getByTestId('ficha-acceso-aislamiento-sin-cobertura')
-    expect(acceso).toHaveTextContent('Acceso por camino: sin dato')
+    expect(acceso).toHaveTextContent('Llegar por camino: sin dato')
     expect(acceso).not.toHaveTextContent('0')
     expect(screen.getByTestId('ficha-acceso-aislamiento-cruces')).toHaveTextContent(
       'Cruces de agua: sin dato',
     )
     const inundacion = screen.getByTestId('ficha-acceso-susceptibilidad-sin-cobertura')
-    expect(inundacion).toHaveTextContent('Inundación histórica en la escuela: sin dato')
+    expect(inundacion).toHaveTextContent('Agua estimada en la escuela: sin dato')
     expect(inundacion).not.toHaveTextContent('0,00')
   })
 
@@ -252,7 +252,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     const valor = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
-    expect(valor).toHaveTextContent('Inundación histórica en la escuela: sin agua estimada')
+    expect(valor).toHaveTextContent('Agua estimada en la escuela: ninguna según el modelo')
     expect(valor).not.toHaveTextContent('0,00')
   })
 
@@ -270,7 +270,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-valor')).toHaveTextContent(
-      `Inundación histórica en la escuela: ${esperado}`,
+      `Agua estimada en la escuela: ${esperado.replace(" de agua estimada", "")} (crecida poco frecuente)`,
     )
   })
 
@@ -284,7 +284,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-valor')).toHaveTextContent(
-      'Inundación histórica en la escuela: sin dato',
+      'Agua estimada en la escuela: sin dato',
     )
     expect(screen.queryByTestId('ficha-acceso-susceptibilidad-valor')).not.toBeInTheDocument()
   })
@@ -349,15 +349,18 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
       'Sin recorrido para mostrar',
     )
     expect(screen.getByTestId('ficha-acceso-sin-ruta')).toHaveTextContent(
-      'la escuela está a más de 5 km del camino más cercano cargado en OpenStreetMap',
+      'La escuela no conecta con la red de caminos hasta la cabecera',
     )
   })
 
   it.each([
-    ['sin_geometria_importada', 'el recorrido no está importado para esta escuela.'],
-    ['ruta_degenerada', 'la escuela está junto a la cabecera departamental.'],
-    ['sin_geometria', 'no hay recorrido calculado para esta escuela.'],
-    [undefined, 'no hay recorrido calculado para esta escuela.'],
+    ['sin_geometria_importada', 'Todavía no se cargó el recorrido de esta escuela.'],
+    ['ruta_degenerada', 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.'],
+    ['coordenada_fuera_de_departamento', 'La ubicación cargada de la escuela cae fuera de su departamento.'],
+    ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero está aislado de la red principal'],
+    ['sin_via_osm_cercana', 'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela'],
+    ['sin_geometria', 'No hay recorrido calculado para esta escuela.'],
+    [undefined, 'No hay recorrido calculado para esta escuela.'],
   ] as const)('motivo "%s" -> "%s"', (motivo, esperado) => {
     render(
       <FichaAccesoTerritorial
@@ -419,7 +422,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
       'Hay al menos un cruce de agua sin puente registrado, pero existe otro camino que lo evita.',
     )
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-periodo')).toHaveTextContent(
-      'Período de retorno 100 años · escenario histórico',
+      'Período de retorno: 100 años',
     )
     expect(screen.getByTestId('ficha-acceso-aislamiento-fuente')).toHaveTextContent(
       'Fuente: OpenStreetMap (© OpenStreetMap contributors, ODbL) · extracto 2026-06-01 · job v3',
@@ -428,8 +431,8 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
       'Fuente: OS-Climate physrisk (Apache-2.0) · corrida 2026-05-01',
     )
     // Los descargos de las DOS capas, y ninguno dice que esto sea un pronóstico.
-    expect(detalle).toHaveTextContent('No es un pronóstico, no indica si hoy el camino está cortado')
-    expect(detalle).toHaveTextContent('No es un pronóstico, no indica que hoy haya agua')
+    expect(detalle).toHaveTextContent('No dice si hoy el camino está cortado, no es un pronóstico')
+    expect(detalle).toHaveTextContent('no muestra el río, no muestra el camino ni dice si hoy hay agua')
   })
 
   it('resume la ruta dibujada sólo cuando la geometría está disponible', () => {
@@ -440,7 +443,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-ruta')).toHaveTextContent(
-      'Ruta en el mapa: 1 con puente · 2 vado · 3 sin puente registrado.',
+      'Cruces en el camino dibujado: 1 con puente · 2 vado · 3 sin puente registrado.',
     )
   })
 
@@ -451,7 +454,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it.each([
-    [null, 'Desconocida'],
+    [null, 'Sin dato'],
     [true, 'Sí'],
     [false, 'No'],
   ] as const)('alternativa sin cruce %s -> "%s"', (alternativa, texto) => {
@@ -467,7 +470,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     )
 
     expect(screen.getByTestId('ficha-acceso-aislamiento-alternativa')).toHaveTextContent(
-      `Alternativa sin cruce: ${texto}`,
+      `Camino alternativo sin cruces: ${texto}`,
     )
   })
 
@@ -487,7 +490,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     render(<FichaAccesoTerritorial {...props({ territorio: territorioCon({}, {}) })} />)
 
     expect(screen.getByTestId('ficha-acceso-detalle-sin-cobertura')).toHaveTextContent(
-      'Sin dato: la escuela no figura en el archivo importado.',
+      'Sin dato: esta escuela no está en los datos calculados',
     )
   })
 
@@ -535,18 +538,29 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
       />,
     )
 
-    const texto = container.textContent ?? ''
-    const ocurrencias = (texto.match(/pronóstico/g) ?? []).length
+    const texto = container.querySelector('[data-testid="ficha-acceso-detalle"]')?.textContent ?? ''
+    const ocurrencias = (texto.match(/\bpronóstico\b/gi) ?? []).length
     // `TEXTOS_ACCESOS` abre cada descargo con "No es un pronóstico" (mayúscula
     // inicial), así que la negación se cuenta sin distinguir mayúsculas: si
     // alguna vez se cuela un "pronóstico" sin negar, el conteo no cierra.
-    const negadas = (texto.match(/no es un pronóstico/gi) ?? []).length
+    const negadas = (texto.match(/(?:no es|ni) un pronóstico/gi) ?? []).length
     expect(ocurrencias).toBeGreaterThan(0)
     expect(negadas).toBe(ocurrencias)
 
     expect(screen.getByTestId('ficha-acceso-nota')).toHaveTextContent(
-      'Contexto territorial: no reemplaza el parte ni confirma el estado del edificio.',
+      'Datos calculados con mapas y modelos; no reemplazan el parte ni confirman el estado del edificio.',
     )
+  })
+
+  it('mantiene los términos técnicos dentro del detalle', () => {
+    const { container } = render(
+      <FichaAccesoTerritorial
+        {...props({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })}
+      />,
+    )
+    const detalle = container.querySelector('details')
+    const visible = (container.textContent ?? '').replace(detalle?.textContent ?? '', '')
+    expect(visible).not.toMatch(/OSM|OpenStreetMap|physrisk|período de retorno|escenario/i)
   })
 })
 

@@ -1260,7 +1260,7 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     expect(llamadasGeometria.habilitados.at(-1)).toBe(true)
 
     const bloque = await screen.findByTestId('leyenda-ruta-disponible')
-    expect(bloque).toHaveTextContent('Ruta de acceso OSM · Escuela 1')
+    expect(bloque).toHaveTextContent('Camino calculado · Escuela 1')
   })
 
   it('en modo Replay nunca habilita la geometría', async () => {
@@ -1651,12 +1651,12 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-cruce'))
 
-    expect(await screen.findByText('Sin puente registrado')).toBeInTheDocument()
+    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
     // "Sin puente registrado" NO afirma que falte el puente: sólo que OSM no
     // tiene el tag. El popup lo dice, o el director se lleva una conclusión
     // equivocada.
-    expect(screen.getByText(/no confirma que falte el puente/i)).toBeInTheDocument()
-    expect(screen.queryByText(/puede no estar cargado en OpenStreetMap/i)).toBeInTheDocument()
+    expect(screen.getByText(/No hay puente cargado en el mapa en este cruce/)).toBeInTheDocument()
+    expect(screen.getByText(/puede existir sin estar cargado/)).toBeInTheDocument()
     // Un cruce es un dato, no una selección: no abre ficha ni filtra.
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
@@ -1665,7 +1665,7 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
     // Cualquier otro clic lo cierra (mismo criterio que el popup de
     // departamento).
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    await waitFor(() => expect(screen.queryByText('Sin puente registrado')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument())
   })
 })
 

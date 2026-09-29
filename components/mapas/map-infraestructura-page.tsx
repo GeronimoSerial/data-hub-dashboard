@@ -113,6 +113,7 @@ import {
   construirPuntosInundacion,
   construirRutaAcceso,
   ETIQUETAS_CRUCE,
+  DESCRIPCIONES_CRUCE,
   ICONOS_ACCESOS_MAPA,
   resumirCobertura,
   type ClasificacionCruce,
@@ -2495,12 +2496,8 @@ export default function MapInfraestructuraPage(props: {
                 className="mapa-tooltip mapa-tooltip-departamento"
               >
                 <p>
-                  <strong>{etiqueta}</strong>
-                  {cruceInfoClic.clasificacion === 'sin_evidencia' && (
-                    <>
-                      {' — no confirma que falte el puente: puede no estar cargado en OpenStreetMap.'}
-                    </>
-                  )}
+                  <strong>Cruce de agua: {etiqueta}</strong>
+                  {' — '}{DESCRIPCIONES_CRUCE[cruceInfoClic.clasificacion]}
                 </p>
               </Popup>
             )

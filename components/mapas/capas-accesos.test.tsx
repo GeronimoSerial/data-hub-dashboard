@@ -289,7 +289,7 @@ describe('LeyendaAccesos — aislamiento', () => {
     expect(bloque.textContent).toContain('Media: 2')
     expect(bloque.textContent).toContain('Alta: 1')
     expect(bloque.textContent).toContain('No calculable: 4')
-    expect(bloque.textContent).toContain('Sin dato: 7')
+    expect(bloque.textContent).toContain('Sin dato (escuela fuera de los datos): 7')
     // Un ícono por cada nivel (5) — la fila "sin dato" no lleva ícono.
     expect(bloque.querySelectorAll('img')).toHaveLength(5)
     expect(bloque.textContent).toContain(TEXTOS_ACCESOS.subtituloAcceso)
@@ -302,7 +302,7 @@ describe('LeyendaAccesos — aislamiento', () => {
     // tabla de conteos, no un muro de texto sobre el mapa.
     const ayuda = screen.getByTestId('leyenda-aislamiento-ayuda')
     expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.noRepresentaAcceso)
-    expect(ayuda.textContent).toContain('No es un pronóstico')
+    expect(ayuda.textContent).toContain('no es un pronóstico')
     expect((ayuda as HTMLDetailsElement).open).toBe(false)
   })
 
@@ -345,7 +345,7 @@ describe('LeyendaAccesos — aislamiento', () => {
       />,
     )
     expect(screen.getByTestId('leyenda-aislamiento-sin-datos')).toHaveTextContent(
-      'Sin datos importados de OSM.',
+      'Sin datos de caminos cargados.',
     )
   })
 })
@@ -362,14 +362,14 @@ describe('LeyendaAccesos — inundación', () => {
     expect(bloque.textContent).toContain(
       textoConPeriodo(TEXTOS_ACCESOS.subtituloInundacion, 100),
     )
-    expect(bloque.textContent).toContain('crecida de 100 años')
-    expect(bloque.textContent).toContain('escenario histórico')
-    expect(bloque.textContent).toContain('< 0,5 m: 4')
-    expect(bloque.textContent).toContain('0,5 – 1 m: 5')
-    expect(bloque.textContent).toContain('≥ 1 m: 6')
+    expect(bloque.textContent).toContain('una vez cada 100 años')
+    expect(bloque.textContent).toContain('una crecida que ocurre, en promedio, una vez cada 100 años')
+    expect(bloque.textContent).toContain('Menos de 0,5 m: 4')
+    expect(bloque.textContent).toContain('De 0,5 a 1 m: 5')
+    expect(bloque.textContent).toContain('1 m o más: 6')
     // Filas de lo que el modelo NO dibuja: sin profundidad y sin cobertura.
-    expect(bloque.textContent).toContain('Sin profundidad estimada (0 m): 3')
-    expect(bloque.textContent).toContain('Sin dato: 2')
+    expect(bloque.textContent).toContain('Sin agua estimada (0 m): 3')
+    expect(bloque.textContent).toContain('Sin dato (escuela fuera de los datos): 2')
     expect(bloque.textContent).toContain('OS-Climate physrisk (Apache-2.0) · corrida 2026-05-15')
     // El descargo y las notas largas quedan en la ayuda cerrada.
     const ayuda = screen.getByTestId('leyenda-inundacion-ayuda')
@@ -384,7 +384,7 @@ describe('LeyendaAccesos — inundación', () => {
   it('muestra falta de datos importados de physrisk', () => {
     renderLeyenda({ visibles: visibles(['inundacion']), territorio: null, resumen })
     expect(screen.getByTestId('leyenda-inundacion-sin-datos')).toHaveTextContent(
-      'Sin datos importados de physrisk.',
+      'Sin datos de agua estimada cargados.',
     )
   })
 })
@@ -397,7 +397,7 @@ describe('LeyendaAccesos — ruta', () => {
   it('sin selección pide elegir una escuela', () => {
     renderLeyenda({ visibles: visibles(['rutaSeleccion']) })
     expect(screen.getByTestId('leyenda-ruta-sin-seleccion')).toHaveTextContent(
-      'Seleccioná una escuela para ver su ruta de acceso OSM.',
+      'Elegí una escuela para ver el camino calculado hasta la cabecera.',
     )
   })
 
@@ -407,7 +407,7 @@ describe('LeyendaAccesos — ruta', () => {
       seleccion: { nombre: 'Escuela Uno' },
       geometriaLoading: true,
     })
-    expect(screen.getByTestId('leyenda-ruta-cargando')).toHaveTextContent('Cargando ruta de acceso…')
+    expect(screen.getByTestId('leyenda-ruta-cargando')).toHaveTextContent('Cargando el camino…')
 
     rerender(
       <LeyendaAccesos
@@ -427,10 +427,13 @@ describe('LeyendaAccesos — ruta', () => {
 
   it('traduce cada motivo de indisponibilidad', () => {
     const motivos: Array<[string, string]> = [
-      ['sin_geometria_importada', 'La geometría de accesos no está importada para esta escuela.'],
-      ['sin_conexion_red', 'La escuela no conecta con la red vial OSM: no hay ruta calculada.'],
-      ['ruta_degenerada', 'La escuela está junto a la cabecera departamental: no hay ruta que dibujar.'],
-      ['otro', 'Sin geometría de acceso para esta escuela.'],
+      ['sin_geometria_importada', 'Todavía no se cargó el recorrido de esta escuela.'],
+      ['sin_conexion_red', 'La escuela no conecta con la red de caminos hasta la cabecera, así que no se calculó un recorrido.'],
+      ['ruta_degenerada', 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.'],
+      ['coordenada_fuera_de_departamento', 'La ubicación cargada de la escuela cae fuera de su departamento.'],
+      ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero está aislado de la red principal'],
+      ['sin_via_osm_cercana', 'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela'],
+      ['otro', 'No hay recorrido calculado para esta escuela.'],
     ]
     for (const [motivo, texto] of motivos) {
       const { unmount } = renderLeyenda({
@@ -452,12 +455,12 @@ describe('LeyendaAccesos — ruta', () => {
       onEncuadrarRuta,
     })
     const bloque = screen.getByTestId('leyenda-ruta-disponible')
-    expect(bloque.textContent).toContain('Ruta de acceso OSM · Escuela Uno')
-    expect(bloque.textContent).toContain('Sin cruces de agua en esta ruta')
-    expect(bloque.textContent).toContain('no es pronóstico ni estado confirmado del edificio')
+    expect(bloque.textContent).toContain('Camino calculado · Escuela Uno')
+    expect(bloque.textContent).toContain('No hay cruces de agua en este camino.')
+    expect(bloque.textContent).toContain('Datos calculados con mapas y modelos; no reemplazan el parte ni confirman el estado del edificio')
     expect(bloque.textContent).toContain('extracto 2026-06-01')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Encuadrar ruta' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ver recorrido' }))
     expect(onEncuadrarRuta).toHaveBeenCalledTimes(1)
   })
 
@@ -477,7 +480,7 @@ describe('LeyendaAccesos — ruta', () => {
     // "Sin evidencia de puente": OSM no tiene tag de puente en el punto, y eso
     // no confirma que el puente falte.
     expect(bloque.textContent).toContain('Sin puente registrado: 3')
-    expect(bloque.textContent).not.toContain('Sin cruces de agua en esta ruta')
+    expect(bloque.textContent).not.toContain('No hay cruces de agua en este camino.')
   })
 })
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { TerritorioMapa } from './territorio-mapa'
 
 const RUTA_TERRITORIO = '/api/mapas/infraestructura/territorio'
-const MENSAJE_ERROR = 'No se pudieron cargar las capas territoriales.'
+const MENSAJE_ERROR = 'No se pudieron cargar los datos de acceso y agua. Probá de nuevo en unos minutos.'
 
 interface ResultadoTerritorio {
   data: TerritorioMapa | null
