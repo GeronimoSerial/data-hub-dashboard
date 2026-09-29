@@ -111,6 +111,39 @@ function stubFetch() {
   return fetchMock
 }
 
+// Parte sin afectación y sin filas del padrón GE: el caso "no hay nada que
+// mostrar en Datos de la escuela" con la escuela encontrada igual en el padrón
+// de escuelas.
+function stubFetchSinPadron() {
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.includes('/parte?')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          periodo: { id: 'per1', nombre: 'Invierno 2026' },
+          parte: null,
+          servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
+          afectaciones: [],
+          secciones: [],
+          datosPadron: null,
+          ultimaActualizacion: null,
+        }),
+      } as Response)
+    }
+    if (url.includes('/historial?')) {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ ok: true, movimientos: [] }),
+      } as Response)
+    }
+    return Promise.reject(new Error(`URL inesperada: ${url}`))
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -187,35 +220,11 @@ describe('FichaParteModal', () => {
     )
   })
 
-  // Escuela sin datos en el corte vigente: se dice explícitamente, nunca una
-  // tabla vacía ni ceros inventados.
-  it('muestra "Sin datos del padrón para esta escuela" cuando datosPadron es null', async () => {
-    const fetchMock = vi.fn((input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.includes('/parte?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({
-            ok: true,
-            periodo: { id: 'per1', nombre: 'Invierno 2026' },
-            parte: null,
-            servicio: { estadoGeneral: 'normal', alcanceVigente: [] },
-            afectaciones: [],
-            secciones: [],
-            datosPadron: null,
-            ultimaActualizacion: null,
-          }),
-        } as Response)
-      }
-      if (url.includes('/historial?')) {
-        return Promise.resolve({
-          ok: true,
-          json: async () => ({ ok: true, movimientos: [] }),
-        } as Response)
-      }
-      return Promise.reject(new Error(`URL inesperada: ${url}`))
-    })
-    vi.stubGlobal('fetch', fetchMock)
+  // Escuela del padrón sin secciones ni matrícula en el corte vigente: se
+  // dice explícitamente, nunca una tabla vacía ni ceros inventados. La frase
+  // habla del CORTE de Gestión Escolar, no del padrón de escuelas (hallazgo 6).
+  it('con la escuela en el padrón y `datosPadron: null` habla del corte de Gestión Escolar', async () => {
+    stubFetchSinPadron()
 
     render(
       <FichaParteModal
@@ -230,9 +239,36 @@ describe('FichaParteModal', () => {
       />,
     )
 
-    expect(await screen.findByTestId('ficha-parte-sin-padron')).toHaveTextContent(
-      'Sin datos del padrón para esta escuela.',
+    const aviso = await screen.findByTestId('ficha-parte-sin-padron')
+    expect(aviso).toHaveTextContent(
+      'Sin secciones ni matrícula en el corte vigente de Gestión Escolar.',
     )
+    expect(aviso).not.toHaveTextContent('padrón')
+  })
+
+  // Sin `escuela` el CUE no está en el padrón cargado: es otra ausencia y
+  // necesita otra frase.
+  it('con `escuela: null` y `datosPadron: null` dice que no figura en el padrón cargado', async () => {
+    stubFetchSinPadron()
+
+    render(
+      <FichaParteModal
+        cueAnexo={CUE}
+        open={true}
+        onOpenChange={() => {}}
+        parteResumen={null}
+        escuela={null}
+        mostrarEnlaceNominal={false}
+        onVerAlumnosAlcanzados={() => {}}
+        onVerHistorialCompleto={() => {}}
+      />,
+    )
+
+    const aviso = await screen.findByTestId('ficha-parte-sin-padron')
+    expect(aviso).toHaveTextContent(
+      'La escuela no figura en el padrón cargado: sin datos de secciones ni matrícula.',
+    )
+    expect(aviso).not.toHaveTextContent('corte vigente de Gestión Escolar')
   })
 
   // Hallazgo 7/22: una escuela sin afectación vigente no tiene que verse como

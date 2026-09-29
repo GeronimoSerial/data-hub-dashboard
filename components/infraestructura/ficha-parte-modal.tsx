@@ -125,12 +125,18 @@ function IndicadorSeveridadFicha({ severidad }: { severidad: Severidad }): JSX.E
 function FichaParteModalContenido({
   cueAnexo,
   parteResumen,
+  escuelaEnPadron,
   mostrarEnlaceNominal,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
 }: {
   cueAnexo: string
   parteResumen: ParteMapa | null
+  // ¿La escuela viene del padrón completo de escuelas? Separa "no tiene
+  // secciones en el corte" de "no figura en el padrón cargado": son dos
+  // ausencias distintas y la frase vieja ("sin datos del padrón") las
+  // confundía, sobre todo con una escuela recién elegida en la búsqueda.
+  escuelaEnPadron: boolean
   mostrarEnlaceNominal: boolean
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
@@ -330,8 +336,10 @@ function FichaParteModalContenido({
           para cualquier CUE del corte, tenga o no afectación vigente. Muestra
           nivel(es) educativo(s), matrícula total y cantidad de secciones; si
           la escuela no tiene datos en el corte vigente (`datosPadron: null`),
-          lo dice explícitamente en vez de inventar ceros. Si una ruta vieja no
-          manda el campo, el bloque no se muestra. */}
+          lo dice explícitamente en vez de inventar ceros, distinguiendo si la
+          escuela está en el padrón de escuelas (`escuelaEnPadron`) o si el
+          padrón cargado no la contiene. Si una ruta vieja no manda el campo,
+          el bloque no se muestra. */}
       {datos !== null && datos.datosPadron !== undefined && (
         <section
           className="estado-actual-bloque estado-actual-bloque--ancho"
@@ -345,7 +353,9 @@ function FichaParteModalContenido({
               className="estado-actual-bloque__vigencia"
               data-testid="ficha-parte-sin-padron"
             >
-              Sin datos del padrón para esta escuela.
+              {escuelaEnPadron
+                ? 'Sin secciones ni matrícula en el corte vigente de Gestión Escolar.'
+                : 'La escuela no figura en el padrón cargado: sin datos de secciones ni matrícula.'}
             </p>
           ) : (
             <>
@@ -526,10 +536,14 @@ export function FichaParteModal({
             {escuela.cueAnexo} · {escuela.localidad}, {escuela.departamento}
           </p>
         ) : null}
+        {habilitado && accesoTerritorial && (
+          <FichaAccesoTerritorial {...accesoTerritorial} />
+        )}
         <FichaParteModalContenido
           key={cueAnexo}
           cueAnexo={cueAnexo}
           parteResumen={parteResumen}
+          escuelaEnPadron={escuela !== null}
           mostrarEnlaceNominal={mostrarEnlaceNominal}
           onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
           onVerHistorialCompleto={onVerHistorialCompleto}
@@ -538,9 +552,6 @@ export function FichaParteModal({
             `open` a propósito: sus fetches no deben existir con el panel
             cerrado. El flag lo decide el padre; acá sólo se respeta. */}
         {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
-        {habilitado && accesoTerritorial && (
-          <FichaAccesoTerritorial {...accesoTerritorial} />
-        )}
       </div>
     </div>
   )

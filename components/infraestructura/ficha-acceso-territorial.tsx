@@ -1,19 +1,29 @@
 import type { JSX } from 'react'
+import { Button } from '@/components/ui/button'
 import {
+  DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
-  ETIQUETAS_INUNDACION,
-  claseInundacion,
+  TEXTOS_ACCESOS,
+  textoConPeriodo,
 } from '@/lib/mapas/accesos-capas'
 import type {
+  AislamientoEscuelaMapa,
   GeometriaAccesoRespuesta,
+  NivelAislamientoMapa,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
 
 // Sección de sólo lectura: contexto de acceso territorial ESTÁTICO de una
-// escuela (aislamiento OSM + susceptibilidad physrisk + estado de la ruta
-// dibujada). Deliberadamente NO hace fetch: el padre resuelve `territorio` y
+// escuela (aislamiento OSM + susceptibilidad physrisk + estado del recorrido
+// dibujado). Deliberadamente NO hace fetch: el padre resuelve `territorio` y
 // `geometria` (con sus loading/error) y los pasa por props. Ningún dato acá es
 // un pronóstico ni el estado confirmado del edificio: son capas de contexto.
+//
+// La ficha es CORTA a propósito: tres líneas (dificultad del camino, cruces de
+// agua, inundación histórica EN la escuela) y la acción "Ver recorrido". La
+// escala 0-3, la metodología, el período de retorno y las fuentes viven en UN
+// `<details>` secundario: son texto de referencia y compiten por altura con lo
+// que el usuario vino a ver.
 export interface FichaAccesoTerritorialProps {
   territorio: TerritorioMapa | null
   territorioLoading: boolean
@@ -22,6 +32,9 @@ export interface FichaAccesoTerritorialProps {
   geometria: GeometriaAccesoRespuesta | null
   geometriaLoading: boolean
   geometriaError: string | null
+  // Encuadrar el recorrido en el mapa. Opcional a propósito: sin esta prop la
+  // ficha no ofrece la acción, en vez de ofrecer un botón que nadie atiende.
+  onVerRutaEnMapa?: () => void
 }
 
 const ID_TITULO = 'ficha-acceso-territorial-titulo'
@@ -31,38 +44,75 @@ function formatearMetros(valor: number): string {
   return valor.toFixed(2).replace('.', ',')
 }
 
-// Motivos de geometría no disponible: los mismos textos que la leyenda del
-// mapa. Un motivo nuevo cae al texto genérico en vez de tragarse el dato.
+// Motivos de recorrido no disponible. Son continuaciones en minúscula de
+// "Sin recorrido para mostrar:", así que se leen como una sola frase. Un
+// motivo nuevo cae al texto genérico en vez de tragarse el dato. La fuente de
+// verdad es la leyenda del mapa; acá va en lenguaje llano porque la ficha la
+// va a leer alguien que no sabe de grafos ni de OSM.
 const MOTIVOS_RUTA: Record<string, string> = {
-  sin_geometria_importada: 'La geometría de accesos no está importada para esta escuela.',
-  sin_conexion_red: 'La escuela no conecta con la red vial OSM: no hay ruta calculada.',
-  ruta_degenerada: 'La escuela está junto a la cabecera departamental: no hay ruta que dibujar.',
+  sin_conexion_red:
+    'la escuela está a más de 5 km del camino más cercano cargado en OpenStreetMap o no conecta con la cabecera.',
+  ruta_degenerada: 'la escuela está junto a la cabecera departamental.',
+  sin_geometria_importada: 'el recorrido no está importado para esta escuela.',
 }
 
-function textoRuta(
-  geometria: GeometriaAccesoRespuesta | null,
-  loading: boolean,
-  error: string | null,
-): string | null {
-  if (loading) return 'Cargando ruta de acceso…'
-  if (error !== null) return error
-  if (geometria === null) return null
+const MOTIVO_RUTA_GENERICO = 'no hay recorrido calculado para esta escuela.'
 
-  if (geometria.disponible) {
-    const resumen = geometria.resumen
-    return (
-      `Ruta y cruces dibujados en el mapa: ${resumen?.puente ?? 0} puente(s), ` +
-      `${resumen?.vado ?? 0} vado(s), ${resumen?.sinEvidencia ?? 0} sin evidencia de puente.`
-    )
-  }
+function textoMotivoRuta(geometria: GeometriaAccesoRespuesta): string {
+  return MOTIVOS_RUTA[geometria.motivo ?? ''] ?? MOTIVO_RUTA_GENERICO
+}
 
-  const motivo = geometria.motivo ?? ''
-  return MOTIVOS_RUTA[motivo] ?? 'Sin geometría de acceso para esta escuela.'
+// Línea visible de dificultad: sólo el nombre del nivel, en minúscula porque ya
+// va después de "dificultad". 'sin_datos_red' usa su propio nombre ("no
+// calculable"): no hay índice que mostrar, y NO es un nivel 0.
+function textoDificultad(nivel: NivelAislamientoMapa): string {
+  if (nivel === 'sin_datos_red') return 'Acceso por camino: no calculable'
+  return `Acceso por camino: dificultad ${ETIQUETAS_AISLAMIENTO[nivel].toLowerCase()}`
+}
+
+// Detalle: acá sí aparece la escala, porque sin ella "dificultad alta" no dice
+// cómo se calculó.
+function textoIndiceDificultad(nivel: NivelAislamientoMapa): string {
+  if (nivel === 'sin_datos_red') return 'Índice de dificultad: no calculable'
+  return `Índice de dificultad: ${nivel} de 3`
+}
+
+// Línea visible de cruces. "sin puente registrado" es lo que dice el dato: OSM
+// no tiene tag de puente en ese punto, lo que NO confirma que el puente falte
+// (también cuenta el vado). Con cero cruces no se inventa un desglose en cero.
+function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
+  if (fila === undefined || fila.cruces === null) return 'Cruces de agua: sin dato'
+  if (fila.cruces === 0) return 'Sin cruces de agua en la ruta'
+  return `Cruces de agua: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
+}
+
+// Línea visible de inundación: la profundidad estimada EN la escuela, no la de
+// un punto cercano. 0 m es "el modelo no estima agua ahí", nunca "0 = seca".
+function textoInundacion(profundidad: number): string {
+  if (!(profundidad > 0)) return 'Inundación histórica en la escuela: sin agua estimada'
+  return `Inundación histórica en la escuela: ${formatearMetros(profundidad)} m de agua estimada`
+}
+
+// Resumen de lo que el cálculo realmente dibujó. Sólo con geometría
+// disponible: nunca se resume un recorrido que no existe.
+function textoResumenRuta(geometria: GeometriaAccesoRespuesta): string {
+  const resumen = geometria.resumen
+  return (
+    `Ruta en el mapa: ${resumen?.puente ?? 0} con puente · ` +
+    `${resumen?.vado ?? 0} vado · ${resumen?.sinEvidencia ?? 0} sin puente registrado.`
+  )
 }
 
 function textoAlternativa(alternativaSinCruce: boolean | null): string {
   if (alternativaSinCruce === null) return 'Desconocida'
   return alternativaSinCruce ? 'Sí' : 'No'
+}
+
+// Significado del nivel DE ESTA escuela (nombre + su regla), no el de los cinco
+// niveles: la ficha es de una escuela, no un manual del índice.
+function significadoNivel(nivel: NivelAislamientoMapa): string {
+  const descripcion = DESCRIPCIONES_AISLAMIENTO[nivel]
+  return `${descripcion.nombre}: ${descripcion.detalle}`
 }
 
 // El valor almacenado de `licencia` puede ya incluir la atribución OSM. Si es
@@ -81,16 +131,6 @@ function textoFuenteOsm(
   return `Fuente: ${fuente} (${credito}) · extracto ${fechaExtractoOsm} · job v${versionJob}`
 }
 
-function textoProfundidad(valor: number): string {
-  if (!(valor > 0)) {
-    return 'Profundidad estimada de inundación fluvial: 0 m (sin profundidad estimada)'
-  }
-  const clase = claseInundacion(valor)
-  const etiqueta =
-    clase === 'baja' || clase === 'media' || clase === 'alta' ? ETIQUETAS_INUNDACION[clase] : ''
-  return `Profundidad estimada de inundación fluvial: ${formatearMetros(valor)} m (${etiqueta})`
-}
-
 export function FichaAccesoTerritorial({
   territorio,
   territorioLoading,
@@ -99,13 +139,19 @@ export function FichaAccesoTerritorial({
   geometria,
   geometriaLoading,
   geometriaError,
+  onVerRutaEnMapa,
 }: FichaAccesoTerritorialProps): JSX.Element {
   const aislamiento = territorio?.aislamiento ?? null
   const filaAislamiento = aislamiento?.escuelas[cueAnexo]
   const susceptibilidad = territorio?.susceptibilidad ?? null
   const filaSusceptibilidad = susceptibilidad?.escuelas[cueAnexo]
-
-  const ruta = textoRuta(geometria, geometriaLoading, geometriaError)
+  const profundidad = filaSusceptibilidad?.inundacionFluvialM ?? null
+  // El 0 m es "el modelo no estima agua en ese punto", no "se inundó 0 m": se
+  // cuenta como ausencia de agua estimada, nunca como nivel bajo.
+  const sinAguaEstimada = profundidad !== null && !(profundidad > 0)
+  // Sin ninguna de las dos capas no hay nada que detallar: alcanza con decir
+  // que no hay datos importados.
+  const hayDetalle = aislamiento !== null || susceptibilidad !== null
 
   return (
     <section
@@ -114,7 +160,7 @@ export function FichaAccesoTerritorial({
       data-testid="ficha-acceso-territorial"
     >
       <p className="ficha-territorial__titulo" id={ID_TITULO}>
-        <strong>Acceso y susceptibilidad territorial (estático)</strong>
+        <strong>Contexto territorial</strong>
       </p>
 
       {territorioLoading ? (
@@ -135,40 +181,129 @@ export function FichaAccesoTerritorial({
         </p>
       ) : (
         <>
-          {/* Aislamiento OSM (índice estático 0..3). Fila ausente = sin
-              cobertura, NUNCA índice 0. */}
+          {/* Las tres líneas de siempre. Fila ausente = sin cobertura, NUNCA
+              nivel 0 ni profundidad 0: se dice "sin dato" y se sigue. */}
           <div className="ficha-territorial__dato" data-testid="ficha-acceso-aislamiento">
-            <p className="ficha-territorial__subtitulo">
-              <strong>Aislamiento OSM</strong>
-            </p>
             {aislamiento === null ? (
               <p data-testid="ficha-acceso-aislamiento-sin-datos">
                 Sin datos de aislamiento OSM importados.
               </p>
             ) : filaAislamiento === undefined ? (
               <p data-testid="ficha-acceso-aislamiento-sin-cobertura">
-                Sin cobertura OSM para esta escuela.
+                Acceso por camino: sin dato
               </p>
             ) : (
-              <>
-                <p data-testid="ficha-acceso-aislamiento-indice">
-                  Índice de aislamiento:{' '}
-                  {filaAislamiento.nivel === 'sin_datos_red'
-                    ? ETIQUETAS_AISLAMIENTO.sin_datos_red
-                    : `${ETIQUETAS_AISLAMIENTO[filaAislamiento.nivel]} (${filaAislamiento.nivel}/3)`}
-                </p>
-                <p data-testid="ficha-acceso-aislamiento-cruces">
-                  Cruces de agua en la ruta a la cabecera: {filaAislamiento.cruces ?? 'sin dato'}
-                  {filaAislamiento.cruces !== null && filaAislamiento.cruces > 0
-                    ? ` · con puente ${filaAislamiento.conPuente ?? 0} · sin puente confirmado ${
-                        filaAislamiento.sinPuente ?? 0
-                      }`
-                    : ''}
-                </p>
-                <p data-testid="ficha-acceso-aislamiento-alternativa">
-                  Alternativa sin cruce: {textoAlternativa(filaAislamiento.alternativaSinCruce)}
-                </p>
-                <p className="ficha-territorial__fuente" data-testid="ficha-acceso-aislamiento-fuente">
+              <p data-testid="ficha-acceso-aislamiento-indice">
+                {textoDificultad(filaAislamiento.nivel)}
+              </p>
+            )}
+            {aislamiento !== null && (
+              <p data-testid="ficha-acceso-aislamiento-cruces">
+                {textoCruces(filaAislamiento)}
+              </p>
+            )}
+          </div>
+
+          <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
+            {susceptibilidad === null ? (
+              <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
+                Sin datos physrisk importados.
+              </p>
+            ) : filaSusceptibilidad === undefined ? (
+              <p data-testid="ficha-acceso-susceptibilidad-sin-cobertura">
+                Inundación histórica en la escuela: sin dato
+              </p>
+            ) : profundidad === null ? (
+              <p data-testid="ficha-acceso-susceptibilidad-sin-valor">
+                Inundación histórica en la escuela: sin dato
+              </p>
+            ) : (
+              <p data-testid="ficha-acceso-susceptibilidad-valor">
+                {textoInundacion(profundidad)}
+              </p>
+            )}
+          </div>
+
+          {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
+              sólo aparece si el padre sabe encuadrarlo. Si la geometría no
+              existe se explica POR QUÉ en vez de ofrecer un botón que no puede
+              hacer nada (nunca se dibuja ni se promete una ruta inexistente). */}
+          {geometriaError !== null ? (
+            <p
+              className="ficha-territorial__error"
+              role="alert"
+              data-testid="ficha-acceso-ruta-error"
+            >
+              {geometriaError}
+            </p>
+          ) : geometria?.disponible === true ? (
+            onVerRutaEnMapa !== undefined && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="ficha-territorial__accion"
+                data-testid="ficha-acceso-ver-ruta"
+                onClick={() => onVerRutaEnMapa()}
+              >
+                Ver recorrido
+              </Button>
+            )
+          ) : geometriaLoading ? (
+            onVerRutaEnMapa !== undefined && (
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="ficha-territorial__accion"
+                data-testid="ficha-acceso-ver-ruta"
+                disabled
+              >
+                Cargando recorrido…
+              </Button>
+            )
+          ) : geometria !== null ? (
+            <p className="ficha-territorial__estado" data-testid="ficha-acceso-sin-ruta">
+              Sin recorrido para mostrar: {textoMotivoRuta(geometria)}
+            </p>
+          ) : null}
+
+          {/* Único bloque secundario: escala, metodología, período y fuentes.
+              Cerrado por defecto; su contenido sigue en el DOM, así que los
+              tests lo pueden leer sin abrirlo. */}
+          {hayDetalle && (
+            <details className="ficha-territorial__ayuda" data-testid="ficha-acceso-detalle">
+              <summary>Detalle, metodología y fuentes</summary>
+
+              <p className="ficha-territorial__subtitulo">
+                <strong>Acceso por camino</strong>
+              </p>
+              {filaAislamiento !== undefined && (
+                <>
+                  <p data-testid="ficha-acceso-detalle-indice">
+                    {textoIndiceDificultad(filaAislamiento.nivel)}
+                  </p>
+                  <p data-testid="ficha-acceso-detalle-nivel">
+                    {significadoNivel(filaAislamiento.nivel)}
+                  </p>
+                  <p data-testid="ficha-acceso-aislamiento-alternativa">
+                    Alternativa sin cruce:{' '}
+                    {textoAlternativa(filaAislamiento.alternativaSinCruce)}
+                  </p>
+                </>
+              )}
+              <p data-testid="ficha-acceso-detalle-que-mide">{TEXTOS_ACCESOS.queMideAcceso}</p>
+              <p data-testid="ficha-acceso-detalle-no-representa">
+                {TEXTOS_ACCESOS.noRepresentaAcceso}
+              </p>
+              {geometria?.disponible === true && (
+                <p data-testid="ficha-acceso-ruta">{textoResumenRuta(geometria)}</p>
+              )}
+              {aislamiento !== null && (
+                <p
+                  className="ficha-territorial__fuente"
+                  data-testid="ficha-acceso-aislamiento-fuente"
+                >
                   {textoFuenteOsm(
                     aislamiento.fuente,
                     aislamiento.atribucion,
@@ -177,66 +312,62 @@ export function FichaAccesoTerritorial({
                     aislamiento.versionJob,
                   )}
                 </p>
-              </>
-            )}
-          </div>
+              )}
 
-          {/* Estado de la ruta dibujada en el mapa. Independiente del bloque
-              anterior: la geometría puede faltar aunque haya aislamiento. */}
-          {ruta !== null && (
-            <p
-              className="ficha-territorial__dato"
-              data-testid="ficha-acceso-ruta"
-            >
-              {ruta}
-            </p>
-          )}
-
-          {/* Susceptibilidad physrisk (peligro histórico por período de
-              retorno). El metadato y la fuente acompañan SIEMPRE al bloque. */}
-          <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
-            <p className="ficha-territorial__subtitulo">
-              <strong>Susceptibilidad physrisk</strong>
-            </p>
-            {susceptibilidad === null ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
-                Sin datos physrisk importados.
+              <p className="ficha-territorial__subtitulo">
+                <strong>Inundación histórica</strong>
               </p>
-            ) : filaSusceptibilidad === undefined ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-cobertura">
-                Sin cobertura physrisk para esta escuela.
-              </p>
-            ) : filaSusceptibilidad.inundacionFluvialM === null ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-valor">
-                Sin valor physrisk para esta escuela.
-              </p>
-            ) : (
-              <p data-testid="ficha-acceso-susceptibilidad-valor">
-                {textoProfundidad(filaSusceptibilidad.inundacionFluvialM)}
-              </p>
-            )}
-            {susceptibilidad !== null && (
-              <>
-                <p data-testid="ficha-acceso-susceptibilidad-periodo">
-                  Período de retorno {susceptibilidad.periodoRetornoAnios} años · escenario
-                  histórico. Indicador estático de largo plazo: no es un pronóstico ni el trazado
-                  de un río.
+              {susceptibilidad !== null && (
+                <>
+                  <p data-testid="ficha-acceso-susceptibilidad-subtitulo">
+                    {textoConPeriodo(
+                      TEXTOS_ACCESOS.subtituloInundacion,
+                      susceptibilidad.periodoRetornoAnios,
+                    )}
+                  </p>
+                  <p data-testid="ficha-acceso-susceptibilidad-que-mide">
+                    {textoConPeriodo(
+                      TEXTOS_ACCESOS.queMideInundacion,
+                      susceptibilidad.periodoRetornoAnios,
+                    )}
+                  </p>
+                  <p data-testid="ficha-acceso-susceptibilidad-periodo">
+                    Período de retorno {susceptibilidad.periodoRetornoAnios} años · escenario
+                    histórico
+                  </p>
+                </>
+              )}
+              {sinAguaEstimada && (
+                <p data-testid="ficha-acceso-susceptibilidad-sin-profundidad">
+                  {TEXTOS_ACCESOS.sinProfundidad}
                 </p>
+              )}
+              {(susceptibilidad === null ||
+                filaSusceptibilidad === undefined ||
+                profundidad === null) && (
+                <p data-testid="ficha-acceso-detalle-sin-cobertura">
+                  {TEXTOS_ACCESOS.sinCobertura}
+                </p>
+              )}
+              <p data-testid="ficha-acceso-susceptibilidad-no-representa">
+                {TEXTOS_ACCESOS.noRepresentaInundacion}
+              </p>
+              {susceptibilidad !== null && (
                 <p
                   className="ficha-territorial__fuente"
                   data-testid="ficha-acceso-susceptibilidad-fuente"
                 >
                   Fuente: OS-Climate physrisk (Apache-2.0) · corrida {susceptibilidad.fechaCorrida}
                 </p>
-              </>
-            )}
-          </div>
+              )}
+
+              <p className="ficha-territorial__fuente" data-testid="ficha-acceso-nota">
+                Contexto territorial: no reemplaza el parte ni confirma el estado del edificio.
+              </p>
+            </details>
+          )}
         </>
       )}
-
-      <p className="ficha-territorial__fuente" data-testid="ficha-acceso-nota">
-        Contexto territorial: no reemplaza el parte ni confirma el estado del edificio.
-      </p>
     </section>
   )
 }
