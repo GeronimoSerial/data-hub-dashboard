@@ -66,6 +66,25 @@ arista reversa si existe, eligiendo el menor costo `costo_parcial +
 distancias_cab[salida]`. Es aditivo: con `indice_aristas=None` (default)
 `calcular_metricas_departamento` se comporta EXACTAMENTE como antes.
 
+## N3-D — fords de nodo y proyecciones vectorizadas
+
+Dos cambios independientes:
+
+1. Rendimiento (refactor puro): `construir_indice_aristas` y
+   `construir_indice_no_conectadas` proyectaban cada geometria con una llamada
+   Python a `shapely.ops.transform` (minutos sobre las 940k aristas reales).
+   Ahora usan la forma vectorizada `shapely.transform` sobre el array de
+   geometrias (`_proyectar_geometrias`), ~4 s sobre los mismos datos, con
+   salidas identicas.
+2. Bug de visualizacion: 4 cruces realmente vadeables quedaban etiquetados
+   `sin_evidencia` porque su unico tag `ford=yes` estaba en un nodo OSM, no en
+   la arista, y `pyrosm` no copia ese tag a los nodos del grafo.
+   `construir_geometrias_agua_y_fords_local` lee en UNA sola pasada los cursos
+   de agua y los nodos `ford=yes`; `construir_cruces_por_arista` marca el cruce
+   como vado si hay un ford a menos de `TOLERANCIA_FORD_M`. Los conteos no
+   cambian (`cruces_agua_con_vado_count` sigue contando vado y sin_evidencia
+   juntos).
+
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
 `calcular_metricas_escuela` (per-escuela, se mantiene para compatibilidad y
@@ -139,6 +158,14 @@ WATERWAYS_CRUCE = ("river", "stream", "canal", "drain")
 # orden del ancho de un puente rural tipico, muy por debajo de la distancia
 # entre dos cruces reales distintos del mismo curso de agua.
 TOLERANCIA_DEDUP_CRUCE_M = 30.0
+
+# Tolerancia (m) para marcar un cruce como vado porque hay un nodo OSM
+# `ford=yes` a menos de esa distancia del punto de cruce (N3-D). Evidencia de
+# la auditoria del extracto: los 4 cruces mal etiquetados `sin_evidencia` que
+# en realidad eran vados tenian su nodo `ford=yes` a 0.0-17.7 m del punto de
+# cruce; 25 m cubre ese rango y queda por debajo de los ~30 m de la tolerancia
+# de dedupe (TOLERANCIA_DEDUP_CRUCE_M), para no fusionar cruces distintos.
+TOLERANCIA_FORD_M = 25.0
 
 # Clasificacion de un cruce para el export de geometria (N3). Solo distingue
 # "puente" de "vado"/"sin_evidencia" para MOSTRAR el dato: la metrica
@@ -357,17 +384,17 @@ def construir_indice_no_conectadas(aristas_no_conectadas: list) -> dict:
     reproyectar.
     """
     from pyproj import Transformer
-    from shapely.ops import transform as shapely_transform
     from shapely.strtree import STRtree
 
     transformer = Transformer.from_crs(4326, 32721, always_xy=True)
-    geometrias = []
+    originales = []
     clases = []
     for geometria, highway in aristas_no_conectadas:
         if geometria is None:
             continue
-        geometrias.append(shapely_transform(transformer.transform, geometria))
+        originales.append(geometria)
         clases.append(highway)
+    geometrias = _proyectar_geometrias(originales, transformer)
     return {
         "arbol": STRtree(geometrias),
         "geometrias": geometrias,
@@ -422,6 +449,60 @@ def clasificar_sin_conexion(
     }
 
 
+def construir_geometrias_agua_y_fords_local(
+    pbf_path: str,
+    bbox_norte: float,
+    bbox_sur: float,
+    bbox_este: float,
+    bbox_oeste: float,
+) -> tuple[list, list]:
+    """Extrae, en UNA sola lectura del extracto local .osm.pbf, tanto los
+    cursos de agua (`WATERWAYS_CRUCE`, como entidades separadas de la red
+    vial; ver nota de modulo G1-fix2) como los nodos `ford=yes` (N3-D).
+
+    Devuelve `(agua, fords)`:
+
+    - `agua`: geometrias shapely LineString/MultiLineString de los ways cuyo
+      `waterway` esta en `WATERWAYS_CRUCE` (nunca la red vial).
+    - `fords`: geometrias shapely Point (lon/lat) de los nodos cuyo `ford` es
+      "yes". Antes de N3-D los vados a nivel de nodo eran invisibles:
+      `_tiene_ford` solo miraba los tags de la arista y los atributos del nodo
+      del grafo, y `pyrosm` no copia el tag `ford` a los nodos viales.
+
+    El filtro conserva nodes y ways (`keep_nodes=True`, `keep_ways=True` por
+    defecto en pyrosm 0.13.1, verificado en `pyrosm/engine/readers.py`). Mismo
+    orden de bbox que `construir_red_local`: pyrosm espera
+    [oeste, sur, este, norte].
+    """
+    from pyrosm import OSM
+
+    osm = OSM(
+        pbf_path,
+        bounding_box=[bbox_oeste, bbox_sur, bbox_este, bbox_norte],
+    )
+    datos = osm.get_data_by_custom_criteria(
+        custom_filter={"waterway": list(WATERWAYS_CRUCE), "ford": ["yes"]},
+        osm_keys_to_keep=["waterway", "ford"],
+        filter_type="keep",
+        keep_nodes=True,
+        keep_relations=False,
+    )
+    agua: list = []
+    fords: list = []
+    if datos is None or datos.empty:
+        return agua, fords
+    for _, fila in datos.iterrows():
+        geometria = fila.get("geometry")
+        if geometria is None or geometria.is_empty:
+            continue
+        if geometria.geom_type in ("LineString", "MultiLineString"):
+            if _primer_valor(fila.get("waterway")) in WATERWAYS_CRUCE:
+                agua.append(geometria)
+        elif geometria.geom_type == "Point" and _primer_valor(fila.get("ford")) == "yes":
+            fords.append(geometria)
+    return agua, fords
+
+
 def construir_geometrias_agua_local(
     pbf_path: str,
     bbox_norte: float,
@@ -434,29 +515,18 @@ def construir_geometrias_agua_local(
     de modulo G1-fix2). Devuelve una lista de geometrias shapely (LineString/
     MultiLineString); nunca la red vial.
 
+    Se mantiene como envoltorio publico de
+    `construir_geometrias_agua_y_fords_local` (N3-D): lee el extracto UNA sola
+    vez y descarta los fords. Para obtener tambien los nodos `ford=yes` usar la
+    funcion subyacente.
+
     Mismo orden de bbox que `construir_red_local`: pyrosm espera
     [oeste, sur, este, norte].
     """
-    from pyrosm import OSM
-
-    osm = OSM(
-        pbf_path,
-        bounding_box=[bbox_oeste, bbox_sur, bbox_este, bbox_norte],
+    agua, _ = construir_geometrias_agua_y_fords_local(
+        pbf_path, bbox_norte, bbox_sur, bbox_este, bbox_oeste
     )
-    agua = osm.get_data_by_custom_criteria(
-        custom_filter={"waterway": list(WATERWAYS_CRUCE)},
-        osm_keys_to_keep=["waterway"],
-        filter_type="keep",
-        keep_nodes=False,
-        keep_relations=False,
-    )
-    if agua is None or agua.empty:
-        return []
-    return [
-        geom
-        for geom in agua.geometry
-        if geom is not None and not geom.is_empty and geom.geom_type in ("LineString", "MultiLineString")
-    ]
+    return agua
 
 
 def construir_arbol_agua(geometrias_agua: list):
@@ -557,7 +627,38 @@ def _geometria_arista(datos_arista: dict, grafo, u, v):
     )
 
 
-def construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua) -> dict:
+def _clasificar_fords_cercanos(puntos, puntos_ford, tolerancia_ford_m: float) -> list:
+    """Para cada punto de cruce, devuelve `True` si hay un nodo `ford=yes` a
+    menos de `tolerancia_ford_m` metros (N3-D).
+
+    Proyecta de una sola vez, con la forma vectorizada de `_proyectar_geometrias`
+    (EPSG:32721), tanto los puntos de cruce como los fords, y consulta el
+    `STRtree` de fords con `query_nearest(..., max_distance=...)`. Con
+    `puntos_ford` vacio o `None` devuelve todos `False`, de modo que el
+    comportamiento es identico al anterior a N3-D.
+    """
+    if not puntos_ford or not puntos:
+        return [False] * len(puntos)
+
+    from pyproj import Transformer
+    from shapely.strtree import STRtree
+
+    transformer = Transformer.from_crs(4326, 32721, always_xy=True)
+    arbol_ford = STRtree(_proyectar_geometrias(list(puntos_ford), transformer))
+    puntos_proyectados = _proyectar_geometrias(list(puntos), transformer)
+    return [
+        bool(len(arbol_ford.query_nearest(punto, max_distance=tolerancia_ford_m)))
+        for punto in puntos_proyectados
+    ]
+
+
+def construir_cruces_por_arista(
+    grafo,
+    arbol_agua,
+    geometrias_agua,
+    puntos_ford=None,
+    tolerancia_ford_m: float = TOLERANCIA_FORD_M,
+) -> dict:
     """Clasifica, UNA sola vez para todo el grafo (no por escuela), que
     aristas viales cruzan un curso de agua y con que tipo de cruce.
 
@@ -566,6 +667,13 @@ def construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua) -> dict:
     efectivamente intersectan algun curso de agua. `punto` es un
     `(x, y)` representativo de la interseccion, usado despues para
     deduplicar cruces del mismo curso de agua muy cercanos entre si.
+
+    `puntos_ford` (N3-D): lista opcional de geometrias shapely Point (lon/lat)
+    de nodos OSM `ford=yes`. Cuando se pasa, un cruce se marca `es_ford=True`
+    tambien si hay un ford a menos de `tolerancia_ford_m` del punto de cruce
+    (los nodos `ford=yes` no llegan a los tags de la arista ni a los atributos
+    del nodo del grafo, ver nota de modulo N3-D). Con `None`/vacio el
+    comportamiento es EXACTAMENTE el anterior.
     """
     cruces: dict = {}
     if not geometrias_agua:
@@ -586,6 +694,9 @@ def construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua) -> dict:
     # filtra por 'intersects' real, no solo bbox).
     pares_arista, pares_agua = arbol_agua.query(geometrias_aristas, predicate="intersects")
 
+    # Se recolectan primero los puntos de interseccion para proyectarlos y
+    # buscar fords en bloque (N3-D), en vez de reproyectar dentro del bucle.
+    entradas = []
     for idx_arista, idx_agua in zip(pares_arista, pares_agua):
         u, v, k, datos = claves[idx_arista]
         geom_arista = geometrias_aristas[idx_arista]
@@ -593,13 +704,19 @@ def construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua) -> dict:
         interseccion = geom_arista.intersection(geom_agua)
         if interseccion.is_empty:
             continue
-        punto = interseccion.centroid
+        entradas.append((u, v, k, datos, int(idx_agua), interseccion.centroid))
+
+    es_ford_cerca = _clasificar_fords_cercanos(
+        [entrada[5] for entrada in entradas], puntos_ford, tolerancia_ford_m
+    )
+
+    for (u, v, k, datos, idx_agua, punto), cerca in zip(entradas, es_ford_cerca):
         cruces.setdefault((u, v, k), []).append(
             {
-                "agua_idx": int(idx_agua),
+                "agua_idx": idx_agua,
                 "punto": (punto.x, punto.y),
                 "con_puente": _tiene_puente(datos),
-                "es_ford": _tiene_ford(datos, grafo, u, v),
+                "es_ford": _tiene_ford(datos, grafo, u, v) or cerca,
             }
         )
     return cruces
@@ -616,6 +733,31 @@ def _proyectar_geometria(geom, transformer):
     from shapely.ops import transform as shapely_transform
 
     return shapely_transform(transformer.transform, geom)
+
+
+def _proyectar_geometrias(geometrias, transformer) -> list:
+    """Proyecta una LISTA de geometrias lon/lat a un CRS metrico de una sola
+    vez, con la forma vectorizada de `shapely.transform` (N3-D): un unico
+    llamado sobre el array de coordenadas en vez de una llamada Python
+    `shapely.ops.transform` por geometria.
+
+    Equivalente a `[_proyectar_geometria(g, transformer) for g in geometrias]`
+    (verificado con `equals_exact(..., 1e-6)`), pero sobre el grafo real
+    (940k aristas) pasa de minutos a ~4 s. Devuelve `[]` para una lista vacia.
+    """
+    import numpy as np
+    import shapely
+
+    if not geometrias:
+        return []
+    return list(
+        shapely.transform(
+            np.array(geometrias, dtype=object),
+            lambda coords: np.column_stack(
+                transformer.transform(coords[:, 0], coords[:, 1])
+            ),
+        )
+    )
 
 
 def construir_indice_aristas(grafo) -> dict:
@@ -638,12 +780,11 @@ def construir_indice_aristas(grafo) -> dict:
     transformer = Transformer.from_crs(4326, 32721, always_xy=True)
     claves = []
     geometrias = []
-    proyectadas = []
     for u, v, k, datos in grafo.edges(keys=True, data=True):
         geometria = _geometria_arista(datos, grafo, u, v)
         claves.append((u, v, k))
         geometrias.append(geometria)
-        proyectadas.append(_proyectar_geometria(geometria, transformer))
+    proyectadas = _proyectar_geometrias(geometrias, transformer)
     return {
         "arbol": STRtree(proyectadas),
         "claves": claves,
@@ -1175,7 +1316,7 @@ def calcular_metricas_departamento(
     "clasificacion"}, ...], "motivo_sin_geometria": None | "sin_conexion_red" |
     "ruta_degenerada"}`. Los cruces se producen en la MISMA iteracion que los
     cuenta, por lo que su cantidad siempre coincide con `cruces_agua_count` y
-    los de clasificacion "puente" con `cruces_agua_con_puente_count`.     Export
+    los de clasificacion "puente" con `cruces_agua_con_puente_count`. Export
     puramente aditivo: con `None` (default) el resultado es identico.
 
     ## N3-C — snap a la arista mas cercana (keyword-only `indice_aristas`)

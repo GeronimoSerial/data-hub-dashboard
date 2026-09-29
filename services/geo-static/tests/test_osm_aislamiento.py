@@ -1000,7 +1000,7 @@ class TestCorrerSeleccionDeRed:
             )
 
         monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_local", fake_construir_geometrias_agua_local
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
         )
 
         llamado_pyrosm = {"n": 0}
@@ -1045,10 +1045,10 @@ class TestCorrerSeleccionDeRed:
         def fake_construir_geometrias_agua_local(pbf_path, norte, sur, este, oeste):
             llamadas_agua["n"] += 1
             assert pbf_path == str(pbf_falso)
-            return []
+            return ([], [])
 
         monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_local", fake_construir_geometrias_agua_local
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
         )
 
         job.correr(departamentos=["Capital"])
@@ -1060,6 +1060,7 @@ class TestCorrerSeleccionDeRed:
         salida = capsys.readouterr().out
         assert "extracto local detectado" in salida
         assert "capa de agua" in salida
+        assert "0 fords (nodos ford=yes)" in salida
 
 
 class TestCorrerSinRuta:
@@ -1086,10 +1087,10 @@ class TestCorrerSinRuta:
         monkeypatch.setattr(osm_mod, "construir_red_local", fake_construir_red_local)
 
         def fake_construir_geometrias_agua_local(*args, **kwargs):
-            return []
+            return ([], [])
 
         monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_local", fake_construir_geometrias_agua_local
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
         )
 
         # Toda escuela snapea a > 5 km; el punto de la via aislada a 200 m de la red.
@@ -1281,3 +1282,46 @@ class TestExportarGeometria:
         )
         assert geometrias[0]["ruta"] is None
         assert geometrias[0]["motivo_sin_geometria"] == "ruta_degenerada"
+
+
+class TestConstruirIndiceNoConectadasVectorizado:
+    """N3-D: `construir_indice_no_conectadas` proyecta con la forma vectorizada
+    de shapely; el resultado debe ser identico al de `shapely.ops.transform`
+    por geometria (a 1e-6 m)."""
+
+    def _transformer(self):
+        from pyproj import Transformer
+
+        return Transformer.from_crs(4326, 32721, always_xy=True)
+
+    def test_geometrias_igual_a_transform_por_geometria(self):
+        from shapely.geometry import MultiLineString
+
+        transformer = self._transformer()
+        aristas = [
+            (LineString([(-58.90, -27.50), (-58.80, -27.45)]), "track"),
+            (
+                MultiLineString(
+                    [
+                        [(-58.90, -27.50), (-58.85, -27.48)],
+                        [(-58.84, -27.47), (-58.80, -27.45)],
+                    ]
+                ),
+                "unclassified",
+            ),
+        ]
+        indice = construir_indice_no_conectadas(aristas)
+        assert indice["clases"] == ["track", "unclassified"]
+        assert len(indice["geometrias"]) == 2
+        for proyectada, (geometria, _) in zip(indice["geometrias"], aristas):
+            esperada = shapely_transform(transformer.transform, geometria)
+            assert proyectada.equals_exact(esperada, 1e-6)
+
+    def test_geometria_none_se_descarta(self):
+        aristas = [
+            (None, "track"),
+            (LineString([(-58.90, -27.50), (-58.80, -27.45)]), "residential"),
+        ]
+        indice = construir_indice_no_conectadas(aristas)
+        assert indice["clases"] == ["residential"]
+        assert len(indice["geometrias"]) == 1

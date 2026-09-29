@@ -285,7 +285,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         clasificar_sin_conexion,
         construir_arbol_agua,
         construir_cruces_por_arista,
-        construir_geometrias_agua_local,
+        construir_geometrias_agua_y_fords_local,
         construir_grafo_seguro,
         construir_indice_aristas,
         construir_indice_no_conectadas,
@@ -386,14 +386,17 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         )
 
         t_agua0 = time.monotonic()
-        geometrias_agua = construir_geometrias_agua_local(
+        geometrias_agua, puntos_ford = construir_geometrias_agua_y_fords_local(
             str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste
         )
         arbol_agua = construir_arbol_agua(geometrias_agua)
-        cruces_por_arista = construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua)
+        cruces_por_arista = construir_cruces_por_arista(
+            grafo, arbol_agua, geometrias_agua, puntos_ford
+        )
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         print(
             f"[calcular_aislamiento] capa de agua: {len(geometrias_agua)} cursos de agua, "
+            f"{len(puntos_ford)} fords (nodos ford=yes), "
             f"{len(cruces_por_arista)} aristas con cruce detectado, "
             f"{time.monotonic() - t_agua0:.1f}s",
             flush=True,

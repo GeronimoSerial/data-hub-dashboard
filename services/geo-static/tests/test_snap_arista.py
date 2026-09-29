@@ -12,7 +12,7 @@ import math
 
 import networkx as nx
 from pyproj import Transformer
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, MultiLineString, Point
 from shapely.ops import transform as shapely_transform
 
 from geo_static.osm_aislamiento import (
@@ -312,3 +312,37 @@ class TestLongitudGeometriaCurva:
         distancia = metricas["distancia_cabecera_departamental_m"]
         largo_exportado = _largo(coords)
         assert abs(largo_exportado - distancia) / distancia < 0.005
+
+
+# ---------------------------------------------------------------------------
+# N3-D: proyeccion vectorizada del indice de aristas.
+# ---------------------------------------------------------------------------
+
+
+class TestProyeccionVectorizadaIndiceAristas:
+    def test_proyectadas_igual_a_transform_por_geometria(self):
+        """La forma vectorizada de `construir_indice_aristas` (N3-D) proyecta
+        de una sola vez el array de geometrias; debe coincidir con la version
+        por-geometria (`shapely.ops.transform`) a 1e-6 m."""
+        multilinea = MultiLineString(
+            [[A, (-58.85, -27.48)], [(-58.84, -27.47), C]]
+        )
+        g = nx.MultiDiGraph()
+        _agregar(g, "A", "B", [A, B], surface="paved", highway="secondary")
+        g.add_node("C", x=C[0], y=C[1])
+        g.add_edge(
+            "B",
+            "C",
+            key=0,
+            geometry=multilinea,
+            length=1.0,
+            surface="paved",
+            highway="secondary",
+        )
+
+        indice = construir_indice_aristas(g)
+
+        assert len(indice["geometrias"]) == len(indice["proyectadas"]) == 2
+        for proyectada, geometria in zip(indice["proyectadas"], indice["geometrias"]):
+            esperada = shapely_transform(TRANSFORMER.transform, geometria)
+            assert proyectada.equals_exact(esperada, 1e-6)
