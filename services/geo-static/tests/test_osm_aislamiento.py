@@ -796,6 +796,11 @@ def _preparar_job(monkeypatch, tmp_path, pbf_path):
     monkeypatch.setattr(job, "PBF_LOCAL_DEFAULT", pbf_path)
     monkeypatch.setattr(job, "OUTPUT_DIR", tmp_path / "output")
     monkeypatch.setattr(job, "cargar_padron", _escuelas_sinteticas)
+    # Gate geografico y sedes oficiales: los tests sinteticos conservan su
+    # significado original apuntando a archivos ausentes (degradacion gracil:
+    # sin poligonos no se excluye nada y sin sedes se usa el proxy).
+    monkeypatch.setattr(job, "DEPARTAMENTOS_GEOJSON_PATH", tmp_path / "no-existe.geojson")
+    monkeypatch.setattr(job, "CABECERAS_PATH", tmp_path / "no-existe.json")
 
     import osmnx as ox
 

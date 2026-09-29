@@ -21,6 +21,12 @@ ruta escuela -> cabecera y de los cruces de agua usados, como NDJSON gzip
 versionado en `output/accesos_osm_geometria-v{VERSION_JOB}-{fecha}.ndjson.gz`.
 Es un artifact puramente aditivo (no cambia ninguna metrica del CSV) e
 importable con `node scripts/importar-geo-static.mjs --geometria <file>`.
+
+N3-A: las escuelas cuya coordenada cae a mas de 2.0 km fuera del poligono de
+su propio departamento se excluyen del calculo (fila sin datos, motivo
+"coordenada_fuera_de_departamento"). Las cabeceras departamentales usan la
+sede oficial de Georef Argentina (`data/cabeceras_departamentales.json`) y
+caen al proxy (centroide) solo cuando no hay sede oficial.
 """
 
 from __future__ import annotations
@@ -34,6 +40,8 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from geo_static import padron_geo
+
 VERSION_JOB = "1"
 LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 
@@ -43,6 +51,12 @@ BBOX_CORRIENTES = (-27.15, -30.80, -55.60, -60.35)
 REPO_ROOT = Path(__file__).resolve().parents[5]
 PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
+
+# Insumos del gate geografico y de las sedes oficiales (N3-A). Se exponen como
+# constantes de modulo para que los tests puedan apuntarlas a fixtures
+# temporales; `correr` las consume siempre via estos nombres globales.
+DEPARTAMENTOS_GEOJSON_PATH = padron_geo.DEPARTAMENTOS_GEOJSON_PATH
+CABECERAS_PATH = padron_geo.CABECERAS_PATH
 
 # Extracto Geofabrik de Argentina descargado localmente (gitignorado). Si existe,
 # la corrida de produccion construye la red con pyrosm (construir_red_local);
@@ -121,7 +135,9 @@ def _fila_escuela(escuela: dict, metricas: dict, indice, fecha_extracto: str) ->
     }
 
 
-def _fila_sin_datos(escuela: dict, fecha_extracto: str) -> dict:
+def _fila_sin_datos(
+    escuela: dict, fecha_extracto: str, motivo: str = "sin_conexion_red"
+) -> dict:
     return {
         "cue_anexo": escuela["cueAnexo"],
         "distancia_via_pavimentada_m": None,
@@ -132,7 +148,7 @@ def _fila_sin_datos(escuela: dict, fecha_extracto: str) -> dict:
         "cruces_agua_con_vado_count": None,
         "tiene_alternativa_sin_cruce": None,
         "indice_aislamiento": None,
-        "motivo_sin_datos": "sin_conexion_red",
+        "motivo_sin_datos": motivo,
         "snap_distancia_m": None,
         "version_job": VERSION_JOB,
         "fecha_extracto_osm": fecha_extracto,
@@ -184,11 +200,43 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         escuelas = escuelas[:limite_escuelas]
     print(f"[calcular_aislamiento] escuelas con coordenadas: {len(escuelas)}", flush=True)
 
-    cabeceras = calcular_cabeceras_departamentales(escuelas)
-    print(f"[calcular_aislamiento] cabeceras departamentales calculadas: {len(cabeceras)}", flush=True)
+    poligonos = padron_geo.cargar_poligonos_departamentos(DEPARTAMENTOS_GEOJSON_PATH)
+    oficiales = padron_geo.cargar_cabeceras_oficiales(CABECERAS_PATH)
+
+    escuelas_validas: list[dict] = []
+    escuelas_fuera: list[dict] = []
+    km_fuera: dict[str, float] = {}
+    for e in escuelas:
+        distancia_fuera = padron_geo.coordenada_fuera_de_departamento(e, poligonos)
+        if distancia_fuera is None:
+            escuelas_validas.append(e)
+        else:
+            escuelas_fuera.append(e)
+            km_fuera[e["cueAnexo"]] = distancia_fuera
+
+    print(
+        f"[calcular_aislamiento] escuelas con coordenada fuera de su departamento "
+        f"(> {padron_geo.UMBRAL_FUERA_DEPARTAMENTO_KM} km): {len(escuelas_fuera)} "
+        "(excluidas del cálculo)",
+        flush=True,
+    )
+    for cue, km in sorted(km_fuera.items()):
+        print(f"[calcular_aislamiento]   {cue}: {km:.1f} km", flush=True)
+
+    cabeceras = padron_geo.resolver_cabeceras(
+        escuelas_validas, oficiales, calcular_cabeceras_departamentales(escuelas_validas)
+    )
+    sedes_oficiales = sum(
+        1 for depto in cabeceras if padron_geo.normalizar_nombre(depto) in oficiales
+    )
+    print(
+        f"[calcular_aislamiento] cabeceras departamentales resueltas: {len(cabeceras)} "
+        f"(sede oficial: {sedes_oficiales}, proxy: {len(cabeceras) - sedes_oficiales})",
+        flush=True,
+    )
 
     por_depto: dict[str, list[dict]] = defaultdict(list)
-    for e in escuelas:
+    for e in escuelas_validas:
         por_depto[e["departamento"]].append(e)
 
     filas = []
@@ -301,6 +349,26 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 flush=True,
             )
 
+        # Escuelas excluidas por el gate geografico: fila sin datos y registro
+        # de geometria sin ruta, con motivo propio (N3-A).
+        for e in escuelas_fuera:
+            filas.append(
+                _fila_sin_datos(
+                    e, fecha_extracto, motivo="coordenada_fuera_de_departamento"
+                )
+            )
+            registros_geometria.append(
+                {
+                    "cue_anexo": e["cueAnexo"],
+                    "version_job": VERSION_JOB,
+                    "fecha_extracto_osm": fecha_extracto,
+                    "licencia": LICENCIA_OSM,
+                    "ruta": None,
+                    "cruces": [],
+                    "motivo_sin_geometria": "coordenada_fuera_de_departamento",
+                }
+            )
+
         ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_extracto)
         con_ruta = sum(1 for r in registros_geometria if r["ruta"] is not None)
         cruces_por_clase = Counter(
@@ -367,6 +435,14 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 f"[calcular_aislamiento] {depto}: {len(escuelas_depto)} escuelas, "
                 f"{len(grafo.nodes)} nodos, {len(grafo.edges)} aristas, {t_depto1 - t_depto0:.1f}s",
                 flush=True,
+            )
+
+        # Escuelas excluidas por el gate geografico (N3-A): solo fila sin datos.
+        for e in escuelas_fuera:
+            filas.append(
+                _fila_sin_datos(
+                    e, fecha_extracto, motivo="coordenada_fuera_de_departamento"
+                )
             )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

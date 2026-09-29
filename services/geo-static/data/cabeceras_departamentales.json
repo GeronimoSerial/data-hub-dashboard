@@ -1,0 +1,184 @@
+{
+  "version": 1,
+  "fuente": "Georef Argentina (datos.gob.ar), API localidades, provincia 18 (Corrientes); centroide de la localidad censal",
+  "url": "https://apis.datos.gob.ar/georef/api/localidades?provincia=18&max=5000&campos=id,nombre,categoria,centroide,departamento.nombre,localidad_censal.nombre",
+  "fecha_consulta": "2026-09-29",
+  "criterio": "Cabecera departamental = localidad homónima del departamento, salvo Capital->Corrientes, General Alvear->Alvear, General Paz->Nuestra Señora del Rosario de Caá Catí, San Martín->La Cruz (sedes administrativas de la provincia de Corrientes)",
+  "cabeceras": [
+    {
+      "departamento": "BELLA VISTA",
+      "cabecera": "Bella Vista",
+      "georef_id": "18007010",
+      "lat": -28.507683,
+      "lon": -59.045217
+    },
+    {
+      "departamento": "BERON DE ASTRADA",
+      "cabecera": "Berón de Astrada",
+      "georef_id": "18014010",
+      "lat": -27.550219,
+      "lon": -57.528415
+    },
+    {
+      "departamento": "CAPITAL",
+      "cabecera": "Corrientes",
+      "georef_id": "18021020",
+      "lat": -27.463345,
+      "lon": -58.839473
+    },
+    {
+      "departamento": "CONCEPCION",
+      "cabecera": "Concepción",
+      "georef_id": "18028010",
+      "lat": -28.393201,
+      "lon": -57.886917
+    },
+    {
+      "departamento": "CURUZU CUATIA",
+      "cabecera": "Curuzú Cuatiá",
+      "georef_id": "18035020",
+      "lat": -29.791451,
+      "lon": -58.049859
+    },
+    {
+      "departamento": "EMPEDRADO",
+      "cabecera": "Empedrado",
+      "georef_id": "18042020",
+      "lat": -27.950703,
+      "lon": -58.803095
+    },
+    {
+      "departamento": "ESQUINA",
+      "cabecera": "Esquina",
+      "georef_id": "18049010",
+      "lat": -30.014607,
+      "lon": -59.529519
+    },
+    {
+      "departamento": "GENERAL ALVEAR",
+      "cabecera": "Alvear",
+      "georef_id": "18056010",
+      "lat": -29.098839,
+      "lon": -56.553436
+    },
+    {
+      "departamento": "GENERAL PAZ",
+      "cabecera": "Nuestra Señora del Rosario de Caá Catí",
+      "georef_id": "18063030",
+      "lat": -27.752151,
+      "lon": -57.621998
+    },
+    {
+      "departamento": "GOYA",
+      "cabecera": "Goya",
+      "georef_id": "18070020",
+      "lat": -29.140076,
+      "lon": -59.259891
+    },
+    {
+      "departamento": "ITATI",
+      "cabecera": "Itatí",
+      "georef_id": "18077010",
+      "lat": -27.269217,
+      "lon": -58.242421
+    },
+    {
+      "departamento": "ITUZAINGO",
+      "cabecera": "Ituzaingó",
+      "georef_id": "18084020",
+      "lat": -27.5851,
+      "lon": -56.687045
+    },
+    {
+      "departamento": "LAVALLE",
+      "cabecera": "Lavalle",
+      "georef_id": "18091030",
+      "lat": -29.023331,
+      "lon": -59.179154
+    },
+    {
+      "departamento": "MBURUCUYA",
+      "cabecera": "Mburucuyá",
+      "georef_id": "18098010",
+      "lat": -28.046858,
+      "lon": -58.230306
+    },
+    {
+      "departamento": "MERCEDES",
+      "cabecera": "Mercedes",
+      "georef_id": "18105030",
+      "lat": -29.184693,
+      "lon": -58.073532
+    },
+    {
+      "departamento": "MONTE CASEROS",
+      "cabecera": "Monte Caseros",
+      "georef_id": "18112050",
+      "lat": -30.249423,
+      "lon": -57.629482
+    },
+    {
+      "departamento": "PASO DE LOS LIBRES",
+      "cabecera": "Paso de los Libres",
+      "georef_id": "18119030",
+      "lat": -29.713715,
+      "lon": -57.085405
+    },
+    {
+      "departamento": "SALADAS",
+      "cabecera": "Saladas",
+      "georef_id": "18126010",
+      "lat": -28.255067,
+      "lon": -58.623727
+    },
+    {
+      "departamento": "SAN COSME",
+      "cabecera": "San Cosme",
+      "georef_id": "18133030",
+      "lat": -27.370373,
+      "lon": -58.512513
+    },
+    {
+      "departamento": "SAN LUIS DEL PALMAR",
+      "cabecera": "San Luis del Palmar",
+      "georef_id": "18140010",
+      "lat": -27.507699,
+      "lon": -58.556148
+    },
+    {
+      "departamento": "SAN MARTIN",
+      "cabecera": "La Cruz",
+      "georef_id": "18147030",
+      "lat": -29.178629,
+      "lon": -56.638295
+    },
+    {
+      "departamento": "SAN MIGUEL",
+      "cabecera": "San Miguel",
+      "georef_id": "18154020",
+      "lat": -27.998326,
+      "lon": -57.587311
+    },
+    {
+      "departamento": "SAN ROQUE",
+      "cabecera": "San Roque",
+      "georef_id": "18161050",
+      "lat": -28.569303,
+      "lon": -58.705135
+    },
+    {
+      "departamento": "SANTO TOME",
+      "cabecera": "Santo Tomé",
+      "georef_id": "18168040",
+      "lat": -28.549816,
+      "lon": -56.034811
+    },
+    {
+      "departamento": "SAUCE",
+      "cabecera": "Sauce",
+      "georef_id": "18175010",
+      "lat": -30.085535,
+      "lon": -58.787281
+    }
+  ]
+}
