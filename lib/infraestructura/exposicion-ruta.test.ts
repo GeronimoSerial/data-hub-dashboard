@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { construirRespuestaExposicion, ultimaExposicionDeCue } from './exposicion-ruta'
+import { AVISO_EXPOSICION_RUTA, construirRespuestaExposicion, ultimaExposicionDeCue } from './exposicion-ruta'
 import type { FilaExposicionRuta } from './exposicion-ruta'
 
 function fila(overrides: Partial<FilaExposicionRuta> = {}): FilaExposicionRuta {
@@ -17,6 +17,17 @@ function fila(overrides: Partial<FilaExposicionRuta> = {}): FilaExposicionRuta {
 }
 
 describe('construirRespuestaExposicion', () => {
+  it('usa avisos y motivos con tildes correctas', () => {
+    expect(AVISO_EXPOSICION_RUTA).toBe(
+      'Indicador histórico/estático por celda de ~1 km; no es pronóstico ni estado del camino ni el trazado de un río.',
+    )
+    expect(construirRespuestaExposicion('CUE-1', null).motivoSinDato).toBe(
+      'Sin dato de exposición para esta escuela.',
+    )
+    expect(construirRespuestaExposicion('CUE-1', fila({ estado: 'sin_ruta' })).motivoSinDato).toBe(
+      'Sin ruta de acceso calculada; no hay dato de exposición a lo largo de la ruta.',
+    )
+  })
   it('filtra las celdas afectadas por profundidad positiva', () => {
     const respuesta = construirRespuestaExposicion('CUE-1', fila())
     expect(respuesta.disponible).toBe(true)
@@ -36,7 +47,7 @@ describe('construirRespuestaExposicion', () => {
   it('sin_ruta y fila ausente son falta de dato', () => {
     expect(construirRespuestaExposicion('CUE-1', fila({ estado: 'sin_ruta' })).disponible).toBe(false)
     expect(construirRespuestaExposicion('CUE-1', null)).toMatchObject({
-      disponible: false, motivoSinDato: 'Sin dato de exposicion para esta escuela.',
+      disponible: false, motivoSinDato: 'Sin dato de exposición para esta escuela.',
     })
   })
 

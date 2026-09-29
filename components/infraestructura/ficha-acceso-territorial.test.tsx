@@ -179,12 +179,24 @@ describe('FichaAccesoTerritorial - exposición de la ruta', () => {
     expect(detalle).toHaveTextContent('30 arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce')
     expect(detalle).toHaveTextContent('WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0)')
     expect(detalle).toHaveTextContent('No es un pronóstico, ni el estado del camino, ni el trazado de un río.')
+    expect(detalle).not.toHaveTextContent('Indicador histórico/estático')
   })
 
   it('mantiene el comportamiento anterior cuando no recibe las props opcionales', () => {
     render(<FichaAccesoTerritorial {...props()} />)
     expect(screen.queryByTestId('ficha-acceso-exposicion-ruta')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-acceso-exposicion-detalle')).not.toBeInTheDocument()
+  })
+
+  it('muestra carga y error de exposición en la línea de ruta', () => {
+    const { rerender } = render(<FichaAccesoTerritorial {...props({ exposicionLoading: true })} />)
+    expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
+      'Ruta: calculando exposición histórica…',
+    )
+    rerender(<FichaAccesoTerritorial {...props({ exposicionError: 'falló' })} />)
+    expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
+      'Ruta: no se pudo cargar la exposición histórica.',
+    )
   })
 })
 

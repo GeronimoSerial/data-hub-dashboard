@@ -7,7 +7,7 @@ import type {
   GeometriaAccesoRespuesta,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
-import { CAPA_CELDAS_EXPOSICION_ID } from '@/lib/mapas/exposicion-ruta-capas'
+import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { COLOR_RUTA_ACCESO, TEXTOS_ACCESOS, textoConPeriodo } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import {
@@ -259,7 +259,16 @@ describe('CapasAccesosTerritoriales', () => {
     const { container, rerender } = render(
       <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles(['rutaSeleccion'])} />,
     )
-    expect(screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).toHaveAttribute('data-layer-type', 'fill')
+    const celdas = screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)
+    expect(celdas).toHaveAttribute('data-layer-type', 'fill')
+    expect(JSON.parse(celdas.getAttribute('data-paint')!)).toMatchObject({
+      'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
+      'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
+    })
+    expect(JSON.parse(screen.getByTestId('mock-layer-infra-celdas-exposicion-outline').getAttribute('data-paint')!)).toMatchObject({
+      'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
+      'line-width': 1.5,
+    })
     expect(container.querySelector(`[data-testid="mock-layer-${CAPA_CELDAS_EXPOSICION_ID}"]`)?.parentElement?.nextElementSibling?.querySelector(`[data-testid="mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}"]`)).not.toBeNull()
     rerender(<CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />)
     expect(screen.queryByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).not.toBeInTheDocument()

@@ -242,8 +242,14 @@ export function FichaAccesoTerritorial({
             )}
           </div>
 
-          {exposicion != null && (
-            <p data-testid="ficha-acceso-exposicion-ruta">{textoExposicionRuta(exposicion)}</p>
+          {(exposicionLoading || exposicionError !== null || exposicion != null) && (
+            <p data-testid="ficha-acceso-exposicion-ruta">
+              {exposicionLoading
+                ? 'Ruta: calculando exposición histórica…'
+                : exposicionError !== null
+                  ? 'Ruta: no se pudo cargar la exposición histórica.'
+                  : textoExposicionRuta(exposicion!)}
+            </p>
           )}
 
           {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
@@ -361,7 +367,7 @@ export function FichaAccesoTerritorial({
               )}
               {exposicion != null && (
                 <p data-testid="ficha-acceso-exposicion-detalle">
-                  Resolución {exposicion.resolucionArcsec ?? 30} arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce · período de retorno {exposicion.periodoRetornoAnios ?? 100} años · escenario histórico · fuente WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0) · corrida {exposicion.fechaCorrida ?? 'sin fecha'}. {exposicion.aviso} No es un pronóstico, ni el estado del camino, ni el trazado de un río.
+                  Resolución {exposicion.resolucionArcsec ?? 30} arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce · período de retorno {exposicion.periodoRetornoAnios ?? 100} años · escenario histórico · fuente WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0) · corrida {exposicion.fechaCorrida ?? 'sin fecha'}. No es un pronóstico, ni el estado del camino, ni el trazado de un río.
                 </p>
               )}
               {sinAguaEstimada && (

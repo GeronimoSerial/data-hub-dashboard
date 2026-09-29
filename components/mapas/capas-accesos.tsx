@@ -41,7 +41,7 @@ import {
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { GeometriaAccesoRespuesta, TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
-import { CAPA_CELDAS_EXPOSICION_ID, COLOR_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
+import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, COLOR_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Button } from '@/components/ui/button'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
@@ -135,7 +135,11 @@ export function CapasAccesosTerritoriales({
           <Layer id={CAPA_CELDAS_EXPOSICION_ID} type="fill" paint={{
             'fill-color': COLOR_CELDAS_EXPOSICION,
             'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
-            'fill-outline-color': COLOR_CELDAS_EXPOSICION,
+            'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
+          }} />
+          <Layer id="infra-celdas-exposicion-outline" type="line" layout={{ 'line-join': 'round' }} paint={{
+            'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
+            'line-width': 1.5,
           }} />
         </Source>
       )}

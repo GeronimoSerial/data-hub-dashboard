@@ -2,7 +2,8 @@ import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-r
 
 export const CAPA_CELDAS_EXPOSICION_ID = 'infra-celdas-exposicion-fill'
 export const COLOR_CELDAS_EXPOSICION = '#d9903d'
-export const OPACIDAD_CELDAS_EXPOSICION = 0.35
+export const OPACIDAD_CELDAS_EXPOSICION = 0.5
+export const COLOR_BORDE_CELDAS_EXPOSICION = '#9a5b17'
 
 export function construirCeldasExposicion(
   exposicion: ExposicionRutaRespuesta | null,

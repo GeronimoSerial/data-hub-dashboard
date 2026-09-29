@@ -28,7 +28,7 @@ export interface ExposicionRutaRespuesta {
 }
 
 export const AVISO_EXPOSICION_RUTA =
-  'Indicador historico/estatico por celda de ~1 km; no es pronostico ni estado del camino ni el trazado de un rio.'
+  'Indicador histórico/estático por celda de ~1 km; no es pronóstico ni estado del camino ni el trazado de un río.'
 
 function compararVersionJob(a: string, b: string): number {
   const na = a.trim() === '' ? Number.NaN : Number(a)
@@ -64,7 +64,7 @@ export function construirRespuestaExposicion(
   }
 
   if (fila === null) {
-    return { ...base, disponible: false, motivoSinDato: 'Sin dato de exposicion para esta escuela.' }
+    return { ...base, disponible: false, motivoSinDato: 'Sin dato de exposición para esta escuela.' }
   }
   if (fila.estado === 'sin_ruta' || fila.estado === 'sin_dato') {
     return {
@@ -73,8 +73,8 @@ export function construirRespuestaExposicion(
       estado: fila.estado,
       motivoSinDato:
         fila.estado === 'sin_ruta'
-          ? 'Sin ruta de acceso calculada; no hay dato de exposicion a lo largo de la ruta.'
-          : fila.motivoSinDato ?? 'Sin dato de exposicion para esta escuela.',
+          ? 'Sin ruta de acceso calculada; no hay dato de exposición a lo largo de la ruta.'
+          : fila.motivoSinDato ?? 'Sin dato de exposición para esta escuela.',
       celdasAfectadas: [],
     }
   }
