@@ -102,6 +102,19 @@ cerca de `v` que de `u` (`shapely.reverse`) ANTES de proyectar; `geometrias` y
 `indice["pos"]` mapea `(u, v, k)` a su posicion. Una arista cerrada (`u == v`)
 se deja como esta.
 
+## N3-G — los nodos ford=yes nunca se cargaban (lectura combinada)
+
+Bug corregido: `construir_geometrias_agua_y_fords_local` (N3-D) leia cursos de
+agua y nodos `ford=yes` con UNA sola llamada
+`get_data_by_custom_criteria(custom_filter={"waterway": [...], "ford":
+["yes"]}, keep_nodes=True, ...)`. Sobre el extracto real de Corrientes esa
+llamada combinada NO devuelve los nodos `ford=yes` (la corrida real logueo
+`0 fords (nodos ford=yes)`), mientras que una lectura de una sola clave
+(`custom_filter={"ford": ["yes"]}`) devuelve 275 objetos (263 `Point` con
+`ford == "yes"`, 12 ways). Ahora se hacen DOS lecturas de una clave cada una
+(agua y fords por separado); ver el docstring de la funcion sobre el costo
+(~+10 minutos en el extracto real) y la implementacion.
+
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
 `calcular_metricas_escuela` (per-escuela, se mantiene para compatibilidad y
@@ -473,9 +486,9 @@ def construir_geometrias_agua_y_fords_local(
     bbox_este: float,
     bbox_oeste: float,
 ) -> tuple[list, list]:
-    """Extrae, en UNA sola lectura del extracto local .osm.pbf, tanto los
-    cursos de agua (`WATERWAYS_CRUCE`, como entidades separadas de la red
-    vial; ver nota de modulo G1-fix2) como los nodos `ford=yes` (N3-D).
+    """Extrae del extracto local .osm.pbf los cursos de agua (`WATERWAYS_CRUCE`,
+    como entidades separadas de la red vial; ver nota de modulo G1-fix2) y los
+    nodos `ford=yes` (N3-D).
 
     Devuelve `(agua, fords)`:
 
@@ -486,9 +499,32 @@ def construir_geometrias_agua_y_fords_local(
       `_tiene_ford` solo miraba los tags de la arista y los atributos del nodo
       del grafo, y `pyrosm` no copia el tag `ford` a los nodos viales.
 
-    El filtro conserva nodes y ways (`keep_nodes=True`, `keep_ways=True` por
-    defecto en pyrosm 0.13.1, verificado en `pyrosm/engine/readers.py`). Mismo
-    orden de bbox que `construir_red_local`: pyrosm espera
+    ## N3-G — DOS lecturas, no una
+
+    Hasta N3-D esta funcion hacia UNA sola lectura combinada
+    (`custom_filter={"waterway": [...], "ford": ["yes"]}`, `keep_nodes=True`).
+    Bug verificado con el extracto real de Corrientes: el filtro multi-clave
+    NO devuelve los nodos `ford=yes` (la corrida real logueo
+    `0 fords (nodos ford=yes)`), mientras que una lectura de una sola clave
+    (`custom_filter={"ford": ["yes"]}`) devuelve 275 objetos (263 `Point` con
+    `ford == "yes"` y 12 ways). Por eso ahora se hacen DOS lecturas
+    independientes sobre el mismo objeto `OSM` (pyrosm cachea los elementos
+    leidos en `_read_pbf`, asi que no re-lee el pbf):
+
+    a) agua: exactamente como antes de N3-D (`custom_filter={"waterway":
+       list(WATERWAYS_CRUCE)}`, `osm_keys_to_keep=["waterway"]`,
+       `filter_type="keep"`, `keep_nodes=False`, `keep_relations=False`) ->
+       LineString/MultiLineString.
+    b) fords: `custom_filter={"ford": ["yes"]}`, `osm_keys_to_keep=["ford"]`,
+       `filter_type="keep"`, `keep_nodes=True`, `keep_ways=False`,
+       `keep_relations=False` -> `Point` cuyo `ford` es "yes" (via
+       `_primer_valor`). Se maneja `None`/frame vacio.
+
+    Costo: la segunda pasada agrega ~+10 minutos sobre el extracto real (se
+    recorre la tabla de nodos buscando `ford=yes`), a cambio de recuperar los
+    fords que el filtro combinado descartaba.
+
+    Mismo orden de bbox que `construir_red_local`: pyrosm espera
     [oeste, sur, este, norte].
     """
     from pyrosm import OSM
@@ -497,26 +533,45 @@ def construir_geometrias_agua_y_fords_local(
         pbf_path,
         bounding_box=[bbox_oeste, bbox_sur, bbox_este, bbox_norte],
     )
-    datos = osm.get_data_by_custom_criteria(
-        custom_filter={"waterway": list(WATERWAYS_CRUCE), "ford": ["yes"]},
-        osm_keys_to_keep=["waterway", "ford"],
-        filter_type="keep",
-        keep_nodes=True,
-        keep_relations=False,
-    )
+
     agua: list = []
     fords: list = []
-    if datos is None or datos.empty:
-        return agua, fords
-    for _, fila in datos.iterrows():
-        geometria = fila.get("geometry")
-        if geometria is None or geometria.is_empty:
-            continue
-        if geometria.geom_type in ("LineString", "MultiLineString"):
-            if _primer_valor(fila.get("waterway")) in WATERWAYS_CRUCE:
-                agua.append(geometria)
-        elif geometria.geom_type == "Point" and _primer_valor(fila.get("ford")) == "yes":
-            fords.append(geometria)
+
+    datos_agua = osm.get_data_by_custom_criteria(
+        custom_filter={"waterway": list(WATERWAYS_CRUCE)},
+        osm_keys_to_keep=["waterway"],
+        filter_type="keep",
+        keep_nodes=False,
+        keep_relations=False,
+    )
+    if datos_agua is not None and not datos_agua.empty:
+        for _, fila in datos_agua.iterrows():
+            geometria = fila.get("geometry")
+            if geometria is None or geometria.is_empty:
+                continue
+            if geometria.geom_type in ("LineString", "MultiLineString"):
+                if _primer_valor(fila.get("waterway")) in WATERWAYS_CRUCE:
+                    agua.append(geometria)
+
+    datos_ford = osm.get_data_by_custom_criteria(
+        custom_filter={"ford": ["yes"]},
+        osm_keys_to_keep=["ford"],
+        filter_type="keep",
+        keep_nodes=True,
+        keep_ways=False,
+        keep_relations=False,
+    )
+    if datos_ford is not None and not datos_ford.empty:
+        for _, fila in datos_ford.iterrows():
+            geometria = fila.get("geometry")
+            if geometria is None or geometria.is_empty:
+                continue
+            if (
+                geometria.geom_type == "Point"
+                and _primer_valor(fila.get("ford")) == "yes"
+            ):
+                fords.append(geometria)
+
     return agua, fords
 
 
@@ -533,9 +588,9 @@ def construir_geometrias_agua_local(
     MultiLineString); nunca la red vial.
 
     Se mantiene como envoltorio publico de
-    `construir_geometrias_agua_y_fords_local` (N3-D): lee el extracto UNA sola
-    vez y descarta los fords. Para obtener tambien los nodos `ford=yes` usar la
-    funcion subyacente.
+    `construir_geometrias_agua_y_fords_local` (N3-D/N3-G) y descarta los fords.
+    Para obtener tambien los nodos `ford=yes` usar la funcion subyacente (dos
+    lecturas, ver su docstring).
 
     Mismo orden de bbox que `construir_red_local`: pyrosm espera
     [oeste, sur, este, norte].

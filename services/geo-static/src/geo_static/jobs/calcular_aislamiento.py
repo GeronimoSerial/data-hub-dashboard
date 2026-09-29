@@ -404,6 +404,13 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             f"{time.monotonic() - t_agua0:.1f}s",
             flush=True,
         )
+        if len(puntos_ford) == 0:
+            print(
+                "[calcular_aislamiento] ADVERTENCIA: 0 nodos ford=yes en el "
+                "extracto (el extracto de Corrientes 2026-09-26 tiene 263): "
+                "revisar la lectura de fords",
+                flush=True,
+            )
 
         # N1 - optimizacion de rendimiento (ver docs/ejecucion-enos/G1/registro.md
         # y docstring de calcular_metricas_departamento): los grafos invertidos se

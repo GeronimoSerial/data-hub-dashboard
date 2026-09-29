@@ -154,55 +154,154 @@ class TestConteoNoCambia:
 
 
 class TestConstruirGeometriasAguaYFordsLocal:
-    def _fake_osm(self, monkeypatch, gdf, capturado):
+    """N3-G: cursos de agua y nodos `ford=yes` se leen en DOS llamadas, porque
+    el filtro combinado multi-clave de pyrosm no devuelve los nodos."""
+
+    def _fake_osm(self, monkeypatch, filas_agua, filas_ford):
+        """FakeOSM que registra cada llamada y arma el frame segun las claves
+        del `custom_filter`.
+
+        Reproduce a pyrosm real sobre el extracto de Corrientes: con un filtro
+        de MAS de una clave no devuelve los nodos `ford=yes` (solo los ways de
+        agua); con una sola clave si devuelve sus elementos.
+        """
+        registro = {"llamadas": [], "creados": []}
+
         class FakeOSM:
             def __init__(self, pbf_path, bounding_box):
-                capturado["pbf_path"] = pbf_path
-                capturado["bounding_box"] = bounding_box
+                self.pbf_path = pbf_path
+                self.bounding_box = bounding_box
+                registro["creados"].append(self)
 
             def get_data_by_custom_criteria(self, **kwargs):
-                capturado["kwargs"] = kwargs
-                return gdf
+                registro["llamadas"].append(kwargs)
+                claves = list(kwargs["custom_filter"].keys())
+                filas = []
+                if "waterway" in claves:
+                    filas.extend(filas_agua)
+                # Como pyrosm real: un filtro multi-clave NO devuelve los nodos.
+                if "ford" in claves and len(claves) == 1:
+                    filas.extend(filas_ford)
+                if not filas:
+                    return pd.DataFrame()
+                return pd.DataFrame(filas)
 
         monkeypatch.setattr("pyrosm.OSM", FakeOSM)
+        return registro, FakeOSM
 
-    def test_separa_agua_fords_y_descarta_waterway_no_listado(self, monkeypatch):
+    @staticmethod
+    def _fila_agua(waterway, geometry):
+        return {"waterway": waterway, "ford": None, "geometry": geometry}
+
+    @staticmethod
+    def _fila_ford(ford, geometry):
+        return {"waterway": None, "ford": ford, "geometry": geometry}
+
+    def test_dos_llamadas_con_los_argumentos_exactos(self, monkeypatch):
         rio = LineString([(-58.90, -27.50), (-58.80, -27.45)])
         ford = Point(-58.85, -27.475)
-        zanja = LineString([(-58.90, -27.40), (-58.80, -27.35)])
-        otro_punto = Point(-58.90, -27.40)
-        gdf = pd.DataFrame(
-            {
-                "id": [1, 2, 3, 4],
-                "waterway": ["river", None, "ditch", None],
-                "ford": [None, "yes", None, "no"],
-                "geometry": [rio, ford, zanja, otro_punto],
-            }
+        registro, _ = self._fake_osm(
+            monkeypatch,
+            [self._fila_agua("river", rio)],
+            [self._fila_ford("yes", ford)],
         )
-        capturado = {}
-        self._fake_osm(monkeypatch, gdf, capturado)
 
         agua, fords = construir_geometrias_agua_y_fords_local(
             "x.osm.pbf", bbox_norte=1.0, bbox_sur=2.0, bbox_este=3.0, bbox_oeste=4.0
         )
 
+        assert len(registro["llamadas"]) == 2
+        assert registro["llamadas"][0] == {
+            "custom_filter": {"waterway": list(WATERWAYS_CRUCE)},
+            "osm_keys_to_keep": ["waterway"],
+            "filter_type": "keep",
+            "keep_nodes": False,
+            "keep_relations": False,
+        }
+        assert registro["llamadas"][1] == {
+            "custom_filter": {"ford": ["yes"]},
+            "osm_keys_to_keep": ["ford"],
+            "filter_type": "keep",
+            "keep_nodes": True,
+            "keep_ways": False,
+            "keep_relations": False,
+        }
+        # Ambas lecturas usan el mismo objeto OSM (pyrosm cachea el pbf).
+        assert len(registro["creados"]) == 1
+        assert registro["creados"][0].pbf_path == "x.osm.pbf"
+        # pyrosm espera [oeste, sur, este, norte].
+        assert registro["creados"][0].bounding_box == [4.0, 2.0, 3.0, 1.0]
         assert agua == [rio]
         assert fords == [ford]
-        assert capturado["pbf_path"] == "x.osm.pbf"
-        # pyrosm espera [oeste, sur, este, norte].
-        assert capturado["bounding_box"] == [4.0, 2.0, 3.0, 1.0]
-        kwargs = capturado["kwargs"]
-        assert kwargs["custom_filter"] == {
-            "waterway": list(WATERWAYS_CRUCE),
-            "ford": ["yes"],
-        }
-        assert kwargs["keep_nodes"] is True
-        assert kwargs["keep_relations"] is False
-        assert kwargs["filter_type"] == "keep"
 
-    def test_resultado_vacio_devuelve_dos_listas_vacias(self, monkeypatch):
-        capturado = {}
-        self._fake_osm(monkeypatch, None, capturado)
+    def test_separa_agua_fords_y_descarta_no_listados(self, monkeypatch):
+        rio = LineString([(-58.90, -27.50), (-58.80, -27.45)])
+        ford = Point(-58.85, -27.475)
+        zanja = LineString([(-58.90, -27.40), (-58.80, -27.35)])
+        otro_punto = Point(-58.90, -27.40)
+        self._fake_osm(
+            monkeypatch,
+            [self._fila_agua("river", rio), self._fila_agua("ditch", zanja)],
+            [self._fila_ford("yes", ford), self._fila_ford("no", otro_punto)],
+        )
+
+        agua, fords = construir_geometrias_agua_y_fords_local(
+            "x.osm.pbf", 1.0, 2.0, 3.0, 4.0
+        )
+
+        assert agua == [rio]
+        assert fords == [ford]
+
+    def test_frame_de_fords_vacio_devuelve_lista_vacia(self, monkeypatch):
+        rio = LineString([(-58.90, -27.50), (-58.80, -27.45)])
+        self._fake_osm(monkeypatch, [self._fila_agua("river", rio)], [])
+
+        agua, fords = construir_geometrias_agua_y_fords_local(
+            "x.osm.pbf", 1.0, 2.0, 3.0, 4.0
+        )
+
+        assert agua == [rio]
+        assert fords == []
+
+    def test_frames_none_devuelven_dos_listas_vacias(self, monkeypatch):
+        class FakeOSM:
+            def __init__(self, pbf_path, bounding_box):
+                pass
+
+            def get_data_by_custom_criteria(self, **kwargs):
+                return None
+
+        monkeypatch.setattr("pyrosm.OSM", FakeOSM)
         assert construir_geometrias_agua_y_fords_local(
             "x.osm.pbf", 1.0, 2.0, 3.0, 4.0
         ) == ([], [])
+
+    def test_regresion_lectura_combinada_no_devolveria_fords(self, monkeypatch):
+        """Con el FakeOSM fiel a pyrosm, la lectura combinada de N3-D se queda
+        sin fords; las dos lecturas de una clave los recuperan."""
+        rio = LineString([(-58.90, -27.50), (-58.80, -27.45)])
+        ford = Point(-58.85, -27.475)
+        registro, FakeOSM = self._fake_osm(
+            monkeypatch,
+            [self._fila_agua("river", rio)],
+            [self._fila_ford("yes", ford)],
+        )
+
+        combinado = FakeOSM("x.osm.pbf", [4.0, 2.0, 3.0, 1.0])
+        datos = combinado.get_data_by_custom_criteria(
+            custom_filter={"waterway": list(WATERWAYS_CRUCE), "ford": ["yes"]},
+            osm_keys_to_keep=["waterway", "ford"],
+            filter_type="keep",
+            keep_nodes=True,
+            keep_relations=False,
+        )
+        assert not any(
+            geometria.geom_type == "Point" for geometria in datos["geometry"]
+        )
+
+        agua, fords = construir_geometrias_agua_y_fords_local(
+            "x.osm.pbf", 1.0, 2.0, 3.0, 4.0
+        )
+        assert agua == [rio]
+        assert fords == [ford]
+        assert "llamadas" in registro
