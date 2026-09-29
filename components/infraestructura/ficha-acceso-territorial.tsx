@@ -71,6 +71,7 @@ function textoIndiceDificultad(nivel: NivelAislamientoMapa): string {
 function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
   if (fila === undefined || fila.cruces === null) return 'Cruces de agua: sin dato'
   if (fila.cruces === 0) return 'Sin cruces de agua en el camino'
+  if (fila.sinPuente === 0) return `Cruces de agua en el camino: ${fila.cruces} (todos con puente registrado)`
   return `Cruces de agua en el camino: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
 }
 
@@ -78,7 +79,7 @@ function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
 // un punto cercano. 0 m es "el modelo no estima agua ahí", nunca "0 = seca".
 function textoInundacion(profundidad: number): string {
   if (!(profundidad > 0)) return 'Agua estimada en la escuela: ninguna según el modelo'
-  return `Agua estimada en la escuela: ${formatearMetros(profundidad)} m (crecida poco frecuente)`
+  return `Agua estimada en la escuela: ${formatearMetros(profundidad)} m en una crecida muy poco frecuente (modelo, no es agua de hoy)`
 }
 
 // Resumen de lo que el cálculo realmente dibujó. Sólo con geometría

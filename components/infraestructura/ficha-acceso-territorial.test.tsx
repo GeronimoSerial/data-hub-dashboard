@@ -213,6 +213,22 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     )
   })
 
+  it('indica cuando todos los cruces tienen puente registrado', () => {
+    render(
+      <FichaAccesoTerritorial
+        {...props({
+          territorio: territorioCon(
+            { [CUE]: filaAislamiento({ cruces: 2, conPuente: 2, sinPuente: 0 }) },
+            null,
+          ),
+        })}
+      />,
+    )
+    expect(screen.getByTestId('ficha-acceso-aislamiento-cruces')).toHaveTextContent(
+      'Cruces de agua en el camino: 2 (todos con puente registrado)',
+    )
+  })
+
   it('sin cruces lo dice sin un desglose en cero', () => {
     render(
       <FichaAccesoTerritorial
@@ -269,9 +285,11 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
       />,
     )
 
-    expect(screen.getByTestId('ficha-acceso-susceptibilidad-valor')).toHaveTextContent(
-      `Agua estimada en la escuela: ${esperado.replace(" de agua estimada", "")} (crecida poco frecuente)`,
+    const agua = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
+    expect(agua).toHaveTextContent(
+      `Agua estimada en la escuela: ${esperado.replace(" de agua estimada", "")} en una crecida muy poco frecuente (modelo, no es agua de hoy)`,
     )
+    expect(agua).not.toHaveTextContent(/camino|recorrido|ruta/i)
   })
 
   it('sin valor physrisk lo dice explícitamente y no imputa 0', () => {
@@ -349,15 +367,15 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
       'Sin recorrido para mostrar',
     )
     expect(screen.getByTestId('ficha-acceso-sin-ruta')).toHaveTextContent(
-      'La escuela no conecta con la red de caminos hasta la cabecera',
+      'La escuela no conecta con la red de caminos hasta la ciudad cabecera',
     )
   })
 
   it.each([
     ['sin_geometria_importada', 'Todavía no se cargó el recorrido de esta escuela.'],
-    ['ruta_degenerada', 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.'],
+    ['ruta_degenerada', 'La escuela está junto a la ciudad cabecera de su departamento: no hay recorrido para dibujar.'],
     ['coordenada_fuera_de_departamento', 'La ubicación cargada de la escuela cae fuera de su departamento.'],
-    ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero está aislado de la red principal'],
+    ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero no se conecta con los caminos principales ni llega a la ciudad cabecera, así que no se dibuja un recorrido. Es falta de dato: no significa que la escuela sea inaccesible.'],
     ['sin_via_osm_cercana', 'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela'],
     ['sin_geometria', 'No hay recorrido calculado para esta escuela.'],
     [undefined, 'No hay recorrido calculado para esta escuela.'],

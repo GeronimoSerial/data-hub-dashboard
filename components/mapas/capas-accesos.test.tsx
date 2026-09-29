@@ -281,13 +281,10 @@ describe('LeyendaAccesos — aislamiento', () => {
   it('muestra un ícono por nivel, la fila sin cobertura y los conteos', () => {
     renderLeyenda()
     const bloque = screen.getByTestId('leyenda-aislamiento-contenido')
-    // La etiqueta visible de cada nivel es su nombre corto
-    // (ETIQUETAS_AISLAMIENTO), no el "0/1/2/3" del índice: "Muy baja", "Baja",
-    // "Media", "Alta" y el nivel sin índice, "No calculable".
-    expect(bloque.textContent).toContain('Muy baja: 5')
-    expect(bloque.textContent).toContain('Baja: 3')
-    expect(bloque.textContent).toContain('Media: 2')
-    expect(bloque.textContent).toContain('Alta: 1')
+    expect(bloque.textContent).toContain('Muy baja (0): 5')
+    expect(bloque.textContent).toContain('Baja (1): 3')
+    expect(bloque.textContent).toContain('Media (2): 2')
+    expect(bloque.textContent).toContain('Alta (3): 1')
     expect(bloque.textContent).toContain('No calculable: 4')
     expect(bloque.textContent).toContain('Sin dato (escuela fuera de los datos): 7')
     // Un ícono por cada nivel (5) — la fila "sin dato" no lleva ícono.
@@ -397,7 +394,7 @@ describe('LeyendaAccesos — ruta', () => {
   it('sin selección pide elegir una escuela', () => {
     renderLeyenda({ visibles: visibles(['rutaSeleccion']) })
     expect(screen.getByTestId('leyenda-ruta-sin-seleccion')).toHaveTextContent(
-      'Elegí una escuela para ver el camino calculado hasta la cabecera.',
+      'Elegí una escuela para ver el camino calculado hasta la ciudad cabecera del departamento.',
     )
   })
 
@@ -428,10 +425,10 @@ describe('LeyendaAccesos — ruta', () => {
   it('traduce cada motivo de indisponibilidad', () => {
     const motivos: Array<[string, string]> = [
       ['sin_geometria_importada', 'Todavía no se cargó el recorrido de esta escuela.'],
-      ['sin_conexion_red', 'La escuela no conecta con la red de caminos hasta la cabecera, así que no se calculó un recorrido.'],
-      ['ruta_degenerada', 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.'],
+      ['sin_conexion_red', 'La escuela no conecta con la red de caminos hasta la ciudad cabecera, así que no se calculó un recorrido.'],
+      ['ruta_degenerada', 'La escuela está junto a la ciudad cabecera de su departamento: no hay recorrido para dibujar.'],
       ['coordenada_fuera_de_departamento', 'La ubicación cargada de la escuela cae fuera de su departamento.'],
-      ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero está aislado de la red principal'],
+      ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero no se conecta con los caminos principales ni llega a la ciudad cabecera, así que no se dibuja un recorrido. Es falta de dato: no significa que la escuela sea inaccesible.'],
       ['sin_via_osm_cercana', 'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela'],
       ['otro', 'No hay recorrido calculado para esta escuela.'],
     ]
@@ -441,6 +438,7 @@ describe('LeyendaAccesos — ruta', () => {
         seleccion: { nombre: 'Escuela Uno' },
         geometria: { cueAnexo: '1801605-04', disponible: false, motivo },
       })
+      expect(screen.getByText('Sin recorrido para mostrar').tagName).toBe('B')
       expect(screen.getByTestId('leyenda-ruta-motivo')).toHaveTextContent(texto)
       unmount()
     }

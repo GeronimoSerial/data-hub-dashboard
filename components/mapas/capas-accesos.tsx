@@ -343,7 +343,11 @@ function BloqueAislamiento({
             <FilaConIcono
               key={nivel}
               svg={ICONO_AISLAMIENTO[nivel]}
-              etiqueta={ETIQUETAS_AISLAMIENTO[nivel]}
+              etiqueta={
+                nivel === 'sin_datos_red'
+                  ? ETIQUETAS_AISLAMIENTO[nivel]
+                  : `${ETIQUETAS_AISLAMIENTO[nivel]} (${nivel})`
+              }
               conteo={resumen.aislamiento[nivel]}
             />
           ))}
@@ -456,7 +460,7 @@ function BloqueRuta({
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
         <div className={styles.hint} data-testid="leyenda-ruta-sin-seleccion">
-          Elegí una escuela para ver el camino calculado hasta la cabecera.
+          Elegí una escuela para ver el camino calculado hasta la ciudad cabecera del departamento.
         </div>
       </div>
     )
@@ -489,8 +493,11 @@ function BloqueRuta({
   if (geometria === null || !geometria.disponible) {
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
-        <div className={styles.hint} data-testid="leyenda-ruta-motivo">
-          {textoMotivoSinRuta(geometria?.motivo)}
+        <div className={styles.hint}>
+          <b>{TEXTOS_ACCESOS.sinRuta}</b>
+          <div data-testid="leyenda-ruta-motivo">
+            {textoMotivoSinRuta(geometria?.motivo)}
+          </div>
         </div>
       </div>
     )
@@ -528,7 +535,7 @@ function BloqueRuta({
         <details className="ayuda-leyenda" data-testid="leyenda-ruta-ayuda">
           <summary>Qué significa</summary>
           <div className={styles.hint}>
-            El camino une el punto de la red vial más cercano a la escuela con la cabecera departamental. Es el que usó el cálculo: no es una recomendación ni dice si hoy se puede transitar.
+            El camino une el punto de la red vial más cercano a la escuela con la ciudad cabecera del departamento. Es el que usó el cálculo: no es una recomendación ni dice si hoy se puede transitar.
           </div>
           {(['puente', 'vado', 'sin_evidencia'] as const).map((tipo) => (
             <div className={styles.hint} key={tipo}>

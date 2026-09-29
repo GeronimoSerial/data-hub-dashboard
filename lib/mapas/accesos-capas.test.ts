@@ -275,6 +275,21 @@ describe('textoConPeriodo', () => {
 })
 
 describe('copias territoriales', () => {
+  it('explica cabecera y caminos principales con palabras claras', () => {
+    const textos = [
+      ...Object.entries(TEXTOS_ACCESOS)
+        .filter(([clave]) => !['queMideInundacion', 'queMideAcceso'].includes(clave))
+        .map(([, valor]) => valor),
+      ...Object.values(MOTIVOS_SIN_RUTA),
+      ...Object.values(DESCRIPCIONES_AISLAMIENTO).flatMap(({ nombre, detalle }) => [nombre, detalle]),
+      ...Object.values(DESCRIPCIONES_CRUCE),
+    ]
+    for (const texto of textos) {
+      if (texto.includes('cabecera')) expect(texto).toContain('ciudad cabecera')
+      expect(texto).not.toContain('red principal')
+    }
+  })
+
   it('define motivos de ruta distintos y devuelve el genérico para motivos desconocidos', () => {
     const valores = Object.values(MOTIVOS_SIN_RUTA)
     expect(new Set(valores).size).toBe(valores.length)

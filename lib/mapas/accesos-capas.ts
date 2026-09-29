@@ -79,7 +79,7 @@ export const TEXTOS_ACCESOS = {
   subtituloAcceso:
     'De 0 (muy baja) a 3 (alta). Es un cálculo con datos de mapa, no el estado del camino hoy.',
   queMideAcceso:
-    'Estima qué tan difícil es llegar por camino desde la escuela hasta la cabecera de su departamento. Tiene en cuenta la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap (el mapa abierto de donde salen los caminos).',
+    'Estima qué tan difícil es llegar por camino desde la escuela hasta la ciudad cabecera de su departamento. Tiene en cuenta la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap (el mapa abierto de donde salen los caminos).',
   nivelesAcceso:
     'Cuanto más alto el número, más difícil es llegar: 0 muy baja, 1 baja, 2 media, 3 alta.',
   noRepresentaAcceso:
@@ -120,7 +120,7 @@ export const DESCRIPCIONES_AISLAMIENTO = {
   0: {
     nombre: 'Muy baja',
     detalle:
-      'Camino de hasta 3 km hasta la cabecera, sin cruces de agua y con como mucho 1 tramo de tierra.',
+      'Camino de hasta 3 km hasta la ciudad cabecera de su departamento, sin cruces de agua y con como mucho 1 tramo de tierra.',
   },
   1: {
     nombre: 'Baja',
@@ -135,12 +135,12 @@ export const DESCRIPCIONES_AISLAMIENTO = {
   3: {
     nombre: 'Alta',
     detalle:
-      'Más de 20 km hasta la cabecera, o un cruce de agua sin puente registrado y ningún camino que lo evite.',
+      'Más de 20 km hasta la ciudad cabecera de su departamento, o un cruce de agua sin puente registrado y ningún camino que lo evite.',
   },
   sin_datos_red: {
     nombre: 'No calculable',
     detalle:
-      'No se pudo calcular: no hay un camino cargado cerca de la escuela, el camino cercano no llega a la cabecera o la ubicación cargada no coincide con su departamento. Es falta de dato: no significa acceso fácil ni difícil.',
+      'No se pudo calcular: no hay un camino cargado cerca de la escuela, el camino cercano no llega a la ciudad cabecera o la ubicación cargada no coincide con su departamento. Es falta de dato: no significa acceso fácil ni difícil.',
   },
 } as const
 
@@ -178,14 +178,14 @@ export const MOTIVO_SIN_RUTA_GENERICO = 'No hay recorrido calculado para esta es
 
 export const MOTIVOS_SIN_RUTA: Record<string, string> = {
   sin_conexion_red:
-    'La escuela no conecta con la red de caminos hasta la cabecera, así que no se calculó un recorrido.',
+    'La escuela no conecta con la red de caminos hasta la ciudad cabecera, así que no se calculó un recorrido.',
   coordenada_fuera_de_departamento:
     'La ubicación cargada de la escuela cae fuera de su departamento. Para no mostrar un dato en un lugar equivocado, no se calculó nada. Conviene revisar la ubicación en el padrón.',
   red_vial_no_conectada:
-    'Hay un camino a menos de 5 km, pero está aislado de la red principal y no llega a la cabecera, así que no se dibuja un recorrido. Es falta de dato, no significa que la escuela sea inaccesible.',
+    'Hay un camino a menos de 5 km, pero no se conecta con los caminos principales ni llega a la ciudad cabecera, así que no se dibuja un recorrido. Es falta de dato: no significa que la escuela sea inaccesible.',
   sin_via_osm_cercana:
     'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela, así que no se puede calcular. Es falta de dato, no acceso fácil ni difícil.',
-  ruta_degenerada: 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.',
+  ruta_degenerada: 'La escuela está junto a la ciudad cabecera de su departamento: no hay recorrido para dibujar.',
   sin_geometria_importada: 'Todavía no se cargó el recorrido de esta escuela.',
 }
 
