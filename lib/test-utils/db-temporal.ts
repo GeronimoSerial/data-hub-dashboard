@@ -6,8 +6,11 @@ import { afterAll, beforeAll } from 'vitest'
 type OpcionesDbTemporal = {
   /** Ejecuta `ensureSeeded()` una vez fijado DATA_DIR (por defecto sí). */
   seed?: boolean
-  /** Variables de entorno extra que rigen mientras corre el archivo; se restauran al final. */
-  env?: Record<string, string>
+  /**
+   * Variables de entorno extra que rigen mientras corre el archivo; se restauran al final.
+   * Un valor `undefined` borra la variable durante el archivo (y se restaura igual).
+   */
+  env?: Record<string, string | undefined>
 }
 
 /**
@@ -26,7 +29,8 @@ export function usarDbTemporal(prefijo: string, opciones: OpcionesDbTemporal = {
     dir = mkdtempSync(path.join(tmpdir(), `${prefijo}-`))
     for (const [clave, valor] of Object.entries({ DATA_DIR: dir, ...env })) {
       previas.set(clave, process.env[clave])
-      process.env[clave] = valor
+      if (valor === undefined) delete process.env[clave]
+      else process.env[clave] = valor
     }
     if (seed) {
       // Import dinámico: el módulo lee DATA_DIR al cargarse, por eso va después de fijarlo.
