@@ -1074,30 +1074,35 @@ export default function MapInfraestructuraPage(props: {
     return construirCoropletaPeligro(departamentosRaw, niveles)
   }, [departamentosRaw, radarData, horizonteSeleccionado])
 
-  // Índice cueAnexo → riesgo de la página actual del radar, para cruzar contra
-  // las coordenadas que YA existen en `partesPorCue`. Los puntos de riesgo
-  // reutilizan la fuente de coordenadas del modo actual: no se inventa otra.
+  // Índice cueAnexo → riesgo de TODO el universo filtrado del radar
+  // (`puntos`), no sólo la página del ranking (`escuelas.items`): los puntos de
+  // riesgo deben cubrir el padrón completo, no los 50 de la página 1. El cruce
+  // es contra las coordenadas del padrón que arma `escuelasConCoordenadas`.
   const riesgoPorCue = useMemo(() => {
     const map = new Map<string, RiesgoEscuela>()
-    for (const escuela of radarData?.escuelas.items ?? []) {
-      map.set(escuela.cueAnexo, {
-        nivelRiesgo: escuela.nivelRiesgo,
-        confianza: escuela.confianza,
+    for (const punto of radarData?.puntos ?? []) {
+      map.set(punto.cueAnexo, {
+        nivelRiesgo: punto.nivelRiesgo,
+        confianza: punto.confianza,
       })
     }
     return map
   }, [radarData])
 
+  // Coordenadas de riesgo: el padrón completo de M1 (`useEscuelasMapa`), no
+  // `dataVisible.partes`. El padrón es la fuente de coordenadas de todas las
+  // escuelas del departamento visible, incluidas las que no tienen parte; reusar
+  // partes dejaba sin punto a toda escuela sin afectación reportada.
   const escuelasConCoordenadas = useMemo(
     () =>
-      (dataVisible?.partes ?? [])
-        .filter((parte) => parte.lat !== null && parte.lon !== null)
-        .map((parte) => ({
-          cueAnexo: parte.cueAnexo,
-          lat: parte.lat as number,
-          lon: parte.lon as number,
+      (dataEscuelasMapaVisible?.escuelas ?? [])
+        .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
+        .map((escuela) => ({
+          cueAnexo: escuela.cueAnexo,
+          lat: escuela.lat as number,
+          lon: escuela.lon as number,
         })),
-    [dataVisible],
+    [dataEscuelasMapaVisible],
   )
 
   const puntosRiesgoGeojson = useMemo(
@@ -1140,14 +1145,15 @@ export default function MapInfraestructuraPage(props: {
   }, [puntosRiesgoGeojson, cuesNoAgrupados])
 
   // Riesgo de acceso (E6): mismo patrón que riesgoPorCue/puntosRiesgoGeojson
-  // de arriba, pero leyendo `nivelRiesgoAcceso` del item del radar en vez de
-  // `nivelRiesgo`. Dimensión separada, no una variante de color de la capa
-  // existente.
+  // de arriba, pero leyendo `nivelRiesgoAcceso` del punto del radar en vez de
+  // `nivelRiesgo`. Itera `puntos` (todo el universo filtrado), igual que la
+  // capa de riesgo compuesto. Dimensión separada, no una variante de color de
+  // la capa existente.
   const riesgoAccesoPorCue = useMemo(() => {
     const map = new Map<string, RiesgoAccesoEscuela>()
-    for (const escuela of radarData?.escuelas.items ?? []) {
-      map.set(escuela.cueAnexo, {
-        nivel: (escuela.nivelRiesgoAcceso ?? null) as 'bajo' | 'moderado' | 'alto' | null,
+    for (const punto of radarData?.puntos ?? []) {
+      map.set(punto.cueAnexo, {
+        nivel: (punto.nivelRiesgoAcceso ?? null) as 'bajo' | 'moderado' | 'alto' | null,
       })
     }
     return map

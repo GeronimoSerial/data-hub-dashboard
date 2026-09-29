@@ -17,6 +17,12 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // hoistea por encima del resto del archivo.
 const { FLY_TO_MOCK } = vi.hoisted(() => ({ FLY_TO_MOCK: vi.fn() }))
 
+// T5a: cues que el doble del mapa devuelve como DESAGRUPADAS en
+// `querySourceFeatures`. Lista mutable para que un test puntual pueda sumar
+// escuelas sin depender de los globales; `beforeEach` la deja en su valor por
+// defecto (las dos escuelas del padrón de abajo).
+const CUES_DESAGRUPADOS_MOCK = vi.hoisted(() => ({ cues: [] as string[] }))
+
 const PARTE: ParteMapa = {
   parteId: 'p1',
   cueAnexo: CUE,
@@ -196,6 +202,19 @@ const RADAR_DATA = {
     { departamento: 'CAPITAL', peorNivel: 'rojo', horizonteHoras: 24, celdas: 2 },
     { departamento: 'CAPITAL', peorNivel: 'verde', horizonteHoras: 72, celdas: 2 },
   ],
+  // T5a: cobertura del mapa por escuela (todo el universo filtrado). Se
+  // mantiene sincronizado con `escuelas.items` para los tests que ya
+  // esperaban el marcador de CUE; el test de cobertura completa lo reemplaza
+  // temporalmente.
+  puntos: [
+    {
+      cueAnexo: CUE,
+      horizonteHoras: 24,
+      nivelRiesgo: 'alto',
+      confianza: 'media',
+      nivelRiesgoAcceso: 'alto',
+    },
+  ],
   escuelas: {
     items: [
       {
@@ -305,13 +324,12 @@ vi.mock('react-map-gl/maplibre', () => {
           stop: vi.fn(),
           // `infra-partes-src` tiene que existir para que
           // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
-          // las dos escuelas del padrón como desagrupadas, así los <Marker>
-          // DOM (badge de estado y riesgo) se renderizan en jsdom.
+          // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
+          // escuelas del padrón) como desagrupadas, así los <Marker> DOM
+          // (badge de estado y riesgo) se renderizan en jsdom.
           getSource: (id: string) => (id === 'infra-partes-src' ? {} : undefined),
-          querySourceFeatures: () => [
-            { properties: { cueAnexo: CUE } },
-            { properties: { cueAnexo: CUE_SIN_AFECTACION } },
-          ],
+          querySourceFeatures: () =>
+            CUES_DESAGRUPADOS_MOCK.cues.map((cueAnexo) => ({ properties: { cueAnexo } })),
         }),
       }),
       [],
@@ -427,6 +445,8 @@ beforeEach(() => {
   llamadasRadar.activos.length = 0
   llamadasReplay.activos.length = 0
   llamadasSnapshot.snapshotIds.length = 0
+  CUES_DESAGRUPADOS_MOCK.cues.length = 0
+  CUES_DESAGRUPADOS_MOCK.cues.push(CUE, CUE_SIN_AFECTACION)
   vi.stubGlobal(
     'fetch',
     vi.fn().mockResolvedValue({
@@ -650,6 +670,50 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     // La fuente/capas circle viejas de riesgo compuesto desaparecieron. La de
     // acceso (`infra-riesgo-acceso-src`) sigue intacta, es otra dimensión.
     expect(screen.queryByTestId('mock-source-infra-riesgo-src')).not.toBeInTheDocument()
+  })
+
+  // T5a: la capa de riesgo cubre TODO el universo filtrado (`puntos`), no sólo
+  // la página 1 del ranking (`escuelas.items`, 50 filas) ni las escuelas con
+  // parte (`dataVisible.partes`). Acá `escuelas.items` trae UNA escuela
+  // mientras `puntos` trae tres que sólo existen en el padrón y no tienen
+  // parte: las tres tienen que dibujar su marcador. Antes de T5a no se
+  // dibujaba ninguna (no estaban en `items` ni en `partes`).
+  it('dibuja un marcador de riesgo por cada punto del radar, aunque no esté en la página del ranking ni tenga parte', async () => {
+    const CUES_SIN_PARTE = ['1801605-96', '1801605-97', '1801605-98']
+    const puntosOriginales = RADAR_DATA.puntos
+    for (const cueAnexo of CUES_SIN_PARTE) {
+      FIXTURE_ESCUELAS_MAPA.escuelas.push({
+        cueAnexo,
+        nombre: `Escuela sin parte ${cueAnexo}`,
+        departamento: 'Capital',
+        localidad: 'Corrientes',
+        lat: -27.5,
+        lon: -58.8,
+        estado: 'sin_afectacion_reportada' as const,
+      })
+      CUES_DESAGRUPADOS_MOCK.cues.push(cueAnexo)
+    }
+    RADAR_DATA.puntos = CUES_SIN_PARTE.map((cueAnexo) => ({
+      cueAnexo,
+      horizonteHoras: 24,
+      nivelRiesgo: 'alto',
+      confianza: 'media',
+      nivelRiesgoAcceso: 'alto',
+    }))
+
+    try {
+      await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+      await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+
+      for (const cueAnexo of CUES_SIN_PARTE) {
+        const icono = await screen.findByRole('button', { name: `Riesgo alto: ${cueAnexo}` })
+        expect(icono).toHaveAttribute('data-capa', 'infra-riesgo-icono')
+      }
+    } finally {
+      FIXTURE_ESCUELAS_MAPA.escuelas.splice(2)
+      CUES_DESAGRUPADOS_MOCK.cues.length = 2
+      RADAR_DATA.puntos = puntosOriginales
+    }
   })
 
   it('al seleccionar una escuela del radar pide el detalle por snapshotId y muestra sus factores', async () => {
