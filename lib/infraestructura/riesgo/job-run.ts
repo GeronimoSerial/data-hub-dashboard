@@ -10,6 +10,32 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraJobRun } from '@/lib/db/schema'
 import type { EstadoJob } from './tipos'
 
+// Corrección de revisión (hallazgo H3, docs/ejecucion-enos/E2/registro.md
+// §5): `corridaEn` identifica LA CORRIDA del modelo, no el instante en que
+// este proceso la consultó. Si se pasara `ahora` (wall-clock) tal cual a los
+// providers, dos invocaciones dentro del MISMO bloque de 6h (ej. una
+// recuperación de lease vencido) generarían `corridaEn` distintos por
+// milisegundos — el índice único de `hazard_forecast` no dedupicaría, pese a
+// ser la misma ventana. Se ancla `corridaEn` (y con él, el horizonte
+// horas-desde-la-corrida) al INICIO del bloque de 6h, que es estable para
+// toda invocación dentro de esa ventana.
+export function inicioDeBloqueUtc(ahora: Date): Date {
+  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
+  return new Date(
+    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), bloqueHoras, 0, 0, 0),
+  )
+}
+
+/** Clave estable compartida por invocaciones dentro del mismo bloque de 6h. */
+export function claveIdempotenteDeBloque6h(ahora: Date): string {
+  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
+  const anio = ahora.getUTCFullYear()
+  const mes = String(ahora.getUTCMonth() + 1).padStart(2, '0')
+  const dia = String(ahora.getUTCDate()).padStart(2, '0')
+  const hora = String(bloqueHoras).padStart(2, '0')
+  return `${anio}-${mes}-${dia}T${hora}`
+}
+
 type AdquirirLeaseParams = {
   tipo: string
   claveIdempotente: string

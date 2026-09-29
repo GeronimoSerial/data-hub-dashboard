@@ -47,13 +47,13 @@
 // ~0.25°, nunca un error de cupo (nunca se subestima el peso real de una
 // request ya agrupada).
 import { z } from 'zod'
+import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
 import { CONFIG_FUENTES } from './config-fuentes'
 import {
-  agregarApiKey,
   apiKeyDesdeEntorno,
   asegurarPesoAlcanzable,
-  construirBaseUrl,
   limiteVentana,
   MOTIVOS_CUPO_SIN_RED,
   pesoLlamada,
@@ -65,12 +65,6 @@ const RUTA = CONFIG_FUENTES.climatologia.ruta
 const PERCENTILES = [90, 95, 99] as const
 const CANTIDAD_VARIABLES_CLIMATOLOGIA = 1
 
-/** Días de calendario entre dos fechas `YYYY-MM-DD` (inclusive), para OM-cupo. */
-function diasEntreFechas(desde: string, hasta: string): number {
-  const msPorDia = 86_400_000
-  const dias = Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / msPorDia) + 1
-  return Math.max(1, dias)
-}
 const UMBRAL_DIA_HUMEDO_MM = 1
 
 // -----------------------------------------------------------------------
@@ -139,13 +133,6 @@ export function estimarCostoClimatologia(params: {
     variables: params.variables ?? CANTIDAD_VARIABLES_CLIMATOLOGIA,
     dias,
   })
-}
-
-/** Percentil por índice: orden ascendente, `ceil(p/100 * n) - 1` clampeado. */
-function calcularPercentil(valoresOrdenados: number[], percentil: number): number {
-  const n = valoresOrdenados.length
-  const indice = Math.min(Math.max(Math.ceil((percentil / 100) * n) - 1, 0), n - 1)
-  return valoresOrdenados[indice]
 }
 
 /**
@@ -303,14 +290,6 @@ export function partirPeriodoEnTramos(
 }
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
-function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
-  const lotes: T[][] = []
-  for (let i = 0; i < items.length; i += tamano) {
-    lotes.push(items.slice(i, i + tamano))
-  }
-  return lotes
-}
-
 export type PuntoClimatologia = { geometryRef: string; lat: number; lon: number }
 
 export type ResultadoSeriesHistoricas = {
@@ -334,11 +313,13 @@ function construirUrlLote(
   periodoHasta: string,
   apiKey: string | undefined,
 ): string {
-  const latitudes = puntos.map((punto) => String(punto.lat)).join(',')
-  const longitudes = puntos.map((punto) => String(punto.lon)).join(',')
-  const base = construirBaseUrl('archive-api', RUTA, apiKey)
-  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=precipitation_sum&timezone=UTC`
-  return agregarApiKey(url, apiKey)
+  return construirUrlLoteOpenMeteo({
+    subdominio: 'archive-api',
+    ruta: RUTA,
+    puntos,
+    queryExtra: `&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=precipitation_sum&timezone=UTC`,
+    apiKey,
+  })
 }
 
 /**
@@ -346,18 +327,6 @@ function construirUrlLote(
  * (varias) y exige que la cantidad coincida con las coordenadas enviadas: si
  * no, el lote entero cae como `payload_invalido` en vez de quedar desalineado.
  */
-function crearParserLoteClima(cantidad: number) {
-  return (json: unknown): Array<z.infer<typeof payloadArchivoElementoSchema>> => {
-    const bruto = Array.isArray(json) ? json : [json]
-    if (bruto.length !== cantidad) {
-      throw new Error(
-        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
-      )
-    }
-    return bruto.map((elemento) => payloadArchivoElementoSchema.parse(elemento))
-  }
-}
-
 /**
  * Obtiene la serie histórica diaria de precipitación de VARIOS puntos en una
  * sola pasada. Primero deduplica por celda ERA5 (`agruparPuntosPorEra5`, ver
@@ -430,7 +399,7 @@ export async function obtenerSeriesHistoricas(params: {
         url: construirUrlLote(puntosLote, tramo.desde, tramo.hasta, apiKey),
         fetchImpl: params.fetchImpl,
         cupo,
-        parsearPayload: crearParserLoteClima(puntosLote.length),
+        parsearPayload: crearParserLote(payloadArchivoElementoSchema, puntosLote.length),
       })
 
       if (!resultado.ok) {

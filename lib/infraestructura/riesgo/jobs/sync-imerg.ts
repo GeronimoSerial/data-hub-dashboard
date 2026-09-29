@@ -40,10 +40,11 @@ import { randomUUID } from 'node:crypto'
 import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
-import { hazardObservation, hazardSourceHealth } from '@/lib/db/schema'
+import { hazardObservation } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { CONFIG_FUENTES } from '../providers/config-fuentes'
 import { crearAdaptadorImerg } from '../adaptadores-ingesta/imerg'
+import { actualizarSaludFuente } from './salud-fuente'
 import type {
   GranuloSatelital,
   ObservacionPrecipitacionCelda,
@@ -148,38 +149,16 @@ async function actualizarSalud(
   ultimoErrorSaneado: string | null,
   ahoraIso: string,
 ): Promise<void> {
-  const hayExito = estado === 'ok'
   // Upsert único: seguro de reintentar ante SQLITE_BUSY (job, no request
   // path), el statement no deja nada aplicado si no llega a correr.
-  await conReintentoPorBloqueo(() =>
-    db
-      .insert(hazardSourceHealth)
-      .values({
-        provider: PROVIDER,
-        // Un insert degradado/no disponible no conoce un éxito previo: null.
-        ultimoExitoEn: hayExito ? ahoraIso : null,
-        ultimoIntentoEn: ahoraIso,
-        estado,
-        ultimoErrorSaneado,
-        ttlMinutos: TTL_MINUTOS,
-        licencia: LICENCIA,
-        actualizadaEn: ahoraIso,
-      })
-      .onConflictDoUpdate({
-        target: hazardSourceHealth.provider,
-        set: {
-          estado,
-          ultimoIntentoEn: ahoraIso,
-          ultimoErrorSaneado,
-          ttlMinutos: TTL_MINUTOS,
-          licencia: LICENCIA,
-          actualizadaEn: ahoraIso,
-          // En degradado/no disponible se preserva el último éxito conocido; en
-          // ok se actualiza.
-          ...(hayExito ? { ultimoExitoEn: ahoraIso } : {}),
-        },
-      }),
-  )
+  await actualizarSaludFuente(db, {
+    provider: PROVIDER,
+    ttlMinutos: TTL_MINUTOS,
+    licencia: LICENCIA,
+    estado,
+    ultimoErrorSaneado,
+    ahoraIso,
+  })
 }
 
 // Deduplicación a nivel de todo el batch por `geometryRef`. `mapearAsciiImergACeldas`

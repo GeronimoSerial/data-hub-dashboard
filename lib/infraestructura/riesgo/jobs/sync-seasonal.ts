@@ -19,7 +19,7 @@
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { hazardSeasonalTrend, hazardSourceHealth } from '@/lib/db/schema'
+import { hazardSeasonalTrend } from '@/lib/db/schema'
 import { CENTROIDES_DEPARTAMENTOS_CORRIENTES } from '@/lib/mapas/departamento-centroides'
 import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
 import {
@@ -35,6 +35,7 @@ import type {
   EstadisticaEstacionalNormalizada,
   PuertoTendenciaEstacional,
 } from '../adaptadores-ingesta/puertos'
+import { actualizarSaludFuente, resumirErrores } from './salud-fuente'
 
 // Mismos defaults que providers/seasonal.ts (`obtenerTendenciaEstacional`):
 // el job los pasa explícitos porque el puerto normalizado no tiene default
@@ -166,34 +167,15 @@ async function actualizarSalud(
   erroresPorDepartamento: Record<string, string>,
   ahoraIso: string,
 ): Promise<void> {
-  const mensajes = Object.values(erroresPorDepartamento)
-  const hayError = mensajes.length > 0
-  const primerError = hayError ? mensajes[0].slice(0, LARGO_MAX_ERROR) : null
-
-  await db
-    .insert(hazardSourceHealth)
-    .values({
-      provider: PROVIDER,
-      ultimoExitoEn: hayError ? null : ahoraIso,
-      ultimoIntentoEn: ahoraIso,
-      estado: hayError ? 'degradado' : 'ok',
-      ultimoErrorSaneado: primerError,
-      ttlMinutos: TTL_MINUTOS,
-      licencia: LICENCIA,
-      actualizadaEn: ahoraIso,
-    })
-    .onConflictDoUpdate({
-      target: hazardSourceHealth.provider,
-      set: {
-        estado: hayError ? 'degradado' : 'ok',
-        ultimoIntentoEn: ahoraIso,
-        ultimoErrorSaneado: primerError,
-        ttlMinutos: TTL_MINUTOS,
-        licencia: LICENCIA,
-        actualizadaEn: ahoraIso,
-        ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
-      },
-    })
+  await actualizarSaludFuente(db, {
+    provider: PROVIDER,
+    ttlMinutos: TTL_MINUTOS,
+    licencia: LICENCIA,
+    ...resumirErrores(erroresPorDepartamento, LARGO_MAX_ERROR),
+    ahoraIso,
+    // Seasonal preserva su ejecución sin reintento SQLITE_BUSY.
+    reintentarSiBloqueado: false,
+  })
 }
 
 export async function ejecutarSyncSeasonal(params?: {

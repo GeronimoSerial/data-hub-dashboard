@@ -41,7 +41,7 @@ import type {
   ResumenExposicion,
   ResumenHistorial,
 } from '../motor/puertos'
-import { adquirirLease, publicarResultado, renovarLease } from '../job-run'
+import { adquirirLease, inicioDeBloqueUtc, publicarResultado, renovarLease } from '../job-run'
 
 const TIPO_JOB = 'calcular-riesgo-v0'
 const VERSION_JOB = 'v1'
@@ -88,16 +88,6 @@ const HORIZONTES: readonly HorizontePeligro[] = [24, 72, 240] as const
 export type ResultadoJobCalcularRiesgo =
   | { ejecutado: true; runId: string; escuelasProcesadas: number; conEvidencia: number; sinEvidencia: number }
   | { ejecutado: false; motivo: 'en_progreso_vigente' | 'ya_completado' | 'cobertura_insuficiente' }
-
-// Mismo criterio de bloque de 6h UTC (00, 06, 12, 18) que
-// sync-pronostico-caudal.ts: dos corridas dentro del mismo bloque comparten
-// claveIdempotente y por lo tanto son la MISMA corrida.
-function inicioDeBloqueUtc(ahora: Date): Date {
-  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
-  return new Date(
-    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), bloqueHoras, 0, 0, 0),
-  )
-}
 
 function construirPuertosReales(): PuertosMotor {
   return {

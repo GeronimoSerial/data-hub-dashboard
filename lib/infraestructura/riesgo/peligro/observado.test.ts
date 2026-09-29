@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { hazardObservation } from '@/lib/db/schema'
+import { crearGeneradoresGranulos } from '../__fixtures__/granulos'
 import type { getDb as GetDb } from '@/lib/db'
 import type {
   calcularAcumuladoObservado as CalcularAcumuladoObservado,
@@ -20,34 +21,7 @@ let obtenerAcumuladoObservado: typeof ObtenerAcumuladoObservado
 let obtenerAcumuladosObservados: typeof ObtenerAcumuladosObservados
 
 const CELDA = '-27.5_-58.8'
-const PROVIDER = 'nasa-imerg'
-const VARIABLE = 'precipitacion_observada_satelital'
-
-// Gránulo sintético a partir del `finEn` (validoHasta): `observadoEn`/
-// `validoDesde` no importan para el cálculo, sólo `valor`/`validoHasta`.
-function granulo(finEn: string, valor: number) {
-  return {
-    id: randomUUID(),
-    provider: PROVIDER,
-    variable: VARIABLE,
-    geometryRef: CELDA,
-    valor,
-    unidad: 'mm/30min',
-    observadoEn: finEn,
-    validoDesde: finEn,
-    validoHasta: finEn,
-    calidad: null,
-    rawRef: null,
-    ingeridoEn: finEn,
-  }
-}
-
-// Genera `n` gránulos consecutivos de 30 min, terminando en `finMasReciente`
-// (inclusive) y yendo hacia atrás, todos con el mismo `valor`.
-function granulosConsecutivos(finMasReciente: string, n: number, valor: number) {
-  const finMs = Date.parse(finMasReciente)
-  return Array.from({ length: n }, (_, i) => granulo(new Date(finMs - i * 30 * 60 * 1000).toISOString(), valor))
-}
+const { granulo, granulosConsecutivos } = crearGeneradoresGranulos(CELDA)
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'observado-'))

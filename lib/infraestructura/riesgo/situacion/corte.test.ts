@@ -31,6 +31,7 @@ import type {
   obtenerUltimoCorte as ObtenerUltimoCorte,
   reconstruirBriefingDesdeCorte as ReconstruirBriefingDesdeCorte,
 } from './corte'
+import { insertarRunVigente, limpiarDatosSituacion } from './__fixtures__/persistencia'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -68,35 +69,7 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true })
 })
 
-async function limpiar(): Promise<void> {
-  await db.delete(infraSituacionCorte)
-  await db.delete(infraRiskSnapshot)
-  await db.delete(infraRiskRun)
-  await db.delete(infraAfectacionAlumno)
-  await db.delete(infraAfectacion)
-  await db.delete(infraParte)
-  await db.delete(infraEpisodioDerivado)
-  await db.delete(hazardSourceHealth)
-}
-
-beforeEach(limpiar)
-
-async function insertarRunVigente(
-  cobertura: Record<string, number> | null = { procesadas: 10, conEvidencia: 8, sinEvidencia: 2 },
-): Promise<string> {
-  const id = randomUUID()
-  await db.insert(infraRiskRun).values({
-    id,
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    modeloVersion: 'riesgo-v0',
-    iniciadoEn: '2026-09-27T10:00:00.000Z',
-    publicadoEn: '2026-09-27T10:05:00.000Z',
-    estado: 'vigente',
-    cobertura,
-    creadaEn: '2026-09-27T10:00:00.000Z',
-  })
-  return id
-}
+beforeEach(() => limpiarDatosSituacion(db))
 
 async function insertarSnapshot(
   runId: string,
@@ -195,7 +168,7 @@ async function insertarEpisodio(
 }
 
 async function sembrarBase(): Promise<string> {
-  const runId = await insertarRunVigente()
+  const runId = await insertarRunVigente(db)
   await insertarSnapshot(runId, '1800001-00', 'bajo')
   await insertarSnapshot(runId, '1800002-00', 'moderado')
   await insertarSnapshot(runId, '1800003-00', 'alto')
@@ -266,7 +239,7 @@ describe('generarCorte', () => {
   it('cuenta ESCUELAS con afectación confirmada, no alumnos ni matrícula expuesta', async () => {
     // Run con un snapshot que expone 999 alumnos de matrícula: NO debe sumarse
     // a ningún KPI (el corte no arrastra universos de alumnos).
-    const runId = await insertarRunVigente(null)
+    const runId = await insertarRunVigente(db, null)
     await insertarSnapshot(runId, '1800100-00', 'bajo', { exposicionMatricula: 999 })
 
     // Escuela A: 2 afectaciones vigentes y 3 alumnos nominales seleccionados.
@@ -312,7 +285,7 @@ describe('generarCorte', () => {
   })
 
   it('cuenta episodios cerrados comparando contra el corte anterior persistido', async () => {
-    await insertarRunVigente()
+    await insertarRunVigente(db)
     const episodioId = await insertarEpisodio('abierto')
 
     const corte1 = await generarCorte({
@@ -359,7 +332,7 @@ describe('obtenerUltimoCorte / obtenerCorteAnterior', () => {
   })
 
   it('devuelve el corte más reciente y su anterior por generadoEn', async () => {
-    await insertarRunVigente()
+    await insertarRunVigente(db)
     const corte1 = await generarCorte({
       ahora: new Date('2026-09-27T10:00:00.000Z'),
       jobRunId: null,
@@ -382,7 +355,7 @@ describe('obtenerUltimoCorte / obtenerCorteAnterior', () => {
 
 describe('reconstruirBriefingDesdeCorte', () => {
   it('reconstruye EXACTAMENTE el mismo briefing que generarBriefing con los datos en vivo del corte, sin consultar infra_risk_run', async () => {
-    const runId = await insertarRunVigente({ procesadas: 20, conEvidencia: 18, sinEvidencia: 2 })
+    const runId = await insertarRunVigente(db, { procesadas: 20, conEvidencia: 18, sinEvidencia: 2 })
     await insertarSnapshot(runId, '1800001-00', 'alto')
     await insertarSnapshot(runId, '1800002-00', 'muy_alto')
 
@@ -428,7 +401,7 @@ describe('reconstruirBriefingDesdeCorte', () => {
   })
 
   it('sin corte anterior devuelve la línea de "primer resumen del día", sin exponer el id interno', async () => {
-    await insertarRunVigente()
+    await insertarRunVigente(db)
     const corte1 = await generarCorte({ ahora: new Date(AHORA), jobRunId: null })
     const ultimo = (await obtenerUltimoCorte())!
     expect(ultimo.id).toBe(corte1.corteId)

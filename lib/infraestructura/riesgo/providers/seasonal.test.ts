@@ -5,6 +5,7 @@ import {
   obtenerTendenciaEstacional,
   TAMANO_LOTE_DEPARTAMENTOS_SEASONAL,
 } from './seasonal'
+import { longitudesDeUrl } from './__fixtures__/url'
 
 // Fixture REAL fechado (única request real permitida en este batch, ver
 // registro.md): captura del endpoint Seasonal de Open-Meteo para el
@@ -14,10 +15,6 @@ const fixtureReal = JSON.parse(
 ) as unknown as { daily: { time: string[] } & Record<string, unknown> }
 
 const EMISION_EN = new Date('2026-09-27T00:00:00Z')
-
-function longitudesDeUrl(url: string): number[] {
-  return (new URL(url).searchParams.get('longitude') ?? '').split(',').map(Number)
-}
 
 // Payload sintético por departamento: cada miembro reparte la longitud entre
 // los días, de modo que el acumulado de la ventana [30,90] sea determinístico

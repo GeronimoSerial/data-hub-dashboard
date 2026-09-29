@@ -44,8 +44,9 @@
 // percentil climatológico; el nombre de la columna y la UI lo dejan claro
 // ("regional, probabilístico, nunca valor por escuela").
 import { z } from 'zod'
+import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import { CONFIG_FUENTES } from './config-fuentes'
 
@@ -81,14 +82,6 @@ const TODOS_LOS_MIEMBROS = [MIEMBRO_CONTROL, ...NOMBRES_MIEMBROS_PERTURBADOS]
 export const MIEMBROS_TOTAL_SEASONAL = TODOS_LOS_MIEMBROS.length
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
-function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
-  const lotes: T[][] = []
-  for (let i = 0; i < items.length; i += tamano) {
-    lotes.push(items.slice(i, i + tamano))
-  }
-  return lotes
-}
-
 export type CentroideDepartamentoConsulta = { departamento: string; lat: number; lon: number }
 
 export type EstadisticaEstacionalDepartamento = {
@@ -145,14 +138,13 @@ function construirUrlLote(
   centroides: CentroideDepartamentoConsulta[],
   apiKey: string | undefined,
 ): string {
-  const latitudes = centroides.map((c) => String(c.lat)).join(',')
-  const longitudes = centroides.map((c) => String(c.lon)).join(',')
-  const base = construirBaseUrl('seasonal-api', RUTA, apiKey)
-  const url =
-    `${base}?latitude=${latitudes}&longitude=${longitudes}` +
-    `&daily=${VARIABLE_DIARIA_SEASONAL}&models=${MODELO_SEASONAL}` +
-    `&forecast_days=${FORECAST_DAYS_SOLICITADOS}&timezone=UTC`
-  return agregarApiKey(url, apiKey)
+  return construirUrlLoteOpenMeteo({
+    subdominio: 'seasonal-api',
+    ruta: RUTA,
+    puntos: centroides,
+    queryExtra: `&daily=${VARIABLE_DIARIA_SEASONAL}&models=${MODELO_SEASONAL}&forecast_days=${FORECAST_DAYS_SOLICITADOS}&timezone=UTC`,
+    apiKey,
+  })
 }
 
 /**
@@ -160,18 +152,6 @@ function construirUrlLote(
  * el array (varias) y exige que la cantidad coincida; si no, el lote entero
  * cae como `payload_invalido`.
  */
-function crearParserLoteSeasonal(cantidad: number) {
-  return (json: unknown): PayloadSeasonalElemento[] => {
-    const bruto = Array.isArray(json) ? json : [json]
-    if (bruto.length !== cantidad) {
-      throw new Error(
-        `se esperaban ${cantidad} objetos (uno por departamento) y llegaron ${bruto.length}`,
-      )
-    }
-    return bruto.map((elemento) => payloadSeasonalElementoSchema.parse(elemento))
-  }
-}
-
 function fechaIsoUtc(fecha: Date): string {
   return fecha.toISOString().slice(0, 10)
 }
@@ -333,7 +313,7 @@ export async function obtenerTendenciaEstacional(params: {
       url: construirUrlLote(lote, apiKey),
       fetchImpl,
       cupo,
-      parsearPayload: crearParserLoteSeasonal(lote.length),
+      parsearPayload: crearParserLote(payloadSeasonalElementoSchema, lote.length, 'departamento'),
     })
 
     if (!resultado.ok) {

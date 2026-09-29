@@ -10,9 +10,7 @@ import {
   infraGeoProfile,
   infraMovimiento,
   infraParte,
-  infraRiskRun,
   infraRiskSnapshot,
-  infraSituacionCorte,
 } from '@/lib/db/schema'
 import { PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
 import type { getDb as GetDb } from '@/lib/db'
@@ -24,6 +22,7 @@ import type {
   obtenerEstadoSituacion as ObtenerEstadoSituacion,
   obtenerTopPrioridades as ObtenerTopPrioridades,
 } from './consulta'
+import { insertarRunVigente, limpiarDatosSituacion } from './__fixtures__/persistencia'
 
 let dir: string
 let prevDataDir: string | undefined
@@ -65,18 +64,8 @@ beforeEach(() => {
 afterEach(async () => {
   if (prevEnosJobsEnabled === undefined) delete process.env.ENOS_JOBS_ENABLED
   else process.env.ENOS_JOBS_ENABLED = prevEnosJobsEnabled
-  await limpiar()
+  await limpiarDatosSituacion(db)
 })
-
-async function limpiar(): Promise<void> {
-  await db.delete(infraSituacionCorte)
-  await db.delete(infraRiskSnapshot)
-  await db.delete(infraRiskRun)
-  await db.delete(infraMovimiento)
-  await db.delete(infraParte)
-  await db.delete(infraEpisodioDerivado)
-  await db.delete(infraGeoProfile)
-}
 
 const DIFF_VACIO = {
   afectacionesAgregadas: [],
@@ -100,21 +89,6 @@ async function insertarGeoProfile(cueAnexo: string, departamento: string): Promi
     perfilVersion: 'v0',
     calculadoEn: '2026-09-01T00:00:00.000Z',
   })
-}
-
-async function insertarRunVigente(): Promise<string> {
-  const id = randomUUID()
-  await db.insert(infraRiskRun).values({
-    id,
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    modeloVersion: 'riesgo-v0',
-    iniciadoEn: '2026-09-27T10:00:00.000Z',
-    publicadoEn: '2026-09-27T10:05:00.000Z',
-    estado: 'vigente',
-    cobertura: { procesadas: 10, conEvidencia: 8, sinEvidencia: 2 },
-    creadaEn: '2026-09-27T10:00:00.000Z',
-  })
-  return id
 }
 
 async function insertarSnapshot(
@@ -178,7 +152,7 @@ describe('obtenerTopPrioridades', () => {
     await insertarGeoProfile('1800001-00', 'PARANA')
     await insertarGeoProfile('1800002-00', 'PARANA')
     await insertarGeoProfile('1800003-00', 'CONCORDIA')
-    const runId = await insertarRunVigente()
+    const runId = await insertarRunVigente(db)
     await insertarSnapshot(runId, '1800001-00', 'alto', 0.6)
     await insertarSnapshot(runId, '1800002-00', 'muy_alto', 0.9)
     await insertarSnapshot(runId, '1800003-00', 'muy_alto', 0.95)
@@ -215,7 +189,7 @@ describe('obtenerEstadoSituacion', () => {
 
   it('con un corte reciente, no está atrasado y expone su briefing reconstruido', async () => {
     process.env.ENOS_JOBS_ENABLED = 'true'
-    await insertarRunVigente()
+    await insertarRunVigente(db)
     const ahora = new Date('2026-09-27T12:00:00.000Z')
     await generarCorte({ ahora, jobRunId: null })
 
@@ -227,7 +201,7 @@ describe('obtenerEstadoSituacion', () => {
 
   it('con un corte viejo (más de 2 cadencias, 1h cada una), marca desactualizado', async () => {
     process.env.ENOS_JOBS_ENABLED = 'true'
-    await insertarRunVigente()
+    await insertarRunVigente(db)
     await generarCorte({ ahora: new Date('2026-09-27T09:00:00.000Z'), jobRunId: null })
 
     const estado = await obtenerEstadoSituacion({ ahora: new Date('2026-09-27T12:30:00.000Z') })
@@ -301,7 +275,7 @@ describe('obtenerCambiosDesde', () => {
   })
 
   it('detecta cambios de nivel de riesgo entre cortes consecutivos (global, registro=vigencia)', async () => {
-    const runId = await insertarRunVigente()
+    const runId = await insertarRunVigente(db)
     await insertarSnapshot(runId, '1800001-00', 'alto', 0.5)
 
     const corte1 = await generarCorte({ ahora: new Date('2026-09-27T10:00:00.000Z'), jobRunId: null })

@@ -18,8 +18,10 @@
 // - Un fallo de lote no tumba al resto: sus celdas van a `erroresPorCelda` y se
 //   siguen procesando los demás lotes.
 import { z } from 'zod'
+import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import { CONFIG_FUENTES } from './config-fuentes'
 
@@ -63,14 +65,6 @@ const MIEMBROS_TOTAL_ENSEMBLE = NOMBRES_MIEMBROS.length
 const VARIABLES_SOLICITADAS_ENSEMBLE = 1
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
-function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
-  const lotes: T[][] = []
-  for (let i = 0; i < items.length; i += tamano) {
-    lotes.push(items.slice(i, i + tamano))
-  }
-  return lotes
-}
-
 /**
  * Cuántos miembros superan un umbral y qué probabilidad representa sobre los
  * miembros VÁLIDOS (no-null).
@@ -160,11 +154,13 @@ function serieDeMiembro(
 type CeldaEnsemble = { geometryRef: string; lat: number; lon: number }
 
 function construirUrlLote(celdas: CeldaEnsemble[], apiKey: string | undefined): string {
-  const latitudes = celdas.map((celda) => String(celda.lat)).join(',')
-  const longitudes = celdas.map((celda) => String(celda.lon)).join(',')
-  const base = construirBaseUrl('ensemble-api', RUTA, apiKey)
-  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&hourly=precipitation&models=${MODELO_ENSEMBLE}&forecast_days=${DIAS_PRONOSTICO_ENSEMBLE}&timezone=UTC`
-  return agregarApiKey(url, apiKey)
+  return construirUrlLoteOpenMeteo({
+    subdominio: 'ensemble-api',
+    ruta: RUTA,
+    puntos: celdas,
+    queryExtra: `&hourly=precipitation&models=${MODELO_ENSEMBLE}&forecast_days=${DIAS_PRONOSTICO_ENSEMBLE}&timezone=UTC`,
+    apiKey,
+  })
 }
 
 /**
@@ -174,27 +170,6 @@ function construirUrlLote(celdas: CeldaEnsemble[], apiKey: string | undefined): 
  * desalineado. El `.superRefine` del schema garantiza que las 51 series tengan
  * el mismo largo que `time`.
  */
-function crearParserLoteEnsemble(cantidad: number) {
-  return (json: unknown): PayloadEnsembleElemento[] => {
-    const bruto = Array.isArray(json) ? json : [json]
-    if (bruto.length !== cantidad) {
-      throw new Error(
-        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
-      )
-    }
-    return bruto.map((elemento) => payloadEnsembleElementoSchema.parse(elemento))
-  }
-}
-
-/** Interpreta el timestamp de Open-Meteo como UTC (viene sin sufijo 'Z'). */
-function parsearTimestampUtc(ts: string): number {
-  return Date.parse(ts.includes('Z') || ts.includes('+') ? ts : `${ts}Z`)
-}
-
-function isoUtc(ts: string): string {
-  return ts.includes('Z') || ts.includes('+') ? ts : `${ts}Z`
-}
-
 /**
  * Acumula por miembro y calcula las probabilidades de CADA ventana de 24 h
  * consecutivas y completas de la serie. Una ventana es `[inicio, inicio+23]`;
@@ -307,7 +282,7 @@ export async function obtenerProbabilidadesEnsemble(params: {
       url: construirUrlLote(lote, apiKey),
       fetchImpl,
       cupo,
-      parsearPayload: crearParserLoteEnsemble(lote.length),
+      parsearPayload: crearParserLote(payloadEnsembleElementoSchema, lote.length),
     })
 
     if (!resultado.ok) {

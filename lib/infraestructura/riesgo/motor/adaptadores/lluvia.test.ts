@@ -3,57 +3,25 @@
 // patrón de DB en memoria que observado.test.ts: DATA_DIR temporal +
 // ensureSeeded y borrado de la tabla entre tests. Nunca se golpea la red (no
 // hay ningún fetch a IMERG/Earthdata acá).
-import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { hazardObservation } from '@/lib/db/schema'
+import { crearGeneradoresGranulos } from '../../__fixtures__/granulos'
 import type { getDb as GetDb } from '@/lib/db'
 import type { LluviaObservadaCelda } from '../puertos'
 import type { crearAdapterLluvia as CrearAdapterLluvia } from './lluvia'
 
 const AS_OF = '2026-09-26T12:00:00.000Z'
 const CELDA = 'geom-1'
-const PROVIDER = 'nasa-imerg'
-const VARIABLE = 'precipitacion_observada_satelital'
+const { granulosConsecutivos } = crearGeneradoresGranulos(CELDA)
 
 let dir: string
 let prevDataDir: string | undefined
 
 let db: ReturnType<typeof GetDb>
 let crearAdapterLluvia: typeof CrearAdapterLluvia
-
-// Gránulo sintético: sólo importan `valor` y `validoHasta` (el fin del
-// gránulo) para el cálculo de la ventana.
-function granulo(finEn: string, valor: number): typeof hazardObservation.$inferInsert {
-  return {
-    id: randomUUID(),
-    provider: PROVIDER,
-    variable: VARIABLE,
-    geometryRef: CELDA,
-    valor,
-    unidad: 'mm/30min',
-    observadoEn: finEn,
-    validoDesde: finEn,
-    validoHasta: finEn,
-    calidad: null,
-    rawRef: null,
-    ingeridoEn: finEn,
-  }
-}
-
-// `n` gránulos consecutivos de 30 min terminando en `finMasReciente`.
-function granulosConsecutivos(
-  finMasReciente: string,
-  n: number,
-  valor: number,
-): typeof hazardObservation.$inferInsert[] {
-  const finMs = Date.parse(finMasReciente)
-  return Array.from({ length: n }, (_, i) =>
-    granulo(new Date(finMs - i * 30 * 60 * 1000).toISOString(), valor),
-  )
-}
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'adapter-lluvia-'))

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { crearProviderEcmwf, TAMANO_LOTE_COORDENADAS } from './ecmwf'
+import { longitudesDeUrl } from './__fixtures__/url'
 import type { HazardForecastPunto } from '../tipos-hazard'
 
 const fixtureJson = JSON.parse(
@@ -34,10 +35,6 @@ function payloadEcmwfParaLongitudes(longitudes: number[]) {
       wind_speed_10m: [0, 0],
     },
   }))
-}
-
-function longitudesDeUrl(url: string): number[] {
-  return (new URL(url).searchParams.get('longitude') ?? '').split(',').map(Number)
 }
 
 function precipitacionPorRef(puntos: HazardForecastPunto[]): Map<string, number[]> {

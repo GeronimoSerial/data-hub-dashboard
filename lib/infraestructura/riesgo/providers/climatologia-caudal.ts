@@ -19,9 +19,11 @@
 // con `river_discharge` en vez de `precipitation_sum` y soporte de múltiples
 // coordenadas separadas por coma en una sola request.
 import { z } from 'zod'
+import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
 import { CONFIG_FUENTES } from './config-fuentes'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 import type { PuntoRio } from '../puntos-rio'
@@ -29,13 +31,6 @@ import type { PuntoRio } from '../puntos-rio'
 const RUTA = CONFIG_FUENTES.climatologiaCaudal.ruta
 const PERCENTILES = [90, 95, 99] as const
 const CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA = 1
-
-/** Días de calendario entre dos fechas `YYYY-MM-DD` (inclusive), para OM-cupo. */
-function diasEntreFechas(desde: string, hasta: string): number {
-  const msPorDia = 86_400_000
-  const dias = Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / msPorDia) + 1
-  return Math.max(1, dias)
-}
 
 // Forma de `HazardClimatologiaPunto` con `variable`/`muestra` angostados a lo
 // único que produce el caudal. El tipo compartido está atado a precipitación
@@ -49,13 +44,6 @@ export type HazardClimatologiaCaudalPunto = Omit<
 > & {
   variable: 'caudal_diario'
   muestra: 'todos_los_dias'
-}
-
-/** Percentil por índice: orden ascendente, `ceil(p/100 * n) - 1` clampeado. */
-function calcularPercentil(valoresOrdenados: number[], percentil: number): number {
-  const n = valoresOrdenados.length
-  const indice = Math.min(Math.max(Math.ceil((percentil / 100) * n) - 1, 0), n - 1)
-  return valoresOrdenados[indice]
 }
 
 /**
@@ -120,14 +108,6 @@ const payloadCaudalElementoSchema = z
 export const TAMANO_LOTE_COORDENADAS_CAUDAL = CONFIG_FUENTES.climatologiaCaudal.tamanoLote
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
-function agruparEnLotes<T>(items: readonly T[], tamano: number): T[][] {
-  const lotes: T[][] = []
-  for (let i = 0; i < items.length; i += tamano) {
-    lotes.push(items.slice(i, i + tamano))
-  }
-  return lotes
-}
-
 export type ResultadoSeriesHistoricasCaudal = {
   /** Serie diaria (sin nulls) por id de punto; sólo de los que respondieron. */
   seriesPorPunto: Record<string, number[]>
@@ -141,11 +121,13 @@ function construirUrlLote(
   periodoHasta: string,
   apiKey: string | undefined,
 ): string {
-  const latitudes = puntos.map((punto) => String(punto.lat)).join(',')
-  const longitudes = puntos.map((punto) => String(punto.lon)).join(',')
-  const base = construirBaseUrl('flood-api', RUTA, apiKey)
-  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=river_discharge&timezone=UTC`
-  return agregarApiKey(url, apiKey)
+  return construirUrlLoteOpenMeteo({
+    subdominio: 'flood-api',
+    ruta: RUTA,
+    puntos,
+    queryExtra: `&start_date=${periodoDesde}&end_date=${periodoHasta}&daily=river_discharge&timezone=UTC`,
+    apiKey,
+  })
 }
 
 /**
@@ -153,18 +135,6 @@ function construirUrlLote(
  * (varias) y exige que la cantidad coincida con las coordenadas enviadas: si
  * no, el lote entero cae como `payload_invalido` en vez de quedar desalineado.
  */
-function crearParserLoteCaudal(cantidad: number) {
-  return (json: unknown): Array<z.infer<typeof payloadCaudalElementoSchema>> => {
-    const bruto = Array.isArray(json) ? json : [json]
-    if (bruto.length !== cantidad) {
-      throw new Error(
-        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
-      )
-    }
-    return bruto.map((elemento) => payloadCaudalElementoSchema.parse(elemento))
-  }
-}
-
 /**
  * Obtiene la serie histórica diaria de caudal de VARIOS puntos de río en una
  * sola pasada, consultando por lotes de `TAMANO_LOTE_COORDENADAS_CAUDAL`.
@@ -201,7 +171,7 @@ export async function obtenerSeriesHistoricasCaudal(params: {
       url: construirUrlLote(lote, params.periodoDesde, params.periodoHasta, apiKey),
       fetchImpl: params.fetchImpl,
       cupo,
-      parsearPayload: crearParserLoteCaudal(lote.length),
+      parsearPayload: crearParserLote(payloadCaudalElementoSchema, lote.length),
     })
 
     if (!resultado.ok) {

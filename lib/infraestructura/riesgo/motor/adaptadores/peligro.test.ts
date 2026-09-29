@@ -2,7 +2,6 @@
 // adapter delega en peligro/nivel.ts (E3a), que lee de la DB. Por eso el
 // patrón es el mismo que nivel.test.ts: DATA_DIR temporal + ensureSeeded y
 // borrado de las tablas hazard_* entre tests. Nunca se golpea la red.
-import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -11,6 +10,7 @@ import { hazardClimatology, hazardEnsembleProb, hazardForecast } from '@/lib/db/
 import type { getDb as GetDb } from '@/lib/db'
 import type { NivelCaudalPunto, NivelPeligroCelda } from '../puertos'
 import type { crearAdapterPeligro as CrearAdapterPeligro } from './peligro'
+import { filaEnsemble, filaPronostico, insertarClimatologia } from '../../peligro/__fixtures__/filas'
 
 const AS_OF = '2026-09-26T12:00:00.000Z'
 const CORRIDA = '2026-09-26T00:00:00.000Z'
@@ -22,75 +22,6 @@ let prevDataDir: string | undefined
 
 let db: ReturnType<typeof GetDb>
 let crearAdapterPeligro: typeof CrearAdapterPeligro
-
-function filaEnsemble(params: {
-  geometryRef: string
-  horizonteHoras: number
-  validoEn: string
-  probabilidadP95: number
-  probabilidadP99: number
-}): typeof hazardEnsembleProb.$inferInsert {
-  return {
-    id: randomUUID(),
-    variable: 'precipitacion_24h',
-    corridaEn: CORRIDA,
-    miembrosTotal: 51,
-    miembrosValidos: 51,
-    dispersion: 0,
-    version: 'ensemble-v1',
-    ingeridoEn: CORRIDA,
-    ...params,
-  }
-}
-
-function filaPronostico(params: {
-  geometryRef: string
-  variable: 'precipitacion' | 'caudal'
-  horizonteHoras: number
-  validoEn: string
-  valor: number
-}): typeof hazardForecast.$inferInsert {
-  return {
-    id: randomUUID(),
-    provider: 'test',
-    unidad: params.variable === 'caudal' ? 'm3/s' : 'mm',
-    pasoHoras: 1,
-    rawRef: null,
-    corridaEn: CORRIDA,
-    ingeridoEn: CORRIDA,
-    ...params,
-  }
-}
-
-function filaClimatologia(params: {
-  geometryRef: string
-  variable: 'precipitacion_diaria' | 'caudal_diario'
-  percentil: 'p90' | 'p95' | 'p99'
-  valor: number
-}): typeof hazardClimatology.$inferInsert {
-  return {
-    id: randomUUID(),
-    muestra: 'todos_los_dias',
-    unidad: 'mm',
-    periodoDesde: '1991-01-01',
-    periodoHasta: '2020-12-31',
-    version: 'climatologia-v1',
-    calculadoEn: CORRIDA,
-    ...params,
-  }
-}
-
-async function insertarClimatologia(
-  geometryRef: string,
-  variable: 'precipitacion_diaria' | 'caudal_diario',
-  valores: { p90: number; p95: number; p99: number },
-): Promise<void> {
-  await db.insert(hazardClimatology).values([
-    filaClimatologia({ geometryRef, variable, percentil: 'p90', valor: valores.p90 }),
-    filaClimatologia({ geometryRef, variable, percentil: 'p95', valor: valores.p95 }),
-    filaClimatologia({ geometryRef, variable, percentil: 'p99', valor: valores.p99 }),
-  ])
-}
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'adapter-peligro-'))
@@ -205,7 +136,7 @@ describe('crearAdapterPeligro.obtenerNivelesCelda', () => {
 
 describe('crearAdapterPeligro.obtenerNivelCaudal', () => {
   it('con pronóstico y climatología devuelve la fila mapeada', async () => {
-    await insertarClimatologia(PUNTO, 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
+    await insertarClimatologia(db, PUNTO, 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
     await db.insert(hazardForecast).values(
       filaPronostico({
         geometryRef: PUNTO,

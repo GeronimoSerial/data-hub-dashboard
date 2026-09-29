@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto'
 import { isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { conReintentoPorBloqueo } from '@/lib/db/reintento'
-import { hazardForecast, hazardSourceHealth, infraGeoProfile } from '@/lib/db/schema'
+import { hazardForecast, infraGeoProfile } from '@/lib/db/schema'
 import { PUNTOS_RIO } from '../puntos-rio'
 import { crearProviderEcmwf } from '../providers/ecmwf'
 import {
@@ -29,7 +29,15 @@ import {
 } from '../providers/flood'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
 import type { HazardForecastPunto } from '../tipos-hazard'
-import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
+import {
+  adquirirLease,
+  claveIdempotenteDeBloque6h,
+  inicioDeBloqueUtc,
+  publicarResultado,
+  renovarLease as renovarLeaseReal,
+} from '../job-run'
+import { actualizarSaludFuente, resumirErrores } from './salud-fuente'
+import { insertarPorChunks } from './chunks'
 
 // Ambigüedad resuelta: el contrato `HazardProvider` de tipos-hazard.ts sólo
 // declara `obtenerPronostico`; el método con diagnóstico por celda lo agrega
@@ -112,33 +120,6 @@ const TAMANO_CHUNK_INSERCION = 500
 
 type Db = ReturnType<typeof getDb>
 
-// Bloque de 6h UTC: 00, 06, 12, 18. Dos corridas dentro del mismo bloque
-// comparten claveIdempotente y por lo tanto son la MISMA corrida.
-function claveIdempotenteDeBloque(ahora: Date): string {
-  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
-  const anio = ahora.getUTCFullYear()
-  const mes = String(ahora.getUTCMonth() + 1).padStart(2, '0')
-  const dia = String(ahora.getUTCDate()).padStart(2, '0')
-  const hora = String(bloqueHoras).padStart(2, '0')
-  return `${anio}-${mes}-${dia}T${hora}`
-}
-
-// Corrección de revisión (hallazgo H3, docs/ejecucion-enos/E2/registro.md
-// §5): `corridaEn` identifica LA CORRIDA del modelo, no el instante en que
-// este proceso la consultó. Si se pasara `ahora` (wall-clock) tal cual a los
-// providers, dos invocaciones dentro del MISMO bloque de 6h (ej. una
-// recuperación de lease vencido) generarían `corridaEn` distintos por
-// milisegundos — el índice único de `hazard_forecast` no dedupicaría, pese a
-// ser la misma ventana. Se ancla `corridaEn` (y con él, el horizonte
-// horas-desde-la-corrida) al INICIO del bloque de 6h, que es estable para
-// toda invocación dentro de esa ventana.
-function inicioDeBloqueUtc(ahora: Date): Date {
-  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
-  return new Date(
-    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), bloqueHoras, 0, 0, 0),
-  )
-}
-
 // La factory de flood no expone el diagnóstico por punto; se lo agregamos
 // apoyándonos en la función suelta que ella misma usa internamente.
 function crearProviderFloodConDiagnostico(opts: {
@@ -218,27 +199,26 @@ async function persistirPuntos(
   // completa y es seguro volver a correrla.
   await conReintentoPorBloqueo(() =>
     db.transaction(async (tx) => {
-    for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
-      const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
-      await tx
-        .insert(hazardForecast)
-        .values(chunk)
-        .onConflictDoUpdate({
-          target: [
-            hazardForecast.provider,
-            hazardForecast.variable,
-            hazardForecast.geometryRef,
-            hazardForecast.corridaEn,
-            hazardForecast.validoEn,
-          ],
-          set: {
-            valor: sql`excluded.valor`,
-            unidad: sql`excluded.unidad`,
-            pasoHoras: sql`excluded.paso_horas`,
-            ingeridoEn: sql`excluded.ingerido_en`,
-          },
-        })
-    }
+      await insertarPorChunks(filas, TAMANO_CHUNK_INSERCION, (chunk) =>
+        tx
+          .insert(hazardForecast)
+          .values(chunk)
+          .onConflictDoUpdate({
+            target: [
+              hazardForecast.provider,
+              hazardForecast.variable,
+              hazardForecast.geometryRef,
+              hazardForecast.corridaEn,
+              hazardForecast.validoEn,
+            ],
+            set: {
+              valor: sql`excluded.valor`,
+              unidad: sql`excluded.unidad`,
+              pasoHoras: sql`excluded.paso_horas`,
+              ingeridoEn: sql`excluded.ingerido_en`,
+            },
+          }),
+      )
     }),
   )
 
@@ -251,39 +231,14 @@ async function actualizarSalud(
   erroresPorCelda: Record<string, string>,
   ahoraIso: string,
 ): Promise<void> {
-  const mensajes = Object.values(erroresPorCelda)
-  const hayError = mensajes.length > 0
-  const primerError = hayError ? mensajes[0].slice(0, LARGO_MAX_ERROR) : null
-
   // Upsert único: mismo motivo de reintento que persistirPuntos.
-  await conReintentoPorBloqueo(() =>
-    db
-      .insert(hazardSourceHealth)
-      .values({
-        provider,
-        // Un insert degradado no conoce un éxito previo: null.
-        ultimoExitoEn: hayError ? null : ahoraIso,
-        ultimoIntentoEn: ahoraIso,
-        estado: hayError ? 'degradado' : 'ok',
-        ultimoErrorSaneado: primerError,
-        ttlMinutos: TTL_MINUTOS,
-        licencia: LICENCIA,
-        actualizadaEn: ahoraIso,
-      })
-      .onConflictDoUpdate({
-        target: hazardSourceHealth.provider,
-        set: {
-          estado: hayError ? 'degradado' : 'ok',
-          ultimoIntentoEn: ahoraIso,
-          ultimoErrorSaneado: primerError,
-          ttlMinutos: TTL_MINUTOS,
-          licencia: LICENCIA,
-          actualizadaEn: ahoraIso,
-          // En degraded se preserva el último éxito conocido; en ok se actualiza.
-          ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
-        },
-      }),
-  )
+  await actualizarSaludFuente(db, {
+    provider,
+    ttlMinutos: TTL_MINUTOS,
+    licencia: LICENCIA,
+    ...resumirErrores(erroresPorCelda, LARGO_MAX_ERROR),
+    ahoraIso,
+  })
 }
 
 export async function ejecutarSyncPronosticoCaudal(params?: {
@@ -298,7 +253,7 @@ export async function ejecutarSyncPronosticoCaudal(params?: {
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
 
-  const claveIdempotente = claveIdempotenteDeBloque(ahora)
+  const claveIdempotente = claveIdempotenteDeBloque6h(ahora)
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente,

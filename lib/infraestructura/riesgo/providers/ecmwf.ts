@@ -15,8 +15,10 @@
 //   horizonte, así que se deriva de la diferencia real entre timestamps
 //   consecutivos (primer punto usa el paso del segundo respecto al primero).
 import { z } from 'zod'
+import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import { isoUtc, parsearTimestampUtc } from './timestamps'
 import { ejecutarConReintentos } from './cliente-http'
-import { agregarApiKey, apiKeyDesdeEntorno, construirBaseUrl, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
+import { apiKeyDesdeEntorno, MOTIVOS_CUPO_SIN_RED, pesoLlamada } from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardForecastPunto, HazardProvider } from '../tipos-hazard'
 
@@ -35,14 +37,6 @@ const MS_POR_HORA = 3_600_000
 export const TAMANO_LOTE_COORDENADAS = 50
 
 /** Parte un array en lotes contiguos de `tamano` sin reordenar. */
-function agruparEnLotes<T>(items: T[], tamano: number): T[][] {
-  const lotes: T[][] = []
-  for (let i = 0; i < items.length; i += tamano) {
-    lotes.push(items.slice(i, i + tamano))
-  }
-  return lotes
-}
-
 // Open-Meteo puede devolver nulls en el borde del horizonte: se modelan como
 // nullable y luego se descartan punto a punto (NO se convierten a 0).
 const serieNumerica = z.array(z.number().nullable())
@@ -108,13 +102,13 @@ function parsearGeometryRef(geometryRef: string): { lat: number; lon: number } {
 const FORECAST_DAYS = 10
 
 function construirUrlLote(celdas: CeldaEcmwf[], apiKey: string | undefined): string {
-  const latitudes = celdas.map((celda) => String(celda.lat)).join(',')
-  const longitudes = celdas.map((celda) => String(celda.lon)).join(',')
-  const base = construirBaseUrl('api', RUTA, apiKey)
-  const url = `${base}?latitude=${latitudes}&longitude=${longitudes}&hourly=${VARIABLES_HOURLY.join(
-    ',',
-  )}&forecast_days=${FORECAST_DAYS}&timezone=UTC`
-  return agregarApiKey(url, apiKey)
+  return construirUrlLoteOpenMeteo({
+    subdominio: 'api',
+    ruta: RUTA,
+    puntos: celdas,
+    queryExtra: `&hourly=${VARIABLES_HOURLY.join(',')}&forecast_days=${FORECAST_DAYS}&timezone=UTC`,
+    apiKey,
+  })
 }
 
 /**
@@ -123,27 +117,6 @@ function construirUrlLote(celdas: CeldaEcmwf[], apiKey: string | undefined): str
  * coincida con la cantidad de coordenadas enviadas: si no, todas las celdas
  * del lote caen como `payload_invalido` en vez de quedar desalineadas.
  */
-function crearParserLote(cantidad: number) {
-  return (json: unknown): PayloadEcmwfElemento[] => {
-    const bruto = Array.isArray(json) ? json : [json]
-    if (bruto.length !== cantidad) {
-      throw new Error(
-        `se esperaban ${cantidad} objetos (uno por coordenada) y llegaron ${bruto.length}`,
-      )
-    }
-    return bruto.map((elemento) => payloadEcmwfElementoSchema.parse(elemento))
-  }
-}
-
-/** Interpreta el timestamp de Open-Meteo como UTC (viene sin sufijo 'Z'). */
-function parsearTimestampUtc(ts: string): number {
-  return Date.parse(ts.includes('Z') || ts.includes('+') ? ts : `${ts}Z`)
-}
-
-function isoUtc(ts: string): string {
-  return ts.includes('Z') || ts.includes('+') ? ts : `${ts}Z`
-}
-
 function horasEntre(desde: string, hasta: string): number {
   return Math.round((parsearTimestampUtc(hasta) - parsearTimestampUtc(desde)) / MS_POR_HORA)
 }
@@ -250,7 +223,7 @@ export function crearProviderEcmwf(opts?: {
         url: construirUrlLote(lote, apiKey),
         fetchImpl,
         cupo,
-        parsearPayload: crearParserLote(lote.length),
+        parsearPayload: crearParserLote(payloadEcmwfElementoSchema, lote.length),
       })
 
       if (!resultado.ok) {

@@ -7,6 +7,7 @@ import {
   TAMANO_LOTE_COORDENADAS_ENSEMBLE,
 } from './ensemble'
 import type { HazardEnsembleProbPunto } from './ensemble'
+import { longitudesDeUrl } from './__fixtures__/url'
 
 const fixtureJson = JSON.parse(
   readFileSync(
@@ -24,10 +25,6 @@ const NOMBRES_MIEMBROS = [
     (_, indice) => `precipitation_member${String(indice + 1).padStart(2, '0')}`,
   ),
 ]
-
-function longitudesDeUrl(url: string): number[] {
-  return (new URL(url).searchParams.get('longitude') ?? '').split(',').map(Number)
-}
 
 // Payload sintético por coordenada en el orden pedido: cada miembro reparte la
 // longitud entre las horas, de modo que su acumulado de 24 h sea exactamente la

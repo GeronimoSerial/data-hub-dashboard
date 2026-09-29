@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -10,6 +9,7 @@ import {
   infraGeoProfile,
 } from '@/lib/db/schema'
 import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
+import { filaClimatologia, filaEnsemble, filaPronostico, insertarClimatologia } from './__fixtures__/filas'
 import type { getDb as GetDb } from '@/lib/db'
 import type {
   agregarNivelPorDepartamento as AgregarNivelPorDepartamento,
@@ -29,77 +29,8 @@ let obtenerNivelesPeligro: typeof ObtenerNivelesPeligro
 let obtenerNivelCaudal: typeof ObtenerNivelCaudal
 let agregarNivelPorDepartamento: typeof AgregarNivelPorDepartamento
 
-const CORRIDA_VIEJA = '2026-09-25T00:00:00.000Z'
 const CORRIDA_NUEVA = '2026-09-26T00:00:00.000Z'
-
-function filaEnsemble(params: {
-  geometryRef: string
-  corridaEn: string
-  validoEn: string
-  horizonteHoras: number
-  probabilidadP95: number
-  probabilidadP99: number
-}): typeof hazardEnsembleProb.$inferInsert {
-  return {
-    id: randomUUID(),
-    variable: 'precipitacion_24h',
-    miembrosTotal: 51,
-    miembrosValidos: 51,
-    dispersion: 0,
-    version: 'ensemble-v1',
-    ingeridoEn: params.corridaEn,
-    ...params,
-  }
-}
-
-function filaPronostico(params: {
-  geometryRef: string
-  variable: 'precipitacion' | 'caudal'
-  corridaEn: string
-  validoEn: string
-  horizonteHoras: number
-  valor: number
-}): typeof hazardForecast.$inferInsert {
-  return {
-    id: randomUUID(),
-    provider: 'test',
-    unidad: params.variable === 'caudal' ? 'm3/s' : 'mm',
-    pasoHoras: 1,
-    rawRef: null,
-    ingeridoEn: params.corridaEn,
-    ...params,
-  }
-}
-
-function filaClimatologia(params: {
-  geometryRef: string
-  variable: 'precipitacion_diaria' | 'caudal_diario'
-  percentil: 'p90' | 'p95' | 'p99'
-  valor: number
-}): typeof hazardClimatology.$inferInsert {
-  return {
-    id: randomUUID(),
-    muestra: 'todos_los_dias',
-    unidad: 'mm',
-    periodoDesde: '1991-01-01',
-    periodoHasta: '2020-12-31',
-    version: 'climatologia-v1',
-    calculadoEn: '2026-09-26T00:00:00.000Z',
-    ...params,
-  }
-}
-
-async function insertarClimatologia(
-  geometryRef: string,
-  variable: 'precipitacion_diaria' | 'caudal_diario',
-  valores: { p90: number; p95: number; p99: number },
-): Promise<void> {
-  await db.insert(hazardClimatology).values([
-    filaClimatologia({ geometryRef, variable, percentil: 'p90', valor: valores.p90 }),
-    filaClimatologia({ geometryRef, variable, percentil: 'p95', valor: valores.p95 }),
-    filaClimatologia({ geometryRef, variable, percentil: 'p99', valor: valores.p99 }),
-  ])
-}
+const CORRIDA_VIEJA = '2026-09-25T00:00:00.000Z'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'nivel-peligro-'))
@@ -331,7 +262,7 @@ describe('obtenerNivelesPeligro', () => {
         valor: 25,
       }),
     )
-    await insertarClimatologia('celda-b', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
+    await insertarClimatologia(db, 'celda-b', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
 
     const resultado = await obtenerNivelesPeligro({ geometryRefs: ['celda-b'], horizontes: [24] })
 
@@ -401,7 +332,7 @@ describe('obtenerNivelesPeligro', () => {
     )
     // 60 mm supera el umbral provisorio de 24h (>50 => amarillo), pero contra
     // esta climatología supera P99 => rojo. Debe ganar el percentil.
-    await insertarClimatologia('celda-mixta', 'precipitacion_diaria', {
+    await insertarClimatologia(db, 'celda-mixta', 'precipitacion_diaria', {
       p90: 10,
       p95: 20,
       p99: 30,
@@ -448,7 +379,7 @@ describe('obtenerNivelesPeligro', () => {
   })
 
   it('con climatología pero sin pronóstico también es sin_dato', async () => {
-    await insertarClimatologia('celda-solo-clima', 'precipitacion_diaria', {
+    await insertarClimatologia(db, 'celda-solo-clima', 'precipitacion_diaria', {
       p90: 10,
       p95: 20,
       p99: 30,
@@ -495,7 +426,7 @@ describe('obtenerNivelesPeligro', () => {
         valor: 40,
       }),
     )
-    await insertarClimatologia('celda-240', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
+    await insertarClimatologia(db, 'celda-240', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
 
     const resultado = await obtenerNivelesPeligro({ geometryRefs: ['celda-240'], horizontes: [240] })
 
@@ -518,7 +449,7 @@ describe('obtenerNivelesPeligro', () => {
         valor: 40,
       }),
     )
-    await insertarClimatologia('celda-240-sin-largo', 'precipitacion_diaria', {
+    await insertarClimatologia(db, 'celda-240-sin-largo', 'precipitacion_diaria', {
       p90: 10,
       p95: 20,
       p99: 30,
@@ -594,7 +525,7 @@ describe('obtenerNivelesPeligro', () => {
         valor: 40,
       }),
     )
-    await insertarClimatologia('celda-b', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
+    await insertarClimatologia(db, 'celda-b', 'precipitacion_diaria', { p90: 10, p95: 20, p99: 30 })
 
     const resultado = await obtenerNivelesPeligro({ horizontes: [24, 72] })
 
@@ -676,7 +607,7 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
         valor: 40,
       }),
     ])
-    await insertarClimatologia('lote-deterministico', 'precipitacion_diaria', {
+    await insertarClimatologia(db, 'lote-deterministico', 'precipitacion_diaria', {
       p90: 10,
       p95: 20,
       p99: 30,
@@ -898,7 +829,7 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
 
 describe('obtenerNivelCaudal', () => {
   it('usa el horizonte más chico de la corrida más reciente y calcula percentil/nivel', async () => {
-    await insertarClimatologia('punto-1', 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
+    await insertarClimatologia(db, 'punto-1', 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
     await db.insert(hazardForecast).values([
       filaPronostico({
         geometryRef: 'punto-1',
@@ -939,10 +870,10 @@ describe('obtenerNivelCaudal', () => {
 
   it('aproxima el percentil y el nivel en cada banda de umbral', async () => {
     const clim = { p90: 50, p95: 100, p99: 140 }
-    await insertarClimatologia('punto-rojo', 'caudal_diario', clim)
-    await insertarClimatologia('punto-naranja', 'caudal_diario', clim)
-    await insertarClimatologia('punto-amarillo', 'caudal_diario', clim)
-    await insertarClimatologia('punto-verde', 'caudal_diario', clim)
+    await insertarClimatologia(db, 'punto-rojo', 'caudal_diario', clim)
+    await insertarClimatologia(db, 'punto-naranja', 'caudal_diario', clim)
+    await insertarClimatologia(db, 'punto-amarillo', 'caudal_diario', clim)
+    await insertarClimatologia(db, 'punto-verde', 'caudal_diario', clim)
     await db.insert(hazardForecast).values([
       filaPronostico({
         geometryRef: 'punto-rojo',
@@ -1009,7 +940,7 @@ describe('obtenerNivelCaudal', () => {
   })
 
   it('sin pronóstico devuelve null', async () => {
-    await insertarClimatologia('punto-sin-pronostico', 'caudal_diario', {
+    await insertarClimatologia(db, 'punto-sin-pronostico', 'caudal_diario', {
       p90: 50,
       p95: 100,
       p99: 140,

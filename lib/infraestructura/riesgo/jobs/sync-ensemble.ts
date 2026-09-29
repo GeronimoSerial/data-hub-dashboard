@@ -29,14 +29,21 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import {
   hazardClimatology,
   hazardEnsembleProb,
-  hazardSourceHealth,
   infraGeoProfile,
 } from '@/lib/db/schema'
 import { TAMANO_LOTE_COORDENADAS_ENSEMBLE } from '../providers/ensemble'
 import type { obtenerProbabilidadesEnsemble as obtenerProbabilidadesEnsembleReal } from '../providers/ensemble'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../providers/cupo-om'
-import { adquirirLease, publicarResultado, renovarLease as renovarLeaseReal } from '../job-run'
+import {
+  adquirirLease,
+  claveIdempotenteDeBloque6h,
+  inicioDeBloqueUtc,
+  publicarResultado,
+  renovarLease as renovarLeaseReal,
+} from '../job-run'
 import { crearAdaptadorEnsemble } from '../adaptadores-ingesta/ensemble'
+import { actualizarSaludFuente, resumirErrores } from './salud-fuente'
+import { insertarPorChunks } from './chunks'
 import type { PuertoPronosticoEnsemble, PuntoEnsembleProbabilistico } from '../adaptadores-ingesta/puertos'
 
 export type ResultadoSyncEnsemble = {
@@ -103,29 +110,6 @@ const PERCENTILES = ['p95', 'p99'] as const
 const TAMANO_TANDA_CELDAS = TAMANO_LOTE_COORDENADAS_ENSEMBLE
 
 type Db = ReturnType<typeof getDb>
-
-// Bloque de 6h UTC: 00, 06, 12, 18. Copiado de sync-pronostico-caudal.ts (no
-// estaba exportado): dos corridas dentro del mismo bloque comparten
-// claveIdempotente y por lo tanto son la MISMA corrida.
-function claveIdempotenteDeBloque(ahora: Date): string {
-  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
-  const anio = ahora.getUTCFullYear()
-  const mes = String(ahora.getUTCMonth() + 1).padStart(2, '0')
-  const dia = String(ahora.getUTCDate()).padStart(2, '0')
-  const hora = String(bloqueHoras).padStart(2, '0')
-  return `${anio}-${mes}-${dia}T${hora}`
-}
-
-// Ancla `corridaEn` al INICIO del bloque de 6h. Copiado de
-// sync-pronostico-caudal.ts (no estaba exportado): con `ahora` (wall-clock)
-// dos invocaciones dentro de la misma ventana generarían `corridaEn`
-// distintos por milisegundos y el índice único no deduplicaría.
-function inicioDeBloqueUtc(ahora: Date): Date {
-  const bloqueHoras = Math.floor(ahora.getUTCHours() / 6) * 6
-  return new Date(
-    Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), ahora.getUTCDate(), bloqueHoras, 0, 0, 0),
-  )
-}
 
 // Reconstruye la coordenada del centro de la celda desde `geometryRef`. El
 // formato es `"${lat}_${lon}"` con un decimal cada uno (ver `celdaDeCoordenada`
@@ -220,30 +204,29 @@ async function persistirPuntos(
   // completa y es seguro volver a correrla.
   await conReintentoPorBloqueo(() =>
     db.transaction(async (tx) => {
-    for (let inicio = 0; inicio < filas.length; inicio += TAMANO_CHUNK_INSERCION) {
-      const chunk = filas.slice(inicio, inicio + TAMANO_CHUNK_INSERCION)
-      await tx
-        .insert(hazardEnsembleProb)
-        .values(chunk)
-        .onConflictDoUpdate({
-          target: [
-            hazardEnsembleProb.geometryRef,
-            hazardEnsembleProb.variable,
-            hazardEnsembleProb.corridaEn,
-            hazardEnsembleProb.validoEn,
-          ],
-          set: {
-            horizonteHoras: sql`excluded.horizonte_horas`,
-            miembrosTotal: sql`excluded.miembros_total`,
-            miembrosValidos: sql`excluded.miembros_validos`,
-            probabilidadP95: sql`excluded.probabilidad_p95`,
-            probabilidadP99: sql`excluded.probabilidad_p99`,
-            dispersion: sql`excluded.dispersion`,
-            version: sql`excluded.version`,
-            ingeridoEn: sql`excluded.ingerido_en`,
-          },
-        })
-    }
+      await insertarPorChunks(filas, TAMANO_CHUNK_INSERCION, (chunk) =>
+        tx
+          .insert(hazardEnsembleProb)
+          .values(chunk)
+          .onConflictDoUpdate({
+            target: [
+              hazardEnsembleProb.geometryRef,
+              hazardEnsembleProb.variable,
+              hazardEnsembleProb.corridaEn,
+              hazardEnsembleProb.validoEn,
+            ],
+            set: {
+              horizonteHoras: sql`excluded.horizonte_horas`,
+              miembrosTotal: sql`excluded.miembros_total`,
+              miembrosValidos: sql`excluded.miembros_validos`,
+              probabilidadP95: sql`excluded.probabilidad_p95`,
+              probabilidadP99: sql`excluded.probabilidad_p99`,
+              dispersion: sql`excluded.dispersion`,
+              version: sql`excluded.version`,
+              ingeridoEn: sql`excluded.ingerido_en`,
+            },
+          }),
+      )
     }),
   )
 
@@ -255,39 +238,14 @@ async function actualizarSalud(
   erroresPorCelda: Record<string, string>,
   ahoraIso: string,
 ): Promise<void> {
-  const mensajes = Object.values(erroresPorCelda)
-  const hayError = mensajes.length > 0
-  const primerError = hayError ? mensajes[0].slice(0, LARGO_MAX_ERROR) : null
-
   // Upsert único: mismo motivo de reintento que persistirPuntos.
-  await conReintentoPorBloqueo(() =>
-    db
-      .insert(hazardSourceHealth)
-      .values({
-        provider: PROVIDER,
-        // Un insert degradado no conoce un éxito previo: null.
-        ultimoExitoEn: hayError ? null : ahoraIso,
-        ultimoIntentoEn: ahoraIso,
-        estado: hayError ? 'degradado' : 'ok',
-        ultimoErrorSaneado: primerError,
-        ttlMinutos: TTL_MINUTOS,
-        licencia: LICENCIA,
-        actualizadaEn: ahoraIso,
-      })
-      .onConflictDoUpdate({
-        target: hazardSourceHealth.provider,
-        set: {
-          estado: hayError ? 'degradado' : 'ok',
-          ultimoIntentoEn: ahoraIso,
-          ultimoErrorSaneado: primerError,
-          ttlMinutos: TTL_MINUTOS,
-          licencia: LICENCIA,
-          actualizadaEn: ahoraIso,
-          // En degradado se preserva el último éxito conocido; en ok se actualiza.
-          ...(hayError ? {} : { ultimoExitoEn: ahoraIso }),
-        },
-      }),
-  )
+  await actualizarSaludFuente(db, {
+    provider: PROVIDER,
+    ttlMinutos: TTL_MINUTOS,
+    licencia: LICENCIA,
+    ...resumirErrores(erroresPorCelda, LARGO_MAX_ERROR),
+    ahoraIso,
+  })
 }
 
 export async function ejecutarSyncEnsemble(params?: {
@@ -309,7 +267,7 @@ export async function ejecutarSyncEnsemble(params?: {
   const ahora = params?.ahora ?? new Date()
   const ahoraIso = ahora.toISOString()
 
-  const claveIdempotente = claveIdempotenteDeBloque(ahora)
+  const claveIdempotente = claveIdempotenteDeBloque6h(ahora)
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente,
