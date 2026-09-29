@@ -1,10 +1,27 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('motor-territorio-', { seed: false })
+
+beforeAll(async () => {
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  for (const fila of FILAS) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
+      args: [fila.cueAnexo, null, fila.nombre, fila.departamento, fila.localidad, fila.lat, fila.lon, null],
+    })
+  }
+
+  const { ensureSeeded } = await import('@/lib/db/seed')
+  await ensureSeeded()
+
+  // Puebla infra_geo_profile con la rutina real (mismo patrón que geo-perfil.test).
+  const { calcularGeoPerfiles } = await import('../../geo-perfil')
+  await calcularGeoPerfiles({ ahora: new Date('2026-09-01T00:00:00.000Z') })
+})
 
 // Escuela cerca del punto de río "parana-corrientes-paso-patria"
 // (-27.4692, -58.9306): coordenada elegida a <0.05° del punto.
@@ -42,36 +59,6 @@ const FILAS = [
     lon: null,
   },
 ]
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'motor-territorio-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { getRawClient } = await import('@/lib/db')
-  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
-  const client = crearEjecutorSql(getRawClient())
-  await ensureGeSchema(client)
-  for (const fila of FILAS) {
-    await client.execute({
-      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
-      args: [fila.cueAnexo, null, fila.nombre, fila.departamento, fila.localidad, fila.lat, fila.lon, null],
-    })
-  }
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-
-  // Puebla infra_geo_profile con la rutina real (mismo patrón que geo-perfil.test).
-  const { calcularGeoPerfiles } = await import('../../geo-perfil')
-  await calcularGeoPerfiles({ ahora: new Date('2026-09-01T00:00:00.000Z') })
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('crearAdapterTerritorio', () => {
   it('asigna el punto de río más cercano cuando la escuela está dentro del umbral', async () => {

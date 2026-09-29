@@ -1,20 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prevDataDir: string | undefined
-
-const CUE_INTERRUMPIDO = '1800001-00'
-const CUE_FUTURO = '1800002-00'
-const CUE_VIGENTE = '1800003-00'
+usarDbTemporal('motor-historial-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'motor-historial-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
 
@@ -76,11 +65,9 @@ beforeAll(async () => {
   ])
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+const CUE_INTERRUMPIDO = '1800001-00'
+const CUE_FUTURO = '1800002-00'
+const CUE_VIGENTE = '1800003-00'
 
 describe('crearAdapterHistorial', () => {
   it('cuenta una afectación con "Acceso interrumpido" retirada en el pasado con su duración cerrada', async () => {

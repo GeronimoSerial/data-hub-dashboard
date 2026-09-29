@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq } from 'drizzle-orm'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
 import { getDb } from '@/lib/db'
 import { infraVerificacion } from '@/lib/db/schema'
@@ -38,20 +36,10 @@ const { NOMBRE_COOKIE_SESION_VERIFICACION, crearSesionVerificacion } = await imp
 // Base real en un tmpdir (mismo patrón que lib/infraestructura/verificaciones.test.ts)
 // para los tests de re-chequeo contra la fila de la verificación. El resto del
 // archivo sigue sin tocar la base: contraseña pública y rol admin no la consultan.
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('acceso-parte-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'acceso-parte-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 const CLAVE = claveDePrueba()

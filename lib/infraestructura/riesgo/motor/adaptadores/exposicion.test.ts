@@ -1,27 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prevDataDir: string | undefined
-
-const CUE_CON_SECCIONES = '1800001-00'
-const CUE_SIN_SECCIONES = '1800999-00'
-const AS_OF = '2026-09-01T00:00:00.000Z'
-
-async function setEstadoCorte(estado: 'vigente' | 'historico'): Promise<void> {
-  const { getRawClient } = await import('@/lib/db')
-  const { crearEjecutorSql } = await import('@/lib/infraestructura/ge-db')
-  const client = crearEjecutorSql(getRawClient())
-  await client.execute({ sql: 'UPDATE ge.ge_corte SET estado = ? WHERE id = ?', args: [estado, 1] })
-}
+usarDbTemporal('motor-exposicion-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'motor-exposicion-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const { getRawClient } = await import('@/lib/db')
   const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
   const client = crearEjecutorSql(getRawClient())
@@ -68,11 +50,16 @@ beforeAll(async () => {
   await ensureSeeded()
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+const CUE_CON_SECCIONES = '1800001-00'
+const CUE_SIN_SECCIONES = '1800999-00'
+const AS_OF = '2026-09-01T00:00:00.000Z'
+
+async function setEstadoCorte(estado: 'vigente' | 'historico'): Promise<void> {
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await client.execute({ sql: 'UPDATE ge.ge_corte SET estado = ? WHERE id = ?', args: [estado, 1] })
+}
 
 describe('crearAdapterExposicion', () => {
   it('devuelve null cuando no hay corte vigente', async () => {

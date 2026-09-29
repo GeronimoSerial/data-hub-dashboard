@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, getRawClient } from '@/lib/db'
 import { recursoAudienciaNiveles } from '@/lib/db/schema'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
@@ -14,14 +12,9 @@ vi.mock('@/lib/session', () => ({
 const CUE_ER = '1801605-04'
 const CUE_GCHU = '1801605-05'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('infraestructura-totales-route-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'infraestructura-totales-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   await client.execute(
@@ -42,12 +35,6 @@ beforeAll(async () => {
   // puedeAbrir() con audiencias distintas sobre ese recurso.
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {

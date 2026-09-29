@@ -1,10 +1,38 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('geo-perfil-', { seed: false })
+
+beforeAll(async () => {
+  // El schema `ge` de la base PGlite compartida se puebla ANTES de
+  // ensureSeeded(): ensureLocalizacionesSeeded() siembra el padrón real desde
+  // public/data/localizaciones.json sólo si la tabla está vacía, así que cargar
+  // las filas de prueba primero lo hace no-op.
+  const { getRawClient } = await import('@/lib/db')
+  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  for (const fila of FILAS) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
+      args: [
+        fila.cueAnexo,
+        null,
+        fila.nombre,
+        fila.departamento,
+        fila.localidad,
+        fila.lat,
+        fila.lon,
+        null,
+      ],
+    })
+  }
+
+  // Crea la base hub (incluida infra_geo_profile) e idempotentemente evita
+  // sembrar ge_localizacion desde el JSON.
+  const { ensureSeeded } = await import('@/lib/db/seed')
+  await ensureSeeded()
+})
 
 // Padrón de prueba: 3 con coordenadas válidas (en celdas distintas), 1 sin
 // coordenadas y 1 con coordenada fuera del rango de Corrientes. Uno de los
@@ -51,47 +79,6 @@ const FILAS = [
     lon: 0,
   },
 ]
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'geo-perfil-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  // El schema `ge` de la base PGlite compartida se puebla ANTES de
-  // ensureSeeded(): ensureLocalizacionesSeeded() siembra el padrón real desde
-  // public/data/localizaciones.json sólo si la tabla está vacía, así que cargar
-  // las filas de prueba primero lo hace no-op.
-  const { getRawClient } = await import('@/lib/db')
-  const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
-  const client = crearEjecutorSql(getRawClient())
-  await ensureGeSchema(client)
-  for (const fila of FILAS) {
-    await client.execute({
-      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad) VALUES (?,?,?,?,?,?,?,?)',
-      args: [
-        fila.cueAnexo,
-        null,
-        fila.nombre,
-        fila.departamento,
-        fila.localidad,
-        fila.lat,
-        fila.lon,
-        null,
-      ],
-    })
-  }
-
-  // Crea la base hub (incluida infra_geo_profile) e idempotentemente evita
-  // sembrar ge_localizacion desde el JSON.
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 describe('calcularGeoPerfiles', () => {
   it('procesa el padrón completo, normaliza departamentos, clasifica exclusiones y es idempotente', async () => {

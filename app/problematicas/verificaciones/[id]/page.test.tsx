@@ -10,11 +10,9 @@
 // schema GE sobre el cliente PGlite compartido (crearEjecutorSql/getRawClient),
 // hub real sembrado con ensureSeeded() y filas de verificación creadas con la
 // propia máquina de estados (crearVerificacion), no con INSERTs inventados.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -36,13 +34,9 @@ const { ensureSeeded } = await import('@/lib/db/seed')
 const { crearEjecutorSql, ensureGeSchema } = await import('@/lib/infraestructura/ge-db')
 const { crearVerificacion } = await import('@/lib/infraestructura/verificaciones')
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('verificacion-page-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'verificacion-page-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
   await ensureSeeded()
 
   // ensureSeeded() siembra ge_localizacion desde el JSON versionado (miles de
@@ -51,12 +45,6 @@ beforeAll(async () => {
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   await client.execute('DELETE FROM ge.ge_localizacion')
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 afterEach(() => {

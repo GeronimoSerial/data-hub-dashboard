@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getRawClient } from '../db'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { asegurarGeAdjuntada } from './impacto'
@@ -12,14 +10,9 @@ const CUE_SIN_ALUMNOS = '1801605-71'
 const CUE_SIN_SECCIONES = '1801605-72'
 const CUE_AJENO = '1801605-73'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('datos-padron-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'datos-padron-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
 
@@ -55,12 +48,6 @@ beforeAll(async () => {
       args: [sectionId, personId],
     })
   }
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 describe('obtenerDatosPadronEscuela', () => {

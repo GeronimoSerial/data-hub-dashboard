@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getSessionUser } from '@/lib/session'
 
 // No usa importOriginal: el módulo real importa @/lib/auth -> @/lib/db, que
@@ -20,25 +18,15 @@ vi.mock('@/lib/session', () => ({
   },
 }))
 
-let dir: string
-let prevDataDir: string | undefined
-let periodoId: string
+usarDbTemporal('verificaciones-route-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'verificaciones-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const seed = await import('@/lib/db/seed')
   periodoId = seed.PERIODO_ENOS_2026_2027_ID
   await seed.ensureSeeded()
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+let periodoId: string
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()

@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { SessionUser } from '@/lib/acl'
 import { getDb } from '@/lib/db'
 import {
@@ -29,8 +27,14 @@ const RUN = 'run-vigente'
 const SNAPSHOT = 'snapshot-1'
 const CUE = '1000000-01'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('riesgo-detalle-route-', { seed: false })
+
+beforeAll(async () => {
+  const seed = await import('@/lib/db/seed')
+  await seed.ensureSeeded()
+  PERIODO = seed.PERIODO_ENOS_2026_2027_ID
+})
+
 let PERIODO = ''
 
 async function limpiarMotor() {
@@ -114,22 +118,6 @@ async function sembrarFixture() {
     },
   ])
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'riesgo-detalle-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const seed = await import('@/lib/db/seed')
-  await seed.ensureSeeded()
-  PERIODO = seed.PERIODO_ENOS_2026_2027_ID
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(async () => {
   vi.mocked(verificarAccesoLectura).mockReset()

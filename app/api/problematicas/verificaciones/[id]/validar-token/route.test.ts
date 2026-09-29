@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { eq } from 'drizzle-orm'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraVerificacion } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
@@ -13,20 +11,10 @@ import { POST } from './route'
 
 // Mismo patrón que app/api/problematicas/parte/route.test.ts: base real en un
 // tmpdir, ensureSeeded() una vez y rate limit reseteado entre tests.
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('validar-token-route-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'validar-token-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {

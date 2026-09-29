@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { getDb, getRawClient, migrarDb } from './index'
 import {
@@ -20,27 +18,16 @@ import {
   tipos,
 } from './schema'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('seed-ddl-', { seed: false })
 
-// Una sola base para todo el archivo: getDb() memoiza la conexión a nivel de
-// módulo, así que crear un directorio nuevo por test dejaría al segundo test
-// escribiendo contra un archivo que el primero ya borró.
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'seed-ddl-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const { ensureSeeded } = await import('./seed')
   await ensureSeeded()
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
-
+// Una sola base para todo el archivo: getDb() memoiza la conexión a nivel de
+// módulo, así que crear un directorio nuevo por test dejaría al segundo test
+// escribiendo contra un archivo que el primero ya borró.
 // Deuda heredada de B3: las migraciones versionadas de drizzle-kit corren
 // sobre una base ya poblada en cada arranque (ensureSeeded), y cada migración
 // nueva que agrega tablas corre el mismo riesgo de romper esa garantía sin que

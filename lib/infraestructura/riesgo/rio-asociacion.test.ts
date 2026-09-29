@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraGeoProfile, infraGeoRio } from '@/lib/db/schema'
 import { PUNTOS_RIO, type PuntoRio } from './puntos-rio'
@@ -12,8 +10,15 @@ import {
   RIO_ASOCIACION_VERSION,
 } from './rio-asociacion'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('rio-asociacion-', { seed: false })
+
+beforeAll(async () => {
+  // Crea hub.sqlite (incluidas infra_geo_profile e infra_geo_rio) con el
+  // esquema real del repo. Primer uso de getDb() en el archivo, así que queda
+  // memoizado contra este DATA_DIR.
+  const { ensureSeeded } = await import('@/lib/db/seed')
+  await ensureSeeded()
+})
 
 // Punto real de PUNTOS_RIO sobre el que se construyen los fixtures de la DB.
 const CORRIENTES = { lat: -27.4692, lon: -58.9306, id: 'parana-corrientes-paso-patria' }
@@ -26,24 +31,6 @@ const KM_POR_GRADO_LAT = (6371 * Math.PI) / 180
 function desplazarAlNorte(lat: number, lon: number, km: number) {
   return { lat: lat + km / KM_POR_GRADO_LAT, lon }
 }
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'rio-asociacion-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  // Crea hub.sqlite (incluidas infra_geo_profile e infra_geo_rio) con el
-  // esquema real del repo. Primer uso de getDb() en el archivo, así que queda
-  // memoizado contra este DATA_DIR.
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
 
 beforeEach(async () => {
   const db = getDb()

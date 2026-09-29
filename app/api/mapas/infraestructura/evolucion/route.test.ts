@@ -1,7 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getRawClient } from '@/lib/db'
 import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { getSessionUser } from '@/lib/session'
@@ -12,14 +10,9 @@ vi.mock('@/lib/session', () => ({
 
 const CUE = '1801605-04'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('infraestructura-evolucion-route-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'infraestructura-evolucion-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const client = crearEjecutorSql(getRawClient())
   await ensureGeSchema(client)
   await client.execute(
@@ -38,12 +31,6 @@ beforeAll(async () => {
 
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {

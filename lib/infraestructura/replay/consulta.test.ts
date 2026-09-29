@@ -8,10 +8,8 @@
 // (crearFixtureEscenarioCompleto, mismo directorio): período, perfil
 // geográfico, parte + afectación con su creadaEn tardía, run + snapshot de
 // riesgo, y un episodio derivado mínimo para el caso de alcance por episodio.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { beforeAll, afterAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import {
   hazardEnsembleProb,
@@ -32,20 +30,9 @@ import {
 } from './fixtures'
 import { MAX_CUADROS_POR_VENTANA, generarReplay } from './consulta'
 
-let dir: string
-let prevDataDir: string | undefined
-
-// Instante de arranque de los casos que necesitan "antes de T0/T1". Fijo.
-const DESDE_ANTES_DE_T0 = '2026-03-10T00:00:00.000Z'
-const EPISODIO_ID = 'episodio-fixture-001'
-
-let fx: FixtureEscenarioCompleto
+usarDbTemporal('replay-consulta-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'replay-consulta-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const { ensureSeeded } = await import('@/lib/db/seed')
   await ensureSeeded()
 
@@ -113,11 +100,11 @@ beforeAll(async () => {
   })
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+// Instante de arranque de los casos que necesitan "antes de T0/T1". Fijo.
+const DESDE_ANTES_DE_T0 = '2026-03-10T00:00:00.000Z'
+const EPISODIO_ID = 'episodio-fixture-001'
+
+let fx: FixtureEscenarioCompleto
 
 describe('generarReplay', () => {
   it('Caso 1: vista conocido as-of T1 NO ve la corrección tardía (creadaEn > T1)', async () => {

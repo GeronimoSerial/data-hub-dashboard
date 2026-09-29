@@ -1,26 +1,14 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { ensureSeeded } from '@/lib/db/seed'
 import { _resetLimitesParaTests } from '@/lib/infraestructura/limites'
 import { crearVerificacion, obtenerVerificacion } from '@/lib/infraestructura/verificaciones'
 import { POST } from './route'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('responder-route-', { seed: false })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'responder-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 beforeEach(() => {
