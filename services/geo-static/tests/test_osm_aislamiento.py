@@ -13,9 +13,14 @@ funciona por interseccion espacial, no por atributo -- exactamente el caso
 que la logica vieja (dead code, ya eliminado) nunca hubiera detectado.
 """
 
+import csv
+import gzip
+import json
 import math
 
-from shapely.geometry import LineString
+import pandas as pd
+from shapely.geometry import LineString, Point
+from shapely.ops import transform as shapely_transform
 
 import networkx as nx
 
@@ -23,6 +28,9 @@ from geo_static.osm_aislamiento import (
     CLASIFICACION_PUENTE,
     CLASIFICACION_SIN_EVIDENCIA,
     CLASIFICACION_VADO,
+    HIGHWAYS_CONDUCIBLES,
+    MOTIVO_RED_NO_CONECTADA,
+    MOTIVO_SIN_VIA_CERCANA,
     TOLERANCIA_DEDUP_CRUCE_M,
     _aristas_inseguras,
     _es_tramo_sin_pavimentar,
@@ -33,9 +41,11 @@ from geo_static.osm_aislamiento import (
     calcular_metricas_departamento,
     calcular_metricas_escuela,
     clasificar_cruce,
+    clasificar_sin_conexion,
     construir_arbol_agua,
     construir_cruces_por_arista,
     construir_grafo_seguro,
+    construir_indice_no_conectadas,
     construir_red_local,
 )
 
@@ -723,6 +733,18 @@ class TestCalcularMetricasDepartamentoEquivalencia:
         assert calcular_metricas_departamento(g, grafo_invertido, [], "cabecera", cruces_por_arista=cruces) == []
 
 
+def _aristas_pyrosm(highways: list[str]) -> pd.DataFrame:
+    n = len(highways)
+    return pd.DataFrame(
+        {
+            "u": list(range(1, n + 1)),
+            "v": list(range(2, n + 2)),
+            "highway": highways,
+            "geometry": [f"geom-{i}" for i in range(n)],
+        }
+    )
+
+
 class TestConstruirRedLocal:
     def test_llama_a_pyrosm_con_bbox_oeste_sur_este_norte(self, monkeypatch):
         llamadas = {}
@@ -733,14 +755,26 @@ class TestConstruirRedLocal:
                 llamadas["pbf_path"] = pbf_path
                 llamadas["bounding_box"] = bounding_box
 
-            def get_network(self, network_type, nodes, extra_attributes):
+            def get_network(
+                self,
+                network_type,
+                custom_filter=None,
+                filter_type=None,
+                nodes=False,
+                extra_attributes=None,
+            ):
                 llamadas["network_type"] = network_type
+                llamadas["custom_filter"] = custom_filter
+                llamadas["filter_type"] = filter_type
                 llamadas["nodes"] = nodes
                 llamadas["extra_attributes"] = extra_attributes
-                return ("NODES", "EDGES")
+                return (
+                    pd.DataFrame({"id": [1, 2]}),
+                    _aristas_pyrosm(["track", "residential"]),
+                )
 
             def to_graph(self, nodes, edges, graph_type, osmnx_compatible):
-                llamadas["to_graph"] = (nodes, edges, graph_type, osmnx_compatible)
+                llamadas["to_graph"] = (graph_type, osmnx_compatible, list(edges["highway"]))
                 return grafo_sentinel
 
         monkeypatch.setattr("pyrosm.OSM", FakeOSM)
@@ -760,7 +794,134 @@ class TestConstruirRedLocal:
         assert llamadas["network_type"] == "driving"
         assert llamadas["nodes"] is True
         assert llamadas["extra_attributes"] == ["surface", "bridge", "tunnel", "ford"]
-        assert llamadas["to_graph"] == ("NODES", "EDGES", "networkx", True)
+        graph_type, osmnx_compatible, _highways = llamadas["to_graph"]
+        assert graph_type == "networkx"
+        assert osmnx_compatible is True
+
+    def test_track_y_service_no_se_excluyen(self, monkeypatch):
+        llamadas = {}
+
+        class FakeOSM:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get_network(self, network_type, custom_filter=None, filter_type=None, **kwargs):
+                llamadas["custom_filter"] = custom_filter
+                llamadas["filter_type"] = filter_type
+                return (pd.DataFrame({"id": [1]}), _aristas_pyrosm(["residential"]))
+
+            def to_graph(self, nodes, edges, graph_type, osmnx_compatible):
+                return nx.MultiDiGraph()
+
+        monkeypatch.setattr("pyrosm.OSM", FakeOSM)
+
+        construir_red_local("x.osm.pbf", 1.0, 2.0, 3.0, 4.0)
+
+        filtro = llamadas["custom_filter"]
+        assert llamadas["filter_type"] == "exclude"
+        # track y service quedan FUERA de la lista de exclusiones (N3-B).
+        assert "track" not in filtro["highway"]
+        assert "service" not in filtro["highway"]
+        # Las exclusiones de vias privadas / motor_vehicle=no se conservan.
+        assert "private" in filtro["access"]
+        assert "no" in filtro["motor_vehicle"]
+        assert "no" in filtro["motorcar"]
+
+    def test_descarta_highway_basura_y_conserva_track(self, monkeypatch):
+        capturado = {}
+
+        class FakeOSM:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get_network(self, network_type, custom_filter=None, filter_type=None, **kwargs):
+                return (
+                    pd.DataFrame({"id": [1, 2, 3, 4, 5]}),
+                    _aristas_pyrosm(["track", "residential", "dummy", "Charata", "ladder"]),
+                )
+
+            def to_graph(self, nodes, edges, graph_type, osmnx_compatible):
+                capturado["highways"] = list(edges["highway"])
+                return nx.MultiDiGraph()
+
+        monkeypatch.setattr("pyrosm.OSM", FakeOSM)
+
+        construir_red_local("x.osm.pbf", 1.0, 2.0, 3.0, 4.0)
+
+        assert set(capturado["highways"]) == {"track", "residential"}
+        assert set(HIGHWAYS_CONDUCIBLES) >= {"track", "service", "unclassified", "road"}
+
+    def test_aristas_no_conectadas_out_recibe_las_que_faltan_del_grafo(self, monkeypatch):
+        class FakeOSM:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def get_network(self, network_type, custom_filter=None, filter_type=None, **kwargs):
+                return (
+                    pd.DataFrame({"id": [1, 2, 3]}),
+                    _aristas_pyrosm(["track", "unclassified", "residential"]),
+                )
+
+            def to_graph(self, nodes, edges, graph_type, osmnx_compatible):
+                # El grafo solo tiene los nodos 1 y 2: la arista que toca el
+                # nodo 3 (y las que salen de el) quedan fuera de la red principal.
+                g = nx.MultiDiGraph()
+                g.add_node(1)
+                g.add_node(2)
+                return g
+
+        monkeypatch.setattr("pyrosm.OSM", FakeOSM)
+
+        no_conectadas: list = []
+        construir_red_local(
+            "x.osm.pbf", 1.0, 2.0, 3.0, 4.0, aristas_no_conectadas_out=no_conectadas
+        )
+        # (1,2) conectada; (2,3) y (3,4) tocan el nodo 3 ausente.
+        assert no_conectadas == [("geom-1", "unclassified"), ("geom-2", "residential")]
+
+        # Con aristas_no_conectadas_out=None no se toca ninguna lista ni falla.
+        assert construir_red_local("x.osm.pbf", 1.0, 2.0, 3.0, 4.0) is not None
+
+
+class TestClasificarSinConexion:
+    def _distancia_esperada_m(self, lat, lon, way):
+        from pyproj import Transformer
+
+        transformer = Transformer.from_crs(4326, 32721, always_xy=True)
+        punto = Point(*transformer.transform(lon, lat))
+        way_proyectada = shapely_transform(transformer.transform, way)
+        return punto.distance(way_proyectada)
+
+    def test_via_no_conectada_a_34_m(self):
+        lat, lon = -27.5, -58.9
+        # Via vertical a ~34 m al oeste del punto.
+        way = LineString([(-58.89965, -27.51), (-58.89965, -27.49)])
+        indice = construir_indice_no_conectadas([(way, "unclassified")])
+
+        motivo, datos = clasificar_sin_conexion(lat, lon, indice)
+
+        assert motivo == MOTIVO_RED_NO_CONECTADA
+        esperado = self._distancia_esperada_m(lat, lon, way)
+        assert abs(datos["via_no_conectada_m"] - esperado) <= 1.0
+        assert datos["via_no_conectada_clase"] == "unclassified"
+        assert "punto_via_lon" in datos and "punto_via_lat" in datos
+
+    def test_via_a_6_km_es_sin_via_osm_cercana(self):
+        # Via vertical ~7 km al oeste: fuera del radio de snap de 5 km.
+        way = LineString([(-58.97, -27.51), (-58.97, -27.49)])
+        indice = construir_indice_no_conectadas([(way, "unclassified")])
+
+        motivo, datos = clasificar_sin_conexion(-27.5, -58.9, indice)
+
+        assert motivo == MOTIVO_SIN_VIA_CERCANA
+        assert datos["via_no_conectada_m"] is None
+        assert datos["via_no_conectada_clase"] is None
+
+    def test_indice_vacio_es_sin_via_osm_cercana(self):
+        indice = construir_indice_no_conectadas([])
+        motivo, datos = clasificar_sin_conexion(-27.5, -58.9, indice)
+        assert motivo == MOTIVO_SIN_VIA_CERCANA
+        assert datos["via_no_conectada_m"] is None
 
 
 def _grafo_lineal_escuela_cabecera():
@@ -796,6 +957,11 @@ def _preparar_job(monkeypatch, tmp_path, pbf_path):
     monkeypatch.setattr(job, "PBF_LOCAL_DEFAULT", pbf_path)
     monkeypatch.setattr(job, "OUTPUT_DIR", tmp_path / "output")
     monkeypatch.setattr(job, "cargar_padron", _escuelas_sinteticas)
+    # Gate geografico y sedes oficiales: los tests sinteticos conservan su
+    # significado original apuntando a archivos ausentes (degradacion gracil:
+    # sin poligonos no se excluye nada y sin sedes se usa el proxy).
+    monkeypatch.setattr(job, "DEPARTAMENTOS_GEOJSON_PATH", tmp_path / "no-existe.geojson")
+    monkeypatch.setattr(job, "CABECERAS_PATH", tmp_path / "no-existe.json")
 
     import osmnx as ox
 
@@ -834,7 +1000,7 @@ class TestCorrerSeleccionDeRed:
             )
 
         monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_local", fake_construir_geometrias_agua_local
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
         )
 
         llamado_pyrosm = {"n": 0}
@@ -861,7 +1027,9 @@ class TestCorrerSeleccionDeRed:
         pbf_falso.write_bytes(b"")
         job = _preparar_job(monkeypatch, tmp_path, pbf_falso)
 
-        def fake_construir_red_local(pbf_path, norte, sur, este, oeste):
+        def fake_construir_red_local(
+            pbf_path, norte, sur, este, oeste, aristas_no_conectadas_out=None
+        ):
             assert pbf_path == str(pbf_falso)
             return _grafo_lineal_escuela_cabecera()
 
@@ -877,21 +1045,131 @@ class TestCorrerSeleccionDeRed:
         def fake_construir_geometrias_agua_local(pbf_path, norte, sur, este, oeste):
             llamadas_agua["n"] += 1
             assert pbf_path == str(pbf_falso)
-            return []
+            return ([], [])
 
         monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_local", fake_construir_geometrias_agua_local
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
         )
 
         job.correr(departamentos=["Capital"])
 
         assert llamadas_agua["n"] == 1
-        csvs = list((tmp_path / "output").glob("*.csv"))
-        assert len(csvs) == 1
-        assert "2026-09-26" in csvs[0].name
+        nombres_csv = sorted(p.name for p in (tmp_path / "output").glob("*.csv"))
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
         salida = capsys.readouterr().out
         assert "extracto local detectado" in salida
         assert "capa de agua" in salida
+        assert "0 fords (nodos ford=yes)" in salida
+
+    def test_salidas_versionadas_y_version_job(self, monkeypatch, tmp_path):
+        """Las tres salidas del camino PBF llevan `-v{VERSION_JOB}-` y el campo
+        `version_job` (columna del CSV y campo del NDJSON de geometria) vale
+        `VERSION_JOB`, no un literal hardcodeado."""
+        import geo_static.osm_aislamiento as osm_mod
+
+        pbf_falso = tmp_path / "existe.osm.pbf"
+        pbf_falso.write_bytes(b"")
+        job = _preparar_job(monkeypatch, tmp_path, pbf_falso)
+
+        monkeypatch.setattr(
+            osm_mod, "construir_red_local", lambda *a, **k: _grafo_lineal_escuela_cabecera()
+        )
+        monkeypatch.setattr(
+            osm_mod, "construir_geometrias_agua_y_fords_local", lambda *a, **k: ([], [])
+        )
+
+        job.correr(departamentos=["Capital"])
+
+        output = tmp_path / "output"
+        nombres = sorted(p.name for p in output.iterdir())
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
+        assert f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz" in nombres
+
+        with open(
+            output / f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv", encoding="utf-8"
+        ) as f:
+            filas = list(csv.DictReader(f))
+        assert filas
+        assert {fila["version_job"] for fila in filas} == {job.VERSION_JOB}
+
+        with gzip.open(
+            output / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz",
+            "rt",
+            encoding="utf-8",
+        ) as f:
+            registros = [json.loads(line) for line in f]
+        assert registros
+        assert {registro["version_job"] for registro in registros} == {job.VERSION_JOB}
+
+
+class TestCorrerSinRuta:
+    """N3-B: el job reemplaza `sin_conexion_red` por un motivo verificable y
+    escribe la auditoria `aislamiento_osm_sin_ruta-*.csv` (solo camino PBF)."""
+
+    def test_motivos_y_auditoria_sin_ruta(self, monkeypatch, tmp_path, capsys):
+        import geo_static.osm_aislamiento as osm_mod
+
+        pbf_falso = tmp_path / "existe.osm.pbf"
+        pbf_falso.write_bytes(b"")
+        job = _preparar_job(monkeypatch, tmp_path, pbf_falso)
+
+        # Via aislada a ~34 m de CUE-1 y a ~7 km de CUE-2.
+        via_aislada = LineString([(-58.89965, -27.51), (-58.89965, -27.49)])
+
+        def fake_construir_red_local(
+            pbf_path, norte, sur, este, oeste, aristas_no_conectadas_out=None
+        ):
+            if aristas_no_conectadas_out is not None:
+                aristas_no_conectadas_out.append((via_aislada, "unclassified"))
+            return _grafo_lineal_escuela_cabecera()
+
+        monkeypatch.setattr(osm_mod, "construir_red_local", fake_construir_red_local)
+
+        def fake_construir_geometrias_agua_local(*args, **kwargs):
+            return ([], [])
+
+        monkeypatch.setattr(
+            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
+        )
+
+        # Toda escuela snapea a > 5 km; el punto de la via aislada a 200 m de la red.
+        import osmnx as ox
+
+        def fake_nearest_nodes(grafo, X, Y, return_dist=False):
+            if isinstance(X, (list, tuple)):
+                nodos = ["escuela"] * len(X)
+                return (nodos, [6000.0] * len(X)) if return_dist else nodos
+            return ("escuela", 200.0) if return_dist else "escuela"
+
+        monkeypatch.setattr(ox.distance, "nearest_nodes", fake_nearest_nodes)
+
+        job.correr(departamentos=["Capital"])
+
+        csv_path = tmp_path / "output" / f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv"
+        assert csv_path.exists()
+        with open(csv_path, encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            filas = list(reader)
+        assert reader.fieldnames == job.COLUMNAS_SIN_RUTA
+        motivos = {fila["cue_anexo"]: fila["motivo_sin_datos"] for fila in filas}
+        assert motivos == {
+            "CUE-1": MOTIVO_RED_NO_CONECTADA,
+            "CUE-2": MOTIVO_SIN_VIA_CERCANA,
+        }
+        fila1 = next(f for f in filas if f["cue_anexo"] == "CUE-1")
+        assert fila1["via_no_conectada_clase"] == "unclassified"
+        assert float(fila1["via_no_conectada_m"]) == 34.6
+        assert float(fila1["via_a_red_principal_m"]) == 200.0
+
+        # El NDJSON de geometria lleva el mismo motivo.
+        nd_path = tmp_path / "output" / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz"
+        with gzip.open(nd_path, "rt", encoding="utf-8") as f:
+            registros = {json.loads(line)["cue_anexo"]: json.loads(line) for line in f}
+        assert registros["CUE-1"]["motivo_sin_geometria"] == MOTIVO_RED_NO_CONECTADA
+        assert registros["CUE-2"]["motivo_sin_geometria"] == MOTIVO_SIN_VIA_CERCANA
+        assert "red_vial_no_conectada" in capsys.readouterr().out
 
 
 def _mapeo_export_departamento():
@@ -1045,3 +1323,46 @@ class TestExportarGeometria:
         )
         assert geometrias[0]["ruta"] is None
         assert geometrias[0]["motivo_sin_geometria"] == "ruta_degenerada"
+
+
+class TestConstruirIndiceNoConectadasVectorizado:
+    """N3-D: `construir_indice_no_conectadas` proyecta con la forma vectorizada
+    de shapely; el resultado debe ser identico al de `shapely.ops.transform`
+    por geometria (a 1e-6 m)."""
+
+    def _transformer(self):
+        from pyproj import Transformer
+
+        return Transformer.from_crs(4326, 32721, always_xy=True)
+
+    def test_geometrias_igual_a_transform_por_geometria(self):
+        from shapely.geometry import MultiLineString
+
+        transformer = self._transformer()
+        aristas = [
+            (LineString([(-58.90, -27.50), (-58.80, -27.45)]), "track"),
+            (
+                MultiLineString(
+                    [
+                        [(-58.90, -27.50), (-58.85, -27.48)],
+                        [(-58.84, -27.47), (-58.80, -27.45)],
+                    ]
+                ),
+                "unclassified",
+            ),
+        ]
+        indice = construir_indice_no_conectadas(aristas)
+        assert indice["clases"] == ["track", "unclassified"]
+        assert len(indice["geometrias"]) == 2
+        for proyectada, (geometria, _) in zip(indice["geometrias"], aristas):
+            esperada = shapely_transform(transformer.transform, geometria)
+            assert proyectada.equals_exact(esperada, 1e-6)
+
+    def test_geometria_none_se_descarta(self):
+        aristas = [
+            (None, "track"),
+            (LineString([(-58.90, -27.50), (-58.80, -27.45)]), "residential"),
+        ]
+        indice = construir_indice_no_conectadas(aristas)
+        assert indice["clases"] == ["residential"]
+        assert len(indice["geometrias"]) == 1

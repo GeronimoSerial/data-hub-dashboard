@@ -21,6 +21,20 @@ ruta escuela -> cabecera y de los cruces de agua usados, como NDJSON gzip
 versionado en `output/accesos_osm_geometria-v{VERSION_JOB}-{fecha}.ndjson.gz`.
 Es un artifact puramente aditivo (no cambia ninguna metrica del CSV) e
 importable con `node scripts/importar-geo-static.mjs --geometria <file>`.
+
+N3-A: las escuelas cuya coordenada cae a mas de 2.0 km fuera del poligono de
+su propio departamento se excluyen del calculo (fila sin datos, motivo
+"coordenada_fuera_de_departamento"). Las cabeceras departamentales usan la
+sede oficial de Georef Argentina (`data/cabeceras_departamentales.json`) y
+caen al proxy (centroide) solo cuando no hay sede oficial.
+
+N3-B: en el camino con extracto local la red incluye tracks y service (ver
+osm_aislamiento.py) y las escuelas sin indice se clasifican con un motivo
+verificable ("red_vial_no_conectada" si hay una via de OSM cerca pero en un
+componente aislado, "sin_via_osm_cercana" si no hay ninguna via conduccible en
+el radio). La auditoria se escribe en
+`output/aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha}.csv`. "sin_conexion_red"
+queda solo como fallback (excepcion por departamento o red por Overpass).
 """
 
 from __future__ import annotations
@@ -34,7 +48,12 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-VERSION_JOB = "1"
+from geo_static import padron_geo
+
+# v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
+# departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
+# coordenada, snap a arista, motivos verificables de sin-ruta, nodos ford.
+VERSION_JOB = "2"
 LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 
 # bbox aproximado de la provincia de Corrientes, Argentina (norte, sur, este, oeste).
@@ -44,6 +63,12 @@ REPO_ROOT = Path(__file__).resolve().parents[5]
 PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 
+# Insumos del gate geografico y de las sedes oficiales (N3-A). Se exponen como
+# constantes de modulo para que los tests puedan apuntarlas a fixtures
+# temporales; `correr` las consume siempre via estos nombres globales.
+DEPARTAMENTOS_GEOJSON_PATH = padron_geo.DEPARTAMENTOS_GEOJSON_PATH
+CABECERAS_PATH = padron_geo.CABECERAS_PATH
+
 # Extracto Geofabrik de Argentina descargado localmente (gitignorado). Si existe,
 # la corrida de produccion construye la red con pyrosm (construir_red_local);
 # si no, cae al fallback de Overpass por departamento (G1-fix1).
@@ -52,6 +77,10 @@ PBF_LOCAL_DEFAULT = REPO_ROOT / "services" / "geo-static" / ".data" / "osm" / "a
 # Se fija a mano porque el archivo local se llama 'argentina-latest.osm.pbf' y
 # su mtime no es confiable como fecha del dato.
 FECHA_EXTRACTO_OSM = "2026-09-26"
+
+# Fuente del poligono departamental del gate geografico (N3-A), fecha con la que
+# se publica la fuente de las escuelas sin ruta en la auditoria N3-B.
+FUENTE_GEOREF_DEPARTAMENTOS = "Georef departamentos 2026-09-27"
 
 CONTRATO_COLUMNAS = [
     "cue_anexo",
@@ -67,6 +96,25 @@ CONTRATO_COLUMNAS = [
     "snap_distancia_m",
     "version_job",
     "fecha_extracto_osm",
+    "licencia",
+]
+
+# Auditoria de escuelas SIN indice (N3-B). Una fila por escuela sin indice con
+# el motivo verificable y las distancias que lo sustentan.
+COLUMNAS_SIN_RUTA = [
+    "cue_anexo",
+    "nombre",
+    "departamento",
+    "localidad",
+    "lat",
+    "lon",
+    "motivo_sin_datos",
+    "snap_nodo_red_m",
+    "via_no_conectada_m",
+    "via_no_conectada_clase",
+    "via_a_red_principal_m",
+    "distancia_poligono_departamento_km",
+    "fuente",
     "licencia",
 ]
 
@@ -121,7 +169,9 @@ def _fila_escuela(escuela: dict, metricas: dict, indice, fecha_extracto: str) ->
     }
 
 
-def _fila_sin_datos(escuela: dict, fecha_extracto: str) -> dict:
+def _fila_sin_datos(
+    escuela: dict, fecha_extracto: str, motivo: str = "sin_conexion_red"
+) -> dict:
     return {
         "cue_anexo": escuela["cueAnexo"],
         "distancia_via_pavimentada_m": None,
@@ -132,7 +182,7 @@ def _fila_sin_datos(escuela: dict, fecha_extracto: str) -> dict:
         "cruces_agua_con_vado_count": None,
         "tiene_alternativa_sin_cruce": None,
         "indice_aislamiento": None,
-        "motivo_sin_datos": "sin_conexion_red",
+        "motivo_sin_datos": motivo,
         "snap_distancia_m": None,
         "version_job": VERSION_JOB,
         "fecha_extracto_osm": fecha_extracto,
@@ -162,15 +212,86 @@ def _escribir_geometria_ndjson(registros: list[dict], fecha_extracto: str) -> Pa
     return out_path
 
 
+def _redondear(valor, decimales: int):
+    """Redondea un float a `decimales`; devuelve "" para un valor ausente
+    (vacio del CSV)."""
+    if valor is None:
+        return ""
+    return round(float(valor), decimales)
+
+
+def _escribir_csv_sin_ruta(
+    filas: list[dict],
+    escuelas_por_cue: dict[str, dict],
+    info_sin_ruta: dict[str, dict],
+    km_fuera: dict[str, float],
+    fecha_extracto: str,
+) -> tuple[Path, list[dict]]:
+    """Escribe el CSV de auditoria de escuelas SIN indice (N3-B).
+
+    Una fila por escuela sin `indice_aislamiento`, ordenada por `cue_anexo`, con
+    el motivo verificable (`red_vial_no_conectada` / `sin_via_osm_cercana`, y los
+    del gate o fallback) y las distancias que lo sustentan. Devuelve el path y
+    las filas escritas (para el resumen por motivo). `distancia_poligono_
+    departamento_km` solo se completa para `coordenada_fuera_de_departamento`.
+    """
+    rows = []
+    for fila in filas:
+        if fila.get("indice_aislamiento") is not None:
+            continue
+        escuela = escuelas_por_cue.get(fila["cue_anexo"], {})
+        motivo = fila.get("motivo_sin_datos") or ""
+        info = info_sin_ruta.get(fila["cue_anexo"], {})
+        fuera_de_departamento = motivo == "coordenada_fuera_de_departamento"
+        fuente = f"OpenStreetMap extracto {fecha_extracto}"
+        if fuera_de_departamento:
+            fuente = f"{fuente} + {FUENTE_GEOREF_DEPARTAMENTOS}"
+        rows.append(
+            {
+                "cue_anexo": fila["cue_anexo"],
+                "nombre": escuela.get("nombre", ""),
+                "departamento": escuela.get("departamento", ""),
+                "localidad": escuela.get("localidad", ""),
+                "lat": _redondear(escuela.get("lat"), 6),
+                "lon": _redondear(escuela.get("lon"), 6),
+                "motivo_sin_datos": motivo,
+                "snap_nodo_red_m": _redondear(fila.get("snap_distancia_m"), 1),
+                "via_no_conectada_m": _redondear(info.get("via_no_conectada_m"), 1),
+                "via_no_conectada_clase": info.get("via_no_conectada_clase") or "",
+                "via_a_red_principal_m": _redondear(info.get("via_a_red_principal_m"), 1),
+                "distancia_poligono_departamento_km": (
+                    _redondear(km_fuera.get(fila["cue_anexo"]), 1)
+                    if fuera_de_departamento
+                    else ""
+                ),
+                "fuente": fuente,
+                "licencia": LICENCIA_OSM,
+            }
+        )
+    rows.sort(key=lambda row: row["cue_anexo"])
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = OUTPUT_DIR / f"aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha_extracto}.csv"
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=COLUMNAS_SIN_RUTA)
+        writer.writeheader()
+        writer.writerows(rows)
+    return out_path, rows
+
+
 def correr(limite_escuelas: int | None = None, departamentos: list[str] | None = None) -> None:
     from geo_static.osm_aislamiento import (
+        MOTIVO_RED_NO_CONECTADA,
         calcular_indice_aislamiento,
         calcular_metricas_departamento,
         calcular_metricas_escuela,
+        clasificar_sin_conexion,
         construir_arbol_agua,
         construir_cruces_por_arista,
-        construir_geometrias_agua_local,
+        construir_geometrias_agua_y_fords_local,
         construir_grafo_seguro,
+        construir_indice_aristas,
+        construir_indice_no_conectadas,
         construir_red,
         construir_red_local,
     )
@@ -183,12 +304,45 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
     if limite_escuelas:
         escuelas = escuelas[:limite_escuelas]
     print(f"[calcular_aislamiento] escuelas con coordenadas: {len(escuelas)}", flush=True)
+    escuelas_por_cue = {e["cueAnexo"]: e for e in escuelas}
 
-    cabeceras = calcular_cabeceras_departamentales(escuelas)
-    print(f"[calcular_aislamiento] cabeceras departamentales calculadas: {len(cabeceras)}", flush=True)
+    poligonos = padron_geo.cargar_poligonos_departamentos(DEPARTAMENTOS_GEOJSON_PATH)
+    oficiales = padron_geo.cargar_cabeceras_oficiales(CABECERAS_PATH)
+
+    escuelas_validas: list[dict] = []
+    escuelas_fuera: list[dict] = []
+    km_fuera: dict[str, float] = {}
+    for e in escuelas:
+        distancia_fuera = padron_geo.coordenada_fuera_de_departamento(e, poligonos)
+        if distancia_fuera is None:
+            escuelas_validas.append(e)
+        else:
+            escuelas_fuera.append(e)
+            km_fuera[e["cueAnexo"]] = distancia_fuera
+
+    print(
+        f"[calcular_aislamiento] escuelas con coordenada fuera de su departamento "
+        f"(> {padron_geo.UMBRAL_FUERA_DEPARTAMENTO_KM} km): {len(escuelas_fuera)} "
+        "(excluidas del cálculo)",
+        flush=True,
+    )
+    for cue, km in sorted(km_fuera.items()):
+        print(f"[calcular_aislamiento]   {cue}: {km:.1f} km", flush=True)
+
+    cabeceras = padron_geo.resolver_cabeceras(
+        escuelas_validas, oficiales, calcular_cabeceras_departamentales(escuelas_validas)
+    )
+    sedes_oficiales = sum(
+        1 for depto in cabeceras if padron_geo.normalizar_nombre(depto) in oficiales
+    )
+    print(
+        f"[calcular_aislamiento] cabeceras departamentales resueltas: {len(cabeceras)} "
+        f"(sede oficial: {sedes_oficiales}, proxy: {len(cabeceras) - sedes_oficiales})",
+        flush=True,
+    )
 
     por_depto: dict[str, list[dict]] = defaultdict(list)
-    for e in escuelas:
+    for e in escuelas_validas:
         por_depto[e["departamento"]].append(e)
 
     filas = []
@@ -204,27 +358,59 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             f"(fecha {fecha_extracto}); se construye UNA red para toda la provincia con pyrosm",
             flush=True,
         )
-        norte, sur, este, oeste = _bbox_departamento(escuelas)
-        grafo = construir_red_local(str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste)
+        # N3-B: se recorta con las escuelas validas (una coordenada fuera de su
+        # departamento no debe agrandar el bbox de la red).
+        norte, sur, este, oeste = _bbox_departamento(escuelas_validas)
+        aristas_no_conectadas: list = []
+        grafo = construir_red_local(
+            str(PBF_LOCAL_DEFAULT),
+            norte,
+            sur,
+            este,
+            oeste,
+            aristas_no_conectadas_out=aristas_no_conectadas,
+        )
+        indice_no_conectadas = construir_indice_no_conectadas(aristas_no_conectadas)
         print(
             f"[calcular_aislamiento] red local construida: {len(grafo.nodes)} nodos, "
-            f"{len(grafo.edges)} aristas",
+            f"{len(grafo.edges)} aristas, {len(aristas_no_conectadas)} aristas no conectadas",
+            flush=True,
+        )
+
+        # N3-C: indice espacial de aristas (proyectadas) para snapear cada
+        # escuela a la ARISTA mas cercana en vez del nodo mas cercano. Se
+        # construye UNA sola vez para toda la corrida (ver osm_aislamiento.py).
+        t_aristas0 = time.monotonic()
+        indice_aristas = construir_indice_aristas(grafo)
+        print(
+            f"[calcular_aislamiento] indice de aristas (N3-C): "
+            f"{len(indice_aristas['claves'])} aristas, {time.monotonic() - t_aristas0:.1f}s",
             flush=True,
         )
 
         t_agua0 = time.monotonic()
-        geometrias_agua = construir_geometrias_agua_local(
+        geometrias_agua, puntos_ford = construir_geometrias_agua_y_fords_local(
             str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste
         )
         arbol_agua = construir_arbol_agua(geometrias_agua)
-        cruces_por_arista = construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua)
+        cruces_por_arista = construir_cruces_por_arista(
+            grafo, arbol_agua, geometrias_agua, puntos_ford
+        )
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         print(
             f"[calcular_aislamiento] capa de agua: {len(geometrias_agua)} cursos de agua, "
+            f"{len(puntos_ford)} fords (nodos ford=yes), "
             f"{len(cruces_por_arista)} aristas con cruce detectado, "
             f"{time.monotonic() - t_agua0:.1f}s",
             flush=True,
         )
+        if len(puntos_ford) == 0:
+            print(
+                "[calcular_aislamiento] ADVERTENCIA: 0 nodos ford=yes en el "
+                "extracto (el extracto de Corrientes 2026-09-26 tiene 263): "
+                "revisar la lectura de fords",
+                flush=True,
+            )
 
         # N1 - optimizacion de rendimiento (ver docs/ejecucion-enos/G1/registro.md
         # y docstring de calcular_metricas_departamento): los grafos invertidos se
@@ -235,6 +421,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
 
         registros_geometria: list[dict] = []
+        # N3-B: datos de la via no conectada por escuela, para la auditoria.
+        info_sin_ruta: dict[str, dict] = {}
 
         for depto, escuelas_depto in por_depto.items():
             t_depto0 = time.monotonic()
@@ -250,10 +438,34 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     cruces_por_arista=cruces_por_arista,
                     grafo_seguro_invertido=grafo_seguro_invertido,
                     geometrias_out=geometrias_depto,
+                    indice_aristas=indice_aristas,
                 )
                 for escuela, metricas, geometria in zip(
                     escuelas_depto, lista_metricas, geometrias_depto
                 ):
+                    # N3-B: `sin_conexion_red` (snap > 5 km o nodo inalcanzable)
+                    # se reemplaza por un motivo verificable segun la via de OSM
+                    # mas cercana. La fila del CSV y el motivo del registro de
+                    # geometria quedan con el motivo concreto.
+                    if metricas["motivo_sin_datos"] == "sin_conexion_red":
+                        motivo, info = clasificar_sin_conexion(
+                            escuela["lat"], escuela["lon"], indice_no_conectadas
+                        )
+                        metricas["motivo_sin_datos"] = motivo
+                        geometria["motivo_sin_geometria"] = motivo
+                        info["via_a_red_principal_m"] = None
+                        if motivo == MOTIVO_RED_NO_CONECTADA:
+                            # Evidencia: la via existe cerca, pero la red
+                            # principal esta a X m (no se inventa el enlace).
+                            _, distancia_red = ox.distance.nearest_nodes(
+                                grafo,
+                                X=info["punto_via_lon"],
+                                Y=info["punto_via_lat"],
+                                return_dist=True,
+                            )
+                            info["via_a_red_principal_m"] = float(distancia_red)
+                        info_sin_ruta[escuela["cueAnexo"]] = info
+
                     indice = calcular_indice_aislamiento(
                         metricas["distancia_via_pavimentada_m"],
                         metricas["tramos_sin_pavimentar_count"],
@@ -301,6 +513,26 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 flush=True,
             )
 
+        # Escuelas excluidas por el gate geografico: fila sin datos y registro
+        # de geometria sin ruta, con motivo propio (N3-A).
+        for e in escuelas_fuera:
+            filas.append(
+                _fila_sin_datos(
+                    e, fecha_extracto, motivo="coordenada_fuera_de_departamento"
+                )
+            )
+            registros_geometria.append(
+                {
+                    "cue_anexo": e["cueAnexo"],
+                    "version_job": VERSION_JOB,
+                    "fecha_extracto_osm": fecha_extracto,
+                    "licencia": LICENCIA_OSM,
+                    "ruta": None,
+                    "cruces": [],
+                    "motivo_sin_geometria": "coordenada_fuera_de_departamento",
+                }
+            )
+
         ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_extracto)
         con_ruta = sum(1 for r in registros_geometria if r["ruta"] is not None)
         cruces_por_clase = Counter(
@@ -312,6 +544,21 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             f"[calcular_aislamiento] geometria exportada en {ruta_geom_path}: "
             f"{len(registros_geometria)} registros, {con_ruta} con ruta, "
             f"cruces por clase: {dict(cruces_por_clase)}",
+            flush=True,
+        )
+
+        # N3-B: auditoria de escuelas sin indice (motivo verificable + distancias).
+        ruta_sin_ruta_path, filas_sin_ruta = _escribir_csv_sin_ruta(
+            filas,
+            escuelas_por_cue,
+            info_sin_ruta,
+            km_fuera,
+            fecha_extracto,
+        )
+        motivos_sin_ruta = Counter(row["motivo_sin_datos"] for row in filas_sin_ruta)
+        print(
+            f"[calcular_aislamiento] escuelas sin indice exportadas en {ruta_sin_ruta_path}: "
+            f"{len(filas_sin_ruta)} filas, motivos: {dict(motivos_sin_ruta)}",
             flush=True,
         )
     else:
@@ -367,6 +614,14 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 f"[calcular_aislamiento] {depto}: {len(escuelas_depto)} escuelas, "
                 f"{len(grafo.nodes)} nodos, {len(grafo.edges)} aristas, {t_depto1 - t_depto0:.1f}s",
                 flush=True,
+            )
+
+        # Escuelas excluidas por el gate geografico (N3-A): solo fila sin datos.
+        for e in escuelas_fuera:
+            filas.append(
+                _fila_sin_datos(
+                    e, fecha_extracto, motivo="coordenada_fuera_de_departamento"
+                )
             )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
