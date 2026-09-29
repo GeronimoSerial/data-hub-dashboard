@@ -1,0 +1,217 @@
+import { describe, expect, it } from 'vitest'
+import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
+import type {
+  NivelAislamientoMapa,
+  TerritorioMapa,
+} from '@/lib/infraestructura/territorio-mapa'
+import {
+  claseInundacion,
+  construirCrucesAcceso,
+  construirPuntosAislamiento,
+  construirPuntosInundacion,
+  construirRutaAcceso,
+  ICONOS_ACCESOS_MAPA,
+  ID_ICONO_AISLAMIENTO,
+  ID_ICONO_CRUCE,
+  ID_ICONO_INUNDACION,
+  resumirCobertura,
+  type ClasificacionCruce,
+} from './accesos-capas'
+
+function escuela(
+  cueAnexo: string,
+  coords: { lat: number | null; lon: number | null } = { lat: -31.4, lon: -64.2 },
+): EscuelaMapa {
+  return {
+    cueAnexo,
+    nombre: `Escuela ${cueAnexo}`,
+    departamento: 'Capital',
+    localidad: 'Córdoba',
+    lat: coords.lat,
+    lon: coords.lon,
+    estado: 'sin_afectacion_reportada',
+  }
+}
+
+function filaAislamiento(nivel: NivelAislamientoMapa) {
+  return { nivel, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: null }
+}
+
+function territorio(opciones: {
+  aislamiento?: Record<string, ReturnType<typeof filaAislamiento>>
+  susceptibilidad?: Record<string, number | null>
+}): TerritorioMapa {
+  return {
+    aislamiento:
+      opciones.aislamiento === undefined
+        ? null
+        : {
+            fuente: 'OpenStreetMap',
+            atribucion: '© OpenStreetMap contributors',
+            licencia: 'ODbL',
+            fechaExtractoOsm: '2026-01-01',
+            versionJob: '1',
+            escuelas: opciones.aislamiento,
+          },
+    susceptibilidad:
+      opciones.susceptibilidad === undefined
+        ? null
+        : {
+            fuente: 'physrisk',
+            indicador: 'inundacion_fluvial',
+            escenario: 'historico',
+            unidad: 'm',
+            periodoRetornoAnios: 100,
+            fechaCorrida: '2026-01-01',
+            licencia: 'CC-BY',
+            escuelas: Object.fromEntries(
+              Object.entries(opciones.susceptibilidad).map(([cue, m]) => [
+                cue,
+                { inundacionFluvialM: m },
+              ]),
+            ),
+          },
+  }
+}
+
+describe('claseInundacion', () => {
+  it('resuelve los límites de la clasificación', () => {
+    expect(claseInundacion(null)).toBe('sin_cobertura')
+    expect(claseInundacion(0)).toBe('sin_profundidad')
+    expect(claseInundacion(0.49)).toBe('baja')
+    expect(claseInundacion(0.5)).toBe('media')
+    expect(claseInundacion(1)).toBe('alta')
+  })
+})
+
+describe('constructores de puntos', () => {
+  it('omite escuelas sin coordenadas o sin cobertura', () => {
+    const escuelas = [
+      escuela('CON-COBERTURA'),
+      escuela('SIN-COORDS', { lat: null, lon: null }),
+      escuela('SIN-COBERTURA'),
+    ]
+    const t = territorio({ aislamiento: { 'CON-COBERTURA': filaAislamiento(1) } })
+
+    const puntos = construirPuntosAislamiento(escuelas, t)
+    expect(puntos.features).toHaveLength(1)
+    expect(puntos.features[0].properties.cueAnexo).toBe('CON-COBERTURA')
+    expect(puntos.features[0].properties.icono).toBe(ID_ICONO_AISLAMIENTO[1])
+    expect(puntos.features[0].geometry.coordinates).toEqual([-64.2, -31.4])
+  })
+
+  it('construye la capa de inundación sólo con clase baja|media|alta', () => {
+    const escuelas = [
+      escuela('BAJA'),
+      escuela('SIN-PROF'),
+      escuela('SIN-COBERTURA'),
+      escuela('SIN-COORDS', { lat: null, lon: null }),
+    ]
+    const t = territorio({
+      susceptibilidad: { BAJA: 0.3, 'SIN-PROF': 0, 'SIN-COORDS': 2 },
+    })
+
+    const puntos = construirPuntosInundacion(escuelas, t)
+    expect(puntos.features).toHaveLength(1)
+    expect(puntos.features[0].properties).toMatchObject({
+      cueAnexo: 'BAJA',
+      clase: 'baja',
+      icono: ID_ICONO_INUNDACION.baja,
+    })
+    expect(puntos.features[0].properties.profundidadM).toBe(0.3)
+  })
+})
+
+describe('resumirCobertura', () => {
+  it('cuenta todo el padrón, incluidas las escuelas sin coordenadas', () => {
+    const escuelas = [
+      escuela('A'),
+      escuela('B', { lat: null, lon: null }),
+      escuela('C'),
+      escuela('D'),
+    ]
+    const t = territorio({
+      aislamiento: {
+        A: filaAislamiento(0),
+        C: filaAislamiento('sin_datos_red'),
+      },
+      susceptibilidad: { A: 0.2, B: 1.5, C: null },
+    })
+
+    const resumen = resumirCobertura(escuelas, t)
+
+    expect(resumen.total).toBe(4)
+    expect(resumen.aislamiento[0]).toBe(1)
+    expect(resumen.aislamiento.sin_datos_red).toBe(1)
+    // B (sin coords) y D no tienen fila de aislamiento.
+    expect(resumen.aislamiento.sin_cobertura).toBe(2)
+
+    expect(resumen.inundacion.baja).toBe(1)
+    expect(resumen.inundacion.alta).toBe(1)
+    // C tiene fila con null y D no tiene fila: ambos cuentan sin cobertura.
+    expect(resumen.inundacion.sin_cobertura).toBe(2)
+    expect(resumen.inundacion.sin_profundidad).toBe(0)
+  })
+})
+
+describe('construirRutaAcceso', () => {
+  it('conserva exactamente las coordenadas del dato', () => {
+    const coordinates: Array<[number, number]> = [
+      [-64.2, -31.4],
+      [-64.1, -31.3],
+      [-64.0, -31.2],
+    ]
+    const resultado = construirRutaAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      ruta: { type: 'LineString', coordinates },
+    })
+
+    expect(resultado).not.toBeNull()
+    expect(resultado?.features).toHaveLength(1)
+    expect(resultado?.features[0].geometry.coordinates).toEqual(coordinates)
+    expect(resultado?.features[0].geometry.coordinates).toHaveLength(3)
+  })
+
+  it('devuelve null cuando no está disponible', () => {
+    expect(construirRutaAcceso(null)).toBeNull()
+    expect(construirRutaAcceso({ cueAnexo: 'A', disponible: false })).toBeNull()
+  })
+})
+
+describe('construirCrucesAcceso', () => {
+  it('asigna ícono y etiqueta por clasificación', () => {
+    const clasificaciones: ClasificacionCruce[] = ['puente', 'vado', 'sin_evidencia']
+    const resultado = construirCrucesAcceso({
+      cueAnexo: 'A',
+      disponible: true,
+      cruces: clasificaciones.map((clasificacion, i) => ({
+        lon: -64 + i / 100,
+        lat: -31 + i / 100,
+        clasificacion,
+      })),
+    })
+
+    expect(resultado.features).toHaveLength(3)
+    for (const [i, clasificacion] of clasificaciones.entries()) {
+      expect(resultado.features[i].properties.clasificacion).toBe(clasificacion)
+      expect(resultado.features[i].properties.icono).toBe(ID_ICONO_CRUCE[clasificacion])
+      expect(resultado.features[i].properties.etiqueta).toBeTruthy()
+    }
+  })
+
+  it('devuelve una colección vacía cuando no está disponible', () => {
+    expect(construirCrucesAcceso(null).features).toHaveLength(0)
+    expect(construirCrucesAcceso({ cueAnexo: 'A', disponible: false }).features).toHaveLength(0)
+  })
+})
+
+describe('ICONOS_ACCESOS_MAPA', () => {
+  it('tiene ids únicos y todos los svg son SVG válidos', () => {
+    const ids = ICONOS_ACCESOS_MAPA.map((icono) => icono.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    for (const icono of ICONOS_ACCESOS_MAPA) {
+      expect(icono.svg.startsWith('<svg')).toBe(true)
+    }
+  })
+})
