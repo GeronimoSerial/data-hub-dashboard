@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
+import { useFetchVigente } from './use-fetch-vigente'
 
 // Hook de lectura del "modo Radar" (E4). Copia deliberada del patrón de
 // `use-alertas.ts`: querystring construido a mano, `AbortController` para
@@ -138,90 +139,23 @@ export function useRadar(
   loading: boolean
   error: string | null
 } {
-  const [data, setData] = useState<RespuestaRadar | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-  const desmontadoRef = useRef(false)
-  const filtrosRef = useRef<FiltrosRadar>(filtros)
-
-  // La clave serializa el contenido de los filtros: como `filtros` puede ser
-  // un objeto nuevo en cada render, comparar por identidad dispararía el
-  // efecto de más. Mismo criterio que la comparación de la respuesta.
+  // The hook remains unconditional; `activo=false` cancels the request and
+  // masks the retained result while the consumer is outside Radar mode.
   const claveFiltros = useMemo(() => JSON.stringify(filtros), [filtros])
-
-  useEffect(() => {
-    filtrosRef.current = filtros
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- se sincroniza con claveFiltros, no con la identidad de `filtros`.
-  }, [claveFiltros])
-
-  // El fetch vive en su propio callback sin argumentos (lee `filtrosRef`), no
-  // en el cuerpo del efecto: mismo patrón que `ejecutarFetch` de
-  // use-alertas.ts, que evita el lint react-hooks/set-state-in-effect.
-  const ejecutarFetch = useCallback(async (): Promise<void> => {
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    if (!desmontadoRef.current) {
-      setLoading(true)
-    }
-
-    try {
-      const respuesta = await fetch(`${RUTA_RADAR}${construirQueryString(filtrosRef.current)}`, {
-        signal: controller.signal,
+  const resultado = useFetchVigente<RespuestaRadar>({
+    activo,
+    clave: claveFiltros,
+    mensajeError: MENSAJE_ERROR,
+    ejecutar: async (signal) => {
+      const respuesta = await fetch(`${RUTA_RADAR}${construirQueryString(filtros)}`, {
+        signal,
         cache: 'no-cache',
         headers: { Accept: 'application/json' },
       })
-
-      if (!respuesta.ok) {
-        throw new Error(`HTTP ${respuesta.status}`)
-      }
-
-      const json = (await respuesta.json()) as RespuestaRadar
-
-      if (desmontadoRef.current || controller.signal.aborted) return
-
-      setData((prev) => (prev && JSON.stringify(prev) === JSON.stringify(json) ? prev : json))
-      setError(null)
-    } catch {
-      if (controller.signal.aborted || desmontadoRef.current) return
-      setError(MENSAJE_ERROR)
-    } finally {
-      if (abortRef.current === controller && !desmontadoRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    desmontadoRef.current = false
-
-    if (!activo) {
-      // Modo Situación actual (o flag apagado): ni request ni estado de
-      // carga. No hace falta resetear data/loading/error acá: el valor
-      // devuelto ya se enmascara más abajo cuando `activo` es falso.
-      abortRef.current?.abort()
-      abortRef.current = null
-      return () => {
-        desmontadoRef.current = true
-      }
-    }
-
-    void ejecutarFetch()
-
-    return () => {
-      desmontadoRef.current = true
-      abortRef.current?.abort()
-    }
-  }, [activo, claveFiltros, ejecutarFetch])
-
-  // Enmascarado en vez de resetear vía setState: en modo Situación actual (o
-  // flag apagado) el consumidor nunca ve datos del radar, aunque el estado
-  // interno conserve el último corte por si se reactiva.
-  if (!activo) {
-    return { data: null, loading: false, error: null }
-  }
-  return { data, loading, error }
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
+      return (await respuesta.json()) as RespuestaRadar
+    },
+    conservarRespuesta: (anterior, nueva) => JSON.stringify(anterior) === JSON.stringify(nueva),
+  })
+  return resultado
 }

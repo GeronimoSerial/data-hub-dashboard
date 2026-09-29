@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useFetchVigente } from './use-fetch-vigente'
 
 // Hook de lectura de la capa opcional "Perspectiva 30-90 días" (Open-Meteo
 // Seasonal, batch SEASONAL). Copia deliberada del patrón de use-radar.ts:
@@ -37,77 +37,22 @@ export function useTendenciaEstacional(
   loading: boolean
   error: string | null
 } {
-  const [data, setData] = useState<TendenciaEstacionalItem | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-  const desmontadoRef = useRef(false)
-  const departamentoRef = useRef<string | null>(departamento)
-
-  useEffect(() => {
-    departamentoRef.current = departamento
-  }, [departamento])
-
-  // El fetch vive en su propio callback sin argumentos (lee `departamentoRef`),
-  // no en el cuerpo del efecto: mismo patrón que use-radar.ts, que evita el
-  // lint react-hooks/set-state-in-effect por llamar setState sincrónicamente
-  // en el cuerpo del efecto.
-  const ejecutarFetch = useCallback(async (): Promise<void> => {
-    const depto = departamentoRef.current
-    if (depto === null) return
-
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    if (!desmontadoRef.current) setLoading(true)
-
-    try {
-      const query = new URLSearchParams({ departamento: depto }).toString()
+  return useFetchVigente<TendenciaEstacionalItem | null>({
+    activo,
+    clave: departamento,
+    mensajeError: MENSAJE_ERROR,
+    ejecutar: async (signal) => {
+      if (departamento === null) throw new Error('Departamento requerido')
+      const query = new URLSearchParams({ departamento }).toString()
       const respuesta = await fetch(`${RUTA_TENDENCIA_ESTACIONAL}?${query}`, {
-        signal: controller.signal,
+        signal,
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
       if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
       const json = (await respuesta.json()) as { items: TendenciaEstacionalItem[] }
-
-      if (desmontadoRef.current || controller.signal.aborted) return
-      const item = json.items[0] ?? null
-      setData((prev) => (prev && JSON.stringify(prev) === JSON.stringify(item) ? prev : item))
-      setError(null)
-    } catch {
-      if (controller.signal.aborted || desmontadoRef.current) return
-      setError(MENSAJE_ERROR)
-    } finally {
-      if (abortRef.current === controller && !desmontadoRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    desmontadoRef.current = false
-
-    if (!activo || departamento === null) {
-      abortRef.current?.abort()
-      abortRef.current = null
-      return () => {
-        desmontadoRef.current = true
-      }
-    }
-
-    void ejecutarFetch()
-
-    return () => {
-      desmontadoRef.current = true
-      abortRef.current?.abort()
-    }
-  }, [activo, departamento, ejecutarFetch])
-
-  if (!activo || departamento === null) {
-    return { data: null, loading: false, error: null }
-  }
-  return { data, loading, error }
+      return json.items[0] ?? null
+    },
+    conservarRespuesta: (anterior, nueva) => JSON.stringify(anterior) === JSON.stringify(nueva),
+  })
 }

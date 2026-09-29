@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useFetchVigente } from './use-fetch-vigente'
 
 // Hook de lectura del detalle de un snapshot de riesgo (E3b), usado por el
 // panel de explicación del modo Radar (E4, follow-up 4 del Gate) para mostrar
@@ -60,94 +60,24 @@ export function useRiesgoSnapshot(snapshotId: string | null): {
   loading: boolean
   error: string | null
 } {
-  const [data, setData] = useState<RespuestaRiesgoSnapshot | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const abortRef = useRef<AbortController | null>(null)
-  const desmontadoRef = useRef(false)
-  const snapshotIdRef = useRef<string | null>(snapshotId)
-
-  useEffect(() => {
-    snapshotIdRef.current = snapshotId
-  }, [snapshotId])
-
-  // Fetch en su propio callback (lee `snapshotIdRef`), no en el cuerpo del
-  // efecto: mismo motivo que en `useRadar` (evita el lint
-  // react-hooks/set-state-in-effect).
-  const ejecutarFetch = useCallback(async (): Promise<void> => {
-    const id = snapshotIdRef.current
-    if (id === null) return
-
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
-
-    if (!desmontadoRef.current) {
-      // Limpia el snapshot anterior antes de pedir el nuevo: si no,
-      // mientras la escuela B carga se seguirían mostrando los factores de
-      // la escuela A recién deseleccionada.
-      setData(null)
-      setError(null)
-      setLoading(true)
-    }
-
-    try {
-      const respuesta = await fetch(rutaSnapshot(id), {
-        signal: controller.signal,
+  // With no selected school the hook still runs, but the shared hook masks
+  // retained data instead of resetting state from the effect body.
+  return useFetchVigente<RespuestaRiesgoSnapshot>({
+    activo: true,
+    clave: snapshotId,
+    mensajeError: MENSAJE_ERROR,
+    limpiarAlCargar: true,
+    limpiarAlFallar: true,
+    ejecutar: async (signal) => {
+      if (snapshotId === null) throw new Error('Snapshot requerido')
+      // Clear the previous school's factors before loading the new snapshot.
+      const respuesta = await fetch(rutaSnapshot(snapshotId), {
+        signal,
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
-
-      if (!respuesta.ok) {
-        throw new Error(`HTTP ${respuesta.status}`)
-      }
-
-      const json = (await respuesta.json()) as RespuestaRiesgoSnapshot
-
-      if (desmontadoRef.current || controller.signal.aborted) return
-
-      setData(json)
-      setError(null)
-    } catch {
-      if (controller.signal.aborted || desmontadoRef.current) return
-      setData(null)
-      setError(MENSAJE_ERROR)
-    } finally {
-      if (abortRef.current === controller && !desmontadoRef.current) {
-        setLoading(false)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    desmontadoRef.current = false
-
-    if (snapshotId === null) {
-      // Ninguna escuela seleccionada: ni request ni estado de carga. No se
-      // llama a ningún setState acá (mismo motivo que `useRadar`): el valor
-      // devuelto se enmascara más abajo en vez de resetear estado desde el
-      // cuerpo del efecto.
-      abortRef.current?.abort()
-      abortRef.current = null
-      return () => {
-        desmontadoRef.current = true
-      }
-    }
-
-    void ejecutarFetch()
-
-    return () => {
-      desmontadoRef.current = true
-      abortRef.current?.abort()
-    }
-  }, [snapshotId, ejecutarFetch])
-
-  // Enmascarado en vez de resetear vía setState (ver comentario arriba): sin
-  // escuela seleccionada, el consumidor nunca ve el snapshot de la escuela
-  // anterior, aunque el estado interno lo conserve por si se reselecciona.
-  if (snapshotId === null) {
-    return { data: null, loading: false, error: null }
-  }
-  return { data, loading, error }
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
+      return (await respuesta.json()) as RespuestaRiesgoSnapshot
+    },
+  })
 }
