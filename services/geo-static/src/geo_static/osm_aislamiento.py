@@ -50,6 +50,22 @@ escuelas de Ituzaingo tienen una `unclassified` sin pavimentar a 34-62 m, pero
 esa via pertenece a un componente aislado (126 ways, 122,7 km) separado de la
 red principal por 1.405 m.
 
+## N3-C — snap a la arista mas cercana (no al nodo)
+
+Con el grafo real (443k nodos / 940k aristas) sobre las 2001 escuelas, la
+distancia de la escuela al NODO mas cercano vs a la ARISTA mas cercana difiere
+p50 17 m, p90 59 m, p99 425 m, max 935 m; 112 escuelas > 100 m, 46 > 250 m, 15
+> 500 m. Rutear desde el nodo mas cercano arranca a hasta 935 m del camino
+donde la escuela realmente esta, sobreestima `snap_distancia_m` y la ruta
+dibujada no empieza en el punto del camino mas cercano a la escuela.
+
+`construir_indice_aristas` + `snap_a_arista` (y su version vectorizada por
+lote) snapean cada escuela a su ARISTA dirigida mas cercana y rutean desde ahi:
+salida por el extremo `v` de la arista por la que snapeo, o por `u` usando la
+arista reversa si existe, eligiendo el menor costo `costo_parcial +
+distancias_cab[salida]`. Es aditivo: con `indice_aristas=None` (default)
+`calcular_metricas_departamento` se comporta EXACTAMENTE como antes.
+
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
 `calcular_metricas_escuela` (per-escuela, se mantiene para compatibilidad y
@@ -589,6 +605,336 @@ def construir_cruces_por_arista(grafo, arbol_agua, geometrias_agua) -> dict:
     return cruces
 
 
+# ---------------------------------------------------------------------------
+# N3-C — snap a la ARISTA mas cercana (no al nodo)
+# ---------------------------------------------------------------------------
+
+
+def _proyectar_geometria(geom, transformer):
+    """Proyecta una geometria lon/lat a un CRS metrico con el transformer dado
+    (envuelve `shapely.ops.transform`, consistente con el resto del modulo)."""
+    from shapely.ops import transform as shapely_transform
+
+    return shapely_transform(transformer.transform, geom)
+
+
+def construir_indice_aristas(grafo) -> dict:
+    """Indice espacial (STRtree) de TODAS las aristas dirigidas, proyectadas a
+    EPSG:32721 (UTM 21S), para snapear una escuela a la ARISTA mas cercana en
+    vez del NODO mas cercano (N3-C).
+
+    Evidencia (grafo real 443k nodos / 940k aristas, 2001 escuelas): la
+    distancia escuela -> nodo vs escuela -> arista difiere p50 17 m, p90 59 m,
+    p99 425 m, max 935 m; 112 escuelas > 100 m, 46 > 250 m, 15 > 500 m.
+
+    Se construye UNA sola vez por corrida. Devuelve `claves` (lista de
+    `(u, v, k)` en el mismo orden que el arbol), `geometrias` (lon/lat
+    originales), `proyectadas` (EPSG:32721) y el `transformer`, para reutilizar
+    en cada snap sin reproyectar.
+    """
+    from pyproj import Transformer
+    from shapely.strtree import STRtree
+
+    transformer = Transformer.from_crs(4326, 32721, always_xy=True)
+    claves = []
+    geometrias = []
+    proyectadas = []
+    for u, v, k, datos in grafo.edges(keys=True, data=True):
+        geometria = _geometria_arista(datos, grafo, u, v)
+        claves.append((u, v, k))
+        geometrias.append(geometria)
+        proyectadas.append(_proyectar_geometria(geometria, transformer))
+    return {
+        "arbol": STRtree(proyectadas),
+        "claves": claves,
+        "geometrias": geometrias,
+        "proyectadas": proyectadas,
+        "transformer": transformer,
+    }
+
+
+def _snap_arista_batch(grafo, indice, lats, lons) -> list:
+    """Snap vectorizado de varias escuelas a su arista dirigida mas cercana.
+
+    Hace UNA sola llamada `query_nearest` con todos los puntos proyectados (no
+    una por escuela) y devuelve una lista de dicts en el mismo orden que
+    `lats`/`lons`; `None` para una escuela sin arista (indice vacio).
+    """
+    from shapely.geometry import Point
+
+    if not indice["claves"]:
+        return [None] * len(lats)
+    if not lats:
+        return []
+
+    transformer = indice["transformer"]
+    puntos = [Point(*transformer.transform(lon, lat)) for lat, lon in zip(lats, lons)]
+    indices, distancias = indice["arbol"].query_nearest(puntos, return_distance=True)
+
+    # `query_nearest` con entrada vectorizada devuelve un array de forma
+    # (2, n): la fila 0 son los indices de entrada y la fila 1 los del arbol.
+    # Con `all_matches=True` (default) una entrada puede repetirse si hay
+    # empates; se conserva la de menor distancia.
+    mejores: dict = {}
+    for col in range(indices.shape[1]):
+        idx_entrada = int(indices[0, col])
+        idx_arbol = int(indices[1, col])
+        distancia = float(distancias[col])
+        actual = mejores.get(idx_entrada)
+        if actual is None or distancia < actual[1]:
+            mejores[idx_entrada] = (idx_arbol, distancia)
+
+    resultados = []
+    for i in range(len(lats)):
+        mejor = mejores.get(i)
+        if mejor is None:
+            resultados.append(None)
+            continue
+        idx_arbol, distancia = mejor
+        geometria_proyectada = indice["proyectadas"][idx_arbol]
+        geometria = indice["geometrias"][idx_arbol]
+        frac = geometria_proyectada.project(puntos[i], normalized=True)
+        frac = min(1.0, max(0.0, float(frac)))
+        punto_original = geometria.interpolate(frac, normalized=True)
+        u, v, k = indice["claves"][idx_arbol]
+        resultados.append(
+            {
+                "u": u,
+                "v": v,
+                "k": k,
+                "frac": frac,
+                "distancia_m": distancia,
+                "lon": float(punto_original.x),
+                "lat": float(punto_original.y),
+            }
+        )
+    return resultados
+
+
+def snap_a_arista(grafo, indice, lat, lon) -> dict:
+    """Snap de UNA escuela a su arista dirigida mas cercana (N3-C).
+
+    Devuelve `{"u","v","k","frac","distancia_m","lon","lat"}`: `frac` es la
+    posicion normalizada sobre la arista (0 en `u`, 1 en `v`), `distancia_m` la
+    distancia perpendicular en metros (espacio proyectado) y `lon`/`lat` el
+    punto de proyeccion sobre la geometria ORIGINAL. Para un lote de escuelas
+    usar `_snap_arista_batch` (una sola consulta vectorizada)."""
+    return _snap_arista_batch(grafo, indice, [lat], [lon])[0]
+
+
+def _coordenadas_geometria(geom) -> list:
+    """Coordenadas `[lon, lat]` redondeadas a 6 decimales de una geometria
+    puntual o lineal, salteando una coordenada igual a la anterior."""
+    if geom is None or geom.is_empty:
+        return []
+    if geom.geom_type == "Point":
+        puntos = [geom.coords[0]]
+    else:
+        puntos = list(geom.coords)
+    coords = []
+    for lon, lat in puntos:
+        coord = [round(lon, 6), round(lat, 6)]
+        if coords and coords[-1] == coord:
+            continue
+        coords.append(coord)
+    return coords
+
+
+def _cruces_en_tramo_parcial(
+    indice, geometria_proyectada, frac, sentido_adelante, cruces_arista
+) -> list:
+    """Cruces de agua de la arista snapeada que caen DENTRO del tramo
+    realmente recorrido por la escuela (N3-C): `t >= frac` si sale por `v`
+    (sentido adelante), `t <= frac` si sale por `u` (sentido reverso). `t` es
+    la posicion normalizada del cruce proyectado sobre la arista."""
+    if not cruces_arista:
+        return []
+    from shapely.geometry import Point
+
+    transformer = indice["transformer"]
+    seleccion = []
+    for cruce in cruces_arista:
+        px, py = cruce["punto"]
+        punto = Point(*transformer.transform(px, py))
+        t = geometria_proyectada.project(punto, normalized=True)
+        if (t >= frac) if sentido_adelante else (t <= frac):
+            seleccion.append(cruce)
+    return seleccion
+
+
+def _evaluar_escuela_arista(
+    grafo,
+    snap,
+    distancias_cab,
+    rutas_cab,
+    alcanzables_seguro,
+    cruces_por_arista,
+    indice,
+    tolerancia_dedup_m,
+    nodo_cabecera,
+) -> tuple:
+    """Metricas y registro de geometria de UNA escuela snapeada a su arista.
+
+    Modela las dos salidas posibles desde la posicion `frac` de la arista
+    dirigida `E=(u,v,k)`: hacia `v` por `E` (siempre permitida) o hacia `u` por
+    la arista reversa `Er=(v,u,kr)` (si existe), eligiendo la de menor costo
+    total `costo_parcial + distancias_cab[salida]`. Devuelve
+    `(resultado, registro_geometria)`. Si ningun extremo esta en
+    `distancias_cab` la escuela queda `sin_conexion_red`, igual que hoy.
+    """
+    import networkx as nx
+    from shapely.ops import substring
+
+    resultado = _resultado_vacio()
+    geometria = {"ruta": None, "cruces": [], "motivo_sin_geometria": None}
+    resultado["snap_distancia_m"] = snap["distancia_m"]
+
+    if snap["distancia_m"] > UMBRAL_SNAP_SIN_CONEXION_M:
+        resultado["motivo_sin_datos"] = "sin_conexion_red"
+        geometria["motivo_sin_geometria"] = "sin_conexion_red"
+        return resultado, geometria
+
+    u, v, k = snap["u"], snap["v"], snap["k"]
+    frac = snap["frac"]
+    datos_e = (grafo.get_edge_data(u, v) or {}).get(k, {})
+    geometria_e = _geometria_arista(datos_e, grafo, u, v)
+
+    opciones = []
+    if v in distancias_cab:
+        opciones.append(
+            {
+                "exit": v,
+                "costo": (1.0 - frac) * float(datos_e.get("length", 0.0)),
+                "datos": datos_e,
+                "clave": (u, v, k),
+                "sentido_adelante": True,
+            }
+        )
+
+    datos_aristas_er = grafo.get_edge_data(v, u) or {}
+    if datos_aristas_er and u in distancias_cab:
+        kr = min(
+            datos_aristas_er,
+            key=lambda kk: datos_aristas_er[kk].get("length", math.inf),
+        )
+        datos_er = datos_aristas_er[kr]
+        opciones.append(
+            {
+                "exit": u,
+                "costo": frac * float(datos_er.get("length", 0.0)),
+                "datos": datos_er,
+                "clave": (v, u, kr),
+                "sentido_adelante": False,
+            }
+        )
+
+    if not opciones:
+        resultado["motivo_sin_datos"] = "sin_conexion_red"
+        geometria["motivo_sin_geometria"] = "sin_conexion_red"
+        return resultado, geometria
+
+    mejor = min(opciones, key=lambda op: op["costo"] + distancias_cab[op["exit"]])
+    costo_total = mejor["costo"] + distancias_cab[mejor["exit"]]
+    resultado["distancia_cabecera_departamental_m"] = costo_total
+    resultado["distancia_via_pavimentada_m"] = costo_total
+
+    ruta_desde_exit = list(reversed(rutas_cab[mejor["exit"]]))
+
+    tramos_sin_pavimentar = 0
+    cruces_con_puente = 0
+    cruces_con_vado = 0
+    ya_vistos_ruta: list = []
+    cruces_export: list = []
+    parcial_todos_puente = True
+
+    if _es_tramo_sin_pavimentar(mejor["datos"]):
+        tramos_sin_pavimentar += 1
+
+    geometria_proyectada_e = _proyectar_geometria(geometria_e, indice["transformer"])
+    cruces_parciales = _cruces_en_tramo_parcial(
+        indice,
+        geometria_proyectada_e,
+        frac,
+        mejor["sentido_adelante"],
+        cruces_por_arista.get(mejor["clave"], []),
+    )
+    for cruce in _dedupe_cruces(cruces_parciales, ya_vistos_ruta, tolerancia_dedup_m):
+        if cruce["con_puente"]:
+            cruces_con_puente += 1
+        else:
+            cruces_con_vado += 1
+            parcial_todos_puente = False
+        punto_x, punto_y = cruce["punto"]
+        cruces_export.append(
+            {
+                "lon": round(punto_x, 6),
+                "lat": round(punto_y, 6),
+                "clasificacion": clasificar_cruce(cruce),
+            }
+        )
+
+    for a, b in zip(ruta_desde_exit[:-1], ruta_desde_exit[1:]):
+        datos_aristas = grafo.get_edge_data(a, b) or {}
+        for kk, datos in datos_aristas.items():
+            if _es_tramo_sin_pavimentar(datos):
+                tramos_sin_pavimentar += 1
+            crucesarista = cruces_por_arista.get((a, b, kk), [])
+            for cruce in _dedupe_cruces(crucesarista, ya_vistos_ruta, tolerancia_dedup_m):
+                if cruce["con_puente"]:
+                    cruces_con_puente += 1
+                else:
+                    cruces_con_vado += 1
+                punto_x, punto_y = cruce["punto"]
+                cruces_export.append(
+                    {
+                        "lon": round(punto_x, 6),
+                        "lat": round(punto_y, 6),
+                        "clasificacion": clasificar_cruce(cruce),
+                    }
+                )
+
+    cruces_count = cruces_con_puente + cruces_con_vado
+    resultado["tramos_sin_pavimentar_count"] = tramos_sin_pavimentar
+    resultado["cruces_agua_count"] = cruces_count
+    resultado["cruces_agua_con_puente_count"] = cruces_con_puente
+    resultado["cruces_agua_con_vado_count"] = cruces_con_vado
+
+    if cruces_con_vado == 0:
+        resultado["tiene_alternativa_sin_cruce"] = True
+    elif alcanzables_seguro is not None:
+        resultado["tiene_alternativa_sin_cruce"] = (
+            mejor["exit"] in alcanzables_seguro and parcial_todos_puente
+        )
+    else:
+        grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
+        try:
+            resultado["tiene_alternativa_sin_cruce"] = nx.has_path(
+                grafo_seguro, mejor["exit"], nodo_cabecera
+            )
+        except (nx.NetworkXError, nx.NodeNotFound):
+            resultado["tiene_alternativa_sin_cruce"] = False
+
+    # Geometria: tramo parcial (desde el punto de proyeccion hasta el extremo
+    # de salida) + ruta desde el nodo de salida. Nunca se dibuja un segmento
+    # recto escuela -> via.
+    if mejor["sentido_adelante"]:
+        parcial = substring(geometria_e, frac, 1, normalized=True)
+    else:
+        parcial = substring(geometria_e, frac, 0, normalized=True)
+    coordenadas = _coordenadas_geometria(parcial)
+    for coord in _coordenadas_ruta(grafo, ruta_desde_exit):
+        if coordenadas and coordenadas[-1] == coord:
+            continue
+        coordenadas.append(coord)
+    if len(coordenadas) < 2:
+        geometria["ruta"] = None
+        geometria["motivo_sin_geometria"] = "ruta_degenerada"
+    else:
+        geometria["ruta"] = {"type": "LineString", "coordinates": coordenadas}
+    geometria["cruces"] = cruces_export
+    return resultado, geometria
+
+
 def _aristas_inseguras(cruces_por_arista: dict) -> set:
     """Aristas con al menos un cruce de agua SIN puente (vado confirmado o
     sin evidencia de puente ni de vado). Nunca se asume que un cruce sin
@@ -779,6 +1125,7 @@ def calcular_metricas_departamento(
     tolerancia_dedup_m: float = TOLERANCIA_DEDUP_CRUCE_M,
     *,
     geometrias_out: Optional[list] = None,
+    indice_aristas: Optional[dict] = None,
 ) -> list:
     """Version batched de `calcular_metricas_escuela` para TODAS las escuelas
     de un mismo departamento (mismo `nodo_cabecera`).
@@ -828,8 +1175,18 @@ def calcular_metricas_departamento(
     "clasificacion"}, ...], "motivo_sin_geometria": None | "sin_conexion_red" |
     "ruta_degenerada"}`. Los cruces se producen en la MISMA iteracion que los
     cuenta, por lo que su cantidad siempre coincide con `cruces_agua_count` y
-    los de clasificacion "puente" con `cruces_agua_con_puente_count`. Export
+    los de clasificacion "puente" con `cruces_agua_con_puente_count`.     Export
     puramente aditivo: con `None` (default) el resultado es identico.
+
+    ## N3-C — snap a la arista mas cercana (keyword-only `indice_aristas`)
+
+    Cuando `indice_aristas` (resultado de `construir_indice_aristas`) se pasa,
+    cada escuela se snapea a su ARISTA dirigida mas cercana en vez del nodo mas
+    cercano y se rutea desde ahi (salida por `v`, o por `u` via la arista
+    reversa si existe, eligiendo el menor costo). Evidencia sobre el grafo real
+    (443k nodos / 940k aristas, 2001 escuelas): la distancia al nodo vs a la
+    arista difiere p50 17 m, p90 59 m, p99 425 m, max 935 m. Con `None` la
+    funcion se comporta EXACTAMENTE como antes.
     """
     import networkx as nx
     import osmnx as ox
@@ -838,6 +1195,19 @@ def calcular_metricas_departamento(
 
     if not escuelas_depto:
         return []
+
+    if indice_aristas is not None:
+        return _calcular_metricas_departamento_por_arista(
+            grafo,
+            grafo_invertido,
+            escuelas_depto,
+            nodo_cabecera,
+            cruces_por_arista,
+            grafo_seguro_invertido,
+            tolerancia_dedup_m,
+            geometrias_out,
+            indice_aristas,
+        )
 
     lons = [e["lon"] for e in escuelas_depto]
     lats = [e["lat"] for e in escuelas_depto]
@@ -944,4 +1314,71 @@ def calcular_metricas_departamento(
 
         resultados.append(resultado)
 
+    return resultados
+
+
+def _calcular_metricas_departamento_por_arista(
+    grafo,
+    grafo_invertido,
+    escuelas_depto: list,
+    nodo_cabecera,
+    cruces_por_arista: dict,
+    grafo_seguro_invertido,
+    tolerancia_dedup_m: float,
+    geometrias_out: Optional[list],
+    indice_aristas: dict,
+) -> list:
+    """Camino N3-C de `calcular_metricas_departamento`: snap a la ARISTA mas
+    cercana (una sola consulta vectorizada para todas las escuelas) y ruteo
+    desde el extremo de la arista elegido. `distancias_cab`/`rutas_cab` ya
+    vienen del Dijkstra invertido desde la sede (distancia/camino de cada nodo
+    hacia la sede), por lo que el costo de cada salida es `costo_parcial +
+    distancias_cab[salida]`.
+
+    Devuelve una lista de dicts en el mismo orden que `escuelas_depto` con las
+    mismas claves que `calcular_metricas_escuela`; si `geometrias_out` no es
+    `None`, agrega un registro de geometria por escuela (mismo formato que el
+    camino batched)."""
+    import networkx as nx
+
+    lats = [e["lat"] for e in escuelas_depto]
+    lons = [e["lon"] for e in escuelas_depto]
+    snaps = _snap_arista_batch(grafo, indice_aristas, lats, lons)
+
+    distancias_cab, rutas_cab = nx.single_source_dijkstra(
+        grafo_invertido, nodo_cabecera, weight="length"
+    )
+
+    alcanzables_seguro = None
+    if grafo_seguro_invertido is not None:
+        alcanzables_seguro = set(
+            nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
+        )
+
+    resultados = []
+    for escuela, snap in zip(escuelas_depto, snaps):
+        if snap is None:
+            resultado = _resultado_vacio()
+            resultado["motivo_sin_datos"] = "sin_conexion_red"
+            resultados.append(resultado)
+            if geometrias_out is not None:
+                geometrias_out.append(
+                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                )
+            continue
+
+        resultado, geometria = _evaluar_escuela_arista(
+            grafo,
+            snap,
+            distancias_cab,
+            rutas_cab,
+            alcanzables_seguro,
+            cruces_por_arista,
+            indice_aristas,
+            tolerancia_dedup_m,
+            nodo_cabecera,
+        )
+        resultados.append(resultado)
+        if geometrias_out is not None:
+            geometrias_out.append(geometria)
     return resultados

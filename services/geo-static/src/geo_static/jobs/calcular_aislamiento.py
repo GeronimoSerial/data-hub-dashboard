@@ -287,6 +287,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         construir_cruces_por_arista,
         construir_geometrias_agua_local,
         construir_grafo_seguro,
+        construir_indice_aristas,
         construir_indice_no_conectadas,
         construir_red,
         construir_red_local,
@@ -373,6 +374,17 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             flush=True,
         )
 
+        # N3-C: indice espacial de aristas (proyectadas) para snapear cada
+        # escuela a la ARISTA mas cercana en vez del nodo mas cercano. Se
+        # construye UNA sola vez para toda la corrida (ver osm_aislamiento.py).
+        t_aristas0 = time.monotonic()
+        indice_aristas = construir_indice_aristas(grafo)
+        print(
+            f"[calcular_aislamiento] indice de aristas (N3-C): "
+            f"{len(indice_aristas['claves'])} aristas, {time.monotonic() - t_aristas0:.1f}s",
+            flush=True,
+        )
+
         t_agua0 = time.monotonic()
         geometrias_agua = construir_geometrias_agua_local(
             str(PBF_LOCAL_DEFAULT), norte, sur, este, oeste
@@ -413,6 +425,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     cruces_por_arista=cruces_por_arista,
                     grafo_seguro_invertido=grafo_seguro_invertido,
                     geometrias_out=geometrias_depto,
+                    indice_aristas=indice_aristas,
                 )
                 for escuela, metricas, geometria in zip(
                     escuelas_depto, lista_metricas, geometrias_depto
