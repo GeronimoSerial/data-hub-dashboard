@@ -72,6 +72,43 @@ escuelas con parte obtenía un punto.
 - El refresco trimestral requiere re-correr el job (~25 min) y el importador.
 - La geometría no es un pronóstico ni el estado del edificio.
 
+## QA de UX del mapa (2026-09-29)
+
+Hallazgos del usuario y de N1 sobre `/mapas/infraestructura`, reproducidos en navegador real antes de tocar código y
+resueltos en los commits `130bb1d`, `f65c653`, `6179218`, `78cf985` y `2a21b46`. Detalle y tareas en
+`odd/tasks/mapa-accesos-qa-ux.md`.
+
+- **Ficha breve:** tres líneas (acceso por camino, cruces de agua, inundación histórica en la escuela) y el botón
+  "Ver recorrido"; la escala "n de 3", el período de retorno de 100 años, la metodología, las advertencias y las fuentes con
+  fecha van en un único detalle secundario cerrado. La sección territorial pasó arriba de la ficha para que el botón se
+  vea sin desplazarse.
+- **Textos en lenguaje llano:** "Dificultad de acceso por caminos (0 a 3)" e "Inundación histórica por desborde de ríos".
+  Las reglas de cada nivel salen de `calcular_indice_aislamiento`: 0 ruta de hasta 3 km sin cruces y con a lo sumo un
+  tramo de tierra; 1 ningún cruce sin puente registrado pero trayecto no simple; 2 cruce sin puente registrado con camino
+  que lo evita; 3 más de 20 km o cruce sin puente registrado sin alternativa; "No calculable" a más de 5 km del camino más
+  cercano en OSM o sin conexión con la cabecera; "Sin dato" = la escuela no figura en el archivo importado (nunca es 0).
+  physrisk es un modelo WRI Aqueduct con clima histórico, no un registro de inundaciones, no un pronóstico y no el
+  trazado de un río.
+- **Ficha y selección:** cerrar la ficha conserva la escuela (ruta, resaltado, leyenda) y ofrece "Ver ficha" y "Quitar
+  selección". Elegir una escuela desde el buscador cierra los cajones en pantallas angostas y encuadra la ruta completa con
+  el padding real de la columna y de la ficha. Una escuela sin coordenadas muestra su ficha y un aviso.
+- **Capas accesibles:** con la ficha abierta el panel de capas pasa al botón "Capas" (a partir de 721 px) y queda por
+  encima de la ficha al abrirlo; en 390 px el botón "Buscar escuelas" y el de pantalla completa suben sobre la hoja.
+- **Íconos:** los íconos de acceso e inundación ya son interactivos (antes el clic caía en el departamento y lo filtraba);
+  el cruce de agua abre un popup con su clase.
+- **"Sin datos del padrón":** se refería al corte de Gestión Escolar (secciones y matrícula), no al padrón de escuelas.
+  Ahora dice "Sin secciones ni matrícula en el corte vigente de Gestión Escolar." si la escuela figura en el padrón.
+- **Leyenda:** tarjeta opaca, con el bloque de la escuela seleccionada primero y las explicaciones largas plegadas.
+
+Verificación: `pnpm lint` 0, `tsc --noEmit` 0, `pnpm build` 0, vitest de `components`, `lib` y `app` 224 archivos / 2147
+pruebas verdes; navegador real (Chromium headless con Playwright contra `:3206`) en 1440x900, 900x800 y 390x844, escuelas
+`1800072-00` (con recorrido) y `1800585-00` (sin recorrido), modo claro y oscuro. Capturas en
+`~/orca/demo-data/enos-accesos/qa-evidencia/` (fuera del repo).
+
+Pendiente: no se probó el modo Radar con la ficha abierta; la hoja inferior de la ficha (721–1080 px) tapa la parte de abajo
+de la columna izquierda, que se recupera cerrando la ficha; la selección por ícono no se probó con el punto de una escuela
+con parte en cluster.
+
 ## Cómo regenerar
 
 1. Desde `services/geo-static/`:
