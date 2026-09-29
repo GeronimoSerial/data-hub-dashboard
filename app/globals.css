@@ -2134,6 +2134,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   }
   .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
     top: 52px;
+    z-index: 5;
+    max-height: calc(100% - 64px);
+    overflow-y: auto;
   }
 }
 
