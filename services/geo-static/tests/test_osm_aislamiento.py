@@ -1055,12 +1055,53 @@ class TestCorrerSeleccionDeRed:
 
         assert llamadas_agua["n"] == 1
         nombres_csv = sorted(p.name for p in (tmp_path / "output").glob("*.csv"))
-        assert "aislamiento_osm-v1-2026-09-26.csv" in nombres_csv
-        assert "aislamiento_osm_sin_ruta-v1-2026-09-26.csv" in nombres_csv
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
         salida = capsys.readouterr().out
         assert "extracto local detectado" in salida
         assert "capa de agua" in salida
         assert "0 fords (nodos ford=yes)" in salida
+
+    def test_salidas_versionadas_y_version_job(self, monkeypatch, tmp_path):
+        """Las tres salidas del camino PBF llevan `-v{VERSION_JOB}-` y el campo
+        `version_job` (columna del CSV y campo del NDJSON de geometria) vale
+        `VERSION_JOB`, no un literal hardcodeado."""
+        import geo_static.osm_aislamiento as osm_mod
+
+        pbf_falso = tmp_path / "existe.osm.pbf"
+        pbf_falso.write_bytes(b"")
+        job = _preparar_job(monkeypatch, tmp_path, pbf_falso)
+
+        monkeypatch.setattr(
+            osm_mod, "construir_red_local", lambda *a, **k: _grafo_lineal_escuela_cabecera()
+        )
+        monkeypatch.setattr(
+            osm_mod, "construir_geometrias_agua_y_fords_local", lambda *a, **k: ([], [])
+        )
+
+        job.correr(departamentos=["Capital"])
+
+        output = tmp_path / "output"
+        nombres = sorted(p.name for p in output.iterdir())
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
+        assert f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz" in nombres
+
+        with open(
+            output / f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv", encoding="utf-8"
+        ) as f:
+            filas = list(csv.DictReader(f))
+        assert filas
+        assert {fila["version_job"] for fila in filas} == {job.VERSION_JOB}
+
+        with gzip.open(
+            output / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz",
+            "rt",
+            encoding="utf-8",
+        ) as f:
+            registros = [json.loads(line) for line in f]
+        assert registros
+        assert {registro["version_job"] for registro in registros} == {job.VERSION_JOB}
 
 
 class TestCorrerSinRuta:
@@ -1106,7 +1147,7 @@ class TestCorrerSinRuta:
 
         job.correr(departamentos=["Capital"])
 
-        csv_path = tmp_path / "output" / "aislamiento_osm_sin_ruta-v1-2026-09-26.csv"
+        csv_path = tmp_path / "output" / f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv"
         assert csv_path.exists()
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -1123,7 +1164,7 @@ class TestCorrerSinRuta:
         assert float(fila1["via_a_red_principal_m"]) == 200.0
 
         # El NDJSON de geometria lleva el mismo motivo.
-        nd_path = tmp_path / "output" / "accesos_osm_geometria-v1-2026-09-26.ndjson.gz"
+        nd_path = tmp_path / "output" / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz"
         with gzip.open(nd_path, "rt", encoding="utf-8") as f:
             registros = {json.loads(line)["cue_anexo"]: json.loads(line) for line in f}
         assert registros["CUE-1"]["motivo_sin_geometria"] == MOTIVO_RED_NO_CONECTADA

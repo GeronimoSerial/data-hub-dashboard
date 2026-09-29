@@ -50,7 +50,10 @@ from pathlib import Path
 
 from geo_static import padron_geo
 
-VERSION_JOB = "1"
+# v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
+# departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
+# coordenada, snap a arista, motivos verificables de sin-ruta, nodos ford.
+VERSION_JOB = "2"
 LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 
 # bbox aproximado de la provincia de Corrientes, Argentina (norte, sur, este, oeste).
