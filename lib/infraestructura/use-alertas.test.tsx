@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useAlertas, type RespuestaPartesMapa } from './use-alertas'
 import type { FiltrosMapa } from './parte-mapa'
+import { jsonResponse } from './test-utils/http'
 
 function resultado(n: number): RespuestaPartesMapa {
   return {
@@ -18,14 +19,6 @@ function resultado(n: number): RespuestaPartesMapa {
       seccionesAlcanzadas: n,
     },
   }
-}
-
-function jsonResponse(body: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-  } as Response
 }
 
 let calls: string[]

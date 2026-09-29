@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useReplay, type FiltrosReplay, type RespuestaReplay } from './use-replay'
+import { jsonResponse } from './test-utils/http'
 
 function respuesta(instante: string): RespuestaReplay {
   return {
@@ -18,14 +19,6 @@ function respuesta(instante: string): RespuestaReplay {
     vacios: [{ snapshotRiesgo: true, peligro: true, lluvia: true }],
     siguienteDesde: null,
   }
-}
-
-function jsonResponse(body: unknown) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-  } as Response
 }
 
 let calls: string[]

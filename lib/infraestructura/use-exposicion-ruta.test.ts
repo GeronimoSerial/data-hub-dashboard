@@ -3,13 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { __limpiarCacheExposicionRuta, useExposicionRuta } from './use-exposicion-ruta'
 import type { ExposicionRutaRespuesta } from './exposicion-ruta'
+import { jsonResponse } from './test-utils/http'
 
 function exposicion(cueAnexo: string): ExposicionRutaRespuesta {
   return { cueAnexo, disponible: true, estado: 'sin_profundidad', versionJob: '1', resumen: { celdasTotal: 2, celdasConDato: 2, celdasConProfundidad: 0, profundidadMaxM: null, cobertura: 1 }, celdasAfectadas: [], resolucionArcsec: 30, periodoRetornoAnios: 100, escenario: 'historico', fuente: 'WRI Aqueduct v2 vía OS-Climate physrisk', licencia: 'Apache-2.0', fechaCorrida: '2026-06-01', aviso: 'Indicador histórico' }
-}
-
-function jsonResponse(body: unknown): Response {
-  return { ok: true, status: 200, json: async () => body } as Response
 }
 
 // Deja correr las promesas pendientes (fetch mockeado y sus .then) sin avanzar

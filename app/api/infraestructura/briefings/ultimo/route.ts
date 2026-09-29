@@ -1,6 +1,7 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { aDtoPublico } from '@/lib/infraestructura/briefing-ia/dto'
 import { obtenerUltimoBriefing } from '@/lib/infraestructura/briefing-ia/repositorio'
+import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 import { getSessionUser, staffGuard } from '@/lib/session'
 
 export const runtime = 'nodejs'
@@ -11,12 +12,7 @@ export async function GET(_request: Request) {
 
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json(
-      { error: guard.error },
-      { status: guard.status, headers: { 'Cache-Control': 'private, no-store' } },
-    )
-  }
+  if (guard) return respuestaGuard(guard)
 
   const briefing = await obtenerUltimoBriefing()
   if (!briefing) {

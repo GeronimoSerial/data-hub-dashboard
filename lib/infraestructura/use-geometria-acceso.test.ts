@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { __limpiarCacheGeometria, useGeometriaAcceso } from './use-geometria-acceso'
 import type { GeometriaAccesoRespuesta } from './territorio-mapa'
+import { jsonResponse } from './test-utils/http'
 
 function geometria(cueAnexo: string): GeometriaAccesoRespuesta {
   return {
@@ -17,10 +18,6 @@ function geometria(cueAnexo: string): GeometriaAccesoRespuesta {
     },
     cruces: [],
   }
-}
-
-function jsonResponse(body: unknown): Response {
-  return { ok: true, status: 200, json: async () => body } as Response
 }
 
 // Deja correr las promesas pendientes (fetch mockeado y sus .then) sin avanzar

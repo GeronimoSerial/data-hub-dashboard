@@ -3,6 +3,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerIndiceAislamientoDeCue } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/aislamiento'
 import { crearAdapterTerritorio } from '../../../../../lib/infraestructura/riesgo/motor/adaptadores/territorio'
+import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,9 +25,7 @@ const SIN_STORE = { 'Cache-Control': 'private, no-store' } as const
 export async function GET(_request: Request, ctx: Ctx) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json({ error: guard.error }, { status: guard.status, headers: SIN_STORE })
-  }
+  if (guard) return respuestaGuard(guard)
 
   await ensureSeeded()
 

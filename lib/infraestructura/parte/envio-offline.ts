@@ -411,14 +411,7 @@ async function completarEnvio<T>(
     // intento — se conserva el MISMO borrador (misma idempotencyKey) marcado
     // como error, para que un reintento posterior siga pudiendo deduplicar
     // contra lo que el servidor haya llegado a persistir.
-    const borradorInesperado: BorradorParte<T> = {
-      ...borradorEnviando,
-      estado: 'error',
-      motivoError: MENSAJE_RESPUESTA_INESPERADA,
-      actualizadoEn: new Date().toISOString(),
-    }
-    await guardarBorrador(opciones.almacen, borradorInesperado)
-    opciones.onCambioEstado?.(borradorInesperado)
+    await registrarError(opciones, borradorEnviando, MENSAJE_RESPUESTA_INESPERADA)
     return { ok: false, estado: 'error', motivo: MENSAJE_RESPUESTA_INESPERADA }
   }
 
@@ -441,15 +434,19 @@ async function completarEnvio<T>(
       ? MENSAJE_SESION_VENCIDA
       : motivo ?? MENSAJES_ESTADO.error
 
+  await registrarError(opciones, borradorEnviando, motivoError)
+  return { ok: false, estado: 'error', motivo: motivoError }
+}
+
+async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string): Promise<void> {
   const borradorError: BorradorParte<T> = {
-    ...borradorEnviando,
+    ...borrador,
     estado: 'error',
     motivoError,
     actualizadoEn: new Date().toISOString(),
   }
   await guardarBorrador(opciones.almacen, borradorError)
   opciones.onCambioEstado?.(borradorError)
-  return { ok: false, estado: 'error', motivo: motivoError }
 }
 
 async function registrarPendiente<T>(

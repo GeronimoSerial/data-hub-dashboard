@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { obtenerUltimoCorte } from '@/lib/infraestructura/riesgo/situacion/corte'
+import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,12 +50,7 @@ function aCsv(filas: string[][]): string {
 export async function GET(request: Request) {
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json(
-      { error: guard.error },
-      { status: guard.status, headers: { 'Cache-Control': 'private, no-store' } },
-    )
-  }
+  if (guard) return respuestaGuard(guard)
 
   await ensureSeeded()
 

@@ -21,6 +21,12 @@ import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
+  colapsarHistorial,
+  crearBorradorStore,
+  empujarPasoEnHistorial,
+  leerPasoBaseHistorial,
+} from '@/lib/infraestructura/parte/borrador-historial'
+import {
   crearAlmacenNavegador,
   intentarEnviar,
   registrarAutoReintento,
@@ -119,59 +125,18 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   return true
 }
 
-async function leerBorrador(clave: string): Promise<BorradorParteNuevo | null> {
-  const crudo = await almacenParte.obtener(clave)
-  if (!crudo) return null
-  try {
-    const dato: unknown = JSON.parse(crudo)
-    if (esBorradorParteNuevo(dato)) return dato
-    // Un borrador de otra versión del formulario no se restaura a medias.
-    await almacenParte.eliminar(clave)
-    return null
-  } catch {
-    return null
-  }
-}
-
-async function guardarBorrador(clave: string, borrador: BorradorParteNuevo): Promise<void> {
-  await almacenParte.guardar(clave, JSON.stringify(borrador))
-}
-
-async function limpiarBorrador(clave: string): Promise<void> {
-  await almacenParte.eliminar(clave)
-}
-
-function empujarPasoEnHistorial(paso: number, generacion: string): void {
-  try {
-    window.history.pushState({ partePaso: paso, parteGeneracion: generacion }, '')
-  } catch {
-    // Sin historial navegable el asistente avanza igual, sólo pierde "atrás".
-  }
-}
-
-function colapsarHistorial(profundidad: number): void {
-  if (profundidad <= 0) return
-  try {
-    window.history.go(-profundidad)
-  } catch {
-    // Idem: el borrador ya quedó limpio aunque no se pueda recorrer atrás.
-  }
-}
+const borradorStore = crearBorradorStore(esBorradorParteNuevo)
+const leerBorrador = (clave: string) => borradorStore.leer(almacenParte, clave)
+const guardarBorrador = (clave: string, borrador: BorradorParteNuevo) =>
+  borradorStore.guardar(almacenParte, clave, borrador)
+const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenParte, clave)
 
 // El paso restaurado tiene que ser alcanzable con el botón "atrás" del
 // navegador (#31): si la entrada actual es la inicial, empujamos las que
 // faltan; si ya es el paso restaurado (recarga con F5 conserva el
 // history.state), no hacemos nada para no duplicar entradas.
 function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string, pasos: Paso[]): void {
-  let base = 1
-  try {
-    const estado = window.history.state as { partePaso?: number; parteGeneracion?: string } | null
-    if (estado && typeof estado.partePaso === 'number' && estado.parteGeneracion === generacion) {
-      base = estado.partePaso
-    }
-  } catch {
-    // Sin historial utilizable se empuja desde el paso 1, que es lo correcto.
-  }
+  const base = leerPasoBaseHistorial(generacion)
   const indiceBase = pasos.indexOf(base as Paso)
   const indiceActual = pasos.indexOf(pasoActual)
   for (let i = Math.max(0, indiceBase + 1); i <= indiceActual; i += 1) {

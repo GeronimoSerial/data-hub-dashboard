@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import type { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 import type { VerificacionRow } from '@/lib/infraestructura/verificaciones'
@@ -30,8 +30,9 @@ type OpcionesPost<T> = {
   responderExito?: (verificacion: Omit<VerificacionRow, 'tokenHash'>, id: string) => Response
 }
 
-function sinTokenHash(verificacion: VerificacionRow): Omit<VerificacionRow, 'tokenHash'> {
-  // The token hash is internal credential material and must never enter JSON.
+export function sinTokenHash(verificacion: VerificacionRow): Omit<VerificacionRow, 'tokenHash'> {
+  // The token hash is internal credential material and must never enter JSON: it is the
+  // only secret that lets the link be redeemed. The plain token is returned only once, at creation.
   const { tokenHash: _tokenHash, ...resto } = verificacion
   return resto
 }

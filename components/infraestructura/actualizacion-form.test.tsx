@@ -3,10 +3,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActualizacionForm } from './actualizacion-form'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
-
-function jsonResponse(body: unknown, status = 200) {
-  return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
-}
+import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 
 const turnos = [
   {

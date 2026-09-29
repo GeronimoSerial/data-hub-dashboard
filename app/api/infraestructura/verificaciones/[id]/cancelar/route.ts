@@ -1,9 +1,10 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
   cancelarVerificacion,
-  type VerificacionRow,
 } from '@/lib/infraestructura/verificaciones'
 
 export const runtime = 'nodejs'
@@ -12,12 +13,6 @@ export const dynamic = 'force-dynamic'
 const cancelarVerificacionInputSchema = z.object({
   motivo: z.string().trim().min(1).optional(),
 })
-
-// tokenHash NUNCA viaja al cliente (ver route.ts de la colección).
-function sinTokenHash(v: VerificacionRow): Omit<VerificacionRow, 'tokenHash'> {
-  const { tokenHash: _tokenHash, ...resto } = v
-  return resto
-}
 
 // Los motivos del dominio son claves estables; acá se traducen a frases para
 // que el operador entienda el conflicto sin ver la clave cruda.
@@ -46,9 +41,7 @@ export async function POST(
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json({ error: guard.error }, { status: guard.status, headers: NO_STORE })
-  }
+  if (guard) return respuestaGuard(guard)
 
   const { id } = await context.params
 

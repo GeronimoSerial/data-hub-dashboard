@@ -1,10 +1,11 @@
 import { z } from 'zod'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, staffGuard } from '@/lib/session'
+import { respuestaGuard } from '@/lib/infraestructura/respuesta-guard'
+import { sinTokenHash } from '@/lib/infraestructura/verificacion-route'
 import {
   crearVerificacion,
   listarVerificaciones,
-  type VerificacionRow,
 } from '@/lib/infraestructura/verificaciones'
 
 export const runtime = 'nodejs'
@@ -21,22 +22,13 @@ const crearVerificacionInputSchema = z.object({
   vencimientoEn: z.iso.datetime({ offset: false }).optional(),
 })
 
-// tokenHash NUNCA viaja al cliente: es el único secreto que permite canjear el
-// enlace. El token en claro sólo se devuelve una vez, al crear.
-function sinTokenHash(v: VerificacionRow): Omit<VerificacionRow, 'tokenHash'> {
-  const { tokenHash: _tokenHash, ...resto } = v
-  return resto
-}
-
 const NO_STORE = { 'Cache-Control': 'private, no-store' }
 
 export async function GET(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json({ error: guard.error }, { status: guard.status, headers: NO_STORE })
-  }
+  if (guard) return respuestaGuard(guard)
 
   const params = new URL(request.url).searchParams
   const periodoId = params.get('periodoId')?.trim() || undefined
@@ -58,9 +50,7 @@ export async function POST(request: Request) {
   await ensureSeeded()
   const user = await getSessionUser()
   const guard = staffGuard(user)
-  if (guard) {
-    return Response.json({ error: guard.error }, { status: guard.status, headers: NO_STORE })
-  }
+  if (guard) return respuestaGuard(guard)
 
   let body: unknown
   try {

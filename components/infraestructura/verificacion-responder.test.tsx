@@ -2,16 +2,13 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { VerificacionResponder, type VerificacionEnlace } from './verificacion-responder'
+import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 
 const { pushMock } = vi.hoisted(() => ({ pushMock: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: vi.fn() }),
 }))
-
-function jsonResponse(body: unknown, status = 200) {
-  return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
-}
 
 const VERIFICACION_PENDIENTE: VerificacionEnlace = {
   cueAnexo: '1801605-04',
