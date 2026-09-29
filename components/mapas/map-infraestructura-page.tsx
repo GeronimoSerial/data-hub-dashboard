@@ -725,6 +725,10 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
     } else {
       // Hoja inferior: se reserva su alto real, no el ancho de la pantalla.
       bottom += Math.round(alto * (ancho <= 720 ? 0.6 : 0.55))
+      if (ancho > 720) {
+        // El toggle de capas colapsado ocupa 90px a la derecha.
+        right = PADDING_ENCUADRE_BASE + 90
+      }
     }
   }
 

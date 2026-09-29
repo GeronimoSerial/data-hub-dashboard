@@ -1692,8 +1692,8 @@ describe('paddingEncuadre', () => {
     viewport(1024, 768)
     const calcular = await paddingEncuadre()
 
-    // 768 * 0.55 = 422, más los 60 base.
-    expect(calcular(true)).toEqual({ top: 60, bottom: 482, left: 400, right: 356 })
+    // 768 * 0.55 = 422, más los 60 base. El toggle colapsado reserva 90px.
+    expect(calcular(true)).toEqual({ top: 60, bottom: 482, left: 400, right: 150 })
   })
 
   it('hasta 720px desaparece la columna izquierda y la hoja es más alta', async () => {
@@ -1726,6 +1726,6 @@ describe('paddingEncuadre', () => {
     const padding = calcular(true)
     const { top = 0, bottom = 0 } = padding
     expect(top + bottom).toBe(160)
-    expect(padding).toEqual({ top: 42, bottom: 118, left: 400, right: 356 })
+    expect(padding).toEqual({ top: 42, bottom: 118, left: 400, right: 150 })
   })
 })

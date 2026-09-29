@@ -2123,8 +2123,20 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    la hoja: sin esto quedaba debajo de ella (ficha z-index 4 > stack z-index
    3) y no se podía tocar ninguna capa sin cerrar la ficha. El `right` es el
    ancho de la ficha más sus 12px de offset lateral más 12px de separación.
-   Sólo desktop: hasta 1080px la ficha es una hoja inferior (ver más abajo el
-   media query) y nunca se superpone a los controles. */
+   En pantallas intermedias se colapsa en el mismo toggle; el panel abierto
+   queda debajo de éste y conserva su offset derecho predeterminado. */
+@media (min-width: 721px) and (max-width: 1080px) {
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
+    display: none;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
+    display: inline-flex;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
+    top: 52px;
+  }
+}
+
 @media (min-width: 1081px) {
   .map-shell[data-ficha-abierta="true"] .map-controls-stack {
     right: calc(min(400px, 100vw - 24px) + 24px);
