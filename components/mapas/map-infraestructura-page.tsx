@@ -67,18 +67,27 @@ import { FichaParteModal } from '@/components/infraestructura/ficha-parte-modal'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
+  AccesosLayerControl,
   InfraLayerControl,
   RadarLayerControl,
+  type CapaAccesos,
   type CapaInfraestructura,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { InfraLegendPanel } from '@/components/mapas/legend-panel'
+import {
+  CapasAccesosTerritoriales,
+  LeyendaAccesos,
+  bboxRuta,
+} from '@/components/mapas/capas-accesos'
 import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { useReplay, type VistaReplay } from '@/lib/infraestructura/use-replay'
 import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
 import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
+import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
+import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import { ReplayPanel } from '@/components/mapas/replay-panel'
@@ -95,6 +104,14 @@ import {
   type RiesgoAccesoEscuela,
   type RiesgoEscuela,
 } from '@/lib/mapas/peligro-capas'
+import {
+  construirCrucesAcceso,
+  construirPuntosAislamiento,
+  construirPuntosInundacion,
+  construirRutaAcceso,
+  ICONOS_ACCESOS_MAPA,
+  resumirCobertura,
+} from '@/lib/mapas/accesos-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import {
   agregarEscuelasCaidasPorDepartamento,
@@ -641,6 +658,16 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   sinReportar: false,
 }
 
+// Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
+// inundación son contexto de largo plazo y arrancan apagadas; la ruta de la
+// escuela seleccionada sí está encendida por defecto — se dibuja apenas el
+// usuario elige una escuela y no compite con nada hasta entonces.
+const CAPAS_ACCESOS_VISIBLES_DEFECTO: Record<CapaAccesos, boolean> = {
+  aislamiento: false,
+  inundacion: false,
+  rutaSeleccion: true,
+}
+
 // T1.1c: la preferencia de reduced-motion se lee con useSyncExternalStore, la
 // forma sancionada por React de leer una API del browser (matchMedia) sin
 // llamar setState de forma síncrona dentro del cuerpo de un efecto (que
@@ -682,6 +709,9 @@ export default function MapInfraestructuraPage(props: {
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
+  const [capasAccesosVisibles, setCapasAccesosVisibles] = useState<Record<CapaAccesos, boolean>>(
+    CAPAS_ACCESOS_VISIBLES_DEFECTO,
+  )
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
   // Resumen del departamento clickeado. Reemplaza al tooltip de hover: la
   // información aparece recién con el CLIC (ver `handleClick`), nunca con el
@@ -1363,6 +1393,58 @@ export default function MapInfraestructuraPage(props: {
   // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
 
+  // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
+  //
+  // Gate único: el flag de contexto territorial Y nunca en Replay. Con el
+  // flag apagado esta sección no fetchea, no monta control, leyenda ni capas
+  // — el mapa se comporta exactamente como antes. `hazardOn` ya incluye
+  // `!modoReplay`, así que Replay queda excluido en todos los consumidores.
+  const hazardOn = (props.hazardContextEnabled ?? false) && !modoReplay
+
+  // Capas estáticas (aislamiento OSM + susceptibilidad physrisk): un solo
+  // fetch de largo plazo, sin polling.
+  const {
+    data: territorio,
+    loading: territorioLoading,
+    error: territorioError,
+  } = useTerritorioMapa(hazardOn)
+
+  // Los puntos territoriales siguen el padrón VISIBLE (mismo criterio que los
+  // puntos de riesgo): todas las escuelas del departamento en foco, tengan o
+  // no afectación. El resumen de cobertura de la leyenda, en cambio, cuenta
+  // sobre TODO el padrón (la cobertura no depende del filtro de pantalla).
+  const puntosAislamiento = useMemo(
+    () => construirPuntosAislamiento(dataEscuelasMapaVisible?.escuelas ?? [], territorio),
+    [dataEscuelasMapaVisible, territorio],
+  )
+  const puntosInundacion = useMemo(
+    () => construirPuntosInundacion(dataEscuelasMapaVisible?.escuelas ?? [], territorio),
+    [dataEscuelasMapaVisible, territorio],
+  )
+  const resumenCobertura = useMemo(
+    () => resumirCobertura(dataEscuelasMapa?.escuelas ?? [], territorio),
+    [dataEscuelasMapa, territorio],
+  )
+
+  // Escuela de la ruta: en Radar la selección es la del snapshot; en
+  // "Situación actual" (y Replay, aunque ahí está apagado) es la de la ficha.
+  const cueRuta = modoRadar ? cueRadarSeleccionado : seleccionCue
+
+  // La geometría se pide SÓLO para la escuela seleccionada, nunca para todas
+  // las rutas. En Replay queda deshabilitada por `hazardOn`.
+  const {
+    data: geometria,
+    loading: geometriaLoading,
+    error: geometriaError,
+  } = useGeometriaAcceso(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+
+  const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
+  const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
+
+  // Nombre de la escuela seleccionada para el título de la leyenda (null si
+  // la selección no está en el padrón cargado).
+  const seleccionRutaNombre = cueRuta ? (escuelasPorCue.get(cueRuta)?.nombre ?? null) : null
+
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
   // (`parteSeleccionado`), sin duplicar el punto si coinciden. Antes sólo
@@ -1517,14 +1599,19 @@ export default function MapInfraestructuraPage(props: {
   // re-invoca en cada `styledata` porque cambiar de base recarga el estilo y
   // MapLibre descarta las imágenes registradas. Es un no-op si el mapa no
   // expone la API (p. ej. el doble de tests en jsdom).
+  //
+  // T5c2: en la MISMA pasada se registran los íconos de accesos territoriales
+  // (aislamiento/inundación/cruces): comparten el canal `icon-image` y el
+  // mismo ciclo de vida del estilo, así que un solo gate (`iconosClusterListos`)
+  // cubre a ambos grupos sin duplicar listeners de `styledata`.
   function registrarIconosCluster() {
     const mapa = mapRef.current?.getMap()
     if (!mapa || typeof mapa.hasImage !== 'function' || typeof mapa.addImage !== 'function') {
       return
     }
-    const pendientes = ICONOS_CLUSTER_MAPA.filter(({ id }) => !mapa.hasImage(id)).map(
-      ({ id, svg }) => cargarIconoEnMapa(mapa, id, svg),
-    )
+    const pendientes = [...ICONOS_CLUSTER_MAPA, ...ICONOS_ACCESOS_MAPA]
+      .filter(({ id }) => !mapa.hasImage(id))
+      .map(({ id, svg }) => cargarIconoEnMapa(mapa, id, svg))
     if (pendientes.length === 0) {
       setIconosClusterListos(true)
       return
@@ -1544,6 +1631,18 @@ export default function MapInfraestructuraPage(props: {
 
   function alternarCapaRadar(capa: CapaRadar, value: boolean) {
     setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
+  }
+
+  function alternarCapaAccesos(capa: CapaAccesos, value: boolean) {
+    setCapasAccesosVisibles((prev) => ({ ...prev, [capa]: value }))
+  }
+
+  // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
+  // bbox real (una ruta ausente dejaría un `fitBounds` inválido).
+  function encuadrarRuta() {
+    const bbox = bboxRuta(rutaGeojson)
+    if (bbox === null) return
+    mapRef.current?.getMap()?.fitBounds(bbox, { padding: 60, duration: 600 })
   }
 
   // Cambiar de modo limpia las selecciones del OTRO modo: si quedo con una
@@ -1796,6 +1895,26 @@ export default function MapInfraestructuraPage(props: {
                 paint={circlePaintAfectacionReplay()}
               />
             </Source>
+          )}
+
+          {/*
+            Accesos territoriales (T5c2): contexto estático (aislamiento OSM,
+            susceptibilidad physrisk, ruta y cruces de la escuela elegida).
+            Va DESPUÉS de los departamentos/radar/replay y ANTES del bloque de
+            escuelas/partes: las escuelas tienen que quedar por encima y seguir
+            siendo clickeables. Sus capas NO se registran en
+            `capasInteractivas` — no agregan handlers de click nuevos.
+          */}
+          {hazardOn && (
+            <CapasAccesosTerritoriales
+              puntosAislamiento={puntosAislamiento}
+              puntosInundacion={puntosInundacion}
+              ruta={rutaGeojson}
+              cruces={crucesGeojson}
+              visibles={capasAccesosVisibles}
+              iconosListos={iconosClusterListos}
+              oscuro={mode === 'dark'}
+            />
           )}
 
           {(
@@ -2171,6 +2290,22 @@ export default function MapInfraestructuraPage(props: {
         onVerAlumnosAlcanzados={setNominalAfectacionId}
         onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
         habilitado={props.hazardContextEnabled ?? false}
+        // Sección territorial de la ficha: sólo con el flag prendido y fuera
+        // de Replay. Sin `accesoTerritorial` la ficha queda exactamente como
+        // estaba.
+        accesoTerritorial={
+          hazardOn
+            ? {
+                territorio,
+                territorioLoading,
+                territorioError,
+                cueAnexo: seleccionCue ?? '',
+                geometria,
+                geometriaLoading,
+                geometriaError,
+              }
+            : undefined
+        }
       />
 
       <AlcanceNominalModal
@@ -2393,6 +2528,26 @@ export default function MapInfraestructuraPage(props: {
                   ) ?? false)
             }
           />
+          {/*
+            Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
+            su propio dominio. Aparece sólo con el flag territorial prendido y
+            fuera de Replay; sin bloques visibles el componente no renderiza
+            nada.
+          */}
+          {hazardOn && (
+            <LeyendaAccesos
+              visibles={capasAccesosVisibles}
+              territorio={territorio}
+              territorioLoading={territorioLoading}
+              territorioError={territorioError}
+              resumen={resumenCobertura}
+              seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
+              geometria={geometria}
+              geometriaLoading={geometriaLoading}
+              geometriaError={geometriaError}
+              onEncuadrarRuta={encuadrarRuta}
+            />
+          )}
         </div>
       )}
 
@@ -2429,6 +2584,9 @@ export default function MapInfraestructuraPage(props: {
           }}
         />
         <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
+        {hazardOn && (
+          <AccesosLayerControl capas={capasAccesosVisibles} onChange={alternarCapaAccesos} />
+        )}
         {radarActivo && (
           <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
         )}

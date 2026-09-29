@@ -183,6 +183,75 @@ vi.mock('@/lib/infraestructura/use-totales-mapa', () => ({
   useTotalesMapa: () => ({ data: FIXTURE_TOTALES_MAPA, loading: false, error: null }),
 }))
 
+// T5c2: hooks de las capas territoriales de accesos. El componente los llama
+// SIEMPRE (regla de hooks) pero con `habilitado` false cuando el flag
+// territorial está apagado o se está en Replay. Se registra el flag recibido
+// para poder afirmarlo (mismo patrón que `llamadasRadar`).
+const llamadasTerritorio = vi.hoisted(() => ({ habilitados: [] as boolean[] }))
+const llamadasGeometria = vi.hoisted(() => ({
+  cues: [] as (string | null)[],
+  habilitados: [] as boolean[],
+}))
+
+// Fixture ESTABLE (misma identidad en cada render): el componente lo consume
+// en `useMemo`, así que devolver un literal nuevo cada vez sería ruido.
+const TERRITORIO_MAPA_MOCK = {
+  aislamiento: {
+    fuente: 'OpenStreetMap' as const,
+    atribucion: '© OpenStreetMap contributors' as const,
+    licencia: 'ODbL',
+    fechaExtractoOsm: '2026-01-01',
+    versionJob: '1',
+    escuelas: {},
+  },
+  susceptibilidad: {
+    fuente: 'physrisk' as const,
+    indicador: 'inundacion_fluvial' as const,
+    escenario: 'historico' as const,
+    unidad: 'm' as const,
+    periodoRetornoAnios: 100,
+    fechaCorrida: '2026-01-01',
+    licencia: 'Apache-2.0',
+    escuelas: {},
+  },
+}
+
+vi.mock('@/lib/infraestructura/use-territorio-mapa', () => ({
+  useTerritorioMapa: (habilitado: boolean) => {
+    llamadasTerritorio.habilitados.push(habilitado)
+    return habilitado
+      ? { data: TERRITORIO_MAPA_MOCK, loading: false, error: null }
+      : { data: null, loading: false, error: null }
+  },
+}))
+
+const GEOMETRIA_ACCESO_MOCK = {
+  cueAnexo: CUE,
+  disponible: true,
+  fechaExtractoOsm: '2026-01-01',
+  licencia: 'ODbL',
+  atribucion: '© OpenStreetMap contributors' as const,
+  ruta: {
+    type: 'LineString' as const,
+    coordinates: [
+      [-58.83, -27.47],
+      [-58.8, -27.5],
+    ],
+  },
+  cruces: [],
+  resumen: { puente: 0, vado: 0, sinEvidencia: 0 },
+}
+
+vi.mock('@/lib/infraestructura/use-geometria-acceso', () => ({
+  useGeometriaAcceso: (cueAnexo: string | null, habilitado: boolean) => {
+    llamadasGeometria.cues.push(cueAnexo)
+    llamadasGeometria.habilitados.push(habilitado)
+    return habilitado && cueAnexo !== null
+      ? { data: { ...GEOMETRIA_ACCESO_MOCK, cueAnexo }, loading: false, error: null }
+      : { data: null, loading: false, error: null }
+  },
+}))
+
 // Mock del hook del radar (E4). Registra cada invocación con su flag `activo`
 // para poder afirmar que NO se dispara en modo "Situación actual" ni con el
 // flag apagado: el componente puede llamar al hook siempre (regla de hooks),
@@ -432,6 +501,7 @@ let desmontarMapa: (() => void) | null = null
 
 async function renderMapa(props: {
   mostrarEnlaceNominal: boolean
+  hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   replayEnabled?: boolean
 }) {
@@ -445,6 +515,9 @@ beforeEach(() => {
   llamadasRadar.activos.length = 0
   llamadasReplay.activos.length = 0
   llamadasSnapshot.snapshotIds.length = 0
+  llamadasTerritorio.habilitados.length = 0
+  llamadasGeometria.cues.length = 0
+  llamadasGeometria.habilitados.length = 0
   CUES_DESAGRUPADOS_MOCK.cues.length = 0
   CUES_DESAGRUPADOS_MOCK.cues.push(CUE, CUE_SIN_AFECTACION)
   vi.stubGlobal(
@@ -1032,5 +1105,52 @@ describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
+  })
+})
+
+describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () => {
+  it('con el flag apagado no monta el control ni la leyenda y el hook territorial queda inactivo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    // Ni un elemento nuevo del dominio territorial en el DOM.
+    expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('leyenda-ruta')).not.toBeInTheDocument()
+
+    // El hook se llama (regla de hooks) pero SIEMPRE con habilitado=false.
+    expect(llamadasTerritorio.habilitados.length).toBeGreaterThan(0)
+    expect(llamadasTerritorio.habilitados.every((habilitado) => habilitado === false)).toBe(true)
+  })
+
+  it('con el flag prendido monta el control y habilita el hook territorial', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
+  })
+
+  it('al seleccionar una escuela pide su geometría y la leyenda muestra la ruta disponible', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-parte'))
+
+    // Geometría SÓLO de la escuela seleccionada, con el flag prendido.
+    expect(llamadasGeometria.cues).toContain(CUE)
+    expect(llamadasGeometria.habilitados.at(-1)).toBe(true)
+
+    const bloque = await screen.findByTestId('leyenda-ruta-disponible')
+    expect(bloque).toHaveTextContent('Ruta de acceso OSM · Escuela 1')
+  })
+
+  it('en modo Replay nunca habilita la geometría', async () => {
+    await renderMapa({
+      mostrarEnlaceNominal: true,
+      hazardContextEnabled: true,
+      replayEnabled: true,
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
+
+    // Tras entrar a Replay el último valor que recibe el hook es false: la
+    // geometría no se pide aunque el flag territorial esté prendido.
+    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
   })
 })
