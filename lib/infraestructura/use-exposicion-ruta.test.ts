@@ -98,6 +98,26 @@ describe('useExposicionRuta', () => {
     expect(result.current.data).toBeNull()
   })
 
+  it('aborta el fetch anterior y usa la ruta de exposición al cambiar de cue', () => {
+    const fetchMock = vi.fn(
+      (_url: string, _init?: RequestInit) => new Promise<Response>(() => {}),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { rerender } = renderHook(
+      ({ cue }: { cue: string }) => useExposicionRuta(cue, true),
+      { initialProps: { cue: 'CUE-A' } },
+    )
+    const signal = fetchMock.mock.calls[0]?.[1]?.signal
+
+    rerender({ cue: 'CUE-B' })
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      '/api/mapas/infraestructura/accesos/CUE-A/exposicion-inundacion',
+    )
+    expect(signal?.aborted).toBe(true)
+  })
+
   it('expone el mensaje de error ante una respuesta HTTP no exitosa', async () => {
     const fetchMock = vi.fn(
       async () => ({ ok: false, status: 500, json: async () => ({}) }) as Response,
