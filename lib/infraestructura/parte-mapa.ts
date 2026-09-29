@@ -215,7 +215,7 @@ async function cargarPartes(
 // — mismo criterio que cargarAfectaciones en parte-consulta.ts, pero
 // batcheado para TODOS los partes en una sola tanda de queries en vez de una
 // tanda por parte.
-async function cargarAfectacionesDeVariosPartes(
+export async function cargarAfectacionesDeVariosPartes(
   client: EjecutorSql,
   corteId: number,
   parteIds: string[],
@@ -296,7 +296,7 @@ async function cargarAfectacionesDeVariosPartes(
   })
 }
 
-async function cargarServicioAlcanceDeVariosPartes(
+export async function cargarServicioAlcanceDeVariosPartes(
   client: EjecutorSql,
   parteIds: string[],
 ): Promise<ServicioAlcance[]> {

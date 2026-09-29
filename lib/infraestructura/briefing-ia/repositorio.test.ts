@@ -3,12 +3,10 @@
 // recompute.test.ts): DATA_DIR a un tmpdir, ensureSeeded() una vez y getDb()
 // memoizado. Un directorio por archivo de test, con la tabla limpiada antes de
 // cada caso.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import { infraBriefing, infraSituacionCorte } from '@/lib/db/schema'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { DatosNuevoBriefing } from './repositorio'
 import {
   insertarBriefingSiNoExiste,
@@ -17,23 +15,7 @@ import {
   sumarCostoUsdMesVigente,
 } from './repositorio'
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'briefing-repositorio-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('briefing-repositorio')
 
 beforeEach(async () => {
   await getDb().delete(infraBriefing)

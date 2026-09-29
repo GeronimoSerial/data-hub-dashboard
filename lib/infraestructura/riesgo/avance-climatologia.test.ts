@@ -1,12 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import type { obtenerAvanceClimatologia as ObtenerAvanceClimatologia } from './avance-climatologia'
 
-let dir: string
-let prevDataDir: string | undefined
 let obtenerAvanceClimatologia: typeof ObtenerAvanceClimatologia
+
+usarDbTemporal('avance-climatologia')
 
 const VERSION_PRECIPITACION = 'climatologia-v1'
 const PERIODO_DESDE_PRECIPITACION = '1991-01-01'
@@ -15,23 +13,8 @@ const VERSION_CAUDAL = 'caudal-climatologia-v0.1'
 const PERIODO_DESDE_CAUDAL = '2015-01-01'
 const PERIODO_HASTA_CAUDAL = '2024-12-31'
 
-// Mismo patrón de aislamiento que job-run.test.ts: getDb() memoiza la
-// conexión a nivel de módulo, así que DATA_DIR debe setearse ANTES de
-// cualquier import dinámico.
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'avance-climatologia-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
   ;({ obtenerAvanceClimatologia } = await import('./avance-climatologia'))
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
 })
 
 async function insertarPerfilGeo(geometryRef: string) {

@@ -19,19 +19,18 @@
 import { getDb, getRawClient } from '@/lib/db'
 import { infraPeriodo } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from './ge-db'
-import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
+import { crearEjecutorSql, getCorteVigente } from './ge-db'
+import { asegurarGeAdjuntada } from './impacto'
 import { obtenerPeriodoVigente } from './parte-consulta'
-import { listarPartesVigentes, type ParteMapa } from './parte-mapa'
+import {
+  cargarAfectacionesDeVariosPartes,
+  cargarServicioAlcanceDeVariosPartes,
+  listarPartesVigentes,
+  type ParteMapa,
+} from './parte-mapa'
 import { listarSeccionesDeCues } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
-import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
-import type {
-  Afectacion,
-  AfectacionAlcanceSeccion,
-  ServicioAlcance,
-} from './trayectoria-tipos'
 
 export interface PuntoEscuelasServicioCaido {
   fecha: string // YYYY-MM-DD (UTC)
@@ -68,15 +67,6 @@ function vacio(): EvolucionMapa {
     distribucionMotivo: [],
     alumnosAcumulados: [],
   }
-}
-
-function stringValor(original: unknown): string {
-  return original === null || original === undefined ? '' : String(original)
-}
-
-function esCategoriaSegura(valor: unknown): CategoriaAfectacion {
-  const texto = stringValor(valor)
-  return esCategoria(texto) ? texto : 'establecimiento'
 }
 
 // obtenerPeriodoVigente (parte-consulta.ts) resuelve QUÉ período está
@@ -130,108 +120,6 @@ function construirRangoDeDias(inicioEn: string, finEn: string | null): string[] 
 function referenciaParaDia(fecha: string, hoy: string): Date {
   if (fecha === hoy) return new Date()
   return new Date(`${fecha}T23:59:59.999Z`)
-}
-
-async function cargarServicioAlcanceDeParte(client: EjecutorSql, parteIds: string[]): Promise<ServicioAlcance[]> {
-  if (parteIds.length === 0) return []
-  const placeholders = parteIds.map(() => '?').join(',')
-  const res = await client.execute({
-    sql: `SELECT id, parte_id, tipo, referencia_id, estado, rige_desde, creada_en, retirada_en
-          FROM infra_servicio_alcance WHERE parte_id IN (${placeholders})`,
-    args: parteIds,
-  })
-  return res.rows.map((fila): ServicioAlcance => ({
-    id: stringValor(fila.id),
-    parteId: stringValor(fila.parte_id),
-    tipo: stringValor(fila.tipo) as ServicioAlcance['tipo'],
-    referenciaId: fila.referencia_id === null || fila.referencia_id === undefined ? null : stringValor(fila.referencia_id),
-    estado: stringValor(fila.estado) as ServicioAlcance['estado'],
-    rigeDesde: stringValor(fila.rige_desde),
-    creadaEn: stringValor(fila.creada_en),
-    retiradaEn: fila.retirada_en === null || fila.retirada_en === undefined ? null : stringValor(fila.retirada_en),
-  }))
-}
-
-// Misma forma que cargarAfectacionesDeVariosPartes (parte-mapa.ts): TODAS las
-// afectaciones (vigentes y retiradas) de los partes dados, con secciones y
-// alumnos ya resueltos contra la matrícula real del corte vigente, en una
-// sola tanda de queries para todos los partes. No se pudo reusar la versión
-// de parte-mapa.ts porque es privada de ese módulo (fuera de la lista de
-// funciones a reusar) — acá se repite el mismo patrón batcheado, no el
-// N+1 que reemplaza.
-async function cargarAfectacionesDeParte(
-  client: EjecutorSql,
-  corteId: number,
-  parteIds: string[],
-): Promise<Afectacion[]> {
-  if (parteIds.length === 0) return []
-
-  const placeholders = parteIds.map(() => '?').join(',')
-  const res = await client.execute({
-    sql: `SELECT id, parte_id, motivo, categoria, severidad, descripcion, rige_desde, creada_en, retirada_en
-          FROM infra_afectacion WHERE parte_id IN (${placeholders})`,
-    args: parteIds,
-  })
-  if (res.rows.length === 0) return []
-
-  const afectacionIds = res.rows.map((r) => stringValor(r.id))
-  const idPlaceholders = afectacionIds.map(() => '?').join(',')
-
-  const [seccionesRes, alumnosRes] = await Promise.all([
-    client.execute({
-      sql: `SELECT afectacion_id, ge_section_id FROM infra_afectacion_seccion WHERE afectacion_id IN (${idPlaceholders})`,
-      args: afectacionIds,
-    }),
-    client.execute({
-      sql: `SELECT afectacion_id, ge_person_id FROM infra_afectacion_alumno WHERE afectacion_id IN (${idPlaceholders})`,
-      args: afectacionIds,
-    }),
-  ])
-
-  const seccionesPorAfectacion = new Map<string, number[]>()
-  for (const s of seccionesRes.rows) {
-    const afectacionId = stringValor(s.afectacion_id)
-    const lista = seccionesPorAfectacion.get(afectacionId) ?? []
-    lista.push(Number(s.ge_section_id))
-    seccionesPorAfectacion.set(afectacionId, lista)
-  }
-  const alumnosPorAfectacion = new Map<string, number[]>()
-  for (const a of alumnosRes.rows) {
-    const afectacionId = stringValor(a.afectacion_id)
-    const lista = alumnosPorAfectacion.get(afectacionId) ?? []
-    lista.push(Number(a.ge_person_id))
-    alumnosPorAfectacion.set(afectacionId, lista)
-  }
-
-  const todasLasSecciones = [...new Set(seccionesRes.rows.map((s) => Number(s.ge_section_id)))]
-  const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: todasLasSecciones })
-
-  return res.rows.map((fila): Afectacion => {
-    const id = stringValor(fila.id)
-    const seccionIds = seccionesPorAfectacion.get(id) ?? []
-    const alumnosSeleccionados = new Set(alumnosPorAfectacion.get(id) ?? [])
-    const secciones: AfectacionAlcanceSeccion[] = seccionIds.map((geSectionId) => {
-      const matriculados = membresia.get(geSectionId) ?? new Set<number>()
-      const interseccion = [...matriculados].filter((personId) => alumnosSeleccionados.has(personId))
-      if (interseccion.length > 0) {
-        return { geSectionId, seccionCompleta: false, alumnos: interseccion }
-      }
-      return { geSectionId, seccionCompleta: true, alumnos: [...matriculados] }
-    })
-
-    return {
-      id,
-      parteId: stringValor(fila.parte_id),
-      motivo: stringValor(fila.motivo),
-      categoria: esCategoriaSegura(fila.categoria),
-      severidad: stringValor(fila.severidad) as Afectacion['severidad'],
-      descripcion: fila.descripcion === null || fila.descripcion === undefined ? null : stringValor(fila.descripcion),
-      rigeDesde: stringValor(fila.rige_desde),
-      creadaEn: stringValor(fila.creada_en),
-      retiradaEn: fila.retirada_en === null || fila.retirada_en === undefined ? null : stringValor(fila.retirada_en),
-      secciones,
-    }
-  })
 }
 
 function agruparPorParte<T extends { parteId: string }>(filas: T[]): Map<string, T[]> {
@@ -327,8 +215,8 @@ export async function obtenerEvolucionMapa(): Promise<EvolucionMapa> {
   const cuePorParte = new Map(partes.map((p) => [p.parteId, p.cueAnexo]))
 
   const [servicioRows, afectacionesRows, seccionesPorCue] = await Promise.all([
-    cargarServicioAlcanceDeParte(client, parteIds),
-    cargarAfectacionesDeParte(client, corte.id, parteIds),
+    cargarServicioAlcanceDeVariosPartes(client, parteIds),
+    cargarAfectacionesDeVariosPartes(client, corte.id, parteIds),
     listarSeccionesDeCues(client, corte.id, cueAnexos),
   ])
 

@@ -1,26 +1,8 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { SessionUser } from '@/lib/acl'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'permiso-nominal-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('permiso-nominal')
 
 function user(overrides: Partial<SessionUser>): SessionUser {
   return {

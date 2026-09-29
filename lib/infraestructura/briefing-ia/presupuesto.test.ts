@@ -17,33 +17,15 @@
 //
 // Sin DATABASE_URL_TEST ese describe se saltea con motivo explícito y la
 // suite normal sigue corriendo 100% sobre PGlite en memoria, sin Docker.
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { infraBriefingPresupuestoMes } from '@/lib/db/schema'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { ajustarPresupuestoMes, inicioMesUtc, reservarPresupuestoMes } from './presupuesto'
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'briefing-presupuesto-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('briefing-presupuesto')
 
 beforeEach(async () => {
   await getDb().delete(infraBriefingPresupuestoMes)
