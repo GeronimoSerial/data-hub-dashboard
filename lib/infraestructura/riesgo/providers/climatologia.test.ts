@@ -34,6 +34,9 @@ const ESPERADOS = {
   todos_los_dias: { p90: 8, p95: 9, p99: 100 },
   dias_humedos: { p90: 9, p95: 100, p99: 100 },
 } as const
+const fixtureEra5 = JSON.parse(
+  readFileSync(new URL('../__fixtures__/hazard/era5-archive-2020q1.json', import.meta.url), 'utf8'),
+) as { daily: { time: string[]; precipitation_sum: Array<number | null> } }
 
 function buscarFila(
   filas: HazardClimatologiaPunto[],
@@ -83,14 +86,9 @@ describe('calcularPercentilesPrecipitacion', () => {
 })
 
 describe('obtenerSerieHistorica', () => {
-  const fixtureUrl = new URL('../__fixtures__/hazard/era5-archive-2020q1.json', import.meta.url)
-  const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as {
-    daily: { time: string[]; precipitation_sum: Array<number | null> }
-  }
-
   it('devuelve ok:true con la serie no-null del fixture ERA5 2020Q1', async () => {
-    const fetchImpl = fetchOk(fixture)
-    const esperado = fixture.daily.precipitation_sum.filter((v) => v !== null) as number[]
+    const fetchImpl = fetchOk(fixtureEra5)
+    const esperado = fixtureEra5.daily.precipitation_sum.filter((v) => v !== null) as number[]
 
     const r = await obtenerSerieHistorica({
       lat: -27.52,
@@ -514,16 +512,12 @@ describe('estimarCostoClimatologia', () => {
 
 describe('obtenerSeriesHistoricas: resultado idéntico al enfoque celda-por-celda', () => {
   it('dos geometryRef que caen en la misma celda ERA5 reciben la MISMA serie que pedirla por separado (una sola request HTTP, no dos)', async () => {
-    const fixtureUrl = new URL('../__fixtures__/hazard/era5-archive-2020q1.json', import.meta.url)
-    const fixture = JSON.parse(readFileSync(fixtureUrl, 'utf8')) as {
-      daily: { time: string[]; precipitation_sum: Array<number | null> }
-    }
-    const esperado = fixture.daily.precipitation_sum.filter((v) => v !== null) as number[]
+    const esperado = fixtureEra5.daily.precipitation_sum.filter((v) => v !== null) as number[]
 
     // Dos celdas de 0.1° distintas (geometryRef distinto) cuyas coordenadas
     // redondean a la MISMA celda ERA5 que usa el fixture (-27.52 -> -27.50,
     // -58.76 -> -58.75): -27.55/-58.7 y -27.48/-58.8 redondean igual.
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify(fixture), { status: 200 }))
+    const fetchImpl = fetchOk(fixtureEra5)
 
     const resultado = await obtenerSeriesHistoricas({
       puntos: [

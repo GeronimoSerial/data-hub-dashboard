@@ -13,6 +13,7 @@ import type {
   agregarNivelPorDepartamento as AgregarNivelPorDepartamento,
   nivelDesdeDeterministico as NivelDesdeDeterministico,
   nivelDesdeEnsemble as NivelDesdeEnsemble,
+  NivelPeligroCelda,
   obtenerNivelCaudal as ObtenerNivelCaudal,
   obtenerNivelesPeligro as ObtenerNivelesPeligro,
 } from './nivel'
@@ -42,6 +43,28 @@ let agregarNivelPorDepartamento: typeof AgregarNivelPorDepartamento
 const CORRIDA_NUEVA = '2026-09-26T00:00:00.000Z'
 const CORRIDA_VIEJA = '2026-09-25T00:00:00.000Z'
 
+function nivelEsperado(
+  over: Partial<NivelPeligroCelda> &
+    Pick<NivelPeligroCelda, 'geometryRef' | 'horizonteHoras' | 'nivel' | 'base' | 'metodo' | 'validoHasta'>,
+): NivelPeligroCelda {
+  const { geometryRef, horizonteHoras, nivel, base, metodo, validoHasta, ...overrides } = over
+  return {
+    geometryRef,
+    horizonteHoras,
+    nivel,
+    base,
+    metodo,
+    probabilidadP95: null,
+    probabilidadP99: null,
+    precipitacionMm: null,
+    percentilReferencia: null,
+    emitidoEn: CORRIDA_NUEVA,
+    validoHasta,
+    versionRegla: 'peligro-v0.2',
+    ...overrides,
+  }
+}
+
 beforeEach(async () => {
   await db.delete(hazardEnsembleProb)
   await db.delete(hazardForecast)
@@ -50,32 +73,16 @@ beforeEach(async () => {
 })
 
 describe('nivelDesdeEnsemble', () => {
-  it('P99 exactamente 0.5 ya es rojo (borde >=, la mayoría supera P99)', () => {
-    expect(nivelDesdeEnsemble(0.9, 0.5)).toBe('rojo')
-  })
-
-  it('P99 apenas por debajo de 0.5 con P95 >= 0.5 es naranja', () => {
-    expect(nivelDesdeEnsemble(0.5, 0.499999)).toBe('naranja')
-  })
-
-  it('P95 exactamente 0.5 con P99 bajo es naranja (borde >=)', () => {
-    expect(nivelDesdeEnsemble(0.5, 0.1)).toBe('naranja')
-  })
-
-  it('P95 apenas por debajo de 0.5 cae a amarillo', () => {
-    expect(nivelDesdeEnsemble(0.499999, 0.499999)).toBe('amarillo')
-  })
-
-  it('P95 exactamente 0.1 es verde (borde >, la probabilidad trivial no pinta)', () => {
-    expect(nivelDesdeEnsemble(0.1, 0)).toBe('verde')
-  })
-
-  it('P95 apenas por encima de 0.1 es amarillo', () => {
-    expect(nivelDesdeEnsemble(0.100001, 0)).toBe('amarillo')
-  })
-
-  it('sin superar ningún umbral es verde', () => {
-    expect(nivelDesdeEnsemble(0, 0)).toBe('verde')
+  it.each([
+    ['P99 exactamente 0.5 ya es rojo (borde >=, la mayoría supera P99)', 0.9, 0.5, 'rojo'],
+    ['P99 apenas por debajo de 0.5 con P95 >= 0.5 es naranja', 0.5, 0.499999, 'naranja'],
+    ['P95 exactamente 0.5 con P99 bajo es naranja (borde >=)', 0.5, 0.1, 'naranja'],
+    ['P95 apenas por debajo de 0.5 cae a amarillo', 0.499999, 0.499999, 'amarillo'],
+    ['P95 exactamente 0.1 es verde (borde >, la probabilidad trivial no pinta)', 0.1, 0, 'verde'],
+    ['P95 apenas por encima de 0.1 es amarillo', 0.100001, 0, 'amarillo'],
+    ['sin superar ningún umbral es verde', 0, 0, 'verde'],
+  ])('%s', (_titulo, p95, p99, esperado) => {
+    expect(nivelDesdeEnsemble(p95, p99)).toBe(esperado)
   })
 })
 
@@ -84,83 +91,31 @@ describe('nivelDesdeDeterministico', () => {
   const P95 = 20
   const P99 = 30
 
-  it('igual a p90 todavía es verde (umbral estricto)', () => {
-    expect(nivelDesdeDeterministico(10, P90, P95, P99)).toEqual({
-      nivel: 'verde',
-      percentilReferencia: null,
-    })
-  })
-
-  it('apenas por encima de p90 es amarillo con percentil P90', () => {
-    expect(nivelDesdeDeterministico(10.001, P90, P95, P99)).toEqual({
-      nivel: 'amarillo',
-      percentilReferencia: 'P90',
-    })
-  })
-
-  it('igual a p95 todavía es amarillo, no naranja', () => {
-    expect(nivelDesdeDeterministico(20, P90, P95, P99)).toEqual({
-      nivel: 'amarillo',
-      percentilReferencia: 'P90',
-    })
-  })
-
-  it('apenas por encima de p95 es naranja con percentil P95', () => {
-    expect(nivelDesdeDeterministico(20.001, P90, P95, P99)).toEqual({
-      nivel: 'naranja',
-      percentilReferencia: 'P95',
-    })
-  })
-
-  it('igual a p99 todavía es naranja, no rojo', () => {
-    expect(nivelDesdeDeterministico(30, P90, P95, P99)).toEqual({
-      nivel: 'naranja',
-      percentilReferencia: 'P95',
-    })
-  })
-
-  it('apenas por encima de p99 es rojo con percentil P99', () => {
-    expect(nivelDesdeDeterministico(30.001, P90, P95, P99)).toEqual({
-      nivel: 'rojo',
-      percentilReferencia: 'P99',
-    })
+  it.each([
+    ['igual a p90 todavía es verde (umbral estricto)', 10, { nivel: 'verde', percentilReferencia: null }],
+    ['apenas por encima de p90 es amarillo con percentil P90', 10.001, { nivel: 'amarillo', percentilReferencia: 'P90' }],
+    ['igual a p95 todavía es amarillo, no naranja', 20, { nivel: 'amarillo', percentilReferencia: 'P90' }],
+    ['apenas por encima de p95 es naranja con percentil P95', 20.001, { nivel: 'naranja', percentilReferencia: 'P95' }],
+    ['igual a p99 todavía es naranja, no rojo', 30, { nivel: 'naranja', percentilReferencia: 'P95' }],
+    ['apenas por encima de p99 es rojo con percentil P99', 30.001, { nivel: 'rojo', percentilReferencia: 'P99' }],
+  ])('%s', (_titulo, valor, esperado) => {
+    expect(nivelDesdeDeterministico(valor, P90, P95, P99)).toEqual(esperado)
   })
 })
 
 describe('nivelDesdeUmbralProvisorio', () => {
-  it('24h: los umbrales exactos no se superan (borde estricto)', () => {
-    expect(nivelDesdeUmbralProvisorio(50, 24)).toBe('verde')
-    expect(nivelDesdeUmbralProvisorio(80, 24)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(120, 24)).toBe('naranja')
-  })
+  const CASOS: Array<[string, Array<[number, 24 | 72 | 240, string]>]> = [
+    ['24h: los umbrales exactos no se superan (borde estricto)', [[50, 24, 'verde'], [80, 24, 'amarillo'], [120, 24, 'naranja']]],
+    ['24h: un mm más que cada umbral SÍ lo supera', [[50.001, 24, 'amarillo'], [80.001, 24, 'naranja'], [120.001, 24, 'rojo']]],
+    ['72h: los umbrales exactos no se superan y un mm más sí', [[80, 72, 'verde'], [80.001, 72, 'amarillo'], [120, 72, 'amarillo'], [120.001, 72, 'naranja'], [180, 72, 'naranja'], [180.001, 72, 'rojo']]],
+    ['240h: derivados de 72h ×1.5 (120/180/270), bordes estrictos', [[120, 240, 'verde'], [120.001, 240, 'amarillo'], [180, 240, 'amarillo'], [180.001, 240, 'naranja'], [270, 240, 'naranja'], [270.001, 240, 'rojo']]],
+    ['por debajo del primer umbral es verde', [[0, 24, 'verde'], [49.999, 24, 'verde']]],
+  ]
 
-  it('24h: un mm más que cada umbral SÍ lo supera', () => {
-    expect(nivelDesdeUmbralProvisorio(50.001, 24)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(80.001, 24)).toBe('naranja')
-    expect(nivelDesdeUmbralProvisorio(120.001, 24)).toBe('rojo')
-  })
-
-  it('72h: los umbrales exactos no se superan y un mm más sí', () => {
-    expect(nivelDesdeUmbralProvisorio(80, 72)).toBe('verde')
-    expect(nivelDesdeUmbralProvisorio(80.001, 72)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(120, 72)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(120.001, 72)).toBe('naranja')
-    expect(nivelDesdeUmbralProvisorio(180, 72)).toBe('naranja')
-    expect(nivelDesdeUmbralProvisorio(180.001, 72)).toBe('rojo')
-  })
-
-  it('240h: derivados de 72h ×1.5 (120/180/270), bordes estrictos', () => {
-    expect(nivelDesdeUmbralProvisorio(120, 240)).toBe('verde')
-    expect(nivelDesdeUmbralProvisorio(120.001, 240)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(180, 240)).toBe('amarillo')
-    expect(nivelDesdeUmbralProvisorio(180.001, 240)).toBe('naranja')
-    expect(nivelDesdeUmbralProvisorio(270, 240)).toBe('naranja')
-    expect(nivelDesdeUmbralProvisorio(270.001, 240)).toBe('rojo')
-  })
-
-  it('por debajo del primer umbral es verde', () => {
-    expect(nivelDesdeUmbralProvisorio(0, 24)).toBe('verde')
-    expect(nivelDesdeUmbralProvisorio(49.999, 24)).toBe('verde')
+  it.each(CASOS)('%s', (_titulo, casos) => {
+    for (const [valor, horizonte, esperado] of casos) {
+      expect(nivelDesdeUmbralProvisorio(valor, horizonte)).toBe(esperado)
+    }
   })
 })
 
@@ -196,7 +151,7 @@ describe('obtenerNivelesPeligro', () => {
     const resultado = await obtenerNivelesPeligro({ geometryRefs: ['celda-a'], horizontes: [24] })
 
     expect(resultado).toEqual([
-      {
+      nivelEsperado({
         geometryRef: 'celda-a',
         horizonteHoras: 24,
         nivel: 'naranja',
@@ -204,12 +159,9 @@ describe('obtenerNivelesPeligro', () => {
         metodo: 'percentiles',
         probabilidadP95: 0.6,
         probabilidadP99: 0.1,
-        precipitacionMm: null,
         percentilReferencia: 'P95',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-26T23:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
     ])
   })
 
@@ -251,20 +203,16 @@ describe('obtenerNivelesPeligro', () => {
     const resultado = await obtenerNivelesPeligro({ geometryRefs: ['celda-b'], horizontes: [24] })
 
     expect(resultado).toEqual([
-      {
+      nivelEsperado({
         geometryRef: 'celda-b',
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
         metodo: 'percentiles',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 25,
         percentilReferencia: 'P95',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
     ])
   })
 
@@ -286,20 +234,16 @@ describe('obtenerNivelesPeligro', () => {
     })
 
     expect(resultado).toEqual([
-      {
+      nivelEsperado({
         geometryRef: 'celda-provisoria',
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
         metodo: 'umbral_provisorio',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 90,
         percentilReferencia: null,
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
     ])
   })
 
@@ -345,20 +289,15 @@ describe('obtenerNivelesPeligro', () => {
     })
 
     expect(resultado).toEqual([
-      {
+      nivelEsperado({
         geometryRef: 'celda-vacia',
         horizonteHoras: 24,
         nivel: 'sin_dato',
         base: 'sin_dato',
         metodo: 'sin_dato',
-        probabilidadP95: null,
-        probabilidadP99: null,
-        precipitacionMm: null,
-        percentilReferencia: null,
         emitidoEn: '2026-09-26T12:00:00.000Z',
         validoHasta: '2026-09-26T12:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
     ])
   })
 
@@ -536,20 +475,16 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
     'lote-sin-datos',
   ]
   const ahoraIso = ahora.toISOString()
-  const sinDato = (geometryRef: string, horizonteHoras: 24 | 72 | 240) => ({
-    geometryRef,
-    horizonteHoras,
-    nivel: 'sin_dato',
-    base: 'sin_dato',
-    metodo: 'sin_dato',
-    probabilidadP95: null,
-    probabilidadP99: null,
-    precipitacionMm: null,
-    percentilReferencia: null,
-    emitidoEn: ahoraIso,
-    validoHasta: ahoraIso,
-    versionRegla: 'peligro-v0.2',
-  })
+  const sinDato = (geometryRef: string, horizonteHoras: 24 | 72 | 240) =>
+    nivelEsperado({
+      geometryRef,
+      horizonteHoras,
+      nivel: 'sin_dato',
+      base: 'sin_dato',
+      metodo: 'sin_dato',
+      emitidoEn: ahoraIso,
+      validoHasta: ahoraIso,
+    })
 
   beforeEach(async () => {
     // Celda 1: ensemble reciente en 24 y 72; para 240 no hay nada -> sin_dato.
@@ -646,7 +581,7 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
       ['lote-sin-datos', 240],
     ])
     expect(resultado).toEqual([
-      {
+      nivelEsperado({
         geometryRef: 'lote-ensemble',
         horizonteHoras: 24,
         nivel: 'naranja',
@@ -654,13 +589,10 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
         metodo: 'percentiles',
         probabilidadP95: 0.6,
         probabilidadP99: 0.1,
-        precipitacionMm: null,
         percentilReferencia: 'P95',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-26T23:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
-      {
+      }),
+      nivelEsperado({
         geometryRef: 'lote-ensemble',
         horizonteHoras: 72,
         nivel: 'rojo',
@@ -668,75 +600,54 @@ describe('obtenerNivelesPeligro por lote (equivalencia celda a celda)', () => {
         metodo: 'percentiles',
         probabilidadP95: 0.9,
         probabilidadP99: 0.9,
-        precipitacionMm: null,
         percentilReferencia: 'P99',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-28T23:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
       sinDato('lote-ensemble', 240),
-      {
+      nivelEsperado({
         geometryRef: 'lote-deterministico',
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
         metodo: 'percentiles',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 25,
         percentilReferencia: 'P95',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
-      {
+      }),
+      nivelEsperado({
         geometryRef: 'lote-deterministico',
         horizonteHoras: 72,
         nivel: 'rojo',
         base: 'deterministico',
         metodo: 'percentiles',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 40,
         percentilReferencia: 'P99',
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-29T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
       sinDato('lote-deterministico', 240),
-      {
+      nivelEsperado({
         geometryRef: 'lote-clima-parcial',
         horizonteHoras: 24,
         nivel: 'naranja',
         base: 'deterministico',
         metodo: 'umbral_provisorio',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 100,
-        percentilReferencia: null,
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
       // 72h: sin fixture propio de 72h, así que el pronóstico de 24h (100mm)
       // es el más cercano disponible (mismo criterio de matching ya existente
       // para cualquier horizonte que no sea 240); sin climatología completa,
       // resuelve con el umbral provisorio de 72h (amarillo > 80, no supera
       // naranja > 120).
-      {
+      nivelEsperado({
         geometryRef: 'lote-clima-parcial',
         horizonteHoras: 72,
         nivel: 'amarillo',
         base: 'deterministico',
         metodo: 'umbral_provisorio',
-        probabilidadP95: null,
-        probabilidadP99: null,
         precipitacionMm: 100,
-        percentilReferencia: null,
-        emitidoEn: CORRIDA_NUEVA,
         validoHasta: '2026-09-27T00:00:00.000Z',
-        versionRegla: 'peligro-v0.2',
-      },
+      }),
       // 240h: la tolerancia de horizonte (24h) rechaza el fixture de 24h como
       // candidato de 240h, así que no hay pronóstico dentro de tolerancia ->
       // sigue sin_dato (no cambia con este batch).
@@ -955,56 +866,55 @@ describe('agregarNivelPorDepartamento', () => {
     }
   }
 
-  it('toma el PEOR nivel entre las celdas con escuelas del departamento', () => {
-    const niveles = [
-      nivelCelda('celda-1', 'verde'),
-      nivelCelda('celda-2', 'naranja'),
-      nivelCelda('celda-3', 'amarillo'),
-    ]
-    const resultado = agregarNivelPorDepartamento(
-      niveles,
+  type NivelCeldaTest = Omit<ReturnType<typeof nivelCelda>, 'horizonteHoras'> & {
+    horizonteHoras: 24 | 72
+  }
+
+  const CASOS: Array<[
+    string,
+    NivelCeldaTest[],
+    Record<string, string[]>,
+    24 | 72,
+    Record<string, string>,
+  ]> = [
+    [
+      'toma el PEOR nivel entre las celdas con escuelas del departamento',
+      [nivelCelda('celda-1', 'verde'), nivelCelda('celda-2', 'naranja'), nivelCelda('celda-3', 'amarillo')],
       { capital: ['celda-1', 'celda-2', 'celda-3'] },
       24,
-    )
-    expect(resultado).toEqual({ capital: 'naranja' })
-  })
-
-  it('ignora sin_dato si hay al menos una celda con nivel concreto', () => {
-    const niveles = [nivelCelda('celda-1', 'sin_dato'), nivelCelda('celda-2', 'amarillo')]
-    const resultado = agregarNivelPorDepartamento(
-      niveles,
+      { capital: 'naranja' },
+    ],
+    [
+      'ignora sin_dato si hay al menos una celda con nivel concreto',
+      [nivelCelda('celda-1', 'sin_dato'), nivelCelda('celda-2', 'amarillo')],
       { goya: ['celda-1', 'celda-2'] },
       24,
-    )
-    expect(resultado).toEqual({ goya: 'amarillo' })
-  })
-
-  it('devuelve sin_dato si TODAS las celdas del departamento están sin_dato (nunca verde por descarte)', () => {
-    const niveles = [nivelCelda('celda-1', 'sin_dato'), nivelCelda('celda-2', 'sin_dato')]
-    const resultado = agregarNivelPorDepartamento(
-      niveles,
+      { goya: 'amarillo' },
+    ],
+    [
+      'devuelve sin_dato si TODAS las celdas del departamento están sin_dato (nunca verde por descarte)',
+      [nivelCelda('celda-1', 'sin_dato'), nivelCelda('celda-2', 'sin_dato')],
       { esquina: ['celda-1', 'celda-2'] },
       24,
-    )
-    expect(resultado).toEqual({ esquina: 'sin_dato' })
-  })
-
-  it('devuelve sin_dato si el departamento no tiene ninguna celda con nivel para ese horizonte', () => {
-    const niveles = [nivelCelda('celda-1', 'rojo')]
-    const resultado = agregarNivelPorDepartamento(
-      niveles,
+      { esquina: 'sin_dato' },
+    ],
+    [
+      'devuelve sin_dato si el departamento no tiene ninguna celda con nivel para ese horizonte',
+      [nivelCelda('celda-1', 'rojo')],
       { 'sin-datos': ['celda-inexistente'] },
       24,
-    )
-    expect(resultado).toEqual({ 'sin-datos': 'sin_dato' })
-  })
+      { 'sin-datos': 'sin_dato' },
+    ],
+    [
+      'filtra por el horizonte pedido, no mezcla niveles de otro horizonte',
+      [{ ...nivelCelda('celda-1', 'rojo'), horizonteHoras: 72 as const }, nivelCelda('celda-1', 'verde')],
+      { capital: ['celda-1'] },
+      24,
+      { capital: 'verde' },
+    ],
+  ]
 
-  it('filtra por el horizonte pedido, no mezcla niveles de otro horizonte', () => {
-    const niveles = [
-      { ...nivelCelda('celda-1', 'rojo'), horizonteHoras: 72 as const },
-      nivelCelda('celda-1', 'verde'),
-    ]
-    const resultado = agregarNivelPorDepartamento(niveles, { capital: ['celda-1'] }, 24)
-    expect(resultado).toEqual({ capital: 'verde' })
+  it.each(CASOS)('%s', (_titulo, niveles, escuelas, horizonte, esperado) => {
+    expect(agregarNivelPorDepartamento(niveles, escuelas, horizonte)).toEqual(esperado)
   })
 })

@@ -288,33 +288,27 @@ describe('mapearAsciiImergACeldas', () => {
   // N1"): `precipitation` es una TASA en mm/h, no un acumulado de media hora.
   // Antes se guardaba el valor crudo tal cual (2x más alto). Caso numérico
   // exacto pedido por la revisión: 4.0 mm/h crudo -> 2.0 mm almacenado.
-  it('convierte la tasa mm/h a acumulado de media hora (4.0 mm/h crudo -> 2.0 mm almacenado)', () => {
-    const parseado = {
-      lat: [-27.5],
-      lon: [-58.8],
-      filas: [{ lonIndiceRelativo: 0, valoresPorLat: [4.0] }],
-      filasCalidad: [],
-    }
+  const CASOS_CONVERSION: Array<[string, number, number, string]> = [
+    ['convierte la tasa mm/h a acumulado de media hora (4.0 mm/h crudo -> 2.0 mm almacenado)', 4, 2.0, 'mm/30min'],
+    ['otro caso de la misma conversión: 0 mm/h crudo -> 0 mm (no rompe con ceros)', 0, 0, 'mm/30min'],
+  ]
 
-    const puntos = mapear({ parseado })
-
-    expect(puntos).toHaveLength(1)
-    expect(puntos[0].valor).toBe(2.0)
-    expect(puntos[0].unidad).toBe('mm/30min')
-  })
-
-  it('otro caso de la misma conversión: 0 mm/h crudo -> 0 mm (no rompe con ceros)', () => {
-    const parseado = {
-      lat: [-27.5],
-      lon: [-58.8],
-      filas: [{ lonIndiceRelativo: 0, valoresPorLat: [0] }],
-      filasCalidad: [],
-    }
-
-    const puntos = mapear({ parseado })
-
-    expect(puntos[0].valor).toBe(0)
-  })
+  it.each(CASOS_CONVERSION)(
+    '%s',
+    (_titulo, valorCrudo, valorEsperado, unidadEsperada) => {
+      const puntos = mapear({
+        parseado: {
+          lat: [-27.5],
+          lon: [-58.8],
+          filas: [{ lonIndiceRelativo: 0, valoresPorLat: [valorCrudo] }],
+          filasCalidad: [],
+        },
+      })
+      expect(puntos).toHaveLength(1)
+      expect(puntos[0].valor).toBe(valorEsperado)
+      expect(puntos[0].unidad).toBe(unidadEsperada)
+    },
+  )
 
   it('propaga precipitationQualityIndex a `calidad` cuando la respuesta la trae', () => {
     const parseado = {

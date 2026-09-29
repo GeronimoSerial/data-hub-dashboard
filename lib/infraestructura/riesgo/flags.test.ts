@@ -35,132 +35,34 @@ afterEach(() => {
   }
 })
 
-describe('riskEngineEnabled', () => {
-  it('devuelve false sin la variable seteada', () => {
-    delete process.env.RISK_ENGINE_ENABLED
-    expect(riskEngineEnabled()).toBe(false)
+type BooleanFlag = readonly [string, string, () => boolean, string]
+
+const BOOLEAN_FLAGS: readonly BooleanFlag[] = [
+  ['riskEngineEnabled', 'RISK_ENGINE_ENABLED', riskEngineEnabled, 'devuelve false sin la variable seteada'],
+  ['riskRadarEnabled', 'RISK_RADAR_ENABLED', riskRadarEnabled, 'devuelve false sin la variable seteada'],
+  ['aiBriefingEnabled', 'AI_BRIEFING_ENABLED', aiBriefingEnabled, 'devuelve false sin la variable seteada'],
+  ['hazardContextEnabled', 'HAZARD_CONTEXT_ENABLED', hazardContextEnabled, 'devuelve false sin la variable seteada'],
+  ['seasonalEnabled', 'SEASONAL_ENABLED', seasonalEnabled, 'devuelve false por defecto (sin la variable seteada)'],
+  ['situacionEnabled', 'SITUACION_ENABLED', situacionEnabled, 'devuelve false sin la variable seteada'],
+  ['replayEnabled', 'REPLAY_ENABLED', replayEnabled, 'devuelve false por defecto (sin la variable seteada)'],
+]
+
+describe.each(BOOLEAN_FLAGS)('%s', (_nombre, clave, flag, tituloSinVariable) => {
+  it(tituloSinVariable, () => {
+    delete process.env[clave]
+    expect(flag()).toBe(false)
   })
 
   it('devuelve true con el valor exacto "true"', () => {
-    process.env.RISK_ENGINE_ENABLED = 'true'
-    expect(riskEngineEnabled()).toBe(true)
+    process.env[clave] = 'true'
+    expect(flag()).toBe(true)
   })
 
   it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.RISK_ENGINE_ENABLED = '1'
-    expect(riskEngineEnabled()).toBe(false)
-    process.env.RISK_ENGINE_ENABLED = 'yes'
-    expect(riskEngineEnabled()).toBe(false)
-  })
-})
-
-describe('riskRadarEnabled', () => {
-  it('devuelve false sin la variable seteada', () => {
-    delete process.env.RISK_RADAR_ENABLED
-    expect(riskRadarEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.RISK_RADAR_ENABLED = 'true'
-    expect(riskRadarEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.RISK_RADAR_ENABLED = '1'
-    expect(riskRadarEnabled()).toBe(false)
-    process.env.RISK_RADAR_ENABLED = 'yes'
-    expect(riskRadarEnabled()).toBe(false)
-  })
-})
-
-describe('aiBriefingEnabled', () => {
-  it('devuelve false sin la variable seteada', () => {
-    delete process.env.AI_BRIEFING_ENABLED
-    expect(aiBriefingEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.AI_BRIEFING_ENABLED = 'true'
-    expect(aiBriefingEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.AI_BRIEFING_ENABLED = '1'
-    expect(aiBriefingEnabled()).toBe(false)
-    process.env.AI_BRIEFING_ENABLED = 'yes'
-    expect(aiBriefingEnabled()).toBe(false)
-  })
-})
-
-describe('hazardContextEnabled', () => {
-  it('devuelve false sin la variable seteada', () => {
-    delete process.env.HAZARD_CONTEXT_ENABLED
-    expect(hazardContextEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.HAZARD_CONTEXT_ENABLED = 'true'
-    expect(hazardContextEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.HAZARD_CONTEXT_ENABLED = '1'
-    expect(hazardContextEnabled()).toBe(false)
-  })
-})
-
-describe('seasonalEnabled', () => {
-  it('devuelve false por defecto (sin la variable seteada)', () => {
-    delete process.env.SEASONAL_ENABLED
-    expect(seasonalEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.SEASONAL_ENABLED = 'true'
-    expect(seasonalEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.SEASONAL_ENABLED = '1'
-    expect(seasonalEnabled()).toBe(false)
-    process.env.SEASONAL_ENABLED = 'yes'
-    expect(seasonalEnabled()).toBe(false)
-  })
-})
-
-describe('situacionEnabled', () => {
-  it('devuelve false sin la variable seteada', () => {
-    delete process.env.SITUACION_ENABLED
-    expect(situacionEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.SITUACION_ENABLED = 'true'
-    expect(situacionEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.SITUACION_ENABLED = '1'
-    expect(situacionEnabled()).toBe(false)
-    process.env.SITUACION_ENABLED = 'yes'
-    expect(situacionEnabled()).toBe(false)
-  })
-})
-
-describe('replayEnabled', () => {
-  it('devuelve false por defecto (sin la variable seteada)', () => {
-    delete process.env.REPLAY_ENABLED
-    expect(replayEnabled()).toBe(false)
-  })
-
-  it('devuelve true con el valor exacto "true"', () => {
-    process.env.REPLAY_ENABLED = 'true'
-    expect(replayEnabled()).toBe(true)
-  })
-
-  it('devuelve false con un valor arbitrario tipo "1" o "yes"', () => {
-    process.env.REPLAY_ENABLED = '1'
-    expect(replayEnabled()).toBe(false)
+    process.env[clave] = '1'
+    expect(flag()).toBe(false)
+    process.env[clave] = 'yes'
+    expect(flag()).toBe(false)
   })
 })
 

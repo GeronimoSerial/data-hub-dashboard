@@ -6,72 +6,27 @@ import {
   proximaCorridaEsperada,
   TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB,
 } from './cadencias'
+import type { NombreJob } from './cadencias'
 
 const MINUTO_MS = 60_000
 const AHORA = new Date('2026-01-01T00:00:00.000Z')
 
+const CASOS_ATRASO: ReadonlyArray<[string, NombreJob, number | null, boolean]> = [
+  ['marca atrasado climatologia-precipitacion (timer diario) sin corrida previa', 'climatologia-precipitacion', null, true],
+  ['no marca atrasado climatologia-caudal (timer diario) con corrida exitosa hace 10 minutos', 'climatologia-caudal', 10, false],
+  ['marca atrasado sync-imerg si nunca corrió', 'sync-imerg', null, true],
+  ['no marca atrasado sync-imerg con corrida hace 90 minutos', 'sync-imerg', 90, false],
+  ['marca atrasado sync-imerg con corrida hace 150 minutos', 'sync-imerg', 150, true],
+  ['no marca atrasado situacion-corte con corrida hace 90 minutos (cadencia horaria)', 'situacion-corte', 90, false],
+  ['marca atrasado situacion-corte con corrida hace 150 minutos', 'situacion-corte', 150, true],
+]
+
 describe('estaAtrasado', () => {
-  it('marca atrasado climatologia-precipitacion (timer diario) sin corrida previa', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'climatologia-precipitacion',
-      ultimaCorridaExitosaEn: null,
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(true)
-  })
-
-  it('no marca atrasado climatologia-caudal (timer diario) con corrida exitosa hace 10 minutos', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'climatologia-caudal',
-      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 10 * MINUTO_MS),
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(false)
-  })
-
-  it('marca atrasado sync-imerg si nunca corrió', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'sync-imerg',
-      ultimaCorridaExitosaEn: null,
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(true)
-  })
-
-  it('no marca atrasado sync-imerg con corrida hace 90 minutos', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'sync-imerg',
-      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 90 * MINUTO_MS),
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(false)
-  })
-
-  it('marca atrasado sync-imerg con corrida hace 150 minutos', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'sync-imerg',
-      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 150 * MINUTO_MS),
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(true)
-  })
-
-  it('no marca atrasado situacion-corte con corrida hace 90 minutos (cadencia horaria)', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'situacion-corte',
-      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 90 * MINUTO_MS),
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(false)
-  })
-
-  it('marca atrasado situacion-corte con corrida hace 150 minutos', () => {
-    const atrasado = estaAtrasado({
-      nombre: 'situacion-corte',
-      ultimaCorridaExitosaEn: new Date(AHORA.getTime() - 150 * MINUTO_MS),
-      ahora: AHORA,
-    })
-    expect(atrasado).toBe(true)
+  it.each(CASOS_ATRASO)('%s', (_titulo, nombre, minutos, esperado) => {
+    const ultimaCorridaExitosaEn =
+      minutos === null ? null : new Date(AHORA.getTime() - minutos * MINUTO_MS)
+    const atrasado = estaAtrasado({ nombre, ultimaCorridaExitosaEn, ahora: AHORA })
+    expect(atrasado).toBe(esperado)
   })
 })
 

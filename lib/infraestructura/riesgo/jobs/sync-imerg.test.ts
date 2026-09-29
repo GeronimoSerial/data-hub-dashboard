@@ -97,16 +97,19 @@ async function saludImerg() {
 }
 
 describe('ejecutarSyncImerg', () => {
-  it('sin token no llama a la red y deja la salud en no_disponible', async () => {
+  it.each([
+    ['sin token no llama a la red y deja la salud en no_disponible', undefined, '2026-09-26T00:15:00.000Z', 'no debe llamarse a la red sin token'],
+    ['con token vacío tampoco llama a la red', '', '2026-09-26T00:45:00.000Z', 'no debe llamarse a la red con token vacío'],
+  ])('%s', async (_titulo, earthdataToken, ahoraIso, mensajeSinRed) => {
     const fetchImpl = vi.fn(async () => {
-      throw new Error('no debe llamarse a la red sin token')
+      throw new Error(mensajeSinRed)
     })
-    const ahora = new Date('2026-09-26T00:15:00.000Z')
+    const ahora = new Date(ahoraIso)
 
     const resultado = await sync({
       ahora,
       fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: undefined,
+      earthdataToken,
     })
 
     expect(resultado).toEqual({
@@ -125,29 +128,6 @@ describe('ejecutarSyncImerg', () => {
     expect(salud?.ultimoErrorSaneado).toBe('fuente no configurada: falta EARTHDATA_TOKEN')
     expect(salud?.ultimoIntentoEn).toBe(ahora.toISOString())
     expect(salud?.ttlMinutos).toBe(60)
-  })
-
-  it('con token vacío tampoco llama a la red', async () => {
-    const fetchImpl = vi.fn(async () => {
-      throw new Error('no debe llamarse a la red con token vacío')
-    })
-
-    const resultado = await sync({
-      ahora: new Date('2026-09-26T00:45:00.000Z'),
-      fetchImpl: fetchImpl as unknown as FetchImpl,
-      earthdataToken: '',
-    })
-
-    expect(resultado).toEqual({
-      ok: true,
-      resultado: {
-        celdasActualizadas: 0,
-        motivo: 'fuente_no_configurada',
-        granulosProcesados: 0,
-        granulosFallidos: 0,
-      },
-    })
-    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it('con token busca gránulos en la ventana de backfill, subsetea el faltante, deduplica y persiste', async () => {

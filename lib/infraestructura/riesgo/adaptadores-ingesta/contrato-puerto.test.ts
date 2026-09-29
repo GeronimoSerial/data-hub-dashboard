@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest'
 import { crearAdaptadorEnsemble } from './ensemble'
 import { crearAdaptadorImerg } from './imerg'
 import { crearAdaptadorSeasonal } from './seasonal'
+import type { FormaPuntoNormalizado } from './__fixtures__/contrato'
 import {
   CORRIDA_EN_ENSEMBLE,
   DEPARTAMENTOS_SEASONAL,
@@ -34,21 +35,21 @@ import {
   verificarFormaPuntoNormalizado,
 } from './__fixtures__/contrato'
 
-const FORMA_ENSEMBLE = {
+const FORMA_ENSEMBLE: FormaPuntoNormalizado = {
   variable: 'precipitacion_acumulada',
   instantesIso: ['corridaEn', 'validoDesde', 'validoHasta'],
   cadenasRequeridas: ['geometryRef'],
   numerosFinitos: ['horizonteHoras', 'acumuladoHoras', 'miembrosTotal', 'miembrosValidos'],
   numerosFinitosONull: ['probabilidadSuperaP95', 'probabilidadSuperaP99', 'dispersionMm'],
-} as const
+}
 
-const FORMA_SEASONAL = {
+const FORMA_SEASONAL: FormaPuntoNormalizado = {
   variable: 'precipitacion_acumulada',
   instantesIso: ['emisionEn', 'validoDesde', 'validoHasta'],
   cadenasRequeridas: ['departamento'],
   numerosFinitos: ['horizonteDesdeDias', 'horizonteHastaDias', 'miembrosTotal', 'miembrosValidos'],
   numerosFinitosONull: ['mediaMm', 'medianaMm', 'dispersionMm', 'probabilidadSobreNormal'],
-} as const
+}
 
 const MS_POR_HORA = 3_600_000
 
@@ -92,10 +93,6 @@ describe('contrato PuertoPronosticoEnsemble (crearAdaptadorEnsemble)', () => {
     for (const punto of puntos) {
       verificarFormaPuntoNormalizado(punto, {
         ...FORMA_ENSEMBLE,
-        numerosFinitos: [...FORMA_ENSEMBLE.numerosFinitos],
-        numerosFinitosONull: [...FORMA_ENSEMBLE.numerosFinitosONull],
-        instantesIso: [...FORMA_ENSEMBLE.instantesIso],
-        cadenasRequeridas: [...FORMA_ENSEMBLE.cadenasRequeridas],
         valoresExactos: { acumuladoHoras: 24 },
       })
     }
@@ -131,13 +128,7 @@ describe('contrato PuertoPronosticoEnsemble (crearAdaptadorEnsemble)', () => {
 
     expect(puntos).toHaveLength(1)
     expect(sinDato).toEqual({ [REFS_ENSEMBLE[1]]: 'sin_climatologia' })
-    verificarFormaPuntoNormalizado(puntos[0], {
-      ...FORMA_ENSEMBLE,
-      numerosFinitos: [...FORMA_ENSEMBLE.numerosFinitos],
-      numerosFinitosONull: [...FORMA_ENSEMBLE.numerosFinitosONull],
-      instantesIso: [...FORMA_ENSEMBLE.instantesIso],
-      cadenasRequeridas: [...FORMA_ENSEMBLE.cadenasRequeridas],
-    })
+    verificarFormaPuntoNormalizado(puntos[0], FORMA_ENSEMBLE)
   })
 
   it('error del provider: rechaza (el adaptador no captura el throw)', async () => {
@@ -165,10 +156,6 @@ describe('contrato PuertoTendenciaEstacional (crearAdaptadorSeasonal)', () => {
     for (const estadistica of estadisticas) {
       verificarFormaPuntoNormalizado(estadistica, {
         ...FORMA_SEASONAL,
-        numerosFinitos: [...FORMA_SEASONAL.numerosFinitos],
-        numerosFinitosONull: [...FORMA_SEASONAL.numerosFinitosONull],
-        instantesIso: [...FORMA_SEASONAL.instantesIso],
-        cadenasRequeridas: [...FORMA_SEASONAL.cadenasRequeridas],
         valoresExactos: { horizonteDesdeDias: 30, horizonteHastaDias: 90 },
       })
     }
