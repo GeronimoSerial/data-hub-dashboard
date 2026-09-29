@@ -242,6 +242,25 @@ describe('FichaAccesoTerritorial', () => {
     expect(fuente).toHaveTextContent('job v3')
   })
 
+  it('no duplica la atribución cuando `licencia` ya la contiene', () => {
+    const territorio: TerritorioMapa = {
+      aislamiento: {
+        ...AISLAMIENTO_META,
+        licencia: '© OpenStreetMap contributors, ODbL',
+        escuelas: { [CUE]: filaAislamiento({ nivel: 1 }) },
+      },
+      susceptibilidad: null,
+    }
+    render(<FichaAccesoTerritorial {...props({ territorio })} />)
+
+    const fuente = screen.getByTestId('ficha-acceso-aislamiento-fuente')
+    expect(fuente).toHaveTextContent(
+      'Fuente: OpenStreetMap (© OpenStreetMap contributors, ODbL) · extracto 2026-06-01 · job v3',
+    )
+    const ocurrencias = (fuente.textContent?.match(/OpenStreetMap contributors/g) ?? []).length
+    expect(ocurrencias).toBe(1)
+  })
+
   it('muestra el estado de carga de la ruta', () => {
     render(<FichaAccesoTerritorial {...props({ geometriaLoading: true })} />)
 

@@ -65,6 +65,22 @@ function textoAlternativa(alternativaSinCruce: boolean | null): string {
   return alternativaSinCruce ? 'Sí' : 'No'
 }
 
+// El valor almacenado de `licencia` puede ya incluir la atribución OSM. Si es
+// así se usa tal cual para no repetir "© OpenStreetMap contributors" dos veces;
+// si no, se compone con la atribución estándar.
+function textoFuenteOsm(
+  fuente: string,
+  atribucion: string,
+  licencia: string,
+  fechaExtractoOsm: string,
+  versionJob: string,
+): string {
+  const credito = licencia.includes('OpenStreetMap contributors')
+    ? licencia
+    : `${atribucion}, ${licencia}`
+  return `Fuente: ${fuente} (${credito}) · extracto ${fechaExtractoOsm} · job v${versionJob}`
+}
+
 function textoProfundidad(valor: number): string {
   if (!(valor > 0)) {
     return 'Profundidad estimada de inundación fluvial: 0 m (sin profundidad estimada)'
@@ -153,9 +169,13 @@ export function FichaAccesoTerritorial({
                   Alternativa sin cruce: {textoAlternativa(filaAislamiento.alternativaSinCruce)}
                 </p>
                 <p className="ficha-territorial__fuente" data-testid="ficha-acceso-aislamiento-fuente">
-                  Fuente: {aislamiento.fuente} ({aislamiento.atribucion},{' '}
-                  {aislamiento.licencia}) · extracto {aislamiento.fechaExtractoOsm} · job v
-                  {aislamiento.versionJob}
+                  {textoFuenteOsm(
+                    aislamiento.fuente,
+                    aislamiento.atribucion,
+                    aislamiento.licencia,
+                    aislamiento.fechaExtractoOsm,
+                    aislamiento.versionJob,
+                  )}
                 </p>
               </>
             )}
