@@ -1,8 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSessionUser } from '@/lib/session'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 
 vi.mock('@/lib/session', () => ({
   getSessionUser: vi.fn(),
@@ -15,23 +13,7 @@ vi.mock('@/lib/session', () => ({
   },
 }))
 
-let dir: string
-let prevDataDir: string | undefined
-
-beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'situacion-cambios-route-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
-  const { ensureSeeded } = await import('@/lib/db/seed')
-  await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
+usarDbTemporal('situacion-cambios-route')
 
 beforeEach(() => {
   vi.mocked(getSessionUser).mockReset()
