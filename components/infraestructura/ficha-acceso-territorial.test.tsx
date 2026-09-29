@@ -8,6 +8,7 @@ import type {
   SusceptibilidadEscuelaMapa,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
+import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 
 // Mock liviano de la ficha territorial pesada (hace fetches propios) para el
 // test de gateo del modal. La sección bajo prueba es presentacional y no
@@ -85,6 +86,17 @@ const GEOMETRIA_DISPONIBLE: GeometriaAccesoRespuesta = {
   resumen: { puente: 1, vado: 2, sinEvidencia: 3 },
 }
 
+function exposicion(overrides: Partial<ExposicionRutaRespuesta> = {}): ExposicionRutaRespuesta {
+  return {
+    cueAnexo: CUE, disponible: true, estado: 'con_profundidad', versionJob: '1',
+    resumen: { celdasTotal: 4, celdasConDato: 3, celdasConProfundidad: 2, profundidadMaxM: 1.25, cobertura: 0.75 },
+    celdasAfectadas: [], resolucionArcsec: 30, periodoRetornoAnios: 100,
+    escenario: 'historico', fuente: 'WRI Aqueduct v2 vía OS-Climate physrisk',
+    licencia: 'Apache-2.0', fechaCorrida: '2026-06-01', aviso: 'Indicador histórico y estático.',
+    ...overrides,
+  }
+}
+
 // Territorio completo: sirve para probar la ficha "llena" sin repetir el
 // montaje de los metadatos en cada test.
 const TERRITORIO_COMPLETO = territorioCon(
@@ -136,6 +148,43 @@ describe('FichaAccesoTerritorial - estados', () => {
     render(<FichaAccesoTerritorial {...props({ territorio: territorioCon(null, null) })} />)
 
     expect(screen.queryByTestId('ficha-acceso-detalle')).not.toBeInTheDocument()
+  })
+})
+
+describe('FichaAccesoTerritorial - exposición de la ruta', () => {
+  it('muestra celdas con profundidad, profundidad máxima y cobertura parcial', () => {
+    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion() })} />)
+    expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
+      'Ruta: cruza 2 celdas de ~1 km con inundación histórica estimada (máx. 1,25 m). Dato en 75 % de la ruta.',
+    )
+  })
+
+  it('muestra sin profundidad cuando hay dato disponible sin celdas afectadas', () => {
+    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion({ estado: 'sin_profundidad', resumen: { celdasTotal: 4, celdasConDato: 4, celdasConProfundidad: 0, profundidadMaxM: null, cobertura: 1 } }) })} />)
+    expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
+      'Ruta: sin inundación histórica estimada en las celdas que cruza.',
+    )
+  })
+
+  it('para exposición no disponible dice sin dato y nunca cero o sin inundación', () => {
+    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion({ disponible: false, estado: 'sin_dato' }) })} />)
+    const linea = screen.getByTestId('ficha-acceso-exposicion-ruta')
+    expect(linea).toHaveTextContent('Ruta: sin dato de exposición.')
+    expect(linea).not.toHaveTextContent(/0|sin inundación/)
+  })
+
+  it('incluye resolución y límites del indicador en el detalle de referencia', () => {
+    render(<FichaAccesoTerritorial {...props({ exposicion: exposicion() })} />)
+    const detalle = screen.getByTestId('ficha-acceso-exposicion-detalle')
+    expect(detalle).toHaveTextContent('30 arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce')
+    expect(detalle).toHaveTextContent('WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0)')
+    expect(detalle).toHaveTextContent('No es un pronóstico, ni el estado del camino, ni el trazado de un río.')
+  })
+
+  it('mantiene el comportamiento anterior cuando no recibe las props opcionales', () => {
+    render(<FichaAccesoTerritorial {...props()} />)
+    expect(screen.queryByTestId('ficha-acceso-exposicion-ruta')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-exposicion-detalle')).not.toBeInTheDocument()
   })
 })
 

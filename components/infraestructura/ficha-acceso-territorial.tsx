@@ -12,6 +12,7 @@ import type {
   NivelAislamientoMapa,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
+import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 
 // Sección de sólo lectura: contexto de acceso territorial ESTÁTICO de una
 // escuela (aislamiento OSM + susceptibilidad physrisk + estado del recorrido
@@ -32,6 +33,9 @@ export interface FichaAccesoTerritorialProps {
   geometria: GeometriaAccesoRespuesta | null
   geometriaLoading: boolean
   geometriaError: string | null
+  exposicion?: ExposicionRutaRespuesta | null
+  exposicionLoading?: boolean
+  exposicionError?: string | null
   // Encuadrar el recorrido en el mapa. Opcional a propósito: sin esta prop la
   // ficha no ofrece la acción, en vez de ofrecer un botón que nadie atiende.
   onVerRutaEnMapa?: () => void
@@ -93,6 +97,17 @@ function textoInundacion(profundidad: number): string {
   return `Inundación histórica en la escuela: ${formatearMetros(profundidad)} m de agua estimada`
 }
 
+function textoExposicionRuta(exposicion: ExposicionRutaRespuesta): string {
+  if (!exposicion.disponible) return 'Ruta: sin dato de exposición.'
+  const cobertura = exposicion.resumen.cobertura < 1
+    ? ` Dato en ${Math.round(exposicion.resumen.cobertura * 100)} % de la ruta.`
+    : ''
+  if (exposicion.estado === 'con_profundidad') {
+    return `Ruta: cruza ${exposicion.resumen.celdasConProfundidad} celdas de ~1 km con inundación histórica estimada (máx. ${formatearMetros(exposicion.resumen.profundidadMaxM ?? 0)} m).${cobertura}`
+  }
+  return `Ruta: sin inundación histórica estimada en las celdas que cruza.${cobertura}`
+}
+
 // Resumen de lo que el cálculo realmente dibujó. Sólo con geometría
 // disponible: nunca se resume un recorrido que no existe.
 function textoResumenRuta(geometria: GeometriaAccesoRespuesta): string {
@@ -139,6 +154,9 @@ export function FichaAccesoTerritorial({
   geometria,
   geometriaLoading,
   geometriaError,
+  exposicion,
+  exposicionLoading = false,
+  exposicionError = null,
   onVerRutaEnMapa,
 }: FichaAccesoTerritorialProps): JSX.Element {
   const aislamiento = territorio?.aislamiento ?? null
@@ -151,7 +169,7 @@ export function FichaAccesoTerritorial({
   const sinAguaEstimada = profundidad !== null && !(profundidad > 0)
   // Sin ninguna de las dos capas no hay nada que detallar: alcanza con decir
   // que no hay datos importados.
-  const hayDetalle = aislamiento !== null || susceptibilidad !== null
+  const hayDetalle = aislamiento !== null || susceptibilidad !== null || exposicion != null
 
   return (
     <section
@@ -223,6 +241,10 @@ export function FichaAccesoTerritorial({
               </p>
             )}
           </div>
+
+          {exposicion != null && (
+            <p data-testid="ficha-acceso-exposicion-ruta">{textoExposicionRuta(exposicion)}</p>
+          )}
 
           {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
               sólo aparece si el padre sabe encuadrarlo. Si la geometría no
@@ -336,6 +358,11 @@ export function FichaAccesoTerritorial({
                     histórico
                   </p>
                 </>
+              )}
+              {exposicion != null && (
+                <p data-testid="ficha-acceso-exposicion-detalle">
+                  Resolución {exposicion.resolucionArcsec ?? 30} arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce · período de retorno {exposicion.periodoRetornoAnios ?? 100} años · escenario histórico · fuente WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0) · corrida {exposicion.fechaCorrida ?? 'sin fecha'}. {exposicion.aviso} No es un pronóstico, ni el estado del camino, ni el trazado de un río.
+                </p>
               )}
               {sinAguaEstimada && (
                 <p data-testid="ficha-acceso-susceptibilidad-sin-profundidad">
