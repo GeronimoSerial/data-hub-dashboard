@@ -70,6 +70,66 @@ WATERWAYS_CRUCE = ("river", "stream", "canal", "drain")
 # entre dos cruces reales distintos del mismo curso de agua.
 TOLERANCIA_DEDUP_CRUCE_M = 30.0
 
+# Clasificacion de un cruce para el export de geometria (N3). Solo distingue
+# "puente" de "vado"/"sin_evidencia" para MOSTRAR el dato: la metrica
+# `cruces_agua_con_vado_count` sigue contando "sin_evidencia" junto con "vado"
+# (ver `clasificar_cruce`), el export nunca altera el conteo.
+CLASIFICACION_PUENTE = "puente"
+CLASIFICACION_VADO = "vado"
+CLASIFICACION_SIN_EVIDENCIA = "sin_evidencia"
+
+
+def clasificar_cruce(cruce: dict) -> str:
+    """Clasifica un cruce para el export de geometria (N3).
+
+    `con_puente` gana sobre `es_ford` (un cruce con puente nunca es vado).
+    Si no hay puente ni evidencia de vado devuelve "sin_evidencia": la metrica
+    `cruces_agua_con_vado_count` cuenta "sin_evidencia" junto con "vado" (nunca
+    se asume seguro), pero el export las distingue solo para mostrar el dato.
+    """
+    if cruce["con_puente"]:
+        return CLASIFICACION_PUENTE
+    if cruce["es_ford"]:
+        return CLASIFICACION_VADO
+    return CLASIFICACION_SIN_EVIDENCIA
+
+
+def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
+    """Coordenadas [lon, lat] de la geometria REALMENTE usada por la ruta.
+
+    Para cada par consecutivo (u, v) elige, entre las aristas paralelas
+    `grafo.get_edge_data(u, v)`, la de menor `length` (la que uso Dijkstra) y
+    toma su geometria real via `_geometria_arista` (atributo `geometry` si
+    existe; si no, las coordenadas de los dos nodos OSM, que son nodos reales
+    de la via, no una recta inventada). Orienta cada tramo para que empiece en
+    `u`, concatena salteando una coordenada igual a la anterior y redondea
+    cada lon/lat a 6 decimales. Devuelve [] si la ruta tiene menos de 2 nodos.
+    """
+    if len(ruta_nodos) < 2:
+        return []
+
+    coords: list[list[float]] = []
+    for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
+        datos_aristas = grafo.get_edge_data(u, v) or {}
+        if not datos_aristas:
+            continue
+        k_min = min(datos_aristas, key=lambda k: datos_aristas[k].get("length", math.inf))
+        geometria = _geometria_arista(datos_aristas[k_min], grafo, u, v)
+        puntos = [(p[0], p[1]) for p in geometria.coords]
+
+        ux, uy = grafo.nodes[u]["x"], grafo.nodes[u]["y"]
+        dist_primero = (puntos[0][0] - ux) ** 2 + (puntos[0][1] - uy) ** 2
+        dist_ultimo = (puntos[-1][0] - ux) ** 2 + (puntos[-1][1] - uy) ** 2
+        if dist_ultimo < dist_primero:
+            puntos.reverse()
+
+        for lon, lat in puntos:
+            coord = [round(lon, 6), round(lat, 6)]
+            if coords and coords[-1] == coord:
+                continue
+            coords.append(coord)
+    return coords
+
 
 def calcular_indice_aislamiento(
     distancia_via_pavimentada_m: Optional[float],
@@ -550,6 +610,8 @@ def calcular_metricas_departamento(
     cruces_por_arista: Optional[dict] = None,
     grafo_seguro_invertido=None,
     tolerancia_dedup_m: float = TOLERANCIA_DEDUP_CRUCE_M,
+    *,
+    geometrias_out: Optional[list] = None,
 ) -> list:
     """Version batched de `calcular_metricas_escuela` para TODAS las escuelas
     de un mismo departamento (mismo `nodo_cabecera`).
@@ -591,6 +653,16 @@ def calcular_metricas_departamento(
     Devuelve una lista de dicts de metricas, en el mismo orden que
     `escuelas_depto`, con exactamente las mismas claves que
     `calcular_metricas_escuela`.
+
+    `geometrias_out` (keyword-only, opcional, N3): si se pasa una lista, se
+    agrega exactamente un dict por escuela, en el mismo orden que
+    `escuelas_depto`, con la geometria REALMENTE usada — `{"ruta": {"type":
+    "LineString", "coordinates": [...]} | None, "cruces": [{"lon", "lat",
+    "clasificacion"}, ...], "motivo_sin_geometria": None | "sin_conexion_red" |
+    "ruta_degenerada"}`. Los cruces se producen en la MISMA iteracion que los
+    cuenta, por lo que su cantidad siempre coincide con `cruces_agua_count` y
+    los de clasificacion "puente" con `cruces_agua_con_puente_count`. Export
+    puramente aditivo: con `None` (default) el resultado es identico.
     """
     import networkx as nx
     import osmnx as ox
@@ -625,11 +697,19 @@ def calcular_metricas_departamento(
         if snap_distancia_m > UMBRAL_SNAP_SIN_CONEXION_M:
             resultado["motivo_sin_datos"] = "sin_conexion_red"
             resultados.append(resultado)
+            if geometrias_out is not None:
+                geometrias_out.append(
+                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                )
             continue
 
         if nodo_escuela not in distancias_cab:
             resultado["motivo_sin_datos"] = "sin_conexion_red"
             resultados.append(resultado)
+            if geometrias_out is not None:
+                geometrias_out.append(
+                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                )
             continue
 
         resultado["distancia_cabecera_departamental_m"] = distancias_cab[nodo_escuela]
@@ -639,6 +719,7 @@ def calcular_metricas_departamento(
         cruces_con_puente = 0
         cruces_con_vado = 0
         ya_vistos_ruta: list = []
+        cruces_export: list = []
         for u, v in zip(ruta_cabecera[:-1], ruta_cabecera[1:]):
             datos_aristas = grafo.get_edge_data(u, v) or {}
             for k, datos in datos_aristas.items():
@@ -650,6 +731,15 @@ def calcular_metricas_departamento(
                         cruces_con_puente += 1
                     else:
                         cruces_con_vado += 1
+                    if geometrias_out is not None:
+                        punto_x, punto_y = cruce["punto"]
+                        cruces_export.append(
+                            {
+                                "lon": round(punto_x, 6),
+                                "lat": round(punto_y, 6),
+                                "clasificacion": clasificar_cruce(cruce),
+                            }
+                        )
 
         cruces_count = cruces_con_puente + cruces_con_vado
         resultado["tramos_sin_pavimentar_count"] = tramos_sin_pavimentar
@@ -672,6 +762,18 @@ def calcular_metricas_departamento(
                 )
             except (nx.NetworkXError, nx.NodeNotFound):
                 resultado["tiene_alternativa_sin_cruce"] = False
+
+        if geometrias_out is not None:
+            coordenadas = _coordenadas_ruta(grafo, ruta_cabecera)
+            if len(coordenadas) < 2:
+                ruta_geom = None
+                motivo_geom = "ruta_degenerada"
+            else:
+                ruta_geom = {"type": "LineString", "coordinates": coordenadas}
+                motivo_geom = None
+            geometrias_out.append(
+                {"ruta": ruta_geom, "cruces": cruces_export, "motivo_sin_geometria": motivo_geom}
+            )
 
         resultados.append(resultado)
 

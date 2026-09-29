@@ -20,6 +20,9 @@ from shapely.geometry import LineString
 import networkx as nx
 
 from geo_static.osm_aislamiento import (
+    CLASIFICACION_PUENTE,
+    CLASIFICACION_SIN_EVIDENCIA,
+    CLASIFICACION_VADO,
     TOLERANCIA_DEDUP_CRUCE_M,
     _aristas_inseguras,
     _es_tramo_sin_pavimentar,
@@ -29,6 +32,7 @@ from geo_static.osm_aislamiento import (
     calcular_indice_aislamiento,
     calcular_metricas_departamento,
     calcular_metricas_escuela,
+    clasificar_cruce,
     construir_arbol_agua,
     construir_cruces_por_arista,
     construir_grafo_seguro,
@@ -888,3 +892,156 @@ class TestCorrerSeleccionDeRed:
         salida = capsys.readouterr().out
         assert "extracto local detectado" in salida
         assert "capa de agua" in salida
+
+
+def _mapeo_export_departamento():
+    return {
+        (-58.90, -27.50): ("escuela_a", 10.0),
+        (-78.90, -27.50): ("escuela_b", 10.0),
+        (-98.90, -27.50): ("escuela_c", 10.0),
+        (-118.90, -27.50): ("escuela_d", 10.0),
+    }
+
+
+def _escuelas_export_departamento():
+    return [
+        {"cueAnexo": "A", "lat": -27.50, "lon": -58.90},
+        {"cueAnexo": "B", "lat": -27.50, "lon": -78.90},
+        {"cueAnexo": "C", "lat": -27.50, "lon": -98.90},
+        {"cueAnexo": "D", "lat": -27.50, "lon": -118.90},
+    ]
+
+
+def _patch_nearest_nodes_departamento(monkeypatch, mapeo):
+    """`nearest_nodes` vectorizado: en `calcular_metricas_departamento` se llama
+    con listas (X=lons, Y=lats), asi que el mapeo se indexa por (lon, lat)."""
+    import osmnx as ox
+
+    def fake_nearest_nodes(grafo, X, Y, return_dist=False):
+        if isinstance(X, (list, tuple)):
+            nodos, dists = zip(*(mapeo[(x, y)] for x, y in zip(X, Y)))
+            return list(nodos), list(dists)
+        return mapeo[(X, Y)]
+
+    monkeypatch.setattr(ox.distance, "nearest_nodes", fake_nearest_nodes)
+
+
+def _grafo_paralelas_con_vertices_intermedios():
+    g = nx.MultiDiGraph()
+    g.add_node("escuela", x=-58.90, y=-27.50)
+    g.add_node("cabecera", x=-58.80, y=-27.45)
+    # Arista paralela mas LARGA (Dijkstra no la usa).
+    g.add_edge(
+        "escuela", "cabecera", key=0, length=3000, surface="paved", highway="secondary",
+        geometry=LineString([(-58.90, -27.50), (-58.86, -27.47), (-58.80, -27.45)]),
+    )
+    # Arista paralela mas CORTA (la que usa Dijkstra) con vertice intermedio.
+    g.add_edge(
+        "escuela", "cabecera", key=1, length=2000, surface="paved", highway="secondary",
+        geometry=LineString([(-58.90, -27.50), (-58.88, -27.44), (-58.80, -27.45)]),
+    )
+    return g
+
+
+class TestExportarGeometria:
+    def test_clasificar_cruce_tres_clases(self):
+        assert clasificar_cruce({"con_puente": True, "es_ford": False}) == CLASIFICACION_PUENTE
+        assert clasificar_cruce({"con_puente": False, "es_ford": True}) == CLASIFICACION_VADO
+        assert (
+            clasificar_cruce({"con_puente": False, "es_ford": False})
+            == CLASIFICACION_SIN_EVIDENCIA
+        )
+
+    def test_con_puente_gana_sobre_ford(self):
+        assert clasificar_cruce({"con_puente": True, "es_ford": True}) == CLASIFICACION_PUENTE
+
+    def _preparar_departamento(self, monkeypatch):
+        g, agua = _grafo_multi_departamento_con_cabecera_compartida()
+        arbol_agua = construir_arbol_agua(agua)
+        cruces = construir_cruces_por_arista(g, arbol_agua, agua)
+        grafo_seguro = construir_grafo_seguro(g, cruces)
+        _patch_nearest_nodes_departamento(monkeypatch, _mapeo_export_departamento())
+        return g, grafo_seguro, cruces
+
+    def test_cruces_exportados_coinciden_con_metricas_y_no_cambian_resultado(self, monkeypatch):
+        g, grafo_seguro, cruces = self._preparar_departamento(monkeypatch)
+        escuelas = _escuelas_export_departamento()
+        grafo_invertido = g.reverse(copy=False)
+        grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
+
+        sin_geometria = calcular_metricas_departamento(
+            g, grafo_invertido, escuelas, "cabecera",
+            cruces_por_arista=cruces, grafo_seguro_invertido=grafo_seguro_invertido,
+        )
+        geometrias = []
+        con_geometria = calcular_metricas_departamento(
+            g, grafo_invertido, escuelas, "cabecera",
+            cruces_por_arista=cruces, grafo_seguro_invertido=grafo_seguro_invertido,
+            geometrias_out=geometrias,
+        )
+
+        # El export es aditivo: las metricas son identicas.
+        assert con_geometria == sin_geometria
+        assert len(geometrias) == len(escuelas)
+        for metricas, geometria in zip(sin_geometria, geometrias):
+            assert len(geometria["cruces"]) == metricas["cruces_agua_count"]
+            puentes = sum(
+                1 for c in geometria["cruces"] if c["clasificacion"] == CLASIFICACION_PUENTE
+            )
+            assert puentes == metricas["cruces_agua_con_puente_count"]
+            vados_o_sin_evidencia = sum(
+                1
+                for c in geometria["cruces"]
+                if c["clasificacion"] in (CLASIFICACION_VADO, CLASIFICACION_SIN_EVIDENCIA)
+            )
+            assert vados_o_sin_evidencia == metricas["cruces_agua_con_vado_count"]
+        # La escuela A (unica con puente) ejercita la clasificacion "puente".
+        assert any(
+            c["clasificacion"] == CLASIFICACION_PUENTE for c in geometrias[0]["cruces"]
+        )
+
+    def test_ruta_usa_geometria_real_vertices_y_arista_paralela_mas_corta(self, monkeypatch):
+        g = _grafo_paralelas_con_vertices_intermedios()
+        _patch_nearest_nodes_departamento(monkeypatch, {(-58.90, -27.50): ("escuela", 10.0)})
+        escuelas = [{"cueAnexo": "X", "lat": -27.50, "lon": -58.90}]
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), escuelas, "cabecera", geometrias_out=geometrias,
+        )
+
+        ruta = geometrias[0]["ruta"]
+        assert ruta is not None
+        assert ruta["type"] == "LineString"
+        coordenadas = ruta["coordinates"]
+        # Empieza en el nodo de snap de la escuela y termina en la cabecera.
+        assert coordenadas[0] == [-58.90, -27.50]
+        assert coordenadas[-1] == [-58.80, -27.45]
+        # La arista usada aporta su vertice intermedio (no solo los extremos).
+        assert [-58.88, -27.44] in coordenadas
+        # La geometria de la arista paralela mas larga NO se usa.
+        assert [-58.86, -27.47] not in coordenadas
+        assert len(coordenadas) == 3
+
+    def test_escuela_sin_conexion_red_recibe_ruta_none(self, monkeypatch):
+        g = _grafo_con_nodo_desconectado()
+        _patch_nearest_nodes_departamento(monkeypatch, {(-50.0, -30.0): ("aislado_lejos", 9000.0)})
+        escuelas = [{"cueAnexo": "Z", "lat": -30.0, "lon": -50.0}]
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), escuelas, "cabecera", geometrias_out=geometrias,
+        )
+        assert geometrias[0]["ruta"] is None
+        assert geometrias[0]["cruces"] == []
+        assert geometrias[0]["motivo_sin_geometria"] == "sin_conexion_red"
+
+    def test_ruta_degenerada_cuando_la_escuela_es_la_cabecera(self, monkeypatch):
+        g = nx.MultiDiGraph()
+        g.add_node("cabecera", x=-58.80, y=-27.45)
+        _patch_nearest_nodes_departamento(monkeypatch, {(-58.80, -27.45): ("cabecera", 5.0)})
+        escuelas = [{"cueAnexo": "C", "lat": -27.45, "lon": -58.80}]
+        geometrias = []
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), escuelas, "cabecera", geometrias_out=geometrias,
+        )
+        assert geometrias[0]["ruta"] is None
+        assert geometrias[0]["motivo_sin_geometria"] == "ruta_degenerada"

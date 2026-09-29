@@ -15,11 +15,18 @@ departamento — proxy reproducible, sin ingreso manual, documentado en
 docs/ejecucion-enos/G1/registro.md) y escribe el CSV versionado del
 contrato de datos (docs/ejecucion-enos/G1/contrato-datos.md) en
 services/geo-static/output/.
+
+Ademas del CSV, el camino con extracto local exporta la geometria REAL de la
+ruta escuela -> cabecera y de los cruces de agua usados, como NDJSON gzip
+versionado en `output/accesos_osm_geometria-v{VERSION_JOB}-{fecha}.ndjson.gz`.
+Es un artifact puramente aditivo (no cambia ninguna metrica del CSV) e
+importable con `node scripts/importar-geo-static.mjs --geometria <file>`.
 """
 
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 import sys
 import time
@@ -133,6 +140,28 @@ def _fila_sin_datos(escuela: dict, fecha_extracto: str) -> dict:
     }
 
 
+def _escribir_geometria_ndjson(registros: list[dict], fecha_extracto: str) -> Path:
+    """Escribe los registros de geometria como NDJSON gzip versionado.
+
+    Ordena por `cue_anexo` para un diff estable y usa `gzip.GzipFile(mtime=0)`
+    para que una misma entrada produzca un archivo byte-a-byte identico. Se
+    escribe a un `.tmp` y recien despues se renombra al path final.
+    """
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = OUTPUT_DIR / f"accesos_osm_geometria-v{VERSION_JOB}-{fecha_extracto}.ndjson.gz"
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+
+    registros_ordenados = sorted(registros, key=lambda registro: registro["cue_anexo"])
+    with open(tmp_path, "wb") as f:
+        with gzip.GzipFile(fileobj=f, mode="wb", mtime=0) as gz:
+            for registro in registros_ordenados:
+                linea = json.dumps(registro, ensure_ascii=False, separators=(",", ":"))
+                gz.write((linea + "\n").encode("utf-8"))
+
+    tmp_path.replace(out_path)
+    return out_path
+
+
 def correr(limite_escuelas: int | None = None, departamentos: list[str] | None = None) -> None:
     from geo_static.osm_aislamiento import (
         calcular_indice_aislamiento,
@@ -205,11 +234,14 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         grafo_invertido = grafo.reverse(copy=False)
         grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
 
+        registros_geometria: list[dict] = []
+
         for depto, escuelas_depto in por_depto.items():
             t_depto0 = time.monotonic()
             try:
                 lat_cab, lon_cab = cabeceras[depto]
                 nodo_cabecera = ox.distance.nearest_nodes(grafo, X=lon_cab, Y=lat_cab)
+                geometrias_depto: list[dict] = []
                 lista_metricas = calcular_metricas_departamento(
                     grafo,
                     grafo_invertido,
@@ -217,8 +249,11 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     nodo_cabecera,
                     cruces_por_arista=cruces_por_arista,
                     grafo_seguro_invertido=grafo_seguro_invertido,
+                    geometrias_out=geometrias_depto,
                 )
-                for escuela, metricas in zip(escuelas_depto, lista_metricas):
+                for escuela, metricas, geometria in zip(
+                    escuelas_depto, lista_metricas, geometrias_depto
+                ):
                     indice = calcular_indice_aislamiento(
                         metricas["distancia_via_pavimentada_m"],
                         metricas["tramos_sin_pavimentar_count"],
@@ -227,6 +262,17 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                         metricas["tiene_alternativa_sin_cruce"],
                     )
                     filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
+                    registros_geometria.append(
+                        {
+                            "cue_anexo": escuela["cueAnexo"],
+                            "version_job": VERSION_JOB,
+                            "fecha_extracto_osm": fecha_extracto,
+                            "licencia": LICENCIA_OSM,
+                            "ruta": geometria["ruta"],
+                            "cruces": geometria["cruces"],
+                            "motivo_sin_geometria": geometria["motivo_sin_geometria"],
+                        }
+                    )
             except Exception as exc:
                 print(
                     f"[calcular_aislamiento] {depto}: fallo el calculo sobre la red local ({exc!r})",
@@ -234,6 +280,17 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
                 for e in escuelas_depto:
                     filas.append(_fila_sin_datos(e, fecha_extracto))
+                    registros_geometria.append(
+                        {
+                            "cue_anexo": e["cueAnexo"],
+                            "version_job": VERSION_JOB,
+                            "fecha_extracto_osm": fecha_extracto,
+                            "licencia": LICENCIA_OSM,
+                            "ruta": None,
+                            "cruces": [],
+                            "motivo_sin_geometria": "sin_conexion_red",
+                        }
+                    )
                 continue
 
             t_depto1 = time.monotonic()
@@ -243,6 +300,20 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 f"{len(grafo.nodes)} nodos, {len(grafo.edges)} aristas, {t_depto1 - t_depto0:.1f}s",
                 flush=True,
             )
+
+        ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_extracto)
+        con_ruta = sum(1 for r in registros_geometria if r["ruta"] is not None)
+        cruces_por_clase = Counter(
+            cruce["clasificacion"]
+            for registro in registros_geometria
+            for cruce in registro["cruces"]
+        )
+        print(
+            f"[calcular_aislamiento] geometria exportada en {ruta_geom_path}: "
+            f"{len(registros_geometria)} registros, {con_ruta} con ruta, "
+            f"cruces por clase: {dict(cruces_por_clase)}",
+            flush=True,
+        )
     else:
         # Fallback documentado (comportamiento anterior a G1-fix1): red por
         # departamento via Overpass/osmnx. Solo se usa si falta el extracto local.
@@ -254,6 +325,12 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             "G1-fix2 solo esta implementada contra el extracto pbf local, "
             "no contra Overpass; en este camino cruces_agua_count queda en "
             "0 para todas las escuelas, documentado)",
+            flush=True,
+        )
+        print(
+            "[calcular_aislamiento] export de geometria OMITIDO: requiere el "
+            "extracto local .osm.pbf (no hay capa de agua en el fallback Overpass); "
+            "no se escribe accesos_osm_geometria-*.ndjson.gz",
             flush=True,
         )
 
