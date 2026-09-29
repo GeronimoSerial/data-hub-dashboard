@@ -11,14 +11,19 @@ import {
   construirPuntosInundacion,
   construirRutaAcceso,
   DESCRIPCIONES_AISLAMIENTO,
+  DESCRIPCIONES_CRUCE,
   ETIQUETAS_AISLAMIENTO,
+  ETIQUETAS_INUNDACION,
   ICONOS_ACCESOS_MAPA,
   ID_ICONO_AISLAMIENTO,
   ID_ICONO_CRUCE,
   ID_ICONO_INUNDACION,
   resumirCobertura,
+  MOTIVOS_SIN_RUTA,
+  MOTIVO_SIN_RUTA_GENERICO,
   TEXTOS_ACCESOS,
   textoConPeriodo,
+  textoMotivoSinRuta,
   type ClasificacionCruce,
 } from './accesos-capas'
 
@@ -250,11 +255,60 @@ describe('textoConPeriodo', () => {
   })
 
   it('el texto de inundación aclara que es un modelo, no un registro de inundaciones', () => {
-    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('modelo con clima histórico')
+    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('con el clima histórico')
     expect(TEXTOS_ACCESOS.queMideInundacion).not.toContain('registros históricos')
   })
 
   it('el texto de sin cobertura descarta explícitamente leerlo como nivel 0', () => {
-    expect(TEXTOS_ACCESOS.sinCobertura).toContain('no equivale a nivel 0')
+    expect(TEXTOS_ACCESOS.sinCobertura).toContain('No equivale a nivel 0')
+  })
+
+  it('reemplaza todas las apariciones de periodo en subtítulo y escenario', () => {
+    for (const texto of [TEXTOS_ACCESOS.subtituloInundacion, TEXTOS_ACCESOS.periodoEscenario]) {
+      const resultado = textoConPeriodo(texto, 250)
+      expect(resultado).not.toContain('{periodo}')
+      const cantidad = texto.match(/\{periodo\}/g)?.length ?? 0
+      expect(resultado.match(/250/g)?.length).toBe(cantidad)
+    }
+    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('{periodo}')
+  })
+})
+
+describe('copias territoriales', () => {
+  it('define motivos de ruta distintos y devuelve el genérico para motivos desconocidos', () => {
+    const valores = Object.values(MOTIVOS_SIN_RUTA)
+    expect(new Set(valores).size).toBe(valores.length)
+    for (const valor of valores) {
+      expect(valor).not.toBe(MOTIVO_SIN_RUTA_GENERICO)
+      expect(valor).not.toContain('OSM')
+      expect(valor).not.toContain('physrisk')
+      expect(valor).not.toContain('null')
+    }
+    for (const motivo of Object.keys(MOTIVOS_SIN_RUTA)) {
+      expect(textoMotivoSinRuta(motivo)).toBe(MOTIVOS_SIN_RUTA[motivo])
+    }
+    expect(textoMotivoSinRuta('desconocido')).toBe(MOTIVO_SIN_RUTA_GENERICO)
+    expect(textoMotivoSinRuta(undefined)).toBe(MOTIVO_SIN_RUTA_GENERICO)
+    expect(textoMotivoSinRuta(null)).toBe(MOTIVO_SIN_RUTA_GENERICO)
+  })
+
+  it('describe los tres tipos de cruce', () => {
+    expect(Object.keys(DESCRIPCIONES_CRUCE).sort()).toEqual(['puente', 'sin_evidencia', 'vado'])
+  })
+
+  it('no afirma que los datos confirmen la transitabilidad de hoy', () => {
+    const textos = [...Object.values(MOTIVOS_SIN_RUTA), ...Object.values(TEXTOS_ACCESOS)]
+    for (const texto of textos) {
+      expect(texto).not.toContain('transitable')
+      if (texto.includes('se puede pasar')) expect(texto).toContain('No dice')
+    }
+  })
+
+  it('usa etiquetas de profundidad en lenguaje llano', () => {
+    expect(ETIQUETAS_INUNDACION).toEqual({
+      baja: 'Menos de 0,5 m',
+      media: 'De 0,5 a 1 m',
+      alta: '1 m o más',
+    })
   })
 })

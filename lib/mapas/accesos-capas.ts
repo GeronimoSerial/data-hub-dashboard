@@ -75,25 +75,30 @@ export function claseInundacion(m: number | null): ClaseInundacion {
 // `{periodo}` se reemplaza con el período de retorno de los datos vía
 // `textoConPeriodo` (nunca se escribe el número a mano).
 export const TEXTOS_ACCESOS = {
-  tituloAcceso: 'Dificultad de acceso por caminos',
+  tituloAcceso: 'Dificultad para llegar por camino',
   subtituloAcceso:
-    'Índice estático de 0 (muy baja) a 3 (alta), calculado con caminos y cruces de agua de OpenStreetMap',
+    'De 0 (muy baja) a 3 (alta). Es un cálculo con datos de mapa, no el estado del camino hoy.',
   queMideAcceso:
-    'Resume qué tan difícil es llegar por camino desde la escuela hasta la cabecera de su departamento, según la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap.',
+    'Estima qué tan difícil es llegar por camino desde la escuela hasta la cabecera de su departamento. Tiene en cuenta la distancia, los tramos de tierra y los cruces de ríos, arroyos o canales que figuran en OpenStreetMap (el mapa abierto de donde salen los caminos).',
   nivelesAcceso:
-    'Niveles: 0 (muy baja) a 3 (alta) dificultad de acceso. Cuanto más alto, más difícil.',
+    'Cuanto más alto el número, más difícil es llegar: 0 muy baja, 1 baja, 2 media, 3 alta.',
   noRepresentaAcceso:
-    'No es un pronóstico, no indica si hoy el camino está cortado ni el estado del edificio. El riesgo de acceso pronosticado está en el modo Radar y la situación actual en los partes.',
-  tituloInundacion: 'Inundación histórica por desborde de ríos',
+    'No dice si hoy el camino está cortado, no es un pronóstico y no muestra el estado del edificio. El riesgo de acceso pronosticado está en el modo Radar y la situación de hoy, en los partes.',
+  tituloInundacion: 'Agua estimada en la escuela por crecida de río',
   subtituloInundacion:
-    'Profundidad de agua estimada (m) para una crecida de {periodo} años · escenario histórico',
+    'Metros de agua estimados en el punto de la escuela para una crecida que ocurre, en promedio, una vez cada {periodo} años.',
   queMideInundacion:
-    'Estima cuánta agua cubriría el lugar de la escuela en una crecida de río muy poco frecuente (en promedio, una vez cada {periodo} años). Es un cálculo de un modelo con clima histórico (WRI Aqueduct, vía OS-Climate physrisk), no un registro de inundaciones que ocurrieron.',
+    'Un modelo calcula cuánta agua cubriría el punto donde está la escuela en una crecida de río muy poco frecuente (en promedio, una vez cada {periodo} años), con el clima histórico. No es el registro de una inundación que pasó ni un pronóstico. Fuente: WRI Aqueduct, vía OS-Climate physrisk.',
   noRepresentaInundacion:
-    'No es un pronóstico, no indica que hoy haya agua ni muestra por dónde pasa un río.',
-  sinProfundidad: 'El modelo no estima agua en ese punto (0 m). No garantiza que nunca se inunde.',
+    'Se calcula en el punto de la escuela: no muestra el río, no muestra el camino ni dice si hoy hay agua.',
+  sinProfundidad: 'El modelo no estima agua en ese punto (0 m). Es un resultado del cálculo, no una garantía de que nunca se inunde.',
   sinCobertura:
-    'Sin dato: la escuela no figura en el archivo importado. No se calcula ni se asume un valor, y no equivale a nivel 0.',
+    'Sin dato: esta escuela no está en los datos calculados, así que no se sabe su valor. No equivale a nivel 0 ni a "sin agua".',
+  detalleDatos: 'Datos calculados con mapas y modelos; no reemplazan el parte ni confirman el estado del edificio.',
+  periodoEscenario:
+    'Período de retorno: {periodo} años (una crecida que ocurre, en promedio, una vez cada {periodo} años) · escenario con clima histórico',
+  sinRuta: 'Sin recorrido para mostrar',
+  verRecorrido: 'Ver recorrido',
 } as const
 
 // Rellena el período de retorno de los textos que lo usan. Si el dato no está
@@ -135,7 +140,7 @@ export const DESCRIPCIONES_AISLAMIENTO = {
   sin_datos_red: {
     nombre: 'No calculable',
     detalle:
-      'La escuela está a más de 5 km del camino más cercano cargado en OpenStreetMap, o no hay camino hasta la cabecera.',
+      'No se pudo calcular: no hay un camino cargado cerca de la escuela, el camino cercano no llega a la cabecera o la ubicación cargada no coincide con su departamento. Es falta de dato: no significa acceso fácil ni difícil.',
   },
 } as const
 
@@ -150,9 +155,9 @@ export const ETIQUETAS_AISLAMIENTO = {
 } as const
 
 export const ETIQUETAS_INUNDACION = {
-  baja: '< 0,5 m',
-  media: '0,5 – 1 m',
-  alta: '≥ 1 m',
+  baja: 'Menos de 0,5 m',
+  media: 'De 0,5 a 1 m',
+  alta: '1 m o más',
 } as const
 
 export const ETIQUETAS_CRUCE = {
@@ -161,6 +166,32 @@ export const ETIQUETAS_CRUCE = {
   // OSM no tiene tag de puente en ese punto; NO confirma que no haya puente.
   sin_evidencia: 'Sin puente registrado',
 } as const
+
+export const DESCRIPCIONES_CRUCE = {
+  puente: 'Cruce de agua con puente cargado en el mapa.',
+  vado: 'Cruce de agua a nivel del cauce, sin puente. No dice si hoy se puede pasar.',
+  sin_evidencia:
+    'No hay puente cargado en el mapa en este cruce; puede existir sin estar cargado. No dice si hoy se puede pasar.',
+} as const
+
+export const MOTIVO_SIN_RUTA_GENERICO = 'No hay recorrido calculado para esta escuela.'
+
+export const MOTIVOS_SIN_RUTA: Record<string, string> = {
+  sin_conexion_red:
+    'La escuela no conecta con la red de caminos hasta la cabecera, así que no se calculó un recorrido.',
+  coordenada_fuera_de_departamento:
+    'La ubicación cargada de la escuela cae fuera de su departamento. Para no mostrar un dato en un lugar equivocado, no se calculó nada. Conviene revisar la ubicación en el padrón.',
+  red_vial_no_conectada:
+    'Hay un camino a menos de 5 km, pero está aislado de la red principal y no llega a la cabecera, así que no se dibuja un recorrido. Es falta de dato, no significa que la escuela sea inaccesible.',
+  sin_via_osm_cercana:
+    'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela, así que no se puede calcular. Es falta de dato, no acceso fácil ni difícil.',
+  ruta_degenerada: 'La escuela está junto a la cabecera departamental: no hay recorrido para dibujar.',
+  sin_geometria_importada: 'Todavía no se cargó el recorrido de esta escuela.',
+}
+
+export function textoMotivoSinRuta(motivo: string | null | undefined): string {
+  return (motivo && MOTIVOS_SIN_RUTA[motivo]) || MOTIVO_SIN_RUTA_GENERICO
+}
 
 // ---------------------------------------------------------------------------
 // Íconos rasterizables (SVG standalone para `map.addImage`)
