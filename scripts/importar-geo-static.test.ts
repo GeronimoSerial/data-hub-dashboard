@@ -1,8 +1,9 @@
 import { writeFileSync, mkdtempSync, rmSync } from 'node:fs'
+import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { importarAislamiento, importarSusceptibilidad } from './importar-geo-static.mjs'
+import { importarAislamiento, importarSusceptibilidad, importarGeometria } from './importar-geo-static.mjs'
 
 function crearDbFalsa() {
   const llamadas: Array<{ tabla: string; valores: unknown }> = []
@@ -187,5 +188,169 @@ describe('importarSusceptibilidad', () => {
 
     expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
     expect(llamadas).toHaveLength(0)
+  })
+})
+
+const tablaGeometriaFalsa = {
+  _: { name: 'infra_acceso_osm_geometria' },
+  cueAnexo: 'cue_anexo',
+  versionJob: 'version_job',
+}
+
+function filaGeometriaBase(overrides: Record<string, unknown> = {}) {
+  return {
+    cue_anexo: '1801605-04',
+    version_job: '1',
+    fecha_extracto_osm: '2026-09-26',
+    licencia: '© OpenStreetMap contributors, ODbL',
+    ruta: {
+      type: 'LineString',
+      coordinates: [
+        [-58.8, -27.4],
+        [-58.81, -27.41],
+      ],
+    },
+    cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'puente' }],
+    motivo_sin_geometria: null,
+    ...overrides,
+  }
+}
+
+function escribirNdjsonGz(nombre: string, objetos: unknown[]): string {
+  const path = join(dir, nombre)
+  const texto = objetos
+    .map((objeto) => (typeof objeto === 'string' ? objeto : JSON.stringify(objeto)))
+    .join('\n')
+  writeFileSync(path, gzipSync(texto))
+  return path
+}
+
+describe('importarGeometria', () => {
+  it('inserta una fila valida con ruta y cruces en camelCase', async () => {
+    const path = escribirNdjsonGz('geometria.ndjson.gz', [filaGeometriaBase()])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    expect(llamadas).toHaveLength(1)
+    const lote = llamadas[0].valores as Array<Record<string, unknown>>
+    expect(Array.isArray(lote)).toBe(true)
+    expect(lote).toHaveLength(1)
+    const fila = lote[0]
+    expect(fila.cueAnexo).toBe('1801605-04')
+    expect(fila.versionJob).toBe('1')
+    expect(fila.motivoSinGeometria).toBeNull()
+    expect(fila.fechaExtractoOsm).toBe('2026-09-26')
+    expect(fila.ruta).toEqual(filaGeometriaBase().ruta)
+    expect(fila.cruces).toEqual(filaGeometriaBase().cruces)
+    expect(typeof fila.importadoEn).toBe('string')
+  })
+
+  it('acepta ruta null cuando se declara motivo_sin_geometria', async () => {
+    const path = escribirNdjsonGz('geometria-sin-conexion.ndjson.gz', [
+      filaGeometriaBase({ ruta: null, cruces: [], motivo_sin_geometria: 'sin_conexion_red' }),
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const fila = (llamadas[0].valores as Array<Record<string, unknown>>)[0]
+    expect(fila.ruta).toBeNull()
+    expect(fila.motivoSinGeometria).toBe('sin_conexion_red')
+  })
+
+  it('rechaza ruta null sin motivo_sin_geometria', async () => {
+    const path = escribirNdjsonGz('geometria-motivo-null.ndjson.gz', [
+      filaGeometriaBase({ ruta: null, motivo_sin_geometria: null }),
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('rechaza una clasificacion de cruce desconocida', async () => {
+    const path = escribirNdjsonGz('geometria-clasificacion.ndjson.gz', [
+      filaGeometriaBase({ cruces: [{ lon: -58.8, lat: -27.4, clasificacion: 'tunel' }] }),
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('rechaza una coordenada fuera de rango', async () => {
+    const path = escribirNdjsonGz('geometria-coordenada.ndjson.gz', [
+      filaGeometriaBase({
+        ruta: {
+          type: 'LineString',
+          coordinates: [
+            [-58.8, 100],
+            [-58.81, -27.41],
+          ],
+        },
+      }),
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
+  })
+
+  it('cuenta una linea con JSON malformado como fallida sin abortar el resto', async () => {
+    const path = escribirNdjsonGz('geometria-json-roto.ndjson.gz', [
+      '{no-es-json',
+      filaGeometriaBase(),
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 2, ok: 1, fallidas: 1 })
+    expect(llamadas).toHaveLength(1)
+    expect((llamadas[0].valores as unknown[])).toHaveLength(1)
+  })
+
+  it('ignora lineas vacias', async () => {
+    const path = escribirNdjsonGz('geometria-vacias.ndjson.gz', [
+      '',
+      filaGeometriaBase(),
+      '   ',
+    ])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    expect(llamadas).toHaveLength(1)
   })
 })

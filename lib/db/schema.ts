@@ -1145,6 +1145,32 @@ export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estat
 }, (t) => [
   primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
 ])
+
+export type CruceAccesoOsm = {
+  lon: number
+  lat: number
+  clasificacion: 'puente' | 'vado' | 'sin_evidencia'
+}
+
+export type RutaGeoJson = {
+  type: 'LineString'
+  coordinates: Array<[number, number]>
+}
+
+// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → cabecera
+// departamental y cruces de agua clasificados). Es contexto territorial
+// derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
+// edificio. `ruta` null + `motivoSinGeometria` explica la ausencia.
+export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
+  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  motivoSinGeometria: text('motivo_sin_geometria'),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 // ============================================================
 // Fin bloque G1
 // ============================================================
