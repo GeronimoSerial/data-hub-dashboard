@@ -1,17 +1,10 @@
 import type { Metadata } from 'next'
-import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
-import {
-  tieneAccesoAlParteDesdeCookies,
-  tieneAccesoAlParteParaCueDesdeCookies,
-} from '@/lib/infraestructura/acceso-parte'
-import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, getCorteVigente, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
+import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
-import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 
@@ -23,17 +16,6 @@ export const metadata: Metadata = {
 }
 
 const TITULO = 'Iniciar un reporte'
-
-// Mismos textos que app/problematicas/parte/page.tsx: el director no debería
-// leer dos explicaciones distintas del mismo problema según por qué enlace
-// entró.
-const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
-  cue_ausente: 'Este enlace no incluye el CUE de la escuela. Solicite el enlace nuevamente a quien se lo compartió.',
-  cue_invalido: 'El CUE incluido en el enlace no tiene un formato válido.',
-  sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
-  cue_inexistente: 'No se encontró una escuela con ese CUE.',
-  sin_secciones: 'Esta escuela todavía no tiene secciones cargadas.',
-}
 
 /**
  * Pantalla "Iniciar un reporte" (spec §7): primer paso del parte, donde el
@@ -52,35 +34,16 @@ export default async function NuevoPartePage({
 }) {
   const { cue } = await searchParams
 
-  const tieneAcceso = cue
-    ? await tieneAccesoAlParteParaCueDesdeCookies(cue)
-    : await tieneAccesoAlParteDesdeCookies()
-
-  if (!tieneAcceso) {
-    return (
-      <div className="publico-content">
-        <EncabezadoParte pantalla={TITULO} />
-        <AccesoForm />
-      </div>
-    )
-  }
-
-  const clienteGe = crearEjecutorSql(getRawClient())
-  // El corte se lee con el mismo cliente: la guarda de abajo lo necesita y
-  // abrir una segunda conexión sólo para eso sería otro viaje innecesario por
-  // cada carga de la pantalla.
-  let corteId: number | null = null
-  await ensureGeSchema(clienteGe)
-  const resultado = await resolverContextoPorCue(clienteGe, cue ?? null)
-  corteId = (await getCorteVigente(clienteGe))?.id ?? null
+  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  if (bloqueo) return bloqueo
+  // The current cut is read alongside context using the same client for redirect resolution.
+  const { resultado, corteId } = await cargarContextoParte(cue)
 
   if (!resultado.ok) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />
-        <p className="estado-actual-aviso__texto" role="alert">
-          {MENSAJES_ERROR[resultado.error.kind]}
-        </p>
+        <ErrorContexto kind={resultado.error.kind} />
       </div>
     )
   }

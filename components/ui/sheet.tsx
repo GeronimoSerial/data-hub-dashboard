@@ -8,8 +8,6 @@ import { cn } from '@/lib/utils'
 export const SheetRoot = DialogPrimitive.Root
 export const SheetTrigger = DialogPrimitive.Trigger
 export const SheetTitle = DialogPrimitive.Title
-export const SheetDescription = DialogPrimitive.Description
-export const SheetClose = DialogPrimitive.Close
 
 const sideClass = {
   top: 'ui-sheet--top',

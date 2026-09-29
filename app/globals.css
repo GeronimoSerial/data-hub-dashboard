@@ -1809,7 +1809,6 @@ time {
 }
 .ui-tabs-tab:hover { color: var(--ink); }
 .ui-tabs-tab[data-active] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
-.ui-tabs-panel { min-width: 0; padding-top: var(--s-5); }
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 

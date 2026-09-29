@@ -13,15 +13,6 @@ export function FieldLabel({
   return <FieldPrimitive.Label className={cn('ui-field__label', className)} {...props} />
 }
 
-export function FieldDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof FieldPrimitive.Description>) {
-  return (
-    <FieldPrimitive.Description className={cn('ui-field__description', className)} {...props} />
-  )
-}
-
 export function FieldError({
   className,
   ...props

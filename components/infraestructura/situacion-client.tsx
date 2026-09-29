@@ -231,20 +231,16 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }
   // REFRESCO_MS. Actualiza datos sin mover el foco ni el scroll del operador.
   useEffect(() => {
     const id = setInterval(() => {
-      let cancelado = false
       fetch('/api/infraestructura/situacion')
         .then(async (res) => (res.ok ? await res.json() : null))
         .then((body) => {
-          if (cancelado || body === null) return
+          if (body === null) return
           setEstado(body)
           setEstadoTexto(`Actualizado a las ${formatearFecha(new Date().toISOString())}.`)
         })
         .catch(() => {
           // Ídem: se conserva el último estado visto ante un error de red.
         })
-      return () => {
-        cancelado = true
-      }
     }, REFRESCO_MS)
     return () => clearInterval(id)
   }, [])

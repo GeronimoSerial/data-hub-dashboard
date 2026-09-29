@@ -104,6 +104,141 @@ function AdminField({ label, hint, error, required, children }: AdminFieldProps)
   )
 }
 
+function FormDialog({
+  open,
+  onClose,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      {open ? children : null}
+    </Dialog>
+  )
+}
+
+function useEditorDialog<T>() {
+  const [open, setOpen] = React.useState(false)
+  const [editing, setEditing] = React.useState<T | null>(null)
+  const nuevo = () => {
+    setEditing(null)
+    setOpen(true)
+  }
+  const editar = (item: T) => {
+    setEditing(item)
+    setOpen(true)
+  }
+  const onClose = () => setOpen(false)
+  return { open, editing, nuevo, editar, onClose }
+}
+
+function useListaRemota<T>({
+  url,
+  clave,
+  fallbackError,
+}: {
+  url: string
+  clave: string
+  fallbackError: string
+}) {
+  const [items, setItems] = React.useState<T[]>([])
+  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const request = React.useCallback(async () => {
+    const res = await fetch(url)
+    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    if (!res.ok) throw new Error(leerErrorApi(data, fallbackError))
+    return (data?.[clave] as T[] | undefined) ?? []
+  }, [url, clave, fallbackError])
+  const reload = React.useCallback(async () => {
+    const rows = await request()
+    setItems(rows)
+    setLoadError(null)
+  }, [request])
+
+  React.useEffect(() => {
+    let cancelled = false
+    request().then(
+      (rows) => {
+        if (!cancelled) setItems(rows)
+      },
+      (error) => {
+        if (!cancelled) setLoadError(error instanceof Error ? error.message : fallbackError)
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [request, fallbackError])
+
+  return { items, loadError, setLoadError, reload }
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+  hint,
+  required,
+  ariaLabel = label,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+  hint?: string
+  required?: boolean
+  ariaLabel?: string
+}) {
+  return (
+    <AdminField label={label} hint={hint} required={required}>
+      <Select value={value} items={options} onValueChange={(next) => onChange(next as string)}>
+        <SelectTrigger aria-label={ariaLabel} />
+        <SelectContent>
+          {options.map(({ value: option, label: text }) => (
+            <SelectItem key={option} value={option}>{text}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </AdminField>
+  )
+}
+
+function leerErrorApi(data: { error?: unknown } | null, fallback: string) {
+  return typeof data?.error === 'string' ? data.error : fallback
+}
+
+function BotonEditar({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={onClick} />}>
+        <Pencil size={16} />
+      </TooltipTrigger>
+      <TooltipContent>Editar</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function DialogActions({
+  onClose,
+  onSave,
+  disabled = false,
+}: {
+  onClose: () => void
+  onSave: () => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="ui-dialog-actions">
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+      <Button disabled={disabled} onClick={onSave}>Guardar</Button>
+    </div>
+  )
+}
+
 // ── Recurso editor ─────────────────────────────────────────────────────────
 
 function RecursoDialog({
@@ -116,11 +251,9 @@ function RecursoDialog({
   editing: Recurso | null
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      {open ? (
-        <RecursoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} />
-      ) : null}
-    </Dialog>
+    <FormDialog open={open} onClose={onClose}>
+      <RecursoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} />
+    </FormDialog>
   )
 }
 
@@ -263,79 +396,49 @@ function RecursoForm({
           </AdminField>
 
           <div className="ui-two-col">
-            <AdminField label="Tipo de contenido" required>
-              <Select
-                value={draft.formato}
-                items={Object.fromEntries(
-                  (Object.keys(FORMATOS) as Formato[]).map((f) => [f, FORMATOS[f].label]),
-                )}
-                onValueChange={(value) => {
-                  const f = value as Formato
-                  const nextTipo = tipos.find((t) => t.aplicaA.includes(f))
-                  setDraft((prev) => ({
-                    ...prev,
-                    formato: f,
-                    tipoId: nextTipo?.id ?? '',
-                  }))
-                }}
-              >
-                <SelectTrigger aria-label="Tipo de contenido" />
-                <SelectContent>
-                  {(Object.keys(FORMATOS) as Formato[]).map((f) => (
-                    <SelectItem key={f} value={f}>{FORMATOS[f].label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
+            <SelectField
+              label="Tipo de contenido"
+              required
+              value={draft.formato}
+              options={(Object.keys(FORMATOS) as Formato[]).map((f) => ({ value: f, label: FORMATOS[f].label }))}
+              onChange={(value) => {
+                const f = value as Formato
+                const nextTipo = tipos.find((t) => t.aplicaA.includes(f))
+                setDraft((prev) => ({
+                  ...prev,
+                  formato: f,
+                  tipoId: nextTipo?.id ?? '',
+                }))
+              }}
+            />
 
-            <AdminField label="Nivel" required>
-              <Select
-                value={draft.nivelId}
-                items={Object.fromEntries([...niveles].sort((a, b) => a.orden - b.orden).map((n) => [n.id, n.nombre]))}
-                onValueChange={(value) => set('nivelId', value as string)}
-              >
-                <SelectTrigger aria-label="Nivel" />
-                <SelectContent>
-                  {[...niveles]
-                    .sort((a, b) => a.orden - b.orden)
-                    .map((n) => (
-                      <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
+            <SelectField
+              label="Nivel"
+              required
+              value={draft.nivelId}
+              options={[...niveles].sort((a, b) => a.orden - b.orden).map((n) => ({ value: n.id, label: n.nombre }))}
+              onChange={(value) => set('nivelId', value)}
+            />
           </div>
 
           <div className="ui-two-col">
-            <AdminField label="Tipo" hint="Depende del tipo de contenido" required>
-              <Select
-                value={draft.tipoId}
-                items={Object.fromEntries(tiposValidos.map((t) => [t.id, t.nombre]))}
-                onValueChange={(value) => set('tipoId', value as string)}
-              >
-                <SelectTrigger aria-label="Tipo" />
-                <SelectContent>
-                  {tiposValidos.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
+            <SelectField
+              label="Tipo"
+              hint="Depende del tipo de contenido"
+              required
+              value={draft.tipoId}
+              options={tiposValidos.map((t) => ({ value: t.id, label: t.nombre }))}
+              onChange={(value) => set('tipoId', value)}
+            />
 
-            <AdminField label="Categoría (TAG principal)" required>
-              <Select
-                value={draft.categoriaId}
-                items={Object.fromEntries(categorias.map((c) => [c.id, c.nombre]))}
-                onValueChange={(value) => set('categoriaId', value as string)}
-              >
-                <SelectTrigger aria-label="Categoría" />
-                <SelectContent>
-                  {categorias.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </AdminField>
+            <SelectField
+              label="Categoría (TAG principal)"
+              ariaLabel="Categoría"
+              required
+              value={draft.categoriaId}
+              options={categorias.map((c) => ({ value: c.id, label: c.nombre }))}
+              onChange={(value) => set('categoriaId', value)}
+            />
           </div>
 
           <AdminField label="Etiquetas">
@@ -461,15 +564,7 @@ function RecursoForm({
             />
           </AdminField>
         </div>
-        <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!valido || saving}
-            onClick={() => void save()}
-          >
-            Guardar
-          </Button>
-        </div>
+        <DialogActions onClose={onClose} onSave={() => void save()} disabled={!valido || saving} />
       </DialogContent>
     )
   }
@@ -478,17 +573,7 @@ function RecursoForm({
 
 function RecursosAdmin() {
   const { recursos, niveles, tipos, categorias, removeRecurso } = useHubData()
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<Recurso | null>(null)
-
-  const nuevo = () => {
-    setEditing(null)
-    setOpen(true)
-  }
-  const editar = (r: Recurso) => {
-    setEditing(r)
-    setOpen(true)
-  }
+  const { open, editing, nuevo, editar, onClose } = useEditorDialog<Recurso>()
 
   return (
     <div>
@@ -529,12 +614,7 @@ function RecursosAdmin() {
                   <td>{formatearFecha(r.actualizado)}</td>
                   <td>
                     <div className="ui-actions">
-                      <Tooltip>
-                        <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(r)} />}>
-                          <Pencil size={16} />
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
+                      <BotonEditar onClick={() => editar(r)} />
                       <ConfirmDelete
                         title="¿Eliminar recurso?"
                         description="El recurso y su archivo asociado se eliminarán. Esta acción no se puede deshacer."
@@ -554,7 +634,7 @@ function RecursosAdmin() {
       <RecursoDialog
         open={open}
         editing={editing}
-        onClose={() => setOpen(false)}
+        onClose={onClose}
       />
     </div>
   )
@@ -585,18 +665,16 @@ function TaxonomyDialog({
   onSave: (values: Record<string, unknown>) => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      {open ? (
-        <TaxonomyForm
-          key={title}
-          title={title}
-          fields={fields}
-          initial={initial}
-          onSave={onSave}
-          onClose={onClose}
-        />
-      ) : null}
-    </Dialog>
+    <FormDialog open={open} onClose={onClose}>
+      <TaxonomyForm
+        key={title}
+        title={title}
+        fields={fields}
+        initial={initial}
+        onSave={onSave}
+        onClose={onClose}
+      />
+    </FormDialog>
   )
 }
 
@@ -629,20 +707,14 @@ function TaxonomyForm({
             if (f.type === 'color') {
               const current = (values[f.key] as BadgeColor) ?? 'brand'
               return (
-                <AdminField key={f.key} label={f.label} hint={f.hint}>
-                  <Select
-                    value={current}
-                    items={Object.fromEntries(COLORS.map((c) => [c, c]))}
-                    onValueChange={(value) => set(f.key, value as string)}
-                  >
-                    <SelectTrigger aria-label={f.label} />
-                    <SelectContent>
-                      {COLORS.map((c) => (
-                        <SelectItem key={c} value={c}>{c}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </AdminField>
+                <SelectField
+                  key={f.key}
+                  label={f.label}
+                  hint={f.hint}
+                  value={current}
+                  options={COLORS.map((c) => ({ value: c, label: c }))}
+                  onChange={(value) => set(f.key, value)}
+                />
               )
             }
             if (f.type === 'formatos') {
@@ -690,18 +762,14 @@ function TaxonomyForm({
             )
           })}
         </div>
-        <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!nombreOk}
-            onClick={() => {
-              onSave(values)
-              onClose()
-            }}
-          >
-            Guardar
-          </Button>
-        </div>
+        <DialogActions
+          onClose={onClose}
+          onSave={() => {
+            onSave(values)
+            onClose()
+          }}
+          disabled={!nombreOk}
+        />
 </DialogContent>
     )
   }
@@ -727,17 +795,7 @@ function TaxonomyAdmin<T extends { id: string }>({
   singular: string
   inUse: (id: string) => number
 }) {
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<T | null>(null)
-
-  const nuevo = () => {
-    setEditing(null)
-    setOpen(true)
-  }
-  const editar = (item: T) => {
-    setEditing(item)
-    setOpen(true)
-  }
+  const { open, editing, nuevo, editar, onClose } = useEditorDialog<T>()
 
   return (
     <div>
@@ -774,12 +832,7 @@ function TaxonomyAdmin<T extends { id: string }>({
                   </td>
                   <td>
                     <div className="ui-actions">
-                      <Tooltip>
-                        <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(item)} />}>
-                          <Pencil size={16} />
-                        </TooltipTrigger>
-                        <TooltipContent>Editar</TooltipContent>
-                      </Tooltip>
+                      <BotonEditar onClick={() => editar(item)} />
                       <ConfirmDelete
                         title={`¿Eliminar ${singular}?`}
                         description={
@@ -809,7 +862,7 @@ function TaxonomyAdmin<T extends { id: string }>({
 
       <TaxonomyDialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={onClose}
         title={editing ? `Editar ${singular}` : `Nuevo ${singular}`}
         fields={fields}
         initial={
@@ -841,18 +894,16 @@ function UserDialog({
   onSaved: () => Promise<void>
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      {open ? (
-        <UserForm
+    <FormDialog open={open} onClose={onClose}>
+      <UserForm
           key={editing?.id ?? 'nuevo'}
           editing={editing}
           niveles={niveles}
           recursos={recursos}
           onClose={onClose}
           onSaved={onSaved}
-        />
-      ) : null}
-    </Dialog>
+      />
+    </FormDialog>
   )
 }
 
@@ -939,11 +990,7 @@ function UserForm({
         const data = (await res.json().catch(() => null)) as {
           error?: unknown
         } | null
-        setError(
-          typeof data?.error === 'string'
-            ? data.error
-            : 'No se pudo guardar el usuario. Intente nuevamente.',
-        )
+        setError(leerErrorApi(data, 'No se pudo guardar el usuario. Intente nuevamente.'))
         return
       }
       await onSaved()
@@ -994,20 +1041,13 @@ function UserForm({
               onChange={(event) => setDraft((prev) => ({ ...prev, password: event.currentTarget.value }))}
             />
           </AdminField>
-          <AdminField label="Rol" required>
-            <Select
-              value={draft.role}
-              items={Object.fromEntries(ROLES.map((r) => [r, rolLabel(r)]))}
-              onValueChange={(value) => setDraft((prev) => ({ ...prev, role: value as Role }))}
-            >
-              <SelectTrigger aria-label="Rol" />
-              <SelectContent>
-                {ROLES.map((r) => (
-                  <SelectItem key={r} value={r}>{rolLabel(r)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </AdminField>
+          <SelectField
+            label="Rol"
+            required
+            value={draft.role}
+            options={ROLES.map((r) => ({ value: r, label: rolLabel(r) }))}
+            onChange={(value) => setDraft((prev) => ({ ...prev, role: value as Role }))}
+          />
           <AdminField label="Niveles">
             <MultiSelect<string>
               value={draft.nivelIds}
@@ -1064,77 +1104,23 @@ function UserForm({
             </AdminField>
           ) : null}
         </div>
-        <div className="ui-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button
-            disabled={!valido || saving}
-            onClick={() => void save()}
-          >
-            Guardar
-          </Button>
-        </div>
+        <DialogActions onClose={onClose} onSave={() => void save()} disabled={!valido || saving} />
       </DialogContent>
     )
   }
 
 function UsersAdmin() {
   const { niveles, recursos } = useHubData()
-  const [usuarios, setUsuarios] = React.useState<HubUserRow[]>([])
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<HubUserRow | null>(null)
-
-  const requestUsers = React.useCallback(async () => {
-    const res = await fetch('/api/usuarios')
-    const data = (await res.json().catch(() => null)) as {
-      usuarios?: HubUserRow[]
-      error?: unknown
-    } | null
-    if (!res.ok) {
-      throw new Error(
-        typeof data?.error === 'string'
-          ? data.error
-          : 'No se pudieron cargar los usuarios.',
-      )
-    }
-    return data?.usuarios ?? []
-  }, [])
-
-  const reload = React.useCallback(async () => {
-    const usuarios = await requestUsers()
-    setUsuarios(usuarios)
-    setLoadError(null)
-  }, [requestUsers])
-
-  React.useEffect(() => {
-    let cancelled = false
-    requestUsers().then(
-      (usuarios) => {
-        if (!cancelled) setUsuarios(usuarios)
-      },
-      (error) => {
-        if (!cancelled) {
-          setLoadError(
-            error instanceof Error
-              ? error.message
-              : 'No se pudieron cargar los usuarios.',
-          )
-        }
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [requestUsers])
-
-  const nuevo = () => {
-    setEditing(null)
-    setOpen(true)
-  }
-  const editar = (u: HubUserRow) => {
-    setEditing(u)
-    setOpen(true)
-  }
+  const {
+    items: usuarios,
+    loadError,
+    reload,
+  } = useListaRemota<HubUserRow>({
+    url: '/api/usuarios',
+    clave: 'usuarios',
+    fallbackError: 'No se pudieron cargar los usuarios.',
+  })
+  const { open, editing, nuevo, editar, onClose } = useEditorDialog<HubUserRow>()
 
   return (
     <div>
@@ -1190,12 +1176,7 @@ function UsersAdmin() {
                 </td>
                 <td>
                   <div className="ui-actions">
-                    <Tooltip>
-                      <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(u)} />}>
-                        <Pencil size={16} />
-                      </TooltipTrigger>
-                      <TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
+                    <BotonEditar onClick={() => editar(u)} />
                   </div>
                 </td>
               </tr>
@@ -1209,7 +1190,7 @@ function UsersAdmin() {
         editing={editing}
         niveles={niveles}
         recursos={recursos}
-        onClose={() => setOpen(false)}
+        onClose={onClose}
         onSaved={reload}
       />
     </div>
@@ -1234,11 +1215,9 @@ function MotivoDialog({
   onSaved: () => Promise<void>
 }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      {open ? (
-        <MotivoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} onSaved={onSaved} />
-      ) : null}
-    </Dialog>
+    <FormDialog open={open} onClose={onClose}>
+      <MotivoForm key={editing?.id ?? 'nuevo'} editing={editing} onClose={onClose} onSaved={onSaved} />
+    </FormDialog>
   )
 }
 
@@ -1277,7 +1256,7 @@ function MotivoForm({
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: unknown } | null
-        setError(typeof data?.error === 'string' ? data.error : 'No se pudo guardar')
+        setError(leerErrorApi(data, 'No se pudo guardar'))
         return
       }
       await onSaved()
@@ -1299,22 +1278,13 @@ function MotivoForm({
         <AdminField label="Nombre" required>
           <Input value={nombre} onChange={(event) => setNombre(event.currentTarget.value)} />
         </AdminField>
-        <AdminField label="Categoría" required>
-          <Select
-            value={categoria}
-            items={Object.fromEntries(CATEGORIAS.map((c) => [c, CATEGORIA_META[c].label]))}
-            onValueChange={(value) => setCategoria(value as CategoriaAfectacion)}
-          >
-            <SelectTrigger aria-label="Categoría" />
-            <SelectContent>
-              {CATEGORIAS.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {CATEGORIA_META[c].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </AdminField>
+        <SelectField
+          label="Categoría"
+          required
+          value={categoria}
+          options={CATEGORIAS.map((c) => ({ value: c, label: CATEGORIA_META[c].label }))}
+          onChange={(value) => setCategoria(value as CategoriaAfectacion)}
+        />
         <AdminField label="Orden" hint="Define el orden dentro de su categoría">
           <Input
             type="number"
@@ -1323,67 +1293,23 @@ function MotivoForm({
           />
         </AdminField>
       </div>
-      <div className="ui-dialog-actions">
-        <Button variant="secondary" onClick={onClose}>
-          Cancelar
-        </Button>
-        <Button disabled={!valido || saving} onClick={() => void guardar()}>
-          Guardar
-        </Button>
-      </div>
+      <DialogActions onClose={onClose} onSave={() => void guardar()} disabled={!valido || saving} />
     </DialogContent>
   )
 }
 
 function MotivosAdmin() {
-  const [motivos, setMotivos] = React.useState<MotivoRow[]>([])
-  const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [open, setOpen] = React.useState(false)
-  const [editing, setEditing] = React.useState<MotivoRow | null>(null)
-
-  const requestMotivos = React.useCallback(async () => {
-    const res = await fetch('/api/infraestructura/motivos')
-    const data = (await res.json().catch(() => null)) as {
-      motivos?: MotivoRow[]
-      error?: unknown
-    } | null
-    if (!res.ok) {
-      throw new Error(typeof data?.error === 'string' ? data.error : 'No se pudo cargar')
-    }
-    return data?.motivos ?? []
-  }, [])
-
-  const reload = React.useCallback(async () => {
-    const rows = await requestMotivos()
-    setMotivos(rows)
-    setLoadError(null)
-  }, [requestMotivos])
-
-  React.useEffect(() => {
-    let cancelled = false
-    requestMotivos().then(
-      (rows) => {
-        if (!cancelled) setMotivos(rows)
-      },
-      (error) => {
-        if (!cancelled) {
-          setLoadError(error instanceof Error ? error.message : 'No se pudo cargar')
-        }
-      },
-    )
-    return () => {
-      cancelled = true
-    }
-  }, [requestMotivos])
-
-  const nuevo = () => {
-    setEditing(null)
-    setOpen(true)
-  }
-  const editar = (m: MotivoRow) => {
-    setEditing(m)
-    setOpen(true)
-  }
+  const {
+    items: motivos,
+    loadError,
+    setLoadError,
+    reload,
+  } = useListaRemota<MotivoRow>({
+    url: '/api/infraestructura/motivos',
+    clave: 'motivos',
+    fallbackError: 'No se pudo cargar',
+  })
+  const { open, editing, nuevo, editar, onClose } = useEditorDialog<MotivoRow>()
 
   const eliminar = async (id: string) => {
     const res = await fetch(`/api/infraestructura/motivos?id=${encodeURIComponent(id)}`, {
@@ -1391,7 +1317,7 @@ function MotivosAdmin() {
     })
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: unknown } | null
-      setLoadError(typeof data?.error === 'string' ? data.error : 'No se pudo eliminar')
+      setLoadError(leerErrorApi(data, 'No se pudo eliminar'))
       return
     }
     await reload()
@@ -1432,12 +1358,7 @@ function MotivosAdmin() {
                 <td>{m.orden}</td>
                 <td>
                   <div className="ui-actions">
-                    <Tooltip>
-                      <TooltipTrigger render={<Button variant="ghost" size="icon" aria-label="Editar" onClick={() => editar(m)} />}>
-                        <Pencil size={16} />
-                      </TooltipTrigger>
-                      <TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
+                    <BotonEditar onClick={() => editar(m)} />
                     <ConfirmDelete
                       title="¿Eliminar motivo?"
                       description="El motivo se eliminará de forma permanente. Si hay afectaciones que lo usan, no se podrá eliminar."
@@ -1452,7 +1373,7 @@ function MotivosAdmin() {
         </table>
       </div>
 
-      <MotivoDialog open={open} onClose={() => setOpen(false)} editing={editing} onSaved={reload} />
+      <MotivoDialog open={open} onClose={onClose} editing={editing} onSaved={reload} />
     </div>
   )
 }

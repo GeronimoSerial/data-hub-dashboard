@@ -265,12 +265,6 @@ export function tipoNombre(list: Tipo[], id: string) {
 export function categoria(list: Categoria[], id: string) {
   return list.find((c) => c.id === id)
 }
-export function tagNombres(list: Tag[], ids: string[]) {
-  return ids
-    .map((id) => list.find((t) => t.id === id)?.nombre)
-    .filter((x): x is string => Boolean(x))
-}
-
 export function formatearFecha(iso: string) {
   const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
   const d = dateOnly
@@ -285,43 +279,4 @@ export function formatearFecha(iso: string) {
     month: 'short',
     year: 'numeric',
   })
-}
-
-// Unidades de Intl.RelativeTimeFormat en orden creciente, con el umbral (en
-// segundos, valor absoluto) hasta el que aplica cada una y el divisor para
-// convertir la diferencia a esa unidad. 'auto' es lo que le da a
-// RelativeTimeFormat la libertad de decir "ayer"/"hoy" en vez de "hace 1
-// día"/"hace 0 días" — es el comportamiento que pide el mapa de
-// infraestructura para "última actualización".
-const UNIDADES_RELATIVAS: {
-  limiteSegundos: number
-  divisor: number
-  unidad: Intl.RelativeTimeFormatUnit
-}[] = [
-  { limiteSegundos: 60, divisor: 1, unidad: 'second' },
-  { limiteSegundos: 3600, divisor: 60, unidad: 'minute' },
-  { limiteSegundos: 86400, divisor: 3600, unidad: 'hour' },
-  { limiteSegundos: 86400 * 30, divisor: 86400, unidad: 'day' },
-  { limiteSegundos: 86400 * 365, divisor: 86400 * 30, unidad: 'month' },
-  { limiteSegundos: Infinity, divisor: 86400 * 365, unidad: 'year' },
-]
-
-/**
- * Formatea `iso` como fecha relativa a `referencia` (por defecto, ahora):
- * "hace 3 días", "ayer", "hoy". `referencia` explícito es lo que permite
- * testear sin mockear el reloj global, mismo criterio que
- * ResolverVigenciaOpciones en vigencia-alcance.ts.
- */
-export function formatearFechaRelativa(iso: string, referencia: Date = new Date()): string {
-  const fecha = new Date(iso)
-  const diffSegundos = Math.round((fecha.getTime() - referencia.getTime()) / 1000)
-  const absSegundos = Math.abs(diffSegundos)
-
-  const unidad =
-    UNIDADES_RELATIVAS.find((u) => absSegundos < u.limiteSegundos) ??
-    UNIDADES_RELATIVAS[UNIDADES_RELATIVAS.length - 1]
-
-  const valor = Math.round(diffSegundos / unidad.divisor)
-  const rtf = new Intl.RelativeTimeFormat('es-AR', { numeric: 'auto' })
-  return rtf.format(valor, unidad.unidad)
 }
