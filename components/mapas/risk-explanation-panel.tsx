@@ -187,20 +187,17 @@ function etiquetaNivelGenerico(nivel: string): string {
   return nivel
 }
 
+const ETIQUETAS_NIVEL_RIESGO: Record<string, string> = {
+  bajo: 'Bajo', moderado: 'Moderado', alto: 'Alto', muy_alto: 'Muy alto',
+}
+
 function etiquetaNivelRiesgo(nivelRiesgo: string): string {
-  if (nivelRiesgo === 'bajo') return 'Bajo'
-  if (nivelRiesgo === 'moderado') return 'Moderado'
-  if (nivelRiesgo === 'alto') return 'Alto'
-  if (nivelRiesgo === 'muy_alto') return 'Muy alto'
-  return nivelRiesgo
+  return ETIQUETAS_NIVEL_RIESGO[nivelRiesgo] ?? nivelRiesgo
 }
 
 // Etiqueta de la dimensión "Acceso". `null` es "Sin dato", NUNCA "Bajo".
 function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
-  if (nivel === null) return 'Sin dato'
-  if (nivel === 'bajo') return 'Bajo'
-  if (nivel === 'moderado') return 'Moderado'
-  return 'Alto'
+  return nivel === null ? 'Sin dato' : ETIQUETAS_NIVEL_RIESGO[nivel]
 }
 
 function formatearNumero(valor: number): string {

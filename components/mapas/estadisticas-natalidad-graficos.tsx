@@ -101,6 +101,14 @@ const ESTILO_ETIQUETA_TOOLTIP: CSSProperties = { fontFamily: 'inherit', fontWeig
 const ESTILO_DATO_TOOLTIP: CSSProperties = { fontFamily: 'inherit' }
 const CLASE_EJE = { fill: 'var(--ink-soft)', fontSize: 11 }
 
+function propsEje(paleta: Paleta) {
+  return {
+    tick: { ...CLASE_EJE, fill: paleta.texto },
+    tickLine: false,
+    axisLine: { stroke: paleta.eje, strokeWidth: 1 },
+  }
+}
+
 function formatearMiles(valor: number): string {
   return valor.toLocaleString('es-AR')
 }
@@ -164,18 +172,14 @@ export function GraficoSerieNacimientos(props: { puntos: PuntoSerieAnual[] }) {
         <CartesianGrid vertical={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
           dataKey="anio"
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <YAxis
           allowDecimals={false}
           domain={[0, 'auto']}
           width={44}
           tickFormatter={formatearMiles}
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <Tooltip
           contentStyle={estiloTooltip(paleta)}
@@ -256,18 +260,14 @@ export function GraficoVariacionPorDepartamento(props: {
         <XAxis
           type="number"
           tickFormatter={(v: number) => `${v}%`}
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <YAxis
           type="category"
           dataKey="departamento"
           interval={0}
           width={130}
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <Tooltip
           contentStyle={estiloTooltip(paleta)}
@@ -355,18 +355,14 @@ export function GraficoNacidosPorSeccion(props: {
         <CartesianGrid horizontal={false} stroke={paleta.grilla} strokeWidth={1} />
         <XAxis
           type="number"
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <YAxis
           type="category"
           dataKey="departamento"
           interval={0}
           width={130}
-          tick={{ ...CLASE_EJE, fill: paleta.texto }}
-          tickLine={false}
-          axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
+          {...propsEje(paleta)}
         />
         <Tooltip
           contentStyle={estiloTooltip(paleta)}

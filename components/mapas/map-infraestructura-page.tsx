@@ -24,7 +24,6 @@ import type {
   FillLayerSpecification,
   FilterSpecification,
   GeoJSONSource,
-  LineLayerSpecification,
   MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
@@ -126,9 +125,10 @@ import {
   COLORES_DEPARTAMENTO,
   DEPARTAMENTOS_URL,
   LIMITES_CORRIENTES,
-  MASCARA_COLOR,
-  MASCARA_OPACIDAD,
   MASCARA_URL,
+  fillPaintMascara,
+  linePaintDepartamentoHover,
+  linePaintDepartamentos,
   normalizarNombreDepartamento,
 } from '@/lib/mapas/departamentos'
 import { ensureMapWorker } from '@/lib/map-worker'
@@ -308,13 +308,6 @@ const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
 // pero afuera de la provincia no hay nada compitiendo por su atención.
 const CAPA_MASCARA_ID = 'infra-mascara-provincia'
 
-function fillPaintMascara(): FillLayerSpecification['paint'] {
-  return {
-    'fill-color': MASCARA_COLOR,
-    'fill-opacity': MASCARA_OPACIDAD,
-  }
-}
-
 // F2.4: el relleno departamental deja de tener opacidad fija (era pura
 // decoración de contexto geográfico) y pasa a modular la CANTIDAD de
 // escuelas con servicio caído (suspendido o parcial) en ese departamento —
@@ -382,25 +375,21 @@ function symbolPaintDepartamentos(): SymbolLayerSpecification['paint'] {
 const CAPA_DEPARTAMENTO_HOVER_ID = 'infra-departamento-hover'
 const CAPA_DEPARTAMENTO_HOVER_BORDE_ID = 'infra-departamento-hover-borde'
 
+function layoutIconoCluster(icono: string): SymbolLayerSpecification['layout'] {
+  return {
+    'icon-image': icono,
+    'icon-size': 0.8,
+    'icon-anchor': 'center',
+    'icon-offset': [13, -13],
+    'icon-allow-overlap': true,
+    'icon-ignore-placement': true,
+  }
+}
+
 function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
   return {
     'fill-color': COLORES_DEPARTAMENTO.rellenoSeleccionado,
     'fill-opacity': COLORES_DEPARTAMENTO.opacidadRellenoSeleccionado,
-  }
-}
-
-function linePaintDepartamentoHover(): LineLayerSpecification['paint'] {
-  return {
-    'line-color': COLORES_DEPARTAMENTO.bordeSeleccionado,
-    'line-width': COLORES_DEPARTAMENTO.pesoLineaSeleccionado,
-  }
-}
-
-function linePaintDepartamentos(): LineLayerSpecification['paint'] {
-  return {
-    'line-color': COLORES_DEPARTAMENTO.bordeNormal,
-    'line-width': COLORES_DEPARTAMENTO.pesoLineaNormal,
-    'line-opacity': 0.95,
   }
 }
 
@@ -606,6 +595,12 @@ type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCru
 // El departamento no tiene marcador debajo, así que el popup se conforma con
 // un offset vertical mínimo para no tapar el punto clickeado.
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
+const PROPS_POPUP_INFO = {
+  closeButton: false,
+  closeOnClick: false,
+  offset: OFFSET_POPUP_DEPARTAMENTO,
+  className: 'mapa-tooltip mapa-tooltip-departamento',
+}
 
 // Badge: círculo claro detrás del ícono para que se lea sobre cualquier color
 // de severidad (incluida Crítica, rojo oscuro). Sólo decorativo: el evento
@@ -752,6 +747,16 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
   }
 
   return { top, bottom, left, right }
+}
+
+function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
+  return escuelas
+    .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
+    .map((escuela) => ({
+      cueAnexo: escuela.cueAnexo,
+      lat: escuela.lat as number,
+      lon: escuela.lon as number,
+    }))
 }
 
 // T1.1c: la preferencia de reduced-motion se lee con useSyncExternalStore, la
@@ -1020,38 +1025,20 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [props.visible])
 
-  // Cierre con Esc del popup de departamento, atado al clic. Sólo se registra
-  // mientras hay un popup abierto; se limpia al cerrarlo o desmontar (mismo
-  // patrón que `FichaParteModal`).
+  // Cierre con Esc de los popups abiertos por clic. Un solo listener los cierra
+  // todos, y sólo existe mientras alguno está abierto (mismo patrón que
+  // `FichaParteModal`).
   useEffect(() => {
-    if (!departamentoInfoClic) return
+    if (!departamentoInfoClic && !clusterInfoClic && !cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDepartamentoInfoClic(null)
+      if (event.key !== 'Escape') return
+      setDepartamentoInfoClic(null)
+      setClusterInfoClic(null)
+      setCruceInfoClic(null)
     }
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [departamentoInfoClic])
-
-  useEffect(() => {
-    if (!clusterInfoClic) return
-    const alPresionarTecla = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setClusterInfoClic(null)
-    }
-    window.addEventListener('keydown', alPresionarTecla)
-    return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [clusterInfoClic])
-
-  // Mismo cierre por Esc para el popup del cruce: los tres popups de clic se
-  // abren y se cierran igual, sin excepciones que el usuario tenga que
-  // aprender.
-  useEffect(() => {
-    if (!cruceInfoClic) return
-    const alPresionarTecla = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setCruceInfoClic(null)
-    }
-    window.addEventListener('keydown', alPresionarTecla)
-    return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [cruceInfoClic])
+  }, [departamentoInfoClic, clusterInfoClic, cruceInfoClic])
 
   const dataVisible = useMemo(
     () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
@@ -1253,14 +1240,7 @@ export default function MapInfraestructuraPage(props: {
   // escuelas del departamento visible, incluidas las que no tienen parte; reusar
   // partes dejaba sin punto a toda escuela sin afectación reportada.
   const escuelasConCoordenadas = useMemo(
-    () =>
-      (dataEscuelasMapaVisible?.escuelas ?? [])
-        .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
-        .map((escuela) => ({
-          cueAnexo: escuela.cueAnexo,
-          lat: escuela.lat as number,
-          lon: escuela.lon as number,
-        })),
+    () => extraerEscuelasConCoordenadas(dataEscuelasMapaVisible?.escuelas ?? []),
     [dataEscuelasMapaVisible],
   )
 
@@ -1347,14 +1327,7 @@ export default function MapInfraestructuraPage(props: {
   // reusar ese filtro dejaba sin puntos cualquier departamento de Replay que
   // no coincidiera con el elegido en el otro modo.
   const escuelasConCoordenadasReplay = useMemo(
-    () =>
-      (dataEscuelasMapa?.escuelas ?? [])
-        .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
-        .map((escuela) => ({
-          cueAnexo: escuela.cueAnexo,
-          lat: escuela.lat as number,
-          lon: escuela.lon as number,
-        })),
+    () => extraerEscuelasConCoordenadas(dataEscuelasMapa?.escuelas ?? []),
     [dataEscuelasMapa],
   )
 
@@ -2361,14 +2334,7 @@ export default function MapInfraestructuraPage(props: {
                   id={CAPA_CLUSTER_CENTRO_EVACUADOS_ID}
                   type="symbol"
                   filter={['all', ['has', 'point_count'], ['==', ['get', 'esCentroEvacuados'], 1]]}
-                  layout={{
-                    'icon-image': ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
-                    'icon-size': 0.8,
-                    'icon-anchor': 'center',
-                    'icon-offset': [13, -13],
-                    'icon-allow-overlap': true,
-                    'icon-ignore-placement': true,
-                  }}
+                  layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS)}
                 />
               )}
               {iconosClusterListos && capasVisibles.evacuacion && (
@@ -2381,14 +2347,7 @@ export default function MapInfraestructuraPage(props: {
                     ['==', ['get', 'esEvacuado'], 1],
                     ['==', ['get', 'esCentroEvacuados'], 0],
                   ]}
-                  layout={{
-                    'icon-image': ID_IMAGEN_CLUSTER_EVACUADO,
-                    'icon-size': 0.8,
-                    'icon-anchor': 'center',
-                    'icon-offset': [13, -13],
-                    'icon-allow-overlap': true,
-                    'icon-ignore-placement': true,
-                  }}
+                  layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_EVACUADO)}
                 />
               )}
             </Source>
@@ -2479,10 +2438,7 @@ export default function MapInfraestructuraPage(props: {
               <Popup
                 longitude={departamentoInfoClic.lng}
                 latitude={departamentoInfoClic.lat}
-                closeButton={false}
-                closeOnClick={false}
-                offset={OFFSET_POPUP_DEPARTAMENTO}
-                className="mapa-tooltip mapa-tooltip-departamento"
+                {...PROPS_POPUP_INFO}
               >
                 <p>
                   En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
@@ -2502,10 +2458,7 @@ export default function MapInfraestructuraPage(props: {
               <Popup
                 longitude={cruceInfoClic.lng}
                 latitude={cruceInfoClic.lat}
-                closeButton={false}
-                closeOnClick={false}
-                offset={OFFSET_POPUP_DEPARTAMENTO}
-                className="mapa-tooltip mapa-tooltip-departamento"
+                {...PROPS_POPUP_INFO}
               >
                 <p>
                   <strong>Cruce de agua: {etiqueta}</strong>

@@ -606,6 +606,11 @@ async function seleccionarPorBuscador(nombre: string) {
   return screen.findByTestId('mock-ficha-modal')
 }
 
+async function cerrarFicha() {
+  await userEvent.click(screen.getByText('cerrar-ficha'))
+  await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+}
+
 // Viewport del mapa. jsdom arranca en 1024x768, que es justo el breakpoint en
 // el que la ficha pasa de panel lateral a hoja inferior: los tests fijan el
 // tamaño a propósito para no depender de ese default. `spyOn` sobre el getter
@@ -764,8 +769,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     await userEvent.click(screen.getByText('cerrar-historial'))
     await waitFor(() => expect(screen.queryByTestId('mock-historial-modal')).not.toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('cerrar-ficha'))
-    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+    await cerrarFicha()
 
     // La capa que se activó antes de abrir los modales sigue activa.
     expect(screen.getByRole('checkbox', { name: /sin novedades hace más de 72 h/i })).toBeChecked()
@@ -1072,13 +1076,14 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
   const esParrafoHover = (element: Element | null): boolean =>
     element?.tagName === 'P' &&
     /En Capital hay 10 escuelas/.test(element.textContent ?? '')
+  const popupHover = () => screen.queryByText((_contenido, element) => esParrafoHover(element))
+  const esperarSinPopupHover = () =>
+    waitFor(() => expect(popupHover()).not.toBeInTheDocument())
 
   it('clic de departamento muestra total, afectadas y porcentaje, y se cierra con Esc', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    expect(
-      screen.queryByText((_contenido, element) => esParrafoHover(element)),
-    ).not.toBeInTheDocument()
+    expect(popupHover()).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
 
@@ -1088,43 +1093,27 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     expect(popup).toHaveTextContent('30%')
 
     await userEvent.keyboard('{Escape}')
-    await waitFor(() =>
-      expect(
-        screen.queryByText((_contenido, element) => esParrafoHover(element)),
-      ).not.toBeInTheDocument(),
-    )
+    await esperarSinPopupHover()
   })
 
   it('clickear el mismo departamento de nuevo cierra el popup', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(
-      await screen.findByText((_contenido, element) => esParrafoHover(element)),
-    ).toBeInTheDocument()
+    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    await waitFor(() =>
-      expect(
-        screen.queryByText((_contenido, element) => esParrafoHover(element)),
-      ).not.toBeInTheDocument(),
-    )
+    await esperarSinPopupHover()
   })
 
   it('clickear otro departamento reemplaza el popup', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(
-      await screen.findByText((_contenido, element) => esParrafoHover(element)),
-    ).toBeInTheDocument()
+    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
 
     await userEvent.click(screen.getByTestId('mock-click-departamento-empedrado'))
-    await waitFor(() =>
-      expect(
-        screen.queryByText((_contenido, element) => esParrafoHover(element)),
-      ).not.toBeInTheDocument(),
-    )
+    await esperarSinPopupHover()
   })
 
   // Q20: el hover se sacó; estos dos casos ahora clickean una escuela/cluster.
@@ -1137,16 +1126,10 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(
-      await screen.findByText((_contenido, element) => esParrafoHover(element)),
-    ).toBeInTheDocument()
+    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-    await waitFor(() =>
-      expect(
-        screen.queryByText((_contenido, element) => esParrafoHover(element)),
-      ).not.toBeInTheDocument(),
-    )
+    await esperarSinPopupHover()
   })
 
   it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y abre la ficha', async () => {
@@ -1296,8 +1279,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     // Con la escuela elegida, la leyenda muestra la ruta disponible.
     expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('cerrar-ficha'))
-    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+    await cerrarFicha()
 
     // La selección NO se fue con la ficha: la ruta de la escuela sigue dibujada
     // y la leyenda la sigue describiendo.
@@ -1310,8 +1292,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await seleccionarPorBuscador('Escuela 1')
-    await userEvent.click(screen.getByText('cerrar-ficha'))
-    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+    await cerrarFicha()
 
     await userEvent.click(screen.getByTestId('reabrir-ficha'))
 
@@ -1327,8 +1308,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     await seleccionarPorBuscador('Escuela 1')
     expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('cerrar-ficha'))
-    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+    await cerrarFicha()
 
     await userEvent.click(screen.getByTestId('quitar-seleccion'))
 
@@ -1345,8 +1325,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await seleccionarPorBuscador('Escuela 1')
-    await userEvent.click(screen.getByText('cerrar-ficha'))
-    await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+    await cerrarFicha()
 
     // Mismo cue, distinto cue no: si la selección no limpiara el estado de
     // "ficha cerrada", la segunda búsqueda no abriría nada.

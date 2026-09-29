@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import {
   ROTULO_NIVEL_PROVISORIO,
-  RiskExplanationPanel,
+  RiskExplanationPanel as RiskExplanationPanelComponent,
   type NivelHorizontePanel,
+  type RiskExplanationPanelProps,
 } from './risk-explanation-panel'
 
 // Sin `globals: true` el auto-cleanup de testing-library no se registra:
@@ -31,12 +32,46 @@ function nivelHorizonte(
   }
 }
 
+type DepartamentoProps = Extract<RiskExplanationPanelProps, { tipo: 'departamento' }>
+type EscuelaProps = Extract<RiskExplanationPanelProps, { tipo: 'escuela' }>
+
+type PanelTestProps =
+  | ({ tipo: 'departamento' } & Partial<Omit<DepartamentoProps, 'tipo'>>)
+  | ({ tipo: 'escuela' } & Partial<Omit<EscuelaProps, 'tipo'>>)
+
+function RiskExplanationPanel(props: PanelTestProps) {
+  if (props.tipo === 'departamento') {
+    const { tipo, ...overrides } = props
+    return (
+      <RiskExplanationPanelComponent
+        tipo={tipo}
+        departamento="Capital"
+        niveles={[]}
+        caudal={null}
+        lluviaObservada={null}
+        {...overrides}
+      />
+    )
+  }
+  const { tipo, ...overrides } = props
+  return (
+    <RiskExplanationPanelComponent
+      tipo={tipo}
+      cueAnexo="1801605-04"
+      nivelRiesgo="alto"
+      confianza="media"
+      scoreAmenaza={0.6}
+      scoreVulnerabilidad={0.2}
+      {...overrides}
+    />
+  )
+}
+
 describe('RiskExplanationPanel — variante departamento', () => {
   it('muestra las tres filas de horizonte con su nivel como texto', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[
           nivelHorizonte(24, 'verde', 'ensemble'),
           nivelHorizonte(72, 'naranja', 'deterministico', {
@@ -45,8 +80,6 @@ describe('RiskExplanationPanel — variante departamento', () => {
           }),
           nivelHorizonte(240, 'rojo', 'ensemble'),
         ]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
 
@@ -67,15 +100,12 @@ describe('RiskExplanationPanel — variante departamento', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[
           nivelHorizonte(24, 'naranja', 'deterministico', {
             metodo: 'umbral_provisorio',
             precipitacionMm: 100,
           }),
         ]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
 
@@ -87,7 +117,6 @@ describe('RiskExplanationPanel — variante departamento', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[
           nivelHorizonte(24, 'naranja', 'deterministico', {
             metodo: 'percentiles',
@@ -95,8 +124,6 @@ describe('RiskExplanationPanel — variante departamento', () => {
           }),
           nivelHorizonte(72, 'verde', 'ensemble'),
         ]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
 
@@ -107,14 +134,11 @@ describe('RiskExplanationPanel — variante departamento', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[
           nivelHorizonte(24, 'verde', 'ensemble'),
           nivelHorizonte(72, 'sin_dato', 'sin_dato'),
           nivelHorizonte(240, 'sin_dato', 'sin_dato'),
         ]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
 
@@ -127,10 +151,7 @@ describe('RiskExplanationPanel — variante departamento', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[nivelHorizonte(24, 'verde', 'ensemble')]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
 
@@ -145,7 +166,6 @@ describe('RiskExplanationPanel — variante departamento', () => {
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
         niveles={[nivelHorizonte(24, 'verde', 'ensemble')]}
         caudal={{ nivel: 'amarillo', percentilActual: 90, emitidoEn: '2026-09-26T06:00:00Z' }}
         lluviaObservada={{ acumuladoMm24h: null, acumuladoMm72h: 18, observadoEn: null }}
@@ -197,10 +217,6 @@ describe('RiskExplanationPanel — variante escuela', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
-        cueAnexo="1801605-04"
-        nivelRiesgo="alto"
-        confianza="media"
-        scoreAmenaza={0.6}
         scoreVulnerabilidad={null}
         factores={[
           {
@@ -228,11 +244,6 @@ describe('RiskExplanationPanel — variante escuela', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
-        cueAnexo="1801605-04"
-        nivelRiesgo="alto"
-        confianza="media"
-        scoreAmenaza={0.6}
-        scoreVulnerabilidad={0.2}
         factores={[
           {
             tipo: 'Vulnerabilidad',
@@ -255,11 +266,6 @@ describe('RiskExplanationPanel — variante escuela', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
-        cueAnexo="1801605-04"
-        nivelRiesgo="alto"
-        confianza="media"
-        scoreAmenaza={0.6}
-        scoreVulnerabilidad={0.2}
         factoresCargando
       />,
     )
@@ -275,11 +281,6 @@ describe('RiskExplanationPanel — variante escuela', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
-        cueAnexo="1801605-04"
-        nivelRiesgo="alto"
-        confianza="media"
-        scoreAmenaza={0.6}
-        scoreVulnerabilidad={0.2}
         factoresError="No se pudo cargar el detalle del riesgo."
       />,
     )
@@ -293,11 +294,6 @@ describe('RiskExplanationPanel — variante escuela', () => {
     render(
       <RiskExplanationPanel
         tipo="escuela"
-        cueAnexo="1801605-04"
-        nivelRiesgo="alto"
-        confianza="media"
-        scoreAmenaza={0.6}
-        scoreVulnerabilidad={0.2}
         factores={[]}
       />,
     )
@@ -393,10 +389,6 @@ describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)'
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
-        niveles={[]}
-        caudal={null}
-        lluviaObservada={null}
       />,
     )
     expect(screen.queryByTestId('risk-explanation-seasonal')).not.toBeInTheDocument()
@@ -406,10 +398,6 @@ describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)'
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
-        niveles={[]}
-        caudal={null}
-        lluviaObservada={null}
         tendenciaEstacional={null}
       />,
     )
@@ -420,10 +408,6 @@ describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)'
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
-        niveles={[]}
-        caudal={null}
-        lluviaObservada={null}
         tendenciaEstacional={{
           emisionEn: '2026-09-27',
           validoDesde: '2026-10-27',
@@ -455,10 +439,6 @@ describe('RiskExplanationPanel — tarjeta "Perspectiva 30-90 días" (SEASONAL)'
     render(
       <RiskExplanationPanel
         tipo="departamento"
-        departamento="Capital"
-        niveles={[]}
-        caudal={null}
-        lluviaObservada={null}
         tendenciaEstacional={{
           emisionEn: '2026-09-27',
           validoDesde: '2026-10-27',

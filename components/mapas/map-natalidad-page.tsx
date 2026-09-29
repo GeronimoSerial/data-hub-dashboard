@@ -12,8 +12,6 @@ import MapGL, {
 import type {
   CircleLayerSpecification,
   DataDrivenPropertyValueSpecification,
-  FillLayerSpecification,
-  LineLayerSpecification,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
 import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
@@ -26,13 +24,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { SegmentedGroup, SegmentedItem } from '@/components/ui/toggle-group'
 import { BASEMAPS } from '@/lib/map-types'
 import { ensureMapWorker } from '@/lib/map-worker'
+import { fmt, fmtPct } from '@/lib/mapas/estadisticas-natalidad'
 import {
-  COLORES_DEPARTAMENTO,
   DEPARTAMENTOS_URL,
   LIMITES_CORRIENTES,
-  MASCARA_COLOR,
-  MASCARA_OPACIDAD,
   MASCARA_URL,
+  fillPaintMascara,
+  linePaintDepartamentoHover,
+  linePaintDepartamentos,
   normalizarNombreDepartamento,
 } from '@/lib/mapas/departamentos'
 import {
@@ -86,25 +85,6 @@ type ModoMetrica = 'anio' | 'variacion'
 const COLOR_INICIAL = '#0f766e'
 const COLOR_ESCUELA_DEFAULT = '#64748b'
 
-function fillPaintMascara(): FillLayerSpecification['paint'] {
-  return { 'fill-color': MASCARA_COLOR, 'fill-opacity': MASCARA_OPACIDAD }
-}
-
-function linePaintDepartamentos(): LineLayerSpecification['paint'] {
-  return {
-    'line-color': COLORES_DEPARTAMENTO.bordeNormal,
-    'line-width': COLORES_DEPARTAMENTO.pesoLineaNormal,
-    'line-opacity': 0.95,
-  }
-}
-
-function linePaintDepartamentoHover(): LineLayerSpecification['paint'] {
-  return {
-    'line-color': COLORES_DEPARTAMENTO.bordeSeleccionado,
-    'line-width': COLORES_DEPARTAMENTO.pesoLineaSeleccionado,
-  }
-}
-
 // Puntos individuales: las escuelas con oferta de inicial se dibujan más
 // grandes y en teal, el resto en gris neutro — ver COLOR_INICIAL arriba.
 function circlePaintEscuelas(): CircleLayerSpecification['paint'] {
@@ -143,15 +123,6 @@ function symbolLayoutClusterCount(): SymbolLayerSpecification['layout'] {
     'text-font': ['Noto Sans Regular'],
     'text-allow-overlap': false,
   }
-}
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat('es-AR').format(n)
-}
-
-function fmtPct(pct: number | null): string {
-  if (pct == null) return '—'
-  return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
 }
 
 /** Mini sparkline SVG 2014–2023: puros trazos, sin librería de gráficos (una serie de 10 puntos no lo justifica). */

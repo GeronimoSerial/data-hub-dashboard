@@ -18,7 +18,7 @@ import type {
   NivelAislamientoMapa,
   TerritorioMapa,
 } from '@/lib/infraestructura/territorio-mapa'
-import { fondoBadge } from './iconos-mapa'
+import { construirSvgIcono } from './iconos-mapa'
 
 // ---------------------------------------------------------------------------
 // Clases y paletas
@@ -224,27 +224,6 @@ export function iconoAislamiento(nivel: NivelAislamientoMapa): string {
   return nivel === 'sin_datos_red'
     ? ID_ICONO_AISLAMIENTO_SIN_DATOS
     : ID_ICONO_AISLAMIENTO[nivel]
-}
-
-const ATRIBUTOS_LUCIDE_BASE =
-  'xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" ' +
-  'fill="none" stroke-linecap="round" stroke-linejoin="round"'
-
-const STROKE_ANCHO = 2.4
-
-// Badge circular de fondo (reutiliza `fondoBadge` de iconos-mapa.ts) con el
-// trazo del ícono elegido por contraste: oscuro sobre fondos claros, blanco
-// sobre los oscuros de la rampa.
-function construirSvgIcono(
-  path: string,
-  colorFondo: string,
-  colorTrazo: string,
-  colorBorde = '#1c1c1c',
-): string {
-  return (
-    `<svg ${ATRIBUTOS_LUCIDE_BASE} stroke="${colorTrazo}" stroke-width="${STROKE_ANCHO}">` +
-    `${fondoBadge(colorFondo, colorBorde)}${path}</svg>`
-  )
 }
 
 // Paths copiados tal cual de `lucide-react` v1.34.0 (route.mjs, route-off.mjs,

@@ -28,7 +28,7 @@
 
 import { SEVERIDAD_COLORES } from '@/lib/infraestructura/severidad'
 
-const ATRIBUTOS_LUCIDE_BASE =
+export const ATRIBUTOS_LUCIDE_BASE =
   'xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" ' +
   'fill="none" stroke-linecap="round" stroke-linejoin="round"'
 
@@ -43,6 +43,15 @@ const ATRIBUTOS_LUCIDE = atributosLucide(2.4)
 // borde gris medio (`#9ca3af`) para no usar negro puro.
 export const fondoBadge = (colorRelleno: string, colorBorde = '#1c1c1c') =>
   `<circle cx="12" cy="12" r="11" fill="${colorRelleno}" stroke="${colorBorde}" stroke-width="1" />`
+
+// Construye un badge con el trazo elegido por contraste: oscuro sobre fondos claros y blanco sobre los oscuros de la rampa.
+export const construirSvgIcono = (
+  path: string,
+  colorFondo: string,
+  colorTrazo: string,
+  colorBorde = '#1c1c1c',
+  strokeWidth = 2.4,
+) => `<svg ${atributosLucide(strokeWidth, colorTrazo)}>${fondoBadge(colorFondo, colorBorde)}${path}</svg>`
 
 export const ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS = 'infra-icono-centro-evacuados'
 export const ID_IMAGEN_CLUSTER_EVACUADO = 'infra-icono-evacuado'
@@ -65,7 +74,7 @@ const PATH_ESCUELA =
   '<circle cx="12" cy="9" r="2" />'
 
 const svgIconoEscuela = (colorFondo: string, colorTrazo: string, colorBorde = '#1c1c1c') =>
-  `<svg ${atributosLucide(1.7, colorTrazo)}>${fondoBadge(colorFondo, colorBorde)}${PATH_ESCUELA}</svg>`
+  construirSvgIcono(PATH_ESCUELA, colorFondo, colorTrazo, colorBorde, 1.7)
 
 // Tent (centro de evacuados): prioridad 1 del badge de estado.
 export const SVG_ICONO_CLUSTER_CENTRO_EVACUADOS = `<svg ${ATRIBUTOS_LUCIDE}>${fondoBadge('#ffffff')}<path d="M3.5 21 14 3" /><path d="M20.5 21 10 3" /><path d="M15.5 21 12 15l-3.5 6" /><path d="M2 21h20" /></svg>`

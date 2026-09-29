@@ -221,6 +221,9 @@ const NIVEL_RIESGO_A_PELIGRO: Array<[string, NivelPeligro]> = [
   ['muy_alto', 'rojo'],
 ]
 
+const expresionMatchPeligro = (campo: string, niveles: Array<[string, NivelPeligro]>) =>
+  ['match', ['get', campo], ...niveles.flatMap(([nivel, peligro]) => [nivel, COLOR_NIVEL_PELIGRO[peligro]]), COLOR_NIVEL_PELIGRO.sin_dato] as unknown as DataDrivenPropertyValueSpecification<string>
+
 /**
  * Paint mínimo de `circle-color` para la capa de puntos de riesgo: un `match`
  * sobre `nivelRiesgo` que reutiliza los MISMOS 5 colores de la coropleta, con
@@ -228,14 +231,8 @@ const NIVEL_RIESGO_A_PELIGRO: Array<[string, NivelPeligro]> = [
  * "afectación confirmada" los decide la integración: acá sólo vive el color.
  */
 export function paintPuntosRiesgo(): CircleLayerSpecification['paint'] {
-  const expresion: unknown[] = ['match', ['get', 'nivelRiesgo']]
-  for (const [nivelRiesgo, nivelPeligro] of NIVEL_RIESGO_A_PELIGRO) {
-    expresion.push(nivelRiesgo, COLOR_NIVEL_PELIGRO[nivelPeligro])
-  }
-  expresion.push(COLOR_NIVEL_PELIGRO.sin_dato)
-
   return {
-    'circle-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
+    'circle-color': expresionMatchPeligro('nivelRiesgo', NIVEL_RIESGO_A_PELIGRO),
   }
 }
 
@@ -316,14 +313,8 @@ const NIVEL_ACCESO_A_PELIGRO: Array<[string, NivelPeligro]> = [
  * fallback para 'sin_cobertura' y cualquier valor inesperado.
  */
 export function paintPuntosRiesgoAcceso(): CircleLayerSpecification['paint'] {
-  const expresion: unknown[] = ['match', ['get', 'nivelAcceso']]
-  for (const [nivelAcceso, nivelPeligro] of NIVEL_ACCESO_A_PELIGRO) {
-    expresion.push(nivelAcceso, COLOR_NIVEL_PELIGRO[nivelPeligro])
-  }
-  expresion.push(COLOR_NIVEL_PELIGRO.sin_dato)
-
   return {
-    'circle-color': expresion as unknown as DataDrivenPropertyValueSpecification<string>,
+    'circle-color': expresionMatchPeligro('nivelAcceso', NIVEL_ACCESO_A_PELIGRO),
     // Marca visual que NO depende sólo del color (accesibilidad/daltonismo):
     // 'alto' tiene un trazo (stroke) más ancho y opaco que el resto, un
     // anillo distintivo igual que el criterio ya usado en circlePaintPartes

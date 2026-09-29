@@ -2,6 +2,7 @@
 // extraídos del prototipo `Alertas_climaticas_educativas_actualizado.html`.
 // Módulo puro: sin dependencias de React ni de MapLibre.
 import { normalizarNombreDepartamento } from './normalizar-departamento'
+import type { FillLayerSpecification, LineLayerSpecification } from 'maplibre-gl'
 
 /**
  * Ruta pública del GeoJSON con los polígonos de los 25 departamentos.
@@ -65,6 +66,25 @@ export const COLORES_DEPARTAMENTO = {
   pesoLineaNormal: 1.5,
   pesoLineaSeleccionado: 4,
 } as const
+
+export function fillPaintMascara(): FillLayerSpecification['paint'] {
+  return { 'fill-color': MASCARA_COLOR, 'fill-opacity': MASCARA_OPACIDAD }
+}
+
+export function linePaintDepartamentos(): LineLayerSpecification['paint'] {
+  return {
+    'line-color': COLORES_DEPARTAMENTO.bordeNormal,
+    'line-width': COLORES_DEPARTAMENTO.pesoLineaNormal,
+    'line-opacity': 0.95,
+  }
+}
+
+export function linePaintDepartamentoHover(): LineLayerSpecification['paint'] {
+  return {
+    'line-color': COLORES_DEPARTAMENTO.bordeSeleccionado,
+    'line-width': COLORES_DEPARTAMENTO.pesoLineaSeleccionado,
+  }
+}
 
 // ── Normalización de nombre de departamento ─────────────────────────────────
 //

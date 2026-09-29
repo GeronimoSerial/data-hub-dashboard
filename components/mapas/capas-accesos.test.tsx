@@ -152,8 +152,8 @@ const geometriaDisponible: GeometriaAccesoRespuesta = {
   resumen: { puente: 0, vado: 0, sinEvidencia: 0 },
 }
 
-function renderLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
-  return render(
+function crearLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
+  return (
     <LeyendaAccesos
       visibles={visibles(['aislamiento', 'inundacion', 'rutaSeleccion'])}
       territorio={territorio}
@@ -165,8 +165,12 @@ function renderLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> 
       geometriaLoading={false}
       geometriaError={null}
       {...overrides}
-    />,
+    />
   )
+}
+
+function renderLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
+  return render(crearLeyenda(overrides))
 }
 
 // ---------------------------------------------------------------------------
@@ -338,34 +342,16 @@ describe('LeyendaAccesos — aislamiento', () => {
       'Cargando capas territoriales…',
     )
 
-    rerender(
-      <LeyendaAccesos
-        visibles={visibles(['aislamiento'])}
-        territorio={null}
-        territorioLoading={false}
-        territorioError="boom"
-        resumen={null}
-        seleccion={null}
-        geometria={null}
-        geometriaLoading={false}
-        geometriaError={null}
-      />,
-    )
+    rerender(crearLeyenda({
+      visibles: visibles(['aislamiento']), territorio: null, territorioLoading: false,
+      territorioError: 'boom', resumen: null,
+    }))
     expect(screen.getByRole('alert')).toHaveTextContent('boom')
 
-    rerender(
-      <LeyendaAccesos
-        visibles={visibles(['aislamiento'])}
-        territorio={null}
-        territorioLoading={false}
-        territorioError={null}
-        resumen={resumen}
-        seleccion={null}
-        geometria={null}
-        geometriaLoading={false}
-        geometriaError={null}
-      />,
-    )
+    rerender(crearLeyenda({
+      visibles: visibles(['aislamiento']), territorio: null, territorioLoading: false,
+      territorioError: null, resumen,
+    }))
     expect(screen.getByTestId('leyenda-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
     )
@@ -422,7 +408,10 @@ describe('LeyendaAccesos — ruta', () => {
       geometria: geometriaDisponible, celdasExposicion: fcCeldas,
     })
     expect(screen.getByText('Agua histórica estimada junto al camino')).toBeInTheDocument()
-    rerender(<LeyendaAccesos visibles={visibles(['rutaSeleccion'])} territorio={territorio} territorioLoading={false} territorioError={null} resumen={resumen} seleccion={{ nombre: 'Escuela Uno' }} geometria={geometriaDisponible} geometriaLoading={false} geometriaError={null} celdasExposicion={null} />)
+    rerender(crearLeyenda({
+      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
+      geometria: geometriaDisponible, celdasExposicion: null,
+    }))
     expect(screen.queryByText('Agua histórica estimada junto al camino')).not.toBeInTheDocument()
   })
 
@@ -441,19 +430,10 @@ describe('LeyendaAccesos — ruta', () => {
     })
     expect(screen.getByTestId('leyenda-ruta-cargando')).toHaveTextContent('Cargando el camino…')
 
-    rerender(
-      <LeyendaAccesos
-        visibles={visibles(['rutaSeleccion'])}
-        territorio={territorio}
-        territorioLoading={false}
-        territorioError={null}
-        resumen={resumen}
-        seleccion={{ nombre: 'Escuela Uno' }}
-        geometria={null}
-        geometriaLoading={false}
-        geometriaError="falló"
-      />,
-    )
+    rerender(crearLeyenda({
+      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
+      geometria: null, geometriaError: 'falló',
+    }))
     expect(screen.getByRole('alert')).toHaveTextContent('falló')
   })
 

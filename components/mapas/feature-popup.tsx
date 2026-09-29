@@ -50,6 +50,25 @@ function pctFrac(n: number | null | undefined) {
   return `${(n * 100).toFixed(1)}%`
 }
 
+function Fila({
+  className,
+  etiqueta,
+  children,
+  dosPuntos = true,
+}: {
+  className: string
+  etiqueta: ReactNode
+  children?: ReactNode
+  dosPuntos?: boolean
+}) {
+  return (
+    <div className={className}>
+      <b>{etiqueta}{dosPuntos ? ':' : ''}</b>
+      {children != null && <> {children}</>}
+    </div>
+  )
+}
+
 function Section({
   title,
   hint,
@@ -253,50 +272,25 @@ export function FeaturePopup({
     return (
       <div className={styles.popup}>
         <h3 className={styles.popupTitle}>{p.name ?? 'Establecimiento'}</h3>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.cue}:</b> {p.cue ?? '—'}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.locality}:</b> {p.locality ?? '—'}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.department}:</b> {p.department ?? '—'}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.zone}:</b> {p.zone ?? '—'}
-        </div>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.cue}>{p.cue ?? '—'}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.locality}>{p.locality ?? '—'}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.department}>{p.department ?? '—'}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.zone}>{p.zone ?? '—'}</Fila>
 
         <Section
           title={COPY.popup.enrollmentSection}
           hint={COPY.popup.enrollmentHint}
         >
-          <div className={styles.popupRow}>
-            <b>2023:</b> {p.enrollment?.[2023] ?? '—'}
-          </div>
-          <div className={styles.popupRow}>
-            <b>2024:</b> {p.enrollment?.[2024] ?? '—'}
-          </div>
-          <div className={styles.popupRow}>
-            <b>2025:</b> {p.enrollment?.[2025] ?? '—'}
-          </div>
-          <div className={styles.popupRow}>
-            <b>2026:</b> {p.enrollment?.[2026] ?? '—'}
-          </div>
-          <div className={styles.popupRow}>
-            <b>{COPY.popup.absChange}:</b> {p.absChange ?? '—'}
-          </div>
-          <div className={styles.popupRow}>
-            <b>{COPY.popup.pctChange}:</b> {pct(p.pctChange)}
-          </div>
-          <div className={styles.popupRow}>
-            <b>{COPY.popup.trend}:</b> {p.trendLabel ?? '—'}
-          </div>
+          {([2023, 2024, 2025, 2026] as const).map((year) => (
+            <Fila key={year} className={styles.popupRow} etiqueta={year}>{p.enrollment?.[year] ?? '—'}</Fila>
+          ))}
+          <Fila className={styles.popupRow} etiqueta={COPY.popup.absChange}>{p.absChange ?? '—'}</Fila>
+          <Fila className={styles.popupRow} etiqueta={COPY.popup.pctChange}>{pct(p.pctChange)}</Fila>
+          <Fila className={styles.popupRow} etiqueta={COPY.popup.trend}>{p.trendLabel ?? '—'}</Fila>
         </Section>
 
         <Section title={COPY.popup.costsSection} hint={COPY.popup.costsHint}>
-          <div className={styles.popupRow}>
-            <b>{COPY.popup.monthlySalary}:</b> {money(p.monthlySalaryCost)}
-          </div>
+          <Fila className={styles.popupRow} etiqueta={COPY.popup.monthlySalary}>{money(p.monthlySalaryCost)}</Fila>
         </Section>
 
         {dept && sobreoferta && (
@@ -332,54 +326,36 @@ export function FeaturePopup({
   return (
     <div className={styles.popup}>
       <h3 className={styles.popupTitle}>{p.name}</h3>
-      <div className={styles.popupRow}>
-        <b>{COPY.popup.diameter}:</b> {p.diameterKm ?? 20} km
-      </div>
-      <div className={styles.popupRow}>
-        <b>{COPY.popup.establishments}:</b> {p.establishments ?? '—'}
-      </div>
-      <div className={styles.popupRow}>
-        <b>{COPY.popup.zoneCompleteCount}:</b> {p.completeHistory ?? '—'}
-      </div>
+      <Fila className={styles.popupRow} etiqueta={COPY.popup.diameter}>{p.diameterKm ?? 20} km</Fila>
+      <Fila className={styles.popupRow} etiqueta={COPY.popup.establishments}>{p.establishments ?? '—'}</Fila>
+      <Fila className={styles.popupRow} etiqueta={COPY.popup.zoneCompleteCount}>{p.completeHistory ?? '—'}</Fila>
 
       <Section
         title={COPY.popup.enrollmentSection}
         hint={COPY.popup.enrollmentHint}
       >
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.zoneAllSchools}</b>
-        </div>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.zoneAllSchools} dosPuntos={false} />
         <div className={styles.popupMuted}>
           2023: {p.observable?.[2023] ?? '—'} · 2024:{' '}
           {p.observable?.[2024] ?? '—'} · 2025: {p.observable?.[2025] ?? '—'} ·
           2026: {p.observable?.[2026] ?? '—'}
         </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.zoneCompleteHistory}</b>
-        </div>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.zoneCompleteHistory} dosPuntos={false} />
         <div className={styles.popupMuted}>
           2023: {p.comparable?.[2023] ?? '—'} · 2026:{' '}
           {p.comparable?.[2026] ?? '—'}
         </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.pctChange}:</b> {pct(p.pctChange)}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.trend}:</b> {p.trendLabel ?? '—'}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.upDownFlat}:</b> {p.upCount ?? '—'} / {p.downCount ?? '—'}{' '}
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.pctChange}>{pct(p.pctChange)}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.trend}>{p.trendLabel ?? '—'}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.upDownFlat}>
+          {p.upCount ?? '—'} / {p.downCount ?? '—'}{' '}
           / {p.flatCount ?? '—'}
-        </div>
+        </Fila>
       </Section>
 
       <Section title={COPY.popup.costsSection} hint={COPY.popup.costsHint}>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.monthlySalary}:</b> {money(p.monthlySalaryCost)}
-        </div>
-        <div className={styles.popupRow}>
-          <b>{COPY.popup.monthlySavings}:</b> {money(p.monthlySavings)}
-        </div>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.monthlySalary}>{money(p.monthlySalaryCost)}</Fila>
+        <Fila className={styles.popupRow} etiqueta={COPY.popup.monthlySavings}>{money(p.monthlySavings)}</Fila>
       </Section>
 
       {zone && sobreoferta && (
