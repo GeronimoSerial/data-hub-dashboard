@@ -48,6 +48,7 @@ from geo_static.osm_aislamiento import (
     construir_indice_no_conectadas,
     construir_red_local,
 )
+from _helpers import patch_nearest_nodes
 
 NAN = float("nan")
 
@@ -207,7 +208,7 @@ def _grafo_con_nodo_desconectado():
 class TestCalcularMetricasEscuela:
     def test_cruce_con_puente_y_alternativa_no_bloquea(self, monkeypatch):
         grafo = _grafo_sintetico_con_puente_y_alternativa()
-        _patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
         arbol_agua = construir_arbol_agua([_stream_que_cruza_puente()])
         cruces = construir_cruces_por_arista(grafo, arbol_agua, [_stream_que_cruza_puente()])
 
@@ -230,7 +231,7 @@ class TestCalcularMetricasEscuela:
         ausencia de dato, no confunde "no tengo la capa" con "no hay cruce
         real"; el job de produccion SIEMPRE pasa `cruces_por_arista`."""
         grafo = _grafo_sintetico_con_puente_y_alternativa()
-        _patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
         metricas = calcular_metricas_escuela(
             grafo, lat=-27.50, lon=-58.90, nodo_cabecera="cabecera",
         )
@@ -238,7 +239,7 @@ class TestCalcularMetricasEscuela:
 
     def test_vado_sin_alternativa_marca_sin_alternativa(self, monkeypatch):
         grafo = _grafo_sintetico_con_vado_sin_alternativa()
-        _patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
         agua = [_river_que_cruza_vado()]
         arbol_agua = construir_arbol_agua(agua)
         cruces = construir_cruces_por_arista(grafo, arbol_agua, agua)
@@ -280,7 +281,7 @@ class TestCalcularMetricasEscuela:
         agua = [LineString([(-58.85, -29.0), (-58.85, 20.0)])]
         arbol_agua = construir_arbol_agua(agua)
         cruces = construir_cruces_por_arista(g, arbol_agua, agua)
-        _patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
 
         metricas = calcular_metricas_escuela(
             g, lat=-27.50, lon=-58.90, nodo_cabecera="cabecera",
@@ -309,7 +310,7 @@ class TestCalcularMetricasEscuela:
         agua = [LineString([(0.0, 0.0), (1.0, 1.0)])]
         arbol_agua = construir_arbol_agua(agua)
         cruces = construir_cruces_por_arista(g, arbol_agua, agua)
-        _patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
 
         metricas = calcular_metricas_escuela(
             g, lat=-27.50, lon=-58.90, nodo_cabecera="cabecera",
@@ -327,23 +328,13 @@ class TestCalcularMetricasEscuela:
 
     def test_snap_lejano_marca_sin_conexion_red(self, monkeypatch):
         grafo = _grafo_con_nodo_desconectado()
-        _patch_nearest_nodes(monkeypatch, ("aislado_lejos", 9000.0))
+        patch_nearest_nodes(monkeypatch, ("aislado_lejos", 9000.0))
         metricas = calcular_metricas_escuela(
             grafo, lat=-30.0, lon=-50.0, nodo_cabecera="cabecera"
         )
         assert metricas["motivo_sin_datos"] == "sin_conexion_red"
         assert metricas["distancia_via_pavimentada_m"] is None
         assert metricas["tramos_sin_pavimentar_count"] is None
-
-
-def _patch_nearest_nodes(monkeypatch, retorno):
-    import osmnx as ox
-
-    def fake_nearest_nodes(grafo, X, Y, return_dist=False):
-        assert return_dist is True
-        return retorno
-
-    monkeypatch.setattr(ox.distance, "nearest_nodes", fake_nearest_nodes)
 
 
 class TestConstruirCrucesPorArista:
@@ -487,7 +478,7 @@ class TestReproduccionBugTodosLosCrucesSonPuente:
         agua = [LineString([(-58.85, -29.0), (-58.85, 20.0)])]
         arbol_agua = construir_arbol_agua(agua)
         cruces = construir_cruces_por_arista(g, arbol_agua, agua)
-        _patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
 
         metricas = calcular_metricas_escuela(
             g, lat=-27.50, lon=-58.90, nodo_cabecera="cabecera",
@@ -659,19 +650,12 @@ class TestCalcularMetricasDepartamentoEquivalencia:
     """
 
     def test_resultados_identicos_por_escuela(self, monkeypatch):
-        import osmnx as ox
-
         g, agua = _grafo_multi_departamento_con_cabecera_compartida()
         arbol_agua = construir_arbol_agua(agua)
         cruces = construir_cruces_por_arista(g, arbol_agua, agua)
         grafo_seguro = construir_grafo_seguro(g, cruces)
 
-        escuelas = [
-            {"cueAnexo": "A", "lat": -27.50, "lon": -58.90},
-            {"cueAnexo": "B", "lat": -27.50, "lon": -78.90},
-            {"cueAnexo": "C", "lat": -27.50, "lon": -98.90},
-            {"cueAnexo": "D", "lat": -27.50, "lon": -118.90},
-        ]
+        escuelas = _escuelas_export_departamento()
         mapeo_nodo = {
             (-58.90, -27.50): ("escuela_a", 10.0),
             (-78.90, -27.50): ("escuela_b", 10.0),
@@ -679,13 +663,7 @@ class TestCalcularMetricasDepartamentoEquivalencia:
             (-118.90, -27.50): ("escuela_d", 10.0),
         }
 
-        def fake_nearest_nodes(grafo, X, Y, return_dist=False):
-            if isinstance(X, (list, tuple)):
-                nodos, dists = zip(*(mapeo_nodo[(x, y)] for x, y in zip(X, Y)))
-                return list(nodos), list(dists)
-            return mapeo_nodo[(X, Y)]
-
-        monkeypatch.setattr(ox.distance, "nearest_nodes", fake_nearest_nodes)
+        _patch_nearest_nodes_departamento(monkeypatch, mapeo_nodo)
 
         # Ground truth: per-escuela, una llamada por escuela.
         esperado = [
@@ -951,6 +929,19 @@ def _escuelas_sinteticas():
     ]
 
 
+def _bloquear(monkeypatch, modulo, nombre, mensaje):
+    def bloqueado(*args, **kwargs):
+        raise AssertionError(mensaje)
+
+    monkeypatch.setattr(modulo, nombre, bloqueado)
+
+
+def _fake_agua_vacia(monkeypatch, modulo):
+    monkeypatch.setattr(
+        modulo, "construir_geometrias_agua_y_fords_local", lambda *args, **kwargs: ([], [])
+    )
+
+
 def _preparar_job(monkeypatch, tmp_path, pbf_path):
     import geo_static.jobs.calcular_aislamiento as job
 
@@ -989,18 +980,13 @@ class TestCorrerSeleccionDeRed:
 
         monkeypatch.setattr(osm_mod, "construir_red", fake_construir_red)
 
-        def fake_construir_red_local(*args, **kwargs):
-            raise AssertionError("construir_red_local no debe usarse sin extracto local")
-
-        monkeypatch.setattr(osm_mod, "construir_red_local", fake_construir_red_local)
-
-        def fake_construir_geometrias_agua_local(*args, **kwargs):
-            raise AssertionError(
-                "el camino sin extracto local no debe intentar cargar la capa de agua"
-            )
-
-        monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
+        _bloquear(
+            monkeypatch, osm_mod, "construir_red_local",
+            "construir_red_local no debe usarse sin extracto local",
+        )
+        _bloquear(
+            monkeypatch, osm_mod, "construir_geometrias_agua_y_fords_local",
+            "el camino sin extracto local no debe intentar cargar la capa de agua",
         )
 
         llamado_pyrosm = {"n": 0}
@@ -1035,10 +1021,10 @@ class TestCorrerSeleccionDeRed:
 
         monkeypatch.setattr(osm_mod, "construir_red_local", fake_construir_red_local)
 
-        def fake_construir_red(*args, **kwargs):
-            raise AssertionError("construir_red (Overpass) no debe usarse con extracto local")
-
-        monkeypatch.setattr(osm_mod, "construir_red", fake_construir_red)
+        _bloquear(
+            monkeypatch, osm_mod, "construir_red",
+            "construir_red (Overpass) no debe usarse con extracto local",
+        )
 
         llamadas_agua = {"n": 0}
 
@@ -1127,12 +1113,7 @@ class TestCorrerSinRuta:
 
         monkeypatch.setattr(osm_mod, "construir_red_local", fake_construir_red_local)
 
-        def fake_construir_geometrias_agua_local(*args, **kwargs):
-            return ([], [])
-
-        monkeypatch.setattr(
-            osm_mod, "construir_geometrias_agua_y_fords_local", fake_construir_geometrias_agua_local
-        )
+        _fake_agua_vacia(monkeypatch, osm_mod)
 
         # Toda escuela snapea a > 5 km; el punto de la via aislada a 200 m de la red.
         import osmnx as ox
@@ -1182,6 +1163,7 @@ def _mapeo_export_departamento():
 
 
 def _escuelas_export_departamento():
+    """Shared school coordinates for department batching and geometry exports."""
     return [
         {"cueAnexo": "A", "lat": -27.50, "lon": -58.90},
         {"cueAnexo": "B", "lat": -27.50, "lon": -78.90},

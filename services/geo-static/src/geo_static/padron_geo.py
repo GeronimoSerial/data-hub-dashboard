@@ -34,11 +34,18 @@ R_TIERRA_KM = 6371.0088
 # services/geo-static/src/geo_static/padron_geo.py, por lo que parents[4] es
 # la raiz del repositorio.
 REPO_ROOT = Path(__file__).resolve().parents[4]
+PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
 
 CABECERAS_PATH = REPO_ROOT / "services" / "geo-static" / "data" / "cabeceras_departamentales.json"
 DEPARTAMENTOS_GEOJSON_PATH = (
     REPO_ROOT / "public" / "data" / "departamentos-corrientes-georef-2026-09-27.geojson"
 )
+
+
+def cargar_padron() -> list[dict]:
+    with open(PADRON_PATH, encoding="utf-8") as f:
+        escuelas = json.load(f)
+    return [escuela for escuela in escuelas if escuela.get("lat") and escuela.get("lon")]
 
 
 def normalizar_nombre(s: str) -> str:

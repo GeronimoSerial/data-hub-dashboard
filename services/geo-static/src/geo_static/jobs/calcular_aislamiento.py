@@ -39,7 +39,6 @@ queda solo como fallback (excepcion por departamento o red por Overpass).
 
 from __future__ import annotations
 
-import csv
 import gzip
 import json
 import sys
@@ -49,6 +48,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from geo_static import padron_geo
+from geo_static.csv_utils import escribir_csv
 
 # v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
 # departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
@@ -60,7 +60,7 @@ LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 BBOX_CORRIENTES = (-27.15, -30.80, -55.60, -60.35)
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
+PADRON_PATH = padron_geo.PADRON_PATH
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 
 # Insumos del gate geografico y de las sedes oficiales (N3-A). Se exponen como
@@ -119,10 +119,7 @@ COLUMNAS_SIN_RUTA = [
 ]
 
 
-def cargar_padron() -> list[dict]:
-    with open(PADRON_PATH, encoding="utf-8") as f:
-        escuelas = json.load(f)
-    return [e for e in escuelas if e.get("lat") and e.get("lon")]
+cargar_padron = padron_geo.cargar_padron
 
 
 def calcular_cabeceras_departamentales(escuelas: list[dict]) -> dict[str, tuple[float, float]]:
@@ -172,21 +169,26 @@ def _fila_escuela(escuela: dict, metricas: dict, indice, fecha_extracto: str) ->
 def _fila_sin_datos(
     escuela: dict, fecha_extracto: str, motivo: str = "sin_conexion_red"
 ) -> dict:
-    return {
+    fila = dict.fromkeys(CONTRATO_COLUMNAS)
+    fila.update({
         "cue_anexo": escuela["cueAnexo"],
-        "distancia_via_pavimentada_m": None,
-        "distancia_cabecera_departamental_m": None,
-        "tramos_sin_pavimentar_count": None,
-        "cruces_agua_count": None,
-        "cruces_agua_con_puente_count": None,
-        "cruces_agua_con_vado_count": None,
-        "tiene_alternativa_sin_cruce": None,
-        "indice_aislamiento": None,
         "motivo_sin_datos": motivo,
-        "snap_distancia_m": None,
         "version_job": VERSION_JOB,
         "fecha_extracto_osm": fecha_extracto,
         "licencia": LICENCIA_OSM,
+    })
+    return fila
+
+
+def _registro_geometria(cue_anexo, fecha_extracto, ruta, cruces, motivo):
+    return {
+        "cue_anexo": cue_anexo,
+        "version_job": VERSION_JOB,
+        "fecha_extracto_osm": fecha_extracto,
+        "licencia": LICENCIA_OSM,
+        "ruta": ruta,
+        "cruces": cruces,
+        "motivo_sin_geometria": motivo,
     }
 
 
@@ -270,12 +272,8 @@ def _escribir_csv_sin_ruta(
         )
     rows.sort(key=lambda row: row["cue_anexo"])
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUT_DIR / f"aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha_extracto}.csv"
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=COLUMNAS_SIN_RUTA)
-        writer.writeheader()
-        writer.writerows(rows)
+    escribir_csv(out_path, COLUMNAS_SIN_RUTA, rows)
     return out_path, rows
 
 
@@ -475,15 +473,10 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     )
                     filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
                     registros_geometria.append(
-                        {
-                            "cue_anexo": escuela["cueAnexo"],
-                            "version_job": VERSION_JOB,
-                            "fecha_extracto_osm": fecha_extracto,
-                            "licencia": LICENCIA_OSM,
-                            "ruta": geometria["ruta"],
-                            "cruces": geometria["cruces"],
-                            "motivo_sin_geometria": geometria["motivo_sin_geometria"],
-                        }
+                        _registro_geometria(
+                            escuela["cueAnexo"], fecha_extracto, geometria["ruta"],
+                            geometria["cruces"], geometria["motivo_sin_geometria"],
+                        )
                     )
             except Exception as exc:
                 print(
@@ -493,15 +486,9 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 for e in escuelas_depto:
                     filas.append(_fila_sin_datos(e, fecha_extracto))
                     registros_geometria.append(
-                        {
-                            "cue_anexo": e["cueAnexo"],
-                            "version_job": VERSION_JOB,
-                            "fecha_extracto_osm": fecha_extracto,
-                            "licencia": LICENCIA_OSM,
-                            "ruta": None,
-                            "cruces": [],
-                            "motivo_sin_geometria": "sin_conexion_red",
-                        }
+                        _registro_geometria(
+                            e["cueAnexo"], fecha_extracto, None, [], "sin_conexion_red"
+                        )
                     )
                 continue
 
@@ -522,15 +509,10 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
             )
             registros_geometria.append(
-                {
-                    "cue_anexo": e["cueAnexo"],
-                    "version_job": VERSION_JOB,
-                    "fecha_extracto_osm": fecha_extracto,
-                    "licencia": LICENCIA_OSM,
-                    "ruta": None,
-                    "cruces": [],
-                    "motivo_sin_geometria": "coordenada_fuera_de_departamento",
-                }
+                _registro_geometria(
+                    e["cueAnexo"], fecha_extracto, None, [],
+                    "coordenada_fuera_de_departamento",
+                )
             )
 
         ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_extracto)
@@ -624,19 +606,17 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
             )
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUT_DIR / f"aislamiento_osm-v{VERSION_JOB}-{fecha_extracto}.csv"
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CONTRATO_COLUMNAS)
-        writer.writeheader()
-        for fila in filas:
-            fila_final = {k: fila.get(k, "") for k in CONTRATO_COLUMNAS}
-            for k, v in fila_final.items():
-                if v is None:
-                    fila_final[k] = ""
-                elif isinstance(v, bool):
-                    fila_final[k] = int(v)
-            writer.writerow(fila_final)
+    filas_finales = []
+    for fila in filas:
+        fila_final = {k: fila.get(k, "") for k in CONTRATO_COLUMNAS}
+        for k, v in fila_final.items():
+            if v is None:
+                fila_final[k] = ""
+            elif isinstance(v, bool):
+                fila_final[k] = int(v)
+        filas_finales.append(fila_final)
+    escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
 
     t1 = time.monotonic()
     con_indice = sum(1 for f in filas if f["indice_aislamiento"] is not None)

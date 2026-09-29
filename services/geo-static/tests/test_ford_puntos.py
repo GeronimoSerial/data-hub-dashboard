@@ -27,6 +27,7 @@ from geo_static.osm_aislamiento import (
     construir_cruces_por_arista,
     construir_geometrias_agua_y_fords_local,
 )
+from _helpers import patch_nearest_nodes
 
 TRANSFORMER = Transformer.from_crs(4326, 32721, always_xy=True)
 
@@ -60,16 +61,6 @@ def _ford_a_metros(dx_m, dy_m):
     x, y = TRANSFORMER.transform(LON_CRUCE, LAT_CRUCE)
     lon, lat = TRANSFORMER.transform(x + dx_m, y + dy_m, direction="INVERSE")
     return Point(lon, lat)
-
-
-def _patch_nearest_nodes(monkeypatch, retorno):
-    import osmnx as ox
-
-    def fake_nearest_nodes(grafo, X, Y, return_dist=False):
-        assert return_dist is True
-        return retorno
-
-    monkeypatch.setattr(ox.distance, "nearest_nodes", fake_nearest_nodes)
 
 
 def _cruces_con_ford(puntos_ford):
@@ -137,7 +128,7 @@ class TestConteoNoCambia:
             g, arbol, agua, puntos_ford=[_ford_a_metros(5.0, 0.0)]
         )
 
-        _patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
+        patch_nearest_nodes(monkeypatch, ("escuela", 10.0))
         metricas_sin = calcular_metricas_escuela(
             g, lat=A[1], lon=A[0], nodo_cabecera="cabecera", cruces_por_arista=sin_ford
         )

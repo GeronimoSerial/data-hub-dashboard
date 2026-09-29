@@ -13,8 +13,6 @@ CSV versionado del contrato de datos.
 
 from __future__ import annotations
 
-import csv
-import json
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -27,11 +25,14 @@ from geo_static.physrisk_susceptibilidad import (
     construir_fila_escuela,
     leer_peligro_lote,
 )
+from geo_static import padron_geo
+from geo_static.csv_utils import escribir_csv
 
 VERSION_JOB = "1"
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-PADRON_PATH = REPO_ROOT / "public" / "data" / "localizaciones.json"
+PADRON_PATH = padron_geo.PADRON_PATH
+cargar_padron = padron_geo.cargar_padron
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 
 CONTRATO_COLUMNAS = [
@@ -46,12 +47,6 @@ CONTRATO_COLUMNAS = [
     "fecha_corrida",
     "licencia",
 ]
-
-
-def cargar_padron() -> list[dict]:
-    with open(PADRON_PATH, encoding="utf-8") as f:
-        escuelas = json.load(f)
-    return [e for e in escuelas if e.get("lat") and e.get("lon")]
 
 
 def correr() -> None:
@@ -96,14 +91,12 @@ def correr() -> None:
         )
         filas.append(fila)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = OUTPUT_DIR / f"susceptibilidad_estatica-v{VERSION_JOB}-{fecha_corrida[:4]}.csv"
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=CONTRATO_COLUMNAS)
-        writer.writeheader()
-        for fila in filas:
-            fila_final = {k: ("" if fila.get(k) is None else fila.get(k)) for k in CONTRATO_COLUMNAS}
-            writer.writerow(fila_final)
+    filas_finales = [
+        {k: ("" if fila.get(k) is None else fila.get(k)) for k in CONTRATO_COLUMNAS}
+        for fila in filas
+    ]
+    escribir_csv(out_path, CONTRATO_COLUMNAS, filas_finales)
 
     t1 = time.monotonic()
     con_physrisk = sum(1 for f in filas if f["fuente"] == "physrisk")

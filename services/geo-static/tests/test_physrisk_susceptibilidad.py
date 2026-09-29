@@ -168,6 +168,13 @@ class _ReaderSiempreRoto:
         raise ConnectionError('bucket S3 caido')
 
 
+def _crear_store_falso(mensaje):
+    def _no_debe_crearse(*args, **kwargs):
+        raise AssertionError(mensaje)
+
+    return _no_debe_crearse
+
+
 def test_leer_peligro_lote_reintenta_y_termina_con_datos(monkeypatch):
     monkeypatch.setattr('time.sleep', lambda *_: None)
     reader = _ReaderFallaIntermitente(
@@ -193,11 +200,9 @@ def test_leer_peligro_lote_agota_reintentos_y_cae_a_none(monkeypatch):
 
 
 def test_reader_inyectado_no_crea_store_cacheado(monkeypatch):
-    def _no_debe_crearse(*args, **kwargs):
-        raise AssertionError('no debe crearse store cacheado si hay reader inyectado')
-
     monkeypatch.setattr(
-        'geo_static.physrisk_susceptibilidad._crear_store_cacheado', _no_debe_crearse
+        'geo_static.physrisk_susceptibilidad._crear_store_cacheado',
+        _crear_store_falso('no debe crearse store cacheado si hay reader inyectado'),
     )
     reader = _ReaderFalso(
         curvas=np.array([[0.3]]),
@@ -210,11 +215,9 @@ def test_reader_inyectado_no_crea_store_cacheado(monkeypatch):
 
 
 def test_crear_reader_usa_store_inyectado_sin_crear_cacheado(monkeypatch):
-    def _no_debe_crearse(*args, **kwargs):
-        raise AssertionError('no debe crearse store cacheado si se inyecta un store')
-
     monkeypatch.setattr(
-        'geo_static.physrisk_susceptibilidad._crear_store_cacheado', _no_debe_crearse
+        'geo_static.physrisk_susceptibilidad._crear_store_cacheado',
+        _crear_store_falso('no debe crearse store cacheado si se inyecta un store'),
     )
     capturado = {}
 
