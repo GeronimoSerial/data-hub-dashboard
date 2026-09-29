@@ -151,3 +151,50 @@ export function RadarLayerControl({
     </div>
   )
 }
+
+// ── Capas territoriales del mapa de accesos ─────────────────────────────────
+//
+// Dominio SEPARADO del de infraestructura y del de radar: capas territoriales
+// ESTÁTICAS (índice de aislamiento OSM y susceptibilidad histórica physrisk) y
+// la ruta OSM de la escuela seleccionada. Son contexto derivado offline, nunca
+// un pronóstico ni el estado confirmado del edificio. Tercer union type y
+// componente hermano para no acoplar el acotamiento de los dominios previos.
+export type CapaAccesos = 'aislamiento' | 'inundacion' | 'rutaSeleccion'
+
+export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
+  aislamiento: 'Aislamiento de acceso (OSM, estático)',
+  inundacion: 'Susceptibilidad histórica de inundación fluvial (physrisk)',
+  rutaSeleccion: 'Ruta y cruces de agua de la escuela seleccionada (OSM)',
+}
+
+const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = ['aislamiento', 'inundacion', 'rutaSeleccion']
+
+export function AccesosLayerControl({
+  capas,
+  onChange,
+}: {
+  capas: Record<CapaAccesos, boolean>
+  onChange: (capa: CapaAccesos, value: boolean) => void
+}) {
+  const styles = useOverlayStyles()
+
+  return (
+    <div
+      className={styles.controlCard}
+      role="group"
+      aria-labelledby="accesos-layer-control-heading"
+    >
+      <h2 className={styles.controlHeading} id="accesos-layer-control-heading">
+        Capas territoriales
+      </h2>
+      {ORDEN_CAPAS_ACCESOS.map((capa) => (
+        <Checkbox
+          key={capa}
+          label={CAPAS_ACCESOS_LABELS[capa]}
+          checked={capas[capa]}
+          onCheckedChange={(checked) => onChange(capa, checked)}
+        />
+      ))}
+    </div>
+  )
+}
