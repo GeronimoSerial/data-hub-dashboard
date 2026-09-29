@@ -48,6 +48,7 @@ export function useTerritorioMapa(habilitado: boolean): {
     pedidoRef.current = true
     const controller = new AbortController()
     abortRef.current = controller
+    let resuelto = false
 
     void (async () => {
       try {
@@ -68,12 +69,22 @@ export function useTerritorioMapa(habilitado: boolean): {
       } catch {
         if (controller.signal.aborted || desmontadoRef.current) return
         setResultado({ data: null, error: MENSAJE_ERROR })
+      } finally {
+        resuelto = true
       }
     })()
 
     return () => {
       desmontadoRef.current = true
       abortRef.current?.abort()
+      // StrictMode double-invoca los efectos: el cleanup aborta el pedido en
+      // vuelo, pero si `pedidoRef` quedara en true el re-run nunca volvería a
+      // fetch (data null / loading true en dev). Si el pedido todavía no
+      // resolvió, se libera la marca para permitir el siguiente intento.
+      if (!resuelto) {
+        pedidoRef.current = false
+        abortRef.current = null
+      }
     }
   }, [habilitado, resultado])
 

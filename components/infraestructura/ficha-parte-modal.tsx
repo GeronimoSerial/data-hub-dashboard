@@ -24,6 +24,10 @@ import {
 } from './estado-actual-textos'
 import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
 import { FichaTerritorial } from './ficha-territorial'
+import {
+  FichaAccesoTerritorial,
+  type FichaAccesoTerritorialProps,
+} from './ficha-acceso-territorial'
 
 // --- Forma de GET /api/mapas/infraestructura/parte (ver app/api/mapas/infraestructura/parte/route.ts) ---
 //
@@ -439,6 +443,7 @@ export function FichaParteModal({
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
   habilitado = false,
+  accesoTerritorial,
 }: {
   cueAnexo: string
   open: boolean
@@ -461,6 +466,11 @@ export function FichaParteModal({
   // para esta escuela. Default `false` para no cambiar el comportamiento
   // existente de todo el mapa que ya usa este modal.
   habilitado?: boolean
+  // Acceso territorial estático (aislamiento OSM + susceptibilidad physrisk +
+  // ruta). Presentacional: el padre resuelve estos datos y su loading/error.
+  // Opcional y gateado por `habilitado`; el mapa lo pasa en otra tarea, así
+  // que su ausencia no cambia el modal actual.
+  accesoTerritorial?: FichaAccesoTerritorialProps
 }): JSX.Element | null {
   const cerrarRef = useRef<HTMLButtonElement>(null)
 
@@ -528,6 +538,9 @@ export function FichaParteModal({
             `open` a propósito: sus fetches no deben existir con el panel
             cerrado. El flag lo decide el padre; acá sólo se respeta. */}
         {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
+        {habilitado && accesoTerritorial && (
+          <FichaAccesoTerritorial {...accesoTerritorial} />
+        )}
       </div>
     </div>
   )
