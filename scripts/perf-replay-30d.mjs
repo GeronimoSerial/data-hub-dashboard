@@ -15,32 +15,16 @@
  * 300 escuelas (orden de magnitud real, ver docs E2) con 60 corridas de
  * riesgo (30 días a 12 h) para medir el costo de generarReplay a escala.
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('/')) {
-      const base = specifier.startsWith('/') ? specifier : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+
+registerTsResolver(root)
 
 const dir = mkdtempSync(join(tmpdir(), 'perf-replay-30d-'))
 process.env.DATA_DIR = dir

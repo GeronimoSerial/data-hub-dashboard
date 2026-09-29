@@ -42,10 +42,10 @@
  * Semilla de aleatoriedad fija (SEMILLA más abajo): correrlo dos veces con la
  * misma base produce exactamente el mismo resultado.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 // Carga .env manualmente: este script se invoca como `node scripts/...`, sin
 // pasar por Next.js (que lo haría solo) ni por vitest (los tests setean las
@@ -75,32 +75,9 @@ if (process.env.DEMO_OK !== '1' || !process.env.DATA_DIR) {
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-// Mismo hook de resolución ESM que scripts/sync-ge.mjs e import-padron.mjs:
-// Node no completa la extensión '.ts' ni resuelve el alias '@/' por su
-// cuenta. Repetido acá (no extraído a un helper compartido) porque estos
-// scripts son standalone a propósito y no importan entre sí.
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('/')) {
-      const base = specifier.startsWith('/')
-        ? specifier
-        : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+// Node no completa la extensión '.ts' ni resuelve el alias '@/'. El helper
+// vive en scripts/lib, que Docker copia junto con este script.
+registerTsResolver(root)
 
 const { crearEjecutorSql, ejecutarEnTransaccion, getCorteVigente } = await import('../lib/infraestructura/ge-db.ts')
 const { getRawClient } = await import('../lib/db/index.ts')

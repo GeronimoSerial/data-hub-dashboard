@@ -23,13 +23,14 @@
  * al final se lo avanza hasta MAX(id) (o `is_called = false` si la tabla quedó
  * vacía) para que el próximo insert autogenerado no colisione.
  */
-import { copyFileSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { createClient } from '@libsql/client'
 import { getTableColumns, getTableName, sql } from 'drizzle-orm'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -38,32 +39,7 @@ const root = join(__dirname, '..')
 // @/ lo mapea Node vía tsconfig, pero deja la ruta sin extensión, que el
 // resolver ESM no completa. Mismo hook que scripts/import-padron.mjs y
 // sync-ge.mjs.
-function resolveTsCandidate(base) {
-  for (const candidate of [base, `${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate
-  }
-  return null
-}
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (
-      specifier.startsWith('./') ||
-      specifier.startsWith('../') ||
-      specifier.startsWith('/')
-    ) {
-      const base = specifier.startsWith('/')
-        ? specifier
-        : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+registerTsResolver(root, { filesOnly: true, extensionless: true })
 
 import {
   COLUMNAS_GE,

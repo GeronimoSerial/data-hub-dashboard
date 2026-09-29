@@ -12,10 +12,10 @@
  *
  * Usage: node scripts/job-episodios-derivados.mjs
  */
-import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -23,32 +23,7 @@ const root = join(__dirname, '..')
 // Mismo hook que scripts/job-diagnostico.mjs y scripts/sync-ge.mjs:
 // lib/infraestructura/riesgo/job-run.ts importa vía alias '@/' y rutas
 // relativas sin extensión, que el resolver ESM nativo no completa.
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (
-      specifier.startsWith('./') ||
-      specifier.startsWith('../') ||
-      specifier.startsWith('/')
-    ) {
-      const base = specifier.startsWith('/')
-        ? specifier
-        : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+registerTsResolver(root)
 
 // Busy timeout nativo, sólo seguro acá (ver el comentario largo de
 // lib/db/index.ts#getDb): este script es su PROPIO proceso de Node con una

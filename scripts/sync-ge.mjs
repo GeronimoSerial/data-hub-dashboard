@@ -4,11 +4,12 @@
  * establishments.geojson y arma un corte sintético de prueba (fixture) en ge.sqlite.
  * Usage: node scripts/sync-ge.mjs --fixture
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { normalizeCue } from '../lib/infraestructura/cue.ts'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -16,28 +17,7 @@ const root = join(__dirname, '..')
 // lib/infraestructura/ge-db.ts importa '@libsql/client' y '@/lib/data-dir'. El alias @/
 // lo mapea Node vía tsconfig, pero deja la ruta sin extensión ('../data-dir'), que el
 // resolver ESM no completa. Registramos un hook que agrega '.ts' antes de importar.
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('/')) {
-      const base = specifier.startsWith('/')
-        ? specifier
-        : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+registerTsResolver(root)
 
 const { ensureGeSchema, activarCorte, crearEjecutorSql } = await import(
   '../lib/infraestructura/ge-db.ts'
