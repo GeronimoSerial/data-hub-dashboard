@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
 import { ensureSeeded } from '@/lib/db/seed'
-import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
+import { aiBriefingEnabled, situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 import { obtenerEstadoSituacion } from '@/lib/infraestructura/riesgo/situacion/consulta'
 import { SituacionClient } from '@/components/infraestructura/situacion-client'
 
@@ -54,6 +54,7 @@ export default async function SituacionPage() {
           atraso: estadoInicial.atraso,
           prioridades: estadoInicial.prioridades,
         }}
+        aiBriefingEnabled={aiBriefingEnabled()}
       />
     </div>
   )

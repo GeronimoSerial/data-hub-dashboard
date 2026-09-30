@@ -296,9 +296,7 @@ const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
   riesgo: true,
   // Apagada por defecto: el acceso es contexto adicional, no el encuadre base.
-  // TODO(E6): consumir este toggle en map-infraestructura-page.tsx (dibujar la
-  // capa de acceso sobre los puntos de riesgo). Hoy sólo existe la definición
-  // del control; el estado ya viaja a <RadarLayerControl>.
+  // La capa se dibuja sobre los puntos de riesgo cuando este toggle está activo.
   'riesgo-acceso': false,
 }
 
@@ -869,7 +867,10 @@ export default function MapInfraestructuraPage(props: {
   // `modo` arranca SIEMPRE en 'actual' ("Situación actual"), aun con los
   // flags prendidos; el conmutador sólo muestra el botón de cada modo si su
   // propio flag está activo.
-  const [modo, setModo] = useState<ModoMapa>('actual')
+  const [modo, setModo] = useState<ModoMapa>(() => {
+    const query = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
+    return query?.get('modo') === 'replay' && props.replayEnabled ? 'replay' : 'actual'
+  })
   const modoRadar = modo === 'radar'
   const modoReplay = modo === 'replay'
   // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
@@ -916,6 +917,10 @@ export default function MapInfraestructuraPage(props: {
   // consulta hasta que el usuario elige explícitamente departamento y
   // ventana (o un episodio derivado), y NUNCA hay reproducción automática al
   // entrar (`playingReplay` arranca siempre en false).
+  const episodioInicial = typeof window === 'undefined'
+    ? null
+    : new URLSearchParams(window.location.search).get('episodio')
+  const [episodioDerivadoId, setEpisodioDerivadoId] = useState<string | null>(episodioInicial)
   const [territorioIdReplay, setTerritorioIdReplay] = useState<string | null>(null)
   const [desdeReplay, setDesdeReplay] = useState('')
   const [hastaReplay, setHastaReplay] = useState('')
@@ -945,8 +950,9 @@ export default function MapInfraestructuraPage(props: {
       hasta: hastaReplay || undefined,
       paso: PASO_REPLAY_HORAS,
       vista: vistaReplay,
+      episodioDerivadoId: episodioDerivadoId ?? undefined,
     }),
-    [territorioIdReplay, desdeReplay, hastaReplay, vistaReplay],
+    [territorioIdReplay, desdeReplay, hastaReplay, vistaReplay, episodioDerivadoId],
   )
   const { data: replayData, loading: replayLoading, error: replayError } = useReplay(
     filtrosReplay,
@@ -2711,6 +2717,8 @@ export default function MapInfraestructuraPage(props: {
               playing={playingReplay}
               onPlayingChange={setPlayingReplay}
               onVolver={volverDeReplay}
+              episodioDerivadoId={episodioDerivadoId}
+              onQuitarEpisodio={() => setEpisodioDerivadoId(null)}
             />
           ) : modoRadar ? (
             <div className={`${styles.panel} map-radar-panel`}>
@@ -2735,6 +2743,13 @@ export default function MapInfraestructuraPage(props: {
                 <>
                   <p className={styles.hint} data-testid="radar-kpi-riesgo-alto">
                     Escuelas en riesgo alto o muy alto: <strong>{radarData.kpis.riesgoAltoTotal}</strong>
+                  </p>
+                  <p className={styles.hint} data-testid="radar-kpi-sin-evidencia">
+                    Escuelas sin evidencia: <strong>{radarData.kpis.sinEvidenciaTotal}</strong>
+                  </p>
+                  <p className={styles.hint} data-testid="radar-kpi-acceso-condicionado">
+                    Acceso condicionado: <strong>{radarData.kpis.accesoCondicionado.escuelas}</strong> escuelas ·{' '}
+                    <strong>{radarData.kpis.accesoCondicionado.matricula}</strong> alumnos
                   </p>
                   {briefingLineas.length > 0 && (
                     <ul className="map-radar-briefing" data-testid="radar-briefing">

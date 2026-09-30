@@ -1,8 +1,10 @@
 // Única fuente de lectura de flags de feature del motor de riesgo: ninguna
 // otra parte del repo debe leer RISK_ENGINE_ENABLED, RISK_RADAR_ENABLED,
-// AI_BRIEFING_ENABLED ni RISK_MODE (verificado con rg antes de crear este
-// módulo). Leer process.env en cada llamada (sin cachear en el import) para
-// que los tests puedan mutar el entorno entre casos.
+// AI_BRIEFING_ENABLED ni RISK_MODE; SITUACION_, HAZARD_, SEASONAL_ y REPLAY_
+// también viven aquí. listarFlagsOperativas() enumera los flags de /admin/operacion.
+import { episodiosDerivadosEnabled } from '@/lib/infraestructura/episodios-derivados/flags'
+import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
+
 const ES_TRUE = 'true'
 const ES_ADVISORY = 'advisory'
 
@@ -61,4 +63,20 @@ export function riskMode(): 'shadow' | 'advisory' {
 // por defecto, como todos los flags de este módulo.
 export function situacionEnabled(): boolean {
   return esTrue(process.env.SITUACION_ENABLED)
+}
+
+/** Enumera los flags operativos mostrados en /admin/operacion. */
+export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }> {
+  return [
+    { nombre: 'RISK_ENGINE_ENABLED', valor: String(riskEngineEnabled()) },
+    { nombre: 'RISK_RADAR_ENABLED', valor: String(riskRadarEnabled()) },
+    { nombre: 'AI_BRIEFING_ENABLED', valor: String(aiBriefingEnabled()) },
+    { nombre: 'HAZARD_CONTEXT_ENABLED', valor: String(hazardContextEnabled()) },
+    { nombre: 'SEASONAL_ENABLED', valor: String(seasonalEnabled()) },
+    { nombre: 'REPLAY_ENABLED', valor: String(replayEnabled()) },
+    { nombre: 'RISK_MODE', valor: riskMode() },
+    { nombre: 'SITUACION_ENABLED', valor: String(situacionEnabled()) },
+    { nombre: 'EPISODIOS_DERIVADOS_ENABLED', valor: String(episodiosDerivadosEnabled()) },
+    { nombre: 'ENOS_JOBS_ENABLED', valor: String(enosJobsEnabled()) },
+  ]
 }

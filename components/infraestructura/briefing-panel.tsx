@@ -1,9 +1,8 @@
 // Panel de presentación del briefing narrativo asistido por IA (E8). Es
 // reutilizable y no se monta solo: debe montarse junto al resumen ejecutivo
 // detrás del flag aiBriefingEnabled() de lib/infraestructura/riesgo/flags.ts,
-// con el padre haciendo fetch a la API de briefings y pasando el resultado
-// como prop 'briefing'. Nunca se monta en la UI de Centro de Situación de E5
-// (ruta propia).
+// con SituacionClient haciendo fetch a /api/infraestructura/briefings/ultimo
+// y pasando el resultado como prop 'briefing'.
 import type { JSX } from 'react'
 
 export interface BriefingPanelProps {

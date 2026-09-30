@@ -74,6 +74,8 @@ export interface ReplayPanelProps {
   playing: boolean
   onPlayingChange: (valor: boolean) => void
   onVolver: () => void
+  episodioDerivadoId?: string | null
+  onQuitarEpisodio?: () => void
 }
 
 function construirUrlExport(
@@ -114,6 +116,8 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
     playing,
     onPlayingChange,
     onVolver,
+    episodioDerivadoId,
+    onQuitarEpisodio,
   } = props
 
   const cuadros = data?.cuadros ?? []
@@ -174,6 +178,15 @@ export function ReplayPanel(props: ReplayPanelProps): JSX.Element {
           ? `Estás viendo historia: ${formatearInstante(cuadroActual.instante)}`
           : 'Elegí un departamento y un rango de fechas para ver cómo evolucionó la situación (replay).'}
       </p>
+
+      {episodioDerivadoId && onQuitarEpisodio && (
+        <p className="map-replay-panel__episodio">
+          Episodio: <strong>{episodioDerivadoId}</strong>{' '}
+          <Button type="button" size="sm" variant="secondary" onClick={onQuitarEpisodio}>
+            Quitar episodio
+          </Button>
+        </p>
+      )}
 
       <div className="map-replay-panel__seleccion">
         <label htmlFor="replay-departamento">Departamento</label>
