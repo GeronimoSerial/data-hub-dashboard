@@ -5,11 +5,11 @@
  *
  * Hace dos cosas, en dos bases distintas:
  *
- *  A) En ge.sqlite (corte vigente): agrega ge_seccion + ge_alumno_seccion +
+ *  A) En schema ge (corte vigente): agrega ge_seccion + ge_alumno_seccion +
  *     ge_alumno_identidad para un subconjunto de establecimientos, porque el
  *     fixture de sync-ge.mjs sólo trae 3 secciones/4 alumnos — casi no hay
  *     matrícula para ejercitar alcance nominal ni conteos por sección.
- *  B) En hub.sqlite (período vigente): agrega infra_parte + infra_afectacion
+ *  B) En schema principal (período vigente): agrega infra_parte + infra_afectacion
  *     (+ su alcance de secciones/alumnos) + infra_servicio_alcance +
  *     infra_movimiento, con variedad deliberada de estados para que
  *     listarPartesVigentes (parte-mapa.ts) tenga algo interesante que
@@ -31,10 +31,10 @@
  *
  * Idempotencia: todo lo que este script escribe es identificable sin
  * ambigüedad y se borra antes de reinsertar en cada corrida:
- *   - hub.sqlite: ids de texto con prefijo 'demo-' (infra_parte, infra_afectacion,
+ *   - schema principal: ids de texto con prefijo 'demo-' (infra_parte, infra_afectacion,
  *     infra_servicio_alcance, infra_movimiento). Se borran por LIKE 'demo-%'
  *     antes de sembrar, así una segunda corrida no duplica nada.
- *   - ge.sqlite: ge_section_id y ge_person_id son INTEGER. Se reserva el
+ *   - schema ge: ge_section_id y ge_person_id son INTEGER. Se reserva el
  *     rango negativo <= ID_DEMO_BASE (-900000) para los datos ficticios.
  *     Los IDs del padrón real pueden ser mucho mayores que 900000; usar un
  *     rango positivo borraría datos reales durante la limpieza.
@@ -759,6 +759,9 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 async function main() {
   const limpiarSolo = process.argv.includes('--limpiar')
 
+  const { ensureSeeded } = await import('../lib/db/seed.ts')
+  await ensureSeeded()
+
   const raw = crearEjecutorSql(getRawClient())
   const ge = raw
   const hub = raw
@@ -766,14 +769,14 @@ async function main() {
   const corte = await getCorteVigente(ge)
   if (!corte) {
     throw new Error(
-      'No hay corte vigente en ge.sqlite. Corré primero node scripts/sync-ge.mjs --fixture.',
+      'No hay corte vigente en schema ge. Ejecutá primero node scripts/sync-ge.mjs --fixture.',
     )
   }
 
   if (limpiarSolo) {
     await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarHub(tx))
     await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
-    console.log('Datos de demo eliminados (hub.sqlite + ge.sqlite).')
+    console.log('Datos de demo eliminados (schemas principal + ge).')
     return
   }
 
@@ -814,7 +817,7 @@ async function main() {
       await limpiarGe(tx, corte.id)
       return sembrarMatricula(tx, corte.id, establecimientos)
     })
-  console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en ge.sqlite (corte ${corte.id}).`)
+  console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en schema ge (corte ${corte.id}).`)
 
   // Mismo criterio para Parte B.
   const resumen = await ejecutarEnTransaccion(getRawClient(), async (tx) => {
@@ -831,10 +834,9 @@ async function main() {
   console.log(`  Con retiradaEn (además de las 3 todo-retirado): ${resumen.serviciosRestaurados} servicios y ${resumen.afectacionesRetiradas} afectaciones.`)
 }
 
-await main()
-
 // --- Parte C: verificación end-to-end contra listarPartesVigentes --------
-if (!process.argv.includes('--limpiar')) {
+async function verificar() {
+  if (process.argv.includes('--limpiar')) return
   const { listarPartesVigentes } = await import('../lib/infraestructura/parte-mapa.ts')
   const { partes, indicadores } = await listarPartesVigentes()
 
@@ -847,4 +849,24 @@ if (!process.argv.includes('--limpiar')) {
       `  - ${p.nombre} (${p.cueAnexo}, ${p.departamento}/${p.localidad}): servicio=${p.servicio}, estadoEstablecimiento=${p.estadoEstablecimiento}, peorSeveridad=${p.peorSeveridad}, categorias=${p.categorias.join(',')}, secciones=${p.seccionesAlcanzadas}, alumnos=${p.alumnosAlcanzados}, actualizadaEn=${p.actualizadaEn}`,
     )
   }
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main()
+    .then(verificar)
+    .then(async () => {
+      const client = getRawClient()
+      if (typeof client.close === 'function') await client.close()
+      else await client.end()
+      process.exit(0)
+    })
+    .catch(async (error) => {
+      console.error(error instanceof Error ? error.message : error)
+      const client = getRawClient()
+      try {
+        if (typeof client.close === 'function') await client.close()
+        else await client.end()
+      } catch {}
+      process.exit(1)
+    })
 }

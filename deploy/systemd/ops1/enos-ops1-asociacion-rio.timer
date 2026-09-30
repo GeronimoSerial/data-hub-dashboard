@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: asociacion-rio (diario, después de geo-perfiles)
+
+[Timer]
+# geo-perfiles corre a las 03:00 UTC; el margen de diez minutos contempla su
+# retardo aleatorio de hasta cinco minutos antes de calcular las asociaciones.
+OnCalendar=*-*-* 03:10:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@asociacion-rio.service
+
+[Install]
+WantedBy=timers.target

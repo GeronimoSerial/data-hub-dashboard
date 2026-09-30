@@ -3,7 +3,7 @@
  * Importador de las capas territoriales estáticas de G1 (aislamiento OSM,
  * susceptibilidad estática physrisk, geometría OSM y exposición de ruta inundable)
  * desde los CSV/NDJSON versionados que producen los jobs offline de
- * services/geo-static/ hacia SQLite (infra_aislamiento_osm,
+ * services/geo-static/ hacia Postgres o PGlite con Drizzle (infra_aislamiento_osm,
  * infra_susceptibilidad_estatica, infra_acceso_osm_geometria,
  * infra_exposicion_ruta_inundacion).
  *
@@ -14,8 +14,10 @@
  *   node scripts/importar-geo-static.mjs --exposicion-ruta <path.ndjson.gz>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --susceptibilidad <s.csv>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --geometria <g.ndjson.gz>
+ * Si no se indican opciones, importa los archivos reconocidos en
+ * GEO_STATIC_OUTPUT_DIR (por defecto services/geo-static/output junto al repo/script).
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
@@ -26,6 +28,7 @@ import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
+const outputDir = process.env.GEO_STATIC_OUTPUT_DIR || join(root, 'services', 'geo-static', 'output')
 
 // Mismo hook que scripts/job-diagnostico.mjs: resuelve imports relativos a
 // módulos .ts, que el resolver ESM nativo de Node no completa.
@@ -40,6 +43,31 @@ function parsearArgs(argv) {
     else if (argv[i] === '--exposicion-ruta') args.exposicionRuta = argv[++i]
   }
   return args
+}
+
+/**
+ * @typedef {{ aislamiento?: string, susceptibilidad?: string, geometria?: string, exposicionRuta?: string }} ArchivosGeoStatic
+ */
+
+/**
+ * Encuentra el archivo de versión lexicográficamente más reciente por capa.
+ * @param {string[]} archivos
+ * @param {string} dir
+ * @returns {ArchivosGeoStatic}
+ */
+export function descubrirArchivosGeoStatic(archivos, dir) {
+  const ultimoQueCoincide = (patron) => archivos.filter((archivo) => patron.test(archivo)).sort().at(-1)
+  const aislamiento = ultimoQueCoincide(/^aislamiento_osm-v.*\.csv$/)
+  const susceptibilidad = ultimoQueCoincide(/^susceptibilidad_estatica-v.*\.csv$/)
+  const geometria = ultimoQueCoincide(/^accesos_osm_geometria-v.*\.ndjson\.gz$/)
+  const exposicionRuta = ultimoQueCoincide(/^exposicion_ruta_inundacion-v.*\.ndjson\.gz$/)
+
+  return {
+    ...(aislamiento ? { aislamiento: join(dir, aislamiento) } : {}),
+    ...(susceptibilidad ? { susceptibilidad: join(dir, susceptibilidad) } : {}),
+    ...(geometria ? { geometria: join(dir, geometria) } : {}),
+    ...(exposicionRuta ? { exposicionRuta: join(dir, exposicionRuta) } : {}),
+  }
 }
 
 /** Parser CSV chico: soporta comillas dobles (para 'licencia', que puede
@@ -399,6 +427,10 @@ export async function importarExposicionRuta(path, opts) {
 async function main() {
   const args = parsearArgs(process.argv.slice(2))
   if (!args.aislamiento && !args.susceptibilidad && !args.geometria && !args.exposicionRuta) {
+    const archivos = existsSync(outputDir) ? readdirSync(outputDir) : []
+    Object.assign(args, descubrirArchivosGeoStatic(archivos, outputDir))
+  }
+  if (!args.aislamiento && !args.susceptibilidad && !args.geometria && !args.exposicionRuta) {
     console.error(
       'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>]',
     )
@@ -428,4 +460,15 @@ async function main() {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   main()
+    .then(async () => {
+      const { getRawClient } = await import('../lib/db/index.ts')
+      const client = getRawClient()
+      if (typeof client.close === 'function') await client.close()
+      else await client.end()
+      process.exit(0)
+    })
+    .catch((error) => {
+      console.error(error instanceof Error ? error.message : error)
+      process.exit(1)
+    })
 }

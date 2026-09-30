@@ -23,12 +23,15 @@ registerTsResolver(root)
 
 const TIPO_GEO_PERFILES = 'geo-perfiles'
 const DURACION_LEASE_GEO_PERFILES_MS = 10 * 60 * 1000
+const TIPO_ASOCIACION_RIO = 'asociacion-rio-v1'
+const DURACION_LEASE_ASOCIACION_RIO_MS = 10 * 60 * 1000
 const TIPO_SITUACION_CORTE = 'situacion-corte-v1'
 const DURACION_LEASE_SITUACION_CORTE_MS = 10 * 60 * 1000
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
 const NOMBRES_VALIDOS = [
   'geo-perfiles',
+  'asociacion-rio',
   'sync-pronostico-caudal',
   'sync-ensemble',
   'sync-imerg',
@@ -129,6 +132,58 @@ async function correrGeoPerfiles(opts) {
       })
     } catch {
       // Ignorado a propósito: se relanza el error original de calcularGeoPerfiles.
+    }
+    throw error
+  }
+}
+
+// asociacion-rio calcula a partir de infra_geo_profile, por lo que su timer
+// debe ejecutarse después de geo-perfiles. El lease diario evita cálculos
+// simultáneos y reintentos duplicados, igual que en geo-perfiles.
+async function correrAsociacionRio(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('asociacion-rio')
+
+  const { adquirirLease, publicarResultado } = await import(
+    '../lib/infraestructura/riesgo/job-run.ts'
+  )
+  const { calcularAsociacionesRio } = await import(
+    '../lib/infraestructura/riesgo/rio-asociacion.ts'
+  )
+  const ahora = opts?.ahora ?? new Date()
+  const lease = await adquirirLease({
+    tipo: TIPO_ASOCIACION_RIO,
+    claveIdempotente: ahora.toISOString().slice(0, 10),
+    version: pkg.version,
+    duracionLeaseMs: DURACION_LEASE_ASOCIACION_RIO_MS,
+    ahora,
+  })
+  if (!lease.adquirido) return { ejecutado: false, motivo: lease.motivo }
+
+  try {
+    const resultado = await calcularAsociacionesRio(opts)
+    const publicado = await publicarResultado({
+      jobRunId: lease.jobRunId,
+      leaseOwner: lease.leaseOwner,
+      estado: 'completado',
+      contadores: {
+        procesados: resultado.procesados,
+        conPunto: resultado.conPunto,
+        sinPunto: resultado.sinPunto,
+      },
+    })
+    return { ejecutado: true, ...resultado, leasePerdido: !publicado }
+  } catch (error) {
+    const errorSaneado =
+      error instanceof Error ? error.message : 'Error desconocido en job asociacion-rio'
+    try {
+      await publicarResultado({
+        jobRunId: lease.jobRunId,
+        leaseOwner: lease.leaseOwner,
+        estado: 'fallido',
+        errorSaneado,
+      })
+    } catch {
+      // Se conserva el error original del cálculo.
     }
     throw error
   }
@@ -292,6 +347,8 @@ export async function correrJob(nombre, opts) {
   switch (nombre) {
     case 'geo-perfiles':
       return correrGeoPerfiles(opts)
+    case 'asociacion-rio':
+      return correrAsociacionRio(opts)
     case 'sync-pronostico-caudal':
       return correrSyncPronosticoCaudal()
     case 'sync-ensemble':

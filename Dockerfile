@@ -25,13 +25,13 @@ RUN npm init -y > /dev/null \
 
 # drizzle-orm lo usa el servidor (bundleado por webpack dentro de .next/server,
 # por eso no queda en node_modules del standalone) y también los scripts de
-# job/mantenimiento que corren fuera del bundle de Next (E0:
-# scripts/job-diagnostico.mjs). Sin esto esos scripts fallan con "Cannot find
-# package 'drizzle-orm'" al correr con `docker exec`.
+# mantenimiento que corren fuera del bundle de Next, incluido
+# scripts/job-diagnostico.mjs. zod también lo necesita el importador geo-static.
+# Sin estas dependencias, los scripts fallan al correr con `docker exec`.
 FROM base AS dbtools
 WORKDIR /tools
 RUN npm init -y > /dev/null \
-  && npm install --omit=dev --no-audit --no-fund drizzle-orm@0.45.2
+  && npm install --omit=dev --no-audit --no-fund drizzle-orm@0.45.2 zod@4.4.3
 
 FROM base AS runner
 WORKDIR /app
@@ -56,6 +56,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
 COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+# Sólo se incluyen los resultados versionados consumidos por el importador;
+# no se copia el código ni las dependencias de geo-static.
+COPY --from=builder --chown=nextjs:nodejs /app/services/geo-static/output ./services/geo-static/output
 # El driver de Postgres va aparte: como ningún código de servidor lo importa,
 # el trace de Next no lo deja en .next/standalone y el importador del padrón no
 # arranca sin él.

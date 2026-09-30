@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   calcularGeoPerfiles: vi.fn(),
+  calcularAsociacionesRio: vi.fn(),
   ejecutarSyncPronosticoCaudal: vi.fn(),
   ejecutarSyncEnsemble: vi.fn(),
   ejecutarSyncImerg: vi.fn(),
@@ -23,6 +24,9 @@ vi.mock('../lib/db/seed.ts', () => ({
 
 vi.mock('../lib/infraestructura/riesgo/geo-perfil.ts', () => ({
   calcularGeoPerfiles: mocks.calcularGeoPerfiles,
+}))
+vi.mock('../lib/infraestructura/riesgo/rio-asociacion.ts', () => ({
+  calcularAsociacionesRio: mocks.calcularAsociacionesRio,
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/sync-pronostico-caudal.ts', () => ({
   ejecutarSyncPronosticoCaudal: mocks.ejecutarSyncPronosticoCaudal,
@@ -142,12 +146,13 @@ describe('sync-imerg — token de Earthdata', () => {
 })
 
 describe('gating por ENOS_JOBS_ENABLED', () => {
-  // Los 9 jobs comparten un único flag maestro (lib/infraestructura/jobs/flags.ts),
+  // Los jobs comparten un único flag maestro (lib/infraestructura/jobs/flags.ts),
   // deliberadamente distinto de riskEngineEnabled()/episodiosDerivadosEnabled()
   // (esos son flags de UI, ver el módulo de flags): se verifica que con
-  // ENOS_JOBS_ENABLED=false ninguno de los 9 importa ni llama al job real.
+  // ENOS_JOBS_ENABLED=false los casos cubiertos no importan ni llaman al job real.
   const casos: Array<[string, keyof typeof mocks]> = [
     ['geo-perfiles', 'calcularGeoPerfiles'],
+    ['asociacion-rio', 'calcularAsociacionesRio'],
     ['sync-pronostico-caudal', 'ejecutarSyncPronosticoCaudal'],
     ['sync-ensemble', 'ejecutarSyncEnsemble'],
     ['sync-imerg', 'ejecutarSyncImerg'],
@@ -191,6 +196,51 @@ describe('geo-perfiles — lease externo', () => {
     expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
     expect(mocks.calcularGeoPerfiles).not.toHaveBeenCalled()
     expect(codigoSalida('geo-perfiles', resultado)).toBe(0)
+  })
+})
+
+describe('asociacion-rio — lease externo', () => {
+  it('acepta el nombre, calcula con lease y mapea el resultado a exit 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({
+      adquirido: true,
+      jobRunId: 'job-rio-1',
+      leaseOwner: 'owner-rio-1',
+    })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.calcularAsociacionesRio.mockResolvedValue({
+      procesados: 5,
+      conPunto: 3,
+      sinPunto: 2,
+      version: 'rio-asociacion-v1',
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('asociacion-rio', {
+      ahora: new Date('2026-09-29T03:10:00.000Z'),
+    })
+
+    expect(mocks.calcularAsociacionesRio).toHaveBeenCalledOnce()
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobRunId: 'job-rio-1',
+        estado: 'completado',
+        contadores: { procesados: 5, conPunto: 3, sinPunto: 2 },
+      }),
+    )
+    expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
+  })
+
+  it('devuelve exit 0 sin importar el cálculo cuando ENOS_JOBS_ENABLED=false', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('asociacion-rio')
+
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks.calcularAsociacionesRio).not.toHaveBeenCalled()
+    expect(mocks.adquirirLease).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+    expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
   })
 })
 
