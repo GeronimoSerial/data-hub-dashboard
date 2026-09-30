@@ -15,14 +15,6 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
 
-# El driver de Postgres lo usan solo los scripts de mantenimiento, nunca el
-# servidor, así que el trace de Next no lo incluye en .next/standalone. Se
-# instala aparte, plano, para poder fusionarlo con el node_modules del runner.
-FROM base AS pgdriver
-WORKDIR /tools
-RUN npm init -y > /dev/null \
-  && npm install --omit=dev --no-audit --no-fund pg@8.23.0
-
 # drizzle-orm lo usa el servidor (bundleado por webpack dentro de .next/server,
 # por eso no queda en node_modules del standalone) y también los scripts de
 # mantenimiento que corren fuera del bundle de Next, incluido
@@ -60,10 +52,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
 # Sólo se incluyen los resultados versionados consumidos por el importador;
 # no se copia el código ni las dependencias de geo-static.
 COPY --from=builder --chown=nextjs:nodejs /app/services/geo-static/output ./services/geo-static/output
-# El driver de Postgres va aparte: como ningún código de servidor lo importa,
-# el trace de Next no lo deja en .next/standalone y el importador del padrón no
-# arranca sin él.
-COPY --from=pgdriver --chown=nextjs:nodejs /tools/node_modules/. ./node_modules/
+# pg ya viaja en .next/standalone: el servidor lo importa (lib/db/driver.ts) y el
+# trace de Next lo deja como symlink de pnpm con sus dependencias. Los scripts de
+# mantenimiento lo resuelven desde ahí; copiar otro pg encima rompe el build
+# ("cannot copy to non-directory").
 COPY --from=dbtools --chown=nextjs:nodejs /tools/node_modules/. ./node_modules/
 
 ENV DATA_DIR=/data
