@@ -34,6 +34,8 @@ const NOMBRES_VALIDOS = [
   'asociacion-rio',
   'sync-pronostico-caudal',
   'sync-radar-meteo',
+  'sync-smn-alertas',
+  'sync-radar-ensemble',
   'sync-ensemble',
   'sync-imerg',
   'climatologia-precipitacion',
@@ -267,6 +269,18 @@ async function correrSyncRadarMeteo(opts) {
   return ejecutarSyncRadarMeteo(opts)
 }
 
+async function correrSyncSmnAlertas() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-smn-alertas')
+  const { syncSmnAlertas } = await import('../lib/infraestructura/radar-meteo/smn-alertas.ts')
+  return syncSmnAlertas()
+}
+
+async function correrSyncRadarEnsemble(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
+  const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
+  return ejecutarSyncRadarEnsemble(opts)
+}
+
 async function correrSyncEnsemble() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-ensemble')
   const { ejecutarSyncEnsemble } = await import(
@@ -360,6 +374,10 @@ export async function correrJob(nombre, opts) {
       return correrSyncPronosticoCaudal()
     case 'sync-radar-meteo':
       return correrSyncRadarMeteo(opts)
+    case 'sync-smn-alertas':
+      return correrSyncSmnAlertas()
+    case 'sync-radar-ensemble':
+      return correrSyncRadarEnsemble(opts)
     case 'sync-ensemble':
       return correrSyncEnsemble()
     case 'sync-imerg':

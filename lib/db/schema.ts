@@ -1209,6 +1209,14 @@ export const radarMeteoRun = pgTable('radar_meteo_run', {
   units: jsonb('units').$type<Record<string, string>>().notNull(), status: text('status').notNull(),
   idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
 }, (t) => [uniqueIndex('radar_meteo_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_run_status_fetched_idx').on(t.status, t.fetchedAt)])
+export const smnAlerta = pgTable('smn_alerta', {
+  id: text('id').primaryKey(), sender: text('sender').notNull(), sent: text('sent').notNull(), onset: text('onset'), expires: text('expires'),
+  event: text('event').notNull(), severity: text('severity').notNull(), urgency: text('urgency'), certainty: text('certainty'), headline: text('headline'), description: text('description'), instruction: text('instruction'),
+  nivelSat: text('nivel_sat'), departamentos: jsonb('departamentos').$type<Array<{id:string;nombre:string}>>().notNull(), poligonos: jsonb('poligonos').$type<unknown[]>().notNull(), raw: text('raw').notNull(), fetchedAt: text('fetched_at').notNull(), cancelada: boolean('cancelada').notNull().default(false),
+}, (t) => [index('smn_alerta_fetched_idx').on(t.fetchedAt), index('smn_alerta_expires_idx').on(t.expires)])
+export const radarMeteoEnsembleRun = pgTable('radar_meteo_ensemble_run', {
+  id: text('id').primaryKey(), model: text('model').notNull(), runAt: text('run_at').notNull(), fetchedAt: text('fetched_at').notNull(), timezone: text('timezone').notNull(), departmentGeoVersion: text('department_geo_version').notNull(), forecastStart: text('forecast_start').notNull(), forecastEnd: text('forecast_end').notNull(), status: text('status').notNull(), idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
+}, (t) => [uniqueIndex('radar_meteo_ensemble_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_ensemble_run_status_fetched_idx').on(t.status,t.fetchedAt)])
 // DB1-F2 (pg-core): las fechas guardadas como `text` ISO-8601 UTC se conservan
 // como `text` en esta fase (migrar a timestamptz queda como seguimiento F4/F5).
 // Las tablas better-auth (user/session/account/verification) pasan de epoch ms

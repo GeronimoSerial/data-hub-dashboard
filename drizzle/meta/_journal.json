@@ -43,6 +43,13 @@
       "when": 1790738929739,
       "tag": "0005_radar-meteo-run",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790779942139,
+      "tag": "0006_h2_smn_alertas_ensemble",
+      "breakpoints": true
     }
   ]
 }

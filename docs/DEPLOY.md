@@ -173,6 +173,7 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `AI_TIMEOUT_MS` | `20000` | Timeout de la solicitud de explicación | Acción «Explícame este recurso» |
 | `RISK_ENGINE_ENABLED` | `false` | UI `/admin/riesgo` | Consola de riesgo |
 | `RISK_RADAR_ENABLED` | `false` | Radar de riesgo | Radar |
+| `RADAR_ENSEMBLE_ENABLED` | `true` | Piloto Ensemble gratuito; sólo el valor exacto `false` lo pausa | Job `sync-radar-ensemble` |
 | `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
 | `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
 | `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |

@@ -128,6 +128,8 @@ las climatologías.
 | job | cadencia | `OnCalendar` (UTC) | archivo | motivo |
 |---|---|---|---|---|
 | sync-radar-meteo | 3h | `*-*-* 00/3:12:00 UTC` | `enos-ops1-sync-radar-meteo.timer` | radar de pronóstico; frecuencia acordada y prioridad de cuota en plan gratuito |
+| sync-smn-alertas | 15 min | `*:07/15` | `enos-ops1-sync-smn-alertas.timer` | RSS CAP oficial del SMN, sin cupo Open-Meteo |
+| sync-radar-ensemble | 6h | `*-*-* 03,09,15,21:40:00 UTC` | `enos-ops1-sync-radar-ensemble.timer` | Piloto gratis: 25 departamentos, tope diario 600 de peso y hasta 4 requests; pausa ante 429/errores de plan |
 | sync-pronostico-caudal | 6h | `*-*-* 08,14,20,02:00:00 UTC` | `enos-ops1-sync-pronostico-caudal.timer` | corridas ECMWF 00/06/12/18 UTC + ~8h de margen (6h de latencia habitual de disponibilidad real-time + 2h adicionales documentados por Open-Meteo para su distribución open-data; ajustar si se confirma otro valor) |
 | sync-ensemble | 6h | `*-*-* 08,14,20,02:00:00 UTC` | `enos-ops1-sync-ensemble.timer` | mismo motivo que arriba (Open-Meteo Ensemble) |
 | sync-imerg | 1h | `*-*-* *:00:00 UTC` | `enos-ops1-sync-imerg.timer` | Early Run IMERG, ~4h de latencia propia de la fuente; backfill acotado ya cubre huecos |
@@ -312,6 +314,8 @@ sudo install -d -m 700 /etc/enos-ops1
 sudo install -m 755 deploy/systemd/ops1/enos-ops1-exec.sh /usr/local/bin/enos-ops1-exec
 sudo install -m 644 deploy/systemd/ops1/enos-ops1@.service /etc/systemd/system/
 sudo install -m 644 deploy/systemd/ops1/enos-ops1-sync-radar-meteo.timer /etc/systemd/system/
+sudo install -m 644 deploy/systemd/ops1/enos-ops1-sync-smn-alertas.timer /etc/systemd/system/
+sudo install -m 644 deploy/systemd/ops1/enos-ops1-sync-radar-ensemble.timer /etc/systemd/system/
 sudo install -m 644 deploy/systemd/ops1/enos-ops1-climatologia-precipitacion.timer /etc/systemd/system/
 sudo install -m 644 deploy/systemd/ops1/enos-ops1-climatologia-caudal.timer /etc/systemd/system/
 sudo sh -c 'printf "%s\n" "CONTENEDOR_PREFIJO=<coolify-app-uuid>-" > /etc/enos-ops1/enos-ops1.env'
@@ -319,6 +323,7 @@ sudo chmod 600 /etc/enos-ops1/enos-ops1.env
 sudo chown root:root /etc/enos-ops1/enos-ops1.env
 sudo systemctl daemon-reload
 sudo systemctl enable --now enos-ops1-sync-radar-meteo.timer
+sudo systemctl enable --now enos-ops1-sync-smn-alertas.timer enos-ops1-sync-radar-ensemble.timer
 sudo systemctl enable --now enos-ops1-climatologia-precipitacion.timer enos-ops1-climatologia-caudal.timer
 ```
 
@@ -327,6 +332,12 @@ mínimo `sync-radar-meteo` y las dos climatologías mensuales. Los demás timers
 opcionales según las capas que se quieran mantener activas; considerar su costo
 de cuota antes de habilitarlos. La corrida del radar consume el cupo compartido
 de Open-Meteo.
+
+Para mantener avisos oficiales, habilitar `sync-smn-alertas`; consulta el feed
+CAP cada 15 minutos y no consume cupo Open-Meteo. `sync-radar-ensemble` es un
+piloto gratuito con tope independiente de 600 de peso y cuatro requests
+diarias. `RADAR_ENSEMBLE_ENABLED` está encendido salvo que valga exactamente
+`false` en el contenedor.
 
 Verificar programación y logs con:
 
