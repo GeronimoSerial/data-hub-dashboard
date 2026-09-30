@@ -88,6 +88,17 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeVisible()
   })
 
+  it('no pide confirmación al evacuar si se marcaron todas las secciones', () => {
+    const unaSeccion = [{ ...turnos[0], niveles: [{ ...turnos[0].niveles[0], secciones: turnos[0].niveles[0].secciones.slice(0, 1) }] }]
+    renderFormulario({ turnos: unaSeccion })
+    completarQuePaso()
+    continuar()
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    continuar()
+    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
+    expect(screen.queryByText(/solo algunas secciones/i)).toBeNull()
+  })
+
   it('incluye asistencia pedagógica y modalidad en el cuerpo del reporte', async () => {
     const fetchMock = stubFetch()
     renderFormulario()
