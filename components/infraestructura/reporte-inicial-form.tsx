@@ -5,6 +5,7 @@ import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
   CamposQuePaso,
+  aplanarSecciones,
   crearAfectacionVacia,
   totalAlumnosDe,
   type AfectacionBorrador,
@@ -277,6 +278,12 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const pasos = pasosDe(afectacion.categoria)
   const indicePaso = pasos.indexOf(paso)
 
+  // Evacuating while only some sections are marked needs an explicit
+  // confirmation; marking every section already means the whole school.
+  const evacuaEstablecimiento = estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados'
+  const marcaTodasLasSecciones = afectacion.secciones.length >= aplanarSecciones(turnos).length
+  const requiereConfirmarInterrupcion = evacuaEstablecimiento && !marcaTodasLasSecciones
+
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
     if (paso !== 4) return
@@ -315,7 +322,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
           ? undefined
           : { estado: estadoEstablecimiento },
-      confirmarInterrupcionTotal,
+      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && marcaTodasLasSecciones),
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
@@ -424,7 +431,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     if (actual === 3) {
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if ((estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') && !confirmarInterrupcionTotal) {
+      if (requiereConfirmarInterrupcion && !confirmarInterrupcionTotal) {
         return 'Confirme que se interrumpe todo el establecimiento para continuar.'
       }
       return null
@@ -599,12 +606,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
               </div>
             </fieldset>
 
-            {(estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') && (
-              <div className="afectacion-campos__grupo" role="note">
-                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
-                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
-              </div>
-            )}
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
@@ -626,6 +627,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
                 ))}
               </div>
             </fieldset>
+
+            {requiereConfirmarInterrupcion && (
+              <div className="afectacion-campos__grupo" role="note">
+                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
+                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
+              </div>
+            )}
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
