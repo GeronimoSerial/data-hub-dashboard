@@ -106,6 +106,8 @@ interface BorradorParteActualizacion {
   servicioTurnos: string[]
   servicioSecciones: number[]
   estadoEstablecimiento: '' | EstadoEstablecimiento
+  asistenciaBrinda?: '' | 'si' | 'no'
+  modalidadesAsistencia?: Array<'Clase virtual' | 'Cuadernillo'>
   rigeDesde: string
   // Vestigial (ver esBorradorParteActualizacion): sólo se lee por
   // compatibilidad con borradores viejos, ya no se escribe.
@@ -155,6 +157,8 @@ function esBorradorParteActualizacion(valor: unknown): valor is BorradorParteAct
     return false
   }
   if (typeof b.estadoEstablecimiento !== 'string') return false
+  if (b.asistenciaBrinda !== undefined && b.asistenciaBrinda !== '' && b.asistenciaBrinda !== 'si' && b.asistenciaBrinda !== 'no') return false
+  if (b.modalidadesAsistencia !== undefined && (!Array.isArray(b.modalidadesAsistencia) || !b.modalidadesAsistencia.every((m) => m === 'Clase virtual' || m === 'Cuadernillo'))) return false
   if (
     b.estadoEstablecimiento !== '' &&
     !Object.prototype.hasOwnProperty.call(ETIQUETA_ESTABLECIMIENTO, b.estadoEstablecimiento)
@@ -308,6 +312,9 @@ function ActualizacionFormCargado({
   const [servicioTurnos, setServicioTurnos] = useState<string[]>([])
   const [servicioSecciones, setServicioSecciones] = useState<number[]>([])
   const [estadoEstablecimiento, setEstadoEstablecimiento] = useState<'' | EstadoEstablecimiento>('')
+  const [confirmarInterrupcionTotal, setConfirmarInterrupcionTotal] = useState(false)
+  const [asistenciaBrinda, setAsistenciaBrinda] = useState<'' | 'si' | 'no'>('')
+  const [modalidadesAsistencia, setModalidadesAsistencia] = useState<Array<'Clase virtual' | 'Cuadernillo'>>([])
   const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
   const [paso, setPaso] = useState<'formulario' | 'resumen'>('formulario')
   const [tocadas, setTocadas] = useState<Set<string>>(new Set())
@@ -348,6 +355,8 @@ function ActualizacionFormCargado({
       setServicioTurnos(borrador.servicioTurnos)
       setServicioSecciones(borrador.servicioSecciones)
       setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+      setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
+      setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
       setRigeDesde(borrador.rigeDesde)
       setTocadas(new Set(borrador.tocadas))
       sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
@@ -413,6 +422,8 @@ function ActualizacionFormCargado({
       servicioTurnos,
       servicioSecciones,
       estadoEstablecimiento,
+      asistenciaBrinda,
+      modalidadesAsistencia,
       rigeDesde,
       tocadas: Array.from(tocadas),
     })
@@ -425,6 +436,8 @@ function ActualizacionFormCargado({
     servicioTurnos,
     servicioSecciones,
     estadoEstablecimiento,
+    asistenciaBrinda,
+    modalidadesAsistencia,
     rigeDesde,
     tocadas,
   ])
@@ -453,8 +466,10 @@ function ActualizacionFormCargado({
         servicioSeleccionado,
         afectaciones,
         turnos,
+        asistenciaPedagogicaVigente: datos.parte?.asistenciaPedagogica ?? null,
+        asistenciaPedagogicaSeleccionada: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
       }),
-    [estadoEstablecimientoVigente, estadoEstablecimiento, datos, servicioSeleccionado, afectaciones, turnos],
+    [estadoEstablecimientoVigente, estadoEstablecimiento, datos, servicioSeleccionado, afectaciones, turnos, asistenciaBrinda, modalidadesAsistencia],
   )
 
   const diff = useMemo(() => diffParte(snapshotAntes, snapshotDespues), [snapshotAntes, snapshotDespues])
@@ -543,6 +558,14 @@ function ActualizacionFormCargado({
   }
 
   async function confirmarGuardado() {
+    if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
+      setError('Elija al menos una modalidad de asistencia pedagógica.')
+      return
+    }
+    if ((estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') && (servicioAlcanceTipo === 'seccion' || (servicioAlcanceTipo === '' && afectacionesVisibles.some((a) => a.secciones.length > 0))) && !confirmarInterrupcionTotal) {
+      setError('Confirme que se interrumpe todo el establecimiento para continuar.')
+      return
+    }
     if (enviando || enviandoRef.current) return
     enviandoRef.current = true
     setEnviando(true)
@@ -561,6 +584,8 @@ function ActualizacionFormCargado({
       vigentes,
       servicioSeleccionado,
       estadoEstablecimientoSeleccionado: estadoEstablecimiento,
+      confirmarInterrupcionTotal,
+      asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     })
 
     const resultado = await intentarEnviar(datosEnvio, {
@@ -836,6 +861,32 @@ function ActualizacionFormCargado({
             </div>
           </fieldset>
         </CampoVigente>
+        {(estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') &&
+          (servicioAlcanceTipo === 'seccion' || (servicioAlcanceTipo === '' && afectacionesVisibles.some((a) => a.secciones.length > 0))) && (
+          <div className="afectacion-campos__grupo" role="note">
+            <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
+            <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
+          </div>
+        )}
+      </section>
+
+      <section className="reporte-inicial__seccion">
+        <h2>Asistencia pedagógica</h2>
+        <fieldset className="afectacion-campos__grupo" disabled={enviando}>
+          <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
+          {(['si', 'no'] as const).map((valor) => (
+            <label key={valor} className="opcion-radio opcion-radio--compacta">
+              <input type="radio" name="actualizacion-asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} />
+              <span>{valor === 'si' ? 'Sí' : 'No'}</span>
+            </label>
+          ))}
+          {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
+            <label key={modalidad} className="opcion-radio opcion-radio--compacta">
+              <input type="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => setModalidadesAsistencia((actuales) => e.target.checked ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))} />
+              <span>{modalidad}</span>
+            </label>
+          ))}
+        </fieldset>
       </section>
 
       {/* Sin <h2> propio: la leyenda del campo ya es la pregunta completa, y

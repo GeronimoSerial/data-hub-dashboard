@@ -173,6 +173,19 @@ describe('ActualizacionForm', () => {
     expect(body.afectacionesModificadas[0].severidad).toBe('Alta')
   })
 
+  it('actualiza la asistencia pedagógica y envía sus modalidades', async () => {
+    const fetchMock = stubFetchInicial()
+    renderFormulario()
+    await esperarParteCargado()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Cuadernillo' }))
+    fireEvent.click(screen.getByRole('button', { name: /revisar cambios/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar actualización/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    expect(JSON.parse(String((init as RequestInit).body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Cuadernillo'] })
+  })
+
   it('envía el vínculo de verificación y lo limpia solo después del éxito confirmado', async () => {
     sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
     const fetchMock = stubFetchInicial()

@@ -80,6 +80,8 @@ interface BorradorParteNuevo {
   afectacion: AfectacionBorrador
   servicioEstado: '' | 'normal' | 'suspendido'
   estadoEstablecimiento: '' | EstadoEstablecimiento
+  asistenciaBrinda: '' | 'si' | 'no'
+  modalidadesAsistencia: string[]
   rigeDesde: string
   // Vestigial (ver esBorradorParteNuevo): sólo se lee por compatibilidad con
   // borradores viejos, ya no se escribe.
@@ -104,6 +106,8 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
     return false
   }
   if (typeof b.estadoEstablecimiento !== 'string') return false
+  if (b.asistenciaBrinda !== undefined && b.asistenciaBrinda !== '' && b.asistenciaBrinda !== 'si' && b.asistenciaBrinda !== 'no') return false
+  if (b.modalidadesAsistencia !== undefined && (!Array.isArray(b.modalidadesAsistencia) || !b.modalidadesAsistencia.every((m) => m === 'Clase virtual' || m === 'Cuadernillo'))) return false
   if (
     b.estadoEstablecimiento !== '' &&
     !Object.prototype.hasOwnProperty.call(ETIQUETA_ESTABLECIMIENTO, b.estadoEstablecimiento)
@@ -170,6 +174,9 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   )
   const [servicioEstado, setServicioEstado] = useState<'' | 'normal' | 'suspendido'>('')
   const [estadoEstablecimiento, setEstadoEstablecimiento] = useState<'' | EstadoEstablecimiento>('')
+  const [confirmarInterrupcionTotal, setConfirmarInterrupcionTotal] = useState(false)
+  const [asistenciaBrinda, setAsistenciaBrinda] = useState<'' | 'si' | 'no'>('')
+  const [modalidadesAsistencia, setModalidadesAsistencia] = useState<string[]>([])
   const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -215,6 +222,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       setAfectacion(borrador.afectacion)
       setServicioEstado(borrador.servicioEstado)
       setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+      setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
+      setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
       setRigeDesde(borrador.rigeDesde)
       sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
     })()
@@ -306,6 +315,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
           ? undefined
           : { estado: estadoEstablecimiento },
+      confirmarInterrupcionTotal,
+      asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
     const resultado = await intentarEnviar(datosEnvio, {
@@ -382,6 +393,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       afectacion,
       servicioEstado,
       estadoEstablecimiento,
+      asistenciaBrinda,
+      modalidadesAsistencia,
       rigeDesde,
     })
   }, [
@@ -390,6 +403,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     afectacion,
     servicioEstado,
     estadoEstablecimiento,
+    asistenciaBrinda,
+    modalidadesAsistencia,
     rigeDesde,
   ])
 
@@ -408,6 +423,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     }
     if (actual === 3) {
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
+      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
+      if ((estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') && !confirmarInterrupcionTotal) {
+        return 'Confirme que se interrumpe todo el establecimiento para continuar.'
+      }
       return null
     }
     return null
@@ -495,7 +514,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
     rigeDesde,
-  })
+  }).concat(
+    asistenciaBrinda === ''
+      ? []
+      : [asistenciaBrinda === 'si'
+          ? `Se brinda asistencia pedagógica: ${modalidadesAsistencia.join(' y ')}`
+          : 'No se brinda asistencia pedagógica'],
+  )
 
   return (
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
@@ -574,6 +599,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
               </div>
             </fieldset>
 
+            {(estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') && (
+              <div className="afectacion-campos__grupo" role="note">
+                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
+                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
+              </div>
+            )}
+
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
               <div className="afectacion-campos__opciones">
@@ -593,6 +625,22 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
                   </label>
                 ))}
               </div>
+            </fieldset>
+
+            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
+              <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
+              {(['si', 'no'] as const).map((valor) => (
+                <label key={valor} className="opcion-radio opcion-radio--compacta">
+                  <input type="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} />
+                  <span>{valor === 'si' ? 'Sí' : 'No'}</span>
+                </label>
+              ))}
+              {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
+                <label key={modalidad} className="opcion-radio opcion-radio--compacta">
+                  <input type="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => setModalidadesAsistencia((actuales) => e.target.checked ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))} />
+                  <span>{modalidad}</span>
+                </label>
+              ))}
             </fieldset>
 
             <div className="afectacion-campos__grupo">

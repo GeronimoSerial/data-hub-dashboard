@@ -18,6 +18,7 @@ export function Indicadores(props: {
     { label: 'Con servicio suspendido', valor: indicadores.conServicioSuspendido },
     { label: 'Con servicio parcial', valor: indicadores.conServicioParcial },
     { label: 'Evacuadas', valor: indicadores.evacuadas },
+    { label: 'Funcionamiento parcial', valor: indicadores.establecimientosParciales },
     { label: 'Centros de evacuados', valor: indicadores.centrosDeEvacuados },
     { label: 'Sin reportar', valor: indicadores.sinReportar },
     { label: 'Alumnos alcanzados', valor: indicadores.alumnosAlcanzados },

@@ -15,6 +15,7 @@ import type {
   Afectacion,
   AfectacionAlcanceSeccion,
   EstadoEstablecimiento,
+  AsistenciaPedagogica,
   ParteSnapshot,
   ServicioAlcance,
   ServicioAlcanceTipo,
@@ -53,12 +54,13 @@ export function afectacionVigenteABorrador(vigente: AfectacionVigente): Afectaci
 // seccionCompleta/alumnos tal cual los entrega la API, así que es una
 // fotografía exacta del estado vigente, no una reconstrucción.
 export function snapshotAntesDeVigente(datos: {
-  parte: { estadoEstablecimiento: EstadoEstablecimiento } | null
+  parte: { estadoEstablecimiento: EstadoEstablecimiento; asistenciaPedagogica?: AsistenciaPedagogica | null } | null
   afectaciones?: AfectacionVigente[]
   servicio?: { alcanceVigente: ServicioAlcance[] }
 }): ParteSnapshot {
   return {
     estadoEstablecimiento: datos.parte?.estadoEstablecimiento ?? 'habitual',
+    asistenciaPedagogica: datos.parte?.asistenciaPedagogica ?? null,
     afectaciones: (datos.afectaciones ?? []).map(
       (v): Afectacion => ({
         id: v.id,
@@ -190,6 +192,8 @@ export interface SnapshotDespuesParams {
   servicioSeleccionado: ServicioSeleccionado | null
   afectaciones: AfectacionActualizable[]
   turnos: TurnoContexto[]
+  asistenciaPedagogicaVigente?: AsistenciaPedagogica | null
+  asistenciaPedagogicaSeleccionada?: AsistenciaPedagogica | null
 }
 
 // Snapshot "después" (spec §13): las afectaciones vigentes que no se
@@ -218,6 +222,7 @@ function esBorradorEnBlanco(a: AfectacionActualizable): boolean {
 export function snapshotDespuesDeFormulario(params: SnapshotDespuesParams): ParteSnapshot {
   return {
     estadoEstablecimiento: params.estadoEstablecimientoSeleccionado || params.estadoEstablecimientoVigente,
+    asistenciaPedagogica: params.asistenciaPedagogicaSeleccionada === undefined ? params.asistenciaPedagogicaVigente ?? null : params.asistenciaPedagogicaSeleccionada,
     afectaciones: params.afectaciones
       .filter((a) => !a.retirada && !esBorradorEnBlanco(a))
       .map((a) => borradorAAfectacion(a, params.turnos)),
@@ -255,6 +260,8 @@ export interface PayloadActualizacion {
   afectacionesRetiradas: string[]
   servicioEducativo?: { estado: ServicioEstado; alcance: ServicioSeleccionado['alcance'] }
   estadoEstablecimiento?: { estado: EstadoEstablecimiento }
+  confirmarInterrupcionTotal?: boolean
+  asistenciaPedagogica?: AsistenciaPedagogica
 }
 
 // Arma el body de POST /api/problematicas/parte (mismo contrato que
@@ -273,6 +280,8 @@ export function construirPayloadActualizacion(params: {
   vigentes: AfectacionVigente[]
   servicioSeleccionado: ServicioSeleccionado | null
   estadoEstablecimientoSeleccionado: EstadoEstablecimiento | ''
+  confirmarInterrupcionTotal?: boolean
+  asistenciaPedagogica?: AsistenciaPedagogica
 }): PayloadActualizacion {
   const vigentesPorId = new Map(params.vigentes.map((v) => [v.id, v]))
 
@@ -338,5 +347,7 @@ export function construirPayloadActualizacion(params: {
       params.estadoEstablecimientoSeleccionado === ''
         ? undefined
         : { estado: params.estadoEstablecimientoSeleccionado },
+    confirmarInterrupcionTotal: params.confirmarInterrupcionTotal,
+    asistenciaPedagogica: params.asistenciaPedagogica,
   }
 }

@@ -36,6 +36,13 @@
       "when": 1790665257251,
       "tag": "0004_exposicion_ruta_inundacion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790784000000,
+      "tag": "0006_parcial_docentes_asistencia",
+      "breakpoints": true
     }
   ]
 }

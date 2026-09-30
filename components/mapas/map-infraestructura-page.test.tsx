@@ -123,6 +123,7 @@ const FIXTURE_RESPUESTA = {
     conServicioSuspendido: 1,
     conServicioParcial: 0,
     evacuadas: 1,
+    establecimientosParciales: 0,
     centrosDeEvacuados: 0,
     sinReportar: 0,
     alumnosAlcanzados: 74,

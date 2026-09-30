@@ -33,6 +33,10 @@ const diffVacio: DiffParte = {
 }
 
 describe('describirMovimiento', () => {
+  it('describe el alta y las modalidades de asistencia pedagógica', () => {
+    const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
+    expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Clase virtual y Cuadernillo')
+  })
   it('diff vacío no produce líneas', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])
   })
