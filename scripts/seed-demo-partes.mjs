@@ -17,6 +17,7 @@
  *
  * Usage (requiere gate de seguridad):
  *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --escuelas 80 --sin-padron
+ *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --escuelas 85 --padron-real   # partes sobre secciones/alumnos reales del corte vigente
  *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --limpiar   # borra sólo lo sembrado y sale
  *
  * Gate de seguridad: este script inserta datos FICTICIOS de demo. Para evitar
@@ -347,6 +348,44 @@ async function sembrarMatricula(ge, corteId, establecimientos) {
   return { establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal }
 }
 
+// --- Parte A': matrícula REAL del corte vigente (--padron-real) ----------
+// Uses the imported padrón as is: picks schools that already have sections in
+// the current cut and reads their real sections and enrolled students. It
+// never writes to schema ge, so the real padrón is left untouched.
+async function cargarMatriculaReal(ge, corteId, localizaciones, total) {
+  const conSeccionesRes = await ge.execute({
+    sql: 'SELECT DISTINCT cue_anexo FROM ge.ge_seccion WHERE corte_id = ? AND ge_section_id > 0',
+    args: [corteId],
+  })
+  const conSecciones = new Set(conSeccionesRes.rows.map((r) => String(r.cue_anexo)))
+  const candidatas = localizaciones.filter((l) => conSecciones.has(l.cueAnexo))
+  const establecimientos = elegirEstablecimientos(candidatas, total, true)
+
+  const establecimientosConSecciones = []
+  const alumnosPorSeccionGlobal = new Map()
+  let totalSecciones = 0
+  let totalAlumnos = 0
+  for (const est of establecimientos) {
+    const seccionesRes = await ge.execute({
+      sql: 'SELECT ge_section_id, turno FROM ge.ge_seccion WHERE corte_id = ? AND cue_anexo = ? AND ge_section_id > 0 ORDER BY ge_section_id',
+      args: [corteId, est.cueAnexo],
+    })
+    const secciones = seccionesRes.rows.map((r) => ({ geSectionId: Number(r.ge_section_id), turno: String(r.turno) }))
+    for (const s of secciones) {
+      const alumnosRes = await ge.execute({
+        sql: 'SELECT ge_person_id FROM ge.ge_alumno_seccion WHERE corte_id = ? AND ge_section_id = ? AND ge_person_id > 0 ORDER BY ge_person_id',
+        args: [corteId, s.geSectionId],
+      })
+      const ids = alumnosRes.rows.map((r) => Number(r.ge_person_id))
+      alumnosPorSeccionGlobal.set(s.geSectionId, ids)
+      totalAlumnos += ids.length
+    }
+    totalSecciones += secciones.length
+    establecimientosConSecciones.push({ ...est, secciones })
+  }
+  return { establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal }
+}
+
 // --- Parte B: partes en hub.sqlite -----------------------------------------
 
 const MOTIVOS_ESTABLECIMIENTO = [
@@ -464,7 +503,8 @@ const TOTAL_PARTES = totalSolicitado
 const escalar = (n) => Math.round(n * TOTAL_PARTES / 50)
 const CANT_EVACUADO = escalar(6)
 const CANT_CENTRO_EVACUADOS = escalar(4)
-const CANT_HABITUAL = TOTAL_PARTES - CANT_EVACUADO - CANT_CENTRO_EVACUADOS
+const CANT_PARCIAL = escalar(5)
+const CANT_HABITUAL = TOTAL_PARTES - CANT_EVACUADO - CANT_CENTRO_EVACUADOS - CANT_PARCIAL
 // Cada parte conserva al menos una afectación visible. Las afectaciones
 // retiradas se representan en CANT_AFECTACION_RETIRADA sin hacer desaparecer
 // escuelas del mapa.
@@ -484,6 +524,7 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 
   const estados = [
     ...Array(CANT_HABITUAL).fill('habitual'),
+    ...Array(CANT_PARCIAL).fill('parcial'),
     ...Array(CANT_EVACUADO).fill('evacuado'),
     ...Array(CANT_CENTRO_EVACUADOS).fill('centro_evacuados'),
   ]
@@ -772,6 +813,7 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 async function main() {
   const limpiarSolo = process.argv.includes('--limpiar')
   const sinPadronForzado = process.argv.includes('--sin-padron')
+  const padronReal = process.argv.includes('--padron-real')
 
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   await ensureSeeded()
@@ -787,7 +829,7 @@ async function main() {
 
   if (limpiarSolo) {
     await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarHub(tx))
-    if (corte) await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
+    if (corte && !padronReal) await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
     console.log('Datos de demo eliminados (schemas principal + ge).')
     return
   }
@@ -826,7 +868,11 @@ async function main() {
   let totalSecciones = 0
   let totalAlumnos = 0
   let alumnosPorSeccionGlobal = new Map()
-  if (corte) {
+  if (corte && padronReal) {
+    ;({ establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal } =
+      await cargarMatriculaReal(ge, corte.id, localizaciones, TOTAL_PARTES))
+    console.log(`Parte A (padrón real, sin escrituras en ge): ${establecimientosConSecciones.length} escuelas, ${totalSecciones} secciones, ${totalAlumnos} alumnos (corte ${corte.id}).`)
+  } else if (corte) {
     const matricula = await ejecutarEnTransaccion(getRawClient(), async (tx) => {
       await limpiarGe(tx, corte.id)
       return sembrarMatricula(tx, corte.id, establecimientos)
