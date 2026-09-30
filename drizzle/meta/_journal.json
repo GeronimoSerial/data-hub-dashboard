@@ -36,6 +36,13 @@
       "when": 1790665257251,
       "tag": "0004_exposicion_ruta_inundacion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790738929739,
+      "tag": "0005_radar-meteo-run",
+      "breakpoints": true
     }
   ]
 }

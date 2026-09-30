@@ -33,6 +33,7 @@ const NOMBRES_VALIDOS = [
   'geo-perfiles',
   'asociacion-rio',
   'sync-pronostico-caudal',
+  'sync-radar-meteo',
   'sync-ensemble',
   'sync-imerg',
   'climatologia-precipitacion',
@@ -260,6 +261,12 @@ async function correrSyncPronosticoCaudal() {
   return ejecutarSyncPronosticoCaudal()
 }
 
+async function correrSyncRadarMeteo(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-meteo')
+  const { ejecutarSyncRadarMeteo } = await import('../lib/infraestructura/radar-meteo/job-sync.ts')
+  return ejecutarSyncRadarMeteo(opts)
+}
+
 async function correrSyncEnsemble() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-ensemble')
   const { ejecutarSyncEnsemble } = await import(
@@ -351,6 +358,8 @@ export async function correrJob(nombre, opts) {
       return correrAsociacionRio(opts)
     case 'sync-pronostico-caudal':
       return correrSyncPronosticoCaudal()
+    case 'sync-radar-meteo':
+      return correrSyncRadarMeteo(opts)
     case 'sync-ensemble':
       return correrSyncEnsemble()
     case 'sync-imerg':

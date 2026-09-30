@@ -1202,6 +1202,13 @@ export const infraExposicionRutaInundacion = pgTable('infra_exposicion_ruta_inun
 // ============================================================
 // Fin bloque G1
 // ============================================================
+export const radarMeteoRun = pgTable('radar_meteo_run', {
+  id: text('id').primaryKey(), provider: text('provider').notNull(), model: text('model').notNull(),
+  gridVersion: text('grid_version').notNull(), runAt: text('run_at').notNull(), fetchedAt: text('fetched_at').notNull(),
+  forecastStart: text('forecast_start').notNull(), forecastEnd: text('forecast_end').notNull(), stepMinutes: integer('step_minutes').notNull(),
+  units: jsonb('units').$type<Record<string, string>>().notNull(), status: text('status').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
+}, (t) => [uniqueIndex('radar_meteo_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_run_status_fetched_idx').on(t.status, t.fetchedAt)])
 // DB1-F2 (pg-core): las fechas guardadas como `text` ISO-8601 UTC se conservan
 // como `text` en esta fase (migrar a timestamptz queda como seguimiento F4/F5).
 // Las tablas better-auth (user/session/account/verification) pasan de epoch ms
