@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ESPACIADO_GRILLA, GRID_VERSION } from '@/lib/infraestructura/radar-meteo/grilla'
 import { VARIABLES_RADAR, type VariableRadar } from '@/lib/infraestructura/radar-meteo/provider'
+import { categoriaGranizo, type EntradaGranizo } from '@/lib/infraestructura/radar-meteo/granizo'
 import { obtenerUltimoRunRadarMeteo } from '@/lib/infraestructura/radar-meteo/job-sync'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
@@ -16,14 +17,15 @@ const variablesSchema = z.string().transform((valor, ctx) => {
     .map((variable) => variable.trim())
     .filter(Boolean)
   const contieneInvalida = lista.some(
-    (variable) => !VARIABLES_RADAR.includes(variable as VariableRadar),
+    (variable) => variable !== 'granizo' && !VARIABLES_RADAR.includes(variable as VariableRadar),
   )
   if (!lista.length || contieneInvalida || new Set(lista).size !== lista.length) {
     ctx.addIssue({ code: 'custom', message: 'variables inválidas' })
     return z.NEVER
   }
-  return lista as VariableRadar[]
+  return lista as VariableLectura[]
 })
+type VariableLectura = VariableRadar | 'granizo'
 const fechaSchema = z.string().datetime({ offset: true })
 const querySchema = z.object({
   variables: variablesSchema.optional(),
@@ -32,7 +34,7 @@ const querySchema = z.object({
   paso: z.enum(['1', '3']).default('1'),
 })
 
-const UNIDADES: Record<VariableRadar, string> = {
+const UNIDADES: Record<VariableLectura, string> = {
   precipitation_probability: '%',
   precipitation: 'mm',
   wind_speed_10m: 'km/h',
@@ -42,9 +44,10 @@ const UNIDADES: Record<VariableRadar, string> = {
   lifted_index: '°C',
   weather_code: 'WMO',
   freezing_level_height: 'm',
+  granizo: 'categoria',
 }
 
-function redondear(variable: VariableRadar, valor: number | null): number | null {
+function redondear(variable: VariableLectura, valor: number | null): number | null {
   if (valor === null) return null
   const decimales = variable === 'precipitation' || variable === 'lifted_index' ? 1 : 0
   const factor = 10 ** decimales
@@ -90,7 +93,7 @@ export async function GET(request: Request) {
 
   const run = await obtenerUltimoRunRadarMeteo()
   const parametros = JSON.stringify({
-    variables: filtros.variables ?? VARIABLES_RADAR,
+    variables: filtros.variables ?? [...VARIABLES_RADAR, 'granizo'],
     desde: filtros.desde ?? null,
     hasta: filtros.hasta ?? null,
     paso: filtros.paso,
@@ -145,12 +148,36 @@ export async function GET(request: Request) {
             indices: grupo.map((hora) => hora.i),
           }))
       : indices.map(({ t, i }) => ({ t, indices: [i] }))
-  const variables = filtros.variables ?? [...VARIABLES_RADAR]
+  const variables: VariableLectura[] = filtros.variables ?? [...VARIABLES_RADAR, 'granizo']
+  const variablesOrigen: Array<keyof EntradaGranizo> = [
+    'weather_code',
+    'precipitation_probability',
+    'cape',
+    'lifted_index',
+    'wind_gusts_10m',
+    'freezing_level_height',
+  ]
+  const valoresGranizo = seleccionados.map(({ indices: horas }) =>
+    payload.cells.map((_, celda) => {
+      const categorias = horas.map((hora) => {
+        const entrada = Object.fromEntries(
+          variablesOrigen.map((variable) => [variable, payload.values[variable]?.[celda]?.[hora] ?? null]),
+        ) as EntradaGranizo
+        return categoriaGranizo(entrada)
+      })
+      const conocidas = categorias.filter(
+        (categoria): categoria is 0 | 1 | 2 | 3 => categoria !== null,
+      )
+      if (conocidas.length !== categorias.length) return null
+      return Math.max(...conocidas) as 0 | 1 | 2 | 3
+    }),
+  )
   const valores = Object.fromEntries(
     variables.map((variable) => [
       variable,
-      seleccionados.map(({ indices: horas }) =>
+      seleccionados.map(({ indices: horas }, cuadro) =>
         payload.cells.map((_, celda) => {
+          if (variable === 'granizo') return valoresGranizo[cuadro]?.[celda] ?? null
           const serie = payload.values[variable]?.[celda] ?? []
           if (variable === 'precipitation' && filtros.paso === '3') {
             const suma = horas
@@ -192,7 +219,7 @@ export async function GET(request: Request) {
       },
       tiempos: seleccionados.map((seleccion) => seleccion.t),
       unidades: Object.fromEntries(
-        variables.map((variable) => [variable, run.units[variable] ?? UNIDADES[variable]]),
+      variables.map((variable) => [variable, variable === 'granizo' ? UNIDADES.granizo : run.units[variable] ?? UNIDADES[variable]]),
       ),
       valores,
       frescura: { edadMinutos, desactualizado: edadMinutos > 420 },
