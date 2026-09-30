@@ -1,0 +1,42 @@
+H0 live request evidence — 2026-09-30 UTC
+========================================
+
+SMN JSON endpoint
+-----------------
+GET https://ws1.smn.gob.ar/v1/warning/alert/area?mode=alert
+Unauthenticated response: HTTP 401, application/json;charset=UTF-8
+Body saved as smn-alert-api-401.json; response headers saved alongside.
+Response JSON fields: timestamp, status, error, message, path.
+
+SMN RSS/CAP
+-----------
+GET https://ssl.smn.gob.ar/CAP/AR.php
+Response: HTTP 200, application/rss+xml; charset=UTF-8, 17,644 bytes,
+25 item links. Headers saved as smn-cap-rss-headers.txt; full body saved
+as smn-cap-rss.xml. Cache-Control included both max-age=180 and
+max-age=60, public, must-revalidate.
+
+Linked CAP files returned HTTP 200, text/xml. Samples are in the matching
+*.xml files with response headers. The RSS snapshot was fetched at about
+11:14 local time. Its Corrientes polygons had expired (latest expiry was
+08:59:59 -03); there was no current Corrientes alert in this snapshot.
+The `alertas_9` through `alertas_12` URL suffixes are not stable zone IDs.
+Geometry intersections mapped 9/11 to Ituzaingó + Santo Tomé and 10/12 to
+Ituzaingó, for those expired messages only.
+
+Open-Meteo Ensemble
+-------------------
+GET https://ensemble-api.open-meteo.com/v1/ensemble
+Parameters: all 25 department centroids; models=ecmwf_ifs025;
+hourly=precipitation; forecast_days=7;
+timezone=America/Argentina/Buenos_Aires. No API key.
+Response: HTTP 200; 1,229,941 bytes; elapsed 2.831 seconds. Headers saved
+as open-meteo-ensemble-headers.txt; a trimmed first-location response is
+open-meteo-ensemble-2026-09-30.json. It includes 168 hourly timestamps,
+50 member series and one mean series per location. No quota/rate headers,
+429, or plan error was observed.
+
+Budget: two actual 25-location Ensemble requests were made during H0,
+within the 1,500-weight research limit even if using the conservative
+51-variable repository formula (2 × 127.5 = 255). The second request is
+the timed response/sample documented above.
