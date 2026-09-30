@@ -230,9 +230,13 @@ export function asegurarPesoAlcanzable(params: { peso: number; apiKeyPresente?: 
 
 // Error interno usado sólo para cortar la transacción de reserva desde
 // adentro del loop de ventanas; nunca se propaga fuera de este módulo.
+// Sin parameter properties: los jobs corren con el type stripping de Node,
+// que no las soporta.
 class CupoAgotadoEnVentana extends Error {
-  constructor(readonly ventana: VentanaCupo) {
+  readonly ventana: VentanaCupo
+  constructor(ventana: VentanaCupo) {
     super(`cupo agotado en ventana ${ventana}`)
+    this.ventana = ventana
   }
 }
 

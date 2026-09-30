@@ -19,11 +19,13 @@ RUN pnpm build
 # por eso no queda en node_modules del standalone) y también los scripts de
 # mantenimiento que corren fuera del bundle de Next, incluido
 # scripts/job-diagnostico.mjs. zod también lo necesita el importador geo-static.
+# @electric-sql/pglite lo importa estáticamente lib/db/index.ts aunque se use
+# DATABASE_URL, y el trace de Next no lo deja en el standalone.
 # Sin estas dependencias, los scripts fallan al correr con `docker exec`.
 FROM base AS dbtools
 WORKDIR /tools
 RUN npm init -y > /dev/null \
-  && npm install --omit=dev --no-audit --no-fund drizzle-orm@0.45.2 zod@4.4.3
+  && npm install --omit=dev --no-audit --no-fund drizzle-orm@0.45.2 zod@4.4.3 @electric-sql/pglite@0.5.8
 
 FROM base AS runner
 WORKDIR /app
