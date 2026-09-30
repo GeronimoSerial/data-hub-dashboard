@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { formatearCargaCorta } from './historial-formato'
+import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 
 // Forma pública de una verificación del batch E1 tal como la devuelven los
 // endpoints del enlace. `tokenHash` nunca llega al navegador: el Route Handler
@@ -38,10 +39,6 @@ type Maquina =
     }
   | { estado: 'comprobante'; verificacion: VerificacionEnlace }
   | { estado: 'ir_a_parte' }
-
-// La lee la pieza que completa el enlace del movimiento (otra tarea del batch);
-// acá sólo se guarda antes de navegar al formulario de parte.
-const CLAVE_VINCULO = 'e1-verificacion-vinculo'
 
 const PREGUNTA =
   '¿Su escuela tiene actualmente alguna afectación por la situación hidrometeorológica?'
@@ -187,9 +184,9 @@ export function VerificacionResponder({
         })
         return
       }
-      // El enlace automático del movimiento (otra tarea) lee esta clave. Se
-      // guarda ANTES de navegar para que esté disponible al montar el parte.
-      sessionStorage.setItem(CLAVE_VINCULO, JSON.stringify({ id: verificacionId, token }))
+      // Los formularios de parte leen esta clave. Se guarda antes de navegar
+      // para que esté disponible al montar el formulario.
+      sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: verificacionId, token }))
       setMaquina({ estado: 'ir_a_parte' })
       // La cookie de sesión ya quedó seteada por el fetch anterior; el push de
       // Next la aprovecha en la misma navegación SPA.

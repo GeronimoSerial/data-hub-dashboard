@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
+import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -294,6 +295,37 @@ describe('ReporteInicialForm', () => {
       expect(body.afectacionesModificadas).toEqual([])
       expect(body.afectacionesRetiradas).toEqual([])
     })
+  })
+
+  it('envía el vínculo de verificación y lo limpia solo después del éxito confirmado', async () => {
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchMock = stubFetch()
+    renderFormulario()
+    guardarReporte()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    await waitFor(() => expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).toBeNull())
+  })
+
+  it('omite el vínculo cuando no existe y lo conserva ante una respuesta fallida', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    guardarReporte()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).not.toHaveProperty('verificacion')
+
+    cleanup()
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchFallido = stubFetch({ error: 'boom' }, 422)
+    renderFormulario()
+    guardarReporte()
+    await screen.findByText('No se pudo enviar: boom')
+    const [, initFallido] = fetchFallido.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(initFallido.body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).not.toBeNull()
   })
 
   it('una respuesta exitosa reemplaza el asistente por la confirmación del reporte', async () => {

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActualizacionForm } from './actualizacion-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
+import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 
 const props = {
   cue: '12345678',
@@ -170,6 +171,42 @@ describe('ActualizacionForm', () => {
     const body = JSON.parse(String(init?.body))
     expect(body.afectacionesModificadas).toHaveLength(1)
     expect(body.afectacionesModificadas[0].severidad).toBe('Alta')
+  })
+
+  it('envía el vínculo de verificación y lo limpia solo después del éxito confirmado', async () => {
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchMock = stubFetchInicial()
+    renderFormulario()
+    await guardarActualizacion()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    expect(JSON.parse(String((init as RequestInit).body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    await waitFor(() => expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).toBeNull())
+  })
+
+  it('omite el vínculo cuando no existe y lo conserva ante una respuesta fallida', async () => {
+    const fetchMock = stubFetchInicial()
+    renderFormulario()
+    await guardarActualizacion()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const [, init] = fetchMock.mock.calls[1]
+    expect(JSON.parse(String((init as RequestInit).body))).not.toHaveProperty('verificacion')
+
+    cleanup()
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchFallido = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
+      return jsonResponse({ error: 'boom' }, 422)
+    })
+    vi.stubGlobal('fetch', fetchFallido)
+    renderFormulario()
+    await guardarActualizacion()
+    await screen.findByText('No se pudo enviar: boom')
+    const posteo = fetchFallido.mock.calls.find(([url]) => String(url) === '/api/problematicas/parte')
+    expect(posteo).toBeDefined()
+    expect(JSON.parse(String((posteo?.[1] as RequestInit).body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).not.toBeNull()
   })
 
   // La confirmación de la actualización tenía el mismo callejón sin salida

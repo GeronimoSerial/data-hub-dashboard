@@ -100,9 +100,10 @@ export default async function CargarParteEscuelaPage({
             Cargar el parte
           </Link>
 
-          <p className="cargar-parte__aviso">
-            La pantalla de carga pide la contraseña de acceso del recorrido público, la misma que
-            recibe el director junto con su enlace.
+          <p className="cargar-parte__aviso" role="note">
+            {user.role === 'admin' && !user.banned
+              ? 'Como administrador, puede ingresar sin la contraseña.'
+              : 'La siguiente pantalla solicitará la contraseña de acceso compartida, que el director recibe junto con el enlace. Téngala a mano.'}
           </p>
         </section>
       )}

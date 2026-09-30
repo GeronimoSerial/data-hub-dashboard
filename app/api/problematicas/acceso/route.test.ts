@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { NOMBRE_COOKIE, tokenSesionValido } from '@/lib/infraestructura/acceso-publico'
 import { POST } from './route'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+import { _resetLimitesParaTests, IP_MAX_REQUESTS } from '@/lib/infraestructura/limites'
 
 const CLAVE = claveDePrueba()
 const CLAVE_MALA = claveDePrueba()
@@ -9,11 +10,13 @@ const CLAVE_MALA = claveDePrueba()
 let prevPassword: string | undefined
 
 beforeEach(() => {
+  _resetLimitesParaTests()
   prevPassword = process.env.PROBLEMATICAS_ACCESO_PASSWORD
   process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
 })
 
 afterEach(() => {
+  _resetLimitesParaTests()
   if (prevPassword === undefined) delete process.env.PROBLEMATICAS_ACCESO_PASSWORD
   else process.env.PROBLEMATICAS_ACCESO_PASSWORD = prevPassword
 })
@@ -22,6 +25,14 @@ function req(body: unknown) {
   return new Request('http://localhost/api/problematicas/acceso', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+function reqDesde(ip: string, body: unknown = { password: CLAVE }) {
+  return new Request('http://localhost/api/problematicas/acceso', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': ip },
     body: JSON.stringify(body),
   })
 }
@@ -67,5 +78,22 @@ describe('POST /api/problematicas/acceso', () => {
       }),
     )
     expect(res.status).toBe(400)
+  })
+
+  it('limita solicitudes por IP y permite otra IP', async () => {
+    let ultima: Response | undefined
+    for (let intento = 0; intento < IP_MAX_REQUESTS + 1; intento += 1) {
+      ultima = await POST(reqDesde('192.0.2.10'))
+    }
+
+    expect(ultima?.status).toBe(429)
+    expect(await ultima?.json()).toEqual({
+      error: 'Demasiadas solicitudes. Intente nuevamente más tarde.',
+    })
+    expect(ultima?.headers.get('set-cookie')).toBeNull()
+
+    const otraIp = await POST(reqDesde('192.0.2.11'))
+    expect(otraIp.status).toBe(200)
+    expect(otraIp.headers.get('set-cookie')).toContain(NOMBRE_COOKIE)
   })
 })
