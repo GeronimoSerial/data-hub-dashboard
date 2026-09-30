@@ -12,6 +12,7 @@ import { hazardSourceHealth } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { apiKeyDesdeEntorno, obtenerResumenCupo } from '@/lib/infraestructura/riesgo/providers/cupo-om'
 import { obtenerAvanceClimatologia } from '@/lib/infraestructura/riesgo/avance-climatologia'
+import { listarFlagsOperativas } from '@/lib/infraestructura/riesgo/flags'
 
 const contenedor: React.CSSProperties = { padding: '2rem', color: 'var(--ink)' }
 const bloque: React.CSSProperties = {
@@ -50,6 +51,7 @@ export default async function OperacionSalud() {
   const fuentes = await getDb().select().from(hazardSourceHealth)
   const cupo = await obtenerResumenCupo({ apiKeyPresente: Boolean(apiKeyDesdeEntorno()) })
   const avanceClimatologia = await obtenerAvanceClimatologia()
+  const flagsOperativas = listarFlagsOperativas()
 
   return (
     <div style={contenedor}>
@@ -58,11 +60,7 @@ export default async function OperacionSalud() {
       <section style={bloque}>
         <h2>Flags</h2>
         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          <li>riskEngineEnabled: {String(estado.flags.riskEngineEnabled)}</li>
-          <li>riskRadarEnabled: {String(estado.flags.riskRadarEnabled)}</li>
-          <li>aiBriefingEnabled: {String(estado.flags.aiBriefingEnabled)}</li>
-          <li>riskMode: {estado.flags.riskMode}</li>
-          <li>enosJobsEnabled: {String(estado.flags.enosJobsEnabled)}</li>
+          {flagsOperativas.map(({ nombre, valor }) => <li key={nombre}>{nombre}: {valor}</li>)}
         </ul>
       </section>
 

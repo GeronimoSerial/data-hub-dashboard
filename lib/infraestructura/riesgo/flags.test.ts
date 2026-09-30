@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   aiBriefingEnabled,
   hazardContextEnabled,
+  listarFlagsOperativas,
   replayEnabled,
   riskEngineEnabled,
   riskMode,
@@ -82,5 +83,20 @@ describe('riskMode', () => {
     expect(riskMode()).toBe('shadow')
     process.env.RISK_MODE = 'yes'
     expect(riskMode()).toBe('shadow')
+  })
+})
+
+describe('listarFlagsOperativas', () => {
+  it('enumera todos los flags y refleja process.env al momento de la llamada', () => {
+    const lista = listarFlagsOperativas()
+    expect(lista.map(({ nombre }) => nombre)).toEqual([
+      'RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_BRIEFING_ENABLED',
+      'HAZARD_CONTEXT_ENABLED', 'SEASONAL_ENABLED', 'REPLAY_ENABLED',
+      'RISK_MODE', 'SITUACION_ENABLED', 'EPISODIOS_DERIVADOS_ENABLED', 'ENOS_JOBS_ENABLED',
+    ])
+    process.env.SITUACION_ENABLED = 'true'
+    process.env.RISK_MODE = 'advisory'
+    expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'SITUACION_ENABLED')?.valor).toBe('true')
+    expect(listarFlagsOperativas().find(({ nombre }) => nombre === 'RISK_MODE')?.valor).toBe('advisory')
   })
 })

@@ -329,7 +329,7 @@ const RADAR_DATA = {
     total: 1,
     totalPages: 1,
   },
-  kpis: { riesgoAltoTotal: 1, sinEvidenciaTotal: 0 },
+  kpis: { riesgoAltoTotal: 1, sinEvidenciaTotal: 2, accesoCondicionado: { escuelas: 3, matricula: 15 } },
 }
 
 vi.mock('@/lib/infraestructura/use-radar', () => ({
@@ -341,11 +341,12 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
   },
 }))
 
-const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[] }))
+const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
 const FIXTURE_REPLAY: RespuestaReplay = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
 vi.mock('@/lib/infraestructura/use-replay', () => ({
   useReplay: (_filtros: unknown, activo: boolean) => {
     llamadasReplay.activos.push(activo)
+    llamadasReplay.filtros.push(_filtros)
     return activo ? { data: FIXTURE_REPLAY, loading: false, error: null } : { data: null, loading: false, error: null }
   },
 }))
@@ -575,6 +576,7 @@ beforeEach(() => {
   estadoGeometria.cueForzado = null
   llamadasRadar.activos.length = 0
   llamadasReplay.activos.length = 0
+  llamadasReplay.filtros.length = 0
   llamadasSnapshot.snapshotIds.length = 0
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
@@ -593,6 +595,7 @@ beforeEach(() => {
 afterEach(() => {
   desmontarMapa?.()
   desmontarMapa = null
+  window.history.replaceState({}, '', '/')
   document.body.innerHTML = ''
 })
 
@@ -748,6 +751,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
       screen.getByRole('group', { name: /horizonte temporal del radar/i }),
     ).toBeInTheDocument()
     expect(screen.getByTestId('radar-kpi-riesgo-alto')).toHaveTextContent('1')
+    expect(screen.getByTestId('radar-kpi-sin-evidencia')).toHaveTextContent('Escuelas sin evidencia: 2')
+    expect(screen.getByTestId('radar-kpi-acceso-condicionado')).toHaveTextContent('Acceso condicionado: 3 escuelas · 15 alumnos')
     expect(screen.getByTestId('radar-briefing')).toBeInTheDocument()
     // Sin run anterior, el briefing es la línea honesta de primer resumen.
     expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/Primer resumen del día/i)
@@ -883,6 +888,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 })
 
 describe('MapInfraestructuraPage — modo Replay', () => {
+  it('abre el replay desde la URL con el episodio derivado como alcance', async () => {
+    window.history.replaceState({}, '', '/mapas/infraestructura?modo=replay&episodio=ep-42')
+    await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
+    expect(screen.getByTestId('replay-panel')).toBeInTheDocument()
+    expect(llamadasReplay.activos.at(-1)).toBe(true)
+    expect(llamadasReplay.filtros.at(-1)).toMatchObject({ episodioDerivadoId: 'ep-42' })
+  })
+
   it('con el flag apagado no muestra el botón Replay y el hook nunca recibe activo=true', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     expect(screen.queryByRole('button', { name: 'Replay' })).not.toBeInTheDocument()

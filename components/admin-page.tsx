@@ -33,6 +33,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { NominalPermisosAdmin } from '@/components/infraestructura/nominal-permisos-admin'
 
 const COLORS: BadgeColor[] = [
   'brand',
@@ -1466,6 +1467,7 @@ export function AdminPage({ role }: { role: Role }) {
                 <TabsTab value="tipos">Tipos</TabsTab>
                 <TabsTab value="usuarios">Usuarios</TabsTab>
                 <TabsTab value="motivos">Motivos</TabsTab>
+                <TabsTab value="nominal">Acceso nominal</TabsTab>
               </>
             ) : null}
           </TabsList>
@@ -1605,6 +1607,8 @@ export function AdminPage({ role }: { role: Role }) {
         {isAdmin && tab === 'usuarios' && <UsersAdmin />}
 
         {isAdmin && tab === 'motivos' && <MotivosAdmin />}
+
+        {isAdmin && tab === 'nominal' && <NominalPermisosAdmin />}
       </div>
     </div>
   )

@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app-shell'
 import { loadCatalogFor } from '@/lib/db/hub-catalog-for'
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser, getShellUser } from '@/lib/session'
+import { situacionEnabled } from '@/lib/infraestructura/riesgo/flags'
 
 export default async function HubLayout({
   children,
@@ -20,7 +21,7 @@ export default async function HubLayout({
   const initialCatalog = await loadCatalogFor(sessionUser)
   return (
     <HubDataProvider initialCatalog={initialCatalog}>
-      <AppShell initialUser={initialUser}>{children}</AppShell>
+      <AppShell initialUser={initialUser} situacionEnabled={situacionEnabled()}>{children}</AppShell>
     </HubDataProvider>
   )
 }

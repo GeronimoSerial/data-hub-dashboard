@@ -49,6 +49,10 @@ export function useTendenciaEstacional(
         cache: 'no-store',
         headers: { Accept: 'application/json' },
       })
+      if (respuesta.status === 403) {
+        // La ruta es exclusiva para personal; para consulta la falta de acceso es esperada.
+        return null
+      }
       if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
       const json = (await respuesta.json()) as { items: TendenciaEstacionalItem[] }
       return json.items[0] ?? null
