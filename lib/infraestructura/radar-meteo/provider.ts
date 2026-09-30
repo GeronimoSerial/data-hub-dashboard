@@ -1,9 +1,9 @@
 import { agregarApiKey, construirBaseUrl, type ControladorCupoOM } from '../riesgo/providers/cupo-om'
 import { ejecutarConReintentos } from '../riesgo/providers/cliente-http'
 import type { CeldaRadar } from './grilla'
-
-export const VARIABLES_RADAR = ['precipitation_probability','precipitation','wind_speed_10m','wind_gusts_10m','wind_direction_10m','cape','lifted_index','weather_code','freezing_level_height'] as const
-export type VariableRadar = typeof VARIABLES_RADAR[number]
+import { VARIABLES_RADAR, type VariableRadar } from './variables'
+export { VARIABLES_RADAR } from './variables'
+export type { VariableRadar } from './variables'
 export type LoteRadar = { times: string[]; cells: Array<{ id: string; lat: number; lon: number; latModelo: number; lonModelo: number }>; values: Record<VariableRadar, Array<Array<number | null>>>; units: Record<string, string> }
 type FetchImpl = typeof fetch
 

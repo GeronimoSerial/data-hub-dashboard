@@ -205,13 +205,14 @@ export async function GET(request: Request) {
       gridVersion: run.gridVersion,
       grid: {
         espaciado: ESPACIADO_GRILLA,
-        lat0: minRow * ESPACIADO_GRILLA,
+        // North-west origin: rows increase as latitude decreases.
+        lat0: maxRow * ESPACIADO_GRILLA,
         lon0: minCol * ESPACIADO_GRILLA,
         filas: maxRow - minRow + 1,
         columnas: maxCol - minCol + 1,
         celdas: payload.cells.map((celda) => ({
           id: celda.id,
-          fila: celda.row - minRow,
+          fila: maxRow - celda.row,
           columna: celda.col - minCol,
           lat: celda.lat,
           lon: celda.lon,

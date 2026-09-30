@@ -741,65 +741,54 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(llamadasRadar.activos.at(-1)).toBe(false)
   })
 
-  it('al activar Radar consulta el hook, muestra horizonte, KPIs y briefing', async () => {
+  it('al activar Radar no consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    expect(llamadasRadar.activos.at(-1)).toBe(true)
-    expect(
-      screen.getByRole('group', { name: /horizonte temporal del radar/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByTestId('radar-kpi-riesgo-alto')).toHaveTextContent('1')
-    expect(screen.getByTestId('radar-kpi-sin-evidencia')).toHaveTextContent('Escuelas sin evidencia: 2')
-    expect(screen.getByTestId('radar-kpi-acceso-condicionado')).toHaveTextContent('Acceso condicionado: 3 escuelas · 15 alumnos')
-    expect(screen.getByTestId('radar-briefing')).toBeInTheDocument()
-    // Sin run anterior, el briefing es la línea honesta de primer resumen.
-    expect(screen.getByTestId('radar-briefing')).toHaveTextContent(/Primer resumen del día/i)
+    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Lluvia (mm)' })).toBeInTheDocument()
+    expect(screen.queryByTestId('radar-kpi-riesgo-alto')).not.toBeInTheDocument()
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-    expect(llamadasRadar.activos.at(-1)).toBe(true)
+    expect(llamadasRadar.activos.at(-1)).toBe(false)
 
     await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
     expect(llamadasRadar.activos.at(-1)).toBe(false)
-    expect(
-      screen.queryByRole('group', { name: /horizonte temporal del radar/i }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Variable meteorológica' })).not.toBeInTheDocument()
   })
 
-  it('click en un departamento del radar abre el panel de explicación por departamento', async () => {
+  it('Radar no monta paneles de explicación de riesgo legados', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
     expect(screen.queryByTestId('risk-explanation-panel')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-peligro'))
-    expect(await screen.findByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+    expect(screen.queryByTestId('risk-explanation-departamento')).not.toBeInTheDocument()
     // La ficha de partes NO se abrió: son estados independientes.
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
   })
 
-  it('click en una escuela del radar abre el panel de explicación por escuela, sin mezclar con seleccionCue', async () => {
+  it('no dibuja marcadores escolares de riesgo en el radar meteorológico', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
     // El punto de riesgo ahora es un <Marker> DOM (ícono Lucide) con su
     // propio onClick, no una capa circle de MapLibre.
-    await userEvent.click(await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` }))
-    expect(await screen.findByTestId('risk-explanation-cue')).toHaveTextContent(CUE)
-    // Estado independiente del modo actual: sin ficha de partes abierta.
+    expect(screen.queryByRole('button', { name: `Riesgo alto: ${CUE}` })).not.toBeInTheDocument()
     expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
   })
 
-  it('dibuja el riesgo como ícono DOM filtrado y ya no monta la fuente circle', async () => {
+  it('no monta el marcador de riesgo legado', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    const icono = await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` })
-    expect(icono).toHaveAttribute('data-capa', 'infra-riesgo-icono')
+    expect(screen.queryByRole('button', { name: `Riesgo alto: ${CUE}` })).not.toBeInTheDocument()
     // La fuente/capas circle viejas de riesgo compuesto desaparecieron. La de
     // acceso (`infra-riesgo-acceso-src`) sigue intacta, es otra dimensión.
     expect(screen.queryByTestId('mock-source-infra-riesgo-src')).not.toBeInTheDocument()
@@ -811,7 +800,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   // mientras `puntos` trae tres que sólo existen en el padrón y no tienen
   // parte: las tres tienen que dibujar su marcador. Antes de T5a no se
   // dibujaba ninguna (no estaban en `items` ni en `partes`).
-  it('dibuja un marcador de riesgo por cada punto del radar, aunque no esté en la página del ranking ni tenga parte', async () => {
+  it('no muestra puntos del riesgo escolar en el radar meteorológico', async () => {
     const CUES_SIN_PARTE = ['1801605-96', '1801605-97', '1801605-98']
     const puntosOriginales = RADAR_DATA.puntos
     for (const cueAnexo of CUES_SIN_PARTE) {
@@ -838,10 +827,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
       await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
       await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-      for (const cueAnexo of CUES_SIN_PARTE) {
-        const icono = await screen.findByRole('button', { name: `Riesgo alto: ${cueAnexo}` })
-        expect(icono).toHaveAttribute('data-capa', 'infra-riesgo-icono')
-      }
+      for (const cueAnexo of CUES_SIN_PARTE) expect(screen.queryByRole('button', { name: `Riesgo alto: ${cueAnexo}` })).not.toBeInTheDocument()
     } finally {
       FIXTURE_ESCUELAS_MAPA.escuelas.splice(2)
       CUES_DESAGRUPADOS_MOCK.cues.length = 2
@@ -849,41 +835,24 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     }
   })
 
-  it('al seleccionar una escuela del radar pide el detalle por snapshotId y muestra sus factores', async () => {
+  it('no pide detalles del riesgo escolar desde el radar meteorológico', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
     // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
     expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
 
-    await userEvent.click(await screen.findByRole('button', { name: `Riesgo alto: ${CUE}` }))
-    await screen.findByTestId('risk-explanation-cue')
-
-    // El snapshotId de la escuela del radar (RADAR_DATA.escuelas.items[0]),
-    // no un id inventado por la integración.
-    expect(llamadasSnapshot.snapshotIds).toContain('s1')
-
-    const factores = screen.getByTestId('risk-explanation-factores')
-    expect(factores).toHaveTextContent('Amenaza')
-    expect(factores).toHaveTextContent('ensemble ECMWF')
-    expect(factores).toHaveTextContent('45 mm')
+    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
+    expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
   })
 
-  it('en modo Radar las capas base del mapa siguen montadas (decisión: sumar, no reemplazar)', async () => {
+  it('Radar sustituye las capas de riesgo por el radar meteorológico', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
-    // En "Situación actual" la leyenda de peligro no aparece; en Radar sí.
-    expect(
-      screen.queryByRole('list', { name: /niveles de peligro meteorológico/i }),
-    ).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-    expect(
-      screen.getByRole('list', { name: /niveles de peligro meteorológico/i }),
-    ).toBeInTheDocument()
-    // El checkbox de la capa de partes sigue presente: no se desmontó.
-    expect(
-      screen.getByRole('checkbox', { name: /todas las escuelas/i }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: /niveles de peligro meteorológico/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /todas las escuelas/i })).not.toBeInTheDocument()
   })
 })
 
@@ -909,9 +878,7 @@ describe('MapInfraestructuraPage — modo Replay', () => {
   it('al volver del modo Replay se restauran modo, horizonte y selección de departamento previos', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-    await userEvent.click(screen.getByRole('button', { name: '72 h' }))
-    await userEvent.click(screen.getByTestId('mock-click-peligro'))
-    expect(await screen.findByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
     expect(llamadasReplay.activos.at(-1)).toBe(true)
@@ -921,8 +888,7 @@ describe('MapInfraestructuraPage — modo Replay', () => {
 
     expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: '72 h' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByTestId('risk-explanation-departamento')).toHaveTextContent('CAPITAL')
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
   })
 
   // MAYOR 1 (revisión N1): `cambiarModo` no reseteaba `playingReplay` al
@@ -1121,34 +1087,26 @@ describe('M2: capa de padrón apagada por defecto', () => {
   })
 })
 
-describe('MapInfraestructuraPage — capa Riesgo de acceso', () => {
-  it('apagada por defecto: el checkbox existe sin marcar y la fuente de la capa no está montada', async () => {
+describe('MapInfraestructuraPage — capas del radar de riesgo anteriores', () => {
+  it('oculta el selector de riesgo escolar al activar Radar meteorológico', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    const checkbox = screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i })
-    expect(checkbox).not.toBeChecked()
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /riesgo pronosticado de llegar/i })).not.toBeInTheDocument()
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
 
-  it('el toggle monta y desmonta la capa', async () => {
+  it('no permite montar la capa de acceso antigua desde Radar', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    const checkbox = screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i })
-    await userEvent.click(checkbox)
-    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
-
-    await userEvent.click(checkbox)
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
 
   it('oculta en modo Replay aunque el toggle esté prendido', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
     await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-
-    await userEvent.click(screen.getByRole('checkbox', { name: /riesgo pronosticado de llegar/i }))
-    expect(screen.getByTestId('mock-source-infra-riesgo-acceso-src')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()

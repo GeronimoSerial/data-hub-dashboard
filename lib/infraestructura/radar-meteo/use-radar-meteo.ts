@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useFetchVigente } from '@/lib/infraestructura/use-fetch-vigente'
-import { VARIABLES_RADAR, type VariableRadar } from './provider'
+import { VARIABLES_RADAR, type VariableRadar } from './variables'
 
 const RUTA = '/api/infraestructura/radar-meteo'
 
@@ -15,16 +15,16 @@ export interface RespuestaRadarMeteo {
   grid: null | { espaciado: number; lat0: number; lon0: number; filas: number; columnas: number; celdas: Array<{ id: string; fila: number; columna: number; lat: number; lon: number }> }
   tiempos: string[]
   unidades: Partial<Record<VariableRadar, string>>
-  valores: Partial<Record<VariableRadar, Array<Array<number | null>>>>
+  valores: Partial<Record<VariableRadar | 'granizo', Array<Array<number | null>>>>
   frescura: null | { edadMinutos: number; desactualizado: boolean }
   sinDatos: boolean
   razon?: string
 }
 
-export function useRadarMeteo(opciones: { activo?: boolean; variables?: VariableRadar[]; desde?: string; hasta?: string; paso?: 1 | 3 } = {}) {
+export function useRadarMeteo(opciones: { activo?: boolean; variables?: VariableRadar[]; desde?: string; hasta?: string; paso?: 1 | 3; refreshKey?: number } = {}) {
   const activo = opciones.activo ?? true
-  const variables = opciones.variables ?? [...VARIABLES_RADAR]
-  const filtros = useMemo(() => JSON.stringify({ variables, desde: opciones.desde, hasta: opciones.hasta, paso: opciones.paso ?? 1 }), [variables, opciones.desde, opciones.hasta, opciones.paso])
+  const variables = useMemo(() => opciones.variables ?? [...VARIABLES_RADAR], [opciones.variables])
+  const filtros = useMemo(() => JSON.stringify({ variables, desde: opciones.desde, hasta: opciones.hasta, paso: opciones.paso ?? 1, refreshKey: opciones.refreshKey ?? 0 }), [variables, opciones.desde, opciones.hasta, opciones.paso, opciones.refreshKey])
   return useFetchVigente<RespuestaRadarMeteo>({
     activo,
     clave: activo ? filtros : null,
@@ -34,7 +34,7 @@ export function useRadarMeteo(opciones: { activo?: boolean; variables?: Variable
       const params = new URLSearchParams({ variables: variables.join(','), paso: String(opciones.paso ?? 1) })
       if (opciones.desde) params.set('desde', opciones.desde)
       if (opciones.hasta) params.set('hasta', opciones.hasta)
-      const response = await fetch(`${RUTA}?${params}`, { signal, cache: 'no-cache', headers: { Accept: 'application/json' } })
+      const response = await fetch(`${RUTA}?${params}`, { signal, cache: 'no-store', headers: { Accept: 'application/json' } })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       return await response.json() as RespuestaRadarMeteo
     },

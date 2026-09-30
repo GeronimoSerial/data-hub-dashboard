@@ -47,7 +47,8 @@ describe('GET /api/infraestructura/radar-meteo', () => {
     expect(Object.keys(body.valores)).toEqual(['precipitation_probability', 'wind_speed_10m'])
     expect(body.valores.precipitation_probability[0]).toEqual([60, 60])
     expect(body.valores.wind_speed_10m[0]).toEqual([1, 10])
-    expect(body.grid).toMatchObject({ lat0: -0.2, lon0: -0.2, filas: 2, columnas: 2 })
+    expect(body.grid).toMatchObject({ lat0: 0, lon0: -0.2, filas: 2, columnas: 2 })
+    expect(body.grid.celdas.map((c: { fila: number }) => c.fila)).toEqual([1, 0])
   })
 
   it('agrupa precipitation y alinea otras variables con la hora etiquetada', async () => {

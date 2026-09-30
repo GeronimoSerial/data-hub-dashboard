@@ -83,6 +83,7 @@ import {
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
+import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { useReplay, type VistaReplay } from '@/lib/infraestructura/use-replay'
@@ -324,9 +325,10 @@ const CAPA_MASCARA_ID = 'infra-mascara-provincia'
 const ESCUELAS_CAIDAS_TECHO = 5
 const OPACIDAD_DEPARTAMENTO_CAIDO_TECHO = 0.4
 
-function fillPaintDepartamentos(): FillLayerSpecification['paint'] {
+function fillPaintDepartamentos(radar = false): FillLayerSpecification['paint'] {
   return {
     'fill-color': COLORES_DEPARTAMENTO.rellenoNormal,
+    ...(radar ? { 'fill-opacity': 0.025 } : {
     'fill-opacity': [
       'interpolate',
       ['linear'],
@@ -336,6 +338,7 @@ function fillPaintDepartamentos(): FillLayerSpecification['paint'] {
       ESCUELAS_CAIDAS_TECHO,
       OPACIDAD_DEPARTAMENTO_CAIDO_TECHO,
     ],
+    }),
   }
 }
 
@@ -359,10 +362,10 @@ function symbolLayoutDepartamentos(): SymbolLayerSpecification['layout'] {
   }
 }
 
-function symbolPaintDepartamentos(): SymbolLayerSpecification['paint'] {
+function symbolPaintDepartamentos(radar = false): SymbolLayerSpecification['paint'] {
   return {
-    'text-color': COLORES_DEPARTAMENTO.bordeNormal,
-    'text-opacity': 0.85,
+    'text-color': radar ? '#c4d4df' : COLORES_DEPARTAMENTO.bordeNormal,
+    'text-opacity': radar ? 0.6 : 0.85,
   }
 }
 
@@ -777,6 +780,7 @@ export default function MapInfraestructuraPage(props: {
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
+  const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   // Apertura de "Filtros del mapa" (ListaAlertas): vive acá y no dentro del
   // <details> para que sobreviva al remontaje de la lista cada vez que se
@@ -897,14 +901,14 @@ export default function MapInfraestructuraPage(props: {
   const radarActivo = (props.riskRadarEnabled ?? false) && modoRadar
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
-    radarActivo,
+    false,
   )
 
   // Capa opcional SEASONAL (E5+, Off por defecto): sólo consulta cuando el
   // flag está prendido, estamos en modo Radar Y hay un departamento
   // seleccionado — nunca dispara sola con sólo el flag encendido.
   const seasonalActivo =
-    (props.seasonalEnabled ?? false) && radarActivo && departamentoRadarSeleccionado !== null
+    (props.seasonalEnabled ?? false) && radarActivo && !modoRadar && departamentoRadarSeleccionado !== null
   const { data: tendenciaEstacionalData } = useTendenciaEstacional(
     departamentoRadarSeleccionado,
     seasonalActivo,
@@ -1482,7 +1486,7 @@ export default function MapInfraestructuraPage(props: {
 
   // R2: en tema oscuro se usa el estilo oscuro real del proveedor en vez del
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
-  const mapStyle = mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
+  const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
   // Q6a: identidad de la escuela seleccionada. El padrón COMPLETO
   // (`dataEscuelasMapa`, afectadas y sin afectación reportada) indexa por
   // cueAnexo; cubre también las escuelas que NO están en `partesPorCue`, así
@@ -1507,7 +1511,7 @@ export default function MapInfraestructuraPage(props: {
   // flag apagado esta sección no fetchea, no monta control, leyenda ni capas
   // — el mapa se comporta exactamente como antes. `hazardOn` ya incluye
   // `!modoReplay`, así que Replay queda excluido en todos los consumidores.
-  const hazardOn = (props.hazardContextEnabled ?? false) && !modoReplay
+  const hazardOn = (props.hazardContextEnabled ?? false) && !modoReplay && !modoRadar
 
   // Capas estáticas (aislamiento OSM + susceptibilidad physrisk): un solo
   // fetch de largo plazo, sin polling.
@@ -1631,6 +1635,11 @@ export default function MapInfraestructuraPage(props: {
     setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
+
+    if (radarActivo) {
+      if (event.lngLat) window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
+      return
+    }
 
     // Radar primero: la coropleta es una capa interactiva; el punto de riesgo
     // ya no llega por acá (es un <Marker> DOM con su propio `onClick`, ver
@@ -1841,6 +1850,8 @@ export default function MapInfraestructuraPage(props: {
   const handleMapLoad = useCallback(() => {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
+    const map = mapRef.current?.getMap()
+    if (map) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
 
@@ -1912,6 +1923,15 @@ export default function MapInfraestructuraPage(props: {
   // foto, nunca fuerza 'actual' a secas — si se venía del Radar con un
   // horizonte y un departamento elegidos, se vuelve a ESE estado.
   function cambiarModo(siguiente: ModoMapa) {
+    const map = mapRef.current?.getMap()
+    if (siguiente === 'radar' && modo !== 'radar' && map && typeof map.getCenter === 'function') {
+      const center = map.getCenter()
+      vistaPreviaRadar.current = { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
+      // Keep the dense forecast grid centered inside the area left clear by the timeline.
+      map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
+    } else if (modo === 'radar' && siguiente !== 'radar' && map && vistaPreviaRadar.current) {
+      map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
+    }
     if (siguiente === 'replay' && modo !== 'replay') {
       estadoPrevioReplayRef.current = {
         modo,
@@ -2005,11 +2025,20 @@ export default function MapInfraestructuraPage(props: {
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
+          onMouseMove={(event) => {
+            if (radarActivo && event.lngLat) {
+              window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
+            }
+          }}
           cursor="pointer"
           onLoad={handleMapLoad}
           // V2: cambiar de base recarga el estilo y MapLibre descarta las
           // imágenes registradas; `styledata` vuelve a registrarlas.
-          onStyleData={registrarIconosCluster}
+          onStyleData={() => {
+            registrarIconosCluster()
+            const map = mapRef.current?.getMap()
+            if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+          }}
           onMoveEnd={actualizarCuesNoAgrupados}
           onIdle={() => {
             if (entradaPuntosPendiente.current) {
@@ -2018,17 +2047,17 @@ export default function MapInfraestructuraPage(props: {
             }
           }}
         >
-          <NavigationControl position="top-left" />
+          <NavigationControl position="top-left" showCompass={!radarActivo} />
           {/* UX móvil (390px): el default de MapLibre ancla la atribución abajo
               como franja de ancho variable y tapaba los controles flotantes
               (`.map-left-stack-toggle` y `.map-fullscreen-btn`, ambos a
               `bottom: 25px`). En modo `compact` colapsa a un ícono chico en la
               esquina inferior derecha; el refuerzo CSS del media query de
               720px sube los botones para que el ícono no los pise. */}
-          <AttributionControl position="bottom-right" compact />
+          <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
           <Source id="infra-mascara-src" type="geojson" data={MASCARA_URL}>
-            <Layer id={CAPA_MASCARA_ID} type="fill" paint={fillPaintMascara()} />
+            <Layer id={CAPA_MASCARA_ID} type="fill" paint={radarActivo ? { 'fill-color': '#020811', 'fill-opacity': 0.62 } : fillPaintMascara()} />
           </Source>
 
           {/*
@@ -2046,12 +2075,12 @@ export default function MapInfraestructuraPage(props: {
             <Layer
               id={CAPA_DEPARTAMENTOS_RELLENO_ID}
               type="fill"
-              paint={fillPaintDepartamentos()}
+              paint={fillPaintDepartamentos(radarActivo)}
             />
             <Layer
               id={CAPA_DEPARTAMENTOS_BORDE_ID}
               type="line"
-              paint={linePaintDepartamentos()}
+              paint={radarActivo ? { 'line-color': '#d6e9f4', 'line-width': 0.7, 'line-opacity': 0.55 } : linePaintDepartamentos()}
             />
             <Layer
               id={CAPA_DEPARTAMENTO_HOVER_ID}
@@ -2069,7 +2098,7 @@ export default function MapInfraestructuraPage(props: {
               id="infra-departamentos-etiqueta"
               type="symbol"
               layout={symbolLayoutDepartamentos()}
-              paint={symbolPaintDepartamentos()}
+              paint={symbolPaintDepartamentos(radarActivo)}
             />
           </Source>
 
@@ -2088,6 +2117,7 @@ export default function MapInfraestructuraPage(props: {
                 <Layer
                   id={CAPA_PELIGRO_FILL_ID}
                   type="fill"
+                  layout={{ visibility: 'none' }}
                   paint={paintCoropletaPeligro()}
                 />
               )}
@@ -2102,7 +2132,7 @@ export default function MapInfraestructuraPage(props: {
             construcción de `modo`): la regla de aceptación es que esta capa
             NUNCA se muestre en Replay, sin depender de un efecto indirecto.
           */}
-          {radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso'] && (
+          {false && radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso'] && (
             <Source id="infra-riesgo-acceso-src" type="geojson" data={puntosRiesgoAccesoGeojson}>
               <Layer
                 id={CAPA_RIESGO_ACCESO_CIRCLE_ID}
@@ -2228,6 +2258,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
+                layout={{ visibility: radarActivo ? 'none' : 'visible' }}
                 filter={filtroPuntosPartes(capasVisibles.escuelas)}
                 paint={{
                   ...circlePaintPartes(),
@@ -2292,6 +2323,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
+                layout={{ visibility: radarActivo ? 'none' : 'visible' }}
                 filter={filtroClusterPartes(capasVisibles.escuelas)}
                 paint={{
                   'circle-color': colorPorSeveridadRango(),
@@ -2305,15 +2337,8 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
+                layout={{ 'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']], 'text-size': 12, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false, visibility: radarActivo ? 'none' : 'visible' }}
                 filter={filtroClusterPartes(capasVisibles.escuelas)}
-                layout={{
-                  'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']],
-                  'text-size': 12,
-                  // Misma fuente que el resto de los símbolos del mapa (ver
-                  // map-view.tsx); no se inventa una nueva.
-                  'text-font': ['Noto Sans Regular'],
-                  'text-allow-overlap': false,
-                }}
                 paint={{
                   // Contraste del conteo: sobre los fondos claros de la escala
                   // tonal (Baja#fecaca/Media#f87171) un trazo blanco se pierde,
@@ -2367,7 +2392,7 @@ export default function MapInfraestructuraPage(props: {
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
-          {badgesEstado.map((badge) => {
+          {!radarActivo && badgesEstado.map((badge) => {
             const Icono = ICONOS_BADGE_ESTADO[badge.icono]
             const etiqueta = ETIQUETA_ICONO_ESTADO[badge.icono]
             return (
@@ -2404,7 +2429,7 @@ export default function MapInfraestructuraPage(props: {
             explicación por escuela. Los `sin_dato` ya vienen filtrados en
             `marcadoresRiesgo`.
           */}
-          {radarActivo && capasRadarVisibles.riesgo && marcadoresRiesgo.map((marcador) => (
+          {false && radarActivo && capasRadarVisibles.riesgo && marcadoresRiesgo.map((marcador) => (
             <Marker
               key={marcador.cueAnexo}
               longitude={marcador.lng}
@@ -2429,6 +2454,8 @@ export default function MapInfraestructuraPage(props: {
               </button>
             </Marker>
           ))}
+
+          <RadarMeteo activo={radarActivo} />
 
           {/*
             Popup del departamento clickeado: mismo contenido y estilo que el
@@ -2602,7 +2629,7 @@ export default function MapInfraestructuraPage(props: {
         en .map-left-stack y los paneles vuelven al flujo normal.
       */}
       {dataVisible && (
-        <div className={styles.leftStack} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
+        <div className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
           {/* Conmutador de modo: cada botón adicional ("Radar", "Replay")
               sólo aparece con SU PROPIO flag prendido; "Situación actual" se
               muestra si cualquiera de los dos está activo. Botones reales
@@ -2649,10 +2676,10 @@ export default function MapInfraestructuraPage(props: {
             en Radar y Replay. Selecciona con el mismo criterio en todos los
             modos: vuela al punto y abre la ficha si corresponde.
           */}
-          <EscuelaSearchBox
+          {!radarActivo && <EscuelaSearchBox
             escuelas={dataEscuelasMapa?.escuelas ?? []}
             onSeleccionar={handleSeleccionarEscuelaBuscada}
-          />
+          />}
 
           {/*
             Aviso del buscador (no error): una escuela del padrón sin
@@ -2720,90 +2747,7 @@ export default function MapInfraestructuraPage(props: {
               episodioDerivadoId={episodioDerivadoId}
               onQuitarEpisodio={() => setEpisodioDerivadoId(null)}
             />
-          ) : modoRadar ? (
-            <div className={`${styles.panel} map-radar-panel`}>
-              <SelectorHorizonte
-                horizonte={horizonteSeleccionado}
-                onChange={setHorizonteSeleccionado}
-                disponibles={horizontesDisponibles}
-              />
-
-              {radarLoading && !radarData && (
-                <p role="status" className={styles.hint}>
-                  Cargando datos del radar…
-                </p>
-              )}
-              {radarError && (
-                <p role="alert" className={`${styles.hint} ${styles.statusError}`}>
-                  {radarError}
-                </p>
-              )}
-
-              {radarData && (
-                <>
-                  <p className={styles.hint} data-testid="radar-kpi-riesgo-alto">
-                    Escuelas en riesgo alto o muy alto: <strong>{radarData.kpis.riesgoAltoTotal}</strong>
-                  </p>
-                  <p className={styles.hint} data-testid="radar-kpi-sin-evidencia">
-                    Escuelas sin evidencia: <strong>{radarData.kpis.sinEvidenciaTotal}</strong>
-                  </p>
-                  <p className={styles.hint} data-testid="radar-kpi-acceso-condicionado">
-                    Acceso condicionado: <strong>{radarData.kpis.accesoCondicionado.escuelas}</strong> escuelas ·{' '}
-                    <strong>{radarData.kpis.accesoCondicionado.matricula}</strong> alumnos
-                  </p>
-                  {briefingLineas.length > 0 && (
-                    <ul className="map-radar-briefing" data-testid="radar-briefing">
-                      {briefingLineas.map((linea) => (
-                        <li key={linea}>{linea}</li>
-                      ))}
-                    </ul>
-                  )}
-                </>
-              )}
-
-              {/* Selección del radar: panel de explicación por departamento o
-                  por escuela. Los props que la API no entrega van en null y el
-                  panel los muestra como "No disponible". */}
-              {departamentoRadarSeleccionado && (
-                <RiskExplanationPanel
-                  tipo="departamento"
-                  departamento={departamentoRadarSeleccionado}
-                  niveles={nivelesDepartamentoRadar}
-                  caudal={null}
-                  lluviaObservada={null}
-                  tendenciaEstacional={
-                    seasonalActivo
-                      ? tendenciaEstacionalData && {
-                          emisionEn: tendenciaEstacionalData.emisionEn,
-                          validoDesde: tendenciaEstacionalData.validoDesde,
-                          validoHasta: tendenciaEstacionalData.validoHasta,
-                          miembrosTotal: tendenciaEstacionalData.miembrosTotal,
-                          miembrosValidos: tendenciaEstacionalData.miembrosValidos,
-                          probabilidadSobreNormal: tendenciaEstacionalData.probabilidadSobreNormal,
-                          mediaMm: tendenciaEstacionalData.mediaMm,
-                        }
-                      : undefined
-                  }
-                />
-              )}
-              {escuelaRadarSeleccionada && (
-                <RiskExplanationPanel
-                  tipo="escuela"
-                  cueAnexo={escuelaRadarSeleccionada.cueAnexo}
-                  nivelRiesgo={escuelaRadarSeleccionada.nivelRiesgo}
-                  confianza={
-                    (escuelaRadarSeleccionada.confianza as 'baja' | 'media' | 'alta')
-                  }
-                  scoreAmenaza={escuelaRadarSeleccionada.scoreAmenaza}
-                  scoreVulnerabilidad={escuelaRadarSeleccionada.scoreVulnerabilidad}
-                  riesgoAcceso={riesgoAccesoPanel}
-                  factores={factoresPanel}
-                  factoresCargando={snapshotLoading}
-                  factoresError={snapshotError}
-                />
-              )}
-            </div>
-          ) : (
+          ) : modoRadar ? null : (
             <>
               {(() => {
                 const totales = departamentoSeleccionado
@@ -2845,8 +2789,8 @@ export default function MapInfraestructuraPage(props: {
           )}
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
-            mostrarLeyendaPeligro={radarActivo || replayActivo}
-            mostrarLeyendaAcceso={radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']}
+            mostrarLeyendaPeligro={replayActivo}
+            mostrarLeyendaAcceso={!radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']}
             hayNivelProvisorio={
               radarActivo
                 ? (radarData?.hayNivelProvisorio ?? false)
@@ -2862,6 +2806,7 @@ export default function MapInfraestructuraPage(props: {
         variant="secondary"
         size="sm"
         className={styles.leftStackToggle}
+        style={radarActivo ? { display: 'none' } : undefined}
         onClick={() =>
           setLeftStackAbierto((abierto) => {
             const proximo = !abierto
@@ -2879,6 +2824,7 @@ export default function MapInfraestructuraPage(props: {
         className={styles.controlsStack}
         id="infra-controls-stack"
         data-open={controlsStackAbierto ? 'true' : 'false'}
+        style={radarActivo ? { display: 'none' } : undefined}
       >
         <BasemapControl
           value={basemap}
@@ -2894,7 +2840,7 @@ export default function MapInfraestructuraPage(props: {
         {hazardOn && (
           <AccesosLayerControl capas={capasAccesosVisibles} onChange={alternarCapaAccesos} />
         )}
-        {radarActivo && (
+        {radarActivo && false && (
           <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
         )}
       </div>
@@ -2903,6 +2849,7 @@ export default function MapInfraestructuraPage(props: {
         variant="secondary"
         size="sm"
         className={styles.controlsStackToggle}
+        style={radarActivo ? { display: 'none' } : undefined}
         onClick={() =>
           setControlsStackAbierto((abierto) => {
             const proximo = !abierto
@@ -2916,7 +2863,7 @@ export default function MapInfraestructuraPage(props: {
         {controlsStackAbierto ? 'Cerrar' : 'Capas'}
       </Button>
 
-      <FullscreenButton targetRef={shellRef} />
+      {!radarActivo && <FullscreenButton targetRef={shellRef} />}
 
       {/*
         Con una escuela seleccionada y la ficha cerrada, la selección queda
