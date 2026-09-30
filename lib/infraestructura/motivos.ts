@@ -28,6 +28,7 @@ export const MOTIVOS_SEED: MotivoRow[] = [
   { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
   { id: 'sin-energia-o-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 30 },
   { id: 'evacuacion-preventiva', nombre: 'Evacuación preventiva', categoria: 'establecimiento', orden: 40 },
+  { id: 'inaccesibilidad-docentes', nombre: 'Inaccesibilidad de docentes', categoria: 'establecimiento', orden: 50 },
   {
     id: 'otro-establecimiento',
     nombre: 'Otro problema en el establecimiento',

@@ -7,6 +7,7 @@ import {
   servicioAlcanceInputSchema,
   servicioEducativoInputSchema,
 } from './validacion-trayectoria'
+import { MOTIVOS_SEED } from './motivos'
 
 const RIGE_DESDE = '2026-09-18T10:30:00.000Z'
 
@@ -113,7 +114,7 @@ describe('servicioEducativoInputSchema', () => {
 
 describe('estadoEstablecimientoInputSchema', () => {
   it('acepta los tres estados de la spec §11', () => {
-    for (const estado of ['habitual', 'evacuado', 'centro_evacuados']) {
+    for (const estado of ['habitual', 'parcial', 'evacuado', 'centro_evacuados']) {
       expect(estadoEstablecimientoInputSchema.safeParse({ estado }).success).toBe(true)
     }
   })
@@ -123,10 +124,28 @@ describe('estadoEstablecimientoInputSchema', () => {
   })
 })
 
+describe('motivos de infraestructura', () => {
+  it('clasifica la inaccesibilidad de docentes como problema del establecimiento', () => {
+    expect(MOTIVOS_SEED.find((m) => m.nombre === 'Inaccesibilidad de docentes')?.categoria).toBe('establecimiento')
+  })
+})
+
 describe('parseParteActualizacionInput', () => {
   it('acepta un reporte inicial válido', () => {
     const result = parseParteActualizacionInput(basePayload)
     expect(result.ok).toBe(true)
+  })
+
+  it('rechaza evacuación con alcance declarado en secciones si falta la confirmación y acepta si está marcada', () => {
+    const evacuacion = { ...basePayload, estadoEstablecimiento: { estado: 'evacuado' } }
+    expect(parseParteActualizacionInput(evacuacion).ok).toBe(false)
+    expect(parseParteActualizacionInput({ ...evacuacion, confirmarInterrupcionTotal: true }).ok).toBe(true)
+    expect(parseParteActualizacionInput({ ...evacuacion, servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'establecimiento' } } }).ok).toBe(true)
+  })
+
+  it('valida y acepta modalidades de asistencia pedagógica', () => {
+    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } }).ok).toBe(true)
+    expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: [] } }).ok).toBe(false)
   })
 
   it('rechaza un CUE inválido', () => {

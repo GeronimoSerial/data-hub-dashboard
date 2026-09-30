@@ -48,6 +48,7 @@ function pluralizar(cantidad: number, singular: string, plural: string): string 
 
 const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
   habitual: 'Funcionamiento habitual',
+  parcial: 'Funcionamiento parcial',
   evacuado: 'Establecimiento evacuado',
   centro_evacuados: 'Utilizado como centro de evacuados',
 }
@@ -151,6 +152,13 @@ export function describirMovimiento(
   if (diff.establecimientoCambiado) {
     const { de, a } = diff.establecimientoCambiado
     lineas.push(`${ESTADO_ESTABLECIMIENTO_TEXTO[de]} → ${ESTADO_ESTABLECIMIENTO_TEXTO[a]}`)
+  }
+
+  if (diff.asistenciaPedagogicaCambiada) {
+    const asistencia = diff.asistenciaPedagogicaCambiada.a
+    if (!asistencia) lineas.push('Se quitó la asistencia pedagógica')
+    else if (!asistencia.brinda) lineas.push('No se brinda asistencia pedagógica')
+    else lineas.push(`Se brinda asistencia pedagógica: ${asistencia.modalidades.join(' y ')}`)
   }
 
   return lineas

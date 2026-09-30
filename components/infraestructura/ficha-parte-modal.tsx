@@ -8,6 +8,7 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type {
   Categoria,
+  AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
   SeccionEstablecimiento,
@@ -52,6 +53,7 @@ interface ParteFicha {
   estadoEstablecimiento: EstadoEstablecimiento
   estadoEstablecimientoRigeDesde: string
   actualizadaEn: string
+  asistenciaPedagogica?: AsistenciaPedagogica | null
 }
 
 interface RespuestaParteMapa {
@@ -246,6 +248,25 @@ function FichaParteModalContenido({
           <p className="estado-actual-bloque__valor">
             {ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]}
           </p>
+        </section>
+      )}
+
+      {datos?.parte?.asistenciaPedagogica && (
+        <section className="estado-actual-bloque" aria-label="Asistencia pedagógica">
+          <h3 className="estado-actual-bloque__titulo">Asistencia pedagógica</h3>
+          <p className="estado-actual-bloque__valor">
+            {datos.parte.asistenciaPedagogica.brinda
+              ? `Sí · ${datos.parte.asistenciaPedagogica.modalidades.join(' · ')}`
+              : 'No'}
+          </p>
+        </section>
+      )}
+
+      {parteResumen && (
+        <section className="estado-actual-bloque" aria-label="Alumnos alcanzados">
+          <h3 className="estado-actual-bloque__titulo">Impacto en alumnos</h3>
+          <p className="estado-actual-bloque__valor">Alumnos alcanzados: {parteResumen.alumnosAlcanzados}</p>
+          <p className="estado-actual-bloque__vigencia">Hecho: {parteResumen.seccionesAlcanzadas} secciones, {parteResumen.alumnosDelHecho} alumnos</p>
         </section>
       )}
 

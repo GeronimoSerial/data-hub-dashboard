@@ -21,6 +21,7 @@ describe('iconoEstadoEscuela', () => {
   it('mapea cada condición a su ícono lucide', () => {
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'centro_evacuados' })).toBe('Tent')
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'evacuado' })).toBe('DoorOpen')
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'parcial' })).toBe('Building')
     expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido' })).toBe('CircleSlash')
     expect(iconoEstadoEscuela({ ...base, servicio: 'parcial' })).toBe('TriangleAlert')
     expect(iconoEstadoEscuela({ ...base, sinReportar: true })).toBe('CircleHelp')

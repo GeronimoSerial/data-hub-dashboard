@@ -44,6 +44,7 @@ const LOCALE_MAPLIBRE_ES: Record<string, string> = {
   'Popup.Close': 'Cerrar',
 }
 import {
+  Building2,
   CircleHelp,
   CircleSlash,
   DoorOpen,
@@ -517,6 +518,7 @@ export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
 // es lo que devuelve la función pura `iconoEstadoEscuela`, para poder testear
 // la prioridad sin montar el mapa.
 const ICONOS_BADGE_ESTADO: Record<IconoEstadoEscuela, LucideIcon> = {
+  Building: Building2,
   Tent,
   DoorOpen,
   CircleSlash,
@@ -526,6 +528,7 @@ const ICONOS_BADGE_ESTADO: Record<IconoEstadoEscuela, LucideIcon> = {
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
 const ETIQUETA_ICONO_ESTADO: Record<IconoEstadoEscuela, string> = {
+  Building: 'Funcionamiento parcial',
   Tent: 'Centro de evacuados',
   DoorOpen: 'Establecimiento evacuado',
   CircleSlash: 'Servicio suspendido',
@@ -1979,6 +1982,8 @@ export default function MapInfraestructuraPage(props: {
                 // vez del anillo genérico que no distinguía cuál de los dos
                 // estados contenía la burbuja (hallazgo 3).
                 esCentroEvacuados: ['max', ['case', ['get', 'esCentroEvacuados'], 1, 0]],
+                // Suma de alumnos alcanzados (consecuencia) de los puntos del cluster.
+                alumnosAlcanzados: ['+', ['get', 'alumnosAlcanzados']],
                 // Cuenta de escuelas REALMENTE afectadas en el cluster: suma 1
                 // por cada punto con `estado === 'afectada'`. Distingue un
                 // cluster de puras escuelas sin afectación (0) de uno con al

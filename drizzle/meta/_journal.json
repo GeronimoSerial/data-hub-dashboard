@@ -43,6 +43,13 @@
       "when": 1790738929739,
       "tag": "0005_radar-meteo-run",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790784000000,
+      "tag": "0006_parcial_docentes_asistencia",
+      "breakpoints": true
     }
   ]
 }

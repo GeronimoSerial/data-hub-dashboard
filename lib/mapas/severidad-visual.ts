@@ -17,6 +17,7 @@ export function rangoSeveridad(severidad: string): number {
 // Si una escuela cumple más de una condición se muestra SÓLO la de mayor
 // prioridad, para no apilar íconos sobre el mismo punto.
 export type IconoEstadoEscuela =
+  | 'Building'
   | 'Tent'
   | 'DoorOpen'
   | 'CircleSlash'
@@ -43,6 +44,7 @@ export function iconoEstadoEscuela(
 ): IconoEstadoEscuela | null {
   if (estado.estadoEstablecimiento === 'centro_evacuados') return 'Tent'
   if (estado.estadoEstablecimiento === 'evacuado') return 'DoorOpen'
+  if (estado.estadoEstablecimiento === 'parcial') return 'Building'
   if (estado.servicio === 'suspendido') return 'CircleSlash'
   if (estado.servicio === 'parcial') return 'TriangleAlert'
   if (estado.sinReportar) return 'CircleHelp'

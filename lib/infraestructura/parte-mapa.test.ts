@@ -5,7 +5,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
-import { listarEscuelasMapa, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
+import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
@@ -21,6 +21,16 @@ vi.mock('./parte-consulta', async (importOriginal) => {
 })
 
 usarDbTemporal('parte-mapa', { seed: false, env: { ADMIN_EMAIL: undefined, ADMIN_PASSWORD: undefined } })
+
+describe('calcularAlumnosAlcanzados', () => {
+  it('usa matrícula total al evacuar aunque el hecho incluya sólo dos secciones', () => {
+    expect(calcularAlumnosAlcanzados({ alumnosDelHecho: 33, estado: 'evacuado', alumnosDelEstablecimiento: 420 })).toBe(420)
+  })
+  it('mantiene el alcance declarado en parcial y lo usa de respaldo si falta matrícula', () => {
+    expect(calcularAlumnosAlcanzados({ alumnosDelHecho: 33, estado: 'parcial', alumnosDelEstablecimiento: 420 })).toBe(33)
+    expect(calcularAlumnosAlcanzados({ alumnosDelHecho: 33, estado: 'centro_evacuados', alumnosDelEstablecimiento: null })).toBe(33)
+  })
+})
 
 // Corte "vigente" del fixture: 10 CUEs, cada uno con 2 secciones (mañana con
 // 3 alumnos, tarde con 2 alumnos), suficiente para ejercitar servicio

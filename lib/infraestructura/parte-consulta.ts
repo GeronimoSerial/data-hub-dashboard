@@ -25,6 +25,7 @@ import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
+  AsistenciaPedagogica,
   Categoria,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
@@ -233,7 +234,11 @@ export async function obtenerParteActual(
 
   return {
     periodo,
-    parte: { ...parteRow, estadoEstablecimiento: parteRow.estadoEstablecimiento as EstadoEstablecimiento },
+    parte: {
+      ...parteRow,
+      estadoEstablecimiento: parteRow.estadoEstablecimiento as EstadoEstablecimiento,
+      asistenciaPedagogica: parteRow.asistenciaPedagogica ? JSON.parse(parteRow.asistenciaPedagogica) : null,
+    },
     afectaciones,
     servicioAlcance,
     secciones,
@@ -248,6 +253,7 @@ export async function obtenerParteActual(
 export function snapshotDesde(actual: ParteActual, referencia?: Date | string): ParteSnapshot {
   return {
     estadoEstablecimiento: actual.parte?.estadoEstablecimiento ?? 'habitual',
+    asistenciaPedagogica: actual.parte?.asistenciaPedagogica ?? null,
     afectaciones: resolverAlcanceVigente(actual.afectaciones, { referencia }),
     servicioAlcance: resolverAlcanceVigente(actual.servicioAlcance, {
       referencia,
@@ -281,6 +287,7 @@ export interface FichaParte {
     estadoEstablecimiento: EstadoEstablecimiento
     estadoEstablecimientoRigeDesde: string
     actualizadaEn: string
+    asistenciaPedagogica?: AsistenciaPedagogica | null
   } | null
   servicio: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones: AfectacionFicha[]
@@ -328,6 +335,7 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
           estadoEstablecimiento: snapshot.estadoEstablecimiento,
           estadoEstablecimientoRigeDesde: actual.parte.estadoEstablecimientoRigeDesde,
           actualizadaEn: actual.parte.actualizadaEn,
+          asistenciaPedagogica: actual.parte.asistenciaPedagogica,
         }
       : null,
     servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },

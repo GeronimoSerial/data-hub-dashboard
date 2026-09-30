@@ -193,6 +193,9 @@ export function InfraLegendPanel({
             Evacuado
           </div>
           <div className={styles.legendItem}>
+            Funcionamiento parcial
+          </div>
+          <div className={styles.legendItem}>
             <CircleSlash size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
             Servicio suspendido
           </div>

@@ -13,6 +13,7 @@ function resultado(n: number): RespuestaPartesMapa {
       conServicioSuspendido: n,
       conServicioParcial: n,
       evacuadas: n,
+      establecimientosParciales: n,
       centrosDeEvacuados: n,
       sinReportar: n,
       alumnosAlcanzados: n,

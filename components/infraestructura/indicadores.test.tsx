@@ -13,6 +13,7 @@ const indicadores: IndicadoresMapa = {
   conServicioSuspendido: 3,
   conServicioParcial: 2,
   evacuadas: 1,
+  establecimientosParciales: 2,
   centrosDeEvacuados: 0,
   sinReportar: 4,
   alumnosAlcanzados: 340,
@@ -25,7 +26,8 @@ describe('Indicadores', () => {
 
     expect(screen.getByText('12')).toBeInTheDocument()
     expect(screen.getByText('3')).toBeInTheDocument()
-    expect(screen.getByText('2')).toBeInTheDocument()
+    expect(screen.getAllByText('2')).toHaveLength(2)
+    expect(screen.getByText('Funcionamiento parcial')).toBeInTheDocument()
     expect(screen.getByText('4')).toBeInTheDocument()
     expect(screen.getByText('340')).toBeInTheDocument()
     expect(screen.getByText('18')).toBeInTheDocument()

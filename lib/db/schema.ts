@@ -298,9 +298,10 @@ export const infraParte = pgTable(
       .notNull()
       .references(() => infraPeriodo.id),
     cueAnexo: text('cue_anexo').notNull(),
-    // 'habitual' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
+    // 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
     // del servicio educativo: ver infraServicioAlcance.
     estadoEstablecimiento: text('estado_establecimiento').notNull().default('habitual'),
+    asistenciaPedagogica: text('asistencia_pedagogica'),
     estadoEstablecimientoRigeDesde: text('estado_establecimiento_rige_desde').notNull(),
     corteId: integer('corte_id').notNull(),
     creadaEn: text('creada_en').notNull(),
