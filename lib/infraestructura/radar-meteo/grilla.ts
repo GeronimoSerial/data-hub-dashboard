@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 export const GRID_VERSION = 'corrientes-0.2-v1'
+export const ESPACIADO_GRILLA = 0.2
 export type CeldaRadar = { id: string; row: number; col: number; lat: number; lon: number }
 type Punto = [number, number]
 type Anillo = Punto[]
@@ -47,7 +48,7 @@ function cargarPoligonos(): Poligono[] {
 }
 
 export function generarGrilla(opts: { espaciado?: number; bufferKm?: number } = {}): CeldaRadar[] {
-  const espaciado = opts.espaciado ?? 0.2
+  const espaciado = opts.espaciado ?? ESPACIADO_GRILLA
   const bufferKm = opts.bufferKm ?? 10
   if (!(espaciado > 0)) throw new Error('El espaciado debe ser positivo')
   const poligonos = cargarPoligonos()
