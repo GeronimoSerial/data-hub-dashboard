@@ -15,6 +15,7 @@ export function crearParteMapa(overrides: Partial<ParteMapa> = {}): ParteMapa {
     categorias: ['establecimiento'],
     afectaciones: [],
     seccionesAlcanzadas: 0,
+    alumnosDelHecho: 0,
     alumnosAlcanzados: 0,
     rigeDesde: '2026-08-01T00:00:00Z',
     actualizadaEn: '2026-08-01T00:00:00Z',

@@ -7,6 +7,7 @@
 // histórico", "persistencia". No aparecen en este archivo a propósito.
 import type {
   Categoria,
+  AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
   SeccionEstablecimiento,
@@ -56,6 +57,7 @@ export interface ParteResumen {
   estadoEstablecimiento: EstadoEstablecimiento
   estadoEstablecimientoRigeDesde: string
   actualizadaEn: string
+  asistenciaPedagogica?: AsistenciaPedagogica | null
 }
 
 export interface EstadoActualRespuesta {
@@ -97,6 +99,7 @@ export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
 // spec §3.5.
 export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
   habitual: 'Funcionamiento habitual',
+  parcial: 'Funcionamiento parcial',
   evacuado: 'Establecimiento evacuado',
   centro_evacuados: 'Utilizado como centro de evacuados',
 }

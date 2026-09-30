@@ -43,8 +43,12 @@ const cueSchema = z
 // Deben coincidir exactamente con EstadoEstablecimiento / ServicioEstado en
 // trayectoria-tipos.ts. No se importan esos tipos porque Zod necesita los
 // valores en tiempo de ejecución, no sólo el tipo.
-const ESTADOS_ESTABLECIMIENTO = ['habitual', 'evacuado', 'centro_evacuados'] as const
+const ESTADOS_ESTABLECIMIENTO = ['habitual', 'parcial', 'evacuado', 'centro_evacuados'] as const
 const ESTADOS_SERVICIO = ['normal', 'suspendido'] as const
+const asistenciaPedagogicaSchema = z.object({
+  brinda: z.boolean(),
+  modalidades: z.array(z.enum(['Clase virtual', 'Cuadernillo'])).max(2),
+}).refine((v) => v.brinda ? v.modalidades.length > 0 : v.modalidades.length === 0, 'Indique una modalidad si brinda asistencia pedagógica')
 
 // --- Afectaciones (spec §9) ---
 
@@ -127,6 +131,8 @@ export const parteActualizacionInputSchema = z
     afectacionesRetiradas: z.array(z.string().trim().min(1)).default([]),
     servicioEducativo: servicioEducativoInputSchema.optional(),
     estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
+    confirmarInterrupcionTotal: z.boolean().optional(),
+    asistenciaPedagogica: asistenciaPedagogicaSchema.optional(),
   })
   .refine(
     (data) =>
@@ -134,9 +140,17 @@ export const parteActualizacionInputSchema = z
       data.afectacionesModificadas.length > 0 ||
       data.afectacionesRetiradas.length > 0 ||
       data.servicioEducativo !== undefined ||
-      data.estadoEstablecimiento !== undefined,
+      data.estadoEstablecimiento !== undefined ||
+      data.asistenciaPedagogica !== undefined,
     { message: 'Todavía no realizó cambios en el parte actual' },
   )
+  .refine((data) => {
+    const evacua = data.estadoEstablecimiento?.estado === 'evacuado' || data.estadoEstablecimiento?.estado === 'centro_evacuados'
+    const declaraSecciones = data.servicioEducativo
+      ? data.servicioEducativo.alcance.tipo === 'seccion'
+      : [...data.afectacionesNuevas, ...data.afectacionesModificadas].some((a) => (a.secciones?.length ?? 0) > 0)
+    return !evacua || !declaraSecciones || data.confirmarInterrupcionTotal === true
+  }, { message: 'Confirme que se interrumpe todo el establecimiento' })
 
 export type ParteActualizacionInput = z.infer<typeof parteActualizacionInputSchema>
 

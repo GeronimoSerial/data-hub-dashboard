@@ -161,13 +161,13 @@ describe('AfectacionBorradorCard', () => {
   it('resumen suma la matrícula de las secciones elegidas', () => {
     renderCard({ borrador: { ...borradorBase, secciones: [10, 11] } })
 
-    expect(screen.getByText('2 secciones · 53 alumnos')).toBeInTheDocument()
+    expect(screen.getByText(/Seleccionadas: 2 de \d+ secciones · 53 de \d+ alumnos/)).toBeInTheDocument()
   })
 
   it('resumen usa la cantidad de alumnos explícitos cuando los hay', () => {
     renderCard({ borrador: { ...borradorBase, secciones: [10, 11], alumnos: [1, 2, 3] } })
 
-    expect(screen.getByText('2 secciones · 3 alumnos')).toBeInTheDocument()
+    expect(screen.getByText(/Seleccionadas: 2 de \d+ secciones · 3 de \d+ alumnos/)).toBeInTheDocument()
   })
 
   /*

@@ -1,6 +1,6 @@
 {
-  "id": "544ef545-5c14-4afd-8750-a351ec817876",
-  "prevId": "f880ea1b-43cc-4075-9586-ec6c8fa8d133",
+  "id": "b9b2d075-16e6-4a3a-88dd-60f7a0a55a15",
+  "prevId": "e91faf1b-2607-447d-929a-900fb4e6760a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2420,6 +2420,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'habitual'"
+        },
+        "asistencia_pedagogica": {
+          "name": "asistencia_pedagogica",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "estado_establecimiento_rige_desde": {
           "name": "estado_establecimiento_rige_desde",

@@ -164,6 +164,9 @@ describe('GET /api/problematicas/parte/historial', () => {
         idempotencyKey: crypto.randomUUID(),
         rigeDesde: new Date().toISOString(),
         estadoEstablecimiento: { estado: 'evacuado' },
+        // The initial report was scoped to one section, so evacuating the
+        // whole building requires the explicit confirmation.
+        confirmarInterrupcionTotal: true,
       }),
     )
     expect(actualizacion.status).toBe(201)

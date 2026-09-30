@@ -34,6 +34,11 @@ function servicio(overrides: Partial<ServicioAlcance> & { id: string }): Servici
 }
 
 describe('diffParte', () => {
+  it('detecta cambios en la asistencia pedagógica', () => {
+    const antes = crearSnapshotVacio()
+    const despues = { ...antes, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual'] as Array<'Clase virtual' | 'Cuadernillo'> } }
+    expect(diffParte(antes, despues).asistenciaPedagogicaCambiada).toEqual({ de: null, a: { brinda: true, modalidades: ['Clase virtual'] } })
+  })
   it('parte vacío vs parte vacío da un diff vacío', () => {
     const diff = diffParte(crearSnapshotVacio(), crearSnapshotVacio())
     expect(esDiffVacio(diff)).toBe(true)

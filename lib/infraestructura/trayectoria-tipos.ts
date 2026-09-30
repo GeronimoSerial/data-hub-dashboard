@@ -16,7 +16,12 @@ export type { Severidad, Categoria }
 
 // --- Enums / uniones (mismos nombres que CONTRACT.md) ---
 
-export type EstadoEstablecimiento = 'habitual' | 'evacuado' | 'centro_evacuados'
+export type EstadoEstablecimiento = 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados'
+export type ModalidadAsistenciaPedagogica = 'Clase virtual' | 'Cuadernillo'
+export interface AsistenciaPedagogica {
+  brinda: boolean
+  modalidades: ModalidadAsistenciaPedagogica[]
+}
 
 // Lo que el director elige (spec §3.4): sólo dos opciones. "parcial" NUNCA es
 // una opción de carga, ver EstadoServicioGeneral más abajo.
@@ -136,6 +141,7 @@ export interface Parte {
   periodoId: string
   cueAnexo: string
   estadoEstablecimiento: EstadoEstablecimiento
+  asistenciaPedagogica?: AsistenciaPedagogica | null
   estadoEstablecimientoRigeDesde: string
   corteId: number
   creadaEn: string
@@ -150,6 +156,7 @@ export interface Parte {
 // servicioAlcance: [].
 export interface ParteSnapshot {
   estadoEstablecimiento: EstadoEstablecimiento
+  asistenciaPedagogica?: AsistenciaPedagogica | null
   afectaciones: Afectacion[]
   servicioAlcance: ServicioAlcance[]
 }
@@ -157,5 +164,5 @@ export interface ParteSnapshot {
 export function crearSnapshotVacio(
   estadoEstablecimiento: EstadoEstablecimiento = 'habitual',
 ): ParteSnapshot {
-  return { estadoEstablecimiento, afectaciones: [], servicioAlcance: [] }
+  return { estadoEstablecimiento, asistenciaPedagogica: null, afectaciones: [], servicioAlcance: [] }
 }

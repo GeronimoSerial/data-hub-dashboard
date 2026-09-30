@@ -42,6 +42,7 @@ function respuestaParte() {
       estadoEstablecimiento: 'evacuado',
       estadoEstablecimientoRigeDesde: '2026-08-01T00:00:00Z',
       actualizadaEn: '2026-08-01T00:00:00Z',
+      asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual'] },
     },
     servicio: { estadoGeneral: 'suspendido', alcanceVigente: [] },
     afectaciones: [
@@ -159,6 +160,11 @@ afterEach(() => {
 })
 
 describe('FichaParteModal', () => {
+  it('muestra la asistencia pedagógica y sus modalidades', async () => {
+    stubFetch()
+    render(<FichaParteModal cueAnexo={CUE} open={true} onOpenChange={() => {}} parteResumen={parteResumen} escuela={escuela} mostrarEnlaceNominal={false} onVerAlumnosAlcanzados={() => {}} onVerHistorialCompleto={() => {}} />)
+    expect(await screen.findByText('Sí · Clase virtual')).toBeInTheDocument()
+  })
   it('no fetchea nada mientras el modal está cerrado', () => {
     const fetchMock = stubFetch()
     renderFicha({ open: false })

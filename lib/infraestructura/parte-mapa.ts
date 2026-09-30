@@ -67,6 +67,7 @@ export interface ParteMapa {
   categorias: CategoriaAfectacion[]
   afectaciones: AfectacionMapa[]
   seccionesAlcanzadas: number
+  alumnosDelHecho: number
   alumnosAlcanzados: number
   // El rigeDesde vigente MÁS ANTIGUO entre las afectaciones que quedaron
   // (post filtro): responde "¿desde cuándo viene esta situación?", no
@@ -80,10 +81,22 @@ export interface IndicadoresMapa {
   conServicioSuspendido: number
   conServicioParcial: number
   evacuadas: number
+  establecimientosParciales: number
   centrosDeEvacuados: number
   sinReportar: number
   alumnosAlcanzados: number
   seccionesAlcanzadas: number
+}
+
+export function calcularAlumnosAlcanzados(params: {
+  alumnosDelHecho: number
+  estado: EstadoEstablecimiento
+  alumnosDelEstablecimiento: number | null
+}): number {
+  if (params.estado === 'evacuado' || params.estado === 'centro_evacuados') {
+    return params.alumnosDelEstablecimiento ?? params.alumnosDelHecho
+  }
+  return params.alumnosDelHecho
 }
 
 // El umbral vive en umbrales.ts, un modulo sin importaciones de servidor:
@@ -99,6 +112,7 @@ function indicadoresVacios(): IndicadoresMapa {
     conServicioSuspendido: 0,
     conServicioParcial: 0,
     evacuadas: 0,
+    establecimientosParciales: 0,
     centrosDeEvacuados: 0,
     sinReportar: 0,
     alumnosAlcanzados: 0,
@@ -354,6 +368,8 @@ export async function listarPartesVigentes(
     cargarServicioAlcanceDeVariosPartes(client, parteIds),
     listarSeccionesDeCues(client, corteId, cueAnexos),
   ])
+  const todasLasSeccionesDelPadron = [...new Set([...seccionesPorCue.values()].flat().map((s) => s.geSectionId))]
+  const padronCompleto = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: todasLasSeccionesDelPadron })
 
   // Vigencia de afectaciones: sin `clave` de agrupación porque cada
   // afectación es su propia fila independiente (spec §3.2) — a diferencia
@@ -428,6 +444,21 @@ export async function listarPartesVigentes(
       }
     }
 
+    const alumnosDelHecho = alumnosAlcanzados.size
+    let alumnosDelEstablecimiento: number | null = null
+    if (parteRow.estadoEstablecimiento === 'evacuado' || parteRow.estadoEstablecimiento === 'centro_evacuados') {
+      const turnosInterrumpidos = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'turno').map((s) => s.referenciaId))
+      const seccionesInterrumpidas = turnosInterrumpidos.size > 0
+        ? secciones.filter((s) => turnosInterrumpidos.has(s.turno))
+        : secciones
+      const roster = new Set<number>()
+      for (const seccion of seccionesInterrumpidas) {
+        for (const alumno of padronCompleto.get(seccion.geSectionId) ?? []) roster.add(alumno)
+      }
+      if (seccionesInterrumpidas.length > 0) alumnosDelEstablecimiento = roster.size
+    }
+    const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: parteRow.estadoEstablecimiento, alumnosDelEstablecimiento })
+
     partes.push({
       parteId: parteRow.id,
       cueAnexo: parteRow.cueAnexo,
@@ -449,7 +480,8 @@ export async function listarPartesVigentes(
         rigeDesde: a.rigeDesde,
       })),
       seccionesAlcanzadas: seccionesAlcanzadas.size,
-      alumnosAlcanzados: alumnosAlcanzados.size,
+      alumnosDelHecho,
+      alumnosAlcanzados: alumnosConsecuencia,
       rigeDesde: rigeDesdeMasAntiguo,
       actualizadaEn: parteRow.actualizadaEn,
     })
@@ -463,6 +495,7 @@ export async function listarPartesVigentes(
     conServicioSuspendido: partes.filter((p) => p.servicio === 'suspendido').length,
     conServicioParcial: partes.filter((p) => p.servicio === 'parcial').length,
     evacuadas: partes.filter((p) => p.estadoEstablecimiento === 'evacuado').length,
+    establecimientosParciales: partes.filter((p) => p.estadoEstablecimiento === 'parcial').length,
     centrosDeEvacuados: partes.filter((p) => p.estadoEstablecimiento === 'centro_evacuados').length,
     sinReportar: partes.filter((p) => ahoraMs - new Date(p.actualizadaEn).getTime() > umbralMs).length,
     alumnosAlcanzados: partes.reduce((acc, p) => acc + p.alumnosAlcanzados, 0),

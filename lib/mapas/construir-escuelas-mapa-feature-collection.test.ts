@@ -22,6 +22,7 @@ function parte(overrides: Partial<ParteMapa> = {}): ParteMapa {
     categorias: [],
     afectaciones: [],
     seccionesAlcanzadas: 0,
+    alumnosDelHecho: 0,
     alumnosAlcanzados: 0,
     rigeDesde: '2026-09-01T00:00:00.000Z',
     actualizadaEn: '2026-09-27T00:00:00.000Z',
@@ -90,6 +91,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
   it('marca esCentroEvacuados sólo para centro_evacuados, y esEvacuado para ambos', () => {
     const escuelas = [
       escuelaAfectada({ cueAnexo: 'habitual', parte: parte({ estadoEstablecimiento: 'habitual' }) }),
+      escuelaAfectada({ cueAnexo: 'parcial', parte: parte({ estadoEstablecimiento: 'parcial' }) }),
       escuelaAfectada({ cueAnexo: 'evacuado', parte: parte({ estadoEstablecimiento: 'evacuado' }) }),
       escuelaAfectada({
         cueAnexo: 'centro',
@@ -107,6 +109,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
       ]),
     ).toEqual([
       ['habitual', false, false],
+      ['parcial', false, false],
       ['evacuado', true, false],
       ['centro', true, true],
     ])

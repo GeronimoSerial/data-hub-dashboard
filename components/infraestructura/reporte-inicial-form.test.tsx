@@ -73,6 +73,49 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('advierte y exige confirmar la interrupción total al declarar secciones y evacuación', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
+    expect(screen.getByText(/solo algunas secciones.*interrupción de toda la escuela/i)).toBeVisible()
+    continuar()
+    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeVisible()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Confirmo que se interrumpe todo el establecimiento' }))
+    continuar()
+    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeVisible()
+  })
+
+  it('no pide confirmación al evacuar si se marcaron todas las secciones', () => {
+    const unaSeccion = [{ ...turnos[0], niveles: [{ ...turnos[0].niveles[0], secciones: turnos[0].niveles[0].secciones.slice(0, 1) }] }]
+    renderFormulario({ turnos: unaSeccion })
+    completarQuePaso()
+    continuar()
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    continuar()
+    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
+    expect(screen.queryByText(/solo algunas secciones/i)).toBeNull()
+  })
+
+  it('incluye asistencia pedagógica y modalidad en el cuerpo del reporte', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await waitFor(() => {
+      const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+      expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
+    })
+  })
   // El motivo de fondo del rediseño: la pantalla anterior abría con un título
   // "Afectaciones" vacío y un botón de agregar, y se leía como una invitación
   // a encadenar problemas. El primer reporte declara UN hecho.

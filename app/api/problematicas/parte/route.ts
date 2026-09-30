@@ -481,6 +481,21 @@ export async function POST(request: Request) {
     .where(and(eq(infraParte.cueAnexo, cue.value), eq(infraParte.periodoId, periodo.id)))
     .limit(1)
 
+  const evacuaAhora = input.estadoEstablecimiento?.estado === 'evacuado' || input.estadoEstablecimiento?.estado === 'centro_evacuados'
+  if (evacuaAhora && !input.confirmarInterrupcionTotal && parteExistente && input.servicioEducativo === undefined) {
+    const alcancesVigentes = await db.select({ tipo: infraServicioAlcance.tipo }).from(infraServicioAlcance)
+      .where(and(eq(infraServicioAlcance.parteId, parteExistente.id), isNull(infraServicioAlcance.retiradaEn)))
+    const hayAlcanceTotalOTurno = alcancesVigentes.some((a) => a.tipo === 'establecimiento' || a.tipo === 'turno')
+    if (!hayAlcanceTotalOTurno) {
+      const [hechoPorSecciones] = await db.select({ id: infraAfectacionSeccion.geSectionId })
+        .from(infraAfectacionSeccion)
+        .innerJoin(infraAfectacion, eq(infraAfectacion.id, infraAfectacionSeccion.afectacionId))
+        .where(and(eq(infraAfectacion.parteId, parteExistente.id), isNull(infraAfectacion.retiradaEn)))
+        .limit(1)
+      if (hechoPorSecciones) return jsonError('Confirme que se interrumpe todo el establecimiento', 400)
+    }
+  }
+
   const idsReferenciados = [
     ...input.afectacionesModificadas.map((m) => m.id),
     ...input.afectacionesRetiradas,
@@ -567,6 +582,7 @@ export async function POST(request: Request) {
             periodoId: periodo.id,
             cueAnexo: cue.value,
             estadoEstablecimiento: 'habitual',
+            asistenciaPedagogica: null,
             estadoEstablecimientoRigeDesde: input.rigeDesde,
             corteId,
             creadaEn: ahora,
@@ -599,7 +615,7 @@ export async function POST(request: Request) {
       const actualAntesReal: ParteActual = parteFilaActual
         ? {
             periodo,
-            parte: { ...parteFilaActual, estadoEstablecimiento: parteFilaActual.estadoEstablecimiento as EstadoEstablecimiento },
+            parte: { ...parteFilaActual, estadoEstablecimiento: parteFilaActual.estadoEstablecimiento as EstadoEstablecimiento, asistenciaPedagogica: parteFilaActual.asistenciaPedagogica ? JSON.parse(parteFilaActual.asistenciaPedagogica) : null },
             afectaciones: afectacionesActuales,
             servicioAlcance: servicioAlcanceActual,
             secciones,
@@ -725,11 +741,13 @@ export async function POST(request: Request) {
         actualizadaEn: string
         estadoEstablecimiento?: string
         estadoEstablecimientoRigeDesde?: string
+        asistenciaPedagogica?: string | null
       } = { actualizadaEn: ahora }
       if (input.estadoEstablecimiento) {
         actualizacionParte.estadoEstablecimiento = input.estadoEstablecimiento.estado
         actualizacionParte.estadoEstablecimientoRigeDesde = input.rigeDesde
       }
+      if (input.asistenciaPedagogica !== undefined) actualizacionParte.asistenciaPedagogica = JSON.stringify(input.asistenciaPedagogica)
       await tx.update(infraParte).set(actualizacionParte).where(eq(infraParte.id, parteId))
 
       // Fotografía "después", dentro de la misma transacción: si el diff
@@ -741,7 +759,7 @@ export async function POST(request: Request) {
         {
           periodo,
           parte: parteDespues
-            ? { ...parteDespues, estadoEstablecimiento: parteDespues.estadoEstablecimiento as EstadoEstablecimiento }
+            ? { ...parteDespues, estadoEstablecimiento: parteDespues.estadoEstablecimiento as EstadoEstablecimiento, asistenciaPedagogica: parteDespues.asistenciaPedagogica ? JSON.parse(parteDespues.asistenciaPedagogica) : null }
             : null,
           afectaciones: afectacionesDespues,
           servicioAlcance: servicioAlcanceDespues,
