@@ -21,4 +21,15 @@ describe('provider radar Open-Meteo', () => {
     expect(resultado.lotes[0].values.precipitation[0]).toEqual([0, null])
     expect(new URL(String((fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0])).searchParams.get('timezone')).toBe('UTC')
   })
+
+  it('reintenta JSON truncado y vuelve a reservar cupo por intento', async () => {
+    const controlador = { ...cupo, reservar: vi.fn(async () => ({ ok: true as const, esperoMs: 0 })) }
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{"hourly":', { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(respuesta(1)), { status: 200 })) as unknown as typeof fetch
+    const resultado = await obtenerPronosticoRadar({ celdas: celdas(1), cupo: () => controlador, fetchImpl, esperar: async () => {} })
+    expect(resultado.lotes).toHaveLength(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(controlador.reservar).toHaveBeenCalledTimes(2)
+  })
 })

@@ -46,6 +46,8 @@ export type ParametrosSolicitud<T> = {
    * integran cupo (ecmwf.test.ts, flood.test.ts, etc.) no cambian.
    */
   cupo?: ControladorCupoOM
+  /** Sólo para proveedores que consideran transitorio un cuerpo JSON truncado. */
+  reintentarJsonTruncado?: boolean
 }
 
 const TIMEOUT_MS_DEFAULT = 10_000
@@ -166,11 +168,17 @@ export async function ejecutarConReintentos<T>(
       try {
         json = JSON.parse(texto)
       } catch {
-        return {
+        const errorPayload: ResultadoHttp<T> = {
           ok: false,
           motivo: 'payload_invalido',
           detalle: `JSON inválido, cuerpo (recortado): ${texto.slice(0, 500)}`,
         }
+        ultimoError = errorPayload
+        if (params.reintentarJsonTruncado && intento < maxIntentos) {
+          await esperar(backoffMs(intento, backoffBaseMs, backoffMaxMs))
+          continue
+        }
+        return errorPayload
       }
 
       try {

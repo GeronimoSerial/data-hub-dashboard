@@ -38,7 +38,7 @@ export async function obtenerPronosticoRadar(params: { celdas: CeldaRadar[]; cup
     url.searchParams.set('latitude', grupo.map((c) => c.lat).join(',')); url.searchParams.set('longitude', grupo.map((c) => c.lon).join(','))
     url.searchParams.set('hourly', VARIABLES_RADAR.join(',')); url.searchParams.set('forecast_days', '7'); url.searchParams.set('timezone', 'UTC'); url.searchParams.set('models', 'best_match')
     const cupo = typeof params.cupo === 'function' ? params.cupo(peso) : params.cupo
-    const response = await ejecutarConReintentos({ url: agregarApiKey(url.toString(), params.apiKey), fetchImpl: params.fetchImpl, cupo, parsearPayload: (json) => validar(json, grupo) })
+    const response = await ejecutarConReintentos({ url: agregarApiKey(url.toString(), params.apiKey), fetchImpl: params.fetchImpl, cupo, reintentarJsonTruncado: true, parsearPayload: (json) => validar(json, grupo) })
     if (!response.ok) throw new Error(`Open-Meteo ${response.motivo}: ${response.detalle}`)
     lotes.push(response.datos); pesoTotal += peso
   }
