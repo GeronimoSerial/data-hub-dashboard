@@ -1787,7 +1787,7 @@ export default function MapInfraestructuraPage(props: {
   }
 
   return (
-    <div className={styles.shell} ref={shellRef} data-ficha-abierta={fichaAbierta ? 'true' : 'false'}>
+    <div className={styles.shell} ref={shellRef} data-ficha-abierta={fichaAbierta ? 'true' : 'false'} data-radar-activo={radarActivo ? 'true' : 'false'}>
       {/* T1.4: mientras useAlertas resuelve (loading=true, data=null, sin
           error todavía), el aviso se dibuja como overlay ENCIMA del MapGL ya
           montado, en vez de reemplazarlo — así el basemap y los polígonos
@@ -2196,7 +2196,7 @@ export default function MapInfraestructuraPage(props: {
             </Marker>
           ))}
 
-          <RadarMeteo activo={radarActivo} />
+          <RadarMeteo activo={radarActivo} escuelas={dataEscuelasMapa?.escuelas ?? []} />
 
           {/*
             Popup del departamento clickeado: mismo contenido y estilo que el

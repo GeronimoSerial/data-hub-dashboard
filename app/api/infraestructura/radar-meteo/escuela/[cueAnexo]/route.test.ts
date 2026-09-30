@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ acceso: { ok: true, user: { id: 'test' } } as 
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({ verificarAccesoLectura: vi.fn(async () => mocks.acceso) }))
 vi.mock('@/lib/infraestructura/riesgo/flags', () => ({ riskRadarEnabled: vi.fn(() => mocks.enabled) }))
 vi.mock('@/lib/infraestructura/radar-meteo/job-sync', () => ({ obtenerUltimoRunRadarMeteo: vi.fn(async () => mocks.run) }))
+vi.mock('@/lib/infraestructura/radar-meteo/ensemble', () => ({ alertasAndEnsemble: vi.fn(async () => null) }))
 vi.mock('@/lib/infraestructura/parte-mapa', () => ({ listarEscuelasMapa: vi.fn(async () => ({ escuelas: mocks.escuelas })) }))
 import { GET } from './route'
 const req = (ifNoneMatch?: string) => new Request('http://localhost', { headers: ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : {} })

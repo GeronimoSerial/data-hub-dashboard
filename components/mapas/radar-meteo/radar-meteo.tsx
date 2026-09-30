@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Layer, Source } from 'react-map-gl/maplibre'
+import { Layer, Marker, Source } from 'react-map-gl/maplibre'
 import type { ImageSource, Map as MapLibreMap, RasterLayerSpecification } from 'maplibre-gl'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import { union } from '@turf/union'
@@ -23,6 +23,18 @@ import { LeyendaRadar } from './leyenda'
 import { LineaTiempoRadar } from './linea-tiempo'
 import { PopupRadar } from './popup'
 import { SelectorRadar, type VariableRadarUI } from './selector'
+import { AlertasStrip, type AlertaRadar } from './alertas-strip'
+import { ResumenPanel, type DepartamentoResumen } from './resumen-panel'
+import { EscuelaForecastCard } from './escuela-card'
+import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
+
+interface ResumenRadar {
+  runAt: string | null
+  frescura: { edadMinutos: number } | null
+  dias: string[]
+  departamentos: DepartamentoResumen[]
+  alertasSmn: AlertaRadar[]
+}
 
 const variablesSolicitadas = [
   'precipitation',
@@ -74,7 +86,6 @@ function crearRaster(
   data: RespuestaRadarMeteo,
   frame: number,
   variable: VariableRadarUI,
-  paso: 1 | 3,
 ): string | null {
   const grid = data.grid
   if (!grid) {
@@ -88,9 +99,7 @@ function crearRaster(
 
   const ordered = valoresEnGrilla(grid, values)
   const padded = rellenarAnilloExterior(grid, ordered)
-  const hourlyValues = variable === 'lluvia' && paso === 3
-    ? padded.map((value) => value === null ? null : value / 3)
-    : padded
+  const hourlyValues = padded
   const width = 600
   const height = Math.max(300, Math.round(width * grid.filas / grid.columnas))
   const canvas = document.createElement('canvas')
@@ -189,7 +198,7 @@ function crearMascaraInversa(
   return { type: 'FeatureCollection', features: [mask] }
 }
 
-function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: VariableRadarUI, paso: 1 | 3) {
+function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: VariableRadarUI) {
   const grid = data.grid
   const values = data.valores[clavePorVariable[variable]]?.[frame]
   if (!grid || !values) {
@@ -198,9 +207,7 @@ function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: Va
 
   const features = grid.celdas.flatMap((cell, index) => {
     const rawValue = values[index]
-    const value = variable === 'lluvia' && paso === 3 && rawValue !== null && rawValue !== undefined
-      ? rawValue / 3
-      : rawValue ?? null
+    const value = rawValue ?? null
     const isVisible = variable === 'granizo'
       ? colorGranizo(value) !== 'transparent'
       : mapaVariable[variable](value)[3] > 0
@@ -246,7 +253,7 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo }: { activo: boolean }) {
+export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuelas?: EscuelaMapa[] }) {
   const [variable, setVariable] = useState<VariableRadarUI>('lluvia')
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -256,7 +263,13 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
   const [retry, setRetry] = useState(0)
   const [rasterFrame, setRasterFrame] = useState<RasterFrame | null>(null)
   const [boundary, setBoundary] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null)
+  const [resumen, setResumen] = useState<ResumenRadar | null>(null)
+  const [alertaActiva, setAlertaActiva] = useState<AlertaRadar | null>(null)
+  const [geometriasAlerta, setGeometriasAlerta] = useState<{ alertaId: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
+  const [resumenError, setResumenError] = useState(false)
   const [map, setMap] = useState<MapLibreMap | null>(null)
+  const [zoom, setZoom] = useState(0)
+  const [cueEscuela, setCueEscuela] = useState<string | null>(null)
   const animationFrame = useRef<number | null>(null)
   const { data, loading, error } = useRadarMeteo({
     activo,
@@ -265,21 +278,45 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
     refreshKey: retry,
   })
 
+  useEffect(() => {
+    if (!activo) return
+    let cancelado = false
+    const cacheKey = 'radar-meteo-resumen-v1'
+    const etag = sessionStorage.getItem(`${cacheKey}-etag`)
+    fetch('/api/infraestructura/radar-meteo/resumen', {
+      headers: etag ? { 'If-None-Match': etag } : undefined,
+    }).then(async (response) => {
+      if (response.status === 304) return null
+      if (!response.ok) throw new Error('No se pudo cargar el resumen')
+      const respuesta = await response.json() as ResumenRadar
+      const nuevoEtag = response.headers.get('ETag')
+      if (nuevoEtag) sessionStorage.setItem(`${cacheKey}-etag`, nuevoEtag)
+      sessionStorage.setItem(`${cacheKey}-data`, JSON.stringify(respuesta))
+      return respuesta
+    }).then((respuesta) => {
+      if (cancelado) return
+      const guardado = respuesta ?? JSON.parse(sessionStorage.getItem(`${cacheKey}-data`) ?? 'null') as ResumenRadar | null
+      setResumen(guardado)
+      setResumenError(!guardado)
+    }).catch(() => { if (!cancelado) setResumenError(true) })
+    return () => { cancelado = true }
+  }, [activo])
+
   const times = data?.tiempos ?? tiemposVacios
   const raster = useMemo(() => {
     if (!data || data.sinDatos || typeof document === 'undefined') {
       return null
     }
 
-    return crearRaster(data, frame, variable, paso)
-  }, [data, frame, variable, paso])
+    return crearRaster(data, frame, variable)
+  }, [data, frame, variable])
   const rainUnderlay = useMemo(() => {
     if (!data || variable !== 'granizo' || typeof document === 'undefined') {
       return null
     }
 
-    return crearRaster(data, frame, 'lluvia', paso)
-  }, [data, frame, variable, paso])
+    return crearRaster(data, frame, 'lluvia')
+  }, [data, frame, variable])
   const imageCoordinates = useMemo(() => {
     const grid = data?.grid
     if (!grid) {
@@ -306,8 +343,8 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
       return null
     }
 
-    return crearDebugPoints(data, frame, variable, paso)
-  }, [data, debug, frame, variable, paso])
+    return crearDebugPoints(data, frame, variable)
+  }, [data, debug, frame, variable])
   const windFeatures = useMemo(() => {
     if (!data || variable !== 'viento') {
       return null
@@ -377,8 +414,13 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
 
   useEffect(() => {
     const onMapReady = (event: Event) => {
-      const readyMap = (event as CustomEvent<MapLibreMap | null>).detail
+      const candidate = (event as CustomEvent<MapLibreMap | null>).detail
+      const readyMap = candidate && typeof candidate.getZoom === 'function'
+        && typeof candidate.on === 'function' && typeof candidate.off === 'function'
+        ? candidate
+        : null
       setMap(readyMap)
+      if (readyMap) setZoom(readyMap.getZoom())
       if (debug && typeof window !== 'undefined') {
         const debugWindow = window as Window & { __radarDebugMap?: MapLibreMap }
         debugWindow.__radarDebugMap = readyMap ?? undefined
@@ -388,6 +430,13 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
     window.addEventListener('radar-meteo-map-ready', onMapReady)
     return () => window.removeEventListener('radar-meteo-map-ready', onMapReady)
   }, [debug])
+
+  useEffect(() => {
+    if (!map) return
+    const actualizarZoom = () => setZoom(map.getZoom())
+    map.on('zoomend', actualizarZoom)
+    return () => { map.off('zoomend', actualizarZoom) }
+  }, [map])
 
   useEffect(() => {
     if (animationFrame.current !== null) {
@@ -461,22 +510,78 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
     return () => window.removeEventListener('radar-meteo-map-click', onMapClick)
   }, [activo, onMapClick])
 
+  const frameTime = times[frame] ?? ''
+  const debugFrameMatches = rasterFrame?.index === frame && rasterFrame.time === frameTime
+  const escuelasVisibles = useMemo(() => {
+    if (!map || zoom < 9) return []
+    const bounds = map.getBounds()
+    return escuelas.filter((escuela) => escuela.lat !== null && escuela.lon !== null && bounds.contains([escuela.lon, escuela.lat]))
+  }, [map, zoom, escuelas])
+  const escuelaSeleccionada = escuelas.find((escuela) => escuela.cueAnexo === cueEscuela)
+  const sinPronostico = Boolean(error || data?.sinDatos || (resumen && resumen.departamentos.length === 0))
+  const departamentosAlerta = useMemo(() => {
+    if (!boundary || !alertaActiva) return null
+    const ids = new Set(alertaActiva.departamentos.filter((depto) => typeof depto !== 'string').map((depto) => (depto as { id: string }).id))
+    const nombres = new Set(alertaActiva.departamentos.map((depto) => (typeof depto === 'string' ? depto : depto.nombre).toLocaleLowerCase('es')))
+    return { type: 'FeatureCollection' as const, features: boundary.features.filter((feature) => ids.has(String(feature.properties?.id)) || nombres.has(String(feature.properties?.nombre).toLocaleLowerCase('es'))) }
+  }, [boundary, alertaActiva])
+  useEffect(() => {
+    if (!alertaActiva) return
+    let cancelado = false
+    fetch('/api/infraestructura/radar-meteo/alertas').then((response) => response.json()).then((respuesta: { alertas?: Array<{ id: string; poligonos?: Array<Array<[number, number]>> }> }) => {
+      if (cancelado) return
+      const alerta = respuesta.alertas?.find((item) => item.id === alertaActiva.id)
+      const features = (alerta?.poligonos ?? []).filter((ring) => ring.length >= 4).map((ring) => ({
+        type: 'Feature' as const,
+        properties: {},
+        geometry: { type: 'Polygon' as const, coordinates: [ring] },
+      }))
+      setGeometriasAlerta({ alertaId: alertaActiva.id, datos: { type: 'FeatureCollection', features } })
+    }).catch(() => undefined)
+    return () => { cancelado = true }
+  }, [alertaActiva])
   if (!activo) {
     return null
   }
-
-  const frameTime = times[frame] ?? ''
-  const debugFrameMatches = rasterFrame?.index === frame && rasterFrame.time === frameTime
+  const volarDepartamento = (id: string) => {
+    const feature = boundary?.features.find((item) => String(item.properties?.id) === id || String(item.properties?.nombre).toLocaleLowerCase('es') === id.toLocaleLowerCase('es'))
+    const centroide = feature?.properties?.centroide as { lon?: number; lat?: number } | undefined
+    if (centroide?.lon && centroide.lat) map?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 7.5, duration: 800 })
+  }
 
   return (
     <>
+      {resumen && <AlertasStrip alertas={resumen.alertasSmn ?? []} actualizado={resumen.runAt} onSelect={setAlertaActiva} />}
+      {departamentosAlerta && <Source id="radar-alerta-departamentos" type="geojson" data={departamentosAlerta as FeatureCollection<Polygon | MultiPolygon>}><Layer id="radar-alerta-departamentos-borde" type="line" paint={{ 'line-color': '#f4cf73', 'line-width': 3, 'line-opacity': 0.95 }} /></Source>}
+      {geometriasAlerta && geometriasAlerta.alertaId === alertaActiva?.id && <Source id="radar-alerta-poligonos" type="geojson" data={geometriasAlerta.datos}><Layer id="radar-alerta-poligonos-borde" type="line" paint={{ 'line-color': alertaActiva?.nivelSat ? '#f4cf73' : '#c4d0d8', 'line-width': 3, 'line-opacity': 0.95 }} /></Source>}
+      {!resumen && !resumenError && <div className="radar-alertas radar-alertas-empty" role="status">Consultando alertas oficiales del SMN…</div>}
+      {resumenError && <div className="radar-alertas radar-alertas-empty" role="status">No se pudo actualizar el resumen oficial del SMN.</div>}
+      {resumen && <ResumenPanel departamentos={resumen.departamentos} dias={resumen.dias} actualizadoHace={resumen.frescura?.edadMinutos ?? null} onDepartamento={volarDepartamento} />}
+      {cueEscuela && escuelaSeleccionada && (
+        <EscuelaForecastCard
+          cueAnexo={cueEscuela}
+          nombre={escuelaSeleccionada.nombre}
+          onClose={() => setCueEscuela(null)}
+        />
+      )}
+      {escuelasVisibles.map((escuela) => escuela.lat !== null && escuela.lon !== null && (
+        <Marker key={escuela.cueAnexo} longitude={escuela.lon} latitude={escuela.lat} anchor="center">
+          <button type="button" className="radar-escuela-marker" aria-label={`Pronóstico de ${escuela.nombre}, CUE ${escuela.cueAnexo}`} title={`${escuela.nombre} · abrir pronóstico`} onClick={(event) => { event.stopPropagation(); setCueEscuela(escuela.cueAnexo) }}>•</button>
+        </Marker>
+      ))}
+      {sinPronostico && (
+        <div className="radar-mapa-sin-pronostico" role="status">
+          {error ?? data?.razon ?? 'No hay una corrida de pronóstico disponible para mostrar en el mapa.'}
+          {error && <button type="button" onClick={() => setRetry((value) => value + 1)}>Reintentar</button>}
+        </div>
+      )}
       {variable === 'granizo' && rainUnderlay && imageCoordinates && (
         <Source id="radar-meteo-rain-underlay" type="image" url={rainUnderlay} coordinates={imageCoordinates}>
           <Layer
             id="radar-meteo-rain-base"
             type="raster"
             paint={{ ...paintRaster, 'raster-opacity': 0.25 }}
-            beforeId={inverseMask ? 'radar-meteo-inverse-mask' : 'infra-departamentos-borde'}
+            beforeId="infra-departamentos-borde"
           />
         </Source>
       )}
@@ -486,7 +591,7 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
             id="radar-meteo-raster"
             type="raster"
             paint={paintRaster}
-            beforeId={inverseMask ? 'radar-meteo-inverse-mask' : 'infra-departamentos-borde'}
+            beforeId="infra-departamentos-borde"
           />
         </Source>
       )}
@@ -545,17 +650,7 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
         )}
         {loading && <div className="radar-meteo-loading" role="status">Cargando pronóstico…</div>}
         {loading && <div className="radar-meteo-skeleton" aria-hidden="true" />}
-        {error && (
-          <div className="radar-meteo-empty" role="alert">
-            {error}
-            <button type="button" onClick={() => setRetry((value) => value + 1)}>Reintentar</button>
-          </div>
-        )}
-        {data?.sinDatos && (
-          <div className="radar-meteo-empty" role="status">
-            {data.razon ?? 'No hay pronóstico disponible.'}
-          </div>
-        )}
+        {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}
       </SelectorRadar>
 
       {debug && (
@@ -570,6 +665,7 @@ export function RadarMeteo({ activo }: { activo: boolean }) {
 
       <LeyendaRadar
         variable={variable}
+        paso={paso}
         minutos={data?.frescura?.edadMinutos}
         desactualizado={data?.frescura?.desactualizado}
       />

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
+import { etiquetaUnidadLluvia } from './leyenda'
 import { colorLluvia, colorProbabilidad, indiceCercano, interpolarBilineal, letraViento, rotacionFlecha, fechaRadar, pixelAGrilla, formatearAntiguedad, rellenarAnilloExterior, valoresEnGrilla } from './escalas'
 
 describe('escalas y utilidades del radar', () => {
+  it('expresa las unidades según el paso sin dividir la suma de tres horas', () => {
+    expect(etiquetaUnidadLluvia(3)).toBe('mm en 3 h')
+    expect(etiquetaUnidadLluvia(1)).toBe('mm/h')
+  })
   it('mantiene transparentes los valores bajo umbral y colorea la lluvia', () => {
     expect(colorLluvia(0)).toEqual([0,0,0,0])
     expect(colorLluvia(0.1)[3]).toBeGreaterThan(0)

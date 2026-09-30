@@ -34,7 +34,7 @@ export function PopupRadar({
   const precipitation = data.valores.precipitation?.[frame]?.[index]
   const amount = precipitation === null || precipitation === undefined
     ? '—'
-    : (precipitation / (paso === 3 ? 3 : 1)).toFixed(1)
+    : precipitation.toFixed(1)
   const direction = data.valores.wind_direction_10m?.[frame]?.[index] ?? null
   const probabilitySeries = data.valores.precipitation_probability?.map((values) => values[index] ?? 0) ?? []
 
@@ -42,7 +42,7 @@ export function PopupRadar({
     <div className="radar-meteo-popup" role="dialog" aria-label="Pronóstico en el punto seleccionado">
       <button type="button" aria-label="Cerrar" onClick={onClose}>×</button>
       <strong>{cell.lat.toFixed(2)}, {cell.lon.toFixed(2)}</strong>
-      <p>Probabilidad {data.valores.precipitation_probability?.[frame]?.[index] ?? '—'}% · Lluvia {amount} mm/h</p>
+      <p>Probabilidad {data.valores.precipitation_probability?.[frame]?.[index] ?? '—'}% · Lluvia {amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</p>
       <p>
         Viento del {letraViento(direction)} {data.valores.wind_speed_10m?.[frame]?.[index] ?? '—'} km/h
         {' '}({direction === null ? '—' : Math.round(direction)}°) · ráfaga {data.valores.wind_gusts_10m?.[frame]?.[index] ?? '—'} km/h

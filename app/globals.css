@@ -2088,6 +2088,195 @@ time {
  .radar-meteo-debug-readout { right:12px; top:216px; }
 }
 @media(prefers-reduced-motion:reduce) { .radar-meteo-loading,.radar-meteo-skeleton { animation:none; } }
+
+/* H3: information layers keep the map visible while answering the alert and forecast questions. */
+.radar-alertas { position:fixed; z-index:12; top:calc(var(--infra-modo-panel-bottom,16px) + 56px); left:58px; right:350px; display:flex; gap:8px; align-items:flex-start; pointer-events:none; }
+.radar-alertas-empty { display:flex; justify-content:space-between; align-items:center; min-height:42px; padding:10px 14px; color:#e4edf1; background:rgba(12,22,31,.94); border:1px solid rgba(191,208,219,.26); border-radius:8px; font-size:13px; }
+.radar-alertas small { display:block; margin-top:3px; color:#bdcbd2; font-size:11px; }
+.radar-alerta-item { max-width:430px; pointer-events:auto; }
+.radar-alerta-chip { display:flex; align-items:flex-start; gap:9px; width:100%; padding:10px 13px; color:#f2f5f5; text-align:left; background:rgba(13,24,33,.96); border:1px solid #75828a; border-radius:8px; cursor:pointer; }
+.radar-alerta-chip .radar-alerta-icon { display:grid; place-items:center; flex:0 0 22px; height:22px; border:1px solid #c3cdd2; border-radius:50%; font-weight:700; }
+.radar-alerta-chip.nivel-yellow { border-color:#e8c84b; }.radar-alerta-chip.nivel-orange { border-color:#e49b48; }.radar-alerta-chip.nivel-red { border-color:#df7772; }
+.radar-alerta-detail { margin-top:5px; padding:12px 14px; color:#ecf1f3; background:rgba(12,22,31,.97); border:1px solid #77858d; border-radius:8px; font-size:12px; }
+.radar-alerta-detail p { margin:8px 0 0; line-height:1.45; }
+.radar-resumen { position:fixed; z-index:11; top:calc(var(--infra-modo-panel-bottom,16px) + 110px); right:14px; bottom:188px; display:flex; flex-direction:column; width:min(390px,35vw); overflow:hidden; color:#edf3f5; background:rgba(10,20,29,.94); border:1px solid rgba(169,194,207,.3); border-radius:10px; box-shadow:0 10px 32px #0005; backdrop-filter:blur(10px); }
+.radar-resumen-header { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:14px 14px 10px; border-bottom:1px solid rgba(169,194,207,.2); }
+.radar-kicker { color:#9db4be; font-size:9px; letter-spacing:.12em; }.radar-resumen h2 { margin:3px 0; font-size:17px; }.radar-resumen-header small { color:#b7c6cc; font-size:10px; }
+.radar-resumen-tabs { display:grid; gap:4px; }.radar-resumen-tabs button { padding:5px 8px; color:#d4e0e4; background:#182833; border:1px solid #465861; border-radius:5px; font-size:10px; cursor:pointer; }.radar-resumen-tabs button[aria-pressed="true"] { color:#fff; background:#345565; border-color:#91b5c1; }
+.radar-resumen-toggle { display:none; }
+.radar-resumen-search { display:grid; gap:4px; padding:9px 12px; color:#c1cfd4; font-size:10px; }.radar-resumen-search input { padding:7px 8px; color:#f2f5f6; background:#111f29; border:1px solid #51636d; border-radius:5px; }
+.radar-resumen-table-wrap { flex:1; overflow:auto; }.radar-resumen-table { width:100%; border-collapse:separate; border-spacing:0 2px; font-size:10px; }.radar-resumen-table th { position:sticky; top:0; z-index:1; padding:7px 5px; color:#bdcbd1; background:#14222c; text-align:center; }.radar-resumen-table th:first-child { left:0; z-index:2; min-width:103px; text-align:left; }.radar-resumen-table tbody th { position:sticky; left:0; background:#101d26; }.radar-resumen-table tbody th button { width:100%; padding:8px 6px; color:#edf3f5; background:transparent; border:0; text-align:left; font-size:10px; cursor:pointer; }
+.radar-resumen-table td { padding:1px; }.radar-dia-cell { display:grid; justify-items:center; gap:3px; min-width:45px; width:100%; min-height:54px; padding:5px 2px; color:#f8fbfb; border:1px solid transparent; border-radius:3px; cursor:pointer; }.radar-dia-cell strong { font-size:10px; font-variant-numeric:tabular-nums; }.radar-dia-cell small { font-size:8px; white-space:nowrap; }.radar-dia-cell .threshold { font-weight:800; text-decoration:underline; text-decoration-color:#fff9; text-underline-offset:2px; }.radar-dia-cell.is-highlighted { box-shadow:inset 0 0 0 1px #fff9; }.radar-resumen-table tr.is-selected th button { color:#f4d982; }
+.radar-hour-row { display:flex; height:42px; align-items:flex-end; gap:1px; min-width:185px; }.radar-hour-row i { flex:1; min-width:2px; border-radius:2px 2px 0 0; }.radar-resumen-note { padding:8px 12px; margin:0; color:#b6c5cb; border-top:1px solid rgba(169,194,207,.2); font-size:9px; line-height:1.4; }
+.radar-resumen-detail { max-height:108px; overflow:auto; padding:7px 11px; color:#d8e3e7; border-top:1px solid rgba(169,194,207,.2); font-size:9px; line-height:1.4; }.radar-resumen-detail p { margin:4px 0; }
+.radar-resumen-empty { padding:14px 12px; margin:0; color:#c2cfd4; font-size:11px; line-height:1.45; }
+.radar-escuela-card { position:fixed; z-index:10; left:58px; bottom:145px; width:275px; max-height:38vh; overflow:auto; padding:11px; color:#e7eef1; background:rgba(10,20,29,.92); border:1px solid rgba(169,194,207,.3); border-radius:9px; backdrop-filter:blur(9px); font-size:11px; }
+.radar-escuela-card form { display:grid; gap:6px; }.radar-escuela-card form label { color:#dce6e9; font-weight:650; }.radar-escuela-card form div { display:flex; gap:5px; }.radar-escuela-card input { min-width:0; flex:1; padding:7px; color:#f2f6f7; background:#111f29; border:1px solid #52646e; border-radius:5px; }.radar-escuela-card button { padding:6px 9px; color:#fff; background:#294959; border:1px solid #607e8c; border-radius:5px; cursor:pointer; }.radar-escuela-card h3 { margin:9px 0 2px; font-size:13px; }.radar-escuela-card p { margin:7px 0; color:#c0cdd2; line-height:1.4; }.radar-escuela-bars { display:flex; height:38px; align-items:flex-end; gap:1px; margin-top:8px; }.radar-escuela-bars i { flex:1; min-width:1px; background:#4a9eaf; border-radius:2px 2px 0 0; }.radar-escuela-sin-lluvia48h { padding:7px 8px; margin:8px 0 0 !important; background:#142630; border-radius:4px; font-size:10px; }.radar-escuela-dias { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; margin-top:8px; }.radar-escuela-dias span { display:grid; gap:3px; min-width:0; padding:4px 2px; background:#192a34; text-align:center; font-size:9px; }.radar-escuela-dias b { color:#eef5f6; font-variant-numeric:tabular-nums; white-space:nowrap; font-size:8px; }
+.radar-escuela-marker { width:17px; height:17px; padding:0; color:#deeff1; background:rgba(35,92,105,.72); border:1px solid rgba(236,248,250,.8); border-radius:50%; box-shadow:0 0 0 2px rgba(8,25,32,.72); font-size:16px; line-height:12px; cursor:pointer; }
+@media(max-width:700px) {
+ .radar-alertas { top:calc(var(--infra-modo-panel-bottom,12px) + 50px); left:9px; right:9px; overflow:auto; }
+ .radar-alertas-empty { min-height:35px; padding:8px 10px; font-size:10px; }
+ .radar-alertas-empty small { font-size:9px; }
+ .radar-alerta-item { min-width:100%; }
+ .radar-alerta-chip { padding:8px 10px; font-size:11px; }
+ .radar-resumen { top:auto; right:8px; bottom:113px; left:8px; width:auto; height:44px; overflow:hidden; border-radius:10px; transition:height .2s ease; }
+ .radar-resumen.is-open { height:min(55vh,440px); }
+ .radar-resumen-header { padding:9px 10px; }.radar-resumen h2 { font-size:14px; }.radar-resumen-search { padding:7px 9px; }
+ .radar-resumen-toggle { display:block; padding:5px 7px; color:#edf4f5; background:#263d48; border:1px solid #687f89; border-radius:5px; font-size:10px; }
+ .radar-resumen-table th:first-child { min-width:88px; }.radar-dia-cell { min-width:43px; }
+ .radar-escuela-card { left:8px; bottom:165px; width:min(275px,76vw); max-height:30vh; }
+}
+@media(max-width:600px) {
+  .map-left-stack.radar-meteo-left-stack {
+    display:flex !important;
+    position:absolute !important;
+    inset:auto !important;
+    top:55px !important;
+    left:8px !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(230px,calc(100vw - 100px)) !important;
+    max-height:none !important;
+    overflow:visible !important;
+    padding:0 !important;
+    background:transparent !important;
+    z-index:13;
+  }
+  .map-left-stack.radar-meteo-left-stack .map-modo-conmutador { width:100%; }
+  .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
+  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
+  [data-radar-activo="true"]:has(.radar-alerta-detail) .radar-meteo-controls {
+    top:calc(var(--infra-modo-panel-bottom,123px) + 155px) !important;
+  }
+  .radar-resumen { bottom:160px; }
+  .radar-resumen.is-open { bottom:160px; height:min(42vh,360px); }
+  .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
+  .radar-meteo-legend-title small { display:inline; font-size:8px; }
+}
+.radar-resumen-peek { display:none; }
+@media(max-width:767px) {
+  .radar-resumen:not(.is-open) { height:122px; bottom:160px; }
+  .radar-resumen.is-open { height:min(58vh,calc(100% - 80px)); bottom:160px; }
+  .radar-resumen:not(.is-open) .radar-resumen-header { min-height:42px; padding:8px 10px; }
+  .radar-resumen:not(.is-open) .radar-kicker,
+  .radar-resumen:not(.is-open) .radar-resumen-header small,
+  .radar-resumen:not(.is-open) .radar-resumen-tabs { display:none; }
+  .radar-resumen:not(.is-open) .radar-resumen h2 { margin:0; font-size:13px; }
+  .radar-resumen:not(.is-open) .radar-resumen-toggle { white-space:nowrap; }
+  .radar-resumen-peek { display:grid; gap:4px; padding:0 12px 9px; color:#cbd9df; font-size:10px; }
+  .radar-resumen-peek span { display:flex; justify-content:space-between; gap:8px; }
+  .radar-resumen-peek strong { color:#fff; font-variant-numeric:tabular-nums; }
+  .radar-resumen.is-open .radar-resumen-peek { display:none; }
+  .radar-resumen.is-open .radar-resumen-header { padding-top:12px; }
+  .radar-resumen.is-open::before {
+    position:absolute;
+    top:4px;
+    left:calc(50% - 18px);
+    width:36px;
+    height:3px;
+    background:#91a6af;
+    border-radius:3px;
+    content:"";
+  }
+}
+@media(prefers-reduced-motion:reduce) { .radar-resumen { transition:none; } }
+/* H3 review pass: overlay positions are relative to the map shell, below page navigation. */
+.radar-alertas {
+  position:absolute;
+  z-index:14;
+  top:12px;
+  left:430px;
+  right:444px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-start;
+  gap:8px;
+  pointer-events:none;
+}
+.radar-alerta-item { width:100%; max-width:none; }
+.radar-alerta-chip { width:100%; }
+.radar-alerta-detail { position:relative; padding:14px 38px 14px 14px; }
+.radar-alerta-close {
+  position:absolute;
+  top:6px;
+  right:7px;
+  width:28px;
+  height:28px;
+  padding:0;
+  color:#f2f5f5;
+  border:1px solid #71818a;
+  border-radius:5px;
+  font-size:20px;
+}
+.radar-resumen {
+  position:absolute;
+  top:0;
+  right:14px;
+  bottom:130px;
+  width:min(430px,36vw);
+}
+.radar-resumen h2 { text-transform:none; }
+.radar-resumen-table { table-layout:fixed; }
+.radar-resumen-table th:first-child { width:88px; min-width:88px; }
+.radar-dia-cell { min-width:36px; padding-right:1px; padding-left:1px; }
+.radar-resumen ~ .radar-meteo-legend { right:auto; left:16px; bottom:122px; }
+.radar-meteo-empty { display:none; }
+.radar-meteo-retry {
+  position:absolute;
+  z-index:13;
+  top:calc(var(--infra-modo-panel-bottom,16px) + 53px);
+  left:58px;
+  padding:6px 8px;
+  color:#e8f3fb;
+  background:#142632;
+  border:1px solid #607783;
+  border-radius:5px;
+}
+.radar-mapa-sin-pronostico {
+  position:absolute;
+  z-index:5;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  max-width:min(340px,42vw);
+  padding:11px 14px;
+  color:#e8f1f4;
+  background:rgba(10,21,30,.88);
+  border:1px solid rgba(169,194,207,.3);
+  border-radius:8px;
+  text-align:center;
+  font-size:12px;
+  pointer-events:none;
+}
+.radar-mapa-sin-pronostico button { pointer-events:auto; }
+.radar-escuela-card {
+  position:absolute;
+  z-index:13;
+  top:calc(var(--infra-modo-panel-bottom,16px) + 55px);
+  bottom:auto;
+  left:58px;
+  width:310px;
+  max-height:min(48vh,430px);
+}
+.radar-escuela-card header { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+.radar-escuela-card header span { color:#a9c0c9; font-size:9px; letter-spacing:.1em; }
+.radar-escuela-card header h2 { margin:3px 0 0; font-size:13px; }
+.radar-escuela-card header button { width:28px; height:28px; padding:0; font-size:18px; }
+.radar-escuela-marker { display:grid; place-items:center; width:13px; height:13px; color:transparent; background:rgba(199,225,231,.75); border:1px solid rgba(8,24,30,.9); border-radius:50%; box-shadow:0 0 0 2px rgba(220,244,248,.36); cursor:pointer; }
+.radar-escuela-marker:focus-visible { width:20px; height:20px; outline:2px solid white; }
+.radar-escuela-result p { margin:7px 0; }
+.radar-meteo-timeline { z-index:12; }
+.radar-resumen { z-index:11; }
+.radar-mapa-sin-pronostico { z-index:6; }
+[data-radar-activo="true"] .maplibregl-ctrl-compass { display:none !important; }
+@media(max-width:700px) {
+  .radar-alertas { top:5px; left:8px; right:8px; }
+  .radar-resumen { top:auto; right:8px; bottom:115px; left:8px; width:auto; height:44px; }
+  .radar-resumen.is-open { height:min(55vh,440px); }
+  .radar-resumen ~ .radar-meteo-legend { right:auto; bottom:118px; left:14px; }
+  .radar-escuela-card { top:calc(var(--infra-modo-panel-bottom,12px) + 55px); left:8px; width:min(310px,82vw); max-height:42vh; }
+  .radar-mapa-sin-pronostico { top:48%; max-width:74vw; }
+}
 /* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
    habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
    alcanzables por teclado/lector de pantalla), así que la señal es sólo CSS. */
@@ -4560,4 +4749,32 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-size: var(--t-large, 1.5rem);
   font-weight: 700;
   color: var(--ink);
+}
+
+@media(max-width:600px) {
+  .map-left-stack.radar-meteo-left-stack {
+    display:flex !important;
+    position:absolute !important;
+    inset:auto !important;
+    top:55px !important;
+    left:8px !important;
+    right:auto !important;
+    bottom:auto !important;
+    width:min(230px,calc(100vw - 100px)) !important;
+    max-height:none !important;
+    overflow:visible !important;
+    padding:0 !important;
+    background:transparent !important;
+    z-index:13;
+  }
+  .map-left-stack.radar-meteo-left-stack .map-modo-conmutador { width:100%; }
+  .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
+  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
+  [data-radar-activo="true"]:has(.radar-alerta-detail) .radar-meteo-controls {
+    top:calc(var(--infra-modo-panel-bottom,123px) + 170px) !important;
+  }
+  .radar-resumen { bottom:160px; }
+  .radar-resumen.is-open { bottom:160px; height:min(36vh,310px); }
+  .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
+  .radar-meteo-legend-title small { display:inline; font-size:8px; }
 }

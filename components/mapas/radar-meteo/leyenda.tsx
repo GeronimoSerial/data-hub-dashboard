@@ -18,6 +18,10 @@ const unidades: Record<VariableRadarUI, string> = {
   granizo: 'categoría',
 }
 
+export function etiquetaUnidadLluvia(paso: 1 | 3) {
+  return paso === 3 ? 'mm en 3 h' : 'mm/h'
+}
+
 const etiquetas: Record<VariableRadarUI, string[]> = {
   lluvia: ['0.1', '0.5', '1', '2', '5', '10', '20', '40', '80+'],
   probabilidad: ['10%', '30%', '55%', '80%', '100%'],
@@ -29,10 +33,12 @@ export function LeyendaRadar({
   variable,
   minutos,
   desactualizado,
+  paso,
 }: {
   variable: VariableRadarUI
   minutos?: number | null
   desactualizado?: boolean
+  paso: 1 | 3
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -47,7 +53,7 @@ export function LeyendaRadar({
       >
         <span className="radar-meteo-legend-title">
           <b>{titulos[variable]}</b>
-          <small>{unidades[variable]}</small>
+          <small>{variable === 'lluvia' ? etiquetaUnidadLluvia(paso) : unidades[variable]}</small>
         </span>
         <span className={`radar-meteo-gradient radar-meteo-gradient--${variable}`} />
       </button>
