@@ -26,6 +26,7 @@ import { SelectorRadar, type VariableRadarUI } from './selector'
 import { AlertasStrip, type AlertaRadar } from './alertas-strip'
 import { ResumenPanel, type DepartamentoResumen } from './resumen-panel'
 import { EscuelaForecastCard } from './escuela-card'
+import { antesDelRaster } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 
 interface ResumenRadar {
@@ -96,6 +97,7 @@ function crearRaster(
   data: RespuestaRadarMeteo,
   frame: number,
   variable: VariableRadarUI,
+  paso: 1 | 3,
 ): string | null {
   const grid = data.grid
   if (!grid) {
@@ -109,7 +111,9 @@ function crearRaster(
 
   const ordered = valoresEnGrilla(grid, values)
   const padded = rellenarAnilloExterior(grid, ordered)
-  const hourlyValues = padded
+  const hourlyValues = variable === 'lluvia' && paso === 3
+    ? padded.map((value) => value === null ? null : value / 3)
+    : padded
   const width = 600
   const height = Math.max(300, Math.round(width * grid.filas / grid.columnas))
   const canvas = document.createElement('canvas')
@@ -208,7 +212,7 @@ function crearMascaraInversa(
   return { type: 'FeatureCollection', features: [mask] }
 }
 
-function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: VariableRadarUI) {
+function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: VariableRadarUI, paso: 1 | 3) {
   const grid = data.grid
   const values = data.valores[clavePorVariable[variable]]?.[frame]
   if (!grid || !values) {
@@ -217,7 +221,9 @@ function crearDebugPoints(data: RespuestaRadarMeteo, frame: number, variable: Va
 
   const features = grid.celdas.flatMap((cell, index) => {
     const rawValue = values[index]
-    const value = rawValue ?? null
+    const value = variable === 'lluvia' && paso === 3 && rawValue !== null && rawValue !== undefined
+      ? rawValue / 3
+      : rawValue ?? null
     const isVisible = variable === 'granizo'
       ? colorGranizo(value) !== 'transparent'
       : mapaVariable[variable](value)[3] > 0
@@ -318,15 +324,15 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
       return null
     }
 
-    return crearRaster(data, frame, variable)
-  }, [data, frame, variable])
+    return crearRaster(data, frame, variable, paso)
+  }, [data, frame, variable, paso])
   const rainUnderlay = useMemo(() => {
     if (!data || variable !== 'granizo' || typeof document === 'undefined') {
       return null
     }
 
-    return crearRaster(data, frame, 'lluvia')
-  }, [data, frame, variable])
+    return crearRaster(data, frame, 'lluvia', paso)
+  }, [data, frame, variable, paso])
   const imageCoordinates = useMemo(() => {
     const grid = data?.grid
     if (!grid) {
@@ -353,8 +359,8 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
       return null
     }
 
-    return crearDebugPoints(data, frame, variable)
-  }, [data, debug, frame, variable])
+    return crearDebugPoints(data, frame, variable, paso)
+  }, [data, debug, frame, variable, paso])
   const windFeatures = useMemo(() => {
     if (!data || variable !== 'viento') {
       return null
@@ -642,7 +648,7 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
             id="radar-meteo-rain-base"
             type="raster"
             paint={{ ...paintRaster, 'raster-opacity': 0.25 }}
-            beforeId="infra-departamentos-borde"
+            beforeId={antesDelRaster(Boolean(inverseMask))}
           />
         </Source>
       )}
@@ -652,7 +658,7 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
             id="radar-meteo-raster"
             type="raster"
             paint={paintRaster}
-            beforeId="infra-departamentos-borde"
+            beforeId={antesDelRaster(Boolean(inverseMask))}
           />
         </Source>
       )}

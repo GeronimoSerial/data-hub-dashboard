@@ -72,6 +72,10 @@ function etiquetaDia(dia: string) {
   }).format(new Date(`${dia}T12:00:00-03:00`))
 }
 
+function porcentaje(probabilidad: number) {
+  return `${Math.round(probabilidad * 100)} %`
+}
+
 function maxLluvia48h(departamento: DepartamentoResumen) {
   return Math.max(0, ...departamento.proximas48h.map((hora) => hora.lluviaMm ?? 0))
 }
@@ -162,7 +166,10 @@ export function ResumenPanel({
             <tr>
               <th scope="col">Departamento</th>
               {vista === 'dias'
-                ? dias.map((dia) => <th scope="col" key={dia}>{etiquetaDia(dia)}</th>)
+                ? dias.map((dia) => {
+                  const parcial = departamentos.some((depto) => (depto.dias.find((item) => item.fecha === dia)?.cobertura ?? 100) < 100)
+                  return <th scope="col" key={dia}>{etiquetaDia(dia)}{parcial && <small className="radar-dia-parcial"> parcial</small>}</th>
+                })
                 : <th scope="col">48 h · lluvia media por hora</th>}
             </tr>
           </thead>
@@ -177,9 +184,11 @@ export function ResumenPanel({
                 </th>
                 {vista === 'dias' ? depto.dias.map((dia) => {
                   const threshold = dia.resaltado.lluvia !== null || (dia.rafagaMaxKmh ?? 0) >= 60
+                  const p25 = dia.ensamble?.pMayor25 ?? null
                   const detalle = `${depto.nombre}: ${formatearLluviaMm(dia.lluvia24h)}/día; máximo local `
                     + `${formatearLluviaMm(dia.lluviaLocalMax)}; pico ${horaCorta(dia.picoHora)}; `
-                    + `cobertura ${dia.cobertura}%; ensamble ${dia.ensamble?.miembrosValidos ?? '—'} miembros`
+                    + `cobertura ${dia.cobertura}%; ${p25 !== null && p25 >= 0.05 ? `P≥25 ${porcentaje(p25)}; ` : ''}`
+                    + `ensamble ${dia.ensamble?.miembrosValidos ?? '—'} miembros`
                   return (
                     <td key={dia.fecha}>
                       <button
@@ -192,9 +201,7 @@ export function ResumenPanel({
                         <strong className={threshold ? 'threshold' : ''}>
                           {formatearLluviaMm(dia.lluvia24h)}
                         </strong>
-                        {dia.ensamble?.pMayor25 !== undefined
-                          && dia.ensamble.pMayor25 !== null
-                          && <small>P≥25 {dia.ensamble.pMayor25}%</small>}
+                        {p25 !== null && p25 >= 0.05 && <small>P≥25 {porcentaje(p25)}</small>}
                         <small>
                           {dia.rafagaMaxKmh === null ? '—' : `↗ ${dia.rafagaMaxKmh}`}
                           {dia.tormenta ? ' ⛈' : ''}{dia.granizoMax ? ' ◈' : ''}

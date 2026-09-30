@@ -21,7 +21,7 @@ describe('tarjeta de pronóstico puntual', () => {
           { fecha: '2026-10-06', lluviaMm: null },
           { fecha: '2026-10-07', lluviaMm: 7 },
         ],
-        frescura: { edadMinutos: 12 }, contextoEnsamble: { probabilidad25: 38 },
+        frescura: { edadMinutos: 12 }, contextoEnsamble: { probabilidad25: 0.38 },
       }),
     }))
     const { container } = render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
@@ -32,7 +32,7 @@ describe('tarjeta de pronóstico puntual', () => {
     expect(screen.getByText('2,3 mm')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(container.querySelectorAll('.radar-escuela-dias > span')).toHaveLength(7)
-    expect(screen.getByText(/P≥25 mm en el departamento: 38%/)).toBeInTheDocument()
+    expect(screen.getByText(/P≥25 mm en el departamento: 38 %/)).toBeInTheDocument()
   })
 
   it('muestra un estado explícito cuando el pronóstico puntual está seco en 48 h', async () => {
@@ -47,5 +47,18 @@ describe('tarjeta de pronóstico puntual', () => {
     render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
     expect(await screen.findByText('Sin lluvia prevista en 48 h')).toBeInTheDocument()
     expect(screen.queryByLabelText('Lluvia por hora, próximas 48 horas')).toBeNull()
+  })
+
+  it('oculta la probabilidad departamental menor a cinco por ciento', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        cueAnexo: '180000100', nombre: 'Escuela Rural', departamento: { nombre: 'Capital' },
+        horas: [], dias: [], contextoEnsamble: { probabilidad25: 0.04 },
+      }),
+    }))
+    render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
+    await waitFor(() => expect(screen.getByText('Escuela Rural')).toBeInTheDocument())
+    expect(screen.queryByText(/P≥25 mm en el departamento/)).not.toBeInTheDocument()
   })
 })

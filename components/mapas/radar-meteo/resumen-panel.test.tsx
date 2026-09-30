@@ -55,6 +55,18 @@ describe('panel de resumen radar', () => {
     expect(threshold.closest('button')?.textContent).not.toMatch(/alerta/i)
   })
 
+  it('shows ensemble probabilities as rounded percentages and suppresses values below five percent', () => {
+    const conProbabilidad = departamentos.map((depto, index) => ({
+      ...depto,
+      dias: [{ ...depto.dias[0], ensamble: { pMayor25: index === 0 ? 0.343 : 0.04, miembrosValidos: 50 } }],
+    }))
+    const { container } = render(<ResumenPanel departamentos={conProbabilidad} dias={['2026-10-01']} actualizadoHace={4} />)
+    expect(screen.getByText('P≥25 34 %')).toBeInTheDocument()
+    expect(screen.queryByText('P≥25 4 %')).not.toBeInTheDocument()
+    expect(container.querySelector('.radar-resumen-table th small')).toHaveTextContent('parcial')
+    expect(screen.getByTitle(/P≥25 34 %/)).toBeInTheDocument()
+  })
+
   it('muestra dos departamentos principales en el resumen móvil colapsado', () => {
     const { container } = render(<ResumenPanel departamentos={departamentos} dias={['2026-10-01']} actualizadoHace={4} />)
     const peek = container.querySelector('.radar-resumen-peek') as HTMLElement

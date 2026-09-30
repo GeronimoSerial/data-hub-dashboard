@@ -34,6 +34,14 @@ describe('base espacial y resumen de departamentos', () => {
     expect(department.dias[0].cobertura).toBe(100)
   })
 
+  it('starts at the current Buenos Aires day when the UTC run begins the prior local evening', () => {
+    const cells = [{ id: 'c', lat: -27.5, lon: -58.8 }]
+    const times = ['2026-09-30T00:00:00Z', '2026-09-30T03:00:00Z', '2026-10-01T03:00:00Z']
+    const result = calcularResumen({ times, cells, values: { precipitation: [[1, 2, 3]] } }, new Date('2026-09-30T12:00:00Z'))
+    expect(result.dias[0]).toBe('2026-09-30')
+    expect(result.dias).not.toContain('2026-09-29')
+  })
+
   it('interpolates while preserving the existing null-cell behavior', () => {
     expect(interpolarBilineal({ filas: 2, columnas: 2 }, [0, 10, 20, 30], 0.5, 0.5)).toBe(15)
     expect(interpolarBilineal({ filas: 2, columnas: 2 }, [null, 10, 20, 30], 0, 0)).toBeNull()

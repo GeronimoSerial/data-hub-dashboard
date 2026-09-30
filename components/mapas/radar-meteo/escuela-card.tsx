@@ -91,13 +91,15 @@ export function EscuelaForecastCard({
             Ráfaga máxima: {formatearVientoKmh(rafagaMaxima)}
             {' '}· Actualizado hace {pronostico.frescura?.edadMinutos ?? '—'} min
           </p>
-          <p>
-            P≥25 mm en el departamento: {' '}
-            {pronostico.contextoEnsamble?.probabilidad25 == null
-              ? 'sin dato'
-              : `${pronostico.contextoEnsamble.probabilidad25}%`}
-            {' '}· contexto departamental
-          </p>
+          {(pronostico.contextoEnsamble?.probabilidad25 == null || pronostico.contextoEnsamble.probabilidad25 >= 0.05) && (
+            <p>
+              P≥25 mm en el departamento: {' '}
+              {pronostico.contextoEnsamble?.probabilidad25 == null
+                ? 'sin dato'
+                : `${Math.round(pronostico.contextoEnsamble.probabilidad25 * 100)} %`}
+              {' '}· contexto departamental
+            </p>
+          )}
         </div>
       )}
     </section>

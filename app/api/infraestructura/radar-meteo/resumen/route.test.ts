@@ -32,4 +32,14 @@ describe('GET /api/infraestructura/radar-meteo/resumen', () => {
     expect(body.ensamble).toMatchObject({runId:'ens-1',modelo:'ecmwf_ifs025'})
     expect(body.departamentos.find((d:{id:string})=>d.id==='18133').dias[0].ensamble).toEqual(resumenDiario)
   })
+  it('refreshes the cached local-day summary after midnight in Buenos Aires', async () => {
+    mocks.run = { id:'radar-1', runAt:'2026-09-30T12:00:00Z', gridVersion:'g', payload:{times:['2026-09-30T12:00:00Z'],cells:[],values:{}} }
+    vi.setSystemTime(new Date('2026-09-30T23:59:00-03:00'))
+    const antes = await GET(req())
+    vi.setSystemTime(new Date('2026-10-01T00:01:00-03:00'))
+    const despues = await GET(req({ 'If-None-Match': antes.headers.get('ETag')! }))
+    expect(despues.status).toBe(200)
+    expect(despues.headers.get('ETag')).not.toBe(antes.headers.get('ETag'))
+    vi.useRealTimers()
+  })
 })

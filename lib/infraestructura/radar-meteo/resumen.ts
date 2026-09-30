@@ -27,7 +27,15 @@ export function calcularResumen(datos: DatosRadar, ahora = new Date()) {
   const asignaciones = asignarCeldasADepartamentos(datos.cells)
   const indicesPorDepto = new Map<string, number[]>()
   asignaciones.forEach((a, i) => indicesPorDepto.set(a.departamentoId, [...(indicesPorDepto.get(a.departamentoId) ?? []), i]))
-  const dias = [...new Set(datos.times.map(diaLocal))].slice(0, 7)
+  const hoyLocal = diaLocal(ahora.toISOString())
+  const diasDisponibles = [...new Set(datos.times.map(diaLocal))].filter((dia) => dia >= hoyLocal)
+  const dias = diasDisponibles.filter((dia, index) => {
+    if (index !== diasDisponibles.length - 1) return true
+    const horasDia = datos.times.map((time, i) => ({ time, i })).filter(({ time }) => diaLocal(time) === dia)
+    const esperadas = datos.cells.length * horasDia.length
+    const presentes = datos.cells.reduce((total, _, celda) => total + horasDia.filter(({ i }) => valor(datos, 'precipitation', celda, i) !== null).length, 0)
+    return !esperadas || presentes / esperadas >= 0.5
+  }).slice(0, 7)
   const horas48 = datos.times.map((t, i) => ({ t, i })).filter((x) => Date.parse(x.t) >= ahora.getTime() && Date.parse(x.t) < ahora.getTime() + 48 * 3600000).slice(0, 48)
   const salida = departamentos.map((depto) => {
     const celdas = indicesPorDepto.get(depto.id) ?? []
