@@ -2023,7 +2023,7 @@ time {
 .radar-meteo-left-stack .map-modo-conmutador { background:rgba(7,17,29,.92); border-color:rgba(160,195,220,.22); color:#e8f3fb; backdrop-filter:blur(12px); }
 .radar-meteo-left-stack .map-modo-conmutador button { color:#a9c0d0; }
 .radar-meteo-left-stack .map-modo-conmutador button[aria-pressed="true"] { color:#fff; border-bottom-color:#58c9e9; }
-.radar-meteo-controls { top:82px; left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
+.radar-meteo-controls { top:var(--infra-modo-panel-bottom,16px); left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
 .radar-meteo-segments { display:flex; gap:3px; }
 .radar-meteo-mobile-variable { display:none; }
 .radar-meteo-segments button,.radar-meteo-timeline button,.radar-meteo-popup button { color:inherit; background:transparent; border:0; border-radius:7px; padding:7px 9px; cursor:pointer; }
@@ -2062,7 +2062,7 @@ time {
 .radar-meteo-debug-readout { position:fixed; z-index:15; right:360px; top:216px; padding:5px 8px; color:#e8f3fb; background:#101d2b; border:1px solid #536b7d; border-radius:6px; font:11px/1.3 ui-monospace,monospace; }
 .radar-meteo-debug-readout[data-frame-matches="false"] { color:#ffbc75; }
 @media(max-width:600px) {
- .radar-meteo-controls { left:12px; right:12px; top:68px; padding:6px; }
+ .radar-meteo-controls { left:12px; right:12px; top:var(--infra-modo-panel-bottom,12px); padding:6px; }
  .radar-meteo-segments { width:100%; }
  .radar-meteo-segments { display:none; }
  .radar-meteo-mobile-variable { display:block; width:100%; color:#e8f3fb; background:#152739; border:1px solid #40586d; border-radius:7px; padding:8px; }
@@ -2101,57 +2101,6 @@ time {
   color: var(--ink-soft);
   font-size: var(--t-micro);
   line-height: 1.4;
-}
-
-/* Panel del modo Replay (E7c): mismo patrón de columna que .map-radar-panel,
-   con su propia fila de selección (departamento + ventana + vista) y la
-   timeline agrupadas por separado. */
-.map-replay-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-}
-.map-replay-panel__seleccion {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-1);
-  align-items: center;
-}
-.map-replay-panel__seleccion select,
-.map-replay-panel__seleccion input {
-  font: inherit;
-}
-.map-replay-panel__vista {
-  display: flex;
-  gap: var(--s-1);
-}
-.map-replay-panel__timeline {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  flex-wrap: wrap;
-}
-.map-replay-panel__contador {
-  color: var(--ink-soft);
-  font-size: var(--t-micro);
-  margin: 0;
-}
-.map-replay-panel__truncado {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: var(--t-micro);
-  line-height: 1.4;
-}
-.map-replay-panel__vacios {
-  margin: 0;
-  padding-left: 1.1rem;
-  color: var(--ink-soft);
-  font-size: var(--t-micro);
-  line-height: 1.4;
-}
-.map-replay-panel__export {
-  display: flex;
-  gap: var(--s-2);
 }
 
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna

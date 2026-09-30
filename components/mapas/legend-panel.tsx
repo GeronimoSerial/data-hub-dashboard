@@ -151,11 +151,11 @@ export function InfraLegendPanel({
     <details className={`${styles.panel} ${styles.legendPanel}`}>
       <summary className={styles.legendSummary}>Referencias</summary>
       {/*
-        Leyenda propia de cada modo. En Radar/Replay (`mostrarLeyendaPeligro`)
+        Leyenda propia de cada modo. En Radar (`mostrarLeyendaPeligro`)
         el contenido de "Situación actual" (severidad + badges de estado +
         hints de tamaño/cluster) NO aplica: se oculta entero y la leyenda pasa
         a ser la del peligro meteorológico (más el bloque de riesgo de acceso
-        si está activo). Fuera de Radar/Replay se mantiene igual que antes.
+        si está activo). Fuera de Radar se mantiene igual que antes.
       */}
       {!mostrarLeyendaPeligro && (
         <>

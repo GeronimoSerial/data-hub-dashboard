@@ -47,6 +47,7 @@ import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, COLOR_CELDAS_
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Button } from '@/components/ui/button'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
+import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 
 // ---------------------------------------------------------------------------
 // Ids de capas (los consume la página para `fitBounds` e interactividad)
@@ -126,7 +127,7 @@ export function CapasAccesosTerritoriales({
         </Source>
       )}
 
-      {visibles.inundacion && puntosInundacion !== null && iconosListos && (
+      {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && puntosInundacion !== null && iconosListos && (
         <Source id={FUENTE_INUNDACION_ID} type="geojson" data={puntosInundacion}>
           <Layer id={CAPA_INUNDACION_ID} type="symbol" layout={layoutPuntoTerritorial()} />
         </Source>
@@ -279,7 +280,7 @@ export function LeyendaAccesos({
       {visibles.aislamiento && territorioListo && (
         <BloqueAislamiento territorio={territorio} resumen={resumen} />
       )}
-      {visibles.inundacion && territorioListo && (
+      {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && territorioListo && (
         <BloqueInundacion territorio={territorio} resumen={resumen} />
       )}
     </section>

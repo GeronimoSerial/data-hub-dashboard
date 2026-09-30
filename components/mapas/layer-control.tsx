@@ -5,6 +5,7 @@ import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TEXTOS_ACCESOS } from '@/lib/mapas/accesos-capas'
+import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 
 type Props = {
   overlays: Record<OverlayKey, boolean>
@@ -168,7 +169,11 @@ export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
   rutaSeleccion: 'Camino y cruces de agua de la escuela elegida',
 }
 
-const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = ['aislamiento', 'inundacion', 'rutaSeleccion']
+const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = [
+  'aislamiento',
+  ...(MOSTRAR_AGUA_ESTIMADA ? ['inundacion' as const] : []),
+  'rutaSeleccion',
+]
 
 export function AccesosLayerControl({
   capas,

@@ -7,8 +7,6 @@ import { getDb } from '@/lib/db'
 import { infraEpisodioDerivado, infraEpisodioMiembro } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { episodiosDerivadosEnabled } from '@/lib/infraestructura/episodios-derivados/flags'
-import { replayEnabled } from '@/lib/infraestructura/riesgo/flags'
-import { hrefReplayEpisodio } from '@/components/mapas/replay-link'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -108,14 +106,6 @@ export default async function EpisodioDerivadoPage({
           apertura ni cierre manual.
         </p>
       </header>
-
-      {replayEnabled() && (
-        <p>
-          <Link href={hrefReplayEpisodio(episodio.id)} style={enlace}>
-            Ver replay del episodio
-          </Link>
-        </p>
-      )}
 
       <section style={bloque}>
         <h2>Encabezado</h2>

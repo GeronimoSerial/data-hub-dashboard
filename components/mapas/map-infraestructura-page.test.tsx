@@ -4,7 +4,6 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import type { RespuestaReplay } from '@/lib/infraestructura/use-replay'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
@@ -196,7 +195,7 @@ vi.mock('@/lib/infraestructura/use-totales-mapa', () => ({
 
 // T5c2: hooks de las capas territoriales de accesos. El componente los llama
 // SIEMPRE (regla de hooks) pero con `habilitado` false cuando el flag
-// territorial está apagado o se está en Replay. Se registra el flag recibido
+// territorial está apagado. Se registra el flag recibido
 // para poder afirmarlo (mismo patrón que `llamadasRadar`).
 const llamadasTerritorio = vi.hoisted(() => ({ habilitados: [] as boolean[] }))
 const llamadasGeometria = vi.hoisted(() => ({
@@ -341,16 +340,6 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
   },
 }))
 
-const llamadasReplay = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
-const FIXTURE_REPLAY: RespuestaReplay = { cuadros: [{ instante: '2026-09-20T00:00:00Z', nivelesPeligro: [], snapshotRiesgo: { runId: 'run-1', publicadoEn: '2026-09-20T00:00:00Z', porEscuela: [] }, afectacionesConfirmadas: [], lluviaObservada: [], saludFuentes: [] }], vacios: [{ snapshotRiesgo: false, peligro: false, lluvia: false }], siguienteDesde: null }
-vi.mock('@/lib/infraestructura/use-replay', () => ({
-  useReplay: (_filtros: unknown, activo: boolean) => {
-    llamadasReplay.activos.push(activo)
-    llamadasReplay.filtros.push(_filtros)
-    return activo ? { data: FIXTURE_REPLAY, loading: false, error: null } : { data: null, loading: false, error: null }
-  },
-}))
-
 // Mock del hook de detalle por snapshot (follow-up 4 del Gate de E4): el
 // hook real haría un fetch real que este archivo no necesita ejercitar (ya
 // está cubierto por `use-riesgo-snapshot.test.tsx`); acá sólo se verifica que
@@ -487,8 +476,7 @@ vi.mock('react-map-gl/maplibre', () => {
     // `data` no se renderiza en el DOM real (MapLibre lo consume vía WebGL),
     // pero se expone acá como atributo serializado: es la única forma de
     // inspeccionar, desde un test de integración, qué features terminan en
-    // el GeoJSON de cada fuente (p. ej. `infra-replay-riesgo-src`) sin
-    // depender del click handler (que para Replay ni siquiera está cableado).
+    // el GeoJSON de cada fuente sin depender del click handler.
     Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => (
       <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-geojson={JSON.stringify(props.data)}>
         {props.children ?? null}
@@ -514,7 +502,6 @@ async function renderMapa(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
-  replayEnabled?: boolean
 }) {
   const MapInfraestructuraPage = await cargar()
   const { unmount } = render(<MapInfraestructuraPage {...props} />)
@@ -575,9 +562,7 @@ beforeEach(() => {
   estadoGeometria.disponible = true
   estadoGeometria.cueForzado = null
   llamadasRadar.activos.length = 0
-  llamadasReplay.activos.length = 0
-  llamadasReplay.filtros.length = 0
-  llamadasSnapshot.snapshotIds.length = 0
+    llamadasSnapshot.snapshotIds.length = 0
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
   llamadasGeometria.habilitados.length = 0
@@ -856,122 +841,6 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 })
 
-describe('MapInfraestructuraPage — modo Replay', () => {
-  it('abre el replay desde la URL con el episodio derivado como alcance', async () => {
-    window.history.replaceState({}, '', '/mapas/infraestructura?modo=replay&episodio=ep-42')
-    await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
-    expect(screen.getByTestId('replay-panel')).toBeInTheDocument()
-    expect(llamadasReplay.activos.at(-1)).toBe(true)
-    expect(llamadasReplay.filtros.at(-1)).toMatchObject({ episodioDerivadoId: 'ep-42' })
-  })
-
-  it('con el flag apagado no muestra el botón Replay y el hook nunca recibe activo=true', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    expect(screen.queryByRole('button', { name: 'Replay' })).not.toBeInTheDocument()
-    expect(llamadasReplay.activos.every((activo) => activo === false)).toBe(true)
-  })
-
-  // MENOR (revisión N1): el test original sólo probaba que se restauraba el
-  // MODO (a), sin ninguna aserción de que también volvieran el horizonte (b)
-  // y la selección de departamento (c) — las tres cosas que
-  // `volverDeReplay`/`estadoPrevioReplayRef` prometen restaurar.
-  it('al volver del modo Replay se restauran modo, horizonte y selección de departamento previos', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
-    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
-    expect(llamadasReplay.activos.at(-1)).toBe(true)
-
-    const botonVolver = screen.getByRole('button', { name: /volver a la situación actual/i })
-    await userEvent.click(botonVolver)
-
-    expect(screen.getByRole('button', { name: 'Radar' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Situación actual' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
-  })
-
-  // MAYOR 1 (revisión N1): `cambiarModo` no reseteaba `playingReplay` al
-  // salir de Replay por el CONMUTADOR (a diferencia de "Volver", que sí lo
-  // hacía). Sin el fix, reproducir un cuadro, salir por el conmutador y
-  // volver a entrar dejaba `playing=true` heredado de la visita anterior, y
-  // el intervalo de auto-avance arrancaba solo sin que el usuario tocara
-  // "Reproducir" de nuevo.
-  it('salir de Replay por el conmutador detiene la reproducción (no sólo "Volver")', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
-
-    await userEvent.click(screen.getByRole('button', { name: 'Reproducir' }))
-    expect(screen.getByRole('button', { name: 'Pausar' })).toHaveAttribute('aria-pressed', 'true')
-
-    // Sale por el conmutador, NO por "Volver a la situación actual".
-    await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
-
-    expect(screen.getByRole('button', { name: 'Reproducir' })).toHaveAttribute('aria-pressed', 'false')
-  })
-
-  // MAYOR 2 (revisión N1): las coordenadas de los puntos de riesgo/afectación
-  // del replay salían de `dataVisible` (filtrado por el departamento elegido
-  // en "Situación actual"), no del padrón completo de M1 (`useEscuelasMapa`).
-  // Una escuela sin parte vigente hoy — y por lo tanto ausente de
-  // `dataVisible.partes` — no se dibujaba en Replay aunque el cuadro
-  // reproducido tuviera snapshot de riesgo para su cueAnexo. El fix usa
-  // `dataEscuelasMapa` (padrón completo, sin ese filtro) como fuente de
-  // coordenadas para Replay.
-  it('las coordenadas de Replay salen del padrón completo, no de dataVisible filtrado', async () => {
-    const CUE_OTRO_DEPTO = '1801699-01'
-    FIXTURE_ESCUELAS_MAPA.escuelas.push({
-      cueAnexo: CUE_OTRO_DEPTO,
-      nombre: 'Escuela de Empedrado',
-      departamento: 'Empedrado',
-      localidad: 'Empedrado',
-      lat: -27.9,
-      lon: -58.8,
-      estado: 'sin_afectacion_reportada' as const,
-    })
-    FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.push({
-      cueAnexo: CUE_OTRO_DEPTO,
-      nivelRiesgo: 'alto',
-      horizonteHoras: 24,
-    })
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
-          type: 'FeatureCollection',
-          features: [
-            { type: 'Feature', properties: { nombre: 'Capital' }, geometry: null },
-            { type: 'Feature', properties: { nombre: 'Empedrado' }, geometry: null },
-          ],
-        }),
-      }),
-    )
-
-    try {
-      await renderMapa({ mostrarEnlaceNominal: true, replayEnabled: true })
-      await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
-
-      const selectDepartamento = await screen.findByLabelText('Departamento')
-      await userEvent.selectOptions(selectDepartamento, 'Empedrado')
-
-      const fuenteRiesgo = await screen.findByTestId('mock-source-infra-replay-riesgo-src')
-      const geojson = JSON.parse(fuenteRiesgo.getAttribute('data-geojson') ?? '{}')
-      const cues = (geojson.features ?? []).map(
-        (feature: { properties: { cueAnexo: string } }) => feature.properties.cueAnexo,
-      )
-      // La escuela de Empedrado nunca tuvo un ParteMapa (no está en
-      // dataVisible.partes), pero SÍ está en el padrón completo con
-      // coordenadas: tiene que aparecer.
-      expect(cues).toContain(CUE_OTRO_DEPTO)
-    } finally {
-      FIXTURE_ESCUELAS_MAPA.escuelas.pop()
-      FIXTURE_REPLAY.cuadros[0].snapshotRiesgo!.porEscuela.pop()
-    }
-  })
-})
-
 describe('M1: clic de departamento y buscador de escuelas', () => {
   // El popup de departamento arma su texto con <strong> intercalados ("En
   // <strong>Capital</strong> hay <strong>10</strong> escuelas…"), así que el
@@ -1104,13 +973,7 @@ describe('MapInfraestructuraPage — capas del radar de riesgo anteriores', () =
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })
 
-  it('oculta en modo Replay aunque el toggle esté prendido', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, replayEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
 
-    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
-    expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
-  })
 })
 
 describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () => {
@@ -1130,6 +993,7 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
     expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/agua estimada por crecida de río/i)).not.toBeInTheDocument()
     expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
   })
 
@@ -1146,18 +1010,7 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     expect(bloque).toHaveTextContent('Camino calculado · Escuela 1')
   })
 
-  it('en modo Replay nunca habilita la geometría', async () => {
-    await renderMapa({
-      mostrarEnlaceNominal: true,
-      hazardContextEnabled: true,
-      replayEnabled: true,
-    })
-    await userEvent.click(screen.getByRole('button', { name: 'Replay' }))
 
-    // Tras entrar a Replay el último valor que recibe el hook es false: la
-    // geometría no se pide aunque el flag territorial esté prendido.
-    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
-  })
 })
 
 // Q1: la ficha abierta/cerrada pasó a ser un estado DISTINTO del de selección.
@@ -1508,21 +1361,10 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
     expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
   })
 
-  it('clickear el ícono de inundación abre esa escuela y no filtra el departamento', async () => {
+  it('no ofrece el toggle ni la capa de agua estimada', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: /Agua estimada por crecida de río \(en la escuela\)/i }),
-    )
-
-    await userEvent.click(screen.getByTestId('mock-click-inundacion'))
-
-    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute(
-      'data-cue',
-      CUE_SIN_AFECTACION,
-    )
-    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-    expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
-    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Agua estimada por crecida de río/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-layer-infra-inundacion-symbol')).not.toBeInTheDocument()
   })
 
   it('clickear un cruce de agua muestra su popup con el matiz del "sin puente"', async () => {

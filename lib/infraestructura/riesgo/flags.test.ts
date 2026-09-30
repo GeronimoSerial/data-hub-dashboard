@@ -3,7 +3,6 @@ import {
   aiBriefingEnabled,
   hazardContextEnabled,
   listarFlagsOperativas,
-  replayEnabled,
   riskEngineEnabled,
   riskMode,
   riskRadarEnabled,
@@ -18,7 +17,6 @@ const CLAVES = [
   'RISK_MODE',
   'HAZARD_CONTEXT_ENABLED',
   'SEASONAL_ENABLED',
-  'REPLAY_ENABLED',
   'SITUACION_ENABLED',
 ] as const
 
@@ -45,7 +43,6 @@ const BOOLEAN_FLAGS: readonly BooleanFlag[] = [
   ['hazardContextEnabled', 'HAZARD_CONTEXT_ENABLED', hazardContextEnabled, 'devuelve false sin la variable seteada'],
   ['seasonalEnabled', 'SEASONAL_ENABLED', seasonalEnabled, 'devuelve false por defecto (sin la variable seteada)'],
   ['situacionEnabled', 'SITUACION_ENABLED', situacionEnabled, 'devuelve false sin la variable seteada'],
-  ['replayEnabled', 'REPLAY_ENABLED', replayEnabled, 'devuelve false por defecto (sin la variable seteada)'],
 ]
 
 describe.each(BOOLEAN_FLAGS)('%s', (_nombre, clave, flag, tituloSinVariable) => {
@@ -91,7 +88,7 @@ describe('listarFlagsOperativas', () => {
     const lista = listarFlagsOperativas()
     expect(lista.map(({ nombre }) => nombre)).toEqual([
       'RISK_ENGINE_ENABLED', 'RISK_RADAR_ENABLED', 'AI_BRIEFING_ENABLED',
-      'HAZARD_CONTEXT_ENABLED', 'SEASONAL_ENABLED', 'REPLAY_ENABLED',
+      'HAZARD_CONTEXT_ENABLED', 'SEASONAL_ENABLED',
       'RISK_MODE', 'SITUACION_ENABLED', 'EPISODIOS_DERIVADOS_ENABLED', 'ENOS_JOBS_ENABLED',
     ])
     process.env.SITUACION_ENABLED = 'true'

@@ -209,8 +209,7 @@ describe('CapasAccesosTerritoriales', () => {
     expect(aislamiento.getAttribute('data-layout')).toContain('icono')
     expect(aislamiento.getAttribute('data-layout')).toContain('interpolate')
 
-    const inundacion = screen.getByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)
-    expect(inundacion).toHaveAttribute('data-layer-type', 'symbol')
+    expect(screen.queryByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)).not.toBeInTheDocument()
   })
 
   it('monta la ruta como casing + línea, con el color de casing según el tema', () => {
@@ -341,7 +340,13 @@ describe('LeyendaAccesos — aislamiento', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — inundación', () => {
-  it('muestra período de retorno, filas por clase, filas no dibujadas y descargo', () => {
+  it('no muestra leyenda de agua estimada aunque esté activada en los datos', () => {
+    renderLeyenda({ visibles: visibles(['inundacion']) })
+    expect(screen.queryByTestId('leyenda-inundacion')).not.toBeInTheDocument()
+    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
+  })
+
+  it.skip('muestra período de retorno, filas por clase, filas no dibujadas y descargo', () => {
     renderLeyenda({ visibles: visibles(['inundacion']) })
     const bloque = screen.getByTestId('leyenda-inundacion-contenido')
     // El período de retorno llega por `textoConPeriodo`, nunca escrito a mano.
@@ -367,7 +372,7 @@ describe('LeyendaAccesos — inundación', () => {
     expect((ayuda as HTMLDetailsElement).open).toBe(false)
   })
 
-  it('muestra falta de datos importados de physrisk', () => {
+  it.skip('muestra falta de datos importados de physrisk', () => {
     renderLeyenda({ visibles: visibles(['inundacion']), territorio: null, resumen })
     expect(screen.getByTestId('leyenda-inundacion-sin-datos')).toHaveTextContent(
       'Sin datos de agua estimada cargados.',
@@ -492,21 +497,17 @@ describe('LeyendaAccesos — estado territorial compartido', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — tarjeta de la leyenda', () => {
-  it('muestra la ruta antes de los bloques territoriales', () => {
+  it('muestra la ruta antes de la leyenda territorial visible', () => {
     renderLeyenda()
     const ruta = screen.getByTestId('leyenda-ruta')
     const aislamiento = screen.getByTestId('leyenda-aislamiento')
-    const inundacion = screen.getByTestId('leyenda-inundacion')
 
     expect(
       ruta.compareDocumentPosition(aislamiento) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(
-      ruta.compareDocumentPosition(inundacion) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
   })
 
-  it('envuelve los tres bloques visibles en una sola tarjeta .map-panel', () => {
+  it('envuelve los bloques visibles en una sola tarjeta .map-panel', () => {
     renderLeyenda()
     const secciones = screen.getAllByTestId('leyenda-accesos')
     expect(secciones).toHaveLength(1)
@@ -517,7 +518,7 @@ describe('LeyendaAccesos — tarjeta de la leyenda', () => {
     expect(seccion).toHaveClass('map-leyenda-accesos')
     expect(seccion.tagName).toBe('SECTION')
     expect(seccion).toHaveAttribute('aria-label', 'Referencias de las capas territoriales')
-    for (const id of ['leyenda-aislamiento', 'leyenda-inundacion', 'leyenda-ruta']) {
+    for (const id of ['leyenda-aislamiento', 'leyenda-ruta']) {
       expect(seccion).toContainElement(screen.getByTestId(id))
     }
   })
@@ -527,11 +528,10 @@ describe('LeyendaAccesos — tarjeta de la leyenda', () => {
     expect(screen.queryByTestId('leyenda-accesos')).not.toBeInTheDocument()
   })
 
-  it('deja cerradas por defecto las ayudas de los tres bloques', () => {
+  it('deja cerradas por defecto las ayudas visibles', () => {
     renderLeyenda({ seleccion: { nombre: 'Escuela Uno' }, geometria: geometriaDisponible })
     for (const id of [
       'leyenda-aislamiento-ayuda',
-      'leyenda-inundacion-ayuda',
       'leyenda-ruta-ayuda',
     ]) {
       expect((screen.getByTestId(id) as HTMLDetailsElement).open).toBe(false)
@@ -573,7 +573,7 @@ describe('bboxRuta', () => {
 // ---------------------------------------------------------------------------
 
 describe('AccesosLayerControl', () => {
-  it('listas las tres capas y notifica el toggle', async () => {
+  it('oculta agua estimada y notifica el toggle de aislamiento', async () => {
     const onChange = vi.fn()
     render(
       <AccesosLayerControl
@@ -582,6 +582,7 @@ describe('AccesosLayerControl', () => {
       />,
     )
     expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.inundacion })).not.toBeInTheDocument()
     expect(
       screen.getByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.aislamiento }),
     ).not.toBeChecked()

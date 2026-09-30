@@ -6,7 +6,6 @@ import { loadRecursoAccessByRuta } from '@/lib/db/recurso-access'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   hazardContextEnabled,
-  replayEnabled,
   riskRadarEnabled,
   seasonalEnabled,
 } from '@/lib/infraestructura/riesgo/flags'
@@ -26,7 +25,6 @@ export default async function InfraestructuraMapRoute() {
     <InfraestructuraMapClient
       mostrarEnlaceNominal={mostrarEnlaceNominal}
       hazardContextEnabled={hazardContextEnabled()}
-      replayEnabled={replayEnabled()}
       riskRadarEnabled={riskRadarEnabled()}
       seasonalEnabled={seasonalEnabled()}
     />

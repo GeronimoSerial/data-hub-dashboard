@@ -69,15 +69,20 @@ cargarlos una vez por corte:
 node --experimental-strip-types scripts/import-padron.mjs --ge --ciclo 2026
 ```
 
-Para una demostración, `node scripts/seed-demo-partes.mjs` agrega partes ficticios
-al período vigente y secciones y alumnos sintéticos al corte vigente. Usa IDs
-negativos desde `-900000` para separar esos registros del padrón real. Antes de
-ejecutarlo en producción, comprobá que ese rango esté libre. El comando
-`node scripts/seed-demo-partes.mjs --limpiar` retira los registros ficticios.
+Para una demostración con mapa, el seed crea partes ficticios sobre escuelas con
+ubicación. Requiere `DEMO_OK=1` y un `DATA_DIR` explícito como protección; elige
+50 escuelas por defecto y admite `--escuelas N`. Si no hay corte vigente, o se
+pasa `--sin-padron`, omite secciones y alumnos nominales:
 
-Necesita `PADRON_PG_URL` y `NOMINAL_ENCRYPTION_KEY` en el entorno. Tarda entre 40 y 90 segundos
-sobre ~272.000 filas. El flag `--experimental-strip-types` está porque importa módulos `.ts` de
-`lib/`; en Node ≥ 22.18 el stripping ya viene activado y el flag es inocuo.
+```bash
+DATA_DIR=/tmp/demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --escuelas 85 --sin-padron
+DATA_DIR=/tmp/demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --limpiar
+```
+
+Fuera de este modo, si hay padrón vigente, también genera matrícula ficticia
+con IDs negativos desde `-900000`; por eso hay que comprobar que ese rango esté
+libre antes de usarlo. La base se elige por `DATABASE_URL` (Postgres) o por la
+PGlite persistida bajo `DATA_DIR`.
 
 **Dónde correrlo: no en el contenedor de producción.** Ver *Nunca correr el import del padrón
 dentro del contenedor*, más abajo — se intentó dos veces y las dos tumbó el host completo.
@@ -171,7 +176,6 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
 | `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
 | `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |
-| `REPLAY_ENABLED` | `false` | Replay de riesgo | Replay |
 | `SITUACION_ENABLED` | `false` | Centro de situación | Situación |
 | `EPISODIOS_DERIVADOS_ENABLED` | `false` | UI episodios derivados | Episodios |
 | `RISK_MODE` | `shadow` | Modo seguro o advisory | Motor de riesgo |

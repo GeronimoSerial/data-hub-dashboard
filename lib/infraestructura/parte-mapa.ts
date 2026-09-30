@@ -338,18 +338,21 @@ export async function listarPartesVigentes(
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
-  if (!corte) return resultadoVacio
+  // Con partes de demo creados sin padrón se conserva la vista del mapa: el
+  // corte sintético sólo sirve para que las consultas nominales devuelvan
+  // cero filas. Nunca se inventan secciones ni alumnos.
+  const corteId = corte?.id ?? 0
 
-  const parteRows = await cargarPartes(client, periodo.id, corte.id, filtros)
+  const parteRows = await cargarPartes(client, periodo.id, corteId, filtros)
   if (parteRows.length === 0) return resultadoVacio
 
   const parteIds = parteRows.map((p) => p.id)
   const cueAnexos = [...new Set(parteRows.map((p) => p.cueAnexo))]
 
   const [afectacionesRows, servicioRows, seccionesPorCue] = await Promise.all([
-    cargarAfectacionesDeVariosPartes(client, corte.id, parteIds),
+    cargarAfectacionesDeVariosPartes(client, corteId, parteIds),
     cargarServicioAlcanceDeVariosPartes(client, parteIds),
-    listarSeccionesDeCues(client, corte.id, cueAnexos),
+    listarSeccionesDeCues(client, corteId, cueAnexos),
   ])
 
   // Vigencia de afectaciones: sin `clave` de agrupación porque cada

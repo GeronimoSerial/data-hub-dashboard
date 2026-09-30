@@ -86,7 +86,6 @@ import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selec
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
-import { useReplay, type VistaReplay } from '@/lib/infraestructura/use-replay'
 import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
 import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
@@ -95,16 +94,13 @@ import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
-import { ReplayPanel } from '@/components/mapas/replay-panel'
 import {
   colorPuntoRiesgo,
   construirCoropletaPeligro,
   construirPuntosRiesgo,
   construirPuntosRiesgoAcceso,
   paintCoropletaPeligro,
-  paintPuntosRiesgo,
   paintPuntosRiesgoAcceso,
-  peorNivelEntre,
   type NivelPorDepartamento,
   type RiesgoAccesoEscuela,
   type RiesgoEscuela,
@@ -240,58 +236,17 @@ const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
 // el patrón "círculos sobre círculos" ilegible que ya se retiró del resto del
 // mapa). Ahora la señal de riesgo es un <Marker> DOM con un TriangleAlert
 // coloreado por nivel: un canal visual propio que no compite con el relleno de
-// severidad ni con el badge de estado. `RADIO_PUNTO_RIESGO_BASE` se conserva
-// porque el modo Replay reusa `circlePaintRiesgo` para SU propia capa de
-// riesgo, que es independiente y no se toca acá.
-const RADIO_PUNTO_RIESGO_BASE = 7
+// severidad ni con el badge de estado.
 
 // id lógico del contenedor del ícono de riesgo: mismo patrón `data-capa` que
 // el badge de estado, para tests y estilos sin depender del texto accesible.
 const CAPA_RIESGO_ICONO_ID = 'infra-riesgo-icono'
 const TAMANO_ICONO_RIESGO = 18
 
-function circlePaintRiesgo(): CircleLayerSpecification['paint'] {
-  return {
-    ...paintPuntosRiesgo(),
-    'circle-radius': RADIO_PUNTO_RIESGO_BASE,
-    'circle-opacity': 0.85,
-    'circle-stroke-color': '#1c1c1c',
-    'circle-stroke-width': 2,
-    'circle-stroke-opacity': 0.9,
-  }
-}
-
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
 
-// ── Modo Replay (E7c) ────────────────────────────────────────────────────────
-//
-// IDs propios, namespaced aparte de infra-peligro-*/infra-riesgo-* del Radar:
-// el modo Replay es un modo de análisis SEPARADO, nunca apilado sobre el
-// Radar, y ambos pueden convivir en el árbol de MapLibre sin pisarse aunque
-// en la práctica sólo uno está activo a la vez (radarActivo/replayActivo son
-// mutuamente excluyentes por construcción de `modo`).
-const CAPA_REPLAY_PELIGRO_FILL_ID = 'infra-replay-peligro-fill'
-const CAPA_REPLAY_RIESGO_CIRCLE_ID = 'infra-replay-riesgo-circle'
-const CAPA_REPLAY_AFECTACION_CIRCLE_ID = 'infra-replay-afectacion-circle'
-
-function circlePaintAfectacionReplay(): CircleLayerSpecification['paint'] {
-  return {
-    'circle-radius': RADIO_PUNTO_RIESGO_BASE,
-    'circle-color': ['get', 'color'],
-    'circle-opacity': 0.9,
-    'circle-stroke-color': '#1c1c1c',
-    'circle-stroke-width': 1,
-  }
-}
-
-// Etiqueta del conmutador de modo. `role=tablist` + `aria-pressed` sobre
-// botones REALES: operable por teclado sin JS extra.
-//
-// 'replay' (batch E7c) es un modo de ANÁLISIS separado, no apilado sobre
-// 'radar': vive detrás de su propio flag (REPLAY_ENABLED) y no comparte
-// estado de selección con los otros dos modos (ver useReplay/ReplayPanel más
-// abajo).
-type ModoMapa = 'actual' | 'radar' | 'replay'
+// Etiqueta del conmutador de modo. Botones reales operables por teclado.
+type ModoMapa = 'actual' | 'radar'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
@@ -772,7 +727,6 @@ export default function MapInfraestructuraPage(props: {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
-  replayEnabled?: boolean
   visible?: boolean
 }) {
   const styles = useOverlayStyles()
@@ -784,7 +738,7 @@ export default function MapInfraestructuraPage(props: {
   const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
   // Apertura de "Filtros del mapa" (ListaAlertas): vive acá y no dentro del
   // <details> para que sobreviva al remontaje de la lista cada vez que se
-  // cambia de modo (Situación actual / Radar / Replay).
+  // cambia de modo (Situación actual / Radar).
   const [filtrosAvanzadosAbiertos, setFiltrosAvanzadosAbiertos] = useState(false)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -873,10 +827,9 @@ export default function MapInfraestructuraPage(props: {
   // propio flag está activo.
   const [modo, setModo] = useState<ModoMapa>(() => {
     const query = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
-    return query?.get('modo') === 'replay' && props.replayEnabled ? 'replay' : 'actual'
+    return query?.get('modo') === 'radar' && props.riskRadarEnabled ? 'radar' : 'actual'
   })
   const modoRadar = modo === 'radar'
-  const modoReplay = modo === 'replay'
   // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
   // Sólo los numéricos viajan a la API; 'ahora' no tiene evidencia y el hook
   // no manda query (ver use-radar.ts). Default 'ahora' = lo más inmediato.
@@ -899,6 +852,27 @@ export default function MapInfraestructuraPage(props: {
     [horizonteSeleccionado],
   )
   const radarActivo = (props.riskRadarEnabled ?? false) && modoRadar
+  useEffect(() => {
+    const shell = shellRef.current
+    const modePanel = shell?.querySelector<HTMLElement>('.map-modo-conmutador')
+    if (!shell || !modePanel || !radarActivo) {
+      shell?.style.removeProperty('--infra-modo-panel-bottom')
+      return
+    }
+    const medir = () => {
+      const shellTop = shell.getBoundingClientRect().top
+      const panelBottom = modePanel.getBoundingClientRect().bottom
+      shell.style.setProperty('--infra-modo-panel-bottom', `${panelBottom - shellTop + 12}px`)
+    }
+    medir()
+    const observer = new ResizeObserver(medir)
+    observer.observe(modePanel)
+    window.addEventListener('resize', medir)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', medir)
+    }
+  }, [radarActivo])
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
     false,
@@ -913,67 +887,6 @@ export default function MapInfraestructuraPage(props: {
     departamentoRadarSeleccionado,
     seasonalActivo,
   )
-
-  // ── Modo Replay (E7c) ───────────────────────────────────────────────────
-  //
-  // Modo de ANÁLISIS separado del Radar: no se apila sobre él ni reusa su
-  // estado. `territorioIdReplay`/fechas arrancan vacíos a propósito — nada se
-  // consulta hasta que el usuario elige explícitamente departamento y
-  // ventana (o un episodio derivado), y NUNCA hay reproducción automática al
-  // entrar (`playingReplay` arranca siempre en false).
-  const episodioInicial = typeof window === 'undefined'
-    ? null
-    : new URLSearchParams(window.location.search).get('episodio')
-  const [episodioDerivadoId, setEpisodioDerivadoId] = useState<string | null>(episodioInicial)
-  const [territorioIdReplay, setTerritorioIdReplay] = useState<string | null>(null)
-  const [desdeReplay, setDesdeReplay] = useState('')
-  const [hastaReplay, setHastaReplay] = useState('')
-  const [vistaReplay, setVistaReplay] = useState<VistaReplay>('conocido')
-  const [frameIndexReplay, setFrameIndexReplay] = useState(0)
-  const [playingReplay, setPlayingReplay] = useState(false)
-  const PASO_REPLAY_HORAS = 6
-
-  // Snapshot del estado operativo tomado al ENTRAR a Replay (no al montar el
-  // componente): "Volver a la situación actual" restaura exactamente el modo,
-  // horizonte y selección que estaban activos antes de abrir Replay, sean los
-  // de "Situación actual" o los del Radar.
-  const estadoPrevioReplayRef = useRef<{
-    modo: ModoMapa
-    horizonteSeleccionado: HorizonteRadar
-    departamentoSeleccionado: string | null
-    seleccionCue: string | null
-    departamentoRadarSeleccionado: string | null
-    cueRadarSeleccionado: string | null
-  } | null>(null)
-
-  const replayActivo = (props.replayEnabled ?? false) && modoReplay
-  const filtrosReplay = useMemo(
-    () => ({
-      territorioId: territorioIdReplay ?? undefined,
-      desde: desdeReplay || undefined,
-      hasta: hastaReplay || undefined,
-      paso: PASO_REPLAY_HORAS,
-      vista: vistaReplay,
-      episodioDerivadoId: episodioDerivadoId ?? undefined,
-    }),
-    [territorioIdReplay, desdeReplay, hastaReplay, vistaReplay, episodioDerivadoId],
-  )
-  const { data: replayData, loading: replayLoading, error: replayError } = useReplay(
-    filtrosReplay,
-    replayActivo,
-  )
-
-  // El índice de cuadro nunca puede quedar apuntando fuera de rango cuando la
-  // respuesta cambia (nuevo territorio/ventana/vista trae menos cuadros que
-  // el anterior): se reacomoda al último válido, nunca se inventa un cuadro.
-  const [replayDataAnterior, setReplayDataAnterior] = useState(replayData)
-  if (replayData !== replayDataAnterior) {
-    setReplayDataAnterior(replayData)
-    const total = replayData?.cuadros.length ?? 0
-    setFrameIndexReplay(total === 0 ? 0 : Math.min(frameIndexReplay, total - 1))
-  }
-
-  const cuadroReplayActual = replayData?.cuadros[frameIndexReplay] ?? null
 
   const filtros = useMemo(
     () => ({
@@ -1313,74 +1226,6 @@ export default function MapInfraestructuraPage(props: {
     [escuelasConCoordenadas, riesgoAccesoPorCue],
   )
 
-  // ── Capas del cuadro reproducido (Replay, E7c) ────────────────────────────
-  //
-  // El replay entrega el peligro por CELDA de grilla (geometryRef), no por
-  // departamento, y está siempre acotado a UN SOLO territorio a la vez (el
-  // elegido en el panel). Por eso la coropleta no se recalcula por
-  // departamento como en el Radar: se reduce el peligro de todas las celdas
-  // del cuadro a un único peor-nivel (`peorNivelEntre`) y se pinta SÓLO el
-  // departamento seleccionado con ese nivel — el resto queda en 'sin_dato'
-  // (gris), reusando `construirCoropletaPeligro` tal cual.
-  const peligroGeojsonReplay = useMemo(() => {
-    if (!departamentosRaw || !territorioIdReplay || !cuadroReplayActual) return null
-    const peorNivel = peorNivelEntre(cuadroReplayActual.nivelesPeligro.map((n) => n.nivel))
-    return construirCoropletaPeligro(departamentosRaw, [
-      { departamento: territorioIdReplay, peorNivel },
-    ])
-  }, [departamentosRaw, territorioIdReplay, cuadroReplayActual])
-
-  // Coordenadas para Replay: el padrón COMPLETO de M1 (`useEscuelasMapa`, sin
-  // filtrar por el departamento elegido en "Situación actual"), no
-  // `dataVisible`/`escuelasConCoordenadas`. Replay tiene su PROPIO territorio
-  // (`territorioIdReplay`), independiente del filtro de "Situación actual";
-  // reusar ese filtro dejaba sin puntos cualquier departamento de Replay que
-  // no coincidiera con el elegido en el otro modo.
-  const escuelasConCoordenadasReplay = useMemo(
-    () => extraerEscuelasConCoordenadas(dataEscuelasMapa?.escuelas ?? []),
-    [dataEscuelasMapa],
-  )
-
-  // Puntos de riesgo del cuadro reproducido: cruzan `snapshotRiesgo.porEscuela`
-  // (por cueAnexo) con las coordenadas del padrón completo. `confianza` no
-  // viaja en el contrato de replay: se fija en 'media' como valor neutro,
-  // nunca inventando 'alta'.
-  const riesgoPorCueReplay = useMemo(() => {
-    const map = new Map<string, RiesgoEscuela>()
-    for (const escuela of cuadroReplayActual?.snapshotRiesgo?.porEscuela ?? []) {
-      map.set(escuela.cueAnexo, { nivelRiesgo: escuela.nivelRiesgo, confianza: 'media' })
-    }
-    return map
-  }, [cuadroReplayActual])
-
-  const puntosRiesgoGeojsonReplay = useMemo(
-    () => construirPuntosRiesgo(escuelasConCoordenadasReplay, riesgoPorCueReplay),
-    [escuelasConCoordenadasReplay, riesgoPorCueReplay],
-  )
-
-  // Afectaciones confirmadas del cuadro reproducido: mismo criterio de
-  // coordenadas que arriba (padrón completo). El color reusa `colorSeveridad`,
-  // la MISMA escala que "Situación actual" — el replay no inventa una paleta
-  // propia.
-  const afectacionesGeojsonReplay = useMemo(() => {
-    const coordsPorCue = new Map(escuelasConCoordenadasReplay.map((e) => [e.cueAnexo, e]))
-    const features = (cuadroReplayActual?.afectacionesConfirmadas ?? [])
-      .map((afectacion) => {
-        const coords = coordsPorCue.get(afectacion.cueAnexo)
-        if (!coords) return null
-        return {
-          type: 'Feature' as const,
-          geometry: { type: 'Point' as const, coordinates: [coords.lon, coords.lat] },
-          properties: {
-            cueAnexo: afectacion.cueAnexo,
-            color: colorSeveridad(afectacion.severidad),
-          },
-        }
-      })
-      .filter((f): f is NonNullable<typeof f> => f !== null)
-    return { type: 'FeatureCollection' as const, features }
-  }, [cuadroReplayActual, escuelasConCoordenadasReplay])
-
   // Briefing: `generarBriefing` necesita el run ANTERIOR y los conteos por
   // nivel, y la API sólo entrega el corte VIGENTE (no el anterior). GAP
   // documentado en el resumen: sin runAnterior se pasa null y el briefing
@@ -1507,11 +1352,11 @@ export default function MapInfraestructuraPage(props: {
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
   //
-  // Gate único: el flag de contexto territorial Y nunca en Replay. Con el
+  // Gate único: el flag de contexto territorial fuera del modo Radar. Con el
   // flag apagado esta sección no fetchea, no monta control, leyenda ni capas
   // — el mapa se comporta exactamente como antes. `hazardOn` ya incluye
-  // `!modoReplay`, así que Replay queda excluido en todos los consumidores.
-  const hazardOn = (props.hazardContextEnabled ?? false) && !modoReplay && !modoRadar
+  // modoRadar, así queda disponible sólo en situación actual.
+  const hazardOn = (props.hazardContextEnabled ?? false) && !modoRadar
 
   // Capas estáticas (aislamiento OSM + susceptibilidad physrisk): un solo
   // fetch de largo plazo, sin polling.
@@ -1539,11 +1384,11 @@ export default function MapInfraestructuraPage(props: {
   )
 
   // Escuela de la ruta: en Radar la selección es la del snapshot; en
-  // "Situación actual" (y Replay, aunque ahí está apagado) es la de la ficha.
+  // "Situación actual" (y es la de la ficha.
   const cueRuta = modoRadar ? cueRadarSeleccionado : seleccionCue
 
   // La geometría se pide SÓLO para la escuela seleccionada, nunca para todas
-  // las rutas. En Replay queda deshabilitada por `hazardOn`.
+  // las rutas. Se deshabilita cuando el contexto territorial no está activo.
   const {
     data: geometria,
     loading: geometriaLoading,
@@ -1913,76 +1758,21 @@ export default function MapInfraestructuraPage(props: {
     if (angosto) setFichaCerradaCue(seleccionCue)
   }
 
-  // Cambiar de modo limpia las selecciones del OTRO modo: si quedo con una
-  // ficha de radar abierta y vuelvo a "Situación actual", el panel de
-  // explicación se cierra solo (su visibilidad deriva de estos estados).
-  //
-  // Entrar a Replay ('actual'/'radar' -> 'replay') toma una FOTO del estado
-  // operativo vigente (modo, horizonte, selecciones) antes de tocar nada:
-  // "Volver a la situación actual" (volverDeReplay) restaura exactamente esa
-  // foto, nunca fuerza 'actual' a secas — si se venía del Radar con un
-  // horizonte y un departamento elegidos, se vuelve a ESE estado.
   function cambiarModo(siguiente: ModoMapa) {
     const map = mapRef.current?.getMap()
     if (siguiente === 'radar' && modo !== 'radar' && map && typeof map.getCenter === 'function') {
       const center = map.getCenter()
       vistaPreviaRadar.current = { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
-      // Keep the dense forecast grid centered inside the area left clear by the timeline.
       map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
     } else if (modo === 'radar' && siguiente !== 'radar' && map && vistaPreviaRadar.current) {
       map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
     }
-    if (siguiente === 'replay' && modo !== 'replay') {
-      estadoPrevioReplayRef.current = {
-        modo,
-        horizonteSeleccionado,
-        departamentoSeleccionado,
-        seleccionCue,
-        departamentoRadarSeleccionado,
-        cueRadarSeleccionado,
-      }
-    }
-    // Salir de Replay por el conmutador (no por "Volver") también debe
-    // detener la reproducción: si no, al volver a entrar arranca sola con
-    // el estado de play que quedó de la visita anterior.
-    if (modo === 'replay' && siguiente !== 'replay') {
-      setPlayingReplay(false)
-    }
     setModo(siguiente)
     setCueRadarSeleccionado(null)
     setDepartamentoRadarSeleccionado(null)
-    // El popup de departamento no puede quedar "clavado" al cambiar de modo:
-    // se limpia acá, junto con el resto de la limpieza del cambio de modo.
     setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
-  }
-
-  // "Volver a la situación actual" del modo Replay: restaura el modo,
-  // horizonte y selección operativos previos a abrir Replay (ver
-  // cambiarModo). El estado PROPIO de Replay (territorio/ventana/vista/cuadro
-  // reproducido) se conserva tal cual por si el usuario vuelve a entrar — no
-  // se pierde el trabajo de armar la consulta.
-  function volverDeReplay() {
-    const previo = estadoPrevioReplayRef.current
-    setPlayingReplay(false)
-    setDepartamentoInfoClic(null)
-    setClusterInfoClic(null)
-    setCruceInfoClic(null)
-    if (!previo) {
-      setModo('actual')
-      return
-    }
-    setModo(previo.modo)
-    setHorizonteSeleccionado(previo.horizonteSeleccionado)
-    setDepartamentoSeleccionado(previo.departamentoSeleccionado)
-    setSeleccionCue(previo.seleccionCue)
-    // La foto de Replay no guarda si la ficha estaba cerrada: al volver se
-    // reabre, que es el estado en que se tomó la selección.
-    setFichaCerradaCue(null)
-    setDepartamentoRadarSeleccionado(previo.departamentoRadarSeleccionado)
-    setCueRadarSeleccionado(previo.cueRadarSeleccionado)
-    estadoPrevioReplayRef.current = null
   }
 
   function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
@@ -2127,12 +1917,9 @@ export default function MapInfraestructuraPage(props: {
           {/*
             Riesgo de acceso (E6): capa HERMANA de los puntos de riesgo, apagada
             por defecto (capasRadarVisibles['riesgo-acceso'] arranca en
-            false). Gateada explícitamente por `!modoReplay` además de
-            `radarActivo` (aunque ya son mutuamente excluyentes por
-            construcción de `modo`): la regla de aceptación es que esta capa
-            NUNCA se muestre en Replay, sin depender de un efecto indirecto.
+            false). Esta capa sigue apagada mientras el producto define su disponibilidad.
           */}
-          {false && radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso'] && (
+          {false && radarActivo && capasRadarVisibles['riesgo-acceso'] && (
             <Source id="infra-riesgo-acceso-src" type="geojson" data={puntosRiesgoAccesoGeojson}>
               <Layer
                 id={CAPA_RIESGO_ACCESO_CIRCLE_ID}
@@ -2144,55 +1931,9 @@ export default function MapInfraestructuraPage(props: {
           )}
 
           {/*
-            Replay (E7c): fuentes/layers PROPIOS del cuadro reproducido,
-            namespaced aparte del Radar (ver comentario de los ids arriba).
-            Se montan SÓLO con replayActivo Y un cuadro resuelto — un vacío
-            temporal (`vacios[i]`) no se pinta con el color del cuadro
-            anterior, así que si no hay `cuadroReplayActual` no se monta la
-            capa (mejor nada que un dato viejo disfrazado de vigente).
-          */}
-          {replayActivo && peligroGeojsonReplay && (
-            <Source id="infra-replay-peligro-src" type="geojson" data={peligroGeojsonReplay}>
-              <Layer
-                id={CAPA_REPLAY_PELIGRO_FILL_ID}
-                type="fill"
-                paint={paintCoropletaPeligro()}
-              />
-            </Source>
-          )}
-
-          {replayActivo && cuadroReplayActual && (
-            <Source
-              id="infra-replay-riesgo-src"
-              type="geojson"
-              data={puntosRiesgoGeojsonReplay}
-            >
-              <Layer
-                id={CAPA_REPLAY_RIESGO_CIRCLE_ID}
-                type="circle"
-                paint={circlePaintRiesgo()}
-              />
-            </Source>
-          )}
-
-          {replayActivo && cuadroReplayActual && (
-            <Source
-              id="infra-replay-afectacion-src"
-              type="geojson"
-              data={afectacionesGeojsonReplay}
-            >
-              <Layer
-                id={CAPA_REPLAY_AFECTACION_CIRCLE_ID}
-                type="circle"
-                paint={circlePaintAfectacionReplay()}
-              />
-            </Source>
-          )}
-
-          {/*
             Accesos territoriales (T5c2): contexto estático (aislamiento OSM,
             susceptibilidad physrisk, ruta y cruces de la escuela elegida).
-            Va DESPUÉS de los departamentos/radar/replay y ANTES del bloque de
+            Va DESPUÉS de los departamentos/radar y ANTES del bloque de
             escuelas/partes: las escuelas tienen que quedar por encima y seguir
             siendo clickeables. Sus capas NO se registran en
             `capasInteractivas` — no agregan handlers de click nuevos.
@@ -2588,8 +2329,7 @@ export default function MapInfraestructuraPage(props: {
         onVerAlumnosAlcanzados={setNominalAfectacionId}
         onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
         habilitado={props.hazardContextEnabled ?? false}
-        // Sección territorial de la ficha: sólo con el flag prendido y fuera
-        // de Replay. Sin `accesoTerritorial` la ficha queda exactamente como
+        // Sección territorial de la ficha: sólo con el flag prendido. Sin `accesoTerritorial` la ficha queda exactamente como
         // estaba.
         accesoTerritorial={
           hazardOn
@@ -2630,13 +2370,11 @@ export default function MapInfraestructuraPage(props: {
       */}
       {dataVisible && (
         <div className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
-          {/* Conmutador de modo: cada botón adicional ("Radar", "Replay")
-              sólo aparece con SU PROPIO flag prendido; "Situación actual" se
-              muestra si cualquiera de los dos está activo. Botones reales
+          {/* Conmutador de modo: Radar aparece cuando está habilitado; Situación actual siempre está disponible. Botones reales
               (operables por teclado) con aria-pressed; el modo activo es
               "Situación actual" siempre al entrar, aunque los flags estén
               prendidos. */}
-          {((props.riskRadarEnabled ?? false) || (props.replayEnabled ?? false)) && (
+          {(props.riskRadarEnabled ?? false) && (
             <div
               className={`${styles.panel} map-modo-conmutador`}
               role="group"
@@ -2658,22 +2396,13 @@ export default function MapInfraestructuraPage(props: {
                   Radar
                 </button>
               )}
-              {(props.replayEnabled ?? false) && (
-                <button
-                  type="button"
-                  aria-pressed={modoReplay}
-                  onClick={() => cambiarModo('replay')}
-                >
-                  Replay
-                </button>
-              )}
             </div>
           )}
 
           {/*
             Buscador de escuelas (hallazgos 8 y 19): montado SIEMPRE, no sólo
             en la rama de "Situación actual", para que esté disponible también
-            en Radar y Replay. Selecciona con el mismo criterio en todos los
+            en Radar. Selecciona con el mismo criterio en todos los
             modos: vuela al punto y abre la ficha si corresponde.
           */}
           {!radarActivo && <EscuelaSearchBox
@@ -2697,7 +2426,7 @@ export default function MapInfraestructuraPage(props: {
           {/*
             Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
             su propio dominio. Aparece sólo con el flag territorial prendido y
-            fuera de Replay; sin bloques visibles el componente no renderiza
+            siempre que corresponda; sin bloques visibles el componente no renderiza
             nada.
 
             Va inmediatamente debajo del buscador, y no al final del panel como
@@ -2724,30 +2453,7 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          {modoReplay ? (
-            <ReplayPanel
-              departamentos={departamentosRaw?.features.map((f) => f.properties.nombre) ?? []}
-              territorioId={territorioIdReplay}
-              onTerritorioIdChange={setTerritorioIdReplay}
-              desde={desdeReplay}
-              hasta={hastaReplay}
-              onDesdeChange={setDesdeReplay}
-              onHastaChange={setHastaReplay}
-              vista={vistaReplay}
-              onVistaChange={setVistaReplay}
-              paso={PASO_REPLAY_HORAS}
-              data={replayData}
-              loading={replayLoading}
-              error={replayError}
-              frameIndex={frameIndexReplay}
-              onFrameIndexChange={setFrameIndexReplay}
-              playing={playingReplay}
-              onPlayingChange={setPlayingReplay}
-              onVolver={volverDeReplay}
-              episodioDerivadoId={episodioDerivadoId}
-              onQuitarEpisodio={() => setEpisodioDerivadoId(null)}
-            />
-          ) : modoRadar ? null : (
+          {!modoRadar && (
             <>
               {(() => {
                 const totales = departamentoSeleccionado
@@ -2789,14 +2495,12 @@ export default function MapInfraestructuraPage(props: {
           )}
           <InfraLegendPanel
             departamentosSinMatch={departamentosSinMatch}
-            mostrarLeyendaPeligro={replayActivo}
-            mostrarLeyendaAcceso={!radarActivo && !modoReplay && capasRadarVisibles['riesgo-acceso']}
+            mostrarLeyendaPeligro={false}
+            mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
             hayNivelProvisorio={
               radarActivo
                 ? (radarData?.hayNivelProvisorio ?? false)
-                : (cuadroReplayActual?.nivelesPeligro.some(
-                    (n) => n.metodo === 'umbral_provisorio',
-                  ) ?? false)
+                : false
             }
           />
         </div>
@@ -2873,13 +2577,13 @@ export default function MapInfraestructuraPage(props: {
 
         Deliberadamente NO usa un modal: es un par de botones, y sin ficha
         abierta no hay backdrop que esconda nada. Sólo en "Situación actual" —
-        en Radar y Replay el grupo estorbaría a los paneles de riesgo, y la
+        en Radar el grupo estorbaría a los paneles de riesgo, y la
         selección de ficha no compite ahí con su propio panel de explicación.
       */}
       {seleccionCue !== null &&
         !fichaAbierta &&
         !modoRadar &&
-        !modoReplay && (
+        (
           <div className="map-seleccion-acciones" role="group" aria-label="Escuela seleccionada">
             <Button
               type="button"

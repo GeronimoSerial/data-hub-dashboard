@@ -19,9 +19,18 @@ export function calcularEstadoServicioGeneral(
   alcanceVigente: ServicioAlcance[],
   secciones: SeccionEstablecimiento[],
 ): EstadoServicioGeneral {
-  // Parte vacío (sin secciones en el corte vigente): no hay nada que
-  // suspender, se informa como normal.
-  if (secciones.length === 0) return 'normal'
+  // Sin roster nominal, una suspensión por turno sigue siendo parcial: el
+  // alcance es operativo y no depende de contar alumnos. Una suspensión de
+  // establecimiento sí aplica a toda la escuela.
+  if (secciones.length === 0) {
+    if (alcanceVigente.some((fila) => fila.tipo === 'establecimiento' && fila.estado === 'suspendido')) {
+      return 'suspendido'
+    }
+    if (alcanceVigente.some((fila) => fila.tipo === 'turno' && fila.estado === 'suspendido')) {
+      return 'parcial'
+    }
+    return 'normal'
+  }
 
   // Desempate DETERMINISTA cuando dos filas vigentes compiten por el mismo
   // alcance (misma sección, mismo turno o el establecimiento entero): sin

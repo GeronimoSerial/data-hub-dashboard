@@ -36,7 +36,7 @@ export function ListaAlertas(props: {
   ) => void
   // Estado de apertura del bloque de filtros avanzados. Vive en el padre
   // (MapInfraestructuraPage) porque esta lista se desmonta al cambiar de modo
-  // del mapa (Situación actual / Radar / Replay): si el <details> fuera no
+  // del mapa (Situación actual / Radar): si el <details> fuera no
   // controlado, cada remontaje lo devolvía cerrado y el usuario perdía lo que
   // tenía abierto.
   filtrosAbiertos: boolean
