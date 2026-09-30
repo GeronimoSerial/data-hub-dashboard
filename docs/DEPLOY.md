@@ -283,3 +283,6 @@ docker run --rm -p 3000:3000 -v hub-data:/data data-hub-dashboard:local
 ```
 
 El `HEALTHCHECK` del Dockerfile hace `GET /` en `localhost:3000`. El volumen `/data` es el de **Datos persistentes**.
+
+
+Para instalar y operar el timer del radar meteorológico, seguir [el runbook OPS1](ejecucion-enos/OPS1/runbook-scheduler.md#radar-de-pronóstico).

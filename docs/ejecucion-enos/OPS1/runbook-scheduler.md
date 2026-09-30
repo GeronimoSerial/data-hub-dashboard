@@ -3,8 +3,7 @@
 Batch OPS1 del plan de ejecución ENOS 2026/2027. Extiende el precedente
 documentado en `docs/ejecucion-enos/E0/scheduler.md`: los jobs corren como
 **timers systemd del HOST** (no cron embebido, no worker residente), que
-ejecutan `docker exec <CONTENEDOR> node scripts/jobs.mjs <nombre>` dentro del
-contenedor ya corriendo. El servidor Next NO ejecuta estos jobs.
+invocan un wrapper del host que resuelve el contenedor activo de Coolify por prefijo y ejecuta `docker exec ... node scripts/jobs.mjs <nombre>` dentro de él. El servidor Next NO ejecuta estos jobs.
 
 **Corrección del gate N1 (ver `docs/ejecucion-enos/OPS1/registro.md`,
 sección "Correcciones del gate N1"):** las dos secciones siguientes cambiaron
@@ -73,37 +72,20 @@ Unidades del repo, en `deploy/systemd/ops1/`:
 
 - `enos-ops1@.service` — plantilla instanciada (`%i` = nombre del job),
   única para los 12 jobs. `ExecStart` corre
-  `docker exec -e ENOS_JOBS_ENABLED <CONTENEDOR> node scripts/jobs.mjs %i`.
+  `/usr/local/bin/enos-ops1-exec %i`.
 - Un `.timer` explícito **por job programado** (no una plantilla): cada uno
   fija `Unit=enos-ops1@<job>.service` y su propio `OnCalendar` en UTC. Los
-  dos jobs de climatología son bajo demanda y no tienen `.timer` (ver tabla).
+  dos jobs de climatología tienen timers mensuales resumables (ver tabla).
 
-Pasos:
+Pasos generales de instalación (la sección «Radar de pronóstico» detalla el
+conjunto mínimo recomendado):
 
-1. Copiar `deploy/systemd/ops1/enos-ops1@.service` y todos los
-   `deploy/systemd/ops1/enos-ops1-*.timer` a `/etc/systemd/system/`.
-2. Reemplazar `<CONTENEDOR>` por el nombre o ID real del contenedor en
-   ejecución, visible en `docker ps`. Se puede usar `sed` antes de copiar el
-   unit o definir el valor mediante `systemctl edit enos-ops1@.service`.
-   Si cambia el contenedor al desplegar, actualizar el unit/drop-in y ejecutar
-   `systemctl daemon-reload`.
-3. `systemctl daemon-reload`.
-4. Habilitar cada timer (ver tabla de cadencias):
-
-```bash
-systemctl enable --now enos-ops1-sync-pronostico-caudal.timer
-systemctl enable --now enos-ops1-sync-ensemble.timer
-systemctl enable --now enos-ops1-sync-imerg.timer
-systemctl enable --now enos-ops1-calcular-riesgo.timer
-systemctl enable --now enos-ops1-episodios-derivados.timer
-systemctl enable --now enos-ops1-geo-perfiles.timer
-systemctl enable --now enos-ops1-sync-seasonal.timer
-systemctl enable --now enos-ops1-situacion-corte.timer
-systemctl enable --now enos-ops1-asociacion-rio.timer
-systemctl enable --now enos-ops1-briefing-ia.timer
-systemctl enable --now enos-ops1-climatologia-precipitacion.timer
-systemctl enable --now enos-ops1-climatologia-caudal.timer
-```
+1. Copiar el wrapper como `/usr/local/bin/enos-ops1-exec`, instalar la plantilla
+   `enos-ops1@.service` y los timers elegidos en `/etc/systemd/system/`.
+2. Crear `/etc/enos-ops1/enos-ops1.env` con `CONTENEDOR_PREFIJO=<uuid-app>-`
+   (el UUID de Coolify seguido de guion) y, opcionalmente,
+   `ENOS_JOBS_ENABLED=false` para pausar. Protegerlo con modo `600`.
+3. Ejecutar `systemctl daemon-reload` y habilitar los timers necesarios.
 
 `sync-seasonal` es una capa OPCIONAL (Open-Meteo Seasonal, tendencia ENOS a
 30-90 días, detrás del flag `SEASONAL_ENABLED` de UI — ver
@@ -111,45 +93,41 @@ docs/ejecucion-enos/SEASONAL/registro.md). El job corre igual con el flag de
 UI apagado (el flag sólo oculta la tarjeta en el mapa); habilitar este timer
 es opcional y depende de si se decide activar esa capa en el ambiente.
 
-### Climatologías: timer diario con cursor resumable de cupo (OM-cupo)
+### Climatologías: timers mensuales con cursor resumable (OM-cupo)
 
 `climatologia-precipitacion` (ERA5, ~387 celdas × 30 años) y
 `climatologia-caudal` (GloFAS, 8 `PUNTOS_RIO` fijos × ~10 años) ya NO son
 puramente "bajo demanda": el cálculo completo de precipitación por sí solo
 excede el cupo MENSUAL de Open-Meteo en una sola corrida (ver
 docs/ejecucion-enos/OM-cupo/registro.md, "Climatología de precipitación"), así
-que corren en un timer DIARIO que avanza el cursor resumable hasta el tope de
-cupo disponible ese día — nunca recomputa una celda ya persistida en
+que corren en timers MENSUALES de baja carga que avanzan el cursor resumable en
+tandas y conservan el progreso entre ejecuciones — nunca recomputa una celda ya persistida en
 `hazard_climatology` para el mismo período+version (ver el comentario "CURSOR
 RESUMABLE" en `lib/infraestructura/riesgo/jobs/calcular-climatologia.ts`).
 Mientras queden celdas pendientes el job termina 'fallido' A PROPÓSITO en
-`infra_job_run` (para que el lease permita reintentar el día siguiente sin
-bloquearse) — esto es esperado y NO es un incidente; el avance real (celdas
+`infra_job_run` (para que el lease permita reanudar en la próxima ejecución
+mensual sin bloquearse) — esto es esperado y NO es un incidente; el avance real (celdas
 completas / total) se ve en `/admin/operacion`, no en la columna "atrasado".
 
-Estimación de tiempo hasta completarse (precipitación, el más pesado de los
-dos): ~48.500 llamadas ponderadas totales contra `archive-api`
-(~387 celdas × 30 años, ver la fórmula de peso en
-docs/ejecucion-enos/OM-cupo/registro.md) contra un cupo diario de ~7.000
-llamadas ponderadas disponibles después de reservar lo que ya consumen los
-syncs de 6h (`sync-pronostico-caudal`/`sync-ensemble`) y `sync-seasonal` del
-mismo bucket ⇒ **~7 días** de corridas diarias hasta que
-`climatologia-precipitacion` termine todas las celdas. `climatologia-caudal`
-(8 puntos, otro bucket/host `flood-api`) se completa en su primera corrida.
-Una vez que ambas quedan completas (100% en `/admin/operacion`), el timer
-sigue corriendo diariamente pero no gasta cupo (el cursor resumable no
+La climatología de precipitación requiere unas ~48.500 llamadas ponderadas
+contra `archive-api` (~387 celdas × 30 años); con una ejecución mensual puede
+requerir varios meses hasta completar todas las celdas. La de caudal usa
+`flood-api` (8 puntos) y tiene un volumen mucho menor. El cursor conserva el
+avance entre ejecuciones mensuales.
+Una vez que ambas quedan completas (100% en `/admin/operacion`), cada timer
+sigue corriendo mensualmente pero no gasta cupo (el cursor resumable no
 encuentra celdas pendientes).
 
-`climatologia-precipitacion` corre a las 05:00 UTC y `climatologia-caudal` una
-hora después (06:00 UTC, para no competir por cupo si alguna vez comparten
-bucket, aunque hoy usan hosts/buckets distintos) — ambas horas sin overlap con
-los syncs de 6h (02,08,14,20:00), `geo-perfiles` (03:00) ni `sync-seasonal`
-(09:00).
+Ambas corren el día 1 de cada mes a las 06:40 UTC (03:40 en Argentina), en
+horario de baja carga. El cursor permite reanudar en corridas mensuales; en el
+plan gratuito, el radar de pronóstico tiene prioridad sobre el uso de cuota de
+las climatologías.
 
 ## Tabla de cadencias por job
 
 | job | cadencia | `OnCalendar` (UTC) | archivo | motivo |
 |---|---|---|---|---|
+| sync-radar-meteo | 3h | `*-*-* 00/3:12:00 UTC` | `enos-ops1-sync-radar-meteo.timer` | radar de pronóstico; frecuencia acordada y prioridad de cuota en plan gratuito |
 | sync-pronostico-caudal | 6h | `*-*-* 08,14,20,02:00:00 UTC` | `enos-ops1-sync-pronostico-caudal.timer` | corridas ECMWF 00/06/12/18 UTC + ~8h de margen (6h de latencia habitual de disponibilidad real-time + 2h adicionales documentados por Open-Meteo para su distribución open-data; ajustar si se confirma otro valor) |
 | sync-ensemble | 6h | `*-*-* 08,14,20,02:00:00 UTC` | `enos-ops1-sync-ensemble.timer` | mismo motivo que arriba (Open-Meteo Ensemble) |
 | sync-imerg | 1h | `*-*-* *:00:00 UTC` | `enos-ops1-sync-imerg.timer` | Early Run IMERG, ~4h de latencia propia de la fuente; backfill acotado ya cubre huecos |
@@ -159,8 +137,8 @@ los syncs de 6h (02,08,14,20:00), `geo-perfiles` (03:00) ni `sync-seasonal`
 | asociacion-rio | diario | `*-*-* 03:10:00 UTC` | `enos-ops1-asociacion-rio.timer` | calcula asociaciones de ríos después de geo-perfiles (03:00 UTC) |
 | briefing-ia | cada hora | `*-*-* *:30:00 UTC` | `enos-ops1-briefing-ia.timer` | corre diez minutos después de situacion-corte; requiere `OPENROUTER_API_KEY` para generar contenido |
 | situacion-corte | 1h, alineado tras calcular-riesgo | `*-*-* *:20:00 UTC` | `enos-ops1-situacion-corte.timer` | corre poco después de calcular-riesgo (`:15` en 08,14,20,02 UTC) para que el corte del Centro de Situación (E5) refleje el riesgo recién calculado lo antes posible; en las demás horas corre con su propia cadencia horaria |
-| climatologia-precipitacion | diario, cursor resumable de cupo | `*-*-* 05:00:00 UTC` | `enos-ops1-climatologia-precipitacion.timer` | el cálculo completo (~387 celdas × 30 años) excede el cupo mensual en una sola corrida; el timer diario avanza el cursor resumable hasta el tope de cupo del día (~7 días para completarse la primera vez, ver sección arriba), sin recomputar celdas ya persistidas |
-| climatologia-caudal | diario, cursor resumable de cupo | `*-*-* 06:00:00 UTC` | `enos-ops1-climatologia-caudal.timer` | mismo esquema, otra fuente (GloFAS, 8 `PUNTOS_RIO` fijos); se completa en la primera corrida |
+| climatologia-precipitacion | mensual, cursor resumable de cupo | `*-*-01 06:40:00 UTC` | `enos-ops1-climatologia-precipitacion.timer` | el cálculo completo (~387 celdas × 30 años) excede el cupo mensual en una sola corrida; el timer mensual avanza el cursor resumable y conserva el progreso, sin recomputar celdas ya persistidas |
+| climatologia-caudal | mensual, cursor resumable de cupo | `*-*-01 06:40:00 UTC` | `enos-ops1-climatologia-caudal.timer` | misma estrategia resumable, otra fuente (GloFAS, 8 `PUNTOS_RIO` fijos) |
 | sync-seasonal | diario (opcional) | `*-*-* 09:00:00 UTC` | `enos-ops1-sync-seasonal.timer` | Open-Meteo Seasonal (EC46+SEAS5): EC46 actualiza a diario (20:30Z), SEAS5 mensual; una corrida diaria alcanza. Capa opcional detrás de `SEASONAL_ENABLED` (UI); el job corre igual, sólo la tarjeta queda oculta con el flag apagado |
 
 ### Caveat de secuencia entre jobs distintos (sin cola/orquestador)
@@ -198,9 +176,8 @@ con `nombre: 'situacion-corte'` (el mismo mecanismo que ya usa
 ## Variante Docker — cómo se invoca el runner dentro del contenedor
 
 El timer vive en el **HOST**, no dentro del contenedor. Lo que dispara es
-`docker exec -e ENOS_JOBS_ENABLED <CONTENEDOR> node scripts/jobs.mjs
-<nombre>`, el mismo mecanismo que usaba `enos-diagnostico.service` en E0
-(más el reenvío opcional de `ENOS_JOBS_ENABLED` agregado en esta corrección).
+`/usr/local/bin/enos-ops1-exec <nombre>`; el wrapper localiza el contenedor
+activo a partir de `CONTENEDOR_PREFIJO` y reenvía `ENOS_JOBS_ENABLED`.
 El contenedor ya tiene `scripts/jobs.mjs` empaquetado en la imagen (igual que
 `scripts/job-diagnostico.mjs`, copiado por el `Dockerfile`), así que no hace
 falta montarlo ni instalarlo aparte.
@@ -318,3 +295,52 @@ No se agrega ningún canal nuevo (sin Slack, sin email, sin webhook) porque est�
 fuera de alcance de este batch: principio rector `sin Redis/colas/frameworks
 nuevos`, y sin operación manual nueva más allá de revisar un panel que ya
 existe.
+
+
+## Radar de pronóstico
+
+El timer `sync-radar-meteo` corre cada tres horas a los :12 UTC. Coolify cambia
+el sufijo del nombre del contenedor en cada deploy; el wrapper consulta en cada
+ejecución los contenedores activos cuyo nombre empieza con el UUID de la app y
+continúa sólo si encuentra exactamente uno. Durante un deploy, cero coincidencias
+producen error y la siguiente activación vuelve a intentarlo.
+
+Instalación en el host (ejemplo para staging; usar el UUID correspondiente):
+
+```bash
+sudo install -d -m 700 /etc/enos-ops1
+sudo install -m 755 deploy/systemd/ops1/enos-ops1-exec.sh /usr/local/bin/enos-ops1-exec
+sudo install -m 644 deploy/systemd/ops1/enos-ops1@.service /etc/systemd/system/
+sudo install -m 644 deploy/systemd/ops1/enos-ops1-sync-radar-meteo.timer /etc/systemd/system/
+sudo install -m 644 deploy/systemd/ops1/enos-ops1-climatologia-precipitacion.timer /etc/systemd/system/
+sudo install -m 644 deploy/systemd/ops1/enos-ops1-climatologia-caudal.timer /etc/systemd/system/
+sudo sh -c 'printf "%s\n" "CONTENEDOR_PREFIJO=<coolify-app-uuid>-" > /etc/enos-ops1/enos-ops1.env'
+sudo chmod 600 /etc/enos-ops1/enos-ops1.env
+sudo chown root:root /etc/enos-ops1/enos-ops1.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now enos-ops1-sync-radar-meteo.timer
+sudo systemctl enable --now enos-ops1-climatologia-precipitacion.timer enos-ops1-climatologia-caudal.timer
+```
+
+Si el radar meteorológico debe tener prioridad en el plan gratuito, habilitar como
+mínimo `sync-radar-meteo` y las dos climatologías mensuales. Los demás timers son
+opcionales según las capas que se quieran mantener activas; considerar su costo
+de cuota antes de habilitarlos. La corrida del radar consume el cupo compartido
+de Open-Meteo.
+
+Verificar programación y logs con:
+
+```bash
+systemctl list-timers 'enos-ops1-*'
+journalctl -u enos-ops1@sync-radar-meteo.service
+```
+
+Para ejecutarlo una vez a mano: `sudo systemctl start
+enos-ops1@sync-radar-meteo.service`.
+
+Staging y producción comparten el host. Para activar un segundo ambiente, crear
+una copia de la plantilla de servicio con otro nombre (por ejemplo
+`enos-ops1-prod@.service`) que lea `/etc/enos-ops1/prod.env`, copiar los timers
+con `Unit=` apuntando a esa plantilla y guardar allí su propio
+`CONTENEDOR_PREFIJO`. Instalarlo como una instancia aislada; esta guía no instala
+la configuración de producción.

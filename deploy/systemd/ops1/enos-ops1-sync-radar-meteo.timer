@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-radar-meteo (cada 3h, radar de pronóstico)
+
+[Timer]
+OnCalendar=*-*-* 00/3:12:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+Unit=enos-ops1@sync-radar-meteo.service
+
+[Install]
+WantedBy=timers.target
