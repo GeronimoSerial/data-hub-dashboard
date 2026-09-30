@@ -17,6 +17,7 @@ import {
 import { describirAlcanceServicio } from '@/components/infraestructura/reporte-inicial-resumen'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Button } from '@/components/ui/button'
+import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   afectacionVigenteABorrador,
@@ -30,7 +31,23 @@ import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { contarCambios, diffParte, esDiffVacio } from '@/lib/infraestructura/movimiento-diff'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
+import {
+  crearAlmacenNavegador,
+  intentarEnviar,
+  registrarAutoReintento,
+  leerBorrador as leerColaEnvio,
+  MENSAJES_ESTADO,
+  type EstadoEnvio,
+} from '@/lib/infraestructura/parte/envio-offline'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import {
+  colapsarHistorial,
+  crearBorradorStore,
+  empujarPasoEnHistorial,
+  leerPasoBaseHistorial,
+} from '@/lib/infraestructura/parte/borrador-historial'
+
+const almacenParte = crearAlmacenNavegador()
 
 export interface ActualizacionFormProps {
   cue: string
@@ -64,8 +81,8 @@ function esAfectacionLista(a: AfectacionActualizable): boolean {
 
 // Borrador de sesión (#32): F5 no debería perder lo escrito en la pantalla de
 // actualización. Clave por CUE para que dos establecimientos en la misma
-// pestaña no se pisen, y TODO acceso a sessionStorage envuelto en try/catch:
-// en modo privado (o cuota llena) puede lanzar o directamente no estar.
+// pestaña no se pisen. El almacén intenta IndexedDB y cae a localStorage si no
+// está disponible (modo privado, navegadores viejos).
 function claveBorradorDe(cue: string): string {
   return `parte-actualizacion:draft:${cue}`
 }
@@ -90,7 +107,9 @@ interface BorradorParteActualizacion {
   servicioSecciones: number[]
   estadoEstablecimiento: '' | EstadoEstablecimiento
   rigeDesde: string
-  idempotencyKey: string
+  // Vestigial (ver esBorradorParteActualizacion): sólo se lee por
+  // compatibilidad con borradores viejos, ya no se escribe.
+  idempotencyKey?: string
   tocadas: string[]
 }
 
@@ -110,13 +129,10 @@ function esAfectacionActualizable(valor: unknown): valor is AfectacionActualizab
 function esBorradorParteActualizacion(valor: unknown): valor is BorradorParteActualizacion {
   if (typeof valor !== 'object' || valor === null) return false
   const b = valor as Record<string, unknown>
-  if (
-    typeof b.generacion !== 'string' ||
-    typeof b.rigeDesde !== 'string' ||
-    typeof b.idempotencyKey !== 'string'
-  ) {
+  if (typeof b.generacion !== 'string' || typeof b.rigeDesde !== 'string') {
     return false
   }
+  if (b.idempotencyKey !== undefined && typeof b.idempotencyKey !== 'string') return false
   if (b.paso !== 'formulario' && b.paso !== 'resumen') return false
   if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
     return false
@@ -152,67 +168,18 @@ function esBorradorParteActualizacion(valor: unknown): valor is BorradorParteAct
   return true
 }
 
-function leerBorrador(clave: string): BorradorParteActualizacion | null {
-  try {
-    const crudo = window.sessionStorage.getItem(clave)
-    if (!crudo) return null
-    const dato: unknown = JSON.parse(crudo)
-    if (esBorradorParteActualizacion(dato)) return dato
-    // Un borrador de otra versión del formulario no se restaura a medias.
-    window.sessionStorage.removeItem(clave)
-    return null
-  } catch {
-    return null
-  }
-}
-
-function guardarBorrador(clave: string, borrador: BorradorParteActualizacion): void {
-  try {
-    window.sessionStorage.setItem(clave, JSON.stringify(borrador))
-  } catch {
-    // Sin almacenamiento disponible el formulario sigue funcionando en memoria.
-  }
-}
-
-function limpiarBorrador(clave: string): void {
-  try {
-    window.sessionStorage.removeItem(clave)
-  } catch {
-    // Idem: no poder limpiar no debe romper el guardado ni el reinicio.
-  }
-}
-
-function empujarPasoEnHistorial(paso: number, generacion: string): void {
-  try {
-    window.history.pushState({ partePaso: paso, parteGeneracion: generacion }, '')
-  } catch {
-    // Sin historial navegable el formulario avanza igual, sólo pierde "atrás".
-  }
-}
-
-function colapsarHistorial(profundidad: number): void {
-  if (profundidad <= 0) return
-  try {
-    window.history.go(-profundidad)
-  } catch {
-    // Idem: el borrador ya quedó limpio aunque no se pueda recorrer atrás.
-  }
-}
+const borradorStore = crearBorradorStore(esBorradorParteActualizacion)
+const leerBorrador = (clave: string) => borradorStore.leer(almacenParte, clave)
+const guardarBorrador = (clave: string, borrador: BorradorParteActualizacion) =>
+  borradorStore.guardar(almacenParte, clave, borrador)
+const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenParte, clave)
 
 // La pantalla restaurada tiene que ser alcanzable con el botón "atrás" del
 // navegador (#31): si la entrada actual es la inicial, empujamos la que falta;
 // si ya es la restaurada (recarga con F5 conserva el history.state), no
 // hacemos nada para no duplicar entradas.
 function sincronizarHistorialTrasRestaurar(pasoActual: PasoActualizacion, generacion: string): void {
-  let base = 1
-  try {
-    const estado = window.history.state as { partePaso?: number; parteGeneracion?: string } | null
-    if (estado && typeof estado.partePaso === 'number' && estado.parteGeneracion === generacion) {
-      base = estado.partePaso
-    }
-  } catch {
-    // Sin historial utilizable se empuja desde la pantalla 1, que es lo correcto.
-  }
+  const base = leerPasoBaseHistorial(generacion)
   const destino = pasoANumero(pasoActual)
   if (base >= destino) return
   for (let p = base + 1; p <= destino; p += 1) {
@@ -283,7 +250,7 @@ export function ActualizacionForm({ cue, turnos, motivos }: ActualizacionFormPro
   // `estado.fase` está en 'cargando'.
   function registrarOtra() {
     // El borrador de sesión ya no representa nada pendiente (#32).
-    limpiarBorrador(claveBorradorDe(cue))
+    void limpiarBorrador(claveBorradorDe(cue))
     setEstado({ fase: 'cargando' })
     void obtenerEstado(cue).then(setEstado)
   }
@@ -347,8 +314,10 @@ function ActualizacionFormCargado({
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
+  const reintentarRef = useRef<() => void>(() => {})
   // Identidad de las entradas de historial de ESTE formulario: un popstate de
   // una sesión ya reiniciada no debe revivir sus pantallas.
   const generacionRef = useRef<string | null>(null)
@@ -363,31 +332,47 @@ function ActualizacionFormCargado({
   }
 
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
-  // leer sessionStorage en el render produciría un desajuste de hidratación.
+  // leer el almacén local en el render produciría un desajuste de hidratación.
   // Sin borrador (o ilegible) el formulario conserva el estado que arma la
   // carga del parte vigente.
-  /* eslint-disable react-hooks/set-state-in-effect -- restauración única al
-     montar de un borrador de sesión: no hay suscripción que haga (el storage
-     no emite eventos) y el render no puede leerlo, así que el efecto aplica lo
-     leído una sola vez. La regla aplica a efectos reactivos a cambios de
-     estado, no a esta hidratación inicial. */
   useEffect(() => {
-    const borrador = leerBorrador(claveBorrador)
-    if (!borrador) return
-    generacionRef.current = borrador.generacion
-    setPaso(borrador.paso)
-    setAfectaciones(borrador.afectaciones)
-    setServicioEstado(borrador.servicioEstado)
-    setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
-    setServicioTurnos(borrador.servicioTurnos)
-    setServicioSecciones(borrador.servicioSecciones)
-    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
-    setRigeDesde(borrador.rigeDesde)
-    setIdempotencyKey(borrador.idempotencyKey)
-    setTocadas(new Set(borrador.tocadas))
-    sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+    let cancelado = false
+    ;(async () => {
+      const borrador = await leerBorrador(claveBorrador)
+      if (cancelado || !borrador) return
+      generacionRef.current = borrador.generacion
+      setPaso(borrador.paso)
+      setAfectaciones(borrador.afectaciones)
+      setServicioEstado(borrador.servicioEstado)
+      setServicioAlcanceTipo(borrador.servicioAlcanceTipo)
+      setServicioTurnos(borrador.servicioTurnos)
+      setServicioSecciones(borrador.servicioSecciones)
+      setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+      setRigeDesde(borrador.rigeDesde)
+      setTocadas(new Set(borrador.tocadas))
+      sincronizarHistorialTrasRestaurar(borrador.paso, borrador.generacion)
+    })()
+    return () => {
+      cancelado = true
+    }
   }, [claveBorrador])
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Restaura el estado del envío en cola SIEMPRE al montar, haya o no
+  // borrador del formulario: sin esto, cerrar y reabrir la app con un envío
+  // pendiente dejaba `estadoEnvio` en null y el reintento automático al
+  // recuperar la conexión no se disparaba.
+  useEffect(() => {
+    let cancelado = false
+    ;(async () => {
+      const colaPendiente = await leerColaEnvio(almacenParte, 'actualizar', cue)
+      if (cancelado || !colaPendiente) return
+      setEstadoEnvio(colaPendiente.estado)
+      setMotivoEnvio(colaPendiente.motivoError ?? null)
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [cue])
 
   // #31: el botón "atrás" del navegador vuelve del resumen al formulario en
   // vez de salirse del flujo y tirar lo cargado. Sólo se sale del flujo desde
@@ -419,7 +404,7 @@ function ActualizacionFormCargado({
       omitirEscrituraRef.current = false
       return
     }
-    guardarBorrador(claveBorrador, {
+    void guardarBorrador(claveBorrador, {
       generacion: generacionVigente(),
       paso,
       afectaciones,
@@ -429,7 +414,6 @@ function ActualizacionFormCargado({
       servicioSecciones,
       estadoEstablecimiento,
       rigeDesde,
-      idempotencyKey,
       tocadas: Array.from(tocadas),
     })
   }, [
@@ -442,7 +426,6 @@ function ActualizacionFormCargado({
     servicioSecciones,
     estadoEstablecimiento,
     rigeDesde,
-    idempotencyKey,
     tocadas,
   ])
 
@@ -564,10 +547,15 @@ function ActualizacionFormCargado({
     enviandoRef.current = true
     setEnviando(true)
     setError(null)
+    setMotivoEnvio(null)
 
-    const payload = construirPayloadActualizacion({
+    const datosEnvio = construirPayloadActualizacion({
       cue,
-      idempotencyKey,
+      // `construirPayloadActualizacion` pide una idempotencyKey por firma,
+      // pero nunca es la que viaja al servidor: `construirCuerpo` de abajo
+      // siempre la pisa con la que decide el motor de envío por tipo+cue
+      // (ver envio-offline.ts). Este valor es puramente de relleno.
+      idempotencyKey: crypto.randomUUID(),
       rigeDesde,
       afectaciones,
       vigentes,
@@ -575,42 +563,66 @@ function ActualizacionFormCargado({
       estadoEstablecimientoSeleccionado: estadoEstablecimiento,
     })
 
-    try {
-      const respuesta = await fetch('/api/problematicas/parte', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+    const resultado = await intentarEnviar(datosEnvio, {
+      almacen: almacenParte,
+      tipo: 'actualizar',
+      cue,
+      fetchImpl: fetch,
+      url: '/api/problematicas/parte',
+      construirCuerpo: (datos, idempotencyKeyReal) => {
+        const vinculo = leerVinculoVerificacion()
+        return { ...datos, idempotencyKey: idempotencyKeyReal, ...(vinculo ? { verificacion: vinculo } : {}) }
+      },
+      // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
+      // real, aunque el transporte HTTP haya sido 2xx.
+      validarExito: (respuesta) => {
+        const cuerpo = respuesta as { ok?: boolean; movimientoId?: string } | null
+        return !!cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string'
+      },
+      onCambioEstado: (borrador) => {
+        setEstadoEnvio(borrador.estado)
+        setMotivoEnvio(borrador.motivoError ?? null)
+      },
+    })
 
-      if (!respuesta.ok) {
-        const cuerpo = await respuesta.json().catch(() => null)
-        enviandoRef.current = false
-        setEnviando(false)
-        setError(cuerpo && typeof cuerpo.error === 'string' ? cuerpo.error : MENSAJE_ERROR_GUARDADO)
-        return
-      }
-
-      const cuerpo = await respuesta.json()
-      if (cuerpo?.ok === true) {
+    if (resultado.ok) {
+      const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
+      if (cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string') {
         // La actualización quedó guardada: el borrador de sesión ya no
         // representa nada pendiente, y el historial se colapsa para que "atrás"
         // desde la confirmación salga del formulario en vez de revivir la
         // pantalla de resumen.
-        limpiarBorrador(claveBorrador)
+        void limpiarBorrador(claveBorrador)
+        limpiarVinculoVerificacion()
         colapsarHistorial(pasoANumero(paso) - 1)
         setGuardado({ movimientoId: cuerpo.movimientoId })
         return
       }
-
       enviandoRef.current = false
       setEnviando(false)
       setError(cuerpo && typeof cuerpo.error === 'string' ? cuerpo.error : MENSAJE_ERROR_GUARDADO)
-    } catch {
-      enviandoRef.current = false
-      setEnviando(false)
-      setError(MENSAJE_ERROR_GUARDADO)
+      return
     }
+
+    enviandoRef.current = false
+    setEnviando(false)
+    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
+    // volver la conexión. onCambioEstado ya actualizó el texto de estado.
+    // Para 'error' (4xx no reintentable o sesión vencida) el borrador se
+    // conserva y el motivo viaja en motivoEnvio.
   }
+
+  useEffect(() => {
+    reintentarRef.current = () => {
+      if (guardado) return
+      if (estadoEnvio !== 'pendiente-envio') return
+      void confirmarGuardado()
+    }
+  })
+
+  useEffect(() => {
+    return registrarAutoReintento(() => reintentarRef.current())
+  }, [])
 
   if (guardado) {
     return (
@@ -640,9 +652,11 @@ function ActualizacionFormCargado({
           </ul>
         </section>
 
-        {enviando && (
+        {estadoEnvio && (
           <p role="status" aria-live="polite">
-            Guardando…
+            {estadoEnvio === 'error' && motivoEnvio
+              ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+              : MENSAJES_ESTADO[estadoEnvio]}
           </p>
         )}
 

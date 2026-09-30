@@ -1,24 +1,13 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { getDb } from '@/lib/db'
-import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
-import {
-  infraAfectacion,
-  infraAfectacionAlumno,
-  infraAfectacionSeccion,
-  infraParte,
-  infraServicioAlcance,
-} from '@/lib/db/schema'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { getRawClient } from '@/lib/db'
+import { ensureSeeded } from '@/lib/db/seed'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { obtenerEvolucionMapa } from './evolucion'
-import { ensureGeSchema, openGeDb } from './ge-db'
+import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { listarPartesVigentes } from './parte-mapa'
+import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
 
-let dir: string
-let prevDataDir: string | undefined
-let prevAdminEmail: string | undefined
-let prevAdminPassword: string | undefined
+usarDbTemporal('evolucion', { seed: false, env: { ADMIN_EMAIL: undefined, ADMIN_PASSWORD: undefined } })
 
 // Un día calendario (UTC), desplazado `offsetDias` respecto de hoy — mismo
 // concepto que usa evolucion.ts para construir el rango de días del período.
@@ -36,133 +25,35 @@ function inicioDeDia(offsetDias: number): string {
 }
 
 async function sembrarGe(): Promise<void> {
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-01-01T00:00:00Z', 'vigente')",
-    )
-    for (let n = 1; n <= 12; n++) {
-      const cue = `CUE-EV-${n}`
-      await ge.execute({
-        sql: 'INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
-        args: [cue, `Escuela EV ${n}`, n <= 2 ? 'Paraná' : 'Concordia', 'Paraná', -31.7, -60.5],
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-01-01T00:00:00Z', 'vigente')",
+  )
+  for (let n = 1; n <= 12; n++) {
+    const cue = `CUE-EV-${n}`
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+      args: [cue, `Escuela EV ${n}`, n <= 2 ? 'Paraná' : 'Concordia', 'Paraná', -31.7, -60.5],
+    })
+    const seccion = n * 1000 + 1
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      args: [seccion, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+    })
+    for (let i = 0; i < 3; i++) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+        args: [seccion, seccion * 1000 + i],
       })
-      const seccion = n * 1000 + 1
-      await ge.execute({
-        sql: 'INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
-        args: [seccion, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
-      })
-      for (let i = 0; i < 3; i++) {
-        await ge.execute({
-          sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
-          args: [seccion, seccion * 1000 + i],
-        })
-      }
     }
-  } finally {
-    ge.close()
   }
 }
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'evolucion-'))
-  prevDataDir = process.env.DATA_DIR
-  prevAdminEmail = process.env.ADMIN_EMAIL
-  prevAdminPassword = process.env.ADMIN_PASSWORD
-  process.env.DATA_DIR = dir
-  delete process.env.ADMIN_EMAIL
-  delete process.env.ADMIN_PASSWORD
-
   await sembrarGe()
   await ensureSeeded()
 })
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL
-  else process.env.ADMIN_EMAIL = prevAdminEmail
-  if (prevAdminPassword === undefined) delete process.env.ADMIN_PASSWORD
-  else process.env.ADMIN_PASSWORD = prevAdminPassword
-  rmSync(dir, { recursive: true, force: true })
-})
-
-async function crearParte(cue: string): Promise<string> {
-  const db = getDb()
-  const id = crypto.randomUUID()
-  const ahora = new Date().toISOString()
-  await db.insert(infraParte).values({
-    id,
-    periodoId: PERIODO_ENOS_2026_2027_ID,
-    cueAnexo: cue,
-    estadoEstablecimiento: 'habitual',
-    estadoEstablecimientoRigeDesde: ahora,
-    corteId: 1,
-    creadaEn: ahora,
-    actualizadaEn: ahora,
-  })
-  return id
-}
-
-async function crearAfectacion(params: {
-  parteId: string
-  motivo?: string
-  categoria?: 'establecimiento' | 'alumnos'
-  severidad?: 'Baja' | 'Media' | 'Alta' | 'Crítica'
-  rigeDesde?: string
-  retiradaEn?: string | null
-  secciones: number[]
-  alumnos?: number[]
-}): Promise<string> {
-  const db = getDb()
-  const id = crypto.randomUUID()
-  const ahora = new Date().toISOString()
-  await db.insert(infraAfectacion).values({
-    id,
-    parteId: params.parteId,
-    motivo: params.motivo ?? 'Inundación',
-    categoria: params.categoria ?? 'establecimiento',
-    severidad: params.severidad ?? 'Alta',
-    descripcion: null,
-    rigeDesde: params.rigeDesde ?? ahora,
-    creadaEn: ahora,
-    retiradaEn: params.retiradaEn ?? null,
-  })
-  if (params.secciones.length > 0) {
-    await db
-      .insert(infraAfectacionSeccion)
-      .values(params.secciones.map((geSectionId) => ({ afectacionId: id, geSectionId })))
-  }
-  if (params.alumnos && params.alumnos.length > 0) {
-    await db
-      .insert(infraAfectacionAlumno)
-      .values(params.alumnos.map((gePersonId) => ({ afectacionId: id, gePersonId })))
-  }
-  return id
-}
-
-async function crearServicioAlcance(params: {
-  parteId: string
-  tipo: 'establecimiento' | 'turno' | 'seccion'
-  referenciaId?: string | null
-  estado: 'normal' | 'suspendido'
-  rigeDesde?: string
-  retiradaEn?: string | null
-}): Promise<void> {
-  const db = getDb()
-  const ahora = new Date().toISOString()
-  await db.insert(infraServicioAlcance).values({
-    id: crypto.randomUUID(),
-    parteId: params.parteId,
-    tipo: params.tipo,
-    referenciaId: params.referenciaId ?? null,
-    estado: params.estado,
-    rigeDesde: params.rigeDesde ?? ahora,
-    creadaEn: ahora,
-    retiradaEn: params.retiradaEn ?? null,
-  })
-}
 
 describe('obtenerEvolucionMapa', () => {
   it('reconstruye la serie de servicio caído por intervalos, no por snapshot', async () => {
@@ -314,24 +205,28 @@ describe('obtenerEvolucionMapa', () => {
 
   describe('guard anti N+1', () => {
     it('ejecuta el mismo número de queries con 1 parte que con 10 partes', async () => {
-      const client = getDb().$client
-      const original = client.execute.bind(client)
+      // La producción crea su propio envoltorio con
+      // crearEjecutorSql(getRawClient()) en cada llamada, así que el punto de
+      // intercepción compartido es el cliente crudo: todo envoltorio delega en
+      // raw.query(...).
+      const raw = getRawClient() as unknown as {
+        query: (...args: unknown[]) => Promise<{ rows: unknown[] }>
+      }
+      const original = raw.query.bind(raw)
 
       const parteUnico = await crearParte('CUE-EV-8')
       await crearAfectacion({ parteId: parteUnico, secciones: [8001] })
       await crearServicioAlcance({ parteId: parteUnico, tipo: 'establecimiento', estado: 'suspendido' })
 
       let contador = 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      client.execute = (async (...args: any[]) => {
+      raw.query = async (...args: unknown[]) => {
         contador++
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (original as any)(...args)
-      }) as typeof client.execute
+        return original(...args)
+      }
 
       await obtenerEvolucionMapa()
       const queriesConUnParte = contador
-      client.execute = original
+      raw.query = original
       expect(queriesConUnParte).toBeGreaterThan(0)
 
       for (let n = 9; n <= 12; n++) {
@@ -342,15 +237,13 @@ describe('obtenerEvolucionMapa', () => {
       }
 
       let contador2 = 0
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      client.execute = (async (...args: any[]) => {
+      raw.query = async (...args: unknown[]) => {
         contador2++
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (original as any)(...args)
-      }) as typeof client.execute
+        return original(...args)
+      }
 
       await obtenerEvolucionMapa()
-      client.execute = original
+      raw.query = original
 
       expect(contador2).toBe(queriesConUnParte)
     })

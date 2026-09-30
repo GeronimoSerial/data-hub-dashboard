@@ -1,7 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraMotivo } from '@/lib/db/schema'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
+import { crearEjecutorSql } from './ge-db'
 
 export interface MotivoRow {
   id: string
@@ -55,12 +56,12 @@ export async function sembrarMotivos(): Promise<void> {
   }
 }
 
-// Impone el invariante de nombre único a nivel de base. Va acá y no en
-// HUB_DDL a propósito: el índice no puede crearse mientras existan las filas
-// duplicadas de una base vieja, así que primero hay que renombrar los
-// comodines y recién después crear el índice. Va acá y no en HUB_DDL porque
-// el DDL de arranque corre sobre bases ya pobladas y no debe depender del
-// orden en que esas bases aplicaron renombres previos.
+// Impone el invariante de nombre único a nivel de base. Va acá y no en las
+// migraciones de drizzle-kit a propósito: el índice no puede crearse mientras
+// existan las filas duplicadas de una base vieja, así que primero hay que
+// renombrar los comodines y recién después crear el índice. El DDL de arranque
+// corre sobre bases ya pobladas y no debe depender del orden en que esas bases
+// aplicaron renombres previos.
 export async function ensureMotivoNombreUnico(): Promise<void> {
   const db = getDb()
   for (const { id, nombreViejo } of RENOMBRES_COMODINES) {
@@ -71,8 +72,8 @@ export async function ensureMotivoNombreUnico(): Promise<void> {
       .set({ nombre: semilla.nombre })
       .where(and(eq(infraMotivo.id, id), eq(infraMotivo.nombre, nombreViejo)))
   }
-  await db.$client.execute(
-    'CREATE UNIQUE INDEX IF NOT EXISTS `infra_motivo_nombre_unico` ON `infra_motivo` (`nombre`)',
+  await crearEjecutorSql(getRawClient()).execute(
+    'CREATE UNIQUE INDEX IF NOT EXISTS infra_motivo_nombre_unico ON infra_motivo (nombre)',
   )
 }
 

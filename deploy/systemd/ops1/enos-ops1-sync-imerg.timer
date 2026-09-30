@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-imerg (cada hora, Early Run IMERG)
+
+[Timer]
+# Early Run IMERG trae ~4h de latencia propia de la fuente; el job hace un
+# backfill acotado, por eso alcanza con una corrida horaria.
+OnCalendar=*-*-* *:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@sync-imerg.service
+
+[Install]
+WantedBy=timers.target

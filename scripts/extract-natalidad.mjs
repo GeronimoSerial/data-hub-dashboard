@@ -23,11 +23,12 @@
  *   pnpm extract:natalidad -- --refresh-pbi   (re-descarga nacidos vivos desde
  *     el Power BI público antes de generar la salida; ver refreshNacidosVivosDesdePBI)
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { gunzipSync } from 'node:zlib'
-import { registerHooks } from 'node:module'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -37,23 +38,7 @@ const root = join(__dirname, '..')
 // scripts/sync-ge.mjs: agrega '.ts' antes de resolver un especificador
 // relativo sin extensión, así el script puede importar el módulo real de
 // lib/ tal cual, sin duplicar sus transforms.
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
-
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('./') || specifier.startsWith('../')) {
-      const base = join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
+registerTsResolver(root, { aliases: false, absolute: false })
 
 const {
   construirDatosNatalidad,

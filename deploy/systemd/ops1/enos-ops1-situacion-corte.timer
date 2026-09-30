@@ -1,0 +1,20 @@
+[Unit]
+Description=Timer OPS1 ENOS: situacion-corte (cada hora, offset +20min tras calcular-riesgo)
+
+[Timer]
+# Offset de 20min (no cola/orquestador: no hay Redis ni colas en este repo,
+# fuera de alcance) para que el corte del Centro de Situación (E5) corra poco
+# después de calcular-riesgo (que corre a :15 en 08,14,20,02 UTC) y refleje el
+# riesgo recién calculado lo antes posible cuando coinciden; en las horas sin
+# calcular-riesgo simplemente corre con su propia cadencia horaria.
+#
+# CAVEAT DE SECUENCIA (ver runbook): el offset es fijo, así que si el timer de
+# calcular-riesgo se atrasa, el corte puede reflejar datos de hasta ~1h de
+# antigüedad. Ver "Caveat de secuencia entre jobs distintos" en el runbook.
+OnCalendar=*-*-* *:20:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@situacion-corte.service
+
+[Install]
+WantedBy=timers.target

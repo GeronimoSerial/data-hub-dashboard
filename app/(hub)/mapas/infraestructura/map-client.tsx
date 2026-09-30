@@ -4,10 +4,19 @@ import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 
-const MapInfraestructuraPage = dynamic(
-  () => import('@/components/mapas/map-infraestructura-page'),
-  { ssr: false, loading: () => <p>Cargando mapa…</p> },
-)
+const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
+
+const MapInfraestructuraPage = dynamic(cargarMapa, {
+  ssr: false,
+  loading: () => <p>Cargando mapa…</p>,
+})
+
+// Arranca la descarga del chunk apenas se evalúa este módulo, en paralelo con
+// la hidratación, en vez de esperar a que React monte el componente. En el
+// servidor no se ejecuta porque no hay `window`.
+if (typeof window !== 'undefined') {
+  void cargarMapa()
+}
 
 // Carga diferida al igual que el mapa: Recharts pesa y sólo hace falta cuando
 // alguien abre la pestaña de evolución, así el primer viewport del mapa no
@@ -30,7 +39,13 @@ function esPestana(valor: string): valor is PestanaMapa {
   return PESTANAS.includes(valor)
 }
 
-export function InfraestructuraMapClient(props: { mostrarEnlaceNominal: boolean }) {
+export function InfraestructuraMapClient(props: {
+  mostrarEnlaceNominal: boolean
+  hazardContextEnabled?: boolean
+  riskRadarEnabled?: boolean
+  seasonalEnabled?: boolean
+  replayEnabled?: boolean
+}) {
   const [tab, setTab] = React.useState<PestanaMapa>('operativa')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
@@ -84,7 +99,14 @@ export function InfraestructuraMapClient(props: { mostrarEnlaceNominal: boolean 
           toca.
         */}
         <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-operativa">
-          <MapInfraestructuraPage mostrarEnlaceNominal={props.mostrarEnlaceNominal} />
+          <MapInfraestructuraPage
+            mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+            hazardContextEnabled={props.hazardContextEnabled ?? false}
+            riskRadarEnabled={props.riskRadarEnabled ?? false}
+            seasonalEnabled={props.seasonalEnabled ?? false}
+            replayEnabled={props.replayEnabled ?? false}
+            visible={mapaVisible}
+          />
         </div>
 
         {/*

@@ -19,6 +19,7 @@ import {
   recursos,
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import { isAllowedUpload } from '@/lib/upload'
 import { normalizeUploadedMapHtml } from '@/lib/html-map-tiles'
@@ -64,10 +65,7 @@ export async function GET(request: Request, ctx: Ctx) {
     return Response.json({ error: 'No autenticado' }, { status: 401 })
   }
   if (status === 403) {
-    return Response.json(
-      { error: 'No tiene acceso a este recurso' },
-      { status: 403 },
-    )
+    return jsonError('No tiene acceso a este recurso', 403)
   }
   if (status !== 200 || !loaded?.row.storageKey) {
     return Response.json({ error: 'Archivo no encontrado' }, { status: 404 })

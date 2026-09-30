@@ -9,6 +9,8 @@ import {
   construirNacidosPorSeccionCohorte,
   construirSerieNacimientos,
   construirVariacionNacimientosPorDepartamento,
+  fmt,
+  fmtPct,
   type FiltroDepartamento,
 } from '@/lib/mapas/estadisticas-natalidad'
 import type { DatosNatalidad } from '@/lib/mapas/natalidad'
@@ -17,15 +19,6 @@ import {
   GraficoSerieNacimientos,
   GraficoVariacionPorDepartamento,
 } from './estadisticas-natalidad-graficos'
-
-function fmt(n: number): string {
-  return new Intl.NumberFormat('es-AR').format(n)
-}
-
-function fmtPct(pct: number | null): string {
-  if (pct == null) return '—'
-  return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
-}
 
 // T8: pestaña "Estadísticas" — mismo dato ya cargado por el mapa
 // (public/data/natalidad/departamentos.json), sin pedir un endpoint nuevo.

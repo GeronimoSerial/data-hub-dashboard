@@ -9,13 +9,14 @@
  * El DNI se usa únicamente en memoria para derivar gePersonId y detectar
  * colisiones: nunca se persiste, no se loguea y no se cifra.
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { registerHooks } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { createHash } from 'node:crypto'
 import { gunzipSync } from 'node:zlib'
 import { normalizeCue } from '../lib/infraestructura/cue.ts'
+
+import { registerTsResolver } from './lib/register-ts-resolver.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
@@ -23,32 +24,12 @@ const root = join(__dirname, '..')
 // lib/infraestructura/ge-db.ts importa '@libsql/client' y '@/lib/data-dir'. El alias @/
 // lo mapea Node vía tsconfig, pero deja la ruta sin extensión ('../data-dir'), que el
 // resolver ESM no completa. Registramos un hook que agrega '.ts' antes de importar.
-function resolveTsCandidate(base) {
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
-    if (existsSync(candidate)) return candidate
-  }
-  return null
-}
+registerTsResolver(root)
 
-registerHooks({
-  resolve(specifier, context, nextResolve) {
-    if (specifier.startsWith('@/')) {
-      const candidate = resolveTsCandidate(join(root, specifier.slice(2)))
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    } else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('/')) {
-      const base = specifier.startsWith('/')
-        ? specifier
-        : join(dirname(fileURLToPath(context.parentURL)), specifier)
-      const candidate = resolveTsCandidate(base)
-      if (candidate) return { url: pathToFileURL(candidate).href, shortCircuit: true }
-    }
-    return nextResolve(specifier, context)
-  },
-})
-
-const { openGeDb, ensureGeSchema, activarCorte } = await import(
+const { ensureGeSchema, activarCorte, crearEjecutorSql, ejecutarEnTransaccion } = await import(
   '../lib/infraestructura/ge-db.ts'
 )
+const { getRawClient } = await import('../lib/db/index.ts')
 // Importa el módulo de cifrado aislado, no identidad.ts: ese arrastra el ORM,
 // que no es resoluble dentro del bundle standalone de producción.
 const { cifrarIdentidad } = await import('../lib/infraestructura/identidad-cripto.ts')
@@ -56,12 +37,6 @@ const { cifrarIdentidad } = await import('../lib/infraestructura/identidad-cript
 const STUDENTS_GZ_B64_RE = /const\s+STUDENTS_GZ_B64\s*=\s*"([^"]*)"/
 
 const TAMANO_LOTE = 1000
-
-// Cada cuántos lotes se recicla la conexión de libsql. El módulo nativo no
-// devuelve memoria mientras la conexión vive: sobre 266.000 inserciones el
-// proceso llegaba a ~2 GB de RSS y el contenedor de producción se quedaba sin
-// aire, dejando la app sin responder. Cerrar y reabrir libera esa memoria.
-const LOTES_POR_CONEXION = 8
 
 // Pausa entre lotes. El import corre en el mismo contenedor que sirve el sitio:
 // ceder el control evita monopolizar CPU y disco mientras escribe.
@@ -307,69 +282,56 @@ function leerClaveIdentidad() {
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
- * Ejecuta `fn` sobre `items` en transacciones de TAMANO_LOTE, reciclando la
- * conexión cada LOTES_POR_CONEXION y cediendo el control entre lotes.
+ * Ejecuta `fn` sobre `items` en lotes de TAMANO_LOTE, cada lote dentro de una
+ * transacción atómica (BEGIN/COMMIT con ROLLBACK ante error) y cediendo el
+ * control entre lotes para no monopolizar CPU y disco mientras escribe.
  *
- * `conexion` es un contenedor mutable { client } y no un Client suelto: al
- * reciclar se reemplaza la referencia adentro, así el llamador sigue viendo la
- * conexión viva sin tener que enterarse.
+ * `conexion` es un contenedor mutable { client, raw }: `client` es el
+ * EjecutorSql compartido para lecturas previas y `raw` es el cliente crudo
+ * (pg.Pool o PGlite) que ejecutarEnTransaccion necesita para abrir la sesión
+ * del lote. `fn` recibe el tx atado a esa transacción, no `conexion.client`:
+ * todas las escrituras del lote deben ir por la misma sesión.
  */
-async function ejecutarEnLotes(conexion, items, fn) {
-  let lotesDesdeReciclado = 0
-
+export async function ejecutarEnLotes(conexion, items, fn) {
   for (let i = 0; i < items.length; i += TAMANO_LOTE) {
     const lote = items.slice(i, i + TAMANO_LOTE)
-    const tx = await conexion.client.transaction('write')
-    try {
+    await ejecutarEnTransaccion(conexion.raw, async (tx) => {
       for (const item of lote) await fn(tx, item)
-      await tx.commit()
-    } catch (err) {
-      try {
-        await tx.rollback()
-      } catch {
-        // noop: si el commit ya cerró la transacción, el error original manda
-      }
-      throw err
-    }
-
-    lotesDesdeReciclado++
-    if (lotesDesdeReciclado >= LOTES_POR_CONEXION && i + TAMANO_LOTE < items.length) {
-      conexion.client.close()
-      conexion.client = openGeDb()
-      lotesDesdeReciclado = 0
-    }
+    })
     if (PAUSA_ENTRE_LOTES_MS > 0) await dormir(PAUSA_ENTRE_LOTES_MS)
   }
 }
 
-async function insertarSecciones(conexion, corteId, secciones) {
-  await ejecutarEnLotes(conexion, [...secciones.entries()], async (tx, [geSectionId, sec]) => {
-    await tx.execute({
-      sql: 'INSERT OR IGNORE INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?)',
+export async function insertarSecciones(conexion, corteId, secciones) {
+  await ejecutarEnLotes(conexion, [...secciones.entries()], async (client, [geSectionId, sec]) => {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (?,?,?,?,?,?,?) ON CONFLICT (corte_id, ge_section_id) DO NOTHING',
       args: [corteId, geSectionId, sec.cueAnexo, sec.curso, sec.division, sec.nivel, sec.turno],
     })
   })
 }
 
-async function insertarMembresias(conexion, corteId, membresias) {
-  await ejecutarEnLotes(conexion, membresias, async (tx, m) => {
-    await tx.execute({
-      sql: 'INSERT OR IGNORE INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?)',
+export async function insertarMembresias(conexion, corteId, membresias) {
+  await ejecutarEnLotes(conexion, membresias, async (client, m) => {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (?,?,?) ON CONFLICT (corte_id, ge_section_id, ge_person_id) DO NOTHING',
       args: [corteId, m.geSectionId, m.gePersonId],
     })
   })
 }
 
-async function insertarIdentidades(conexion, personas) {
-  const existentesRes = await conexion.client.execute('SELECT ge_person_id FROM ge_alumno_identidad')
+export async function insertarIdentidades(conexion, personas) {
+  const existentesRes = await conexion.client.execute(
+    'SELECT ge_person_id FROM ge.ge_alumno_identidad',
+  )
   const existentes = new Set(existentesRes.rows.map((r) => Number(r.ge_person_id)))
   const pendientes = [...personas.entries()].filter(([gePersonId]) => !existentes.has(gePersonId))
 
   const clave = leerClaveIdentidad()
-  await ejecutarEnLotes(conexion, pendientes, async (tx, [gePersonId, p]) => {
+  await ejecutarEnLotes(conexion, pendientes, async (client, [gePersonId, p]) => {
     const payload = cifrarIdentidad(p.nombre, p.apellido, clave)
-    await tx.execute({
-      sql: 'INSERT OR IGNORE INTO ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?,?)',
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_identidad (ge_person_id, payload_cifrado) VALUES (?,?) ON CONFLICT (ge_person_id) DO NOTHING',
       args: [gePersonId, payload],
     })
   })
@@ -447,7 +409,7 @@ async function consumirOrigen(argv, cuesConocidos, acumulador) {
 // Relee el corte recién cargado y falla si no quedó vigente o quedó vacío.
 export async function verificarCorte(client, corteId) {
   const corte = await client.execute({
-    sql: 'SELECT estado FROM ge_corte WHERE id = ?',
+    sql: 'SELECT estado FROM ge.ge_corte WHERE id = ?',
     args: [corteId],
   })
   const estado = corte.rows[0]?.estado
@@ -456,11 +418,11 @@ export async function verificarCorte(client, corteId) {
   }
 
   const secciones = await client.execute({
-    sql: 'SELECT COUNT(*) AS n FROM ge_seccion WHERE corte_id = ?',
+    sql: 'SELECT COUNT(*) AS n FROM ge.ge_seccion WHERE corte_id = ?',
     args: [corteId],
   })
   const membresias = await client.execute({
-    sql: 'SELECT COUNT(*) AS n FROM ge_alumno_seccion WHERE corte_id = ?',
+    sql: 'SELECT COUNT(*) AS n FROM ge.ge_alumno_seccion WHERE corte_id = ?',
     args: [corteId],
   })
 
@@ -479,93 +441,89 @@ async function main() {
   console.time('importar-padron')
   const inicio = Date.now()
 
-  // Contenedor mutable: ejecutarEnLotes recicla la conexión adentro para que el
-  // módulo nativo de libsql libere memoria durante la carga.
-  const conexion = { client: openGeDb() }
-  try {
-    await ensureGeSchema(conexion.client)
+  // El contenedor mutable lleva el EjecutorSql compartido y, además, el
+  // cliente crudo: ejecutarEnTransaccion lo necesita para reservar la sesión
+  // del lote (pg.Pool) o reusar la única (PGlite).
+  const raw = getRawClient()
+  const conexion = { client: crearEjecutorSql(raw), raw }
 
-    const locRes = await conexion.client.execute('SELECT cue_anexo FROM ge_localizacion')
-    const cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
-    if (cuesConocidos.size === 0) {
-      console.error(
-        'ge_localizacion está vacía: corré primero `node scripts/sync-ge.mjs --fixture`',
-      )
-      process.exit(1)
-    }
+  await ensureGeSchema(conexion.client)
 
-    const acumulador = crearAcumulador()
-    let clasificacion
-    let cicloLectivo
-    try {
-      const r = await consumirOrigen(process.argv.slice(2), cuesConocidos, acumulador)
-      clasificacion = r.resumen
-      cicloLectivo = r.cicloLectivo
-    } catch (err) {
-      console.error(err.message)
-      process.exit(1)
-    }
-
-    const { secciones, personas, membresias } = acumulador
-
-    const corteRes = await conexion.client.execute({
-      sql: "INSERT INTO ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (?, ?, 'importando')",
-      args: [Number(cicloLectivo), new Date().toISOString()],
-    })
-    const corteId = Number(corteRes.lastInsertRowid)
-
-    await insertarSecciones(conexion, corteId, secciones)
-    await insertarMembresias(conexion, corteId, membresias)
-    const identidadesInsertadas = await insertarIdentidades(conexion, personas)
-
-    try {
-      await activarCorte(conexion.client, corteId)
-    } catch (err) {
-      console.error(
-        `No se pudo activar el corte ${corteId}; queda en estado 'importando'. ${err.message}`,
-      )
-      process.exit(1)
-    }
-
-    const cuesDescartados = clasificacion.cuesDescartados
-    console.log(`Filas leídas: ${clasificacion.leidas}`)
-    console.log(`Alumnos únicos cargados (gePersonId): ${personas.size}`)
-    console.log(`Secciones únicas cargadas: ${secciones.size}`)
-    console.log(`CUE distintos en el padrón: ${clasificacion.cuesEnPadron.size}`)
-    console.log(`CUE conciliados contra ge_localizacion: ${clasificacion.cuesConciliados.size}`)
-    console.log(
-      `CUE descartados por no existir en ge_localizacion: ${cuesDescartados.size}${
-        cuesDescartados.size > 0 && cuesDescartados.size <= 20
-          ? ` -> ${[...cuesDescartados].join(', ')}`
-          : ''
-      }`,
+  const locRes = await conexion.client.execute('SELECT cue_anexo FROM ge.ge_localizacion')
+  const cuesConocidos = new Set(locRes.rows.map((r) => String(r.cue_anexo)))
+  if (cuesConocidos.size === 0) {
+    console.error(
+      'ge_localizacion está vacía: corré primero `node scripts/sync-ge.mjs --fixture`',
     )
-    console.log(`Filas descartadas por CUE inválido: ${clasificacion.descartadosPorCue}`)
-    console.log(
-      `Filas descartadas por localización inexistente: ${clasificacion.descartadosPorLocalizacion}`,
-    )
-    console.log(`Identidades cifradas insertadas: ${identidadesInsertadas}`)
-
-    // Releemos el corte desde la base en vez de confiar en que las escrituras
-    // de arriba hayan quedado: es la única prueba de que el import sirvió.
-    const verificacion = await verificarCorte(conexion.client, corteId)
-    console.log(
-      `Corte ${corteId} verificado: estado=${verificacion.estado}, ` +
-        `secciones=${verificacion.secciones}, membresías=${verificacion.membresias}`,
-    )
-    console.log(`Tiempo total: ${Date.now() - inicio} ms`)
-    console.timeEnd('importar-padron')
-
-    // Salida explícita. Cerrar el cliente de libsql después de una carga
-    // grande, con el driver de Postgres también cargado en el proceso, hace
-    // segfault de forma intermitente al destruir los módulos nativos (exit
-    // 139) aunque el corte haya quedado íntegro. Como recién verificamos el
-    // estado contra la base, cortamos acá y el código de salida vuelve a
-    // significar lo que dice.
-    process.exit(0)
-  } finally {
-    conexion.client.close()
+    process.exit(1)
   }
+
+  const acumulador = crearAcumulador()
+  let clasificacion
+  let cicloLectivo
+  try {
+    const r = await consumirOrigen(process.argv.slice(2), cuesConocidos, acumulador)
+    clasificacion = r.resumen
+    cicloLectivo = r.cicloLectivo
+  } catch (err) {
+    console.error(err.message)
+    process.exit(1)
+  }
+
+  const { secciones, personas, membresias } = acumulador
+
+  const corteRes = await conexion.client.execute({
+    sql: "INSERT INTO ge.ge_corte (ciclo_lectivo, fetched_at, estado) VALUES (?, ?, 'importando') RETURNING id",
+    args: [Number(cicloLectivo), new Date().toISOString()],
+  })
+  const corteId = Number(corteRes.rows[0].id)
+
+  await insertarSecciones(conexion, corteId, secciones)
+  await insertarMembresias(conexion, corteId, membresias)
+  const identidadesInsertadas = await insertarIdentidades(conexion, personas)
+
+  try {
+    await activarCorte(conexion.client, corteId)
+  } catch (err) {
+    console.error(
+      `No se pudo activar el corte ${corteId}; queda en estado 'importando'. ${err.message}`,
+    )
+    process.exit(1)
+  }
+
+  const cuesDescartados = clasificacion.cuesDescartados
+  console.log(`Filas leídas: ${clasificacion.leidas}`)
+  console.log(`Alumnos únicos cargados (gePersonId): ${personas.size}`)
+  console.log(`Secciones únicas cargadas: ${secciones.size}`)
+  console.log(`CUE distintos en el padrón: ${clasificacion.cuesEnPadron.size}`)
+  console.log(`CUE conciliados contra ge_localizacion: ${clasificacion.cuesConciliados.size}`)
+  console.log(
+    `CUE descartados por no existir en ge_localizacion: ${cuesDescartados.size}${
+      cuesDescartados.size > 0 && cuesDescartados.size <= 20
+        ? ` -> ${[...cuesDescartados].join(', ')}`
+        : ''
+    }`,
+  )
+  console.log(`Filas descartadas por CUE inválido: ${clasificacion.descartadosPorCue}`)
+  console.log(
+    `Filas descartadas por localización inexistente: ${clasificacion.descartadosPorLocalizacion}`,
+  )
+  console.log(`Identidades cifradas insertadas: ${identidadesInsertadas}`)
+
+  // Releemos el corte desde la base en vez de confiar en que las escrituras
+  // de arriba hayan quedado: es la única prueba de que el import sirvió.
+  const verificacion = await verificarCorte(conexion.client, corteId)
+  console.log(
+    `Corte ${corteId} verificado: estado=${verificacion.estado}, ` +
+      `secciones=${verificacion.secciones}, membresías=${verificacion.membresias}`,
+  )
+  console.log(`Tiempo total: ${Date.now() - inicio} ms`)
+  console.timeEnd('importar-padron')
+
+  // Salida explícita. El cliente de la base es compartido y no se cierra por
+  // invocación de script; como recién verificamos el estado contra la base,
+  // cortamos acá y el código de salida vuelve a significar lo que dice.
+  process.exit(0)
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

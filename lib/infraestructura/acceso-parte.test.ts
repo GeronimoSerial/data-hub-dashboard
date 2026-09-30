@@ -1,5 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { eq } from 'drizzle-orm'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
+import { getDb } from '@/lib/db'
+import { infraVerificacion } from '@/lib/db/schema'
+import { ensureSeeded } from '@/lib/db/seed'
+import {
+  cancelarVerificacion,
+  crearVerificacion,
+  responderPorEnlace,
+} from '@/lib/infraestructura/verificaciones'
 
 const getSessionUserMock = vi.fn()
 const cookiesGetMock = vi.fn()
@@ -12,10 +22,25 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ get: cookiesGetMock }),
 }))
 
-const { tieneAccesoAlParte, tieneAccesoAlParteDesdeCookies } = await import(
-  '@/lib/infraestructura/acceso-parte'
-)
+const {
+  tieneAccesoAlParte,
+  tieneAccesoAlParteDesdeCookies,
+  tieneAccesoAlParteParaCue,
+  tieneAccesoAlParteParaCueDesdeCookies,
+} = await import('@/lib/infraestructura/acceso-parte')
 const { NOMBRE_COOKIE, crearTokenSesion } = await import('@/lib/infraestructura/acceso-publico')
+const { NOMBRE_COOKIE_SESION_VERIFICACION, crearSesionVerificacion } = await import(
+  '@/lib/infraestructura/verificacion-sesion'
+)
+
+// Base real en un tmpdir (mismo patrón que lib/infraestructura/verificaciones.test.ts)
+// para los tests de re-chequeo contra la fila de la verificación. El resto del
+// archivo sigue sin tocar la base: contraseña pública y rol admin no la consultan.
+usarDbTemporal('acceso-parte-', { seed: false })
+
+beforeAll(async () => {
+  await ensureSeeded()
+})
 
 const CLAVE = claveDePrueba()
 
@@ -109,5 +134,130 @@ describe('tieneAccesoAlParteDesdeCookies (páginas)', () => {
 
   it('rechaza sin contraseña y sin sesión', async () => {
     await expect(tieneAccesoAlParteDesdeCookies()).resolves.toBe(false)
+  })
+})
+
+// CUE único por test: infra_parte tiene índice único (cueAnexo, periodoId) y
+// todos los tests comparten el período sembrado.
+let contadorCue = 0
+function cueUnico(): string {
+  contadorCue += 1
+  return `1801604-${String(contadorCue).padStart(3, '0')}`
+}
+
+// Construye una verificación pendiente real y la cookie que emitiría el canje
+// del token, para ejercitar el re-chequeo contra la fila sin pasar por la
+// ruta HTTP.
+async function verificacionConSesion() {
+  const creada = await crearVerificacion({
+    cueAnexo: cueUnico(),
+    solicitadaPorUserId: 'user-director',
+  })
+  if (!creada.ok) throw new Error(`no se pudo crear la verificación: ${creada.motivo}`)
+  const { valorCookie } = crearSesionVerificacion(
+    creada.verificacion.id,
+    creada.verificacion.cueAnexo,
+  )
+  return {
+    token: creada.token,
+    verificacion: creada.verificacion,
+    cueAnexo: creada.verificacion.cueAnexo,
+    valorCookie,
+  }
+}
+
+function requestConSesionVerificacion(valorCookie: string) {
+  return new Request('https://ejemplo.test/api', {
+    headers: { cookie: `${NOMBRE_COOKIE_SESION_VERIFICACION}=${valorCookie}` },
+  })
+}
+
+describe('tieneAccesoAlParteParaCue (re-chequeo de la fila)', () => {
+  it('sesión canjeada de una verificación pendiente: true', async () => {
+    const { cueAnexo, valorCookie } = await verificacionConSesion()
+    await expect(
+      tieneAccesoAlParteParaCue(requestConSesionVerificacion(valorCookie), cueAnexo),
+    ).resolves.toBe(true)
+  })
+
+  // Regla de N1: la MISMA cookie deja de servir apenas la fila cambia de estado.
+  it('la misma sesión con la verificación cancelada: false', async () => {
+    const { cueAnexo, valorCookie, verificacion } = await verificacionConSesion()
+    await cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' })
+
+    await expect(
+      tieneAccesoAlParteParaCue(requestConSesionVerificacion(valorCookie), cueAnexo),
+    ).resolves.toBe(false)
+  })
+
+  it('la misma sesión con el token revocado: false', async () => {
+    const { cueAnexo, valorCookie, verificacion } = await verificacionConSesion()
+    await getDb()
+      .update(infraVerificacion)
+      .set({ tokenRevocadoEn: new Date().toISOString() })
+      .where(eq(infraVerificacion.id, verificacion.id))
+
+    await expect(
+      tieneAccesoAlParteParaCue(requestConSesionVerificacion(valorCookie), cueAnexo),
+    ).resolves.toBe(false)
+  })
+
+  it('la misma sesión con la verificación respondida: false', async () => {
+    const { cueAnexo, valorCookie, token, verificacion } = await verificacionConSesion()
+    const respuesta = await responderPorEnlace({
+      verificacionId: verificacion.id,
+      token,
+      resultado: 'sin_afectacion',
+    })
+    expect(respuesta.ok).toBe(true)
+
+    await expect(
+      tieneAccesoAlParteParaCue(requestConSesionVerificacion(valorCookie), cueAnexo),
+    ).resolves.toBe(false)
+  })
+
+  // Regresión: el atajo de la contraseña compartida sigue funcionando sin
+  // mirar la base de verificaciones.
+  it('la contraseña compartida sigue dando true sin sesión de verificación', async () => {
+    const { token } = crearTokenSesion()
+    await expect(
+      tieneAccesoAlParteParaCue(requestConCookie(token), '140000000'),
+    ).resolves.toBe(true)
+  })
+
+  // Regresión: un admin sigue entrando sin sesión de verificación.
+  it('un administrador sigue dando true sin sesión de verificación', async () => {
+    getSessionUserMock.mockResolvedValue(usuario('admin'))
+    await expect(
+      tieneAccesoAlParteParaCue(requestConCookie(), '140000000'),
+    ).resolves.toBe(true)
+  })
+})
+
+// Misma lógica de re-chequeo, sólo cambia de dónde lee la cookie: un
+// subconjunto alcanza (pendiente → true, cancelada → false, regresión admin).
+describe('tieneAccesoAlParteParaCueDesdeCookies (re-chequeo, subconjunto)', () => {
+  it('sesión canjeada de una verificación pendiente: true', async () => {
+    const { cueAnexo, valorCookie } = await verificacionConSesion()
+    cookiesGetMock.mockImplementation((nombre: string) =>
+      nombre === NOMBRE_COOKIE_SESION_VERIFICACION ? { value: valorCookie } : undefined,
+    )
+
+    await expect(tieneAccesoAlParteParaCueDesdeCookies(cueAnexo)).resolves.toBe(true)
+  })
+
+  it('la misma sesión con la verificación cancelada: false', async () => {
+    const { cueAnexo, valorCookie, verificacion } = await verificacionConSesion()
+    await cancelarVerificacion({ verificacionId: verificacion.id, actorUserId: 'user-admin' })
+    cookiesGetMock.mockImplementation((nombre: string) =>
+      nombre === NOMBRE_COOKIE_SESION_VERIFICACION ? { value: valorCookie } : undefined,
+    )
+
+    await expect(tieneAccesoAlParteParaCueDesdeCookies(cueAnexo)).resolves.toBe(false)
+  })
+
+  it('un administrador sigue dando true sin sesión de verificación', async () => {
+    getSessionUserMock.mockResolvedValue(usuario('admin'))
+    await expect(tieneAccesoAlParteParaCueDesdeCookies('140000000')).resolves.toBe(true)
   })
 })

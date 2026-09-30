@@ -1,30 +1,30 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { pgTable, text, integer, bigint, boolean, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
 
-export const niveles = sqliteTable('niveles', {
+export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   orden: integer('orden').notNull(),
 })
 
-export const tipos = sqliteTable('tipos', {
+export const tipos = pgTable('tipos', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
-  aplicaA: text('aplica_a', { mode: 'json' }).$type<string[]>().notNull(),
+  aplicaA: jsonb('aplica_a').$type<string[]>().notNull(),
 })
 
-export const categorias = sqliteTable('categorias', {
+export const categorias = pgTable('categorias', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   color: text('color').notNull(),
 })
 
-export const tags = sqliteTable('tags', {
+export const tags = pgTable('tags', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
 })
 
-export const recursos = sqliteTable('recursos', {
+export const recursos = pgTable('recursos', {
   id: text('id').primaryKey(),
   titulo: text('titulo').notNull(),
   descripcion: text('descripcion').notNull(),
@@ -48,7 +48,7 @@ export const recursos = sqliteTable('recursos', {
   size: integer('size'),
 })
 
-export const recursoTags = sqliteTable(
+export const recursoTags = pgTable(
   'recurso_tags',
   {
     recursoId: text('recurso_id')
@@ -61,7 +61,7 @@ export const recursoTags = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.tagId] })],
 )
 
-export const recursoAudienciaNiveles = sqliteTable(
+export const recursoAudienciaNiveles = pgTable(
   'recurso_audiencia_niveles',
   {
     recursoId: text('recurso_id')
@@ -74,7 +74,7 @@ export const recursoAudienciaNiveles = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.nivelId] })],
 )
 
-export const recursoAudienciaUsuarios = sqliteTable(
+export const recursoAudienciaUsuarios = pgTable(
   'recurso_audiencia_usuarios',
   {
     recursoId: text('recurso_id')
@@ -85,45 +85,41 @@ export const recursoAudienciaUsuarios = sqliteTable(
   (t) => [primaryKey({ columns: [t.recursoId, t.userId] })],
 )
 
-export const user = sqliteTable('user', {
+export const user = pgTable('user', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
-  emailVerified: integer('email_verified', { mode: 'boolean' })
+  emailVerified: boolean('email_verified')
     .default(false)
     .notNull(),
   image: text('image'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+  createdAt: timestamp('created_at', { mode: 'date' })
+    .default(sql`now()`)
     .notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-    .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .default(sql`now()`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   role: text('role'),
-  banned: integer('banned', { mode: 'boolean' }).default(false),
+  banned: boolean('banned').default(false),
   banReason: text('ban_reason'),
-  banExpires: integer('ban_expires', { mode: 'timestamp_ms' }),
+  banExpires: timestamp('ban_expires', { mode: 'date' }),
   // 'todos' | 'seleccionados': si es 'seleccionados', el acceso de un usuario
   // consulta se restringe a los recursos listados en user_recursos (además
-  // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir). Columna
-  // agregada por ALTER a bases ya pobladas (ver ensureAccesoRecursosColumn en
-  // lib/db/seed.ts), mismo motivo que idempotency_key: SQLite no permite
-  // agregar NOT NULL sin default a una tabla con filas, así que acá el
-  // default cubre ambos casos (fresco y ALTER).
+  // de la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
   accesoRecursos: text('acceso_recursos').notNull().default('todos'),
 })
 
-export const session = sqliteTable(
+export const session = pgTable(
   'session',
   {
     id: text('id').primaryKey(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
     token: text('token').notNull().unique(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    updatedAt: timestamp('updated_at', { mode: 'date' })
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
     ipAddress: text('ip_address'),
@@ -136,7 +132,7 @@ export const session = sqliteTable(
   (table) => [index('session_userId_idx').on(table.userId)],
 )
 
-export const account = sqliteTable(
+export const account = pgTable(
   'account',
   {
     id: text('id').primaryKey(),
@@ -149,18 +145,14 @@ export const account = sqliteTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     idToken: text('id_token'),
-    accessTokenExpiresAt: integer('access_token_expires_at', {
-      mode: 'timestamp_ms',
-    }),
-    refreshTokenExpiresAt: integer('refresh_token_expires_at', {
-      mode: 'timestamp_ms',
-    }),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { mode: 'date' }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { mode: 'date' }),
     scope: text('scope'),
     password: text('password'),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+    updatedAt: timestamp('updated_at', { mode: 'date' })
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
@@ -170,25 +162,25 @@ export const account = sqliteTable(
   ],
 )
 
-export const verification = sqliteTable(
+export const verification = pgTable(
   'verification',
   {
     id: text('id').primaryKey(),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
-    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' })
+      .default(sql`now()`)
       .notNull(),
-    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
-      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+    updatedAt: timestamp('updated_at', { mode: 'date' })
+      .default(sql`now()`)
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
   (table) => [index('verification_identifier_idx').on(table.identifier)],
 )
 
-export const userNiveles = sqliteTable(
+export const userNiveles = pgTable(
   'user_niveles',
   {
     userId: text('user_id').notNull(),
@@ -203,7 +195,7 @@ export const userNiveles = sqliteTable(
 // user.accesoRecursos = 'seleccionados'. Mismo patrón que userNiveles: sin
 // esta fila el recurso queda fuera del alcance del usuario (independiente de
 // la audiencia propia del recurso, ver lib/acl.ts puedeAbrir).
-export const userRecursos = sqliteTable(
+export const userRecursos = pgTable(
   'user_recursos',
   {
     userId: text('user_id').notNull(),
@@ -219,7 +211,7 @@ export const userRecursos = sqliteTable(
 // lib/infraestructura/categorias.ts (no hay FK porque ese catálogo no es una
 // tabla). `id` es un slug estable usado sólo en el ABM y en el formulario; lo
 // que persiste infra_afectacion.motivo es el nombre, no este id.
-export const infraMotivo = sqliteTable('infra_motivo', {
+export const infraMotivo = pgTable('infra_motivo', {
   id: text('id').primaryKey(),
   nombre: text('nombre').notNull(),
   categoria: text('categoria').notNull(),
@@ -229,7 +221,7 @@ export const infraMotivo = sqliteTable('infra_motivo', {
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
 // obligatorio: no existen grants permanentes. `otorgado_por` deja registrado
 // quién lo concedió, incluso cuando un admin se lo otorga a sí mismo.
-export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
+export const infraPermisoNominal = pgTable('infra_permiso_nominal', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   otorgadoPor: text('otorgado_por').notNull(),
@@ -247,7 +239,7 @@ export const infraPermisoNominal = sqliteTable('infra_permiso_nominal', {
 // apuntaba al modelo deprecado, eliminado en la Fase 4.
 // Sigue siendo texto plano SIN foreign key (nunca la tuvo), así que el rename
 // no arrastra constraints ni índices.
-export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
+export const infraAccesoNominalLog = pgTable('infra_acceso_nominal_log', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   afectacionId: text('afectacion_id').notNull(),
@@ -275,7 +267,7 @@ export const infraAccesoNominalLog = sqliteTable('infra_acceso_nominal_log', {
 // HUB_DDL (lib/db/seed.ts) porque este proyecto no corre drizzle-kit
 // generate/push (ver seedHub) — la declaración acá mantiene el esquema
 // tipado en sincro con esa DDL, no es lo que la crea en runtime.
-export const infraPeriodo = sqliteTable(
+export const infraPeriodo = pgTable(
   'infra_periodo',
   {
     id: text('id').primaryKey(),
@@ -298,7 +290,7 @@ export const infraPeriodo = sqliteTable(
 // reporte cuando ya existe un parte para el establecimiento en el período
 // vigente resuelve a "actualizar el parte" (spec §8, CONTRACT.md — spec §14
 // "Continuar como otro episodio" queda muerta).
-export const infraParte = sqliteTable(
+export const infraParte = pgTable(
   'infra_parte',
   {
     id: text('id').primaryKey(),
@@ -325,7 +317,7 @@ export const infraParte = sqliteTable(
 // delete vía `retiradaEn` (nullable): "retirar" una afectación no borra la
 // fila para que el historial (spec §15) conserve la trayectoria completa
 // (spec §8: la actualización conserva el estado anterior en el historial).
-export const infraAfectacion = sqliteTable(
+export const infraAfectacion = pgTable(
   'infra_afectacion',
   {
     id: text('id').primaryKey(),
@@ -342,18 +334,22 @@ export const infraAfectacion = sqliteTable(
     // de regir. Null mientras la afectación sigue vigente.
     retiradaEn: text('retirada_en'),
   },
-  (t) => [index('infra_afectacion_parte_id_idx').on(t.parteId)],
+  (t) => [
+    index('infra_afectacion_parte_id_idx').on(t.parteId),
+    index('infra_afectacion_creada_en_idx_e7b').on(t.creadaEn),
+    index('infra_afectacion_rige_desde_idx_e7b').on(t.rigeDesde),
+  ],
 )
 
 // Selección de secciones de una afectación: clave compuesta
 // (afectacionId, geSectionId) y cascade desde infra_afectacion.
-export const infraAfectacionSeccion = sqliteTable(
+export const infraAfectacionSeccion = pgTable(
   'infra_afectacion_seccion',
   {
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    geSectionId: integer('ge_section_id').notNull(),
+    geSectionId: bigint('ge_section_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.geSectionId] })],
 )
@@ -362,13 +358,13 @@ export const infraAfectacionSeccion = sqliteTable(
 // parcial). Una sección presente en infraAfectacionSeccion sin ninguna fila
 // acá se interpreta como "sección completa"; la ausencia de filas es la
 // semántica, no un estado transitorio.
-export const infraAfectacionAlumno = sqliteTable(
+export const infraAfectacionAlumno = pgTable(
   'infra_afectacion_alumno',
   {
     afectacionId: text('afectacion_id')
       .notNull()
       .references(() => infraAfectacion.id, { onDelete: 'cascade' }),
-    gePersonId: integer('ge_person_id').notNull(),
+    gePersonId: bigint('ge_person_id', { mode: 'number' }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.afectacionId, t.gePersonId] })],
 )
@@ -380,7 +376,7 @@ export const infraAfectacionAlumno = sqliteTable(
 // se calcula a partir de las filas vigentes de esta tabla — nunca se
 // persiste, ver CONTRACT.md. Soft delete vía `retiradaEn`, mismo criterio que
 // infraAfectacion.
-export const infraServicioAlcance = sqliteTable(
+export const infraServicioAlcance = pgTable(
   'infra_servicio_alcance',
   {
     id: text('id').primaryKey(),
@@ -404,7 +400,7 @@ export const infraServicioAlcance = sqliteTable(
 // text con mode 'json', mismo patrón que tipos.aplicaA arriba); la forma
 // exacta del diff la define la capa de dominio del batch 2 (movement
 // diffing), acá sólo se reserva la columna.
-export const infraMovimiento = sqliteTable(
+export const infraMovimiento = pgTable(
   'infra_movimiento',
   {
     id: text('id').primaryKey(),
@@ -416,7 +412,7 @@ export const infraMovimiento = sqliteTable(
     // futuro flujo de supervisor, nunca producida en esta etapa)
     tipo: text('tipo').notNull(),
     rol: text('rol').notNull(), // 'director' | 'supervisor'
-    resumen: text('resumen', { mode: 'json' }).$type<Record<string, unknown>>().notNull(),
+    resumen: jsonb('resumen').$type<Record<string, unknown>>().notNull(),
     rigeDesde: text('rige_desde').notNull(),
     creadaEn: text('creada_en').notNull(),
     // Clave de idempotencia del POST que generó este movimiento (batch 3:
@@ -435,3 +431,782 @@ export const infraMovimiento = sqliteTable(
     uniqueIndex('infra_movimiento_idempotency_key_uidx').on(t.idempotencyKey),
   ],
 )
+
+// Pedido de verificación a un establecimiento (batch E1): confirma si sigue
+// habiendo afectación. `estado` es el estado persistido ('pendiente' |
+// 'respondida' | 'cancelada'); 'vencida' NO se persiste nunca: se deriva en
+// runtime comparando `vencimientoEn` con el reloj, porque `vencimientoEn` es
+// sólo un SLA informativo que no bloquea responder. `tokenExpiraEn` es
+// distinto y sí bloquea (HTTP 410): es el vencimiento de seguridad de la
+// credencial de acceso, independiente del SLA. `discrepancia` (boolean en
+// integer, default 0) marca el caso en que se respondió 'sin_afectacion'
+// mientras existía una afectación vigente. `movimientoId` enlaza la respuesta
+// con afectación al movimiento real que se creó. `tokenHash` guarda el sha256
+// hex de la credencial, nunca el token en claro.
+//
+// El monitoreo es continuo, no episódico (decisión post-E1: se descartó el
+// concepto de "episodio" administrado a mano — nadie iba a abrirlos/cerrarlos
+// manualmente). Por eso la verificación se ancla directamente al período
+// provincial vigente (`periodoId`), resuelto en el momento de creación por
+// `obtenerPeriodoVigente` (parte-consulta.ts), en vez de a un episodio
+// intermedio.
+export const infraVerificacion = pgTable(
+  'infra_verificacion',
+  {
+    id: text('id').primaryKey(),
+    periodoId: text('periodo_id')
+      .notNull()
+      .references(() => infraPeriodo.id),
+    cueAnexo: text('cue_anexo').notNull(),
+    estado: text('estado').notNull(), // 'pendiente' | 'respondida' | 'cancelada'
+    solicitadaEn: text('solicitada_en').notNull(),
+    solicitadaPorUserId: text('solicitada_por_user_id').notNull(),
+    // SLA informativo: no bloquea responder.
+    vencimientoEn: text('vencimiento_en'),
+    resultado: text('resultado'), // 'sin_afectacion' | 'con_afectacion' | 'no_disponible'
+    // Boolean: 1 cuando se respondió 'sin_afectacion' mientras había una
+    // afectación vigente.
+    discrepancia: boolean('discrepancia').notNull().default(false),
+    respondidaEn: text('respondida_en'),
+    respondidaCanal: text('respondida_canal'), // 'enlace' | 'telefono' | 'whatsapp' | 'presencial' | 'otro'
+    respondidaPorUserId: text('respondida_por_user_id'),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    canceladaEn: text('cancelada_en'),
+    canceladaPorUserId: text('cancelada_por_user_id'),
+    motivoCancelacion: text('motivo_cancelacion'),
+    // sha256 hex de la credencial de acceso; nunca el token en claro.
+    tokenHash: text('token_hash').notNull(),
+    // Vencimiento de seguridad de la credencial: sí bloquea (410). Distinto de
+    // vencimientoEn, que es el SLA informativo y no bloquea.
+    tokenExpiraEn: text('token_expira_en').notNull(),
+    tokenRevocadoEn: text('token_revocado_en'),
+    tokenConsumidoEn: text('token_consumido_en'),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    index('infra_verificacion_periodo_id_idx').on(t.periodoId),
+    index('infra_verificacion_cue_anexo_idx').on(t.cueAnexo),
+    index('infra_verificacion_estado_idx').on(t.estado),
+    uniqueIndex('infra_verificacion_token_hash_uidx').on(t.tokenHash),
+  ],
+)
+
+// Auditoría append-only de la trayectoria de una verificación (batch E1).
+// Nunca se actualiza ni se borra una fila después de insertarla: cada evento
+// agrega una fila nueva, mismo criterio que infraMovimiento. `actorTipo`
+// distingue quién disparó el evento ('usuario' | 'enlace' | 'sistema');
+// `actorUserId` sólo aplica cuando el actor es un usuario.
+export const infraVerificacionEvento = pgTable(
+  'infra_verificacion_evento',
+  {
+    id: text('id').primaryKey(),
+    verificacionId: text('verificacion_id')
+      .notNull()
+      .references(() => infraVerificacion.id, { onDelete: 'cascade' }),
+    tipo: text('tipo').notNull(), // 'creada' | 'cancelada' | 'respondida' | 'discrepancia_detectada' | 'vinculo_fallido'
+    actorTipo: text('actor_tipo').notNull(), // 'usuario' | 'enlace' | 'sistema'
+    actorUserId: text('actor_user_id'),
+    canal: text('canal'),
+    motivo: text('motivo'),
+    correlacionId: text('correlacion_id'),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    index('infra_verificacion_evento_verificacion_id_idx').on(t.verificacionId),
+  ],
+)
+
+// Control de ejecución de jobs de infraestructura, con lease renovable. Un
+// job_run por combinación (tipo, claveIdempotente): los reintentos de la MISMA
+// invocación actualizan la fila existente (upsert), nunca crean una segunda
+// fila — así dos invocaciones del mismo job no publican dos resultados.
+// `estado` es texto plano ('pendiente' | 'en_progreso' | 'completado' |
+// 'fallido', mismos valores que estadoJobSchema en
+// lib/infraestructura/riesgo/tipos.ts); la validación de forma vive en la
+// capa de dominio. Timestamps en texto ISO UTC (patrón de infraParte).
+export const infraJobRun = pgTable(
+  'infra_job_run',
+  {
+    id: text('id').primaryKey(),
+    tipo: text('tipo').notNull(),
+    claveIdempotente: text('clave_idempotente').notNull(),
+    intento: integer('intento').notNull().default(1),
+    // ISO UTC; se setea al crear la fila o al recuperar un lease vencido (no es null en ningún estado).
+    iniciadoEn: text('iniciado_en').notNull(),
+    finalizadoEn: text('finalizado_en'),
+    estado: text('estado').notNull(),
+    // p. ej. { procesados: 10, exitosos: 8, fallidos: 2 }.
+    contadores: jsonb('contadores').$type<Record<string, number>>(),
+    // Mensaje de error sin datos nominales ni secretos, para diagnóstico.
+    errorSaneado: text('error_saneado'),
+    version: text('version').notNull(),
+    // Identificador del proceso/worker que sostiene el lease.
+    leaseOwner: text('lease_owner'),
+    // ISO UTC; null cuando no hay lease activo.
+    leaseExpiraEn: text('lease_expira_en'),
+    creadaEn: text('creada_en').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_job_run_clave_uidx').on(t.tipo, t.claveIdempotente),
+    index('infra_job_run_estado_idx').on(t.estado),
+  ],
+)
+
+// --- Amenazas hidrometeorológicas: perfiles geográficos, pronóstico,
+// climatología y salud de fuentes ---
+// `geometryRef` es la celda de grilla de 0.1° (formato "lat_lon") para las
+// variables atmosféricas, o el id del punto de río para caudal. Todas estas
+// tablas arrancan vacías: las llena un job de ingesta, no la siembra.
+
+// Perfil geográfico por establecimiento (cueAnexo): resuelve una sola vez la
+// coordenada y su calidad para no recalcular el join geográfico en cada sync
+// de amenazas. `motivoExclusion` explica por qué no hay perfil válido (null =
+// sí lo hay); `perfilVersion` permite reprocesar cuando cambia la regla de
+// cálculo sin confundir una corrida vieja con una nueva.
+export const infraGeoProfile = pgTable(
+  'infra_geo_profile',
+  {
+    cueAnexo: text('cue_anexo').primaryKey(),
+    lat: real('lat'),
+    lon: real('lon'),
+    geoCalidad: text('geo_calidad'),
+    departamento: text('departamento'),
+    geometryRef: text('geometry_ref'),
+    // null = tiene perfil válido; 'sin_coordenadas' | 'coordenada_invalida' si no.
+    motivoExclusion: text('motivo_exclusion'),
+    perfilVersion: text('perfil_version').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [index('infra_geo_profile_departamento_idx').on(t.departamento)],
+)
+
+// Pronóstico crudo por (provider, variable, celda) y corrida. El índice único
+// sobre (provider, variable, geometryRef, corridaEn, validoEn) hace que
+// repetir el sync del mismo run no duplique filas. `horizonteHoras` es la
+// distancia entre `corridaEn` y `validoEn`; `pasoHoras` guarda el paso real
+// del modelo en ese horizonte (1, 3 o 6), nunca un valor interpolado.
+export const hazardForecast = pgTable(
+  'hazard_forecast',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    variable: text('variable').notNull(),
+    geometryRef: text('geometry_ref').notNull(),
+    corridaEn: text('corrida_en').notNull(),
+    validoEn: text('valido_en').notNull(),
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    pasoHoras: integer('paso_horas').notNull(),
+    // Ruta del payload crudo bajo DATA_DIR; null si no se conservó.
+    rawRef: text('raw_ref'),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_forecast_uidx').on(
+      t.provider,
+      t.variable,
+      t.geometryRef,
+      t.corridaEn,
+      t.validoEn,
+    ),
+    index('hazard_forecast_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Climatología por celda: valores de referencia (p90/p95/p99) sobre una
+// ventana histórica fija. `muestra` distingue todos los días de sólo los
+// húmedos (>=1mm); la clave única incluye `version` para poder recalcular con
+// una nueva regla sin pisar la versión anterior.
+export const hazardClimatology = pgTable(
+  'hazard_climatology',
+  {
+    id: text('id').primaryKey(),
+    geometryRef: text('geometry_ref').notNull(),
+    variable: text('variable').notNull(),
+    percentil: text('percentil').notNull(),
+    // 'todos_los_dias' | 'dias_humedos' (este último filtra días con >=1mm).
+    muestra: text('muestra').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    periodoDesde: text('periodo_desde').notNull(),
+    periodoHasta: text('periodo_hasta').notNull(),
+    version: text('version').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_climatology_uidx').on(
+      t.geometryRef,
+      t.variable,
+      t.percentil,
+      t.muestra,
+      t.periodoDesde,
+      t.periodoHasta,
+      t.version,
+    ),
+    index('hazard_climatology_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Salud por proveedor de amenazas: cuándo tuvo éxito y cuándo se intentó por
+// última vez, el estado actual y el TTL de frescura esperado. `ultimoErrorSaneado`
+// guarda el error sin datos nominales ni secretos; `licencia` deja registrada
+// la atribución obligatoria de cada fuente.
+export const hazardSourceHealth = pgTable('hazard_source_health', {
+  provider: text('provider').primaryKey(),
+  ultimoExitoEn: text('ultimo_exito_en'),
+  ultimoIntentoEn: text('ultimo_intento_en'),
+  estado: text('estado').notNull(),
+  ultimoErrorSaneado: text('ultimo_error_saneado'),
+  ttlMinutos: integer('ttl_minutos').notNull(),
+  licencia: text('licencia').notNull(),
+  actualizadaEn: text('actualizada_en').notNull(),
+})
+
+// E3b: motor de riesgo v0 (infra_risk_run, infra_risk_snapshot, infra_risk_factor)
+
+// Corrida del motor de riesgo: el "puntero" que se publica atómicamente. No
+// confundir con infraJobRun, que es el lease genérico de ejecución de jobs de
+// E0 — esta es la entidad de dominio. `infra_risk_run_vigente_unico` garantiza
+// a nivel DB que exista a lo sumo UN run `vigente`, así publicar uno nuevo y
+// marcar vencido el anterior es atómico sin depender de la disciplina de la
+// app (mismo patrón de índice único parcial que infraPeriodo).
+export const infraRiskRun = pgTable(
+  'infra_risk_run',
+  {
+    id: text('id').primaryKey(),
+    periodoId: text('periodo_id')
+      .notNull()
+      .references(() => infraPeriodo.id),
+    modeloVersion: text('modelo_version').notNull(),
+    iniciadoEn: text('iniciado_en').notNull(),
+    publicadoEn: text('publicado_en'),
+    // 'preparando' | 'vigente' | 'vencido' | 'fallido'.
+    estado: text('estado').notNull(),
+    // p. ej. { procesadas: 2005, conEvidencia: 1800, sinEvidencia: 205 }.
+    cobertura: jsonb('cobertura').$type<Record<string, number>>(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_risk_run_vigente_unico')
+      .on(t.estado)
+      .where(sql`${t.estado} = 'vigente'`),
+    index('infra_risk_run_periodo_id_idx').on(t.periodoId),
+    index('infra_risk_run_publicado_en_idx_e7b').on(t.publicadoEn),
+  ],
+)
+
+// Un score de riesgo por (run, escuela, horizonte). `evidenciaValida` indica
+// si el score se calculó con evidencia suficiente; `nivelRiesgo` y `confianza`
+// son texto validado en la capa de dominio. El índice único evita duplicar el
+// mismo cálculo al reintentar la corrida.
+export const infraRiskSnapshot = pgTable(
+  'infra_risk_snapshot',
+  {
+    id: text('id').primaryKey(),
+    runId: text('run_id')
+      .notNull()
+      .references(() => infraRiskRun.id),
+    cueAnexo: text('cue_anexo').notNull(),
+    // 24 | 72 | 240.
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    evidenciaValida: boolean('evidencia_valida').notNull(),
+    scoreRiesgo: real('score_riesgo'),
+    // 'bajo' | 'moderado' | 'alto' | 'muy_alto'.
+    nivelRiesgo: text('nivel_riesgo'),
+    scoreAmenaza: real('score_amenaza'),
+    scoreVulnerabilidad: real('score_vulnerabilidad'),
+    // 'baja' | 'media' | 'alta'.
+    confianza: text('confianza').notNull(),
+    // Dimensión aparte 'riesgo de acceso' (aislamiento OSM x peligro del
+    // horizonte x accesos interrumpidos): NUNCA se mezcla en el IRO compuesto.
+    scoreRiesgoAcceso: real('score_riesgo_acceso'),
+    // 'bajo' | 'moderado' | 'alto' (null = riesgo de acceso desconocido).
+    nivelRiesgoAcceso: text('nivel_riesgo_acceso'),
+    // 'baja' | 'media' | 'alta'.
+    confianzaAcceso: text('confianza_acceso'),
+    exposicionMatricula: integer('exposicion_matricula'),
+    exposicionSecciones: integer('exposicion_secciones'),
+    calculadoEn: text('calculado_en').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_risk_snapshot_uidx').on(t.runId, t.cueAnexo, t.horizonteHoras),
+    index('infra_risk_snapshot_cue_anexo_idx').on(t.cueAnexo),
+    index('infra_risk_snapshot_run_id_idx').on(t.runId),
+  ],
+)
+
+// Factores que explican un snapshot (N por snapshot): cada fila aporta una
+// variable con su contribución y su peso al score. `onDelete: 'cascade'`
+// limpia los factores cuando se borra el snapshot.
+export const infraRiskFactor = pgTable(
+  'infra_risk_factor',
+  {
+    id: text('id').primaryKey(),
+    snapshotId: text('snapshot_id')
+      .notNull()
+      .references(() => infraRiskSnapshot.id, { onDelete: 'cascade' }),
+    // 'amenaza' | 'vulnerabilidad' | 'acceso' | 'exposicion' | 'urgencia'.
+    tipo: text('tipo').notNull(),
+    fuente: text('fuente').notNull(),
+    variable: text('variable').notNull(),
+    valor: real('valor'),
+    unidad: text('unidad'),
+    contribucion: real('contribucion').notNull(),
+    peso: real('peso').notNull(),
+    explicacion: text('explicacion').notNull(),
+    observadoEn: text('observado_en'),
+  },
+  (t) => [index('infra_risk_factor_snapshot_id_idx').on(t.snapshotId)],
+)
+
+// E3a: señales v2 y capa de peligro estimado (batch E3a, ver
+// docs/ejecucion-enos/E3a/registro.md). Bloque propio para que N1 resuelva el
+// merge con los batches hermanos E3b/G1 sin tocar las tablas de E2 arriba.
+
+// Asociación escuela → punto de río más cercano (lib/infraestructura/riesgo/puntos-rio.ts)
+// dentro de un radio máximo documentado. Tabla propia en vez de columna nueva en
+// `infra_geo_profile` para no competir por ese archivo con otros batches en la
+// misma ola: `infra_geo_profile` sigue siendo propiedad exclusiva de E2/E3b.
+// `puntoRioId` null y `distanciaKm` null significan "fuera de radio", nunca el
+// punto más lejano encontrado.
+export const infraGeoRio = pgTable('infra_geo_rio', {
+  cueAnexo: text('cue_anexo').primaryKey(),
+  puntoRioId: text('punto_rio_id'),
+  distanciaKm: real('distancia_km'),
+  radioMaximoKm: real('radio_maximo_km').notNull(),
+  version: text('version').notNull(),
+  calculadoEn: text('calculado_en').notNull(),
+})
+
+// Probabilidad de superar la climatología (P95/P99) por celda y horizonte,
+// calculada sobre los miembros de la API Ensemble de Open-Meteo (~51 miembros
+// ECMWF IFS). `dispersion` es la base del nivel de confianza reportado en
+// `nivel.ts`. Índice único por corrida para que repetir el sync no duplique.
+export const hazardEnsembleProb = pgTable(
+  'hazard_ensemble_prob',
+  {
+    id: text('id').primaryKey(),
+    geometryRef: text('geometry_ref').notNull(),
+    variable: text('variable').notNull(),
+    corridaEn: text('corrida_en').notNull(),
+    validoEn: text('valido_en').notNull(),
+    horizonteHoras: integer('horizonte_horas').notNull(),
+    miembrosTotal: integer('miembros_total').notNull(),
+    miembrosValidos: integer('miembros_validos').notNull(),
+    probabilidadP95: real('probabilidad_p95').notNull(),
+    probabilidadP99: real('probabilidad_p99').notNull(),
+    dispersion: real('dispersion').notNull(),
+    version: text('version').notNull(),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_ensemble_prob_uidx').on(
+      t.geometryRef,
+      t.variable,
+      t.corridaEn,
+      t.validoEn,
+    ),
+    index('hazard_ensemble_prob_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// Precipitación observada estimada por satélite (NASA GPM IMERG Early Run),
+// modelo canónico §9.2 del plan base — E2 omitió esta tabla a propósito por no
+// existir entonces una fuente observacional; E3a la crea. `validoDesde`/
+// `validoHasta` son la ventana de 30 min del producto; `calidad` guarda
+// `precipitationQualityIndex` cuando el granulo lo trae.
+export const hazardObservation = pgTable(
+  'hazard_observation',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider').notNull(),
+    variable: text('variable').notNull(),
+    geometryRef: text('geometry_ref').notNull(),
+    valor: real('valor').notNull(),
+    unidad: text('unidad').notNull(),
+    observadoEn: text('observado_en').notNull(),
+    validoDesde: text('valido_desde').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+    calidad: real('calidad'),
+    rawRef: text('raw_ref'),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_observation_uidx').on(
+      t.provider,
+      t.variable,
+      t.geometryRef,
+      t.observadoEn,
+    ),
+    index('hazard_observation_geometry_ref_idx').on(t.geometryRef),
+  ],
+)
+
+// E7a: episodios derivados (calculados automáticamente)
+// Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
+// parametrizado para poder pasar a 'cuenca' en una versión futura de la
+// regla sin migrar el esquema). `reglaVersion` + `parametros` (json) quedan
+// grabados con cada cálculo para que un recomputo con otra versión/parámetros
+// no se confunda con uno viejo. `escuelasAfectadas` es la cuenta acumulada de
+// CUE-anexo distintos que fueron miembro del episodio en algún momento (no
+// sólo los vigentes al momento del cálculo). No existe columna `episodio` en
+// infra_movimiento: el vínculo va sólo en infra_episodio_miembro.
+export const infraEpisodioDerivado = pgTable(
+  'infra_episodio_derivado',
+  {
+    id: text('id').primaryKey(),
+    reglaVersion: text('regla_version').notNull(),
+    parametros: jsonb('parametros').$type<Record<string, unknown>>().notNull(),
+    // 'departamento' es el único valor emitido por la regla v0.1.
+    unidadTipo: text('unidad_tipo').notNull(),
+    unidadId: text('unidad_id').notNull(),
+    inicioEn: text('inicio_en').notNull(),
+    finEn: text('fin_en'),
+    // 'abierto' | 'cerrado'.
+    estado: text('estado').notNull(),
+    escuelasAfectadas: integer('escuelas_afectadas').notNull(),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [
+    index('infra_episodio_derivado_unidad_idx').on(t.unidadTipo, t.unidadId),
+    index('infra_episodio_derivado_regla_version_idx').on(t.reglaVersion),
+    index('infra_episodio_derivado_estado_idx').on(t.estado),
+  ],
+)
+
+// Una fila por (episodio, cueAnexo): si la escuela se recupera y se vuelve a
+// afectar dentro del MISMO episodio (el departamento no llegó a cerrarlo), se
+// reutiliza esta misma fila (recuperadoEn vuelve a null), no se duplica.
+// `movimientoId` es nullable: no toda infra_afectacion tiene un
+// infra_movimiento con el mismo (parteId, rigeDesde) resoluble en datos
+// legacy.
+export const infraEpisodioMiembro = pgTable(
+  'infra_episodio_miembro',
+  {
+    id: text('id').primaryKey(),
+    episodioDerivadoId: text('episodio_derivado_id')
+      .notNull()
+      .references(() => infraEpisodioDerivado.id, { onDelete: 'cascade' }),
+    cueAnexo: text('cue_anexo').notNull(),
+    movimientoId: text('movimiento_id').references(() => infraMovimiento.id),
+    primeraAfectacionEn: text('primera_afectacion_en').notNull(),
+    recuperadoEn: text('recuperado_en'),
+  },
+  (t) => [
+    index('infra_episodio_miembro_episodio_id_idx').on(t.episodioDerivadoId),
+    index('infra_episodio_miembro_cue_anexo_idx').on(t.cueAnexo),
+  ],
+)
+
+// OM-cupo: guarda de cupo compartida entre TODOS los adapters de Open-Meteo
+// (hosts api./ensemble-api./archive-api./flood-api., y sus variantes
+// customer-* cuando hay OPEN_METEO_API_KEY). Ver
+// lib/infraestructura/riesgo/providers/cupo-om.ts y
+// docs/ejecucion-enos/OM-cupo/registro.md para la fórmula de peso, la fuente
+// citada y las decisiones de diseño.
+//
+// IMPORTANTE: los techos de Open-Meteo (600/min, 5.000/hora, 10.000/día,
+// 300.000/mes) son de CUENTA/IP, no por subdominio — la página de pricing no
+// distingue host por host. Por eso la columna `host` de estas dos tablas en
+// realidad guarda un "bucket" compartido (`'open-meteo-free'` o
+// `'open-meteo-pago'`, ver `bucketCupo` en cupo-om.ts), NO el literal
+// api./ensemble-api./etc.: las 4 familias de host gastan del MISMO pozo.
+// Se conserva el nombre de columna `host` para no romper el resto de este
+// archivo con un rename cosmético.
+//
+// `om_cupo_contador`: peso acumulado por (host=bucket, ventana,
+// claveVentana). Una fila por ventana de tiempo vigente
+// (minuto/hora/dia/mes); las ventanas vencidas quedan como historial, no se
+// borran (volumen acotado: 4 filas por bucket por ventana de calendario,
+// nunca crece sin límite práctico).
+export const omCupoContador = pgTable(
+  'om_cupo_contador',
+  {
+    host: text('host').notNull(),
+    ventana: text('ventana').notNull(),
+    claveVentana: text('clave_ventana').notNull(),
+    pesoAcumulado: real('peso_acumulado').notNull(),
+    actualizadaEn: text('actualizada_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.host, t.ventana, t.claveVentana] })],
+)
+
+// `om_cupo_cooldown`: un HTTP 429 con `Retry-After` pone al BUCKET entero
+// (todos los hosts de ese plan) en cooldown hasta `hastaEn`; mientras dure,
+// ningún adapter vuelve a golpear ninguno de los 4 hosts (ver cupo-om.ts
+// `estaEnCooldown`). `hostOrigen` es sólo informativo: qué host literal
+// devolvió el 429 que originó el cooldown. Una fila por bucket (upsert).
+export const omCupoCooldown = pgTable('om_cupo_cooldown', {
+  host: text('host').primaryKey(),
+  hostOrigen: text('host_origen').notNull(),
+  hastaEn: text('hasta_en').notNull(),
+  motivoSaneado: text('motivo_saneado').notNull(),
+  retryAfterSegundos: integer('retry_after_segundos'),
+  actualizadaEn: text('actualizada_en').notNull(),
+})
+// Seasonal: tendencia ENOS a 30-90 días (Open-Meteo Seasonal, ECMWF SEAS5 +
+// EC46, 51 miembros, ~36 km) por CENTROIDE de departamento — nunca por
+// escuela (plan-implementacion §9.3 / plan-ejecucion §E5, capa opcional
+// detrás del flag SEASONAL_ENABLED). Ver
+// lib/infraestructura/riesgo/providers/seasonal.ts para el detalle de las
+// fuentes/modelos verificados y la simplificación v0 de
+// `probabilidadSobreNormal`. Tabla propia (no reutiliza `hazard_forecast` ni
+// `hazard_ensemble_prob`, que son por celda de grilla, no por departamento) e
+// índice único por (departamento, variable, emisionEn, horizonteDesdeDias,
+// horizonteHastaDias) para que reintentar el job no duplique.
+export const hazardSeasonalTrend = pgTable(
+  'hazard_seasonal_trend',
+  {
+    id: text('id').primaryKey(),
+    departamento: text('departamento').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    variable: text('variable').notNull(),
+    emisionEn: text('emision_en').notNull(),
+    validoDesde: text('valido_desde').notNull(),
+    validoHasta: text('valido_hasta').notNull(),
+    horizonteDesdeDias: integer('horizonte_desde_dias').notNull(),
+    horizonteHastaDias: integer('horizonte_hasta_dias').notNull(),
+    miembrosTotal: integer('miembros_total').notNull(),
+    miembrosValidos: integer('miembros_validos').notNull(),
+    mediaMm: real('media_mm'),
+    medianaMm: real('mediana_mm'),
+    dispersionMm: real('dispersion_mm'),
+    probabilidadSobreNormal: real('probabilidad_sobre_normal'),
+    version: text('version').notNull(),
+    ingeridoEn: text('ingerido_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('hazard_seasonal_trend_uidx').on(
+      t.departamento,
+      t.variable,
+      t.emisionEn,
+      t.horizonteDesdeDias,
+      t.horizonteHastaDias,
+    ),
+    index('hazard_seasonal_trend_departamento_idx').on(t.departamento),
+  ],
+)
+
+// E7b: los índices temporales para replay (infra_afectacion_creada_en_idx_e7b,
+// infra_afectacion_rige_desde_idx_e7b, infra_risk_run_publicado_en_idx_e7b)
+// viven en el tercer argumento de cada pgTable. No se pueden declarar como
+// `index(...).on(columna)` sueltos a nivel de módulo: en drizzle-orm 0.45.2 el
+// PgColumn de módulo no expone `defaultConfig`, así que `.on()` lanza
+// `SyntaxError: "undefined" is not valid JSON` al evaluar el módulo (lo
+// destapó drizzle-kit generate; ver brief DB1/F2).
+
+// E5: Centro de Situación (infra_situacion_corte)
+//
+// Cada fila es UN corte (snapshot) ejecutivo completo del territorio, generado
+// por un job periódico. No hay filas por escuela ni por departamento: el corte
+// congela su propia cobertura y la salud de fuentes para poder reconstruir el
+// briefing exactamente como se vio en ese instante, sin depender de qué
+// infra_risk_run esté vigente cuando el corte se lea después.
+export const infraSituacionCorte = pgTable(
+  'infra_situacion_corte',
+  {
+    id: text('id').primaryKey(),
+    // Instante "as-of" que representa el corte (ISO).
+    generadoEn: text('generado_en').notNull(),
+    // Run de riesgo vigente al generar el corte; null si no había ninguno.
+    riskRunId: text('risk_run_id').references(() => infraRiskRun.id),
+    // Copia de infraRiskRun.cobertura en ese instante (p. ej.
+    // { procesadas, conEvidencia, sinEvidencia }).
+    cobertura: jsonb('cobertura').$type<Record<string, number> | null>(),
+    // Conteo de escuelas por nivelRiesgo ('bajo'/'moderado'/'alto'/'muy_alto')
+    // al horizonte de 24h, en el instante del corte.
+    conteosPorNivelRiesgo: jsonb('conteos_por_nivel_riesgo')
+      .$type<Record<string, number>>()
+      .notNull(),
+    kpis: jsonb('kpis')
+      .$type<{
+        escuelasAfectacionConfirmadaVigente: number
+        escuelasRiesgoAlto24h: number
+        fuentesVencidas: number
+      }>()
+      .notNull(),
+    // Salud de fuentes congelada en el instante del corte (frescura ya
+    // calculada, no recalculada al leer).
+    fuentesSalud: jsonb('fuentes_salud')
+      .$type<Array<{ provider: string; estado: string; frescuraMinutos: number | null; vencida: boolean }>>()
+      .notNull(),
+    episodiosAbiertos: integer('episodios_abiertos').notNull().default(0),
+    // Episodios que pasaron a cerrado entre el corte anterior y este.
+    episodiosCerradosDesdeAnterior: integer('episodios_cerrados_desde_anterior').notNull().default(0),
+    // Trazabilidad hacia el infra_job_run que produjo este corte.
+    generadoPorJobRunId: text('generado_por_job_run_id').references(() => infraJobRun.id),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    index('infra_situacion_corte_generado_en_idx').on(t.generadoEn),
+    index('infra_situacion_corte_risk_run_id_idx').on(t.riskRunId),
+  ],
+)
+
+// E8: briefing narrativo asistido por IA (batch E8, ver plan-ejecucion §6-E8).
+// `corteId` referencia infra_situacion_corte de E5 (ya mergeada). Un briefing
+// por corte (`infra_briefing_corte_uidx` da la idempotencia) y
+// `infra_briefing_creada_en_idx` permite sumar el `costoUsd` del mes vigente.
+export const infraBriefing = pgTable(
+  'infra_briefing',
+  {
+    id: text('id').primaryKey(),
+    corteId: text('corte_id').notNull().references(() => infraSituacionCorte.id),
+    modelo: text('modelo').notNull(),
+    versionPrompt: text('version_prompt').notNull(),
+    parametros: jsonb('parametros').$type<Record<string, unknown>>(),
+    salidaIa: jsonb('salida_ia').$type<Record<string, unknown> | null>(),
+    textoFinal: text('texto_final').notNull(),
+    // 'ia' | 'plantilla'.
+    fuente: text('fuente').notNull(),
+    // 'json_invalido' | 'cifra_no_trazable' | 'timeout' | 'http_error' |
+    // 'presupuesto_agotado' | 'sin_api_key' | null (si fue directo a IA).
+    motivoFallback: text('motivo_fallback'),
+    tokensEntrada: integer('tokens_entrada'),
+    tokensSalida: integer('tokens_salida'),
+    costoUsd: real('costo_usd'),
+    latenciaMs: integer('latencia_ms'),
+    validacion: jsonb('validacion').$type<Record<string, unknown> | null>(),
+    auditoriaFallback: jsonb('auditoria_fallback').$type<Record<string, unknown> | null>(),
+    creadaEn: text('creada_en').notNull(),
+  },
+  (t) => [
+    uniqueIndex('infra_briefing_corte_uidx').on(t.corteId),
+    index('infra_briefing_creada_en_idx').on(t.creadaEn),
+  ],
+)
+
+// Reserva atómica del presupuesto mensual de E8: el costo de una corrida no
+// se conoce hasta después de llamar al modelo, así que se reserva una
+// estimación conservadora ANTES de llamar (UPDATE/INSERT condicionado, nunca
+// select-then-compare) y se ajusta con el costo real al terminar. Evita que
+// dos corridas casi simultáneas lean el mismo acumulado y juntas superen el
+// techo (mismo defecto de clase que infraJobRun, ver job-run.ts).
+export const infraBriefingPresupuestoMes = pgTable('infra_briefing_presupuesto_mes', {
+  mes: text('mes').primaryKey(), // inicio de mes UTC en ISO, ej '2026-09-01T00:00:00.000Z'
+  acumuladoUsd: real('acumulado_usd').notNull(),
+  actualizadaEn: text('actualizada_en').notNull(),
+})
+
+// ============================================================
+// G1: capas territoriales estáticas
+// ============================================================
+// Capas territoriales de largo plazo producidas por los jobs offline de
+// services/geo-static/ (ver docs/ejecucion-enos/G1/contrato-datos.md). Son
+// importadas por un importador aparte; ambas usan PK compuesta
+// (cue_anexo, version_job) para permitir convivencia de versiones.
+
+// Aislamiento de un anexo respecto de la red vial/OSM. Los campos de conteo y
+// distancia pueden ser null cuando el job no pudo calcularlos; en ese caso
+// `motivoSinDatos` explica por qué (por ejemplo 'sin_conexion_red') y
+// `indiceAislamiento` queda null. Nunca se asume seguro por defecto.
+export const infraAislamientoOsm = pgTable('infra_aislamiento_osm', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  distanciaViaPavimentadaM: real('distancia_via_pavimentada_m'),
+  distanciaCabeceraDepartamentalM: real('distancia_cabecera_departamental_m'),
+  tramosSinPavimentarCount: integer('tramos_sin_pavimentar_count'),
+  crucesAguaCount: integer('cruces_agua_count'),
+  crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
+  crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
+  tieneAlternativaSinCruce: boolean('tiene_alternativa_sin_cruce'),
+  indiceAislamiento: integer('indice_aislamiento'),
+  motivoSinDatos: text('motivo_sin_datos'),
+  snapDistanciaM: real('snap_distancia_m'),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+  index('infra_aislamiento_osm_indice_idx').on(t.indiceAislamiento),
+])
+
+// Susceptibilidad estática de largo plazo por período de retorno (physrisk).
+// Es riesgo estático, NUNCA un pronóstico ni dato en tiempo real. `fuente`
+// distingue 'physrisk' de 'no_disponible'; los peligros quedan null cuando no
+// hay dato.
+export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estatica', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  peligroInundacionFluvial: real('peligro_inundacion_fluvial'),
+  peligroInundacionPluvial: real('peligro_inundacion_pluvial'),
+  peligroViento: real('peligro_viento'),
+  peligroCalor: real('peligro_calor'),
+  periodoRetornoAnios: integer('periodo_retorno_anios').notNull(),
+  fuente: text('fuente').notNull(),
+  fechaCorrida: text('fecha_corrida').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
+])
+
+export type CruceAccesoOsm = {
+  lon: number
+  lat: number
+  clasificacion: 'puente' | 'vado' | 'sin_evidencia'
+}
+
+export type RutaGeoJson = {
+  type: 'LineString'
+  coordinates: Array<[number, number]>
+}
+
+// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → cabecera
+// departamental y cruces de agua clasificados). Es contexto territorial
+// derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
+// edificio. `ruta` null + `motivoSinGeometria` explica la ausencia.
+export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
+  cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  motivoSinGeometria: text('motivo_sin_geometria'),
+  fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
+
+export type CeldaExposicionRuta = {
+  lon: number
+  lat: number
+  profundidadM: number | null
+}
+
+// Indicador historico/estatico por celda de ~1 km; NUNCA pronostico ni estado
+// del camino. `sin_ruta` y `sin_dato` significan SIN DATO, no profundidad 0.
+export const infraExposicionRutaInundacion = pgTable('infra_exposicion_ruta_inundacion', {
+  cueAnexo: text('cue_anexo').notNull(),
+  versionJob: text('version_job').notNull(),
+  estado: text('estado').notNull(),
+  motivoSinDato: text('motivo_sin_dato'),
+  celdasTotal: integer('celdas_total').notNull(),
+  celdasConDato: integer('celdas_con_dato').notNull(),
+  celdasConProfundidad: integer('celdas_con_profundidad').notNull(),
+  profundidadMaxM: real('profundidad_max_m'),
+  cobertura: real('cobertura').notNull(),
+  periodoRetornoAnios: integer('periodo_retorno_anios').notNull(),
+  resolucionArcsec: integer('resolucion_arcsec').notNull(),
+  escenario: text('escenario').notNull(),
+  fuente: text('fuente').notNull(),
+  celdas: jsonb('celdas').$type<CeldaExposicionRuta[]>().notNull(),
+  fechaCorrida: text('fecha_corrida').notNull(),
+  licencia: text('licencia').notNull(),
+  importadoEn: text('importado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
+// ============================================================
+// Fin bloque G1
+// ============================================================
+// DB1-F2 (pg-core): las fechas guardadas como `text` ISO-8601 UTC se conservan
+// como `text` en esta fase (migrar a timestamptz queda como seguimiento F4/F5).
+// Las tablas better-auth (user/session/account/verification) pasan de epoch ms
+// `integer` a `timestamp` nativo (mode 'date') porque pg-core no admite
+// `integer` con mode timestamp; default `now()`.
+// Booleanos nativos: user.emailVerified, user.banned,
+// infra_verificacion.discrepancia, infra_risk_snapshot.evidenciaValida,
+// infra_aislamiento_osm.tieneAlternativaSinCruce. Sin TODO(DB1-F2) por duda.

@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790537261335,
+      "tag": "0000_daffy_squirrel_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790571093878,
+      "tag": "0001_mute_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790617774855,
+      "tag": "0002_empty_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790645395600,
+      "tag": "0003_acceso_osm_geometria",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790665257251,
+      "tag": "0004_exposicion_ruta_inundacion",
+      "breakpoints": true
+    }
+  ]
+}

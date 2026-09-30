@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
-import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { EstadoActualParte } from '@/components/infraestructura/estado-actual-parte'
-import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
-import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from './compartido'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,17 +11,6 @@ export const metadata: Metadata = {
 }
 
 const TITULO = 'Estado actual'
-
-// Mismos textos que app/(publico)/problematicas/nueva/page.tsx: el director
-// no debería leer dos explicaciones distintas del mismo problema según por
-// qué enlace entró.
-const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
-  cue_ausente: 'Este enlace no incluye el CUE de la escuela. Solicite el enlace nuevamente a quien se lo compartió.',
-  cue_invalido: 'El CUE incluido en el enlace no tiene un formato válido.',
-  sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
-  cue_inexistente: 'No se encontró una escuela con ese CUE.',
-  sin_secciones: 'Esta escuela todavía no tiene secciones cargadas.',
-}
 
 /**
  * Pantalla inicial del director (spec §6): muestra el estado actual ANTES de
@@ -43,31 +29,20 @@ export default async function EstadoActualPartePage({
 }) {
   const { cue } = await searchParams
 
-  if (!(await tieneAccesoAlParteDesdeCookies())) {
-    return (
-      <div className="publico-content">
-        <EncabezadoParte pantalla={TITULO} />
-        <AccesoForm />
-      </div>
-    )
-  }
+  // Con CUE en la query, una sesión de verificación canjeada desde el enlace
+  // público "Hay afectación" habilita el formulario SÓLO para ese CUE, sin la
+  // contraseña compartida. Sin CUE no hay contra qué validar esa sesión, así
+  // que se cae a la guarda de siempre (contraseña o admin).
+  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  if (bloqueo) return bloqueo
 
-  const client = openGeDb()
-  let resultado
-  try {
-    await ensureGeSchema(client)
-    resultado = await resolverContextoPorCue(client, cue ?? null)
-  } finally {
-    client.close()
-  }
+  const { resultado } = await cargarContextoParte(cue, false)
 
   if (!resultado.ok) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />
-        <p className="estado-actual-aviso__texto" role="alert">
-          {MENSAJES_ERROR[resultado.error.kind]}
-        </p>
+        <ErrorContexto kind={resultado.error.kind} />
       </div>
     )
   }

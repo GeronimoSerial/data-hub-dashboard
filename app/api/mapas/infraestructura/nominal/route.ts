@@ -1,8 +1,11 @@
-import { getDb } from '@/lib/db'
+import { getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
+import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { consultarYRegistrarAfectados } from '@/lib/infraestructura/identidad'
 import { puedeVerNominal } from '@/lib/infraestructura/permiso-nominal'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,12 +27,7 @@ export async function GET(request: Request) {
   await ensureSeeded()
 
   const acceso = await verificarAccesoLectura()
-  if (!acceso.ok) {
-    return Response.json(
-      { error: acceso.status === 401 ? 'No autenticado' : 'No tiene acceso a este recurso' },
-      { status: acceso.status },
-    )
-  }
+  if (!acceso.ok) return respuestaAccesoDenegado(acceso)
 
   const ahora = new Date()
   const puedeVer = await puedeVerNominal(acceso.user, ahora)
@@ -43,14 +41,11 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Falta el parámetro afectacionId' }, { status: 400 })
   }
 
-  const client = getDb().$client
+  const client = crearEjecutorSql(getRawClient())
   const resultado = await consultarYRegistrarAfectados(client, acceso.user.id, afectacionId, ahora)
   if (!resultado) {
     return Response.json({ error: 'Afectación no encontrada' }, { status: 404 })
   }
 
-  return Response.json(resultado, {
-    status: 200,
-    headers: { 'Cache-Control': 'private, no-store' },
-  })
+  return jsonNoStore(resultado)
 }

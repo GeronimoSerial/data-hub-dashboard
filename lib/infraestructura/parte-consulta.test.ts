@@ -1,11 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { getDb } from '@/lib/db'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded, PERIODO_ENOS_2026_2027_ID } from '@/lib/db/seed'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { infraAfectacion, infraAfectacionAlumno, infraAfectacionSeccion, infraMovimiento, infraParte, infraServicioAlcance } from '@/lib/db/schema'
-import { ensureGeSchema, openGeDb } from './ge-db'
+import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import {
   armarFichaParte,
   listarMovimientosDescritos,
@@ -16,62 +14,37 @@ import {
 
 const CUE = '1801605-31'
 
-let dir: string
-let prevDataDir: string | undefined
-let prevAdminEmail: string | undefined
-let prevAdminPassword: string | undefined
+usarDbTemporal('parte-consulta', { seed: false, env: { ADMIN_EMAIL: undefined, ADMIN_PASSWORD: undefined } })
 
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'parte-consulta-'))
-  prevDataDir = process.env.DATA_DIR
-  prevAdminEmail = process.env.ADMIN_EMAIL
-  prevAdminPassword = process.env.ADMIN_PASSWORD
-  process.env.DATA_DIR = dir
-  delete process.env.ADMIN_EMAIL
-  delete process.env.ADMIN_PASSWORD
-
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
-    )
-    await ge.execute(
-      `INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE}', NULL, 'Escuela', 'ER', 'Parana')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
-    )
-    await ge.execute(
-      `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 20, '${CUE}', '1', 'B', 'PRIMARIA', 'MAÑANA')`,
-    )
-    for (let i = 0; i < 5; i++) {
-      await ge.execute({
-        sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, ?)',
-        args: [i],
-      })
-    }
-    for (let i = 100; i < 105; i++) {
-      await ge.execute({
-        sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 20, ?)',
-        args: [i],
-      })
-    }
-  } finally {
-    ge.close()
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${CUE}', NULL, 'Escuela', 'ER', 'Parana')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 20, '${CUE}', '1', 'B', 'PRIMARIA', 'MAÑANA')`,
+  )
+  for (let i = 0; i < 5; i++) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, ?)',
+      args: [i],
+    })
+  }
+  for (let i = 100; i < 105; i++) {
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 20, ?)',
+      args: [i],
+    })
   }
 
   await ensureSeeded()
-})
-
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  if (prevAdminEmail === undefined) delete process.env.ADMIN_EMAIL
-  else process.env.ADMIN_EMAIL = prevAdminEmail
-  if (prevAdminPassword === undefined) delete process.env.ADMIN_PASSWORD
-  else process.env.ADMIN_PASSWORD = prevAdminPassword
-  rmSync(dir, { recursive: true, force: true })
 })
 
 describe('obtenerPeriodoVigente', () => {

@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
-import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { HistorialParte } from '@/components/infraestructura/historial-parte'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
+import { bloqueoDeAcceso } from '../compartido'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -28,14 +27,8 @@ export default async function HistorialPartePage({
 }) {
   const { cue } = await searchParams
 
-  if (!(await tieneAccesoAlParteDesdeCookies())) {
-    return (
-      <div className="publico-content">
-        <EncabezadoParte pantalla={TITULO} />
-        <AccesoForm />
-      </div>
-    )
-  }
+  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  if (bloqueo) return bloqueo
 
   const cueNormalizado = normalizeCue(cue ?? '')
   if (!cueNormalizado) {

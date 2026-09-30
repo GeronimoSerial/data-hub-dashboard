@@ -1,15 +1,12 @@
 import type { Severidad } from './validacion'
+import { PALETA_TONAL_SEVERIDAD } from '@/lib/mapas/paleta-tonal'
 
-// Colores del mockup (§4.4 del plan de batches). Única fuente para el mapa,
-// la lista y la ficha: no se redefinen por componente.
-export const SEVERIDAD_COLORES: Record<Severidad, string> = {
-  Baja: '#90B4E1',
-  Media: '#FACD05',
-  Alta: '#E58A2B',
-  Crítica: '#F4492E',
-}
+// Escala tonal de una sola gama para la severidad (claro→oscuro, rojo). Única
+// fuente para el mapa, la lista y la ficha: no se redefinen por componente.
+// Los hex viven en lib/mapas/paleta-tonal.ts (fuente de verdad compartida).
+export const SEVERIDAD_COLORES: Record<Severidad, string> = { ...PALETA_TONAL_SEVERIDAD }
 
-export const SEVERIDAD_COLOR_DEFECTO = '#90B4E1'
+export const SEVERIDAD_COLOR_DEFECTO = PALETA_TONAL_SEVERIDAD.Baja
 
 /*
   Qué distingue un nivel del siguiente, en la lengua del director.

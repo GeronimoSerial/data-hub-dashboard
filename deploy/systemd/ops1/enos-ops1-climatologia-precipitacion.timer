@@ -1,0 +1,20 @@
+[Unit]
+Description=Timer OPS1 ENOS: climatologia-precipitacion (diario, avanza por cursor resumable de cupo)
+
+[Timer]
+# OM-cupo (ver docs/ejecucion-enos/OM-cupo/registro.md, sección "Climatología
+# de precipitación"): el cálculo completo (30 años x ~387 celdas) excede el
+# cupo mensual de Open-Meteo en una sola corrida, así que se avanza de a
+# poco: una corrida diaria agota el cupo restante del día contra `archive-api`
+# y el cursor resumable (misma clave período+version en hazard_climatology)
+# retoma las celdas pendientes en la próxima corrida, sin recomputar ni
+# volver a gastar cupo en lo ya hecho. 05:00 UTC: fuera de las ventanas de
+# los syncs de 6h (02,08,14,20:00) y de geo-perfiles (03:00) y sync-seasonal
+# (09:00).
+OnCalendar=*-*-* 05:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@climatologia-precipitacion.service
+
+[Install]
+WantedBy=timers.target

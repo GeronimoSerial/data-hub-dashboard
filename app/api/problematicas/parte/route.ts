@@ -5,8 +5,10 @@
 // ES actualizar el parte. Mismo patrón de guardas que
 // app/api/problematicas/route.ts: acceso público, ensureSeeded, rate limit,
 // idempotencia, validación contra la base, transacción.
+import { z } from 'zod'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { ensureSeeded } from '@/lib/db/seed'
 import {
   infraAfectacion,
@@ -16,10 +18,10 @@ import {
   infraParte,
   infraServicioAlcance,
 } from '@/lib/db/schema'
-import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
+import { tieneAccesoAlParteParaCue } from '@/lib/infraestructura/acceso-parte'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import { normalizeCue } from '@/lib/infraestructura/cue'
-import { getCorteVigente } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
@@ -35,17 +37,24 @@ import {
   type ParteActual,
 } from '@/lib/infraestructura/parte-consulta'
 import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
+import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
-import type { EstadoEstablecimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type {
+  Afectacion,
+  EstadoEstablecimiento,
+  Severidad,
+  TipoMovimiento,
+} from '@/lib/infraestructura/trayectoria-tipos'
 import { resolverCategoria, validarAlumnosPermitidos } from '@/lib/infraestructura/validacion'
 import { parseParteActualizacionInput } from '@/lib/infraestructura/validacion-trayectoria'
+import {
+  registrarIntentoVinculoFallido,
+  responderPorEnlace,
+} from '@/lib/infraestructura/verificaciones'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// El estado actual del parte incluye nombres de alumnos (spec §18.12): nunca
-// se cachea, ni siquiera del lado del navegador.
-const CACHE_HEADERS = { 'Cache-Control': 'private, no-store' }
 
 const MENSAJE_SIN_SITUACION =
   'No hay una situación hidrometeorológica en seguimiento para este establecimiento.'
@@ -55,21 +64,123 @@ const MENSAJE_SIN_SITUACION =
 // escritura. Nunca sale de este archivo.
 class RollbackDiffVacio extends Error {}
 
-export async function GET(request: Request) {
-  if (!(await tieneAccesoAlParte(request))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+// Corrección de la carrera cross-device del gate N1 (ver
+// docs/ejecucion-enos/E1b/registro.md, "Correcciones del gate N1" → riesgo
+// residual): dos dispositivos que mandan la primera alta del mismo CUE+
+// período casi al mismo tiempo, cada uno con su propia idempotencyKey, no
+// deben terminar duplicando la afectación que describe el mismo evento. Acá
+// se compara el contenido de una entrada de `afectacionesNuevas` contra una
+// afectación YA vigente en el parte (releída dentro de la transacción, con
+// el lock de escritura tomado) para decidir si hay que insertarla de nuevo o
+// si ya está cubierta. La comparación reconstruye el mismo alcance por
+// sección que arma cargarAfectaciones (parte-consulta.ts) para que sea
+// exacta, no una aproximación.
+function motivoCategoriaSeveridadDescripcionCoinciden(
+  existente: Afectacion,
+  entrada: { motivo: string; severidad: Severidad; descripcion?: string | null },
+  categoria: CategoriaAfectacion,
+): boolean {
+  return (
+    existente.motivo === entrada.motivo &&
+    existente.categoria === categoria &&
+    existente.severidad === entrada.severidad &&
+    (existente.descripcion ?? null) === (entrada.descripcion ?? null)
+  )
+}
+
+async function seccionesEsperadas(
+  client: EjecutorSql,
+  corteId: number,
+  geSectionIds: number[],
+  alumnosSeleccionados: number[] | undefined,
+): Promise<Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>> {
+  const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds })
+  const seleccionados = new Set(alumnosSeleccionados ?? [])
+  const resultado = new Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>()
+  for (const geSectionId of geSectionIds) {
+    const matriculados = membresia.get(geSectionId) ?? new Set<number>()
+    const interseccion = [...matriculados].filter((id) => seleccionados.has(id))
+    resultado.set(
+      geSectionId,
+      interseccion.length > 0
+        ? { seccionCompleta: false, alumnos: new Set(interseccion) }
+        : { seccionCompleta: true, alumnos: matriculados },
+    )
   }
+  return resultado
+}
 
-  await ensureSeeded()
+function seccionesCoincidenConEsperadas(
+  existente: Afectacion,
+  esperadas: Map<number, { seccionCompleta: boolean; alumnos: Set<number> }>,
+): boolean {
+  if (existente.secciones.length !== esperadas.size) return false
+  for (const seccion of existente.secciones) {
+    const esperada = esperadas.get(seccion.geSectionId)
+    if (!esperada) return false
+    if (esperada.seccionCompleta !== seccion.seccionCompleta) return false
+    if (esperada.alumnos.size !== seccion.alumnos.length) return false
+    for (const id of seccion.alumnos) {
+      if (!esperada.alumnos.has(id)) return false
+    }
+  }
+  return true
+}
 
+// Busca, entre las afectaciones vigentes ya persistidas, una que describa
+// EXACTAMENTE el mismo evento que `entrada` (mismo motivo/categoría/
+// severidad/descripción y el mismo alcance de secciones+alumnos). El chequeo
+// barato (campos escalares) va primero para no pagar la consulta de
+// membresía en el caso común de una afectación genuinamente nueva.
+async function buscarAfectacionEquivalente(
+  client: EjecutorSql,
+  corteId: number,
+  candidatas: Afectacion[],
+  entrada: {
+    motivo: string
+    severidad: Severidad
+    descripcion?: string | null
+    secciones: number[]
+    alumnos?: number[]
+  },
+  categoria: CategoriaAfectacion,
+): Promise<Afectacion | undefined> {
+  const posibles = candidatas.filter((existente) =>
+    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria),
+  )
+  if (posibles.length === 0) return undefined
+  const esperadas = await seccionesEsperadas(client, corteId, entrada.secciones, entrada.alumnos)
+  return posibles.find((existente) => seccionesCoincidenConEsperadas(existente, esperadas))
+}
+
+// Campo hermano opcional a nivel raíz del mismo body de POST (batch E1). Vive
+// SEPARADO de parteActualizacionInputSchema para no tocar el contrato del
+// parte: si viene con forma inválida se ignora en silencio, nunca es un 400.
+const verificacionVinculoSchema = z
+  .object({
+    id: z.string().trim().min(1),
+    token: z.string().trim().min(1),
+  })
+  .optional()
+
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const cue = normalizeCue(searchParams.get('cue') ?? '')
   if (!cue) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
   }
 
-  const db = getDb()
-  const client = db.$client
+  // El CUE tiene que conocerse ANTES de la guarda para poder validar la
+  // sesión acotada por CUE del batch E1; quien ya tenía contraseña/sesión
+  // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
+  // prueba esa vía primero.
+  if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  await ensureSeeded()
+
+  const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
@@ -81,10 +192,7 @@ export async function GET(request: Request) {
   if (!ficha) {
     // Sin período vigente: no es un error, es "sin situación en seguimiento"
     // (spec §17).
-    return Response.json(
-      { ok: true, periodo: null, parte: null, mensaje: MENSAJE_SIN_SITUACION },
-      { status: 200, headers: CACHE_HEADERS },
-    )
+    return jsonNoStore({ ok: true, periodo: null, parte: null, mensaje: MENSAJE_SIN_SITUACION })
   }
 
   // La ficha compartida (armarFichaParte) no resuelve nombres — ver
@@ -130,7 +238,7 @@ export async function GET(request: Request) {
     totales: afectacion.totales,
   }))
 
-  return Response.json(
+  return jsonNoStore(
     {
       ok: true,
       periodo: ficha.periodo,
@@ -140,7 +248,6 @@ export async function GET(request: Request) {
       secciones: ficha.secciones,
       ultimaActualizacion: ficha.ultimaActualizacion,
     },
-    { status: 200, headers: CACHE_HEADERS },
   )
 }
 
@@ -156,6 +263,7 @@ async function respuestaExito(
   tipo: TipoMovimiento,
   resumen: DiffParte,
   status: number,
+  verificacionVinculo?: { id: string; token: string },
 ) {
   const actual = await obtenerParteActual(cueAnexo, corteId)
   const snapshot: Pick<ParteActual, 'secciones'> & { servicioAlcance: ReturnType<typeof snapshotDesde>['servicioAlcance'] } =
@@ -163,6 +271,11 @@ async function respuestaExito(
       ? { secciones: actual.secciones, servicioAlcance: snapshotDesde(actual).servicioAlcance }
       : { secciones: [], servicioAlcance: [] }
   const estadoGeneral = calcularEstadoServicioGeneral(snapshot.servicioAlcance, snapshot.secciones)
+
+  // Best-effort, igual que en el camino de transacción nueva: un replay
+  // idempotente o la carrera de idempotencia también pueden traer el vínculo
+  // de verificación (batch E1), y nunca deben bloquear esta respuesta.
+  const { vinculado, motivo } = await intentarVincularVerificacion(verificacionVinculo, movimientoId)
 
   return Response.json(
     {
@@ -172,16 +285,44 @@ async function respuestaExito(
       tipo,
       cambios: describirMovimiento(resumen, { tipo }),
       servicio: { estadoGeneral, alcanceVigente: snapshot.servicioAlcance },
+      verificacionVinculada: vinculado,
+      ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
     },
     { status },
   )
 }
 
-export async function POST(request: Request) {
-  if (!(await tieneAccesoAlParte(request))) {
-    return Response.json({ error: 'No autorizado' }, { status: 401 })
+// Best-effort: enlazar el movimiento con la verificación de origen NUNCA
+// bloquea la respuesta del parte. Cualquier motivo de rechazo de
+// responderPorEnlace (credencial inválida/vencida/revocada, contradicción,
+// etc.) se informa en el campo `verificacionVinculada` de la respuesta para
+// que la UI pueda mostrar una advertencia si corresponde. Cuando el intento
+// falla, además se deja un evento de auditoría append-only
+// (`vinculo_fallido`) visible para el operador, y el motivo viaja en
+// `verificacionVinculoMotivo` (sólo presente cuando hay un motivo).
+async function intentarVincularVerificacion(
+  vinculo: { id: string; token: string } | undefined,
+  movimientoId: string,
+): Promise<{ vinculado: boolean; motivo?: string }> {
+  if (!vinculo) return { vinculado: false }
+  try {
+    const resultado = await responderPorEnlace({
+      verificacionId: vinculo.id,
+      token: vinculo.token,
+      resultado: 'con_afectacion',
+      movimientoId,
+    })
+    if (resultado.ok) return { vinculado: true }
+    await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo: resultado.motivo })
+    return { vinculado: false, motivo: resultado.motivo }
+  } catch (err) {
+    const motivo = err instanceof Error ? err.message : 'error_interno'
+    await registrarIntentoVinculoFallido({ verificacionId: vinculo.id, motivo })
+    return { vinculado: false, motivo }
   }
+}
 
+export async function POST(request: Request) {
   await ensureSeeded()
 
   const ip = getClientIp(request)
@@ -196,6 +337,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
 
+  // Enlace opcional con la verificación de origen (batch E1). Se extrae del
+  // body crudo, aparte de parseParteActualizacionInput: es un campo hermano y
+  // best-effort, una forma inválida se ignora en silencio en vez de dar 400.
+  const verificacionRaw =
+    body && typeof body === 'object' && 'verificacion' in body
+      ? (body as { verificacion?: unknown }).verificacion
+      : undefined
+  const verificacionParsed = verificacionVinculoSchema.safeParse(verificacionRaw)
+  const verificacionVinculo = verificacionParsed.success ? verificacionParsed.data : undefined
+
   const parsed = parseParteActualizacionInput(body)
   if (!parsed.ok) {
     return Response.json({ error: parsed.error }, { status: 400 })
@@ -207,8 +358,24 @@ export async function POST(request: Request) {
     return Response.json({ error: 'CUE inválido' }, { status: 400 })
   }
 
+  // La guarda va después de parsear el body y normalizar el CUE por la misma
+  // razón que en GET: el CUE tiene que conocerse ANTES para poder validar la
+  // sesión acotada por CUE del batch E1; quien ya tenía contraseña/sesión
+  // admin entra exactamente igual que antes porque tieneAccesoAlParteParaCue
+  // prueba esa vía primero.
+  //
+  // CONSECUENCIA DE SEGURIDAD EXPLÍCITA: un llamador sin ninguna credencial
+  // ahora recibe 400 de validación de body/CUE ANTES que 401 de autorización
+  // (antes era al revés). Esto no debilita el control de acceso real —nadie
+  // sin credencial válida logra escribir nada, la guarda sigue siendo la
+  // última puerta antes de cualquier escritura—, sólo cambia qué mensaje de
+  // error ve primero un llamador no autenticado.
+  if (!(await tieneAccesoAlParteParaCue(request, cue.value))) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   const db = getDb()
-  const client = db.$client
+  const client = crearEjecutorSql(getRawClient())
 
   // Idempotencia: antes de cualquier escritura. Deliberadamente NO se aplica
   // CUE_MAX_ALERTAS_ACTIVAS acá (ver docs/trayectoria-contrato-implementacion.md
@@ -240,6 +407,7 @@ export async function POST(request: Request) {
       movimientoExistente.tipo as TipoMovimiento,
       movimientoExistente.resumen as unknown as DiffParte,
       200,
+      verificacionVinculo,
     )
   }
 
@@ -274,34 +442,22 @@ export async function POST(request: Request) {
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (seccionInvalida(entrada.secciones)) {
-      return Response.json(
-        { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-        { status: 400 },
-      )
+      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
   }
   for (const modificacion of input.afectacionesModificadas) {
     if (modificacion.secciones && seccionInvalida(modificacion.secciones)) {
-      return Response.json(
-        { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-        { status: 400 },
-      )
+      return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
     }
   }
   if (input.servicioEducativo?.alcance.tipo === 'seccion' && seccionInvalida(input.servicioEducativo.alcance.secciones)) {
-    return Response.json(
-      { error: 'Alguna de las secciones no pertenece al establecimiento indicado' },
-      { status: 400 },
-    )
+    return jsonError('Alguna de las secciones no pertenece al establecimiento indicado', 400)
   }
   if (
     input.servicioEducativo?.alcance.tipo === 'turno' &&
     input.servicioEducativo.alcance.turnos.some((t) => !turnosCueSet.has(t))
   ) {
-    return Response.json(
-      { error: 'Alguno de los turnos no pertenece al establecimiento indicado' },
-      { status: 400 },
-    )
+    return jsonError('Alguno de los turnos no pertenece al establecimiento indicado', 400)
   }
 
   async function alumnosPertenecenASecciones(geSectionIds: number[], alumnoIds: number[] | undefined) {
@@ -315,10 +471,7 @@ export async function POST(request: Request) {
 
   for (const { input: entrada } of nuevasConCategoria) {
     if (!(await alumnosPertenecenASecciones(entrada.secciones, entrada.alumnos))) {
-      return Response.json(
-        { error: 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas' },
-        { status: 400 },
-      )
+      return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
     }
   }
 
@@ -334,10 +487,7 @@ export async function POST(request: Request) {
   ]
   if (idsReferenciados.length > 0) {
     if (!parteExistente) {
-      return Response.json(
-        { error: 'La afectación indicada no existe en el parte actual' },
-        { status: 400 },
-      )
+      return jsonError('La afectación indicada no existe en el parte actual', 400)
     }
     const existentes = await db
       .select()
@@ -347,10 +497,7 @@ export async function POST(request: Request) {
     for (const id of idsReferenciados) {
       const fila = existentesPorId.get(id)
       if (!fila || fila.retiradaEn !== null) {
-        return Response.json(
-          { error: 'La afectación indicada no existe o ya fue retirada' },
-          { status: 400 },
-        )
+        return jsonError('La afectación indicada no existe o ya fue retirada', 400)
       }
     }
 
@@ -365,35 +512,52 @@ export async function POST(request: Request) {
         seccionesEfectivas = actuales.map((s) => s.geSectionId)
       }
       if (!(await alumnosPertenecenASecciones(seccionesEfectivas, modificacion.alumnos))) {
-        return Response.json(
-          { error: 'Alguno de los alumnos seleccionados no pertenece a las secciones indicadas' },
-          { status: 400 },
-        )
+        return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
       }
     }
   }
 
-  // --- Fotografía "antes" (spec §12: referencia = rigeDesde del envío) ---
-
-  const actualAntes: ParteActual = parteExistente
-    ? {
-        periodo,
-        parte: { ...parteExistente, estadoEstablecimiento: parteExistente.estadoEstablecimiento as EstadoEstablecimiento },
-        ...(await obtenerAfectacionesYServicio(db, client, parteExistente.id, corteId)),
-        secciones,
-      }
-    : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
-  const antes = snapshotDesde(actualAntes, input.rigeDesde)
-
   const ahora = new Date().toISOString()
-  const esNuevoParte = !parteExistente
-  let resultado: { status: number; body: unknown }
+  // Definite assignment: cada iteración del loop de reintentos de más abajo
+  // o bien asigna `resultado` y hace `break`, o bien `return`-ea antes de
+  // salir del bloque — TypeScript no puede seguir esa garantía a través del
+  // `for` + `break`.
+  let resultado!: { status: number; body: unknown }
 
+  // Transacción real de Postgres vía db.transaction() de Drizzle
+  // (drizzle-orm/node-postgres, o drizzle-orm/pglite en tests): a diferencia
+  // del driver de libsql, acá db.transaction() abre un BEGIN real sobre una
+  // única conexión reservada del pool y hace COMMIT/ROLLBACK automáticamente.
+  // Ese es justamente el comportamiento que el workaround manual con BEGIN
+  // IMMEDIATE de SQLite intentaba conseguir; en Postgres el problema que lo
+  // forzaba no existe, así que se usa la transacción nativa de Drizzle (mismo
+  // query builder `tx`) y se elimina la ventana de carrera que motivaba el
+  // BEGIN IMMEDIATE.
+  //
+  // Todo el bloque sigue viviendo dentro de un reintento manual
+  // (lib/db/reintento.ts#conReintentoPorBloqueo): si esta request pierde la
+  // carrera por el lock de escritura contra otra, se entera y reintenta el
+  // bloque COMPLETO tras una espera corta con jitter, releyendo el estado
+  // real dentro de la nueva transacción — nunca sólo el BEGIN, porque toda la
+  // lógica de "¿existe ya el parte?" de más abajo depende de ese estado
+  // fresco. Cada reintento vuelve a llamar a db.transaction() de cero, con
+  // una conexión y un BEGIN nuevos.
   try {
-    resultado = await db.transaction(async (tx) => {
+    resultado = await conReintentoPorBloqueo(async () => {
+      return await db.transaction(async (tx) => {
+      // Ejecutor de GE ligado a la MISMA conexión que sostiene esta
+      // transacción. Nunca se usa `client` (el pool/raw separado) dentro del
+      // callback: bajo PGlite, emitir una query por el cliente raw mientras la
+      // transacción tiene la única sesión ocupada esperando el COMMIT produce
+      // un deadlock real (la query raw queda encolada detrás del COMMIT y la
+      // transacción no puede cerrar hasta que el callback —que espera esa
+      // query— termine). Ver crearEjecutorSql en ge-db.ts.
+      const clienteGeEnTx = crearEjecutorSql(tx)
       let parteId: string
+      let esNuevoParte: boolean
       if (parteExistente) {
         parteId = parteExistente.id
+        esNuevoParte = false
       } else {
         const nuevoId = crypto.randomUUID()
         await tx
@@ -409,8 +573,8 @@ export async function POST(request: Request) {
             actualizadaEn: ahora,
           })
           // Carrera en (cue_anexo, periodo_id): si otra request ya creó el
-          // parte, no hace falta el regex-catch de la ruta de problemáticas
-          // porque este insert simplemente no hace nada y releemos abajo.
+          // parte mientras ésta esperaba el lock de escritura, este insert
+          // simplemente no hace nada y releemos abajo.
           .onConflictDoNothing()
         const [fila] = await tx
           .select({ id: infraParte.id })
@@ -419,9 +583,45 @@ export async function POST(request: Request) {
           .limit(1)
         if (!fila) throw new Error('No se pudo crear ni leer el parte')
         parteId = fila.id
+        // Si `fila.id` no es el id que generamos, otra transacción ganó la
+        // carrera del alta y ya creó el parte: esta request pasa a tratarse
+        // como una actualización, no como un segundo "reporte_inicial" del
+        // mismo parte (riesgo residual de E1b).
+        esNuevoParte = fila.id === nuevoId
       }
 
+      // --- Fotografía "antes" (spec §12), releída DENTRO de la transacción
+      // con el lock de escritura ya tomado — nunca la `parteExistente` de
+      // más arriba, que pudo quedar desactualizada por la misma carrera.
+      const [parteFilaActual] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
+      const { afectaciones: afectacionesActuales, servicioAlcance: servicioAlcanceActual } =
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
+      const actualAntesReal: ParteActual = parteFilaActual
+        ? {
+            periodo,
+            parte: { ...parteFilaActual, estadoEstablecimiento: parteFilaActual.estadoEstablecimiento as EstadoEstablecimiento },
+            afectaciones: afectacionesActuales,
+            servicioAlcance: servicioAlcanceActual,
+            secciones,
+          }
+        : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
+      const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
+      const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
+
       for (const { input: entrada, categoria } of nuevasConCategoria) {
+        // Nunca duplicar una afectación que otro dispositivo ya insertó para
+        // el mismo evento (misma carrera de alta cross-device): si el
+        // contenido coincide exactamente con una ya vigente, esta entrada es
+        // un no-op.
+        const equivalente = await buscarAfectacionEquivalente(
+          clienteGeEnTx,
+          corteId,
+          afectacionesVigentesActuales,
+          entrada,
+          categoria,
+        )
+        if (equivalente) continue
+
         const id = crypto.randomUUID()
         await tx.insert(infraAfectacion).values({
           id,
@@ -535,7 +735,7 @@ export async function POST(request: Request) {
       // Fotografía "después", dentro de la misma transacción: si el diff
       // resulta vacío hay que poder revertir todo lo anterior.
       const { afectaciones: afectacionesDespues, servicioAlcance: servicioAlcanceDespues } =
-        await obtenerAfectacionesYServicio(tx, client, parteId, corteId)
+        await obtenerAfectacionesYServicio(tx, clienteGeEnTx, parteId, corteId)
       const [parteDespues] = await tx.select().from(infraParte).where(eq(infraParte.id, parteId)).limit(1)
       const despues = snapshotDesde(
         {
@@ -552,8 +752,9 @@ export async function POST(request: Request) {
 
       const diff = diffParte(antes, despues)
       if (esDiffVacio(diff)) {
-        // Revierte todo lo escrito en este callback: Drizzle hace ROLLBACK
-        // cuando el callback de transaction() lanza.
+        // Revierte todo lo escrito en la transacción: al lanzar desde el
+        // callback, db.transaction() hace ROLLBACK real y relanza este mismo
+        // error, que el catch de más abajo reconoce.
         throw new RollbackDiffVacio()
       }
 
@@ -582,16 +783,39 @@ export async function POST(request: Request) {
           servicio: { estadoGeneral, alcanceVigente: despues.servicioAlcance },
         },
       }
+      })
     })
   } catch (err) {
     if (err instanceof RollbackDiffVacio) {
-      return Response.json(
-        { error: 'Todavía no realizó cambios en el parte actual' },
-        { status: 409 },
-      )
+      return jsonError('Todavía no realizó cambios en el parte actual', 409)
     }
+    // Violación del constraint único de idempotency_key. En SQLite (driver
+    // libsql, fallback para entornos que aún no migraron) el texto es
+    // "UNIQUE constraint failed: infra_movimiento.idempotency_key", envuelto
+    // por drizzle-orm en DrizzleQueryError — según la versión el texto puede
+    // caer en `err.message` o en `err.cause.message`, así que se revisan
+    // ambos. En Postgres el error trae `code === '23505'` y el nombre de la
+    // constraint (o el mensaje "duplicate key value violates unique
+    // constraint ...") menciona la columna; `code`/`constraint` pueden venir
+    // en el error envuelto por Drizzle, dentro de `err.cause`.
     const msg = err instanceof Error ? err.message : String(err)
-    if (/UNIQUE constraint failed.*idempotency_key/i.test(msg)) {
+    const causaMsg =
+      err instanceof Error && err.cause instanceof Error ? err.cause.message : ''
+    const causa = (err as { cause?: unknown }).cause
+    const errCode =
+      (err as { code?: string }).code ??
+      (causa && typeof causa === 'object' ? (causa as { code?: string }).code : undefined)
+    const constraint =
+      (err as { constraint?: string }).constraint ??
+      (causa && typeof causa === 'object' ? (causa as { constraint?: string }).constraint : undefined) ??
+      ''
+    const duplicadoIdempotencyKeyPostgres =
+      errCode === '23505' && /idempotency_key/i.test(`${msg} ${causaMsg} ${constraint}`)
+    if (
+      /UNIQUE constraint failed.*idempotency_key/i.test(msg) ||
+      /UNIQUE constraint failed.*idempotency_key/i.test(causaMsg) ||
+      duplicadoIdempotencyKeyPostgres
+    ) {
       // Carrera: otra request con la misma idempotencyKey ganó mientras se
       // procesaba ésta. Se responde como si fuera un replay, releyendo el
       // movimiento que sí se escribió.
@@ -609,11 +833,28 @@ export async function POST(request: Request) {
           race.tipo as TipoMovimiento,
           race.resumen as unknown as DiffParte,
           200,
+          verificacionVinculo,
         )
       }
     }
     return Response.json({ error: 'No se pudo guardar la actualización' }, { status: 500 })
   }
 
-  return Response.json(resultado.body, { status: resultado.status })
+  // Único punto de retorno final de POST (éxito de la transacción): acá se
+  // enlaza el movimiento con la verificación de origen, best-effort. Si no
+  // vino `verificacion`, `verificacionVinculada` es false (no undefined) para
+  // que la forma de la respuesta sea siempre la misma.
+  const bodyResultado = resultado.body as { movimientoId: string } & Record<string, unknown>
+  const { vinculado, motivo } = await intentarVincularVerificacion(
+    verificacionVinculo,
+    bodyResultado.movimientoId,
+  )
+  return Response.json(
+    {
+      ...bodyResultado,
+      verificacionVinculada: vinculado,
+      ...(motivo ? { verificacionVinculoMotivo: motivo } : {}),
+    },
+    { status: resultado.status },
+  )
 }

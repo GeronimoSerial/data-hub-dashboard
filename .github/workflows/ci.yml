@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  lint-typecheck-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,5 +35,30 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
-      - name: Test
-        run: pnpm test
+      - name: Build
+        run: pnpm build
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test shard ${{ matrix.shard }}/4
+        run: pnpm exec vitest run --maxWorkers=1 --hookTimeout=30000 --testTimeout=30000 --shard=${{ matrix.shard }}/4

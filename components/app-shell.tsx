@@ -249,9 +249,11 @@ function ScrollManager({ pathname, scrollerRef }: { pathname: string; scrollerRe
 export function AppShell({
   children,
   initialUser,
+  situacionEnabled = false,
 }: {
   children: React.ReactNode
   initialUser: ShellUser | null
+  situacionEnabled?: boolean
 }) {
   const { mode, setMode } = useThemeMode()
   const router = useRouter()
@@ -349,7 +351,10 @@ export function AppShell({
                   {sessionUser ? (
                     <>
                       {isStaff(role) ? (
-                        <MenuItem onClick={() => router.push('/admin')}>Administración</MenuItem>
+                        <>
+                          <MenuItem onClick={() => router.push('/admin')}>Administración</MenuItem>
+                          {situacionEnabled ? <MenuItem onClick={() => router.push('/situacion')}>Centro de Situación</MenuItem> : null}
+                        </>
                       ) : null}
                       <MenuItem onClick={signOut}>Cerrar sesión</MenuItem>
                     </>

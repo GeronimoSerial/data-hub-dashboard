@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDb } from '@/lib/db'
+import { getDb, getRawClient } from '@/lib/db'
 import { infraAfectacion, infraAfectacionSeccion, infraParte } from '@/lib/db/schema'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { importarIdentidad } from '@/lib/infraestructura/identidad'
 import { otorgarPermisoNominal } from '@/lib/infraestructura/permiso-nominal'
 import { getSessionUser } from '@/lib/session'
@@ -28,23 +28,19 @@ beforeAll(async () => {
   prevKey = process.env.NOMINAL_ENCRYPTION_KEY
   process.env.NOMINAL_ENCRYPTION_KEY = randomBytes(32).toString('base64')
 
-  const ge = openGeDb()
-  try {
-    await ensureGeSchema(ge)
-    await ge.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
-    )
-    await ge.execute(
-      `INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
-    )
-    await ge.execute({
-      sql: 'INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, ?)',
-      args: [7],
-    })
-    await importarIdentidad(ge, 7, 'Facundo', 'Quiroga')
-  } finally {
-    ge.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
+  )
+  await client.execute(
+    `INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '${CUE}', '1', 'A', 'PRIMARIA', 'MAÑANA')`,
+  )
+  await client.execute({
+    sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, ?)',
+    args: [7],
+  })
+  await importarIdentidad(client, 7, 'Facundo', 'Quiroga')
 
   const { ensureSeeded, PERIODO_ENOS_2026_2027_ID } = await import('@/lib/db/seed')
   await ensureSeeded()
@@ -96,8 +92,7 @@ function req(afectacion = afectacionId) {
 }
 
 async function contarLogsDe(userId: string): Promise<number> {
-  const db = getDb()
-  const res = await db.$client.execute({
+  const res = await crearEjecutorSql(getRawClient()).execute({
     sql: 'SELECT id FROM infra_acceso_nominal_log WHERE user_id = ?',
     args: [userId],
   })

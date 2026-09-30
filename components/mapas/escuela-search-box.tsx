@@ -1,22 +1,22 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useDeferredValue, useMemo, useState } from 'react'
 import { Combobox } from '@base-ui/react/combobox'
-import type { Feature, FeatureCollection, Point } from 'geojson'
-import { buscarEscuelas, normalizarTextoBusqueda, type EscuelaProperties } from '@/lib/mapas/natalidad'
+import { buscarEscuelas, normalizarTextoBusqueda, type EscuelaBuscable } from '@/lib/mapas/buscar-escuelas'
 
-type EscuelaFeature = Feature<Point, EscuelaProperties>
-
-interface EscuelaSearchBoxProps {
-  escuelas: FeatureCollection<Point, EscuelaProperties>
-  onSeleccionar: (feature: EscuelaFeature) => void
+export interface EscuelaSearchBoxProps<T extends EscuelaBuscable> {
+  /** El padrón COMPLETO de escuelas (no sólo las pintadas en el mapa). */
+  escuelas: T[]
+  onSeleccionar: (item: T) => void
+  /** Placeholder del input. */
+  placeholder?: string
 }
 
 /** Resalta la subcadena que matcheó la búsqueda dentro de `texto` (insensible a
     mayúsculas/acentos — misma normalización que usa buscarEscuelas para rankear,
     así que "resalta lo que de verdad matcheó"). Sin match visible (p.ej. la
-    query matcheó por localidad/departamento pero no aparece en este campo)
-    devuelve el texto sin marcar. */
+    query matcheó por departamento pero no aparece en este campo) devuelve el
+    texto sin marcar. Detalle de presentación, local a este archivo. */
 function resaltarCoincidencia(texto: string, query: string) {
   const normalizadoTexto = normalizarTextoBusqueda(texto)
   const normalizadoQuery = normalizarTextoBusqueda(query)
@@ -29,54 +29,53 @@ function resaltarCoincidencia(texto: string, query: string) {
   return (
     <>
       {texto.slice(0, indice)}
-      <mark className="natalidad-buscador-match">{texto.slice(indice, fin)}</mark>
+      <mark className="mapa-buscador-escuela-match">{texto.slice(indice, fin)}</mark>
       {texto.slice(fin)}
     </>
   )
 }
 
 /**
- * Buscador de escuelas (T10, feedback 2026-09-25 "se ven pésimos" — antes era
- * una lista inline dentro del panel de título, con filas centradas/alineadas
- * sin criterio y sin jerarquía visual). Ahora es un combobox accesible con
- * resultados en un popover flotante anclado al input, mismo lenguaje visual
- * que components/ui/select (Base UI): superficie, borde, radio y sombra por
- * tokens de tema (ver .ui-select-popup/.ui-select-item en globals.css), con
- * scroll propio a partir de ~6 filas visibles.
+ * Buscador genérico de escuelas sobre un padrón plano que cumpla EscuelaBuscable.
  *
- * Se usa @base-ui/react/combobox en vez de reimplementar el manejo de
- * teclado/aria a mano (como hacía la versión anterior con un <ul role="listbox">
- * casero): el primitivo ya resuelve role=combobox/listbox/option,
- * aria-activedescendant, ↑/↓/Enter/Escape y cierre al click afuera.
+ * Es un combobox accesible (Base UI) con resultados en un popover flotante
+ * anclado al input, mismo lenguaje visual que components/ui/select. El ranking
+ * (buscarEscuelas) ya viene ordenado, así que se pasa `filter={null}` para que
+ * el combobox no vuelva a filtrar por su cuenta.
  *
- * El ranking (buscarEscuelas, lib/mapas/natalidad.ts) ya viene ordenado, así
- * que se pasa `filter={null}` para que el combobox no vuelva a filtrar por su
- * cuenta — sólo se le pasan los resultados ya calculados.
+ * El popover se controla a mano: por debajo de 2 caracteres no se abre (ni
+ * siquiera el estado "sin resultados"), y Escape/click afuera lo cierran sin
+ * borrar lo escrito. Al seleccionar un item se limpia el input.
  */
-export function EscuelaSearchBox({ escuelas, onSeleccionar }: EscuelaSearchBoxProps) {
+export function EscuelaSearchBox<T extends EscuelaBuscable>({
+  escuelas,
+  onSeleccionar,
+  placeholder = 'Nombre, CUE, localidad o departamento…',
+}: EscuelaSearchBoxProps<T>) {
   const [query, setQuery] = useState('')
-  // Popover controlado a mano (en vez de dejar que el combobox decida cuándo
-  // abrir): "mínimo 2 caracteres" tiene que significar que ni siquiera se
-  // muestra el popover (ni el estado "sin resultados") por debajo de eso, y
-  // Escape/click afuera tienen que poder cerrarlo sin borrar lo escrito.
   const [cerradoManualmente, setCerradoManualmente] = useState(false)
 
   const queryRecortada = query.trim()
-  const resultados = useMemo(() => buscarEscuelas(escuelas, query, 8), [escuelas, query])
+  const queryDiferida = useDeferredValue(query)
+  const resultados = useMemo(() => buscarEscuelas(escuelas, queryDiferida, 8), [escuelas, queryDiferida])
   const abierto = queryRecortada.length >= 2 && !cerradoManualmente
 
-  function seleccionar(feature: EscuelaFeature | null) {
-    if (!feature) return
-    onSeleccionar(feature)
+  function seleccionar(item: T | null) {
+    if (!item) return
+    onSeleccionar(item)
   }
 
   return (
-    <div className="map-filtro-campo natalidad-buscador">
+    <div className="map-filtro-campo mapa-buscador-escuela">
       <span className="map-filtro-label">Buscar escuela</span>
-      <Combobox.Root<EscuelaFeature>
+      <Combobox.Root<T>
         items={resultados}
-        itemToStringLabel={(feature) => feature.properties.nombre}
+        itemToStringLabel={(item) => item.nombre}
         filter={null}
+        // Input controlado: al seleccionar, el combobox rellena el input con el
+        // label del item (fillInputOnItemPress); como el query vive en este
+        // estado, vaciarlo en 'item-press' limpia de verdad el campo.
+        inputValue={query}
         open={abierto}
         onOpenChange={(next) => {
           if (!next) setCerradoManualmente(true)
@@ -85,11 +84,14 @@ export function EscuelaSearchBox({ escuelas, onSeleccionar }: EscuelaSearchBoxPr
         onInputValueChange={(next, eventDetails) => {
           // El combobox por defecto rellena el input con el nombre elegido al
           // seleccionar (fillInputOnItemPress): acá se descarta ese relleno y
-          // se limpia la búsqueda, que es el comportamiento que ya tenía este
-          // buscador (seleccionar vacía el campo).
+          // se limpia la búsqueda (seleccionar vacía el campo).
           if (eventDetails.reason === 'item-press') {
             setQuery('')
-          } else {
+            // El relleno se dispara dos veces: primero con 'item-press' (el
+            // evento real de selección) y después con 'none' (sync del label
+            // seleccionado). Ignorar 'none' evita que repueble el input que
+            // acabamos de vaciar.
+          } else if (eventDetails.reason !== 'none') {
             setQuery(next)
           }
           setCerradoManualmente(false)
@@ -97,28 +99,28 @@ export function EscuelaSearchBox({ escuelas, onSeleccionar }: EscuelaSearchBoxPr
       >
         <Combobox.Input
           className="ui-input map-filtro-input"
-          placeholder="Nombre, CUE o localidad…"
-          aria-label="Buscar escuela por nombre, CUE-anexo o localidad"
+          placeholder={placeholder}
+          aria-label="Buscar escuela por nombre, CUE-anexo, localidad o departamento"
         />
         <Combobox.Portal>
-          <Combobox.Positioner className="natalidad-buscador-positioner" sideOffset={6} align="start">
-            <Combobox.Popup className="natalidad-buscador-popup">
-              <Combobox.Empty className="natalidad-buscador-vacio">
+          <Combobox.Positioner className="mapa-buscador-escuela-positioner" sideOffset={6} align="start">
+            <Combobox.Popup className="mapa-buscador-escuela-popup">
+              <Combobox.Empty className="mapa-buscador-escuela-vacio">
                 {queryRecortada.length >= 2 ? `Sin resultados para "${queryRecortada}"` : null}
               </Combobox.Empty>
-              <Combobox.List className="natalidad-buscador-lista">
-                {(feature: EscuelaFeature) => (
+              <Combobox.List className="mapa-buscador-escuela-lista">
+                {(item: T) => (
                   <Combobox.Item
-                    key={feature.properties.cueAnexo}
-                    value={feature}
-                    className="natalidad-buscador-item"
+                    key={item.cueAnexo}
+                    value={item}
+                    className="mapa-buscador-escuela-item"
                   >
-                    <span className="natalidad-buscador-nombre">
-                      {resaltarCoincidencia(feature.properties.nombre, queryRecortada)}
+                    <span className="mapa-buscador-escuela-nombre">
+                      {resaltarCoincidencia(item.nombre, queryRecortada)}
                     </span>
-                    <span className="natalidad-buscador-meta">
-                      {resaltarCoincidencia(feature.properties.cueAnexo, queryRecortada)} ·{' '}
-                      {feature.properties.localidad} · {feature.properties.departamento}
+                    <span className="mapa-buscador-escuela-meta">
+                      {resaltarCoincidencia(item.cueAnexo, queryRecortada)} · {item.localidad} ·{' '}
+                      {item.departamento}
                     </span>
                   </Combobox.Item>
                 )}

@@ -1,51 +1,43 @@
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import path from 'node:path'
 import { count, eq } from 'drizzle-orm'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { getDb } from './index'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
+import { crearEjecutorSql } from '@/lib/infraestructura/ge-db'
+import { getDb, getRawClient, migrarDb } from './index'
 import {
   categorias,
   infraAfectacion,
+  infraJobRun,
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
+  infraVerificacion,
+  infraVerificacionEvento,
   niveles,
   recursos,
   tags,
   tipos,
 } from './schema'
 
-let dir: string
-let prevDataDir: string | undefined
+usarDbTemporal('seed-ddl-', { seed: false })
 
-// Una sola base para todo el archivo: getDb() memoiza la conexión a nivel de
-// módulo, así que crear un directorio nuevo por test dejaría al segundo test
-// escribiendo contra un archivo que el primero ya borró.
 beforeAll(async () => {
-  dir = mkdtempSync(path.join(tmpdir(), 'seed-ddl-'))
-  prevDataDir = process.env.DATA_DIR
-  process.env.DATA_DIR = dir
-
   const { ensureSeeded } = await import('./seed')
   await ensureSeeded()
 })
 
-afterAll(() => {
-  if (prevDataDir === undefined) delete process.env.DATA_DIR
-  else process.env.DATA_DIR = prevDataDir
-  rmSync(dir, { recursive: true, force: true })
-})
-
-// Deuda heredada de B3: el DDL corre sobre una base ya poblada en cada
-// arranque (ensureSeeded), y cada batch que agrega tablas nuevas al HUB_DDL
-// corre el mismo riesgo de romper esa garantía sin que ningún test lo note.
-// Este es el test de regresión que faltaba: puebla la base, aplica el DDL
-// completo dos veces más sobre ella, y verifica que ni una fila se pierde ni
-// se duplica.
-describe('HUB_DDL sobre una base ya poblada', () => {
+// Una sola base para todo el archivo: getDb() memoiza la conexión a nivel de
+// módulo, así que crear un directorio nuevo por test dejaría al segundo test
+// escribiendo contra un archivo que el primero ya borró.
+// Deuda heredada de B3: las migraciones versionadas de drizzle-kit corren
+// sobre una base ya poblada en cada arranque (ensureSeeded), y cada migración
+// nueva que agrega tablas corre el mismo riesgo de romper esa garantía sin que
+// ningún test lo note. Este es el test de regresión que faltaba: puebla la
+// base, reaplica las migraciones dos veces más sobre ella, y verifica que ni
+// una fila se pierde ni se duplica. `migrarDb()` es idempotente (drizzle lleva
+// su propia tabla de migraciones aplicadas y no reejecuta lo ya aplicado), así
+// que reaplicarla no debe cambiar ningún conteo.
+describe('migración inicial sobre una base ya poblada', () => {
   it('no pierde filas y no duplica nada al reaplicarse dos veces', async () => {
-    const { HUB_DDL } = await import('./seed')
     const db = getDb()
 
     const [nivelesAntes] = await db.select({ n: count() }).from(niveles)
@@ -53,57 +45,58 @@ describe('HUB_DDL sobre una base ya poblada', () => {
     const [categoriasAntes] = await db.select({ n: count() }).from(categorias)
     const [tagsAntes] = await db.select({ n: count() }).from(tags)
     const [recursosAntes] = await db.select({ n: count() }).from(recursos)
+    const [infraJobRunAntes] = await db.select({ n: count() }).from(infraJobRun)
 
-    await db.$client.executeMultiple(HUB_DDL)
-    await db.$client.executeMultiple(HUB_DDL)
+    await migrarDb()
+    await migrarDb()
 
     const [nivelesDespues] = await db.select({ n: count() }).from(niveles)
     const [tiposDespues] = await db.select({ n: count() }).from(tipos)
     const [categoriasDespues] = await db.select({ n: count() }).from(categorias)
     const [tagsDespues] = await db.select({ n: count() }).from(tags)
     const [recursosDespues] = await db.select({ n: count() }).from(recursos)
+    const [infraJobRunDespues] = await db.select({ n: count() }).from(infraJobRun)
 
     expect(nivelesDespues.n).toBe(nivelesAntes.n)
     expect(tiposDespues.n).toBe(tiposAntes.n)
     expect(categoriasDespues.n).toBe(categoriasAntes.n)
     expect(tagsDespues.n).toBe(tagsAntes.n)
     expect(recursosDespues.n).toBe(recursosAntes.n)
+    expect(infraJobRunDespues.n).toBe(infraJobRunAntes.n)
     expect(nivelesAntes.n).toBeGreaterThan(0)
   })
 
-  it('preserva filas de las tablas nuevas de B7 (permiso y log nominal) al reaplicarse', async () => {
-    const { HUB_DDL } = await import('./seed')
-    const db = getDb()
+  it('preserva filas de las tablas de permiso y log nominal al reaplicarse', async () => {
+    const ejecutor = crearEjecutorSql(getRawClient())
 
-    await db.$client.execute({
+    await ejecutor.execute({
       sql: `INSERT INTO infra_permiso_nominal (id, user_id, otorgado_por, otorgado_en, vence_en)
             VALUES ('p1', 'u1', 'admin1', '2026-01-01T00:00:00Z', '2026-12-31T00:00:00Z')`,
     })
-    await db.$client.execute({
+    await ejecutor.execute({
       sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, afectacion_id, cantidad, consultado_en)
             VALUES ('l1', 'u1', 'afect1', 3, '2026-01-02T00:00:00Z')`,
     })
 
-    await db.$client.executeMultiple(HUB_DDL)
+    await migrarDb()
 
-    const permisos = await db.$client.execute('SELECT * FROM infra_permiso_nominal')
-    const logs = await db.$client.execute('SELECT * FROM infra_acceso_nominal_log')
+    const permisos = await ejecutor.execute('SELECT * FROM infra_permiso_nominal')
+    const logs = await ejecutor.execute('SELECT * FROM infra_acceso_nominal_log')
     expect(permisos.rows).toHaveLength(1)
     expect(logs.rows).toHaveLength(1)
   })
 
   it('preserva las filas de infra_motivo (semilla y agregados por un admin) al reaplicarse', async () => {
-    const { HUB_DDL } = await import('./seed')
-    const db = getDb()
+    const ejecutor = crearEjecutorSql(getRawClient())
 
-    await db.$client.execute({
+    await ejecutor.execute({
       sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden) VALUES ('propio-admin', 'Corte de ruta', 'establecimiento', 50)`,
     })
 
-    await db.$client.executeMultiple(HUB_DDL)
-    await db.$client.executeMultiple(HUB_DDL)
+    await migrarDb()
+    await migrarDb()
 
-    const motivos = await db.$client.execute('SELECT * FROM infra_motivo')
+    const motivos = await ejecutor.execute('SELECT * FROM infra_motivo')
     expect(motivos.rows.some((r) => r.id === 'propio-admin')).toBe(true)
   })
 })
@@ -113,14 +106,14 @@ describe('ensureMotivoNombreUnico', () => {
   // llamados "Otro". Eso rompe resolverCategoria y además impide crear el
   // índice único, así que el renombre tiene que correr antes.
   it('renombra los comodines heredados y luego impone el nombre único', async () => {
-    const db = getDb()
     const { ensureMotivoNombreUnico, MOTIVOS_SEED } = await import(
       '@/lib/infraestructura/motivos'
     )
+    const ejecutor = crearEjecutorSql(getRawClient())
 
-    await db.$client.execute('DROP INDEX IF EXISTS `infra_motivo_nombre_unico`')
+    await ejecutor.execute('DROP INDEX IF EXISTS infra_motivo_nombre_unico')
     for (const id of ['otro-establecimiento', 'otro-alumnos']) {
-      await db.$client.execute({
+      await ejecutor.execute({
         sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden)
               VALUES (?, 'Otro', 'establecimiento', 90)
               ON CONFLICT(id) DO UPDATE SET nombre = 'Otro'`,
@@ -131,7 +124,7 @@ describe('ensureMotivoNombreUnico', () => {
     await ensureMotivoNombreUnico()
     await ensureMotivoNombreUnico()
 
-    const filas = await db.$client.execute(
+    const filas = await ejecutor.execute(
       "SELECT id, nombre FROM infra_motivo WHERE id IN ('otro-establecimiento', 'otro-alumnos')",
     )
     const porId = new Map(filas.rows.map((r) => [String(r.id), String(r.nombre)]))
@@ -142,12 +135,12 @@ describe('ensureMotivoNombreUnico', () => {
   })
 
   it('la base rechaza dos motivos con el mismo nombre', async () => {
-    const db = getDb()
     const { ensureMotivoNombreUnico } = await import('@/lib/infraestructura/motivos')
+    const ejecutor = crearEjecutorSql(getRawClient())
     await ensureMotivoNombreUnico()
 
     await expect(
-      db.$client.execute({
+      ejecutor.execute({
         sql: `INSERT INTO infra_motivo (id, nombre, categoria, orden)
               VALUES ('duplicado', 'Anegamiento', 'establecimiento', 99)`,
       }),
@@ -158,10 +151,10 @@ describe('ensureMotivoNombreUnico', () => {
 // B1 de la trayectoria hidrometeorológica: modelo de período/parte. Ver
 // docs/especificacion-funcional-trayectoria-evento-hidrometeorologico.md y el
 // CONTRACT.md del batch de esquema.
-describe('modelo de parte: tablas nuevas en HUB_DDL', () => {
-  it('HUB_DDL crea infra_periodo/infra_parte/infra_afectacion y preserva sus filas al reaplicarse', async () => {
-    const { HUB_DDL } = await import('./seed')
+describe('modelo de parte: tablas nuevas en la migración inicial', () => {
+  it('la migración inicial crea infra_periodo/infra_parte/infra_afectacion y preserva sus filas al reaplicarse', async () => {
     const db = getDb()
+    const ejecutor = crearEjecutorSql(getRawClient())
 
     await db.insert(infraPeriodo).values({
       id: 'periodo-ddl-test',
@@ -191,16 +184,16 @@ describe('modelo de parte: tablas nuevas en HUB_DDL', () => {
       creadaEn: '2026-01-01T00:00:00.000Z',
     })
 
-    await db.$client.executeMultiple(HUB_DDL)
-    await db.$client.executeMultiple(HUB_DDL)
+    await migrarDb()
+    await migrarDb()
 
-    const periodos = await db.$client.execute(
+    const periodos = await ejecutor.execute(
       "SELECT * FROM infra_periodo WHERE id = 'periodo-ddl-test'",
     )
-    const partes = await db.$client.execute(
+    const partes = await ejecutor.execute(
       "SELECT * FROM infra_parte WHERE id = 'parte-ddl-test'",
     )
-    const afectaciones = await db.$client.execute(
+    const afectaciones = await ejecutor.execute(
       "SELECT * FROM infra_afectacion WHERE id = 'afectacion-ddl-test'",
     )
     expect(periodos.rows).toHaveLength(1)
@@ -279,7 +272,7 @@ describe('infra_periodo: un solo período vigente a la vez', () => {
       creadaEn: '2024-01-01T00:00:00.000Z',
     })
 
-    const historicos = await db.$client.execute(
+    const historicos = await crearEjecutorSql(getRawClient()).execute(
       "SELECT id FROM infra_periodo WHERE estado = 'historico'",
     )
     expect(historicos.rows.length).toBeGreaterThanOrEqual(2)
@@ -379,99 +372,108 @@ describe('soft delete: retirar no borra la fila', () => {
 // fresca ni en una que ya las tuviera.
 describe('modelo retirado: DROP idempotente de las tres tablas', () => {
   it('no deja infra_problematica, infra_problematica_seccion ni infra_problematica_alumno', async () => {
-    const db = getDb()
-    const tablas = await db.$client.execute(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('infra_problematica', 'infra_problematica_seccion', 'infra_problematica_alumno')",
-    )
+    const ejecutor = crearEjecutorSql(getRawClient())
+    const tablas = await ejecutor.execute({
+      sql: `SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename IN (?, ?, ?)`,
+      args: [
+        'infra_problematica',
+        'infra_problematica_seccion',
+        'infra_problematica_alumno',
+      ],
+    })
     expect(tablas.rows).toHaveLength(0)
   })
 })
 
-describe('ensureAccesoNominalLogAfectacionIdColumn', () => {
-  it('renombra problematica_id a afectacion_id y preserva los datos existentes', async () => {
+// E1 de la trayectoria ENOS: verificaciones. Misma garantía que el resto de
+// la migración inicial: se instala en una base ya poblada y se reaplica sin
+// perder filas.
+describe('modelo de verificaciones: tablas nuevas en la migración inicial', () => {
+  it('la migración inicial crea infra_verificacion/infra_verificacion_evento y preserva sus filas al reaplicarse dos veces', async () => {
     const db = getDb()
-    const { ensureAccesoNominalLogAfectacionIdColumn } = await import('./seed')
+    const ejecutor = crearEjecutorSql(getRawClient())
 
-    // Simula una base creada con el DDL viejo (columna problematica_id):
-    // primero se vuelve atrás para partir del estado pre-migración.
-    await db.$client.execute(
-      'ALTER TABLE infra_acceso_nominal_log RENAME COLUMN afectacion_id TO problematica_id',
+    await db.insert(infraPeriodo).values({
+      id: 'periodo-verificacion-test',
+      nombre: 'Período verificación',
+      inicioEn: '2026-01-01T00:00:00.000Z',
+      finEn: null,
+      estado: 'historico',
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraVerificacion).values({
+      id: 'verificacion-ddl-test',
+      periodoId: 'periodo-verificacion-test',
+      cueAnexo: '1801605-04',
+      estado: 'pendiente',
+      solicitadaEn: '2026-01-01T00:00:00.000Z',
+      solicitadaPorUserId: 'user-1',
+      vencimientoEn: null,
+      resultado: null,
+      discrepancia: false,
+      respondidaEn: null,
+      respondidaCanal: null,
+      respondidaPorUserId: null,
+      movimientoId: null,
+      canceladaEn: null,
+      canceladaPorUserId: null,
+      motivoCancelacion: null,
+      tokenHash: 'a'.repeat(64),
+      tokenExpiraEn: '2026-02-01T00:00:00.000Z',
+      tokenRevocadoEn: null,
+      tokenConsumidoEn: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+      actualizadaEn: '2026-01-01T00:00:00.000Z',
+    })
+    await db.insert(infraVerificacionEvento).values({
+      id: 'evento-ddl-test',
+      verificacionId: 'verificacion-ddl-test',
+      tipo: 'creada',
+      actorTipo: 'sistema',
+      actorUserId: null,
+      canal: null,
+      motivo: null,
+      correlacionId: null,
+      creadaEn: '2026-01-01T00:00:00.000Z',
+    })
+
+    await migrarDb()
+    await migrarDb()
+
+    const verificaciones = await ejecutor.execute(
+      "SELECT * FROM infra_verificacion WHERE id = 'verificacion-ddl-test'",
     )
-    await db.$client.execute({
-      sql: `INSERT INTO infra_acceso_nominal_log (id, user_id, problematica_id, cantidad, consultado_en)
-            VALUES ('migracion-1', 'u1', 'afect-migracion-1', 5, '2026-01-03T00:00:00Z')`,
-    })
-
-    await ensureAccesoNominalLogAfectacionIdColumn()
-    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
-    await ensureAccesoNominalLogAfectacionIdColumn()
-
-    const info = await db.$client.execute("PRAGMA table_info('infra_acceso_nominal_log')")
-    const columnas = info.rows.map((r) => String(r.name))
-    expect(columnas).toContain('afectacion_id')
-    expect(columnas).not.toContain('problematica_id')
-
-    const fila = await db.$client.execute({
-      sql: 'SELECT afectacion_id, cantidad FROM infra_acceso_nominal_log WHERE id = ?',
-      args: ['migracion-1'],
-    })
-    expect(fila.rows[0]?.afectacion_id).toBe('afect-migracion-1')
-    expect(Number(fila.rows[0]?.cantidad)).toBe(5)
+    const eventos = await ejecutor.execute(
+      "SELECT * FROM infra_verificacion_evento WHERE id = 'evento-ddl-test'",
+    )
+    expect(verificaciones.rows).toHaveLength(1)
+    expect(verificaciones.rows[0]?.periodo_id).toBe('periodo-verificacion-test')
+    expect(eventos.rows).toHaveLength(1)
   })
 })
 
 describe('recursos-por-usuario: esquema de datos', () => {
   it('user_recursos existe y user.acceso_recursos por defecto es "todos"', async () => {
-    const db = getDb()
+    const ejecutor = crearEjecutorSql(getRawClient())
 
-    const tablas = await db.$client.execute(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'user_recursos'",
-    )
+    const tablas = await ejecutor.execute({
+      sql: `SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+              AND tablename = ?`,
+      args: ['user_recursos'],
+    })
     expect(tablas.rows).toHaveLength(1)
 
-    const info = await db.$client.execute("PRAGMA table_info('user')")
-    const accesoRecursos = info.rows.find((r) => String(r.name) === 'acceso_recursos')
-    expect(accesoRecursos).toBeDefined()
-    expect(String(accesoRecursos?.dflt_value)).toContain('todos')
-  })
-
-  it('ensureAccesoRecursosColumn es idempotente y agrega la columna a una tabla ya poblada', async () => {
-    const db = getDb()
-    const { ensureAccesoRecursosColumn } = await import('./seed')
-
-    // Simula una base creada antes de recursos-por-usuario (sin la columna):
-    // se recrea la tabla `user` sin acceso_recursos, con una fila existente.
-    await db.$client.executeMultiple(`
-      ALTER TABLE user RENAME TO user_old_sin_acceso_recursos;
-      CREATE TABLE user (
-        id text PRIMARY KEY NOT NULL,
-        name text NOT NULL,
-        email text NOT NULL,
-        email_verified integer DEFAULT 0 NOT NULL,
-        image text,
-        created_at integer NOT NULL,
-        updated_at integer NOT NULL,
-        role text,
-        banned integer DEFAULT 0,
-        ban_reason text,
-        ban_expires integer
-      );
-      INSERT INTO user (id, name, email, email_verified, created_at, updated_at)
-      VALUES ('migracion-usuario-1', 'Usuario Migración', 'migracion@example.com', 1, 0, 0);
-      DROP TABLE user_old_sin_acceso_recursos;
-    `)
-
-    await ensureAccesoRecursosColumn()
-    // Idempotente: correrla de nuevo sobre una base ya migrada no debe fallar.
-    await ensureAccesoRecursosColumn()
-
-    const info = await db.$client.execute("PRAGMA table_info('user')")
-    expect(info.rows.some((r) => String(r.name) === 'acceso_recursos')).toBe(true)
-
-    const fila = await db.$client.execute({
-      sql: 'SELECT acceso_recursos FROM user WHERE id = ?',
-      args: ['migracion-usuario-1'],
+    const columnas = await ejecutor.execute({
+      sql: `SELECT column_default FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = ?
+              AND column_name = ?`,
+      args: ['user', 'acceso_recursos'],
     })
-    expect(fila.rows[0]?.acceso_recursos).toBe('todos')
+    expect(columnas.rows).toHaveLength(1)
+    expect(String(columnas.rows[0]?.column_default)).toContain('todos')
   })
 })

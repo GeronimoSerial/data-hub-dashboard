@@ -1,7 +1,9 @@
+import { getRawClient } from '@/lib/db'
 import { tieneAccesoAlParte } from '@/lib/infraestructura/acceso-parte'
 import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { ensureGeSchema, crearEjecutorSql } from '@/lib/infraestructura/ge-db'
 import { ensureLocalizacionesSeeded } from '@/lib/infraestructura/localizaciones-seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,20 +43,13 @@ export async function GET(request: Request) {
   // sola desde el JSON versionado en una instalacion nueva.
   await ensureLocalizacionesSeeded()
 
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    const resultado = await resolverContextoPorCue(client, cue)
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  const resultado = await resolverContextoPorCue(client, cue)
 
-    if (!resultado.ok) {
-      return Response.json(
-        { error: MENSAJES_ERROR[resultado.error.kind] },
-        { status: STATUS_ERROR[resultado.error.kind] },
-      )
-    }
-
-    return Response.json(resultado.contexto)
-  } finally {
-    client.close()
+  if (!resultado.ok) {
+    return jsonError(MENSAJES_ERROR[resultado.error.kind], STATUS_ERROR[resultado.error.kind])
   }
+
+  return Response.json(resultado.contexto)
 }

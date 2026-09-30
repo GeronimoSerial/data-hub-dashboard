@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { ensureGeSchema, openGeDb } from './ge-db'
+import { ensureGeSchema, crearEjecutorSql } from './ge-db'
+import { getRawClient } from '../db'
 
 interface LocalizacionJson {
   cueAnexo: string
@@ -12,10 +13,10 @@ interface LocalizacionJson {
   geoCalidad: string | null
 }
 
-const UPSERT_SQL = `INSERT INTO ge_localizacion
+const UPSERT_SQL = `INSERT INTO ge.ge_localizacion
     (cue_anexo, cui, nombre, departamento, localidad, lat, lon, geo_calidad)
   VALUES (?,?,?,?,?,?,?,?)
-  ON CONFLICT(cue_anexo) DO UPDATE SET
+  ON CONFLICT (cue_anexo) DO UPDATE SET
     nombre=excluded.nombre, departamento=excluded.departamento,
     localidad=excluded.localidad, lat=excluded.lat, lon=excluded.lon,
     geo_calidad=excluded.geo_calidad`
@@ -35,49 +36,45 @@ const UPSERT_SQL = `INSERT INTO ge_localizacion
  * registros: ninguna fuente del repo lo provee (llega con B8).
  */
 export async function ensureLocalizacionesSeeded(): Promise<void> {
-  const client = openGeDb()
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+
+  const existentes = await client.execute('SELECT COUNT(*) AS n FROM ge.ge_localizacion')
+  if (Number(existentes.rows[0]?.n ?? 0) > 0) return
+
+  const jsonPath = path.join(process.cwd(), 'public', 'data', 'localizaciones.json')
+  let registros: LocalizacionJson[]
   try {
-    await ensureGeSchema(client)
-
-    const existentes = await client.execute('SELECT COUNT(*) AS n FROM ge_localizacion')
-    if (Number(existentes.rows[0]?.n ?? 0) > 0) return
-
-    const jsonPath = path.join(process.cwd(), 'public', 'data', 'localizaciones.json')
-    let registros: LocalizacionJson[]
-    try {
-      registros = JSON.parse(await readFile(jsonPath, 'utf8')) as LocalizacionJson[]
-    } catch {
-      console.warn(
-        '[infraestructura] localizaciones.json no disponible; ge_localizacion queda vacía',
-      )
-      return
-    }
-    if (!Array.isArray(registros) || registros.length === 0) return
-
-    const tx = await client.transaction('write')
-    try {
-      for (const r of registros) {
-        await tx.execute({
-          sql: UPSERT_SQL,
-          args: [
-            r.cueAnexo,
-            null,
-            r.nombre,
-            r.departamento,
-            r.localidad,
-            r.lat ?? null,
-            r.lon ?? null,
-            r.geoCalidad ?? null,
-          ],
-        })
-      }
-      await tx.commit()
-    } catch (err) {
-      await tx.rollback()
-      throw err
-    }
-    console.log(`[infraestructura] ge_localizacion sembrada: ${registros.length} registros`)
-  } finally {
-    client.close()
+    registros = JSON.parse(await readFile(jsonPath, 'utf8')) as LocalizacionJson[]
+  } catch {
+    console.warn(
+      '[infraestructura] localizaciones.json no disponible; ge_localizacion queda vacía',
+    )
+    return
   }
+  if (!Array.isArray(registros) || registros.length === 0) return
+
+  await client.execute('BEGIN')
+  try {
+    for (const r of registros) {
+      await client.execute({
+        sql: UPSERT_SQL,
+        args: [
+          r.cueAnexo,
+          null,
+          r.nombre,
+          r.departamento,
+          r.localidad,
+          r.lat ?? null,
+          r.lon ?? null,
+          r.geoCalidad ?? null,
+        ],
+      })
+    }
+    await client.execute('COMMIT')
+  } catch (err) {
+    await client.execute('ROLLBACK')
+    throw err
+  }
+  console.log(`[infraestructura] ge_localizacion sembrada: ${registros.length} registros`)
 }

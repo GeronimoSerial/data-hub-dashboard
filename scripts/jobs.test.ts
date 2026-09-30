@@ -1,0 +1,339 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({
+  calcularGeoPerfiles: vi.fn(),
+  calcularAsociacionesRio: vi.fn(),
+  ejecutarSyncPronosticoCaudal: vi.fn(),
+  ejecutarSyncEnsemble: vi.fn(),
+  ejecutarSyncImerg: vi.fn(),
+  ejecutarCalculoClimatologia: vi.fn(),
+  ejecutarCalculoClimatologiaCaudal: vi.fn(),
+  calcularYPublicarRiesgo: vi.fn(),
+  correrJobEpisodiosDerivados: vi.fn(),
+  correrJobBriefingIA: vi.fn(),
+  generarCorte: vi.fn(),
+  enosJobsEnabled: vi.fn(),
+  adquirirLease: vi.fn(),
+  publicarResultado: vi.fn(),
+  ensureSeeded: vi.fn(),
+}))
+
+vi.mock('../lib/db/seed.ts', () => ({
+  ensureSeeded: mocks.ensureSeeded,
+}))
+
+vi.mock('../lib/infraestructura/riesgo/geo-perfil.ts', () => ({
+  calcularGeoPerfiles: mocks.calcularGeoPerfiles,
+}))
+vi.mock('../lib/infraestructura/riesgo/rio-asociacion.ts', () => ({
+  calcularAsociacionesRio: mocks.calcularAsociacionesRio,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/sync-pronostico-caudal.ts', () => ({
+  ejecutarSyncPronosticoCaudal: mocks.ejecutarSyncPronosticoCaudal,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/sync-ensemble.ts', () => ({
+  ejecutarSyncEnsemble: mocks.ejecutarSyncEnsemble,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/sync-imerg.ts', () => ({
+  ejecutarSyncImerg: mocks.ejecutarSyncImerg,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia.ts', () => ({
+  ejecutarCalculoClimatologia: mocks.ejecutarCalculoClimatologia,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia-caudal.ts', () => ({
+  ejecutarCalculoClimatologiaCaudal: mocks.ejecutarCalculoClimatologiaCaudal,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/calcular-riesgo.ts', () => ({
+  calcularYPublicarRiesgo: mocks.calcularYPublicarRiesgo,
+}))
+vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
+  correrJobEpisodiosDerivados: mocks.correrJobEpisodiosDerivados,
+}))
+vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
+  generarCorte: mocks.generarCorte,
+}))
+vi.mock('../lib/infraestructura/briefing-ia/job.ts', () => ({
+  correrJobBriefingIA: mocks.correrJobBriefingIA,
+}))
+vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
+  enosJobsEnabled: mocks.enosJobsEnabled,
+}))
+vi.mock('../lib/infraestructura/riesgo/job-run.ts', () => ({
+  adquirirLease: mocks.adquirirLease,
+  publicarResultado: mocks.publicarResultado,
+}))
+
+beforeEach(() => {
+  vi.resetModules()
+  vi.clearAllMocks()
+  mocks.enosJobsEnabled.mockReturnValue(true)
+})
+
+describe('correrJob — despacho por nombre', () => {
+  it('rechaza un nombre desconocido con un error que dice "desconocido" y el CLI saldría con 2', async () => {
+    const { correrJob, JobDesconocidoError } = await import('./jobs.mjs')
+
+    await expect(correrJob('nombre-invalido')).rejects.toThrow(/desconocido/)
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+
+    let codigo = 0
+    try {
+      await correrJob('nombre-invalido')
+    } catch (error) {
+      codigo = error instanceof JobDesconocidoError ? 2 : 1
+    }
+    expect(codigo).toBe(2)
+  })
+
+  it('propaga el error de un job y el flujo del CLI resulta en exit 1', async () => {
+    mocks.ejecutarSyncImerg.mockRejectedValue(new Error('boom'))
+    const { correrJob, JobDesconocidoError } = await import('./jobs.mjs')
+
+    await expect(correrJob('sync-imerg')).rejects.toThrow('boom')
+
+    let codigo = 0
+    try {
+      await correrJob('sync-imerg')
+    } catch (error) {
+      codigo = error instanceof JobDesconocidoError ? 2 : 1
+    }
+    expect(codigo).toBe(1)
+  })
+})
+
+describe('codigoSalida', () => {
+  it('devuelve 0 cuando no se pudo adquirir el lease (idempotencia normal)', async () => {
+    mocks.ejecutarSyncEnsemble.mockResolvedValue({
+      ok: false,
+      motivo: 'lease_no_disponible',
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('sync-ensemble')
+    expect(codigoSalida('sync-ensemble', resultado)).toBe(0)
+  })
+
+  it('devuelve 0 en un caso feliz ok:true', async () => {
+    mocks.ejecutarSyncImerg.mockResolvedValue({
+      ok: true,
+      resultado: { celdasActualizadas: 1 },
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('sync-imerg')
+    expect(resultado).toEqual({ ok: true, resultado: { celdasActualizadas: 1 } })
+    expect(codigoSalida('sync-imerg', resultado)).toBe(0)
+  })
+})
+
+describe('sync-imerg — token de Earthdata', () => {
+  const tokenPrevio = process.env.EARTHDATA_TOKEN
+
+  afterEach(() => {
+    if (tokenPrevio === undefined) delete process.env.EARTHDATA_TOKEN
+    else process.env.EARTHDATA_TOKEN = tokenPrevio
+  })
+
+  it('reenvía EARTHDATA_TOKEN del entorno al job (nunca lo lee el job por su cuenta)', async () => {
+    process.env.EARTHDATA_TOKEN = 'token-de-prueba'
+    mocks.ejecutarSyncImerg.mockResolvedValue({ ok: true, resultado: {} })
+    const { correrJob } = await import('./jobs.mjs')
+
+    await correrJob('sync-imerg')
+
+    expect(mocks.ejecutarSyncImerg).toHaveBeenCalledWith({ earthdataToken: 'token-de-prueba' })
+  })
+})
+
+describe('gating por ENOS_JOBS_ENABLED', () => {
+  // Los jobs comparten un único flag maestro (lib/infraestructura/jobs/flags.ts),
+  // deliberadamente distinto de riskEngineEnabled()/episodiosDerivadosEnabled()
+  // (esos son flags de UI, ver el módulo de flags): se verifica que con
+  // ENOS_JOBS_ENABLED=false los casos cubiertos no importan ni llaman al job real.
+  const casos: Array<[string, keyof typeof mocks]> = [
+    ['geo-perfiles', 'calcularGeoPerfiles'],
+    ['asociacion-rio', 'calcularAsociacionesRio'],
+    ['sync-pronostico-caudal', 'ejecutarSyncPronosticoCaudal'],
+    ['sync-ensemble', 'ejecutarSyncEnsemble'],
+    ['sync-imerg', 'ejecutarSyncImerg'],
+    ['climatologia-precipitacion', 'ejecutarCalculoClimatologia'],
+    ['climatologia-caudal', 'ejecutarCalculoClimatologiaCaudal'],
+    ['calcular-riesgo', 'calcularYPublicarRiesgo'],
+    ['episodios-derivados', 'correrJobEpisodiosDerivados'],
+    ['situacion-corte', 'generarCorte'],
+  ]
+
+  it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob } = await import('./jobs.mjs')
+
+    const resultado = await correrJob(nombre)
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks[mockKey]).not.toHaveBeenCalled()
+    expect(mocks.adquirirLease).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+  })
+
+  it('imprime un WARN a stderr con el nombre del job cuando lo salta el flag', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { correrJob } = await import('./jobs.mjs')
+
+    await correrJob('sync-imerg')
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('sync-imerg'))
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ENOS_JOBS_ENABLED'))
+    warnSpy.mockRestore()
+  })
+})
+
+describe('geo-perfiles — lease externo', () => {
+  it('si el lease no se adquiere, no llama al cálculo y sale con 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: false, motivo: 'ya_completado' })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('geo-perfiles')
+    expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
+    expect(mocks.calcularGeoPerfiles).not.toHaveBeenCalled()
+    expect(codigoSalida('geo-perfiles', resultado)).toBe(0)
+  })
+})
+
+describe('asociacion-rio — lease externo', () => {
+  it('acepta el nombre, calcula con lease y mapea el resultado a exit 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({
+      adquirido: true,
+      jobRunId: 'job-rio-1',
+      leaseOwner: 'owner-rio-1',
+    })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.calcularAsociacionesRio.mockResolvedValue({
+      procesados: 5,
+      conPunto: 3,
+      sinPunto: 2,
+      version: 'rio-asociacion-v1',
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('asociacion-rio', {
+      ahora: new Date('2026-09-29T03:10:00.000Z'),
+    })
+
+    expect(mocks.calcularAsociacionesRio).toHaveBeenCalledOnce()
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobRunId: 'job-rio-1',
+        estado: 'completado',
+        contadores: { procesados: 5, conPunto: 3, sinPunto: 2 },
+      }),
+    )
+    expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
+  })
+
+  it('devuelve exit 0 sin importar el cálculo cuando ENOS_JOBS_ENABLED=false', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('asociacion-rio')
+
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks.calcularAsociacionesRio).not.toHaveBeenCalled()
+    expect(mocks.adquirirLease).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+    expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
+  })
+})
+
+describe('briefing-ia — lease interno (jobs.mjs sólo lo invoca)', () => {
+  it('con el flag activo importa y devuelve lo que devuelve correrJobBriefingIA', async () => {
+    const esperado = {
+      ejecutado: true,
+      corteId: 'corte-1',
+      fuente: 'ia',
+      motivoFallback: null,
+    }
+    mocks.correrJobBriefingIA.mockResolvedValue(esperado)
+    const { correrJob } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('briefing-ia')
+
+    expect(mocks.correrJobBriefingIA).toHaveBeenCalledTimes(1)
+    expect(resultado).toEqual(esperado)
+  })
+
+  it('con enosJobsEnabled=false no importa ni llama al job real', async () => {
+    mocks.enosJobsEnabled.mockReturnValue(false)
+    const { correrJob } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('briefing-ia')
+
+    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
+    expect(mocks.correrJobBriefingIA).not.toHaveBeenCalled()
+    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+  })
+})
+
+describe('ensureSeeded — migración antes de despachar', () => {
+  it('corre ensureSeeded una sola vez antes de despachar el job (proceso propio sin la migración web)', async () => {
+    mocks.ejecutarSyncImerg.mockResolvedValue({ ok: true, resultado: {} })
+    const { correrJob } = await import('./jobs.mjs')
+
+    await correrJob('sync-imerg')
+
+    expect(mocks.ensureSeeded).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('situacion-corte — lease externo', () => {
+  it('si el lease no se adquiere, no llama al corte y sale con 0', async () => {
+    mocks.adquirirLease.mockResolvedValue({ adquirido: false, motivo: 'ya_completado' })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('situacion-corte')
+    expect(resultado).toMatchObject({ ejecutado: false, motivo: 'ya_completado' })
+    expect(mocks.generarCorte).not.toHaveBeenCalled()
+    expect(codigoSalida('situacion-corte', resultado)).toBe(0)
+  })
+
+  it('con el lease adquirido genera el corte y publica los contadores', async () => {
+    const ahora = new Date('2026-01-01T00:00:00.000Z')
+    mocks.adquirirLease.mockResolvedValue({
+      adquirido: true,
+      jobRunId: 'job-run-1',
+      leaseOwner: 'owner-1',
+    })
+    mocks.publicarResultado.mockResolvedValue(true)
+    mocks.generarCorte.mockResolvedValue({
+      corteId: 'corte-1',
+      generadoEn: '2026-01-01T00:00:00.000Z',
+      riskRunId: null,
+      kpis: {
+        escuelasAfectacionConfirmadaVigente: 1,
+        escuelasRiesgoAlto24h: 2,
+        fuentesVencidas: 0,
+      },
+      conteosPorNivelRiesgo: {},
+      episodiosAbiertos: 3,
+      episodiosCerradosDesdeAnterior: 1,
+    })
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('situacion-corte', { ahora })
+
+    expect(mocks.generarCorte).toHaveBeenCalledWith({ ahora, jobRunId: 'job-run-1' })
+    expect(mocks.publicarResultado).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobRunId: 'job-run-1',
+        leaseOwner: 'owner-1',
+        estado: 'completado',
+        contadores: {
+          episodiosAbiertos: 3,
+          episodiosCerradosDesdeAnterior: 1,
+          escuelasRiesgoAlto24h: 2,
+        },
+      }),
+    )
+    expect(resultado).toMatchObject({ ejecutado: true, corteId: 'corte-1', leasePerdido: false })
+    expect(codigoSalida('situacion-corte', resultado)).toBe(0)
+  })
+})

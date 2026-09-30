@@ -125,6 +125,15 @@
   --z-popup: 90;
   --z-tooltip: 95;
 
+  /* E4: niveles de peligro meteorológico estimado / riesgo educativo. Reusa
+     la paleta oficial (Manual §3.1/§3.2) en vez de inventar colores nuevos;
+     "sin dato" es un gris neutro con trama, nunca un color de nivel. */
+  --nivel-peligro-verde: var(--green);
+  --nivel-peligro-amarillo: var(--yellow);
+  --nivel-peligro-naranja: var(--orange);
+  --nivel-peligro-rojo: var(--red);
+  --nivel-peligro-sin-dato: var(--ink-faint);
+
 }
 
 /* Dark surfaces use the official Negro as ground and step up from it. The
@@ -1799,8 +1808,7 @@ time {
   transition: color 160ms ease, border-color 160ms ease;
 }
 .ui-tabs-tab:hover { color: var(--ink); }
-.ui-tabs-tab[data-selected] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
-.ui-tabs-panel { min-width: 0; padding-top: var(--s-5); }
+.ui-tabs-tab[data-active] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 
@@ -1829,19 +1837,21 @@ time {
    leyenda), así que reclamaban el mismo offset y se montaban uno sobre otro.
    Acá el anclaje pasa al contenedor y los paneles vuelven a ser estáticos:
    apilados en flujo, no superpuestos.
-   El tope de altura deja libre la esquina superior izquierda, donde vive el
-   control de zoom de MapLibre, y habilita scroll propio para que la columna
-   nunca desborde el mapa ni tape el pie de atribución. */
+   La columna se ancla ARRIBA (no abajo): así arranca siempre desde el mismo
+   punto y crece hacia abajo con su propio scroll, en vez de "flotar" con
+   espacio vacío arriba y desplazarse cada vez que cambia la altura de su
+   contenido (carga async). El `left` mayor deja libre el control de zoom de
+   MapLibre (esquina superior izquierda), igual que .map-title-panel. */
 .map-left-stack {
   position: absolute;
-  bottom: 25px;
-  left: 25px;
+  top: 25px;
+  left: 55px;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  width: min(20rem, calc(100vw - 50px));
-  max-height: calc(100% - 140px);
+  width: min(20rem, calc(100vw - 80px));
+  max-height: calc(100% - 50px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1851,6 +1861,110 @@ time {
   max-width: none;
   flex: 0 0 auto;
 }
+
+/* Panel propio del mapa para la ficha del parte (hallazgo estético): NO es el
+   Sheet genérico — vive dentro de .map-shell, sin backdrop ni foco atrapado,
+   así no tapa ni bloquea el resto del mapa. Reusa los mismos tokens que el
+   resto de los overlays del mapa. */
+.map-ficha-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(400px, calc(100vw - 24px));
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--e-float);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  min-width: 0;
+  overscroll-behavior: contain;
+  padding: 1rem 1.1rem;
+  transition: transform 160ms ease, opacity 160ms ease;
+  animation: map-ficha-panel-entrada 160ms ease;
+}
+@keyframes map-ficha-panel-entrada {
+  from { transform: translateX(12px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.map-ficha-panel__encabezado {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+.map-ficha-panel__titulo { margin: 0; font-size: 1.05rem; line-height: 1.3; min-width: 0; }
+.map-ficha-panel__cerrar {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: var(--r-sm);
+}
+.map-ficha-panel__cerrar:hover { background: var(--fill); }
+/* Hasta 1080px no hay ancho para una columna lateral de 400px junto a los
+   controles. La ficha pasa a ser una hoja inferior, anclada abajo y con
+   `max-height`, que no se superpone nunca a `.map-controls-stack` (arriba a la
+   derecha) ni a los toggles de mobile. */
+@media (max-width: 1080px) {
+  .map-ficha-panel {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    max-height: 55vh;
+  }
+}
+@media (max-width: 720px) {
+  .map-ficha-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+  }
+}
+
+/* Bloques de ayuda desplegables (`<details>` nativo) de la ficha y de la
+   leyenda de accesos. Abajo del todo de la ficha, sin caja ni fondo propio: son
+   texto de referencia (de dónde sale el dato, qué significa el índice) y
+   compiten por altura con el contenido. El `summary` hereda la escala chica
+   para que se lea como un enlace, no como un encabezado de sección. */
+.ficha-territorial__ayuda,
+.ayuda-leyenda { margin-top: 0.35rem; }
+.ficha-territorial__ayuda > summary,
+.ayuda-leyenda > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: var(--t-small);
+}
+.ficha-territorial__ayuda p,
+.ayuda-leyenda p,
+.ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
+
+/* Acciones de una selección viva con la ficha cerrada ("Ver ficha" /
+   "Quitar selección"). Flotan centradas en el borde inferior, fuera del camino
+   de los toggles: en desktop no chocan con nada porque la ficha abierta
+   (cuando existe) es la que ocupa la derecha. */
+.map-seleccion-acciones {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 5;
+  display: flex;
+  gap: var(--s-2);
+}
+
 .map-departamento-seleccionado {
   display: flex;
   align-items: center;
@@ -1864,6 +1978,105 @@ time {
   color: var(--ink);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Conmutador de modo del mapa de infraestructura (Radar E4). Dos botones
+   planos en fila; el activo se marca con aria-pressed y un borde inferior
+   sólido, sin introducir un componente de tabs nuevo. */
+.map-modo-conmutador {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-modo-conmutador button {
+  flex: 1 1 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-weight: 600;
+  padding: var(--s-1) 0;
+  cursor: pointer;
+}
+.map-modo-conmutador button[aria-pressed="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+.map-radar-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-radar-panel .selector-horizonte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+/* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
+   habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
+   alcanzables por teclado/lector de pantalla), así que la señal es sólo CSS. */
+.selector-horizonte__boton--deshabilitado {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.map-radar-briefing {
+  margin: var(--s-1) 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+
+/* Panel del modo Replay (E7c): mismo patrón de columna que .map-radar-panel,
+   con su propia fila de selección (departamento + ventana + vista) y la
+   timeline agrupadas por separado. */
+.map-replay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.map-replay-panel__seleccion {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1);
+  align-items: center;
+}
+.map-replay-panel__seleccion select,
+.map-replay-panel__seleccion input {
+  font: inherit;
+}
+.map-replay-panel__vista {
+  display: flex;
+  gap: var(--s-1);
+}
+.map-replay-panel__timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+.map-replay-panel__contador {
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  margin: 0;
+}
+.map-replay-panel__truncado {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__vacios {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
+.map-replay-panel__export {
+  display: flex;
+  gap: var(--s-2);
 }
 
 /* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
@@ -1905,6 +2118,43 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   width: min(17.5rem, calc(100vw - 24px));
 }
 
+/* Con la ficha abierta, el control de base/capas se corría a la izquierda de
+   la hoja: sin esto quedaba debajo de ella (ficha z-index 4 > stack z-index
+   3) y no se podía tocar ninguna capa sin cerrar la ficha. El `right` es el
+   ancho de la ficha más sus 12px de offset lateral más 12px de separación.
+   En pantallas intermedias se colapsa en el mismo toggle; el panel abierto
+   queda debajo de éste y conserva su offset derecho predeterminado. */
+@media (min-width: 721px) and (max-width: 1080px) {
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
+    display: none;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
+    display: inline-flex;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
+    top: 52px;
+    z-index: 5;
+    max-height: calc(100% - 64px);
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 1081px) {
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack {
+    right: calc(min(400px, 100vw - 24px) + 24px);
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
+    display: none;
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
+    display: inline-flex;
+    right: calc(min(400px, 100vw - 24px) + 24px);
+  }
+  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
+    top: 52px;
+  }
+}
+
 /* Contraparte de .map-left-stack-toggle para el panel de base/capas (T1.3
    extendido): oculto por defecto, sólo el media query de 720px lo muestra. En
    mobile este panel arranca colapsado en este botón chico arriba a la
@@ -1942,8 +2192,39 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-legend-item-stack { margin: var(--s-1) 0; }
 .map-section-title { font-weight: 600; margin-top: var(--s-1); margin-bottom: 2px; }
 .map-emphasis { font-weight: 600; color: var(--ink); }
-.map-legend-item { display: flex; align-items: center; gap: var(--s-1); margin: 3px 0; }
+.map-legend-item { display: flex; align-items: flex-start; gap: var(--s-1); margin: 3px 0; }
+.map-legend-item svg { flex-shrink: 0; margin-top: 2px; }
+/* Leyenda territorial del mapa de accesos: los tres bloques (aislamiento,
+   inundación, ruta) viven en UNA tarjeta opaca en vez de sueltos sobre el
+   mapa. `styles.panel` (.map-panel) ya aporta fondo, borde y sombra, y dentro
+   de `.map-left-stack` la regla `.map-left-stack > .map-panel` la devuelve al
+   flujo; acá sólo se ajusta el interior: los bloques se separan con una línea
+   y las filas se aprietan, porque la columna es angosta y con las tres capas
+   prendidas el texto tiene que caber sin scrollear. Los `img` de los íconos
+   fijan su caja para que el data URI no estire la fila.
+   El `cursor: pointer` del `<summary>` ya lo da `.ayuda-leyenda > summary`. */
+.map-leyenda-accesos { display: flex; flex-direction: column; gap: var(--s-2); }
+.map-leyenda-accesos > * + * { border-top: 1px solid var(--line); padding-top: var(--s-2); }
+.map-leyenda-accesos .map-legend-item-stack { margin: 0; }
+.map-leyenda-accesos .map-legend-item { gap: 0.4rem; line-height: 1.3; }
+.map-leyenda-accesos img { width: 18px; height: 18px; flex: none; }
+.map-leyenda-accesos .map-hint { line-height: 1.35; }
+.peligro-legend__provisorio {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin: var(--s-1) 0 0;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
+  line-height: 1.4;
+}
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.peligro-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+.peligro-legend__item { display: flex; align-items: center; gap: var(--s-2); }
+.peligro-legend__muestra { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--ink); flex-shrink: 0; }
+.peligro-legend__icono { flex-shrink: 0; }
+.peligro-legend__etiqueta { font-size: var(--t-small); }
+.peligro-legend__titulo { font-weight: 600; margin: 0 0 0.35rem; }
 .map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
 /* El contenedor de MapLibre (.maplibregl-popup-content) se deja transparente y sin
@@ -2012,10 +2293,53 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   margin: var(--s-1) 0 0;
   padding: 0;
 }
-.map-escuelas-search { margin-bottom: var(--s-2); }
-.map-escuelas-search .map-filtro-input { width: 100%; }
-.map-escuelas-resultados { margin-bottom: var(--s-2); }
-.map-escuelas-resultados .map-alertas-list { max-height: 15rem; overflow-y: auto; }
+/* Indicadores consolidados: grilla de número grande + etiqueta chica. Las
+   propias del mapa (no se reutiliza .stat-block, que es de la portada del
+   hub). Dos columnas en desktop; una sola en pantallas angostas. */
+.map-indicadores-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2) var(--s-3);
+  margin-top: var(--s-2);
+}
+.map-indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.map-indicador__valor {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink);
+}
+.map-indicador__label {
+  font-size: var(--t-micro);
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+/* V8 (hallazgo 28): en modo oscuro el texto de ayuda del panel usaba --ink-soft
+   sobre una tarjeta más clara que la página; sobre --card queda en 4.19:1
+   (bajo AA). Se fuerza --ink (blanco puro) en esa superficie, que da 12.3:1.
+   Ajuste puntual para esta clase, no un rediseño del sistema de hints. */
+[data-theme='dark'] .map-panel .map-hint,
+[data-theme='dark'] .map-control-card .map-hint { color: var(--ink); }
+
+/* R2 (segundo QA visual): el filtro CSS `brightness/invert/contrast/hue-rotate`
+   de V8/Q9/Q19 invertía TODO el canvas WebGL (mapa base + capas propias), así
+   que los rojos de severidad y los azules de Radar salían distintos en oscuro
+   (salmón pastel) rompiendo la paleta tonal. Reemplazado por un estilo de mapa
+   base oscuro real del proveedor (`https://tiles.openfreemap.org/styles/dark`,
+   ver `mapStyle` en map-infraestructura-page.tsx), que no toca las capas
+   propias: los colores de severidad y peligro quedan idénticos en claro y
+   oscuro. */
+
+@media (max-width: 720px) {
+  .map-indicadores-grid { grid-template-columns: 1fr; }
+}
 .map-alerta-texto { display: grid; min-width: 0; gap: 2px; }
 .map-alerta-texto b, .map-alerta-texto small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .map-alerta-texto small { color: var(--ink-soft); }
@@ -2153,6 +2477,24 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     overflow-y: auto;
   }
   .map-controls-stack-toggle { display: inline-flex; }
+
+  /* Refuerzo UX móvil (390px): el `AttributionControl` compacto de MapLibre
+     queda pegado a la esquina inferior derecha (~24x24, margin 10px) y tanto
+     `.map-fullscreen-btn` (bottom/right) como `.map-left-stack-toggle`
+     (bottom:25/left:25) caían dentro de esa franja. Se suben a 46px para
+     dejar libre la esquina del ícono "i" sin que ningún control se pise. */
+  .map-fullscreen-btn,
+  .map-left-stack-toggle { bottom: 46px; }
+
+  .map-shell[data-ficha-abierta="true"] .map-left-stack-toggle,
+  .map-shell[data-ficha-abierta="true"] .map-fullscreen-btn {
+    bottom: calc(60vh + 12px);
+  }
+
+  /* `.map-seleccion-acciones` se sube a 96px para pasar por encima del toggle
+     "Buscar escuelas" (bottom: 46px) y del AttributionControl, que en 390px
+     ocupan la franja inferior. */
+  .map-seleccion-acciones { bottom: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2917,6 +3259,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   max-height: calc(100dvh - 2rem);
 }
 .ui-sheet--right.map-historial-sheet { width: min(38rem, 100vw); }
+/* Ficha del parte como panel lateral (hallazgo 20): mismo ancho y
+   comportamiento que el historial del mapa. El scroll va en el body interno
+   (no en la sheet) para que el botón de cierre no se vaya con el contenido. */
+/* El panel propio (.map-ficha-panel) ya trae padding y su propio scroll, así
+   que el body sólo agrupa contenido, sin sumar sangría ni un segundo scroll. */
+.ficha-parte-sheet__body { padding: 0; }
 
 .ficha-parte-modal__aviso {
   margin: 0;
@@ -3720,6 +4068,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-height: 0;
 }
 .mapa-pestanas-barra {
+  display: flex;
+  justify-content: center;
   flex: 0 0 auto;
   display: flex;
   justify-content: center;
@@ -3757,6 +4107,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
+  /* Hallazgo 23: las cuatro vistas no comparten altura (gráfico de 17rem vs.
+     tabla vs. mensaje) y al cambiar de subpestaña el layout saltaba. Se reserva
+     la altura típica de un gráfico más el texto de encabezado para que el salto
+     entre vistas sea mínimo. La vista de acumulado puede superarlo y crecer. */
+  min-height: 21rem;
 }
 .evolucion-subtitulo {
   margin: 0;
@@ -3794,6 +4149,171 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   letter-spacing: 0;
   text-transform: none;
   white-space: normal;
+}
+/* Hallazgo 25: apoyo visual del ranking. La barra es proporcional a las
+   escuelas afectadas respecto del máximo del listado; el número sigue en su
+   columna para no perder precisión. El ancho mínimo evita que la columna
+   colapse cuando el listado tiene un solo departamento. */
+.evolucion-tabla td.evolucion-barra-celda {
+  width: 30%;
+  min-width: 7rem;
+}
+.evolucion-barra {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+.evolucion-barra__relleno {
+  display: block;
+  height: 100%;
+  background: var(--blue);
+  border-radius: inherit;
+}
+
+/* === Batch E1: verificación escolar === */
+
+/* Pantalla pública del enlace de verificación. Se lee desde un teléfono,
+   a veces durante una emergencia: una columna, aire para el pulgar y la
+   pregunta antes que cualquier otra cosa. Reusa el vocabulario de avisos y
+   bloques de "Estado actual del parte" (arriba); acá sólo se agrega lo que
+   ese vocabulario no cubre. */
+.verificacion-pantalla {
+  display: grid;
+  gap: var(--s-5);
+  max-width: var(--publico-medida, 640px);
+  margin-inline: auto;
+  padding: var(--s-2) 0;
+}
+
+.verificacion-pregunta {
+  margin: 0;
+  font-size: clamp(1.125rem, 2.5vw, 1.375rem);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+/* Dos acciones directas, no un radio + submit: en el teléfono se apilan para
+   que ninguna quede a medio ancho y errarle sea difícil. */
+.verificacion-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.verificacion-boton {
+  min-height: 44px;
+  width: 100%;
+}
+
+/* Variante de .estado-actual-bloque para el comprobante: el bloque de origen
+   separa con una línea, acá se lee como tarjeta cerrada sobre fondo de relleno. */
+.verificacion-comprobante {
+  padding: var(--s-4);
+  background: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+}
+
+/* Centro de Situación (E5): región aria-live que anuncia el refresco
+   automático a lectores de pantalla sin moverla visualmente ni robar foco.
+   Patrón estándar de "visually hidden" (clip + tamaño 1px), no display:none
+   (eso la sacaría del árbol de accesibilidad). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.situacion-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.situacion-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.situacion-kpi__titulo {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.situacion-kpi__valor {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* "alerta_texto" es sólo énfasis tipográfico (negrita ya la da .situacion-kpi__valor);
+   el color por sí solo NUNCA es la única señal — el texto del título ya dice
+   qué significa el número. */
+.situacion-kpi[data-tono='alerta_texto'] .situacion-kpi__valor {
+  color: var(--danger);
+}
+
+.situacion-cambios__controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  align-items: center;
+  margin-bottom: var(--s-3);
+}
+
+.situacion-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.situacion-timeline__fecha {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.situacion-fuentes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* La palabra "(vencida)"/"(al día)" ya está en el texto: el color es sólo
+   refuerzo visual adicional, nunca la única señal. */
+.situacion-fuentes [data-vencida='true'] {
+  color: var(--danger);
+}
+
+/* M1: buscador de escuelas (mapa de infraestructura) — inicio */
+/* Buscador genérico de escuelas: mismo slot que el control de métrica, con su
+   propio separador arriba. */
+.mapa-buscador-escuela {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line-soft);
+  max-width: 20rem;
 }
 
 /* ── Estadísticas de natalidad (T8) ───────────────────────────────────────
@@ -3859,6 +4379,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 1px solid var(--line-soft);
   max-width: 20rem;
 }
+.mapa-buscador-escuela > .ui-input { width: 100%; }
+
+/* Resultados en un popover flotante anclado al input. Mismo lenguaje visual
+   que .ui-select-popup/.ui-select-item: superficie, borde, radio y sombra
+   por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
+.mapa-buscador-escuela-positioner { z-index: var(--z-popup); outline: none; }
+.mapa-buscador-escuela-popup {
+  width: var(--anchor-width);
+  max-width: var(--available-width);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-modal);
+  overflow: hidden;
+}
+
 .natalidad-buscador > .ui-input { width: 100%; }
 
 /* Resultados en un popover flotante anclado al input (feedback "se ven
@@ -3876,6 +4412,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   box-shadow: var(--e-modal);
   overflow: hidden;
 }
+/* Único contenedor con scroll — el popup en sí no scrollea, sólo esta lista,
+   acotada a ~6 filas visibles. */
+.mapa-buscador-escuela-lista {
+  max-height: 24rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+}
+
 /* Único contenedor con scroll (requisito: "single scroll container") — el
    popup en sí no scrollea, sólo esta lista, acotada a ~6 filas visibles. */
 .natalidad-buscador-lista {
@@ -3884,6 +4429,19 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   overscroll-behavior: contain;
   padding: var(--s-1);
 }
+.mapa-buscador-escuela-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border-radius: var(--r-sm);
+  cursor: default;
+  outline: none;
+  text-align: left;
+}
+
 .natalidad-buscador-item {
   display: flex;
   flex-direction: column;
@@ -3896,6 +4454,19 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   outline: none;
   text-align: left;
 }
+.mapa-buscador-escuela-item[data-highlighted] {
+  background: var(--ink);
+  color: var(--page);
+}
+.mapa-buscador-escuela-item[data-highlighted] .mapa-buscador-escuela-meta { color: inherit; opacity: 0.75; }
+.mapa-buscador-escuela-nombre {
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 .natalidad-buscador-item[data-highlighted] {
   background: var(--ink);
   color: var(--page);
@@ -3908,17 +4479,32 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.mapa-buscador-escuela-meta { color: var(--ink-soft); font-size: var(--t-micro); }
+.mapa-buscador-escuela-match {
+  background: color-mix(in srgb, var(--action) 30%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
 .natalidad-buscador-meta { color: var(--ink-soft); font-size: var(--t-micro); }
 .natalidad-buscador-match {
   background: color-mix(in srgb, var(--action) 30%, transparent);
   color: inherit;
   border-radius: 2px;
 }
+.mapa-buscador-escuela-vacio {
+  padding: 0.6rem;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
 .natalidad-buscador-vacio {
   padding: 0.6rem;
   color: var(--ink-soft);
   font-size: var(--t-small);
 }
+/* M1: buscador de escuelas (mapa de infraestructura) — fin */
+
 .natalidad-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));

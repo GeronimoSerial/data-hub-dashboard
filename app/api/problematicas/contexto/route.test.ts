@@ -2,7 +2,8 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ensureGeSchema, openGeDb } from '@/lib/infraestructura/ge-db'
+import { getRawClient } from '@/lib/db'
+import { crearEjecutorSql, ensureGeSchema } from '@/lib/infraestructura/ge-db'
 import { NOMBRE_COOKIE, crearTokenSesion } from '@/lib/infraestructura/acceso-publico'
 import { GET } from './route'
 import { claveDePrueba } from '@/lib/infraestructura/claves-de-prueba'
@@ -18,12 +19,27 @@ let dir: string
 let prevDataDir: string | undefined
 let prevPassword: string | undefined
 
-beforeEach(() => {
+// DB1/F2: GE ya no es un archivo SQLite por test: es el schema `ge` de la
+// única base PGlite compartida por el archivo. Como cada test siembra el
+// mismo corte/escuela, se limpia el schema antes de cada caso para conservar
+// el aislamiento que antes daba el DATA_DIR por test.
+async function resetGe(): Promise<void> {
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute('DELETE FROM ge.ge_alumno_seccion')
+  await client.execute('DELETE FROM ge.ge_seccion')
+  await client.execute('DELETE FROM ge.ge_localizacion')
+  await client.execute('DELETE FROM ge.ge_alumno_identidad')
+  await client.execute('DELETE FROM ge.ge_corte')
+}
+
+beforeEach(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'contexto-route-'))
   prevDataDir = process.env.DATA_DIR
   prevPassword = process.env.PROBLEMATICAS_ACCESO_PASSWORD
   process.env.DATA_DIR = dir
   process.env.PROBLEMATICAS_ACCESO_PASSWORD = CLAVE
+  await resetGe()
 })
 
 afterEach(() => {
@@ -40,22 +56,18 @@ function conAcceso(url: string) {
 }
 
 async function seedEscuelaConSeccion() {
-  const client = openGeDb()
-  try {
-    await ensureGeSchema(client)
-    await client.execute(
-      "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
-    )
-    await client.execute(
-      "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-04', NULL, 'Escuela 4', 'Entre Rios', 'Parana')",
-    )
-    await client.execute(
-      "INSERT INTO ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '1801605-04', '1', 'A', 'Primario', 'Mañana')",
-    )
-    await client.execute('INSERT INTO ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 900001)')
-  } finally {
-    client.close()
-  }
+  const client = crearEjecutorSql(getRawClient())
+  await ensureGeSchema(client)
+  await client.execute(
+    "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
+  )
+  await client.execute(
+    "INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605-04', NULL, 'Escuela 4', 'Entre Rios', 'Parana')",
+  )
+  await client.execute(
+    "INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, 10, '1801605-04', '1', 'A', 'Primario', 'Mañana')",
+  )
+  await client.execute('INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, 10, 900001)')
 }
 
 describe('GET /api/problematicas/contexto', () => {
@@ -132,18 +144,14 @@ describe('GET /api/problematicas/contexto', () => {
   })
 
   it('responde 200 con la escuela aunque no tenga secciones en el corte vigente', async () => {
-    const client = openGeDb()
-    try {
-      await ensureGeSchema(client)
-      await client.execute(
-        "INSERT INTO ge_corte (id, ciclo_lectivo, fetched_at, estado) VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
-      )
-      await client.execute(
-        "INSERT INTO ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605', NULL, 'Escuela Sin Secciones', 'Entre Rios', 'Parana')",
-      )
-    } finally {
-      client.close()
-    }
+    const client = crearEjecutorSql(getRawClient())
+    await ensureGeSchema(client)
+    await client.execute(
+      "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2026, '2026-03-01T00:00:00Z', 'vigente')",
+    )
+    await client.execute(
+      "INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('1801605', NULL, 'Escuela Sin Secciones', 'Entre Rios', 'Parana')",
+    )
 
     const res = await GET(conAcceso('http://localhost/api/problematicas/contexto?cue=1801605'))
     expect(res.status).toBe(200)

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['@libsql/client', 'libsql'],
+  serverExternalPackages: ['@libsql/client', 'libsql', '@electric-sql/pglite'],
   async rewrites() {
     const html = [
       '/tablero',
@@ -13,6 +13,14 @@ const nextConfig = {
       { source: path, destination: `${path}/index.html` },
       { source: `${path}/`, destination: `${path}/index.html` },
     ])
+  },
+  async headers() {
+    return [
+      {
+        source: '/problematicas/verificaciones/:path*',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
+    ]
   },
 }
 

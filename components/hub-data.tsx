@@ -237,10 +237,6 @@ export function HubDataProvider({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(item),
         })
-        if (res.status === 403) {
-          setWriteError(await readError(res))
-          return
-        }
         if (!res.ok) {
           setWriteError(await readError(res))
           return
@@ -259,10 +255,6 @@ export function HubDataProvider({
           `/api/taxonomia/${kind}?id=${encodeURIComponent(id)}`,
           { method: 'DELETE' },
         )
-        if (res.status === 403) {
-          setWriteError(await readError(res))
-          return
-        }
         if (!res.ok) {
           setWriteError(await readError(res))
           return

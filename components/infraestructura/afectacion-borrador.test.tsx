@@ -2,43 +2,11 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { AfectacionBorradorCard, type AfectacionBorrador, type AfectacionBorradorCardProps } from './afectacion-borrador'
-import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 
 afterEach(() => {
   document.body.innerHTML = ''
 })
-
-const turnos = [
-  {
-    turno: 'Mañana',
-    niveles: [
-      {
-        nivel: 'Primario',
-        secciones: [
-          { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
-          { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
-        ],
-      },
-    ],
-  },
-  {
-    turno: 'Tarde',
-    niveles: [
-      {
-        nivel: 'Secundario',
-        secciones: [
-          { geSectionId: 20, curso: '4°', division: 'A', nivel: 'Secundario', turno: 'Tarde', matricula: 30, alumnos: [] },
-        ],
-      },
-    ],
-  },
-]
-
-const motivos: MotivoRow[] = [
-  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
-  { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
-  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
-]
 
 const borradorBase: AfectacionBorrador = {
   clientId: 'a1',
@@ -226,39 +194,18 @@ describe('AfectacionBorradorCard', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('no avisa cuando sólo comparten la categoría', () => {
+  it.each([
+    ['no avisa cuando sólo comparten la categoría', true, 'establecimiento', 'Tormenta severa'],
+    ['no avisa sobre una situación que ya figura en el parte: no la está agregando', false, 'establecimiento', 'Inundación'],
+    ['no avisa cuando no hay coincidencia de motivo', true, 'alumnos', 'Anegamiento'],
+  ] as const)('%s', (_titulo, esNueva, categoriaOtra, motivoOtra) => {
     renderCard({
-      esNueva: true,
+      esNueva,
       borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
       otrasAfectaciones: [
-        { ...borradorBase, clientId: 'a0', categoria: 'establecimiento', motivo: 'Tormenta severa' },
+        { ...borradorBase, clientId: 'a0', categoria: categoriaOtra, motivo: motivoOtra },
       ],
     })
-
-    expect(screen.queryByText('Ya informado')).toBeNull()
-  })
-
-  it('no avisa sobre una situación que ya figura en el parte: no la está agregando', () => {
-    renderCard({
-      esNueva: false,
-      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
-      otrasAfectaciones: [
-        { ...borradorBase, clientId: 'a0', categoria: 'establecimiento', motivo: 'Inundación' },
-      ],
-    })
-
-    expect(screen.queryByText('Ya informado')).toBeNull()
-  })
-
-  it('no avisa cuando no hay coincidencia de motivo', () => {
-    renderCard({
-      esNueva: true,
-      borrador: { ...borradorBase, categoria: 'establecimiento', motivo: 'Inundación' },
-      otrasAfectaciones: [
-        { ...borradorBase, clientId: 'a0', categoria: 'alumnos', motivo: 'Anegamiento' },
-      ],
-    })
-
     expect(screen.queryByText('Ya informado')).toBeNull()
   })
 })

@@ -1,5 +1,6 @@
 import { ensureSeeded } from '@/lib/db/seed'
 import { getSessionUser } from '@/lib/session'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import {
   listarPermisosNominales,
   otorgarPermisoNominal,
@@ -41,10 +42,7 @@ export async function POST(request: Request) {
   const venceEn = venceEnRaw ? new Date(venceEnRaw) : null
 
   if (!userId || !venceEn || Number.isNaN(venceEn.getTime())) {
-    return Response.json(
-      { error: 'userId y venceEn (fecha ISO) son obligatorios' },
-      { status: 400 },
-    )
+    return jsonError('userId y venceEn (fecha ISO) son obligatorios', 400)
   }
   if (venceEn.getTime() <= Date.now()) {
     return Response.json({ error: 'venceEn debe ser una fecha futura' }, { status: 400 })

@@ -1,0 +1,29 @@
+[Unit]
+Description=Job OPS1 ENOS: %i
+After=docker.service
+
+[Service]
+Type=oneshot
+# EnvironmentFile es opcional (el "-" inicial evita que falle si no existe):
+# por defecto los 12 jobs corren sin que haga falta setear nada acá (ver
+# lib/infraestructura/jobs/flags.ts, ENOS_JOBS_ENABLED default true). Este
+# archivo sólo sirve como interruptor de pausa operativa desde el HOST, sin
+# tocar el entorno del contenedor: crear /etc/enos-ops1/enos-ops1.env con
+# ENOS_JOBS_ENABLED=false para pausar los 12 jobs sin redeploy. Ver
+# docs/ejecucion-enos/OPS1/runbook-scheduler.md (permisos: 600, dueño el
+# usuario que corre este servicio — root por defecto, ya que no se declaró
+# User=).
+EnvironmentFile=-/etc/enos-ops1/enos-ops1.env
+# "-e ENOS_JOBS_ENABLED" (sin valor) reenvía la variable del entorno de ESTE
+# unit (la que puso EnvironmentFile, si la puso) al proceso dentro del
+# contenedor; si el archivo no existe o no la define, docker no la
+# sobreescribe y el contenedor usa su propio valor (default true). El resto
+# de las variables (EARTHDATA_TOKEN, etc.) son del entorno del CONTENEDOR, no
+# de este unit — ver runbook.
+# <CONTENEDOR> es el nombre o ID del contenedor de la app que muestra `docker ps`;
+# se reemplaza durante la instalación, por ejemplo con un drop-in de systemd o sed.
+ExecStart=/usr/bin/docker exec -e ENOS_JOBS_ENABLED <CONTENEDOR> node scripts/jobs.mjs %i
+# Límites defensivos: un job colgado o con fuga de memoria no debe tumbar el
+# host. Ajustar si algún job real necesita más al medir en el ensayo local.
+MemoryMax=512M
+TimeoutStartSec=600

@@ -19,12 +19,3 @@ export function TooltipContent({
     </TooltipPrimitive.Portal>
   )
 }
-
-export function TooltipProvider({
-  children,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
-  return (
-    <TooltipPrimitive.Provider {...props}>{children}</TooltipPrimitive.Provider>
-  )
-}

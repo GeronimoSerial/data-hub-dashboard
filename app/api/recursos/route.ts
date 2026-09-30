@@ -1,5 +1,6 @@
 import { insertRecurso } from '@/lib/db/recursos'
 import { ensureSeeded } from '@/lib/db/seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import {
   parseRecursoBody,
   publicadoXorInvalid,
@@ -29,16 +30,10 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Cuerpo inválido' }, { status: 400 })
   }
   if (rutaStorageKeyConflict(recurso.ruta, recurso.storageKey)) {
-    return Response.json(
-      { error: 'ruta y storageKey no pueden usarse juntos' },
-      { status: 400 },
-    )
+    return jsonError('ruta y storageKey no pueden usarse juntos', 400)
   }
   if (publicadoXorInvalid(recurso.estado, recurso.ruta, recurso.storageKey)) {
-    return Response.json(
-      { error: 'Un recurso publicado necesita archivo o ruta' },
-      { status: 400 },
-    )
+    return jsonError('Un recurso publicado necesita archivo o ruta', 400)
   }
 
   try {

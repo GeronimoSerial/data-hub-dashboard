@@ -2,48 +2,23 @@
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
-import type { MotivoRow } from '@/lib/infraestructura/motivos'
-
-function jsonResponse(body: unknown, status = 200) {
-  return { ok: status >= 200 && status < 300, status, json: async () => body } as Response
-}
-
-const turnos = [
-  {
-    turno: 'Mañana',
-    niveles: [
-      {
-        nivel: 'Primario',
-        secciones: [
-          { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
-          { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
-        ],
-      },
-    ],
-  },
-  {
-    turno: 'Tarde',
-    niveles: [
-      {
-        nivel: 'Secundario',
-        secciones: [
-          { geSectionId: 20, curso: '4°', division: 'A', nivel: 'Secundario', turno: 'Tarde', matricula: 30, alumnos: [] },
-        ],
-      },
-    ],
-  },
-]
-
-const motivos: MotivoRow[] = [
-  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
-  { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
-  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
-]
+import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
+import { motivos, turnos } from '@/components/test-utils/parte-formulario'
+import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
 
 const props = { cue: '12345678', turnos, motivos }
 
-function renderFormulario() {
-  return render(<ReporteInicialForm cue={props.cue} turnos={props.turnos} motivos={props.motivos} />)
+const MENSAJE_REPORTE_EXITOSO =
+  'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+
+function renderFormulario(overrides: Partial<typeof props> = {}) {
+  return render(<ReporteInicialForm {...props} {...overrides} />)
+}
+
+function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status = 201) {
+  const fetchMock = vi.fn(async () => jsonResponse(respuesta, status))
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
 }
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
@@ -76,6 +51,11 @@ function llegarAConfirmar() {
   continuar()
 }
 
+function guardarReporte() {
+  llegarAConfirmar()
+  fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+}
+
 beforeEach(() => {
   if (typeof globalThis.crypto?.randomUUID !== 'function') {
     vi.stubGlobal('crypto', { ...globalThis.crypto, randomUUID: () => '00000000-0000-4000-8000-000000000000' })
@@ -87,6 +67,7 @@ afterEach(() => {
   // fuera del DOM) y olvida el borrador: cada test arranca limpio.
   cleanup()
   sessionStorage.clear()
+  localStorage.clear()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -268,8 +249,7 @@ describe('ReporteInicialForm', () => {
     exista ningún botón de submit en el formulario.
   */
   it('el botón de guardar es un nodo distinto del de continuar, no el mismo con otro type', () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch()
 
     const { container } = renderFormulario()
 
@@ -291,13 +271,10 @@ describe('ReporteInicialForm', () => {
   })
 
   it('al guardar hace POST a /api/problematicas/parte con una sola afectación', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = stubFetch()
 
     renderFormulario()
-
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -320,22 +297,54 @@ describe('ReporteInicialForm', () => {
     })
   })
 
+  it('envía el vínculo de verificación y lo limpia solo después del éxito confirmado', async () => {
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchMock = stubFetch()
+    renderFormulario()
+    guardarReporte()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    await waitFor(() => expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).toBeNull())
+  })
+
+  it('omite el vínculo cuando no existe y lo conserva ante una respuesta fallida', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    guardarReporte()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).not.toHaveProperty('verificacion')
+
+    cleanup()
+    sessionStorage.setItem(CLAVE_VINCULO_VERIFICACION, JSON.stringify({ id: 'v1', token: 't1' }))
+    const fetchFallido = stubFetch({ error: 'boom' }, 422)
+    renderFormulario()
+    guardarReporte()
+    await screen.findByText('No se pudo enviar: boom')
+    const [, initFallido] = fetchFallido.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(initFallido.body)).verificacion).toEqual({ id: 'v1', token: 't1' })
+    expect(sessionStorage.getItem(CLAVE_VINCULO_VERIFICACION)).not.toBeNull()
+  })
+
   it('una respuesta exitosa reemplaza el asistente por la confirmación del reporte', async () => {
-    const fetchMock = vi.fn(async () =>
-      jsonResponse({ ok: true, parteId: 'p1', movimientoId: 'm1', tipo: 'reporte_inicial', cambios: [] }, 201),
-    )
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch({
+      ok: true,
+      parteId: 'p1',
+      movimientoId: 'm1',
+      tipo: 'reporte_inicial',
+      cambios: [],
+    })
 
     renderFormulario()
-
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     // El texto habla del reporte, no de "la actualización": esta pantalla es
     // el primer reporte y no hay nada previo que actualizar.
     expect(
       await screen.findByText(
-        'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
+        MENSAJE_REPORTE_EXITOSO,
       ),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
@@ -344,21 +353,18 @@ describe('ReporteInicialForm', () => {
   // El reporte guardado no puede dejar al director en un callejón sin salida:
   // necesita una forma de volver y una de declarar un hecho distinto.
   it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch()
 
     renderFormulario()
+    guardarReporte()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
-
-    await screen.findByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
 
     const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
     expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
 
     // No hay redirección automática: el mensaje y las acciones siguen ahí.
-    expect(screen.getByText('El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.')).toBeInTheDocument()
+    expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
@@ -370,20 +376,17 @@ describe('ReporteInicialForm', () => {
   })
 
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ error: 'boom' }, 500))
-    vi.stubGlobal('fetch', fetchMock)
+    stubFetch({ error: 'boom' }, 422)
 
     renderFormulario()
+    guardarReporte()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
-
-    expect(await screen.findByText('boom')).toBeInTheDocument()
+    expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
   })
 
-  it('un error de red muestra el mensaje genérico del reporte y conserva lo ingresado', async () => {
+  it('un error de red deja el envío pendiente y conserva lo ingresado', async () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('network')
     })
@@ -391,46 +394,120 @@ describe('ReporteInicialForm', () => {
 
     renderFormulario()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
     expect(
-      await screen.findByText(
-        'No pudimos guardar el reporte. La información ingresada se mantiene para que pueda volver a intentar.',
-      ),
+      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
     ).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
 
-  it('muestra Guardando mientras se envía', () => {
+  it('muestra Enviando… mientras se envía', async () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
 
     renderFormulario()
 
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
-    expect(screen.getByRole('status')).toHaveTextContent('Guardando…')
+    expect(await screen.findByRole('status')).toHaveTextContent('Enviando…')
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+  })
+
+  it('un 5xx queda pendiente de envío y se reintenta solo al volver la conexión, con un único parte', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    guardarReporte()
+
+    expect(await screen.findByText('Pendiente de envío — se enviará al recuperar conexión')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    window.dispatchEvent(new Event('online'))
+
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO, undefined, { timeout: 5000 })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+    const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
+    const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
+    expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
+  // contrato esperado (sin `movimientoId`) no puede tratarse como éxito.
+  it('un 2xx con cuerpo inesperado NO confirma el reporte y conserva el borrador con la misma clave', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ algo: 'inesperado' }, 200))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    guardarReporte()
+
+    expect(
+      await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
+    ).toBeInTheDocument()
+    // No confirmó nada: el asistente sigue en pie con lo cargado.
+    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+
+    // Un reintento manual reutiliza la MISMA idempotencyKey: el cuerpo
+    // inesperado no hizo que se acuñara una nueva.
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await screen.findByText(
+      MENSAJE_REPORTE_EXITOSO,
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    const [, initB] = fetchMock.mock.calls[1] as unknown as [string, RequestInit]
+    const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
+    const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
+    expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  it('un 422 no se reintenta: muestra el error y el borrador queda editable', async () => {
+    const fetchMock = stubFetch({ error: 'dato inválido' }, 422)
+
+    renderFormulario()
+    guardarReporte()
+
+    expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+  })
+
+  it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
+    stubFetch({}, 401)
+
+    renderFormulario()
+    guardarReporte()
+
+    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
 })
 
-describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial del navegador (#31)', () => {
+describe('ReporteInicialForm — borrador persistente (#32) e historial del navegador (#31)', () => {
   const clave = `parte-nuevo:draft:${props.cue}`
 
-  it('guarda el borrador con su paso y lo restaura al remontar (#32)', () => {
+  it('guarda el borrador con su paso y lo restaura al remontar (#32)', async () => {
     const primero = renderFormulario()
     completarQuePaso()
     continuar()
 
     expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
-    expect(sessionStorage.getItem(clave)).not.toBeNull()
+    await waitFor(() => expect(localStorage.getItem(clave)).not.toBeNull())
 
     // Recarga simulada: el asistente vuelve a montar con el mismo storage.
     primero.unmount()
     renderFormulario()
 
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
     volver()
@@ -440,14 +517,12 @@ describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial de
   })
 
   it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
-    const primero = render(
-      <ReporteInicialForm cue="11111111" turnos={turnos} motivos={motivos} />,
-    )
+    const primero = renderFormulario({ cue: '11111111' })
     completarQuePaso()
     continuar()
     primero.unmount()
 
-    render(<ReporteInicialForm cue="22222222" turnos={turnos} motivos={motivos} />)
+    renderFormulario({ cue: '22222222' })
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
   })
@@ -475,31 +550,96 @@ describe('ReporteInicialForm — borrador en sessionStorage (#32) e historial de
   })
 
   it('un guardado exitoso limpia la clave del borrador', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+    stubFetch()
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    guardarReporte()
 
-    await screen.findByText(
-      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
-    )
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
+    await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
   })
 
   it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201)))
+    stubFetch()
 
     renderFormulario()
-    llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
-    await screen.findByText(
-      'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.',
-    )
+    guardarReporte()
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
 
     fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
 
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
-    expect(sessionStorage.getItem(clave)).toBeNull()
+    await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
+  })
+})
+
+describe('ReporteInicialForm — envío pendiente restaurado de la cola offline', () => {
+  /*
+    Requisito de producto: si la app se cierra con un envío en cola, al
+    reabrirla el reintento automático al recuperar la conexión debe dispararse
+    sin que el director haga click en nada. Antes, `estadoEnvio` arrancaba en
+    null y el guard del reintento lo bloqueaba hasta un guardado manual.
+  */
+  it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
+    const fetchMock = stubFetch()
+
+    // Cola de envío dejada pendiente por una sesión anterior.
+    localStorage.setItem(
+      `parte:nuevo:${props.cue}`,
+      JSON.stringify({
+        tipo: 'nuevo',
+        cue: props.cue,
+        idempotencyKey: 'idem-offline',
+        datos: {},
+        estado: 'pendiente-envio',
+        intentos: 1,
+        actualizadoEn: new Date().toISOString(),
+      }),
+    )
+    // El asistente quedó en el último paso, para que el reintento tenga qué
+    // enviar. La restauración de la cola no depende de este borrador.
+    localStorage.setItem(
+      `parte-nuevo:draft:${props.cue}`,
+      JSON.stringify({
+        generacion: 'g-offline',
+        paso: 4,
+        afectacion: {
+          clientId: 'c-offline',
+          categoria: 'establecimiento',
+          motivo: 'Inundación',
+          severidad: 'Alta',
+          descripcion: '',
+          secciones: [10],
+          alumnos: [],
+        },
+        servicioEstado: '',
+        servicioAlcanceTipo: '',
+        servicioTurnos: [],
+        servicioSecciones: [],
+        estadoEstablecimiento: 'habitual',
+        rigeDesde: new Date().toISOString(),
+        idempotencyKey: 'idem-offline',
+      }),
+    )
+
+    renderFormulario()
+
+    // Restauró el paso 4 y el estado de la cola, sin ninguna acción previa.
+    expect(await screen.findByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    expect(
+      screen.getByText('Pendiente de envío — se enviará al recuperar conexión'),
+    ).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    window.dispatchEvent(new Event('online'))
+
+    expect(
+      await screen.findByText(
+        MENSAJE_REPORTE_EXITOSO,
+        undefined,
+        { timeout: 5000 },
+      ),
+    ).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

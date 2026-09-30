@@ -6,6 +6,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { MatriculaMapClient } from './map-client'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export default async function MatriculaMapRoute() {
   await ensureSeeded()

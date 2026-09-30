@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
+import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import {
   recursoAudienciaNiveles,
   recursoAudienciaUsuarios,
@@ -59,12 +60,18 @@ async function replaceJoins(tx: HubDb, r: Recurso) {
   }
 }
 
+// Todas las transacciones de este archivo se reintentan ante SQLITE_BUSY
+// (lib/db/reintento.ts): son delete+insert/update completos dentro de una
+// única db.transaction, que se revierte entera si falla a mitad de camino,
+// así que repetirla desde cero produce el mismo resultado final.
 export async function insertRecurso(r: Recurso) {
   const db = getDb()
-  await db.transaction(async (tx) => {
-    await tx.insert(recursos).values(columns(r))
-    await replaceJoins(tx as unknown as HubDb, r)
-  })
+  await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
+      await tx.insert(recursos).values(columns(r))
+      await replaceJoins(tx as unknown as HubDb, r)
+    }),
+  )
 }
 
 export async function updateRecurso(r: Recurso) {
@@ -74,10 +81,12 @@ export async function updateRecurso(r: Recurso) {
     .from(recursos)
     .where(eq(recursos.id, r.id))
   if (!existing) return false
-  await db.transaction(async (tx) => {
-    await tx.update(recursos).set(columns(r)).where(eq(recursos.id, r.id))
-    await replaceJoins(tx as unknown as HubDb, r)
-  })
+  await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
+      await tx.update(recursos).set(columns(r)).where(eq(recursos.id, r.id))
+      await replaceJoins(tx as unknown as HubDb, r)
+    }),
+  )
   return true
 }
 
@@ -88,15 +97,17 @@ export async function deleteRecurso(id: string) {
     .from(recursos)
     .where(eq(recursos.id, id))
   if (!existing) return false
-  await db.transaction(async (tx) => {
-    await tx.delete(recursoTags).where(eq(recursoTags.recursoId, id))
-    await tx
-      .delete(recursoAudienciaNiveles)
-      .where(eq(recursoAudienciaNiveles.recursoId, id))
-    await tx
-      .delete(recursoAudienciaUsuarios)
-      .where(eq(recursoAudienciaUsuarios.recursoId, id))
-    await tx.delete(recursos).where(eq(recursos.id, id))
-  })
+  await conReintentoPorBloqueo(() =>
+    db.transaction(async (tx) => {
+      await tx.delete(recursoTags).where(eq(recursoTags.recursoId, id))
+      await tx
+        .delete(recursoAudienciaNiveles)
+        .where(eq(recursoAudienciaNiveles.recursoId, id))
+      await tx
+        .delete(recursoAudienciaUsuarios)
+        .where(eq(recursoAudienciaUsuarios.recursoId, id))
+      await tx.delete(recursos).where(eq(recursos.id, id))
+    }),
+  )
   return true
 }

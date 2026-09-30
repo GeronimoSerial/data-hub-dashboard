@@ -1,22 +1,47 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowLeft, FolderKanban, Tags, Users, Layers3, ListTree } from 'lucide-react'
-import type { Role } from '@/lib/acl'
+import { ArrowLeft, Activity, FolderKanban, Tags, Users, Layers3, ListTree, ShieldAlert, Waves, ClipboardCheck } from 'lucide-react'
+import { isStaff, type Role } from '@/lib/acl'
 
-const sections = [
-  { label: 'Contenido', items: [{ label: 'Recursos', href: '/admin#recursos', icon: FolderKanban }] },
-  { label: 'Organización', items: [
-    { label: 'Categorías', href: '/admin#categorias', icon: Tags },
-    { label: 'Etiquetas', href: '/admin#tags', icon: ListTree },
-    { label: 'Niveles', href: '/admin#niveles', icon: Layers3 },
-    { label: 'Tipos', href: '/admin#tipos', icon: ListTree },
-  ] },
-  { label: 'Accesos', items: [{ label: 'Usuarios', href: '/admin#usuarios', icon: Users }] },
-]
+type AdminFlags = {
+  riskEngineEnabled: boolean
+  episodiosDerivadosEnabled: boolean
+}
 
-export function AdminShell({ children, role }: { children: React.ReactNode; role: Role }) {
-  const visibleSections = role === 'admin' ? sections : sections.filter((section) => section.label === 'Contenido')
+type AdminLink = { label: string; href: string; icon: typeof FolderKanban }
+
+const EMPTY_FLAGS: AdminFlags = { riskEngineEnabled: false, episodiosDerivadosEnabled: false }
+
+function buildSections(role: Role, flags: AdminFlags) {
+  const sections: { label: string; items: AdminLink[] }[] = [
+    { label: 'Contenido', items: [{ label: 'Recursos', href: '/admin#recursos', icon: FolderKanban }] },
+    { label: 'Organización', items: [
+      { label: 'Categorías', href: '/admin#categorias', icon: Tags },
+      { label: 'Etiquetas', href: '/admin#tags', icon: ListTree },
+      { label: 'Niveles', href: '/admin#niveles', icon: Layers3 },
+      { label: 'Tipos', href: '/admin#tipos', icon: ListTree },
+      ...(role === 'admin' ? [{ label: 'Motivos', href: '/admin#motivos', icon: Tags }] : []),
+    ] },
+    { label: 'Accesos', items: [
+      { label: 'Usuarios', href: '/admin#usuarios', icon: Users },
+      ...(role === 'admin' ? [{ label: 'Acceso nominal', href: '/admin#nominal', icon: Users }] : []),
+    ] },
+  ]
+  const operacion: AdminLink[] = isStaff(role)
+    ? [{ label: 'Verificaciones', href: '/admin/verificaciones', icon: ClipboardCheck }]
+    : []
+  if (flags.riskEngineEnabled) operacion.push({ label: 'Motor de riesgo', href: '/admin/riesgo', icon: ShieldAlert })
+  if (flags.episodiosDerivadosEnabled) operacion.push({ label: 'Episodios derivados', href: '/admin/episodios-derivados', icon: Waves })
+  if (role === 'admin') {
+    operacion.push({ label: 'Salud', href: '/admin/operacion', icon: Activity })
+  }
+  sections.push({ label: 'Operación', items: operacion })
+  return role === 'admin' ? sections : sections.filter((section) => section.label === 'Contenido' || (isStaff(role) && section.label === 'Operación'))
+}
+
+export function AdminShell({ children, role, flags = EMPTY_FLAGS }: { children: React.ReactNode; role: Role; flags?: AdminFlags }) {
+  const visibleSections = buildSections(role, flags)
   return (
     <div className="admin-layout">
       <aside className="admin-sidebar" aria-label="Navegación de administración">

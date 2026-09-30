@@ -7,6 +7,7 @@ import {
   tipos,
 } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
+import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
 import type { Formato } from '@/lib/model'
 import {
@@ -87,10 +88,7 @@ export async function DELETE(request: Request, ctx: Ctx) {
 
   const uses = await taxonomyInUseCount(kind, id)
   if (uses > 0) {
-    return Response.json(
-      { error: 'No se puede eliminar: hay recursos asociados' },
-      { status: 400 },
-    )
+    return jsonError('No se puede eliminar: hay recursos asociados', 400)
   }
 
   const db = getDb()
@@ -101,10 +99,7 @@ export async function DELETE(request: Request, ctx: Ctx) {
       await db.delete(categorias).where(eq(categorias.id, id))
     else await db.delete(tags).where(eq(tags.id, id))
   } catch {
-    return Response.json(
-      { error: 'No se puede eliminar: hay recursos asociados' },
-      { status: 400 },
-    )
+    return jsonError('No se puede eliminar: hay recursos asociados', 400)
   }
 
   return Response.json({ ok: true })

@@ -1,6 +1,6 @@
 import * as React from 'react'
 import Link from 'next/link'
-import { ChevronRight, MoreHorizontal } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type BreadcrumbItem = { label: string; href?: string }
@@ -79,15 +79,4 @@ function BreadcrumbSeparator({ className, ...props }: React.ComponentProps<'li'>
   )
 }
 
-function BreadcrumbEllipsis({
-  className,
-  ...props
-}: React.ComponentProps<'span'>) {
-  return (
-    <span role="presentation" aria-hidden="true" className={cn('breadcrumb__ellipsis', className)} {...props}>
-      <MoreHorizontal size={16} />
-    </span>
-  )
-}
-
-export { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator, BreadcrumbEllipsis }
+export { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator }

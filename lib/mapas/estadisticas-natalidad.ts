@@ -11,6 +11,15 @@
 // alumnos), sumarla por departamento/provincia era engañoso.
 import type { DatosNatalidad, Variacion } from './natalidad'
 
+export function fmt(n: number): string {
+  return new Intl.NumberFormat('es-AR').format(n)
+}
+
+export function fmtPct(pct: number | null): string {
+  if (pct == null) return '—'
+  return `${pct > 0 ? '+' : ''}${pct.toFixed(1)}%`
+}
+
 export type FiltroDepartamento = 'Todos' | string
 
 // ── 1. Nacidos vivos — tendencia (provincial o de un departamento) ──────────

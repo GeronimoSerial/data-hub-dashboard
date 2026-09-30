@@ -2,37 +2,12 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { SeccionesSelector } from './secciones-selector'
+import { SeccionesSelector, type SeccionesSelectorProps } from './secciones-selector'
+import { turnos } from '@/components/test-utils/parte-formulario'
 
 afterEach(() => {
   document.body.innerHTML = ''
 })
-
-const turnos = [
-  {
-    turno: 'Mañana',
-    niveles: [
-      {
-        nivel: 'Primario',
-        secciones: [
-          { geSectionId: 10, curso: '1°', division: 'A', nivel: 'Primario', turno: 'Mañana', matricula: 28, alumnos: [] },
-          { geSectionId: 11, curso: '1°', division: 'B', nivel: 'Primario', turno: 'Mañana', matricula: 25, alumnos: [] },
-        ],
-      },
-    ],
-  },
-  {
-    turno: 'Tarde',
-    niveles: [
-      {
-        nivel: 'Secundario',
-        secciones: [
-          { geSectionId: 20, curso: '4°', division: 'A', nivel: 'Secundario', turno: 'Tarde', matricula: 30, alumnos: [] },
-        ],
-      },
-    ],
-  },
-]
 
 const turnosConAlumnos = [
   {
@@ -62,22 +37,36 @@ const turnosConAlumnos = [
 const textoConComillasNormalizadas = (esperado: string) => (contenido: string) =>
   contenido.replace(/[“”]/g, '"') === esperado
 
+type OnCambiarMock = ReturnType<
+  typeof vi.fn<(geSectionIds: number[], alumnosSeleccionados: number[]) => void>
+>
+
+type SelectorOverrides = Omit<Partial<SeccionesSelectorProps>, 'onCambiar'> & {
+  onCambiar?: OnCambiarMock
+}
+
+function renderSelector(overrides: SelectorOverrides = {}) {
+  const onCambiar = overrides.onCambiar ?? vi.fn()
+  const props: SeccionesSelectorProps = {
+    turnos,
+    seleccionadas: [],
+    alumnosSeleccionados: [],
+    onCambiar,
+    ...overrides,
+  }
+  return { ...render(<SeccionesSelector {...props} />), user: userEvent.setup(), onCambiar }
+}
+
 describe('SeccionesSelector', () => {
   it('renderiza cada sección con su curso, división y matrícula', () => {
-    render(
-      <SeccionesSelector turnos={turnos} seleccionadas={[]} alumnosSeleccionados={[]} onCambiar={vi.fn()} />,
-    )
+    renderSelector()
 
     expect(screen.getByText(textoConComillasNormalizadas('1° "A" — 28 alumnos'))).toBeInTheDocument()
     expect(screen.getByText(textoConComillasNormalizadas('4° "A" — 30 alumnos'))).toBeInTheDocument()
   })
 
   it('agrega una sección a la selección al tildarla', async () => {
-    const onCambiar = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <SeccionesSelector turnos={turnos} seleccionadas={[10]} alumnosSeleccionados={[]} onCambiar={onCambiar} />,
-    )
+    const { onCambiar, user } = renderSelector({ seleccionadas: [10] })
 
     await user.click(screen.getByRole('checkbox', { name: /1°\s*["“”]B["“”]/ }))
 
@@ -86,11 +75,7 @@ describe('SeccionesSelector', () => {
   })
 
   it('quita una sección de la selección al destildarla', async () => {
-    const onCambiar = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <SeccionesSelector turnos={turnos} seleccionadas={[10, 11]} alumnosSeleccionados={[]} onCambiar={onCambiar} />,
-    )
+    const { onCambiar, user } = renderSelector({ seleccionadas: [10, 11] })
 
     await user.click(screen.getByRole('checkbox', { name: /1°\s*["“”]A["“”]/ }))
 
@@ -98,9 +83,7 @@ describe('SeccionesSelector', () => {
   })
 
   it('permite seleccionar una sección por teclado', async () => {
-    const onCambiar = vi.fn()
-    const user = userEvent.setup()
-    render(<SeccionesSelector turnos={turnos} seleccionadas={[]} alumnosSeleccionados={[]} onCambiar={onCambiar} />)
+    const { onCambiar, user } = renderSelector()
 
     screen.getByRole('checkbox', { name: /4°\s*["“”]A["“”]/ }).focus()
     await user.keyboard(' ')
@@ -110,17 +93,7 @@ describe('SeccionesSelector', () => {
   })
 
   it('no llama onCambiar cuando está deshabilitado', async () => {
-    const onCambiar = vi.fn()
-    const user = userEvent.setup()
-    render(
-      <SeccionesSelector
-        turnos={turnos}
-        seleccionadas={[]}
-        alumnosSeleccionados={[]}
-        onCambiar={onCambiar}
-        disabled
-      />,
-    )
+    const { onCambiar, user } = renderSelector({ disabled: true })
 
     await user.click(screen.getByRole('checkbox', { name: /1°\s*["“”]A["“”]/ }))
 
@@ -128,9 +101,7 @@ describe('SeccionesSelector', () => {
   })
 
   it('selecciona todas las secciones con el checkbox general', async () => {
-    const onCambiar = vi.fn()
-    const user = userEvent.setup()
-    render(<SeccionesSelector turnos={turnos} seleccionadas={[]} alumnosSeleccionados={[]} onCambiar={onCambiar} />)
+    const { onCambiar, user } = renderSelector()
 
     await user.click(screen.getByRole('checkbox', { name: /todas las secciones/i }))
 
@@ -140,15 +111,7 @@ describe('SeccionesSelector', () => {
 
   describe('con alumnos por sección', () => {
     it('muestra un checkbox por alumno al desplegar la sección', async () => {
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={vi.fn()}
-        />,
-      )
+      const { user } = renderSelector({ turnos: turnosConAlumnos })
 
       await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
 
@@ -157,14 +120,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('arranca con la lista nominal plegada', () => {
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={vi.fn()}
-        />,
-      )
+      renderSelector({ turnos: turnosConAlumnos })
 
       expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: /elegir alumnos/i })).toHaveAttribute(
@@ -174,14 +130,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('arranca desplegada si la sección ya trae alumnos elegidos explícitamente', () => {
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[2]}
-          onCambiar={vi.fn()}
-        />,
-      )
+      renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], alumnosSeleccionados: [2] })
 
       expect(screen.getByRole('checkbox', { name: /Pérez, Luis/ })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /ocultar alumnos/i })).toHaveAttribute(
@@ -191,16 +140,11 @@ describe('SeccionesSelector', () => {
     })
 
     it('vuelve a plegar la lista nominal sin tocar la selección', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[2]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({
+        turnos: turnosConAlumnos,
+        seleccionadas: [10],
+        alumnosSeleccionados: [2],
+      })
 
       await user.click(screen.getByRole('button', { name: /ocultar alumnos/i }))
 
@@ -211,24 +155,13 @@ describe('SeccionesSelector', () => {
     })
 
     it('no ofrece desplegar cuando la sección no tiene identidades cargadas', () => {
-      render(
-        <SeccionesSelector turnos={turnos} seleccionadas={[]} alumnosSeleccionados={[]} onCambiar={vi.fn()} />,
-      )
+      renderSelector()
 
       expect(screen.queryByRole('button', { name: /alumnos/i })).not.toBeInTheDocument()
     })
 
     it('tildar la sección marca a todos sus alumnos y no deja lista explícita', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({ turnos: turnosConAlumnos })
 
       await user.click(screen.getByRole('checkbox', { name: /1°/ }))
 
@@ -236,16 +169,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('destildar un alumno dentro de una sección completa la deja parcial', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10] })
 
       await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
       await user.click(screen.getByRole('checkbox', { name: /Gómez, Ana/ }))
@@ -254,14 +178,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('la sección se muestra indeterminada cuando la selección de alumnos es parcial', () => {
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[2]}
-          onCambiar={vi.fn()}
-        />,
-      )
+      renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], alumnosSeleccionados: [2] })
 
       const checkboxSeccion = screen.getByRole('checkbox', { name: /1°/ })
       expect(checkboxSeccion).toHaveAttribute('data-indeterminate')
@@ -269,16 +186,11 @@ describe('SeccionesSelector', () => {
     })
 
     it('destildar el único alumno restante de una selección parcial saca la sección entera', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[2]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({
+        turnos: turnosConAlumnos,
+        seleccionadas: [10],
+        alumnosSeleccionados: [2],
+      })
 
       await user.click(screen.getByRole('checkbox', { name: /Pérez, Luis/ }))
 
@@ -286,16 +198,11 @@ describe('SeccionesSelector', () => {
     })
 
     it('tildar de nuevo al único alumno que faltaba vuelve la sección a completa', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[2]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({
+        turnos: turnosConAlumnos,
+        seleccionadas: [10],
+        alumnosSeleccionados: [2],
+      })
 
       await user.click(screen.getByRole('checkbox', { name: /Gómez, Ana/ }))
 
@@ -303,16 +210,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('tildar un alumno de una sección no seleccionada la agrega parcial', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={onCambiar}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({ turnos: turnosConAlumnos })
 
       await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
       await user.click(screen.getByRole('checkbox', { name: /Gómez, Ana/ }))
@@ -323,32 +221,17 @@ describe('SeccionesSelector', () => {
 
   describe('con permiteAlumnos en false (categoría establecimiento)', () => {
     it('no ofrece "Elegir alumnos" aunque la sección tenga identidades cargadas', () => {
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={vi.fn()}
-          permiteAlumnos={false}
-        />,
-      )
+      renderSelector({ turnos: turnosConAlumnos, permiteAlumnos: false })
 
       expect(screen.queryByRole('button', { name: /elegir alumnos/i })).not.toBeInTheDocument()
       expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
     })
 
     it('tildar la sección nunca emite alumnos, incluso con identidades cargadas', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[]}
-          alumnosSeleccionados={[]}
-          onCambiar={onCambiar}
-          permiteAlumnos={false}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({
+        turnos: turnosConAlumnos,
+        permiteAlumnos: false,
+      })
 
       await user.click(screen.getByRole('checkbox', { name: /1°/ }))
 
@@ -356,17 +239,11 @@ describe('SeccionesSelector', () => {
     })
 
     it('destildar la sección la saca de la selección sin tocar alumnos', async () => {
-      const onCambiar = vi.fn()
-      const user = userEvent.setup()
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[]}
-          onCambiar={onCambiar}
-          permiteAlumnos={false}
-        />,
-      )
+      const { onCambiar, user } = renderSelector({
+        turnos: turnosConAlumnos,
+        seleccionadas: [10],
+        permiteAlumnos: false,
+      })
 
       await user.click(screen.getByRole('checkbox', { name: /1°/ }))
 
@@ -374,15 +251,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('el checkbox de sección nunca queda indeterminado', () => {
-      render(
-        <SeccionesSelector
-          turnos={turnosConAlumnos}
-          seleccionadas={[10]}
-          alumnosSeleccionados={[]}
-          onCambiar={vi.fn()}
-          permiteAlumnos={false}
-        />,
-      )
+      renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], permiteAlumnos: false })
 
       const checkboxSeccion = screen.getByRole('checkbox', { name: /1°/ })
       expect(checkboxSeccion).not.toHaveAttribute('data-indeterminate')

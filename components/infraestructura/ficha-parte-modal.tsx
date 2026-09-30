@@ -1,18 +1,20 @@
 'use client'
 
-import { useEffect, useState, type JSX } from 'react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { useEffect, useRef, useState, type JSX } from 'react'
+import { CircleAlert, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import type { DatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type {
   Categoria,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
+  SeccionEstablecimiento,
   ServicioAlcance,
   Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
-import { EstadoActualSeveridad } from './estado-actual-severidad'
 import {
   ETIQUETA_ESTABLECIMIENTO,
   ETIQUETA_SERVICIO,
@@ -21,6 +23,11 @@ import {
   rigeDesdeDelServicio,
 } from './estado-actual-textos'
 import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
+import { FichaTerritorial } from './ficha-territorial'
+import {
+  FichaAccesoTerritorial,
+  type FichaAccesoTerritorialProps,
+} from './ficha-acceso-territorial'
 
 // --- Forma de GET /api/mapas/infraestructura/parte (ver app/api/mapas/infraestructura/parte/route.ts) ---
 //
@@ -53,6 +60,17 @@ interface RespuestaParteMapa {
   parte: ParteFicha | null
   servicio?: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
   afectaciones?: AfectacionFicha[]
+  // Secciones del establecimiento (turno + id de sección GE) que devuelve la
+  // ruta para CUALQUIER escuela del corte, tenga o no afectación vigente. Es
+  // la fuente cruda; el bloque "Datos de la escuela" ya no la recorre (usa
+  // `datosPadron`, que es el agregado), pero se conserva en la forma de la
+  // respuesta por compatibilidad con la ruta.
+  secciones?: SeccionEstablecimiento[]
+  // Agregado del padrón GE de la escuela (F3.2/V4): nivel(es), matrícula total
+  // del corte vigente, secciones y turnos. `null` = la escuela no tiene
+  // ninguna sección en el corte vigente (se dice explícitamente en la ficha);
+  // `undefined` = una ruta vieja no lo manda. Nunca trae identidad de alumno.
+  datosPadron?: DatosPadronEscuela | null
   ultimaActualizacion?: string | null
 }
 
@@ -76,6 +94,27 @@ type EstadoHistorial =
 const MOVIMIENTOS_ADELANTADOS = 3
 
 /**
+ * Severidad dentro de la ficha del mapa (hallazgo 21). La ficha NO reusa
+ * `EstadoActualSeveridad` a propósito: ese componente es compartido con las
+ * pantallas del director y codifica el nivel con una forma propia (círculo,
+ * cuadrado, triángulo, rombo). Acá, y sólo acá, se usa un ícono fijo para
+ * todos los niveles + el color oficial + el texto: la forma no varía por
+ * nivel y el nivel sigue siendo legible sin depender del color.
+ */
+function IndicadorSeveridadFicha({ severidad }: { severidad: Severidad }): JSX.Element {
+  return (
+    <span className="estado-actual-severidad">
+      <CircleAlert
+        size={16}
+        aria-hidden
+        style={{ color: colorSeveridad(severidad), flexShrink: 0 }}
+      />
+      <span className="estado-actual-severidad__texto">Severidad {severidad}</span>
+    </span>
+  )
+}
+
+/**
  * Contenido del modal de la ficha del parte (F3.2 + F3.5). Componente aparte
  * de `FichaParteModal` para que, igual que el resto de los modales del mapa,
  * el fetch sólo exista mientras el modal está abierto (`{open ? <...> : null}`
@@ -86,12 +125,18 @@ const MOVIMIENTOS_ADELANTADOS = 3
 function FichaParteModalContenido({
   cueAnexo,
   parteResumen,
+  escuelaEnPadron,
   mostrarEnlaceNominal,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
 }: {
   cueAnexo: string
   parteResumen: ParteMapa | null
+  // ¿La escuela viene del padrón completo de escuelas? Separa "no tiene
+  // secciones en el corte" de "no figura en el padrón cargado": son dos
+  // ausencias distintas y la frase vieja ("sin datos del padrón") las
+  // confundía, sobre todo con una escuela recién elegida en la búsqueda.
+  escuelaEnPadron: boolean
   mostrarEnlaceNominal: boolean
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
@@ -168,6 +213,13 @@ function FichaParteModalContenido({
   const afectacionesFicha: AfectacionFicha[] | null = datos?.afectaciones ?? null
   const afectacionesPlaceholder = parteResumen?.afectaciones ?? []
 
+  // Escuela sin afectación vigente: la respuesta llega con `afectaciones: []`
+  // o directamente sin el campo y con `parte: null`. En ambos casos hay que
+  // decirlo con un texto explícito en vez de dejar la sección vacía, que se
+  // lee como una pantalla rota o a medio cargar.
+  const sinAfectaciones =
+    afectacionesFicha !== null ? afectacionesFicha.length === 0 : datos?.parte === null
+
   return (
     <div className="ficha-parte-modal">
       {estado.fase === 'error' && (
@@ -202,13 +254,20 @@ function FichaParteModalContenido({
           Situación hidrometeorológica en seguimiento
         </h3>
 
-        {afectacionesFicha !== null ? (
+        {sinAfectaciones ? (
+          <p
+            className="estado-actual-bloque__vigencia ficha-parte-modal__sin-afectaciones"
+            data-testid="ficha-parte-sin-afectaciones"
+          >
+            Sin afectaciones reportadas para esta escuela.
+          </p>
+        ) : afectacionesFicha !== null ? (
           <ul className="estado-actual-afectaciones">
             {afectacionesFicha.map((afectacion) => (
               <li key={afectacion.id} className="estado-actual-afectacion">
                 <div className="estado-actual-afectacion__encabezado">
                   <span className="estado-actual-afectacion__motivo">{afectacion.motivo}</span>
-                  <EstadoActualSeveridad severidad={afectacion.severidad} />
+                  <IndicadorSeveridadFicha severidad={afectacion.severidad} />
                 </div>
                 <p className="estado-actual-afectacion__alcance">
                   {CATEGORIA_META[afectacion.categoria].label} · desde{' '}
@@ -221,7 +280,7 @@ function FichaParteModalContenido({
                 {mostrarEnlaceNominal && (
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
                     onClick={() => onVerAlumnosAlcanzados(afectacion.id)}
                   >
@@ -241,7 +300,7 @@ function FichaParteModalContenido({
                       `string` sin el union — el mismo dato que ya devuelve el
                       servidor validado contra SEVERIDADES, así que el cast es
                       seguro acá. */}
-                  <EstadoActualSeveridad severidad={afectacion.severidad as Severidad} />
+                  <IndicadorSeveridadFicha severidad={afectacion.severidad as Severidad} />
                 </div>
                 <p className="estado-actual-afectacion__alcance">
                   {CATEGORIA_META[afectacion.categoria].label} · desde{' '}
@@ -255,7 +314,7 @@ function FichaParteModalContenido({
                 {mostrarEnlaceNominal && (
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
                     onClick={() => onVerAlumnosAlcanzados(afectacion.id)}
                   >
@@ -272,6 +331,69 @@ function FichaParteModalContenido({
           </p>
         )}
       </section>
+
+      {/* F3.2/V4: agregado del padrón GE para la escuela que la ruta devuelve
+          para cualquier CUE del corte, tenga o no afectación vigente. Muestra
+          nivel(es) educativo(s), matrícula total y cantidad de secciones; si
+          la escuela no tiene datos en el corte vigente (`datosPadron: null`),
+          lo dice explícitamente en vez de inventar ceros, distinguiendo si la
+          escuela está en el padrón de escuelas (`escuelaEnPadron`) o si el
+          padrón cargado no la contiene. Si una ruta vieja no manda el campo,
+          el bloque no se muestra. */}
+      {datos !== null && datos.datosPadron !== undefined && (
+        <section
+          className="estado-actual-bloque estado-actual-bloque--ancho"
+          aria-labelledby="ficha-parte-datos-escuela"
+        >
+          <h3 className="estado-actual-bloque__titulo" id="ficha-parte-datos-escuela">
+            Datos de la escuela
+          </h3>
+          {datos.datosPadron === null ? (
+            <p
+              className="estado-actual-bloque__vigencia"
+              data-testid="ficha-parte-sin-padron"
+            >
+              {escuelaEnPadron
+                ? 'Sin secciones ni matrícula en el corte vigente de Gestión Escolar.'
+                : 'La escuela no figura en el padrón cargado: sin datos de secciones ni matrícula.'}
+            </p>
+          ) : (
+            <>
+              <p
+                className="estado-actual-bloque__vigencia"
+                data-testid="ficha-parte-padron-niveles"
+              >
+                {datos.datosPadron.niveles.length === 1
+                  ? 'Nivel educativo'
+                  : 'Niveles educativos'}
+                : {datos.datosPadron.niveles.join(', ')}
+              </p>
+              <p
+                className="estado-actual-bloque__vigencia"
+                data-testid="ficha-parte-padron-matricula"
+              >
+                Matrícula total: {datos.datosPadron.matriculaTotal}{' '}
+                {datos.datosPadron.matriculaTotal === 1 ? 'alumno' : 'alumnos'}
+              </p>
+              <p
+                className="estado-actual-bloque__vigencia"
+                data-testid="ficha-parte-padron-secciones"
+              >
+                {datos.datosPadron.secciones}{' '}
+                {datos.datosPadron.secciones === 1 ? 'sección' : 'secciones'}
+              </p>
+              {datos.datosPadron.turnos.length > 0 && (
+                <p
+                  className="estado-actual-bloque__vigencia"
+                  data-testid="ficha-parte-padron-turnos"
+                >
+                  Turnos: {datos.datosPadron.turnos.join(' · ')}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+      )}
 
       {ultimaActualizacion && (
         <p className="estado-actual-pie__actualizacion">Última actualización: {ultimaActualizacion}</p>
@@ -293,6 +415,19 @@ function FichaParteModalContenido({
           </Button>
         </section>
       )}
+
+      {/* Q6e: puente interno para cargar o actualizar el parte de esta escuela.
+          `/infraestructura/cargar` resuelve el CUE y confirma de qué escuela se
+          trata antes de entrar al recorrido del director (que pide su propia
+          contraseña). Se muestra siempre, tenga o no historial. */}
+      <div>
+        <a
+          className="ui-button ui-button--secondary ui-button--sm"
+          href={`/infraestructura/cargar?cue=${encodeURIComponent(cueAnexo)}`}
+        >
+          Cargar o actualizar el parte
+        </a>
+      </div>
     </div>
   )
 }
@@ -313,38 +448,111 @@ export function FichaParteModal({
   open,
   onOpenChange,
   parteResumen,
+  escuela,
   mostrarEnlaceNominal,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
+  habilitado = false,
+  accesoTerritorial,
 }: {
   cueAnexo: string
   open: boolean
   onOpenChange: (open: boolean) => void
   parteResumen: ParteMapa | null
+  // Q6a: identidad de la escuela tomada del padrón COMPLETO (afectada o no),
+  // independiente de que exista un parte. Es la fuente del nombre/CUE/
+  // localidad/departamento del encabezado; `null` sólo si la escuela no está
+  // en el padrón cargado.
+  escuela: {
+    nombre: string
+    cueAnexo: string
+    localidad: string
+    departamento: string
+  } | null
   mostrarEnlaceNominal: boolean
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
-}): JSX.Element {
+  // Flag server-side (E2): el padre decide si la ficha territorial corresponde
+  // para esta escuela. Default `false` para no cambiar el comportamiento
+  // existente de todo el mapa que ya usa este modal.
+  habilitado?: boolean
+  // Acceso territorial estático (aislamiento OSM + susceptibilidad physrisk +
+  // ruta). Presentacional: el padre resuelve estos datos y su loading/error.
+  // Opcional y gateado por `habilitado`; el mapa lo pasa en otra tarea, así
+  // que su ausencia no cambia el modal actual.
+  accesoTerritorial?: FichaAccesoTerritorialProps
+}): JSX.Element | null {
+  const cerrarRef = useRef<HTMLButtonElement>(null)
+
+  // Foco accesible: al abrir, el foco entra al panel (al botón de cerrar, que
+  // es el primer control). Sin el Dialog de @base-ui no hay focus trap ni
+  // autofocus automático, así que se mueve a mano.
+  useEffect(() => {
+    if (!open) return
+    cerrarRef.current?.focus()
+  }, [open])
+
+  // Cierre con Esc, sólo mientras el panel está abierto. Se limpia al cerrar
+  // o desmontar para no dejar un listener colgado.
+  useEffect(() => {
+    if (!open) return
+    const alPresionarTecla = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onOpenChange(false)
+    }
+    window.addEventListener('keydown', alPresionarTecla)
+    return () => window.removeEventListener('keydown', alPresionarTecla)
+  }, [open, onOpenChange])
+
+  if (!open) return null
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="map-detail-dialog">
-        <DialogTitle>{parteResumen?.nombre ?? 'Ficha del parte'}</DialogTitle>
-        {parteResumen && (
+    <div
+      className="map-ficha-panel"
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby="map-ficha-panel-titulo"
+    >
+      <div className="map-ficha-panel__encabezado">
+        <h2 className="map-ficha-panel__titulo" id="map-ficha-panel-titulo">
+          {escuela?.nombre ?? parteResumen?.nombre ?? 'Ficha del parte'}
+        </h2>
+        <button
+          type="button"
+          ref={cerrarRef}
+          className="map-ficha-panel__cerrar"
+          aria-label="Cerrar"
+          onClick={() => onOpenChange(false)}
+        >
+          <X size={18} />
+        </button>
+      </div>
+      <div className="ficha-parte-sheet__body">
+        {parteResumen ? (
           <p className="estado-actual-bloque__vigencia">
             {parteResumen.localidad}, {parteResumen.departamento}
           </p>
-        )}
-        {open ? (
-          <FichaParteModalContenido
-            key={cueAnexo}
-            cueAnexo={cueAnexo}
-            parteResumen={parteResumen}
-            mostrarEnlaceNominal={mostrarEnlaceNominal}
-            onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
-            onVerHistorialCompleto={onVerHistorialCompleto}
-          />
+        ) : escuela ? (
+          <p className="estado-actual-bloque__vigencia">
+            {escuela.cueAnexo} · {escuela.localidad}, {escuela.departamento}
+          </p>
         ) : null}
-      </DialogContent>
-    </Dialog>
+        {habilitado && accesoTerritorial && (
+          <FichaAccesoTerritorial {...accesoTerritorial} />
+        )}
+        <FichaParteModalContenido
+          key={cueAnexo}
+          cueAnexo={cueAnexo}
+          parteResumen={parteResumen}
+          escuelaEnPadron={escuela !== null}
+          mostrarEnlaceNominal={mostrarEnlaceNominal}
+          onVerAlumnosAlcanzados={onVerAlumnosAlcanzados}
+          onVerHistorialCompleto={onVerHistorialCompleto}
+        />
+        {/* Ficha territorial compacta (E2). DENTRO del render condicionado a
+            `open` a propósito: sus fetches no deben existir con el panel
+            cerrado. El flag lo decide el padre; acá sólo se respeta. */}
+        {habilitado && <FichaTerritorial cueAnexo={cueAnexo} />}
+      </div>
+    </div>
   )
 }

@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
-import { AccesoForm } from '@/components/infraestructura/acceso-form'
 import { ActualizacionForm } from '@/components/infraestructura/actualizacion-form'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
-import { tieneAccesoAlParteDesdeCookies } from '@/lib/infraestructura/acceso-parte'
-import { resolverContextoPorCue, type ContextoErrorKind } from '@/lib/infraestructura/contexto'
-import { ensureGeSchema, getCorteVigente, openGeDb } from '@/lib/infraestructura/ge-db'
+import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
 import { redirect } from 'next/navigation'
@@ -19,17 +16,6 @@ export const metadata: Metadata = {
 }
 
 const TITULO = 'Actualizar'
-
-// Mismos textos que app/problematicas/parte/page.tsx y
-// app/problematicas/parte/nuevo/page.tsx: el director no debería leer dos
-// explicaciones distintas del mismo problema según por qué enlace entró.
-const MENSAJES_ERROR: Record<ContextoErrorKind, string> = {
-  cue_ausente: 'Este enlace no incluye el CUE de la escuela. Solicite el enlace nuevamente a quien se lo compartió.',
-  cue_invalido: 'El CUE incluido en el enlace no tiene un formato válido.',
-  sin_corte_vigente: 'No hay datos de escuelas disponibles en este momento. Intente nuevamente más tarde.',
-  cue_inexistente: 'No se encontró una escuela con ese CUE.',
-  sin_secciones: 'Esta escuela todavía no tiene secciones cargadas.',
-}
 
 /**
  * Pantalla "Actualizar el parte" (spec §8): el director modifica lo que
@@ -47,36 +33,16 @@ export default async function ActualizarPartePage({
 }) {
   const { cue } = await searchParams
 
-  if (!(await tieneAccesoAlParteDesdeCookies())) {
-    return (
-      <div className="publico-content">
-        <EncabezadoParte pantalla={TITULO} />
-        <AccesoForm />
-      </div>
-    )
-  }
-
-  const clienteGe = openGeDb()
-  let resultado
-  // El corte se lee con el mismo cliente, antes de cerrarlo: la guarda de
-  // abajo lo necesita y abrir una segunda conexión sólo para eso sería otra
-  // ida a disco por cada carga de la pantalla.
-  let corteId: number | null = null
-  try {
-    await ensureGeSchema(clienteGe)
-    resultado = await resolverContextoPorCue(clienteGe, cue ?? null)
-    corteId = (await getCorteVigente(clienteGe))?.id ?? null
-  } finally {
-    clienteGe.close()
-  }
+  const bloqueo = await bloqueoDeAcceso(cue, TITULO)
+  if (bloqueo) return bloqueo
+  // The current cut is read alongside context using the same client for redirect resolution.
+  const { resultado, corteId } = await cargarContextoParte(cue)
 
   if (!resultado.ok) {
     return (
       <div className="publico-content">
         <EncabezadoParte pantalla={TITULO} />
-        <p className="estado-actual-aviso__texto" role="alert">
-          {MENSAJES_ERROR[resultado.error.kind]}
-        </p>
+        <ErrorContexto kind={resultado.error.kind} />
       </div>
     )
   }

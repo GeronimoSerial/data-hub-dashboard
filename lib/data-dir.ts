@@ -12,6 +12,13 @@ export function getSqlitePath() {
   return path.join(getDataDir(), 'hub.sqlite')
 }
 
+// DB1/F2: directorio de datos de PGlite para desarrollo local sin
+// DATABASE_URL (persistido, a diferencia de los tests que usan PGlite en
+// memoria — ver lib/db/index.ts).
+export function getPglitePath() {
+  return path.join(getDataDir(), 'pg')
+}
+
 export function getUploadsDir() {
   return path.join(getDataDir(), 'uploads')
 }
