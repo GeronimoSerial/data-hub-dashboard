@@ -23,25 +23,28 @@ Repositorio GitHub: **privado** `GeronimoSerial/data-hub-dashboard`. El paquete 
 - Sirve el hub Next.js en el puerto **3000** (modo `standalone`).
 - El visor MapLibre de matrícula está en `/mapas/matricula`.
 - Los datos estáticos del mapa (`/data/*.geojson`, worker MapLibre) van empaquetados en `public/` dentro de la imagen.
-- **Reportes** y **Administración** siguen existiendo como rutas, pero **no aparecen en la barra de navegación** (`lib/nav.ts` solo expone Inicio y Mapas). Los reportes con Postgres del stack Fastify **no** están en esta imagen.
+- **Reportes** y **Administración** siguen existiendo como rutas, pero **no aparecen en la barra de navegación**, definida en `components/app-shell.tsx`. Los reportes con Postgres del stack Fastify **no** están en esta imagen.
 
 ## Datos persistentes
 
-Coolify debe montar un volumen en **`/data`**. SQLite (`hub.sqlite`) y los uploads viven ahí. Backup = copiar el volumen. Alcance: reportes y admin ahora persisten; no reintroducir Postgres.
+Coolify debe montar un volumen en `/data`. Con `DATABASE_URL` configurada, el hub usa Postgres mediante Drizzle; sin ella usa PGlite embebido y persiste sus archivos en `DATA_DIR/pg` (por defecto `./.data/pg`). `DATA_DIR` también contiene uploads y exportaciones locales. Las migraciones Drizzle se empaquetan en la imagen.
 
 | Variable | Uso |
 |----------|-----|
-| `DATA_DIR` | `/data` en el contenedor |
-| `BETTER_AUTH_SECRET` | Obligatorio |
-| `BETTER_AUTH_URL` | URL pública del FQDN |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Solo primer boot |
-| `NOMINAL_ENCRYPTION_KEY` | **Obligatorio.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos (AES-256-GCM). Sin ella el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
-| `PROBLEMATICAS_ACCESO_PASSWORD` | Contraseña temporal del formulario público de problemáticas (`lib/infraestructura/acceso-publico.ts`). Provisoria: reemplaza a una autenticación por token que viene después. Sin ella, el formulario y sus rutas quedan cerrados. |
-| `PADRON_PG_URL` | Conexión a la base Postgres de Gestión Educativa, de donde sale el padrón. Formato `postgres://usuario:clave@host:5432/asistencias`. Solo la usan los scripts de mantenimiento: **el servidor nunca la lee**. Si falta, el tablero sigue sirviendo el último corte ya materializado en `ge.sqlite`. |
+| `DATA_DIR` | Directorio persistente, normalmente `/data`. |
+| `DATABASE_URL` | URL de Postgres; ausente, selecciona PGlite. |
+| `PGLITE_DATA_DIR` | Ruta PGlite persistida opcional; por defecto `DATA_DIR/pg`. |
+| `BETTER_AUTH_SECRET` | Secreto de sesión de Better Auth. |
+| `BETTER_AUTH_URL` | URL pública del FQDN. |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Usuario inicial, solo primer seed. |
+| `DEMO_OK` | Confirmación `1` requerida por el seed de demostración. |
+| `NOMINAL_ENCRYPTION_KEY` | **Obligatoria.** 32 bytes en base64 (`openssl rand -base64 32`). Cifra la identidad de los alumnos con AES-256-GCM. Sin ella, el alcance nominal falla al arrancar. **Si se pierde, los nombres quedan irrecuperables y hay que reimportar el padrón.** Ver `docs/rotacion-clave-nominal.md`. |
+| `PROBLEMATICAS_ACCESO_PASSWORD` | Contraseña temporal del formulario público (`lib/infraestructura/acceso-publico.ts`). Provisoria, reemplaza a una autenticación por token futura. Sin ella, el formulario y sus rutas quedan cerrados. |
+| `PADRON_PG_URL` (o `ConnectionStrings`, alias heredado) | Conexión a Postgres de Gestión Educativa, formato `postgres://usuario:clave@host:5432/asistencias`. Solo la leen scripts de mantenimiento; el servidor nunca la lee. Si falta, el tablero conserva el último corte materializado en la base activa. |
 
-### Alertas de infraestructura: el espejo de datos NO viaja en la imagen
+### Alertas de infraestructura: padrón y persistencia
 
-`ge.sqlite` vive en el volumen `/data`, igual que `hub.sqlite`, y no viaja en la imagen.
+La base principal del hub es Postgres si `DATABASE_URL` está configurada; en caso contrario, es PGlite persistido bajo `DATA_DIR/pg`. El corte del padrón se escribe en el schema `ge` de esa misma base activa. No se utiliza una base `ge.sqlite` separada en este flujo.
 
 Las **localizaciones** se siembran solas: `ensureSeeded` carga `ge_localizacion` desde
 `public/data/localizaciones.json` cuando la tabla está vacía (ver `lib/infraestructura/localizaciones-seed.ts`).
@@ -85,28 +88,27 @@ Corte 20 verificado: estado=vigente, secciones=15763, membresías=266775
 
 Si esa línea no aparece, el import no sirvió, sin importar lo que diga el resto de la salida.
 
-> **Por qué esto no corre en GitHub Actions.** El corte se escribe en `ge.sqlite`, que vive en el
-> volumen `/data` del contenedor: un runner de Actions no tiene acceso a ese volumen, y la única
-> forma de que lo tuviera sería hornear el padrón en la imagen, que es justamente lo que no se
-> hace con datos personales de menores. Además obligaría a poner las credenciales de la base de
-> Gestión Educativa como secret de un runner alojado fuera de la red del ministerio.
+> **Por qué esto no corre en GitHub Actions.** El corte se escribe en la base activa del hub
+> (Postgres o PGlite). Un runner de Actions no tiene acceso al Postgres ni al volumen `/data`
+> del contenedor; la única forma de darle acceso al volumen sería hornear el padrón en la imagen,
+> que es justamente lo que no se hace con datos personales de menores. Además obligaría a poner
+> las credenciales de la base de Gestión Educativa como secret de un runner alojado fuera de la red
+> del ministerio.
 >
 > Y tampoco va como `post_deployment_command`, que fue el primer intento: corre dentro del
 > contenedor y por eso mismo tumbó el host. Queda como tarea de operador con acceso al host.
 
-#### Modelo de datos: Postgres es la fuente, `ge.sqlite` es la proyección
+#### Modelo de datos: Postgres de Gestión Educativa como origen y schema `ge` como corte local
 
-El padrón real vive en la base Postgres de Gestión Educativa. `ge.sqlite` es una **proyección
-local de solo lectura** que se materializa como un corte (`ge_corte`) y que el tablero consulta
-adjunta en modo `?mode=ro`. Las consecuencias importantes:
+El padrón de origen vive en Postgres de Gestión Educativa. El importador materializa en el schema `ge` de la base activa del hub un corte (`ge_corte`) que el tablero consulta junto con el resto de sus datos; no hay un archivo separado adjuntado en modo `?mode=ro`. Las consecuencias importantes:
 
 - Volver a correr el paso 2 crea un corte nuevo y lo activa; el anterior pasa a `historico`.
   Es idempotente y no destruye nada.
-- Si se revoca el acceso a Postgres, **el tablero no se cae**: sigue sirviendo el último corte
-  materializado. Solo deja de poder actualizarse.
-- Las alertas cargadas por directores viven en `hub.sqlite` y **no** dependen de Postgres.
-  Si el volumen se pierde, el padrón se rehace corriendo el import de nuevo; las alertas no,
-  ésas solo están en el backup del volumen.
+- Si se revoca el acceso de mantenimiento a Postgres de Gestión Educativa, **el tablero no se cae**:
+  sigue sirviendo el último corte materializado. Solo deja de poder actualizarse.
+- Las alertas cargadas por directores viven en la misma base activa del hub. Si el hub usa PGlite,
+  su persistencia está en el volumen `/data`; con Postgres, debe respaldarse la base de datos.
+  El padrón puede rehacerse corriendo el import de nuevo; las alertas requieren restaurar el backup.
 
 El importador reconcilia contra `ge_localizacion`: los CUE del padrón que no tengan localización
 se descartan y se reportan al final. Como las localizaciones se siembran al arrancar, para cuando
@@ -133,6 +135,84 @@ El reverse proxy de Coolify (Traefik/Caddy) debe permitir cuerpos de **50 MB** (
 Sin esos secrets el workflow igual publica GHCR y saltea el deploy Coolify. Cuando están seteados, el paso *Trigger Coolify deploy* no solo dispara el deploy: además consulta `GET /api/v1/deployments/<uuid>` cada 10 segundos (hasta ~10 minutos) y falla el job si Coolify termina en `failed`/`cancelled-by-user` o si se agota el tiempo de espera, así el workflow refleja el resultado real del despliegue.
 
 Además de `ghcr.yml`, el workflow **CI** (`.github/workflows/ci.yml`) corre en cada pull request: instala dependencias con pnpm y ejecuta lint, typecheck y tests. No publica imagen ni dispara deploy.
+
+## Variables de entorno y flags
+
+Los flags booleanos de riesgo y producto solo se activan con el valor exacto `true`; el valor predeterminado es `false`. `RISK_MODE` admite `shadow` (seguro, predeterminado) y `advisory`; cualquier otro valor se interpreta como `shadow`. Los valores secretos deben configurarse en el gestor de secretos del despliegue.
+
+| Variable | Default | Para qué sirve | Requerida para |
+|---|---|---|---|
+| `DATA_DIR` | `./.data` | Datos persistentes y uploads | Hub y scripts locales |
+| `DATABASE_URL` | ausente (PGlite) | Conexión Postgres | Producción con Postgres |
+| `PGLITE_DATA_DIR` | `DATA_DIR/pg` | Ruta PGlite persistida | Persistencia local/optativa |
+| `DATABASE_SSL` | `false` | TLS de Postgres | Postgres con TLS |
+| `PGSSLMODE` | ausente | Alias SSL (`require`) | Postgres si aplica |
+| `DATABASE_SSL_CA_PATH` | ausente | CA TLS personalizada | Postgres con CA propia |
+| `DATABASE_POOL_MAX` | `10` | Máximo de conexiones | Ajuste Postgres |
+| `DATABASE_POOL_IDLE_TIMEOUT_MS` | `10000` | Timeout idle pool | Ajuste Postgres |
+| `DATABASE_POOL_CONNECT_TIMEOUT_MS` | `5000` | Timeout conexión | Ajuste Postgres |
+| `DATABASE_STATEMENT_TIMEOUT_MS` | `30000` | Timeout de consulta | Ajuste Postgres |
+| `BETTER_AUTH_SECRET` | sin default | Firma de sesión | Autenticación |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | URL pública de Auth | Autenticación |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | sin default | Primer usuario administrador | Seed inicial |
+| `NOMINAL_ENCRYPTION_KEY` | sin default | Cifrado AES-256-GCM de identidad | Padrón nominal |
+| `PROBLEMATICAS_ACCESO_PASSWORD` | sin default | Acceso temporal a formularios | Formularios públicos |
+| `PADRON_PG_URL` (o `ConnectionStrings`) | sin default | Conexión al Postgres fuente de Gestión Educativa | Scripts de mantenimiento del padrón |
+| `AI_API_KEY` | sin default | Credencial del proveedor OpenAI-compatible para explicar recursos | Acción «Explícame este recurso»; si también falta `OPENAI_API_KEY`, la función informa que no está configurada y no hace llamadas |
+| `OPENAI_API_KEY` | sin default | Alias de compatibilidad para la clave del proveedor de explicaciones | Acción «Explícame este recurso» cuando `AI_API_KEY` no está definida |
+| `AI_BASE_URL` | `https://api.openai.com/v1` | URL base del proveedor de explicaciones | Acción «Explícame este recurso» |
+| `AI_MODEL` | `gpt-4o-mini` | Modelo del proveedor de explicaciones | Acción «Explícame este recurso» |
+| `AI_TIMEOUT_MS` | `20000` | Timeout de la solicitud de explicación | Acción «Explícame este recurso» |
+| `RISK_ENGINE_ENABLED` | `false` | UI `/admin/riesgo` | Consola de riesgo |
+| `RISK_RADAR_ENABLED` | `false` | Radar de riesgo | Radar |
+| `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
+| `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
+| `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |
+| `REPLAY_ENABLED` | `false` | Replay de riesgo | Replay |
+| `SITUACION_ENABLED` | `false` | Centro de situación | Situación |
+| `EPISODIOS_DERIVADOS_ENABLED` | `false` | UI episodios derivados | Episodios |
+| `RISK_MODE` | `shadow` | Modo seguro o advisory | Motor de riesgo |
+| `ENOS_JOBS_ENABLED` | `true` | Pausa global de jobs OPS1 | Scheduler OPS1 |
+| `GEO_STATIC_OUTPUT_DIR` | `services/geo-static/output` | Insumos del importador geo | Import geo-static |
+| `EARTHDATA_TOKEN` | sin default | Autenticación NASA IMERG | Job `sync-imerg` |
+| `OPEN_METEO_API_KEY` | ausente | Cuota/plan Open-Meteo | Jobs de pronóstico/clima |
+| `OPEN_METEO_LIMITE_HOURLY`, `OPEN_METEO_LIMITE_DAILY`, `OPEN_METEO_LIMITE_MONTHLY` | techo gratuito de código | Límites de cupo | Jobs Open-Meteo |
+| `OPEN_METEO_LIMITE_HOURLY_PAGO`, `OPEN_METEO_LIMITE_DAILY_PAGO`, `OPEN_METEO_LIMITE_MONTHLY_PAGO` | sin default | Límites de cupo pago | Solo cuota paga Open-Meteo |
+| `OPENROUTER_API_KEY` | sin default | Acceso a proveedor IA | Briefing IA |
+| `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | Modelo de briefing | Briefing IA |
+| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Briefing IA |
+| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Briefing IA |
+| `DATASET_SALT_E7B` | sin default | Seudonimización estable | Exportación dataset |
+| `DEMO_OK` | sin default | Confirmación explícita de seed demo | Seed de demostración |
+| `NODE_ENV` | `production` en despliegue | Cookies seguras por entorno | Runtime |
+| `VITEST` | sin default | Selección de DB en memoria para tests | Solo tests |
+
+### Procedimientos operativos
+
+Después del primer despliegue y cada vez que se versionen nuevos resultados, importar las capas geo estáticas. El importador lee todos los archivos reconocidos de `GEO_STATIC_OUTPUT_DIR` (por defecto `services/geo-static/output`); admite además `--aislamiento PATH --susceptibilidad PATH --geometria PATH --exposicion-ruta PATH`:
+
+```bash
+docker exec <CONTENEDOR> node scripts/importar-geo-static.mjs
+```
+
+`<CONTENEDOR>` es el nombre o ID del contenedor de la aplicación en ejecución, visible en `docker ps`; reemplazarlo por el valor real al instalar los comandos en systemd. Tras la importación, ejecutar en este orden para completar la ficha territorial:
+
+```bash
+docker exec <CONTENEDOR> node scripts/jobs.mjs geo-perfiles
+docker exec <CONTENEDOR> node scripts/jobs.mjs asociacion-rio
+```
+
+Los timers mantienen ambos jobs actualizados diariamente. La asociación de ríos corre a las 03:10 UTC, después de `geo-perfiles` (03:00 UTC).
+
+Exportación bajo demanda de dataset desidentificado:
+
+```bash
+docker exec -e DATASET_SALT_E7B=<SAL> <CONTENEDOR> node scripts/exportar-dataset-desidentificado.mjs [--out <RUTA>]
+```
+
+El archivo queda en `DATA_DIR/dataset-replay-e7b/<version>_<fecha>.csv`. Sin `DATASET_SALT_E7B` el proceso sale con error claro; actualmente el módulo de dominio aún no construye filas desde la base y el resultado es solo encabezado (el script lo advierte).
+
+Al instalar timers, reemplazar `<CONTENEDOR>` por el nombre/ID real mostrado por `docker ps`, por ejemplo con `sed` sobre el unit antes de `systemctl daemon-reload`, o mediante `systemctl edit enos-ops1@.service` con un drop-in. Consultar `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
 
 ## Despliegue
 

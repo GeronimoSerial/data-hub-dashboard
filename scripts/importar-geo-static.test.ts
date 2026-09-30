@@ -3,7 +3,51 @@ import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { importarAislamiento, importarSusceptibilidad, importarGeometria, importarExposicionRuta } from './importar-geo-static.mjs'
+import {
+  descubrirArchivosGeoStatic,
+  importarAislamiento,
+  importarSusceptibilidad,
+  importarGeometria,
+  importarExposicionRuta,
+} from './importar-geo-static.mjs'
+
+describe('descubrirArchivosGeoStatic', () => {
+  it('resuelve los nombres de archivo versionados de geo-static', () => {
+    const archivos = [
+      'aislamiento_osm-v2-2026-09-26.csv',
+      'susceptibilidad_estatica-v1-2026.csv',
+      'accesos_osm_geometria-v2-2026-09-26.ndjson.gz',
+      'exposicion_ruta_inundacion-v1-2026-09-29.ndjson.gz',
+    ]
+
+    expect(descubrirArchivosGeoStatic(archivos, '/salida')).toEqual({
+      aislamiento: '/salida/aislamiento_osm-v2-2026-09-26.csv',
+      susceptibilidad: '/salida/susceptibilidad_estatica-v1-2026.csv',
+      geometria: '/salida/accesos_osm_geometria-v2-2026-09-26.ndjson.gz',
+      exposicionRuta: '/salida/exposicion_ruta_inundacion-v1-2026-09-29.ndjson.gz',
+    })
+  })
+
+  it('no confunde el archivo de auditoria sin ruta con aislamiento', () => {
+    expect(descubrirArchivosGeoStatic(['aislamiento_osm_sin_ruta-v2-2026-09-26.csv'], '/salida')).toEqual({})
+  })
+
+  it('devuelve un objeto vacio cuando no hay archivos', () => {
+    expect(descubrirArchivosGeoStatic([], '/salida')).toEqual({})
+  })
+
+  it('elige la versión lexicográficamente más reciente de cada capa', () => {
+    expect(descubrirArchivosGeoStatic([
+      'aislamiento_osm-v1-2026-09-26.csv',
+      'aislamiento_osm-v2-2026-09-26.csv',
+      'susceptibilidad_estatica-v1-2026.csv',
+      'susceptibilidad_estatica-v2-2026.csv',
+    ], '/salida')).toEqual({
+      aislamiento: '/salida/aislamiento_osm-v2-2026-09-26.csv',
+      susceptibilidad: '/salida/susceptibilidad_estatica-v2-2026.csv',
+    })
+  })
+})
 
 function crearDbFalsa() {
   const llamadas: Array<{ tabla: string; valores: unknown }> = []

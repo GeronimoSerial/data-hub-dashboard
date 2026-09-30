@@ -129,11 +129,13 @@ export function escribirDatasetCsv(
   filas: FilaDataset[],
   generadoEn: Date,
   version: string = DATASET_VERSION_E7B,
+  rutaSalida?: string,
 ): string {
-  const dir = path.join(getDataDir(), SUBDIR_DATASET)
-  fs.mkdirSync(dir, { recursive: true })
   const fecha = generadoEn.toISOString().slice(0, 10)
-  const archivo = path.join(dir, `${version}_${fecha}.csv`)
+  const archivo = rutaSalida
+    ? path.resolve(rutaSalida)
+    : path.join(getDataDir(), SUBDIR_DATASET, `${version}_${fecha}.csv`)
+  fs.mkdirSync(path.dirname(archivo), { recursive: true })
   fs.writeFileSync(archivo, filasACsv(filas), 'utf8')
   return archivo
 }

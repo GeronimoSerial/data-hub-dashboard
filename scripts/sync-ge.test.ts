@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from '../lib/infraestructura/ge-db'
 import { getRawClient } from '../lib/db'
@@ -26,6 +30,22 @@ async function resetGe(): Promise<void> {
 }
 
 beforeEach(resetGe)
+
+it('ejecuta el fixture desde CLI sin ReferenceError por existsSync', () => {
+  const dataDir = mkdtempSync(join(tmpdir(), 'sync-ge-fixture-'))
+  try {
+    const resultado = spawnSync(process.execPath, ['scripts/sync-ge.mjs', '--fixture'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: { ...process.env, DATA_DIR: dataDir, DATABASE_URL: '' },
+      timeout: 30000,
+    })
+    expect(resultado.status, resultado.stderr).toBe(0)
+    expect(resultado.stderr).not.toContain('ReferenceError')
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true })
+  }
+})
 
 describe('parseLocalizacionesJson', () => {
   it('extrae registros validos y descarta cues invalidos', () => {

@@ -4,7 +4,7 @@
  * establishments.geojson y arma un corte sintético de prueba (fixture) en ge.sqlite.
  * Usage: node scripts/sync-ge.mjs --fixture
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { normalizeCue } from '../lib/infraestructura/cue.ts'

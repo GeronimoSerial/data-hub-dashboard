@@ -10,7 +10,7 @@ contenedor ya corriendo. El servidor Next NO ejecuta estos jobs.
 sección "Correcciones del gate N1"):** las dos secciones siguientes cambiaron
 respecto de la primera versión de este runbook:
 
-- El runner ya NO gatea la ejecución de los 8 jobs con `RISK_ENGINE_ENABLED`
+- El runner ya NO gatea la ejecución de los 12 jobs con `RISK_ENGINE_ENABLED`
   ni `EPISODIOS_DERIVADOS_ENABLED` (esos son flags de **UI**, ver "Variables
   de entorno" abajo). Ahora usa un flag propio, `ENOS_JOBS_ENABLED`, con
   default **encendido**.
@@ -24,7 +24,7 @@ respecto de la primera versión de este runbook:
 
 | Variable | Dónde vive | Default | Qué gobierna |
 |---|---|---|---|
-| `ENOS_JOBS_ENABLED` | entorno del CONTENEDOR (o, opcionalmente, `EnvironmentFile` del host — ver abajo) | encendido si no está seteada (`!== 'false'`) | Único interruptor de los 8 jobs de `scripts/jobs.mjs`. En `false`, ningún job corre: cada uno responde `{"ejecutado":false,"motivo":"flag_deshabilitado"}`, exit `0`, y el runner imprime un `WARN` a stderr (visible en `journalctl`) con el nombre del job saltado. |
+| `ENOS_JOBS_ENABLED` | entorno del CONTENEDOR (o, opcionalmente, `EnvironmentFile` del host — ver abajo) | encendido si no está seteada (`!== 'false'`) | Único interruptor de los 12 jobs de `scripts/jobs.mjs`. En `false`, ningún job corre: cada uno responde `{"ejecutado":false,"motivo":"flag_deshabilitado"}`, exit `0`, y el runner imprime un `WARN` a stderr (visible en `journalctl`) con el nombre del job saltado. |
 | `RISK_ENGINE_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI `/admin/riesgo` (lista y detalle del motor de riesgo v0). NO afecta si los jobs corren — ver `lib/infraestructura/jobs/flags.ts` para el porqué de la separación. |
 | `EPISODIOS_DERIVADOS_ENABLED` | entorno del CONTENEDOR | apagado | Gobierna **sólo** la UI de sólo lectura `/admin/episodios-derivados`. NO afecta si el job `episodios-derivados` corre. |
 | `EARTHDATA_TOKEN` | entorno del CONTENEDOR | sin default | Token de NASA Earthdata para `sync-imerg`. Sin él, el job no rompe: marca `nasa-imerg` como `no_disponible` en `hazard_source_health` y sale con `0`. Ver "Renovación del token" abajo. |
@@ -72,7 +72,7 @@ sudo chown root:root /etc/enos-ops1/enos-ops1.env
 Unidades del repo, en `deploy/systemd/ops1/`:
 
 - `enos-ops1@.service` — plantilla instanciada (`%i` = nombre del job),
-  única para los 8 jobs. `ExecStart` corre
+  única para los 12 jobs. `ExecStart` corre
   `docker exec -e ENOS_JOBS_ENABLED <CONTENEDOR> node scripts/jobs.mjs %i`.
 - Un `.timer` explícito **por job programado** (no una plantilla): cada uno
   fija `Unit=enos-ops1@<job>.service` y su propio `OnCalendar` en UTC. Los
@@ -82,10 +82,11 @@ Pasos:
 
 1. Copiar `deploy/systemd/ops1/enos-ops1@.service` y todos los
    `deploy/systemd/ops1/enos-ops1-*.timer` a `/etc/systemd/system/`.
-2. Reemplazar `<CONTENEDOR>` por el nombre real del contenedor en
-   `enos-ops1@.service`. Si el nombre cambia entre despliegues (Dokploy/
-   Coolify recrean el contenedor con sufijos), el operador debe actualizar
-   este archivo y correr `systemctl daemon-reload` de nuevo.
+2. Reemplazar `<CONTENEDOR>` por el nombre o ID real del contenedor en
+   ejecución, visible en `docker ps`. Se puede usar `sed` antes de copiar el
+   unit o definir el valor mediante `systemctl edit enos-ops1@.service`.
+   Si cambia el contenedor al desplegar, actualizar el unit/drop-in y ejecutar
+   `systemctl daemon-reload`.
 3. `systemctl daemon-reload`.
 4. Habilitar cada timer (ver tabla de cadencias):
 
@@ -98,6 +99,8 @@ systemctl enable --now enos-ops1-episodios-derivados.timer
 systemctl enable --now enos-ops1-geo-perfiles.timer
 systemctl enable --now enos-ops1-sync-seasonal.timer
 systemctl enable --now enos-ops1-situacion-corte.timer
+systemctl enable --now enos-ops1-asociacion-rio.timer
+systemctl enable --now enos-ops1-briefing-ia.timer
 systemctl enable --now enos-ops1-climatologia-precipitacion.timer
 systemctl enable --now enos-ops1-climatologia-caudal.timer
 ```
@@ -153,6 +156,8 @@ los syncs de 6h (02,08,14,20:00), `geo-perfiles` (03:00) ni `sync-seasonal`
 | calcular-riesgo | 6h, encadenado por offset | `*-*-* 08,14,20,02:15:00 UTC` (offset +15min sobre los syncs de 6h) | `enos-ops1-calcular-riesgo.timer` | corre DESPUÉS de sync-pronostico-caudal/sync-ensemble; el offset de 15min evita la carrera; el lease además impide solapes |
 | episodios-derivados | 1h | `*-*-* *:00:00 UTC` | `enos-ops1-episodios-derivados.timer` | recomputo barato, sin llamadas externas |
 | geo-perfiles | diario | `*-*-* 03:00:00 UTC` | `enos-ops1-geo-perfiles.timer` | recompute barato de perfiles geográficos, sin llamadas externas; horario de baja carga |
+| asociacion-rio | diario | `*-*-* 03:10:00 UTC` | `enos-ops1-asociacion-rio.timer` | calcula asociaciones de ríos después de geo-perfiles (03:00 UTC) |
+| briefing-ia | cada hora | `*-*-* *:30:00 UTC` | `enos-ops1-briefing-ia.timer` | corre diez minutos después de situacion-corte; requiere `OPENROUTER_API_KEY` para generar contenido |
 | situacion-corte | 1h, alineado tras calcular-riesgo | `*-*-* *:20:00 UTC` | `enos-ops1-situacion-corte.timer` | corre poco después de calcular-riesgo (`:15` en 08,14,20,02 UTC) para que el corte del Centro de Situación (E5) refleje el riesgo recién calculado lo antes posible; en las demás horas corre con su propia cadencia horaria |
 | climatologia-precipitacion | diario, cursor resumable de cupo | `*-*-* 05:00:00 UTC` | `enos-ops1-climatologia-precipitacion.timer` | el cálculo completo (~387 celdas × 30 años) excede el cupo mensual en una sola corrida; el timer diario avanza el cursor resumable hasta el tope de cupo del día (~7 días para completarse la primera vez, ver sección arriba), sin recomputar celdas ya persistidas |
 | climatologia-caudal | diario, cursor resumable de cupo | `*-*-* 06:00:00 UTC` | `enos-ops1-climatologia-caudal.timer` | mismo esquema, otra fuente (GloFAS, 8 `PUNTOS_RIO` fijos); se completa en la primera corrida |
@@ -199,6 +204,13 @@ El timer vive en el **HOST**, no dentro del contenedor. Lo que dispara es
 El contenedor ya tiene `scripts/jobs.mjs` empaquetado en la imagen (igual que
 `scripts/job-diagnostico.mjs`, copiado por el `Dockerfile`), así que no hace
 falta montarlo ni instalarlo aparte.
+
+### Credenciales de red por job
+
+- `sync-imerg` requiere `EARTHDATA_TOKEN` para NASA; sin token se registra como fuente no disponible.
+- `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal` y ambos jobs de climatología consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde, mientras las cuotas gratuitas pueden operar sin clave.
+- `briefing-ia` requiere `OPENROUTER_API_KEY` para llamadas al proveedor OpenRouter.
+- `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales y no requieren credenciales de proveedor de red.
 
 ## Códigos de salida
 
@@ -247,10 +259,8 @@ instanciada (`@`) y no acepta verificación sin una instancia concreta, así
 que se valida copiando la plantilla a un nombre de instancia de prueba (p.
 ej. `enos-ops1@geo-perfiles.service`) y corriendo `systemd-analyze verify`
 sobre esa copia. Los `.timer` explícitos ya no son plantillas y se verifican
-directamente contra su ruta real. Corrido localmente en este batch sobre los
-8 archivos del repo (la plantilla instanciada 8 veces + los 6 `.timer`
-explícitos), **sin instalarlos**; ver `docs/ejecucion-enos/OPS1/registro.md`
-para el resultado real, exit `0` en los 14.
+directamente contra su ruta real. Verificar la plantilla y los 12 timers explícitos
+del repo antes de instalarlos.
 
 ## Logs
 
@@ -271,7 +281,7 @@ Dos mecanismos independientes, elegir el que corresponda:
   `systemctl disable --now enos-ops1-<nombre>.timer` (no toca el `.service`,
   sólo detiene el disparo periódico). Reanudar:
   `systemctl enable --now enos-ops1-<nombre>.timer`.
-- **Pausar los 8 jobs a la vez sin tocar systemd:** setear
+- **Pausar los 12 jobs a la vez sin tocar systemd:** setear
   `ENOS_JOBS_ENABLED=false` (ver "Interruptor de pausa opcional desde el
   HOST" arriba, o directamente en el entorno del contenedor). Los timers
   siguen disparando en su horario, pero cada corrida es un no-op con exit
