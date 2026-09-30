@@ -1209,6 +1209,17 @@ export const radarMeteoRun = pgTable('radar_meteo_run', {
   units: jsonb('units').$type<Record<string, string>>().notNull(), status: text('status').notNull(),
   idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
 }, (t) => [uniqueIndex('radar_meteo_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_run_status_fetched_idx').on(t.status, t.fetchedAt)])
+export const radarMeteoVerificacion = pgTable('radar_meteo_verificacion', {
+  fecha: text('fecha').notNull(),
+  departamento: text('departamento').notNull(),
+  runId: text('run_id').notNull(),
+  pronosticoMm: real('pronostico_mm'),
+  observadoMm: real('observado_mm'),
+  coberturaObs: real('cobertura_obs').notNull(),
+  motivoExclusion: text('motivo_exclusion'),
+  versionAlgoritmo: text('version_algoritmo').notNull(),
+  creadoEn: text('creado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.fecha, t.departamento] }), index('radar_meteo_verificacion_fecha_idx').on(t.fecha)])
 export const smnAlerta = pgTable('smn_alerta', {
   id: text('id').primaryKey(), sender: text('sender').notNull(), sent: text('sent').notNull(), onset: text('onset'), expires: text('expires'),
   event: text('event').notNull(), severity: text('severity').notNull(), urgency: text('urgency'), certainty: text('certainty'), headline: text('headline'), description: text('description'), instruction: text('instruction'),

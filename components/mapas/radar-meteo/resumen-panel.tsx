@@ -91,11 +91,13 @@ export function ResumenPanel({
   departamentos,
   dias,
   actualizadoHace,
+  verificacion,
   onDepartamento,
 }: {
   departamentos: DepartamentoResumen[]
   dias: string[]
   actualizadoHace: number | null
+  verificacion?: { estado: 'ok' | 'muestra_insuficiente' | 'sin_datos'; sesgoMm: number | null; pod: number | null; far: number | null; nPares: number; nEventos: number; desde: string; hasta: string }
   onDepartamento?: (id: string) => void
 }) {
   const [vista, setVista] = useState<'dias' | 'horas'>('dias')
@@ -256,6 +258,16 @@ export function ResumenPanel({
         P≥25 mm proviene de un piloto de ensamble ECMWF (50 escenarios), a nivel de departamento.
         Los umbrales resaltan valores; no son alertas oficiales.
       </p>
+      <footer className="radar-verificacion">
+        <strong>Precisión reciente (verificación con IMERG)</strong>
+        <span title="IMERG es una estimación de precipitación por satélite, no una medición de pluviómetro.">
+          {verificacion?.estado === 'ok' ? (
+            <>El pronóstico {verificacion.sesgoMm === 0 ? 'coincide' : verificacion.sesgoMm! > 0 ? `sobreestima ${Math.abs(verificacion.sesgoMm!)} mm/día` : `subestima ${Math.abs(verificacion.sesgoMm!)} mm/día`} en promedio; detecta {Math.round((verificacion.pod ?? 0) * 100)}% de los días ≥10 mm (POD) y {Math.round((verificacion.far ?? 0) * 100)}% de falsas alarmas (FAR). n={verificacion.nPares}; {verificacion.desde}–{verificacion.hasta}.</>
+          ) : verificacion?.estado === 'muestra_insuficiente' ? (
+            <>Aún sin muestra suficiente ({verificacion.nPares} de 14 días, {verificacion.nEventos} de 5 eventos).</>
+          ) : 'Aún no hay datos para verificar el pronóstico.'}
+        </span>
+      </footer>
     </section>
   )
 }

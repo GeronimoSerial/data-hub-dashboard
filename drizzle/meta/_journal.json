@@ -50,6 +50,13 @@
       "when": 1790779942139,
       "tag": "0006_h2_smn_alertas_ensemble",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790790917418,
+      "tag": "0007_radar-meteo-verificacion",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   calcularAsociacionesRio: vi.fn(),
   ejecutarSyncPronosticoCaudal: vi.fn(),
   ejecutarSyncRadarMeteo: vi.fn(),
+  ejecutarVerificacionRadarMeteo: vi.fn(),
   ejecutarSyncEnsemble: vi.fn(),
   ejecutarSyncImerg: vi.fn(),
   ejecutarCalculoClimatologia: vi.fn(),
@@ -34,6 +35,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/sync-pronostico-caudal.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/radar-meteo/job-sync.ts', () => ({
   ejecutarSyncRadarMeteo: mocks.ejecutarSyncRadarMeteo,
+}))
+vi.mock('../lib/infraestructura/radar-meteo/verificacion.ts', () => ({
+  ejecutarVerificacionRadarMeteo: mocks.ejecutarVerificacionRadarMeteo,
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/sync-ensemble.ts', () => ({
   ejecutarSyncEnsemble: mocks.ejecutarSyncEnsemble,
@@ -79,6 +83,14 @@ describe('correrJob — despacho por nombre', () => {
     const { correrJob } = await import('./jobs.mjs')
     await expect(correrJob('sync-radar-meteo')).resolves.toEqual({ estado: 'completo' })
     expect(mocks.ejecutarSyncRadarMeteo).toHaveBeenCalledTimes(1)
+  })
+
+  it('despacha verificar-radar-meteo con opciones de backfill', async () => {
+    mocks.ejecutarVerificacionRadarMeteo.mockResolvedValue({ departamentos: 25 })
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('verificar-radar-meteo', { desde: '2026-09-20' }))
+      .resolves.toEqual({ departamentos: 25 })
+    expect(mocks.ejecutarVerificacionRadarMeteo).toHaveBeenCalledWith({ desde: '2026-09-20' })
   })
 
   it('rechaza un nombre desconocido con un error que dice "desconocido" y el CLI saldría con 2', async () => {

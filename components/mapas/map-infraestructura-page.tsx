@@ -222,7 +222,7 @@ const COLOR_FOCO_SELECCION = '#facd05'
 const CAPA_DEPARTAMENTOS_RELLENO_ID = 'infra-departamentos-relleno'
 const CAPA_DEPARTAMENTOS_BORDE_ID = 'infra-departamentos-borde'
 
-// ── Modo Radar (E4) ─────────────────────────────────────────────────────────
+// ── Modo Radar (E4) ─────────────────────────────────────────────
 //
 // IDs PROPIOS para no pisar jamás la capa de "escuelas caídas" ni el coroplético
 // de departamentos existente: la coropleta de peligro es una fuente/layer NUEVA
@@ -816,7 +816,7 @@ export default function MapInfraestructuraPage(props: {
   // MapLibre descarta las imágenes) y `onStyleData` las re-registra.
   const [iconosClusterListos, setIconosClusterListos] = useState(false)
 
-  // ── Modo Radar (E4) ───────────────────────────────────────────────────────
+  // ── Modo Radar (E4) ───────────────────────────────────────────
   //
   // Todo el estado del radar es INDEPENDIENTE de los tres estados del modo
   // actual (seleccionCue / nominalAfectacionId / historialCue) y también de
@@ -1098,7 +1098,7 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [departamentosRaw, data])
 
-  // ── Datos derivados del radar (E4) ────────────────────────────────────────
+  // ── Datos derivados del radar (E4) ───────────────────────────
   //
   // Horizontes con evidencia REAL: los que aparecen en las filas de
   // `data.departamentos` (peorNivel concreto) o en las escuelas del radar. Se
@@ -2078,7 +2078,13 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
-                layout={{ 'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']], 'text-size': 12, 'text-font': ['Noto Sans Regular'], 'text-allow-overlap': false, visibility: radarActivo ? 'none' : 'visible' }}
+                layout={{
+                  'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']],
+                  'text-size': 12,
+                  'text-font': ['Noto Sans Regular'],
+                  'text-allow-overlap': false,
+                  visibility: radarActivo ? 'none' : 'visible',
+                }}
                 filter={filtroClusterPartes(capasVisibles.escuelas)}
                 paint={{
                   // Contraste del conteo: sobre los fondos claros de la escala
@@ -2369,7 +2375,11 @@ export default function MapInfraestructuraPage(props: {
         en .map-left-stack y los paneles vuelven al flujo normal.
       */}
       {dataVisible && (
-        <div className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`} id="infra-left-stack" data-open={leftStackAbierto ? 'true' : 'false'}>
+        <div
+          className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
+          id="infra-left-stack"
+          data-open={leftStackAbierto ? 'true' : 'false'}
+        >
           {/* Conmutador de modo: Radar aparece cuando está habilitado; Situación actual siempre está disponible. Botones reales
               (operables por teclado) con aria-pressed; el modo activo es
               "Situación actual" siempre al entrar, aunque los flags estén

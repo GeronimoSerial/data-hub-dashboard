@@ -6,6 +6,7 @@ import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-
 import { GRID_VERSION } from '@/lib/infraestructura/radar-meteo/grilla'
 import { alertasSmnActivas, severidadCAPEnEspanol } from '@/lib/infraestructura/radar-meteo/smn-alertas'
 import { alertasAndEnsemble } from '@/lib/infraestructura/radar-meteo/ensemble'
+import { obtenerMetricasVerificacion } from '@/lib/infraestructura/radar-meteo/verificacion'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,12 +16,12 @@ export async function GET(request: Request) {
   if (!acceso.ok) return respuestaAccesoDenegado(acceso)
   if (!riskRadarEnabled()) return Response.json({ error: 'Radar no habilitado' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
   const run = await obtenerUltimoRunRadarMeteo()
-  const [alertas, ensemble] = await Promise.all([alertasSmnActivas(), alertasAndEnsemble()])
-  const etag = `W/"${Buffer.from(`${run?.id ?? 'sin-run'}:${ensemble?.runId ?? 'sin-ensemble'}:${alertas.map(a=>`${a.id}:${a.fetchedAt}`).join(',')}:resumen-v2`).toString('base64url')}"`
+  const [alertas, ensemble, verificacion] = await Promise.all([alertasSmnActivas(), alertasAndEnsemble(), obtenerMetricasVerificacion()])
+  const etag = `W/"${Buffer.from(`${run?.id ?? 'sin-run'}:${ensemble?.runId ?? 'sin-ensemble'}:${alertas.map(a=>`${a.id}:${a.fetchedAt}`).join(',')}:${verificacion.estado}:${verificacion.nPares}:${verificacion.nEventos}:${verificacion.sesgoMm}:${verificacion.actualizadoEn ?? 'sin-verificacion'}:resumen-v3`).toString('base64url')}"`
   const headers = { 'Cache-Control': 'private, max-age=300', ETag: etag }
   if (request.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers })
   const alertasSmn = alertas.map(a => ({ id:a.id, nivelSat:a.nivelSat, severidad:severidadCAPEnEspanol(a.severity), severidadCap:a.severity, evento:a.event, headline:a.headline, description:a.description, instruction:a.instruction, sent:a.sent, onset:a.onset, expires:a.expires, departamentos:a.departamentos }))
-  if (!run) return Response.json({ runId: null, runAt: null, frescura: null, dias: [], departamentos: [], umbrales: {}, alertasSmn, ensamble: ensemble ? {runId:ensemble.runId,runAt:ensemble.runAt,modelo:ensemble.modelo} : null, sinDatos: true, razon: 'Todavía no se cargó ningún pronóstico.' }, { headers })
+  if (!run) return Response.json({ runId: null, runAt: null, frescura: null, dias: [], departamentos: [], umbrales: {}, alertasSmn, verificacion, ensamble: ensemble ? {runId:ensemble.runId,runAt:ensemble.runAt,modelo:ensemble.modelo} : null, sinDatos: true, razon: 'Todavía no se cargó ningún pronóstico.' }, { headers })
   let resumen = cache.get(run.id)
   if (!resumen) {
     resumen = calcularResumen(run.payload as Parameters<typeof calcularResumen>[0])
@@ -29,5 +30,5 @@ export async function GET(request: Request) {
   }
   const edadMinutos = Math.max(0, Math.floor((Date.now() - Date.parse(run.runAt)) / 60000))
   const departamentos = resumen.departamentos.map(d => ({...d, dias:d.dias.map(day=>({...day,ensamble:ensemble?.diarios?.[d.id]?.[day.fecha] ?? null}))}))
-  return Response.json({ runId: run.id, runAt: run.runAt, frescura: { edadMinutos, desactualizado: edadMinutos > 420 }, gridVersion: run.gridVersion ?? GRID_VERSION, ...resumen, departamentos, alertasSmn, ensamble: ensemble ? {runId:ensemble.runId,runAt:ensemble.runAt,modelo:ensemble.modelo} : null, sinDatos: false }, { headers })
+  return Response.json({ runId: run.id, runAt: run.runAt, frescura: { edadMinutos, desactualizado: edadMinutos > 420 }, gridVersion: run.gridVersion ?? GRID_VERSION, ...resumen, departamentos, alertasSmn, verificacion, ensamble: ensemble ? {runId:ensemble.runId,runAt:ensemble.runAt,modelo:ensemble.modelo} : null, sinDatos: false }, { headers })
 }

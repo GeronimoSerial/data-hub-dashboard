@@ -33,6 +33,20 @@ describe('panel de resumen radar', () => {
     expect(ordenarDepartamentos(departamentos).map((depto) => depto.id)).toEqual(['b', 'a'])
   })
 
+  it('muestra precisión reciente con sesgo, POD, FAR y ventana cuando la muestra es válida', () => {
+    render(<ResumenPanel departamentos={departamentos} dias={[]} actualizadoHace={4} verificacion={{ estado: 'ok', sesgoMm: -2, pod: 0.8, far: 0.25, nPares: 14, nEventos: 5, desde: '2026-09-16', hasta: '2026-09-29' }} />)
+    expect(screen.getByText(/subestima 2 mm\/día/)).toBeInTheDocument()
+    expect(screen.getByText(/detecta 80%/)).toBeInTheDocument()
+    expect(screen.getByText(/25% de falsas alarmas/)).toBeInTheDocument()
+    expect(screen.getByText(/2026-09-16–2026-09-29/)).toBeInTheDocument()
+  })
+
+  it('muestra conteos y explicación sin un porcentaje único cuando falta muestra', () => {
+    render(<ResumenPanel departamentos={departamentos} dias={[]} actualizadoHace={4} verificacion={{ estado: 'muestra_insuficiente', sesgoMm: null, pod: null, far: null, nPares: 8, nEventos: 2, desde: '2026-09-16', hasta: '2026-09-29' }} />)
+    expect(screen.getByText('Aún sin muestra suficiente (8 de 14 días, 2 de 5 eventos).')).toBeInTheDocument()
+    expect(screen.getByText('Aún sin muestra suficiente (8 de 14 días, 2 de 5 eventos).').closest('span')).toHaveAttribute('title', expect.stringContaining('IMERG es una estimación'))
+  })
+
   it('resalta umbrales en negrita sin llamar alerta al valor', () => {
     const { container } = render(<ResumenPanel departamentos={departamentos} dias={['2026-10-01']} actualizadoHace={4} />)
     const threshold = container.querySelector('.radar-dia-cell .threshold') as HTMLElement

@@ -5,6 +5,7 @@ vi.mock('@/lib/infraestructura/riesgo/flags', () => ({ riskRadarEnabled: vi.fn((
 vi.mock('@/lib/infraestructura/radar-meteo/job-sync', () => ({ obtenerUltimoRunRadarMeteo: vi.fn(async () => mocks.run) }))
 vi.mock('@/lib/infraestructura/radar-meteo/smn-alertas', () => ({ alertasSmnActivas: vi.fn(async () => mocks.alertas), severidadCAPEnEspanol: (s:string) => s==='Moderate'?'Moderada':s }))
 vi.mock('@/lib/infraestructura/radar-meteo/ensemble', () => ({ alertasAndEnsemble: vi.fn(async () => mocks.ensemble) }))
+vi.mock('@/lib/infraestructura/radar-meteo/verificacion', () => ({ obtenerMetricasVerificacion: vi.fn(async () => ({ estado: 'sin_datos', sesgoMm: null, pod: null, far: null, nPares: 0, nEventos: 0, desde: '2026-09-16', hasta: '2026-09-29', cobertura: 0 })) }))
 import { GET } from './route'
 const req = (headers?: HeadersInit) => new Request('http://localhost/api/infraestructura/radar-meteo/resumen', { headers })
 describe('GET /api/infraestructura/radar-meteo/resumen', () => {
@@ -17,7 +18,7 @@ describe('GET /api/infraestructura/radar-meteo/resumen', () => {
   })
   it('devuelve sinDatos explícito y conserva ETag/cache', async () => {
     const response = await GET(req())
-    expect(await response.json()).toMatchObject({ sinDatos: true, runId: null, dias: [], departamentos: [], alertasSmn: [] })
+    expect(await response.json()).toMatchObject({ sinDatos: true, runId: null, dias: [], departamentos: [], alertasSmn: [], verificacion: { estado: 'sin_datos' } })
     expect(response.headers.get('Cache-Control')).toBe('private, max-age=300')
     expect((await GET(req({ 'If-None-Match': response.headers.get('ETag')! }))).status).toBe(304)
   })

@@ -34,6 +34,16 @@ interface ResumenRadar {
   dias: string[]
   departamentos: DepartamentoResumen[]
   alertasSmn: AlertaRadar[]
+  verificacion?: {
+    estado: 'ok' | 'muestra_insuficiente' | 'sin_datos'
+    sesgoMm: number | null
+    pod: number | null
+    far: number | null
+    nPares: number
+    nEventos: number
+    desde: string
+    hasta: string
+  }
 }
 
 const variablesSolicitadas = [
@@ -523,12 +533,19 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
     if (!boundary || !alertaActiva) return null
     const ids = new Set(alertaActiva.departamentos.filter((depto) => typeof depto !== 'string').map((depto) => (depto as { id: string }).id))
     const nombres = new Set(alertaActiva.departamentos.map((depto) => (typeof depto === 'string' ? depto : depto.nombre).toLocaleLowerCase('es')))
-    return { type: 'FeatureCollection' as const, features: boundary.features.filter((feature) => ids.has(String(feature.properties?.id)) || nombres.has(String(feature.properties?.nombre).toLocaleLowerCase('es'))) }
+    return {
+      type: 'FeatureCollection' as const,
+      features: boundary.features.filter((feature) =>
+        ids.has(String(feature.properties?.id))
+        || nombres.has(String(feature.properties?.nombre).toLocaleLowerCase('es'))),
+    }
   }, [boundary, alertaActiva])
   useEffect(() => {
     if (!alertaActiva) return
     let cancelado = false
-    fetch('/api/infraestructura/radar-meteo/alertas').then((response) => response.json()).then((respuesta: { alertas?: Array<{ id: string; poligonos?: Array<Array<[number, number]>> }> }) => {
+    fetch('/api/infraestructura/radar-meteo/alertas')
+      .then((response) => response.json())
+      .then((respuesta: { alertas?: Array<{ id: string; poligonos?: Array<Array<[number, number]>> }> }) => {
       if (cancelado) return
       const alerta = respuesta.alertas?.find((item) => item.id === alertaActiva.id)
       const features = (alerta?.poligonos ?? []).filter((ring) => ring.length >= 4).map((ring) => ({
@@ -537,14 +554,17 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
         geometry: { type: 'Polygon' as const, coordinates: [ring] },
       }))
       setGeometriasAlerta({ alertaId: alertaActiva.id, datos: { type: 'FeatureCollection', features } })
-    }).catch(() => undefined)
+      })
+      .catch(() => undefined)
     return () => { cancelado = true }
   }, [alertaActiva])
   if (!activo) {
     return null
   }
   const volarDepartamento = (id: string) => {
-    const feature = boundary?.features.find((item) => String(item.properties?.id) === id || String(item.properties?.nombre).toLocaleLowerCase('es') === id.toLocaleLowerCase('es'))
+    const feature = boundary?.features.find((item) =>
+      String(item.properties?.id) === id
+      || String(item.properties?.nombre).toLocaleLowerCase('es') === id.toLocaleLowerCase('es'))
     const centroide = feature?.properties?.centroide as { lon?: number; lat?: number } | undefined
     if (centroide?.lon && centroide.lat) map?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 7.5, duration: 800 })
   }
@@ -552,11 +572,43 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
   return (
     <>
       {resumen && <AlertasStrip alertas={resumen.alertasSmn ?? []} actualizado={resumen.runAt} onSelect={setAlertaActiva} />}
-      {departamentosAlerta && <Source id="radar-alerta-departamentos" type="geojson" data={departamentosAlerta as FeatureCollection<Polygon | MultiPolygon>}><Layer id="radar-alerta-departamentos-borde" type="line" paint={{ 'line-color': '#f4cf73', 'line-width': 3, 'line-opacity': 0.95 }} /></Source>}
-      {geometriasAlerta && geometriasAlerta.alertaId === alertaActiva?.id && <Source id="radar-alerta-poligonos" type="geojson" data={geometriasAlerta.datos}><Layer id="radar-alerta-poligonos-borde" type="line" paint={{ 'line-color': alertaActiva?.nivelSat ? '#f4cf73' : '#c4d0d8', 'line-width': 3, 'line-opacity': 0.95 }} /></Source>}
+      {departamentosAlerta && (
+        <Source
+          id="radar-alerta-departamentos"
+          type="geojson"
+          data={departamentosAlerta as FeatureCollection<Polygon | MultiPolygon>}
+        >
+          <Layer
+            id="radar-alerta-departamentos-borde"
+            type="line"
+            paint={{ 'line-color': '#f4cf73', 'line-width': 3, 'line-opacity': 0.95 }}
+          />
+        </Source>
+      )}
+      {geometriasAlerta && geometriasAlerta.alertaId === alertaActiva?.id && (
+        <Source id="radar-alerta-poligonos" type="geojson" data={geometriasAlerta.datos}>
+          <Layer
+            id="radar-alerta-poligonos-borde"
+            type="line"
+            paint={{
+              'line-color': alertaActiva?.nivelSat ? '#f4cf73' : '#c4d0d8',
+              'line-width': 3,
+              'line-opacity': 0.95,
+            }}
+          />
+        </Source>
+      )}
       {!resumen && !resumenError && <div className="radar-alertas radar-alertas-empty" role="status">Consultando alertas oficiales del SMN…</div>}
       {resumenError && <div className="radar-alertas radar-alertas-empty" role="status">No se pudo actualizar el resumen oficial del SMN.</div>}
-      {resumen && <ResumenPanel departamentos={resumen.departamentos} dias={resumen.dias} actualizadoHace={resumen.frescura?.edadMinutos ?? null} onDepartamento={volarDepartamento} />}
+      {resumen && (
+        <ResumenPanel
+          departamentos={resumen.departamentos}
+          dias={resumen.dias}
+          actualizadoHace={resumen.frescura?.edadMinutos ?? null}
+          verificacion={resumen.verificacion}
+          onDepartamento={volarDepartamento}
+        />
+      )}
       {cueEscuela && escuelaSeleccionada && (
         <EscuelaForecastCard
           cueAnexo={cueEscuela}
@@ -566,7 +618,16 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
       )}
       {escuelasVisibles.map((escuela) => escuela.lat !== null && escuela.lon !== null && (
         <Marker key={escuela.cueAnexo} longitude={escuela.lon} latitude={escuela.lat} anchor="center">
-          <button type="button" className="radar-escuela-marker" aria-label={`Pronóstico de ${escuela.nombre}, CUE ${escuela.cueAnexo}`} title={`${escuela.nombre} · abrir pronóstico`} onClick={(event) => { event.stopPropagation(); setCueEscuela(escuela.cueAnexo) }}>•</button>
+          <button
+            type="button"
+            className="radar-escuela-marker"
+            aria-label={`Pronóstico de ${escuela.nombre}, CUE ${escuela.cueAnexo}`}
+            title={`${escuela.nombre} · abrir pronóstico`}
+            onClick={(event) => {
+              event.stopPropagation()
+              setCueEscuela(escuela.cueAnexo)
+            }}
+          >•</button>
         </Marker>
       ))}
       {sinPronostico && (

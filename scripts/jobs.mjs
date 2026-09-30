@@ -34,6 +34,7 @@ const NOMBRES_VALIDOS = [
   'asociacion-rio',
   'sync-pronostico-caudal',
   'sync-radar-meteo',
+  'verificar-radar-meteo',
   'sync-smn-alertas',
   'sync-radar-ensemble',
   'sync-ensemble',
@@ -269,6 +270,12 @@ async function correrSyncRadarMeteo(opts) {
   return ejecutarSyncRadarMeteo(opts)
 }
 
+async function correrVerificarRadarMeteo(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('verificar-radar-meteo')
+  const { ejecutarVerificacionRadarMeteo } = await import('../lib/infraestructura/radar-meteo/verificacion.ts')
+  return ejecutarVerificacionRadarMeteo(opts)
+}
+
 async function correrSyncSmnAlertas() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-smn-alertas')
   const { syncSmnAlertas } = await import('../lib/infraestructura/radar-meteo/smn-alertas.ts')
@@ -374,6 +381,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncPronosticoCaudal()
     case 'sync-radar-meteo':
       return correrSyncRadarMeteo(opts)
+    case 'verificar-radar-meteo':
+      return correrVerificarRadarMeteo(opts)
     case 'sync-smn-alertas':
       return correrSyncSmnAlertas()
     case 'sync-radar-ensemble':
@@ -430,8 +439,10 @@ export function codigoSalida(nombreJob, resultado) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const nombre = process.argv[2]
+  const desdeIndex = process.argv.indexOf('--desde')
+  const opts = desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
-    const resultado = await correrJob(nombre)
+    const resultado = await correrJob(nombre, opts)
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {

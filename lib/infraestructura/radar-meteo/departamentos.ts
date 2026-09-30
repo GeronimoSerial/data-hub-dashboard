@@ -64,6 +64,9 @@ export function listarDepartamentos(): Departamento[] {
 export function obtenerDepartamento(nombre: string): Departamento | undefined {
   return cargarDepartamentos().find((d) => d.nombre.toLocaleLowerCase('es') === nombre.toLocaleLowerCase('es'))
 }
+export function departamentoQueContienePunto(lat: number, lon: number): Departamento | null {
+  return cargarDepartamentos().find((departamento) => dentroDepartamento(lon, lat, departamento)) ?? null
+}
 export function asignarCeldasADepartamentos(celdas: Array<{ id: string; latModelo?: number; lonModelo?: number; lat: number; lon: number }>): AsignacionCelda[] {
   if (!asignacionCache) asignacionCache = new Map()
   const deptos = cargarDepartamentos()

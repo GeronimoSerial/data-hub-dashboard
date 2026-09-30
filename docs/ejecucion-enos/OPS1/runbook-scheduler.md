@@ -128,6 +128,7 @@ las climatologías.
 | job | cadencia | `OnCalendar` (UTC) | archivo | motivo |
 |---|---|---|---|---|
 | sync-radar-meteo | 3h | `*-*-* 00/3:12:00 UTC` | `enos-ops1-sync-radar-meteo.timer` | radar de pronóstico; frecuencia acordada y prioridad de cuota en plan gratuito |
+| verificar-radar-meteo | diario | `*-*-* 11:30:00 UTC` | `enos-ops1-verificar-radar-meteo.timer` | compara D-1 con IMERG después de la latencia Early; no consume cupo Open-Meteo |
 | sync-smn-alertas | 15 min | `*:07/15` | `enos-ops1-sync-smn-alertas.timer` | RSS CAP oficial del SMN, sin cupo Open-Meteo |
 | sync-radar-ensemble | 6h | `*-*-* 03,09,15,21:40:00 UTC` | `enos-ops1-sync-radar-ensemble.timer` | Piloto gratis: 25 departamentos, tope diario 600 de peso y hasta 4 requests; pausa ante 429/errores de plan |
 | sync-pronostico-caudal | 6h | `*-*-* 08,14,20,02:00:00 UTC` | `enos-ops1-sync-pronostico-caudal.timer` | corridas ECMWF 00/06/12/18 UTC + ~8h de margen (6h de latencia habitual de disponibilidad real-time + 2h adicionales documentados por Open-Meteo para su distribución open-data; ajustar si se confirma otro valor) |
