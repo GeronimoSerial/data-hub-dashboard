@@ -17,6 +17,7 @@ import {
 import { describirAlcanceServicio } from '@/components/infraestructura/reporte-inicial-resumen'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Button } from '@/components/ui/button'
+import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   afectacionVigenteABorrador,
@@ -568,7 +569,10 @@ function ActualizacionFormCargado({
       cue,
       fetchImpl: fetch,
       url: '/api/problematicas/parte',
-      construirCuerpo: (datos, idempotencyKeyReal) => ({ ...datos, idempotencyKey: idempotencyKeyReal }),
+      construirCuerpo: (datos, idempotencyKeyReal) => {
+        const vinculo = leerVinculoVerificacion()
+        return { ...datos, idempotencyKey: idempotencyKeyReal, ...(vinculo ? { verificacion: vinculo } : {}) }
+      },
       // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
       // real, aunque el transporte HTTP haya sido 2xx.
       validarExito: (respuesta) => {
@@ -589,6 +593,7 @@ function ActualizacionFormCargado({
         // desde la confirmación salga del formulario en vez de revivir la
         // pantalla de resumen.
         void limpiarBorrador(claveBorrador)
+        limpiarVinculoVerificacion()
         colapsarHistorial(pasoANumero(paso) - 1)
         setGuardado({ movimientoId: cuerpo.movimientoId })
         return

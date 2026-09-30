@@ -15,6 +15,7 @@ import {
   ETIQUETA_SERVICIO,
 } from '@/components/infraestructura/estado-actual-textos'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
+import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -313,7 +314,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       cue,
       fetchImpl: fetch,
       url: '/api/problematicas/parte',
-      construirCuerpo: (datos, idempotencyKey) => ({ ...datos, idempotencyKey }),
+      construirCuerpo: (datos, idempotencyKey) => {
+        const vinculo = leerVinculoVerificacion()
+        return { ...datos, idempotencyKey, ...(vinculo ? { verificacion: vinculo } : {}) }
+      },
       // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
       // real, aunque el transporte HTTP haya sido 2xx.
       validarExito: (respuesta) => {
@@ -330,6 +334,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
       if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
         void limpiarBorrador(claveBorrador)
+        limpiarVinculoVerificacion()
         // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
         // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
         // historial — indicePaso ya cuenta correctamente cuántas entradas

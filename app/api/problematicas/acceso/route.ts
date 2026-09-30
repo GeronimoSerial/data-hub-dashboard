@@ -5,6 +5,7 @@ import {
   opcionesCookieSesion,
   verificarPassword,
 } from '@/lib/infraestructura/acceso-publico'
+import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,14 @@ export const dynamic = 'force-dynamic'
 // formulario. El mensaje de error nunca distingue "no existe" de
 // "incorrecta" porque acá sólo hay una contraseña, no cuentas.
 export async function POST(request: Request) {
+  // El bucket se comparte por IP con las demás rutas públicas.
+  if (ipExcedeLimite(getClientIp(request))) {
+    return Response.json(
+      { error: 'Demasiadas solicitudes. Intente nuevamente más tarde.' },
+      { status: 429 },
+    )
+  }
+
   let body: unknown
   try {
     body = await request.json()
