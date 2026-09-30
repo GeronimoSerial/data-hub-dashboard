@@ -112,6 +112,7 @@ export function SeccionesSelector({
   }
 
   const todosLosIds = aplanarGeSectionIds(turnos)
+  const matriculaTotal = turnos.flatMap((t) => t.niveles.flatMap((n) => n.secciones)).reduce((suma, s) => suma + s.matricula, 0)
   const setSeleccionadas = new Set(seleccionadas)
   const todasSeleccionadas =
     todosLosIds.length > 0 &&
@@ -158,7 +159,7 @@ export function SeccionesSelector({
   return (
     <div className="secciones-selector">
       <Checkbox
-        label="Todas las secciones"
+        label={`Todas las secciones (${todosLosIds.length} secciones · ${matriculaTotal} alumnos)`}
         checked={todasSeleccionadas}
         indeterminate={!todasSeleccionadas && algunaSeleccionada}
         onCheckedChange={(checked: boolean) => onCambiar(checked ? todosLosIds : [], [])}

@@ -277,6 +277,8 @@ export function CamposAQuienAfecta({
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
+  const seccionesDisponibles = aplanarSecciones(turnos)
+  const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
 
   return (
     <>
@@ -291,7 +293,8 @@ export function CamposAQuienAfecta({
           permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
         />
         <p className="afectacion-borrador__resumen" aria-live="polite">
-          {borrador.secciones.length} secciones · {totalAlumnos} alumnos
+          Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+          {matriculaDisponible} alumnos
         </p>
       </div>
 
