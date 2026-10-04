@@ -161,6 +161,10 @@ export const parteActualizacionInputSchema = z
       : [...data.afectacionesNuevas, ...data.afectacionesModificadas].some((a) => (a.secciones?.length ?? 0) > 0)
     return !evacua || !declaraSecciones || data.confirmarInterrupcionTotal === true
   }, { message: 'Confirme que se interrumpe todo el establecimiento' })
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'evacuado' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio evacuado no puede haber clases con normalidad' },
+  )
 
 export type ParteActualizacionInput = z.infer<typeof parteActualizacionInputSchema>
 

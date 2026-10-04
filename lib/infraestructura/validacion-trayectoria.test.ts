@@ -143,6 +143,24 @@ describe('parseParteActualizacionInput', () => {
     expect(parseParteActualizacionInput({ ...evacuacion, servicioEducativo: { estado: 'suspendido', alcance: { tipo: 'establecimiento' } } }).ok).toBe(true)
   })
 
+  it('rechaza edificio evacuado con clases normales', () => {
+    const r = parseParteActualizacionInput({
+      cue: '1801605-41', idempotencyKey: 'k', rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'evacuado' },
+      servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
+    })
+    expect(r).toEqual({ ok: false, error: 'Con el edificio evacuado no puede haber clases con normalidad' })
+  })
+
+  it('centro de evacuados con clases normales sigue siendo válido', () => {
+    const r = parseParteActualizacionInput({
+      cue: '1801605-41', idempotencyKey: 'k', rigeDesde: new Date().toISOString(),
+      estadoEstablecimiento: { estado: 'centro_evacuados' },
+      servicioEducativo: { estado: 'normal', alcance: { tipo: 'establecimiento' } },
+    })
+    expect(r.ok).toBe(true)
+  })
+
   it('valida y acepta modalidades de asistencia pedagógica', () => {
     expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } }).ok).toBe(true)
     expect(parseParteActualizacionInput({ ...basePayload, asistenciaPedagogica: { brinda: true, modalidades: [] } }).ok).toBe(false)
