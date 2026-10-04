@@ -25,6 +25,7 @@ import {
   snapshotAntesDeVigente,
   snapshotDespuesDeFormulario,
   type AfectacionActualizable,
+  type PayloadActualizacion,
   type ServicioSeleccionado,
 } from '@/lib/infraestructura/actualizacion-parte'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -33,10 +34,14 @@ import { contarCambios, diffParte, esDiffVacio } from '@/lib/infraestructura/mov
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import {
   crearAlmacenNavegador,
+  esEstadoReintentable,
   intentarEnviar,
+  reenviarCola,
   registrarAutoReintento,
+  programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  type EnviarOpciones,
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
@@ -322,6 +327,7 @@ function ActualizacionFormCargado({
   const [error, setError] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<() => void>(() => {})
@@ -377,6 +383,7 @@ function ActualizacionFormCargado({
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
+      setIntentosEnvio(colaPendiente.intentos)
     })()
     return () => {
       cancelado = true
@@ -588,7 +595,30 @@ function ActualizacionFormCargado({
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     })
 
-    const resultado = await intentarEnviar(datosEnvio, {
+    const resultado = await intentarEnviar(datosEnvio, opcionesEnvio())
+
+    if (resultado.ok) {
+      const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
+      if (cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string') {
+        alEnviarConExito(cuerpo.movimientoId)
+        return
+      }
+      enviandoRef.current = false
+      setEnviando(false)
+      setError(cuerpo && typeof cuerpo.error === 'string' ? cuerpo.error : MENSAJE_ERROR_GUARDADO)
+      return
+    }
+
+    enviandoRef.current = false
+    setEnviando(false)
+    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
+    // volver la conexión. onCambioEstado ya actualizó el texto de estado.
+    // Para 'error' (4xx no reintentable o sesión vencida) el borrador se
+    // conserva y el motivo viaja en motivoEnvio.
+  }
+
+  function opcionesEnvio(): EnviarOpciones<PayloadActualizacion> {
+    return {
       almacen: almacenParte,
       tipo: 'actualizar',
       cue,
@@ -607,47 +637,46 @@ function ActualizacionFormCargado({
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
         setMotivoEnvio(borrador.motivoError ?? null)
+        setIntentosEnvio(borrador.intentos)
       },
-    })
-
-    if (resultado.ok) {
-      const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
-      if (cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string') {
-        // La actualización quedó guardada: el borrador de sesión ya no
-        // representa nada pendiente, y el historial se colapsa para que "atrás"
-        // desde la confirmación salga del formulario en vez de revivir la
-        // pantalla de resumen.
-        void limpiarBorrador(claveBorrador)
-        limpiarVinculoVerificacion()
-        colapsarHistorial(pasoANumero(paso) - 1)
-        setGuardado({ movimientoId: cuerpo.movimientoId })
-        return
-      }
-      enviandoRef.current = false
-      setEnviando(false)
-      setError(cuerpo && typeof cuerpo.error === 'string' ? cuerpo.error : MENSAJE_ERROR_GUARDADO)
-      return
     }
+  }
 
-    enviandoRef.current = false
-    setEnviando(false)
-    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
-    // volver la conexión. onCambioEstado ya actualizó el texto de estado.
-    // Para 'error' (4xx no reintentable o sesión vencida) el borrador se
-    // conserva y el motivo viaja en motivoEnvio.
+  function alEnviarConExito(movimientoId: string): void {
+    // La actualización quedó guardada: el borrador de sesión ya no
+    // representa nada pendiente, y el historial se colapsa para que "atrás"
+    // desde la confirmación salga del formulario en vez de revivir la
+    // pantalla de resumen.
+    void limpiarBorrador(claveBorrador)
+    limpiarVinculoVerificacion()
+    colapsarHistorial(pasoANumero(paso) - 1)
+    setGuardado({ movimientoId })
   }
 
   useEffect(() => {
     reintentarRef.current = () => {
       if (guardado) return
-      if (estadoEnvio !== 'pendiente-envio') return
-      void confirmarGuardado()
+      if (!esEstadoReintentable(estadoEnvio)) return
+      void (async () => {
+        const resultado = await reenviarCola(opcionesEnvio())
+        if (resultado?.ok) {
+          const datos = resultado.respuesta as { movimientoId: string }
+          alEnviarConExito(datos.movimientoId)
+        }
+      })()
     }
   })
 
   useEffect(() => {
     return registrarAutoReintento(() => reintentarRef.current())
   }, [])
+
+  useEffect(() => {
+    if (guardado || enviando) return
+    if (!esEstadoReintentable(estadoEnvio)) return
+    if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
+    return programarReintento(intentosEnvio, () => reintentarRef.current())
+  }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   if (guardado) {
     return (

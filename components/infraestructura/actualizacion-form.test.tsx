@@ -5,6 +5,7 @@ import { ActualizacionForm } from './actualizacion-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
+import { MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
 
 const props = {
   cue: '12345678',
@@ -288,7 +289,7 @@ describe('ActualizacionForm', () => {
     await guardarActualizacion()
 
     expect(
-      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
+      await screen.findByText(MENSAJES_ESTADO['pendiente-envio']),
     ).toBeInTheDocument()
 
     expect(screen.getByRole('heading', { name: 'Cambios que se registrarán' })).toBeInTheDocument()
@@ -380,7 +381,7 @@ describe('ActualizacionForm', () => {
     expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
   })
 
-  it('un 5xx queda pendiente de envío y se reintenta solo al volver la conexión, con un único parte', async () => {
+  it('un 5xx muestra error del servidor y se reintenta solo por temporizador con la misma clave', async () => {
     let posteos = 0
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (String(url).startsWith('/api/problematicas/parte?')) return jsonResponse(RESPUESTA_BASE)
@@ -393,14 +394,11 @@ describe('ActualizacionForm', () => {
     renderFormulario()
     await guardarActualizacion()
 
-    expect(
-      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
-    ).toBeInTheDocument()
-    expect(posteos).toBe(1)
+    expect(await screen.findByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
-    fireEvent(window, new Event('online'))
-
-    expect(await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA)).toBeInTheDocument()
+    // El reintento llega por backoff; no se emite ningún evento 'online'.
+    expect(await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA, undefined, { timeout: 5000 })).toBeInTheDocument()
     expect(posteos).toBe(2)
 
     const claves = fetchMock.mock.calls
@@ -642,10 +640,10 @@ describe('ActualizacionForm — borrador local (#32) e historial del navegador (
 describe('ActualizacionForm — envío pendiente restaurado de la cola offline', () => {
   /*
     Mismo requisito que en el reporte inicial: un envío en cola debe
-    restaurarse al montar aunque no haya borrador activo, para que el
-    reintento automático al recuperar la conexión dispare sin click manual.
+    restaurarse al montar aunque no haya borrador activo y reenviarse sin
+    esperar un evento de conexión ni un click manual.
   */
-  it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
+  it('al montar con una cola pendiente y conexión disponible, la reenvía sin intervención', async () => {
     const fetchMock = stubFetchInicial()
 
     // Cola de envío dejada pendiente por una sesión anterior.
@@ -688,17 +686,8 @@ describe('ActualizacionForm — envío pendiente restaurado de la cola offline',
           (init as RequestInit | undefined)?.method === 'POST',
       )
 
-    // El texto de estado sólo se muestra en el resumen, así que verlo prueba
-    // que la cola y la pantalla se restauraron sin ninguna acción previa.
     expect(
-      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
-    ).toBeInTheDocument()
-    expect(posteos()).toHaveLength(0)
-
-    window.dispatchEvent(new Event('online'))
-
-    expect(
-      await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA),
+      await screen.findByText(MENSAJE_ACTUALIZACION_EXITOSA, undefined, { timeout: 5000 }),
     ).toBeInTheDocument()
     expect(posteos()).toHaveLength(1)
   })

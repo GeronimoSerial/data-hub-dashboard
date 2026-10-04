@@ -5,6 +5,7 @@ import { ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
+import { MENSAJES_ESTADO, crearAlmacenNavegador, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -440,7 +441,7 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     expect(
-      await screen.findByText('Pendiente de envío — se enviará al recuperar conexión'),
+      await screen.findByText(MENSAJES_ESTADO['pendiente-envio']),
     ).toBeInTheDocument()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
@@ -456,7 +457,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
   })
 
-  it('un 5xx queda pendiente de envío y se reintenta solo al volver la conexión, con un único parte', async () => {
+  it('un 5xx muestra error del servidor (no de conexión) y se reintenta solo, con un único parte', async () => {
     const fetchMock = vi.fn()
     fetchMock
       .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
@@ -466,11 +467,10 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
     guardarReporte()
 
-    expect(await screen.findByText('Pendiente de envío — se enviará al recuperar conexión')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
-    window.dispatchEvent(new Event('online'))
-
+    // Sin evento 'online': el temporizador dispara el reintento con backoff.
     await screen.findByText(MENSAJE_REPORTE_EXITOSO, undefined, { timeout: 5000 })
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const [, initA] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -618,71 +618,28 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
 describe('ReporteInicialForm — envío pendiente restaurado de la cola offline', () => {
   /*
-    Requisito de producto: si la app se cierra con un envío en cola, al
-    reabrirla el reintento automático al recuperar la conexión debe dispararse
-    sin que el director haga click en nada. Antes, `estadoEnvio` arrancaba en
-    null y el guard del reintento lo bloqueaba hasta un guardado manual.
+    Si la app se cierra con un envío en cola, al reabrirla debe reenviarlo sin
+    esperar un evento de conexión ni una acción del director.
   */
-  it('restaura el estado pendiente al montar y reintenta solo al volver la conexión', async () => {
-    const fetchMock = stubFetch()
-
-    // Cola de envío dejada pendiente por una sesión anterior.
-    localStorage.setItem(
-      `parte:nuevo:${props.cue}`,
-      JSON.stringify({
-        tipo: 'nuevo',
-        cue: props.cue,
-        idempotencyKey: 'idem-offline',
-        datos: {},
-        estado: 'pendiente-envio',
-        intentos: 1,
-        actualizadoEn: new Date().toISOString(),
-      }),
-    )
-    // El asistente quedó en el último paso, para que el reintento tenga qué
-    // enviar. La restauración de la cola no depende de este borrador.
-    localStorage.setItem(
-      `parte-nuevo:draft:${props.cue}`,
-      JSON.stringify({
-        generacion: 'g-offline',
-        paso: 4,
-        afectacion: {
-          clientId: 'c-offline',
-          categoria: 'establecimiento',
-          motivo: 'Inundación',
-          severidad: 'Alta',
-          descripcion: '',
-          secciones: [10],
-          alumnos: [],
-        },
-        servicioEstado: '',
-        servicioAlcanceTipo: '',
-        servicioTurnos: [],
-        servicioSecciones: [],
-        estadoEstablecimiento: 'habitual',
-        rigeDesde: new Date().toISOString(),
-        idempotencyKey: 'idem-offline',
-      }),
-    )
+  it('al montar con una cola pendiente y conexión disponible, la reenvía sin intervención', async () => {
+    const almacen = crearAlmacenNavegador()
+    await guardarBorradorEnvio(almacen, {
+      tipo: 'nuevo',
+      cue: props.cue,
+      idempotencyKey: 'k-vieja',
+      datos: { cue: props.cue, rigeDesde: '2026-10-04T10:00:00.000Z', afectacionesNuevas: [] },
+      estado: 'pendiente-envio',
+      intentos: 1,
+      actualizadoEn: '2026-10-04T10:00:00.000Z',
+    })
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
 
-    // Restauró el paso 4 y el estado de la cola, sin ninguna acción previa.
-    expect(await screen.findByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Pendiente de envío — se enviará al recuperar conexión'),
-    ).toBeInTheDocument()
-    expect(fetchMock).not.toHaveBeenCalled()
-
-    window.dispatchEvent(new Event('online'))
-
-    expect(
-      await screen.findByText(
-        MENSAJE_REPORTE_EXITOSO,
-        undefined,
-        { timeout: 5000 },
-      ),
-    ).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-vieja')
+    await waitFor(() => expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument())
   })
 })

@@ -30,10 +30,14 @@ import {
 } from '@/lib/infraestructura/parte/borrador-historial'
 import {
   crearAlmacenNavegador,
+  esEstadoReintentable,
   intentarEnviar,
+  reenviarCola,
   registrarAutoReintento,
+  programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  type EnviarOpciones,
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
 
@@ -182,6 +186,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
   const enviandoRef = useRef(false)
@@ -244,6 +249,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
+      setIntentosEnvio(colaPendiente.intentos)
     })()
     return () => {
       cancelado = true
@@ -326,7 +332,29 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
-    const resultado = await intentarEnviar(datosEnvio, {
+    const resultado = await intentarEnviar(datosEnvio, opcionesEnvio())
+
+    if (resultado.ok) {
+      const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
+      if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
+        alEnviarConExito(datos.movimientoId)
+        return
+      }
+      enviandoRef.current = false
+      setEnviando(false)
+      setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
+      return
+    }
+
+    enviandoRef.current = false
+    setEnviando(false)
+    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
+    // volver la conexión, sin acción del director. El texto de estado ya lo
+    // muestra onCambioEstado; acá no hay nada más que hacer.
+  }
+
+  function opcionesEnvio(): EnviarOpciones<Record<string, unknown>> {
+    return {
       almacen: almacenParte,
       tipo: 'nuevo',
       cue,
@@ -345,46 +373,45 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
         setMotivoEnvio(borrador.motivoError ?? null)
+        setIntentosEnvio(borrador.intentos)
       },
-    })
-
-    if (resultado.ok) {
-      const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
-      if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
-        void limpiarBorrador(claveBorrador)
-        limpiarVinculoVerificacion()
-        // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
-        // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
-        // historial — indicePaso ya cuenta correctamente cuántas entradas
-        // de historial se empujaron (ver pasos/indicePaso más arriba en el
-        // componente).
-        colapsarHistorial(indicePaso)
-        setGuardado({ movimientoId: datos.movimientoId })
-        return
-      }
-      enviandoRef.current = false
-      setEnviando(false)
-      setError(datos && typeof datos.error === 'string' ? datos.error : MENSAJE_ERROR_GUARDADO)
-      return
     }
+  }
 
-    enviandoRef.current = false
-    setEnviando(false)
-    // 'pendiente-envio' no es un error: queda en cola y se reintenta solo al
-    // volver la conexión, sin acción del director. El texto de estado ya lo
-    // muestra onCambioEstado; acá no hay nada más que hacer.
+  function alEnviarConExito(movimientoId: string): void {
+    void limpiarBorrador(claveBorrador)
+    limpiarVinculoVerificacion()
+    // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
+    // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
+    // historial — indicePaso ya cuenta correctamente cuántas entradas
+    // de historial se empujaron (ver pasos/indicePaso más arriba en el
+    // componente).
+    colapsarHistorial(indicePaso)
+    setGuardado({ movimientoId })
   }
 
   useEffect(() => {
     reintentarRef.current = () => {
       if (guardado) return
-      if (estadoEnvio !== 'pendiente-envio') return
-      void manejarEnvio({ preventDefault() {} } as unknown as FormEvent<HTMLFormElement>)
+      if (!esEstadoReintentable(estadoEnvio)) return
+      void (async () => {
+        const resultado = await reenviarCola(opcionesEnvio())
+        if (resultado?.ok) {
+          const datos = resultado.respuesta as { movimientoId: string }
+          alEnviarConExito(datos.movimientoId)
+        }
+      })()
     }
   })
   useEffect(() => {
     return registrarAutoReintento(() => reintentarRef.current())
   }, [])
+  useEffect(() => {
+    if (guardado || enviando) return
+    if (!esEstadoReintentable(estadoEnvio)) return
+    if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
+    return programarReintento(intentosEnvio, () => reintentarRef.current())
+  }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
