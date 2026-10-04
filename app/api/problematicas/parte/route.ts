@@ -25,6 +25,7 @@ import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infra
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
+import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
@@ -40,6 +41,7 @@ import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
+import { causaElegible } from '@/lib/infraestructura/causa-afectacion'
 import type {
   Afectacion,
   EstadoEstablecimiento,
@@ -140,13 +142,15 @@ async function buscarAfectacionEquivalente(
     motivo: string
     severidad: Severidad
     descripcion?: string | null
+    causadaPorId?: string | null
     secciones: number[]
     alumnos?: number[]
   },
   categoria: CategoriaAfectacion,
 ): Promise<Afectacion | undefined> {
   const posibles = candidatas.filter((existente) =>
-    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria),
+    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria) &&
+    (existente.causadaPorId ?? null) === (entrada.causadaPorId ?? null),
   )
   if (posibles.length === 0) return undefined
   const esperadas = await seccionesEsperadas(client, corteId, entrada.secciones, entrada.alumnos)
@@ -428,6 +432,14 @@ export async function POST(request: Request) {
     if (!resuelto.ok) {
       return Response.json({ error: resuelto.error }, { status: 400 })
     }
+    const sugerida = motivos.find((m) => m.nombre === entrada.motivo)?.severidadSugerida ?? null
+    const justificada = validarJustificacionCritica({
+      severidad: entrada.severidad,
+      sugerida,
+      justificacion: entrada.justificacionCritica,
+      detalle: entrada.justificacionCriticaDetalle,
+    })
+    if (!justificada.ok) return jsonError(justificada.error, 400)
     const permitido = validarAlumnosPermitidos(resuelto.categoria, entrada.alumnos)
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
@@ -499,6 +511,7 @@ export async function POST(request: Request) {
   const idsReferenciados = [
     ...input.afectacionesModificadas.map((m) => m.id),
     ...input.afectacionesRetiradas,
+    ...input.afectacionesSolucionadas.map((s) => s.id),
   ]
   if (idsReferenciados.length > 0) {
     if (!parteExistente) {
@@ -517,6 +530,19 @@ export async function POST(request: Request) {
     }
 
     for (const modificacion of input.afectacionesModificadas) {
+      if (modificacion.severidad === undefined) continue
+      const fila = existentesPorId.get(modificacion.id)
+      const sugerida = motivos.find((m) => m.nombre === fila?.motivo)?.severidadSugerida ?? null
+      const justificada = validarJustificacionCritica({
+        severidad: modificacion.severidad,
+        sugerida,
+        justificacion: modificacion.justificacionCritica,
+        detalle: modificacion.justificacionCriticaDetalle,
+      })
+      if (!justificada.ok) return jsonError(justificada.error, 400)
+    }
+
+    for (const modificacion of input.afectacionesModificadas) {
       if (!modificacion.alumnos || modificacion.alumnos.length === 0) continue
       let seccionesEfectivas = modificacion.secciones
       if (!seccionesEfectivas) {
@@ -528,6 +554,22 @@ export async function POST(request: Request) {
       }
       if (!(await alumnosPertenecenASecciones(seccionesEfectivas, modificacion.alumnos))) {
         return jsonError('Alguno de los alumnos seleccionados no pertenece a las secciones indicadas', 400)
+      }
+    }
+  }
+
+  const idsCausa = [...new Set(input.afectacionesNuevas.flatMap((a) => (a.causadaPorId ? [a.causadaPorId] : [])))]
+  if (idsCausa.length > 0) {
+    const causas = await db
+      .select({ id: infraAfectacion.id, retiradaEn: infraAfectacion.retiradaEn, cueAnexo: infraParte.cueAnexo })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(inArray(infraAfectacion.id, idsCausa))
+    const porId = new Map(causas.map((c) => [c.id, c]))
+    for (const id of idsCausa) {
+      const causa = porId.get(id)
+      if (!causa || !causaElegible(causa, cue.value, input.rigeDesde)) {
+        return jsonError('La situación indicada como causa no es válida', 400)
       }
     }
   }
@@ -645,7 +687,10 @@ export async function POST(request: Request) {
           motivo: entrada.motivo,
           categoria,
           severidad: entrada.severidad,
+          justificacionCritica: entrada.justificacionCritica ?? null,
+          justificacionCriticaDetalle: entrada.justificacionCriticaDetalle ?? null,
           descripcion: entrada.descripcion ?? null,
+          causadaPorId: entrada.causadaPorId ?? null,
           rigeDesde: input.rigeDesde,
           creadaEn: ahora,
           retiradaEn: null,
@@ -661,8 +706,17 @@ export async function POST(request: Request) {
       }
 
       for (const modificacion of input.afectacionesModificadas) {
-        const cambios: { severidad?: string; descripcion?: string | null } = {}
-        if (modificacion.severidad !== undefined) cambios.severidad = modificacion.severidad
+        const cambios: {
+          severidad?: string
+          descripcion?: string | null
+          justificacionCritica?: string | null
+          justificacionCriticaDetalle?: string | null
+        } = {}
+        if (modificacion.severidad !== undefined) {
+          cambios.severidad = modificacion.severidad
+          cambios.justificacionCritica = modificacion.justificacionCritica ?? null
+          cambios.justificacionCriticaDetalle = modificacion.justificacionCriticaDetalle ?? null
+        }
         if (modificacion.descripcion !== undefined) cambios.descripcion = modificacion.descripcion
         if (Object.keys(cambios).length > 0) {
           await tx.update(infraAfectacion).set(cambios).where(eq(infraAfectacion.id, modificacion.id))
@@ -688,8 +742,15 @@ export async function POST(request: Request) {
       if (input.afectacionesRetiradas.length > 0) {
         await tx
           .update(infraAfectacion)
-          .set({ retiradaEn: input.rigeDesde })
+          .set({ retiradaEn: input.rigeDesde, cierre: 'retirada' })
           .where(inArray(infraAfectacion.id, input.afectacionesRetiradas))
+      }
+
+      for (const solucionada of input.afectacionesSolucionadas) {
+        await tx
+          .update(infraAfectacion)
+          .set({ retiradaEn: solucionada.solucionadaEn ?? input.rigeDesde, cierre: 'solucionada' })
+          .where(eq(infraAfectacion.id, solucionada.id))
       }
 
       if (input.servicioEducativo) {

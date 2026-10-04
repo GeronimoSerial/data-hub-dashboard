@@ -144,6 +144,7 @@ async function cargarAfectaciones(
     return {
       id: fila.id,
       parteId: fila.parteId,
+      causadaPorId: fila.causadaPorId,
       motivo: fila.motivo,
       categoria: fila.categoria as Categoria,
       severidad: fila.severidad as Severidad,

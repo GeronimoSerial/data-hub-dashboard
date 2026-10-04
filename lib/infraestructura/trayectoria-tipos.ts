@@ -81,6 +81,7 @@ export interface AfectacionAlcanceSeccion {
 export interface Afectacion extends FilaConVigencia {
   id: string
   parteId: string
+  causadaPorId?: string | null
   motivo: string
   categoria: Categoria
   severidad: Severidad

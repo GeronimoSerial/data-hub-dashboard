@@ -12,6 +12,7 @@
 import { z } from 'zod'
 import { normalizeCue } from './cue'
 import { SEVERIDADES } from './validacion'
+import { JUSTIFICACIONES_CRITICA } from './justificacion-critica'
 import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
 
 const HTML_RE = /<[^>]*>/
@@ -55,8 +56,11 @@ const asistenciaPedagogicaSchema = z.object({
 export const afectacionNuevaInputSchema = z.object({
   motivo: z.string().trim().min(1, 'Motivo requerido'),
   severidad: z.enum(SEVERIDADES),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
+  causadaPorId: z.string().trim().min(1).optional(),
   // Misma semántica que en problematicaInputSchema: sección sin alumnos acá =
   // sección completa.
   alumnos: z.array(z.number().int().positive()).optional(),
@@ -71,6 +75,8 @@ export type AfectacionNuevaInput = z.infer<typeof afectacionNuevaInputSchema>
 export const afectacionModificacionInputSchema = z.object({
   id: z.string().trim().min(1, 'Falta el identificador de la afectación'),
   severidad: z.enum(SEVERIDADES).optional(),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).optional(),
   alumnos: z.array(z.number().int().positive()).optional(),
@@ -129,6 +135,9 @@ export const parteActualizacionInputSchema = z
     // IDs de afectaciones vigentes a retirar (soft delete, spec §8 "retirar
     // una afectación existente").
     afectacionesRetiradas: z.array(z.string().trim().min(1)).default([]),
+    afectacionesSolucionadas: z
+      .array(z.object({ id: z.string().trim().min(1), solucionadaEn: rigeDesdeSchema.optional() }))
+      .default([]),
     servicioEducativo: servicioEducativoInputSchema.optional(),
     estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
     confirmarInterrupcionTotal: z.boolean().optional(),
@@ -139,6 +148,7 @@ export const parteActualizacionInputSchema = z
       data.afectacionesNuevas.length > 0 ||
       data.afectacionesModificadas.length > 0 ||
       data.afectacionesRetiradas.length > 0 ||
+      data.afectacionesSolucionadas.length > 0 ||
       data.servicioEducativo !== undefined ||
       data.estadoEstablecimiento !== undefined ||
       data.asistenciaPedagogica !== undefined,
@@ -151,6 +161,10 @@ export const parteActualizacionInputSchema = z
       : [...data.afectacionesNuevas, ...data.afectacionesModificadas].some((a) => (a.secciones?.length ?? 0) > 0)
     return !evacua || !declaraSecciones || data.confirmarInterrupcionTotal === true
   }, { message: 'Confirme que se interrumpe todo el establecimiento' })
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'evacuado' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio evacuado no puede haber clases con normalidad' },
+  )
 
 export type ParteActualizacionInput = z.infer<typeof parteActualizacionInputSchema>
 
