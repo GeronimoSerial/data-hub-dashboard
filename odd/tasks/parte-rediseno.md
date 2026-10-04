@@ -15,12 +15,15 @@
 
 ## Checklist
 
-- [ ] B1 — Tasks 1–2 (estado de envío veraz) — worktree `parte-b1`
+- [x] B1 — Tasks 1–2 (estado de envío veraz) — commits 378bc07, c89f1c5; merged ff into feat/staging; worktree removed
 - [ ] B2 — Tasks 3–10 (modelo de datos) — worktree `parte-b2`
 - [ ] B3 — Tasks 11–19 (wizard iniciar reporte) — after B1, B2
 - [ ] B4 — Tasks 20–26 (recorrido actualizar) — after B2, B3
-- [ ] B5 — Tasks 27–28 (background sync) — after B1
+- [ ] B5 — Tasks 27–28 (background sync) — running, worktree `parte-b5`, dispatch ctx_194b8e4e7070
 
 ## Progress / evidence
 
-(updated per batch merge)
+Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
+
+- B1: N2 gate → lint 0 errors, build exit 0, pnpm test 1 failure in `app/api/infraestructura/radar-meteo/resumen/route.test.ts` — reproduced on feat/staging before B1 (pre-existing, out of scope; pending separate fix).
+- B2: T3 235e597, T4 df3a397, T5 c8c2875, T6 7d64baa.
