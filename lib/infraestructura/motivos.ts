@@ -3,6 +3,7 @@ import { getDb, getRawClient } from '@/lib/db'
 import { infraMotivo } from '@/lib/db/schema'
 import { esCategoria, type CategoriaAfectacion } from './categorias'
 import { crearEjecutorSql } from './ge-db'
+import { esSeveridad, type Severidad } from './validacion'
 
 export interface MotivoRow {
   id: string
@@ -10,7 +11,7 @@ export interface MotivoRow {
   categoria: CategoriaAfectacion
   orden: number
   // Optional so fixtures need not set it; DB rows normalize absence to null.
-  severidadSugerida?: string | null
+  severidadSugerida?: Severidad | null
 }
 
 // Semilla inicial de motivos (reparto acordado en la spec de diseño).
@@ -131,5 +132,8 @@ export async function listarMotivos(): Promise<MotivoRow[]> {
     .orderBy(asc(infraMotivo.categoria), asc(infraMotivo.orden), asc(infraMotivo.nombre))
   return rows
     .filter((r): r is typeof r & { categoria: CategoriaAfectacion } => esCategoria(r.categoria))
-    .map((r): MotivoRow => ({ ...r, severidadSugerida: r.severidadSugerida ?? null }))
+    .map((r): MotivoRow => ({
+      ...r,
+      severidadSugerida: esSeveridad(r.severidadSugerida) ? r.severidadSugerida : null,
+    }))
 }

@@ -4,6 +4,10 @@ export const SEVERIDADES = ['Baja', 'Media', 'Alta', 'Crítica'] as const
 
 export type Severidad = (typeof SEVERIDADES)[number]
 
+export function esSeveridad(valor: unknown): valor is Severidad {
+  return typeof valor === 'string' && (SEVERIDADES as readonly string[]).includes(valor)
+}
+
 export type ResolverCategoriaResultado =
   | { ok: true; categoria: CategoriaAfectacion }
   | { ok: false; error: string }

@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db'
 import { infraAfectacion, infraMotivo } from '@/lib/db/schema'
 import { ensureSeeded } from '@/lib/db/seed'
 import { esCategoria } from '@/lib/infraestructura/categorias'
+import { esSeveridad } from '@/lib/infraestructura/validacion'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { getSessionUser, staffGuard } from '@/lib/session'
 
@@ -75,11 +76,17 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Categoría inválida' }, { status: 400 })
   }
 
+  const sugeridaCruda = b.severidadSugerida ?? null
+  if (sugeridaCruda !== null && !esSeveridad(sugeridaCruda)) {
+    return Response.json({ error: 'Gravedad sugerida inválida' }, { status: 400 })
+  }
+
   const row = {
     id: b.id,
     nombre: b.nombre,
     categoria: b.categoria,
     orden: Number(b.orden) || 0,
+    severidadSugerida: sugeridaCruda,
   }
 
   const db = getDb()
@@ -102,7 +109,12 @@ export async function POST(request: Request) {
     .values(row)
     .onConflictDoUpdate({
       target: infraMotivo.id,
-      set: { nombre: row.nombre, categoria: row.categoria, orden: row.orden },
+      set: {
+        nombre: row.nombre,
+        categoria: row.categoria,
+        orden: row.orden,
+        severidadSugerida: row.severidadSugerida,
+      },
     })
 
   return Response.json({ ok: true })

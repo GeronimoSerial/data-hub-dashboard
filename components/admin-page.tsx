@@ -33,6 +33,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { NominalPermisosAdmin } from '@/components/infraestructura/nominal-permisos-admin'
 
 const COLORS: BadgeColor[] = [
@@ -1236,6 +1237,9 @@ function MotivoForm({
     editing?.categoria ?? CATEGORIAS[0],
   )
   const [orden, setOrden] = React.useState(editing?.orden ?? 0)
+  const [severidadSugerida, setSeveridadSugerida] = React.useState(
+    editing?.severidadSugerida ?? 'ninguna',
+  )
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1253,6 +1257,7 @@ function MotivoForm({
           nombre,
           categoria,
           orden,
+          severidadSugerida: severidadSugerida === 'ninguna' ? null : severidadSugerida,
         }),
       })
       if (!res.ok) {
@@ -1285,6 +1290,15 @@ function MotivoForm({
           value={categoria}
           options={CATEGORIAS.map((c) => ({ value: c, label: CATEGORIA_META[c].label }))}
           onChange={(value) => setCategoria(value as CategoriaAfectacion)}
+        />
+        <SelectField
+          label="Gravedad sugerida"
+          value={severidadSugerida}
+          options={[
+            { value: 'ninguna', label: 'Sin sugerido' },
+            ...SEVERIDADES.map((severidad) => ({ value: severidad, label: severidad })),
+          ]}
+          onChange={setSeveridadSugerida}
         />
         <AdminField label="Orden" hint="Define el orden dentro de su categoría">
           <Input
@@ -1347,6 +1361,7 @@ function MotivosAdmin() {
             <tr>
               <th>Motivo</th>
               <th>Categoría</th>
+              <th>Sugerido</th>
               <th>Orden</th>
               <th>Acciones</th>
             </tr>
@@ -1356,6 +1371,7 @@ function MotivosAdmin() {
               <tr key={m.id}>
                 <td>{m.nombre}</td>
                 <td>{CATEGORIA_META[m.categoria]?.label ?? m.categoria}</td>
+                <td>{m.severidadSugerida ?? '—'}</td>
                 <td>{m.orden}</td>
                 <td>
                   <div className="ui-actions">
