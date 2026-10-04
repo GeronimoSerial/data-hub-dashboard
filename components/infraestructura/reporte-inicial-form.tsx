@@ -29,7 +29,7 @@ import {
   leerPasoBaseHistorial,
 } from '@/lib/infraestructura/parte/borrador-historial'
 import {
-  crearAlmacenNavegador,
+  crearAlmacenLocalStorage,
   esEstadoReintentable,
   intentarEnviar,
   reenviarCola,
@@ -37,11 +37,13 @@ import {
   programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  type AlmacenClaveValor,
   type EnviarOpciones,
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 
-const almacenParte = crearAlmacenNavegador()
+const almacenBorradores = crearAlmacenLocalStorage()
 
 export interface ReporteInicialFormProps {
   cue: string
@@ -136,10 +138,10 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
 }
 
 const borradorStore = crearBorradorStore(esBorradorParteNuevo)
-const leerBorrador = (clave: string) => borradorStore.leer(almacenParte, clave)
+const leerBorrador = (clave: string) => borradorStore.leer(almacenBorradores, clave)
 const guardarBorrador = (clave: string, borrador: BorradorParteNuevo) =>
-  borradorStore.guardar(almacenParte, clave, borrador)
-const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenParte, clave)
+  borradorStore.guardar(almacenBorradores, clave, borrador)
+const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenBorradores, clave)
 
 // El paso restaurado tiene que ser alcanzable con el botón "atrás" del
 // navegador (#31): si la entrada actual es la inicial, empujamos las que
@@ -173,6 +175,11 @@ function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string,
  * vacías, igual que antes.
  */
 export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormProps): JSX.Element {
+  const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
+  function almacen(): Promise<AlmacenClaveValor> {
+    almacenRef.current ??= crearAlmacenParte()
+    return almacenRef.current
+  }
   const [paso, setPaso] = useState<Paso>(1)
   const [afectacion, setAfectacion] = useState<AfectacionBorrador>(() =>
     crearAfectacionVacia(crypto.randomUUID()),
@@ -245,7 +252,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   useEffect(() => {
     let cancelado = false
     ;(async () => {
-      const colaPendiente = await leerColaEnvio(almacenParte, 'nuevo', cue)
+      const colaPendiente = await leerColaEnvio(await almacen(), 'nuevo', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
@@ -332,7 +339,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
-    const resultado = await intentarEnviar(datosEnvio, opcionesEnvio())
+    const resultado = await intentarEnviar(datosEnvio, { ...opcionesEnvio(), almacen: await almacen() })
 
     if (resultado.ok) {
       const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
@@ -353,9 +360,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     // muestra onCambioEstado; acá no hay nada más que hacer.
   }
 
-  function opcionesEnvio(): EnviarOpciones<Record<string, unknown>> {
+  function opcionesEnvio(): Omit<EnviarOpciones<Record<string, unknown>>, 'almacen'> {
     return {
-      almacen: almacenParte,
       tipo: 'nuevo',
       cue,
       fetchImpl: fetch,
@@ -395,7 +401,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       if (guardado) return
       if (!esEstadoReintentable(estadoEnvio)) return
       void (async () => {
-        const resultado = await reenviarCola(opcionesEnvio())
+        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
         if (resultado?.ok) {
           const datos = resultado.respuesta as { movimientoId: string }
           alEnviarConExito(datos.movimientoId)

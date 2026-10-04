@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ActualizacionForm } from './actualizacion-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
-import { MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
+import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 
 const props = {
   cue: '12345678',
@@ -106,6 +109,7 @@ afterEach(() => {
   sessionStorage.clear()
   localStorage.clear()
   vi.unstubAllGlobals()
+  globalThis.indexedDB = new IDBFactory()
   document.body.innerHTML = ''
 })
 
@@ -647,18 +651,15 @@ describe('ActualizacionForm — envío pendiente restaurado de la cola offline',
     const fetchMock = stubFetchInicial()
 
     // Cola de envío dejada pendiente por una sesión anterior.
-    localStorage.setItem(
-      `parte:actualizar:${props.cue}`,
-      JSON.stringify({
-        tipo: 'actualizar',
-        cue: props.cue,
-        idempotencyKey: 'idem-offline',
-        datos: {},
-        estado: 'pendiente-envio',
-        intentos: 1,
-        actualizadoEn: new Date().toISOString(),
-      }),
-    )
+    await guardarBorradorEnvio(await crearAlmacenParte(), {
+      tipo: 'actualizar',
+      cue: props.cue,
+      idempotencyKey: 'idem-offline',
+      datos: {},
+      estado: 'pendiente-envio',
+      intentos: 1,
+      actualizadoEn: new Date().toISOString(),
+    })
     // El formulario quedó en la pantalla de resumen, listo para reintentar.
     localStorage.setItem(
       `parte-actualizacion:draft:${props.cue}`,

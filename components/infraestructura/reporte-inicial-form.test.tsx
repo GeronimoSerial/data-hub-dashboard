@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
-import { MENSAJES_ESTADO, crearAlmacenNavegador, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { MENSAJES_ESTADO, guardarBorrador as guardarBorradorEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 
 const props = { cue: '12345678', turnos, motivos }
 
@@ -70,6 +73,7 @@ afterEach(() => {
   sessionStorage.clear()
   localStorage.clear()
   vi.unstubAllGlobals()
+  globalThis.indexedDB = new IDBFactory()
   document.body.innerHTML = ''
 })
 
@@ -622,7 +626,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     esperar un evento de conexión ni una acción del director.
   */
   it('al montar con una cola pendiente y conexión disponible, la reenvía sin intervención', async () => {
-    const almacen = crearAlmacenNavegador()
+    const almacen = await crearAlmacenParte()
     await guardarBorradorEnvio(almacen, {
       tipo: 'nuevo',
       cue: props.cue,
