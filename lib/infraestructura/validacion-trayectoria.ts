@@ -135,6 +135,9 @@ export const parteActualizacionInputSchema = z
     // IDs de afectaciones vigentes a retirar (soft delete, spec §8 "retirar
     // una afectación existente").
     afectacionesRetiradas: z.array(z.string().trim().min(1)).default([]),
+    afectacionesSolucionadas: z
+      .array(z.object({ id: z.string().trim().min(1), solucionadaEn: rigeDesdeSchema.optional() }))
+      .default([]),
     servicioEducativo: servicioEducativoInputSchema.optional(),
     estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
     confirmarInterrupcionTotal: z.boolean().optional(),
@@ -145,6 +148,7 @@ export const parteActualizacionInputSchema = z
       data.afectacionesNuevas.length > 0 ||
       data.afectacionesModificadas.length > 0 ||
       data.afectacionesRetiradas.length > 0 ||
+      data.afectacionesSolucionadas.length > 0 ||
       data.servicioEducativo !== undefined ||
       data.estadoEstablecimiento !== undefined ||
       data.asistenciaPedagogica !== undefined,

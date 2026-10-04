@@ -511,6 +511,7 @@ export async function POST(request: Request) {
   const idsReferenciados = [
     ...input.afectacionesModificadas.map((m) => m.id),
     ...input.afectacionesRetiradas,
+    ...input.afectacionesSolucionadas.map((s) => s.id),
   ]
   if (idsReferenciados.length > 0) {
     if (!parteExistente) {
@@ -741,8 +742,15 @@ export async function POST(request: Request) {
       if (input.afectacionesRetiradas.length > 0) {
         await tx
           .update(infraAfectacion)
-          .set({ retiradaEn: input.rigeDesde })
+          .set({ retiradaEn: input.rigeDesde, cierre: 'retirada' })
           .where(inArray(infraAfectacion.id, input.afectacionesRetiradas))
+      }
+
+      for (const solucionada of input.afectacionesSolucionadas) {
+        await tx
+          .update(infraAfectacion)
+          .set({ retiradaEn: solucionada.solucionadaEn ?? input.rigeDesde, cierre: 'solucionada' })
+          .where(eq(infraAfectacion.id, solucionada.id))
       }
 
       if (input.servicioEducativo) {

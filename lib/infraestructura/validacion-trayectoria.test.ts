@@ -217,6 +217,14 @@ describe('parseParteActualizacionInput', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('un envío que sólo soluciona una situación es un cambio válido', () => {
+    const r = parseParteActualizacionInput({
+      cue: '1801605-41', idempotencyKey: 'k', rigeDesde: new Date().toISOString(),
+      afectacionesSolucionadas: [{ id: 'a-1' }],
+    })
+    expect(r.ok).toBe(true)
+  })
+
   it('acepta un envío que sólo modifica una afectación existente', () => {
     const result = parseParteActualizacionInput({
       cue: '1801605-04',

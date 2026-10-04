@@ -128,6 +128,7 @@ const CUE_CONCURRENTE = '1801605-58'
 const CUE_O = '1801605-59'
 const CUE_P = '1801605-60'
 const CUE_Q = '1801605-61'
+const CUE_R = '1801605-62'
 const CUE_R2 = '1801605-63'
 const CUE_R3 = '1801605-64'
 
@@ -149,7 +150,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R2, CUE_R3,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -582,6 +583,28 @@ describe('POST /api/problematicas/parte', () => {
     const getRes = await GET(getReq(CUE_E))
     const getBody = await getRes.json()
     expect(getBody.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)).toBeUndefined()
+  })
+
+  it('solucionar una situación la cierra con cierre=solucionada y la fecha indicada', async () => {
+    const rige = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const inicial = await POST(postReq({
+      cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: rige,
+      afectacionesNuevas: [{ motivo: 'Tormenta severa', severidad: 'Alta', secciones: [seccionId(CUE_R, '10')] }],
+    }))
+    const parte = await inicial.json()
+    const [fila] = await getDb().select().from(infraAfectacion).where(and(
+      eq(infraAfectacion.parteId, parte.parteId),
+      eq(infraAfectacion.motivo, 'Tormenta severa'),
+    ))
+    const solucionadaEn = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const res = await POST(postReq({
+      cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesSolucionadas: [{ id: fila.id, solucionadaEn }],
+    }))
+    expect(res.status).toBe(201)
+    const [cerrada] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, fila.id))
+    expect(cerrada.cierre).toBe('solucionada')
+    expect(cerrada.retiradaEn).toBe(solucionadaEn)
   })
 
   it('un envío que no cambia nada responde 409 con el texto exacto de la spec y no escribe movimiento', async () => {
