@@ -25,6 +25,7 @@ import { crearEjecutorSql, getCorteVigente, type EjecutorSql } from '@/lib/infra
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from '@/lib/infraestructura/impacto'
 import { listarIdentidadesPorPersonas } from '@/lib/infraestructura/identidad'
 import { getClientIp, ipExcedeLimite } from '@/lib/infraestructura/limites'
+import { validarJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { listarMotivos } from '@/lib/infraestructura/motivos'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
@@ -428,6 +429,14 @@ export async function POST(request: Request) {
     if (!resuelto.ok) {
       return Response.json({ error: resuelto.error }, { status: 400 })
     }
+    const sugerida = motivos.find((m) => m.nombre === entrada.motivo)?.severidadSugerida ?? null
+    const justificada = validarJustificacionCritica({
+      severidad: entrada.severidad,
+      sugerida,
+      justificacion: entrada.justificacionCritica,
+      detalle: entrada.justificacionCriticaDetalle,
+    })
+    if (!justificada.ok) return jsonError(justificada.error, 400)
     const permitido = validarAlumnosPermitidos(resuelto.categoria, entrada.alumnos)
     if (!permitido.ok) {
       return Response.json({ error: permitido.error }, { status: 400 })
@@ -514,6 +523,19 @@ export async function POST(request: Request) {
       if (!fila || fila.retiradaEn !== null) {
         return jsonError('La afectación indicada no existe o ya fue retirada', 400)
       }
+    }
+
+    for (const modificacion of input.afectacionesModificadas) {
+      if (modificacion.severidad === undefined) continue
+      const fila = existentesPorId.get(modificacion.id)
+      const sugerida = motivos.find((m) => m.nombre === fila?.motivo)?.severidadSugerida ?? null
+      const justificada = validarJustificacionCritica({
+        severidad: modificacion.severidad,
+        sugerida,
+        justificacion: modificacion.justificacionCritica,
+        detalle: modificacion.justificacionCriticaDetalle,
+      })
+      if (!justificada.ok) return jsonError(justificada.error, 400)
     }
 
     for (const modificacion of input.afectacionesModificadas) {
@@ -645,6 +667,8 @@ export async function POST(request: Request) {
           motivo: entrada.motivo,
           categoria,
           severidad: entrada.severidad,
+          justificacionCritica: entrada.justificacionCritica ?? null,
+          justificacionCriticaDetalle: entrada.justificacionCriticaDetalle ?? null,
           descripcion: entrada.descripcion ?? null,
           rigeDesde: input.rigeDesde,
           creadaEn: ahora,
@@ -661,8 +685,17 @@ export async function POST(request: Request) {
       }
 
       for (const modificacion of input.afectacionesModificadas) {
-        const cambios: { severidad?: string; descripcion?: string | null } = {}
-        if (modificacion.severidad !== undefined) cambios.severidad = modificacion.severidad
+        const cambios: {
+          severidad?: string
+          descripcion?: string | null
+          justificacionCritica?: string | null
+          justificacionCriticaDetalle?: string | null
+        } = {}
+        if (modificacion.severidad !== undefined) {
+          cambios.severidad = modificacion.severidad
+          cambios.justificacionCritica = modificacion.justificacionCritica ?? null
+          cambios.justificacionCriticaDetalle = modificacion.justificacionCriticaDetalle ?? null
+        }
         if (modificacion.descripcion !== undefined) cambios.descripcion = modificacion.descripcion
         if (Object.keys(cambios).length > 0) {
           await tx.update(infraAfectacion).set(cambios).where(eq(infraAfectacion.id, modificacion.id))

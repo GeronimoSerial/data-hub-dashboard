@@ -125,6 +125,8 @@ const CUE_IDEM = '1801605-57'
 // CUE exclusivo del test de la carrera cross-device (fix/parte-alta-concurrente):
 // dos POSTs concurrentes con distinta idempotencyKey para la primera alta.
 const CUE_CONCURRENTE = '1801605-58'
+const CUE_O = '1801605-59'
+const CUE_P = '1801605-60'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -144,7 +146,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -651,6 +653,36 @@ describe('POST /api/problematicas/parte', () => {
       (a: { tipo: string; referenciaId: string }) => a.tipo === 'seccion' && a.referenciaId === String(seccionB),
     )
     expect(filaSeccionB).toBeUndefined()
+  })
+})
+
+describe('POST /api/problematicas/parte — justificación de Crítica', () => {
+  const base = (cue: string, extra: Record<string, unknown>) => ({
+    cue,
+    idempotencyKey: crypto.randomUUID(),
+    rigeDesde: new Date().toISOString(),
+    afectacionesNuevas: [{ motivo: 'Sin energía o agua', secciones: [seccionId(cue, '10')], ...extra }],
+  })
+
+  it('rechaza Crítica sobre un motivo que sugiere Media sin justificación', async () => {
+    const res = await POST(postReq(base(CUE_O, { severidad: 'Crítica' })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Indique por qué la situación es crítica')
+  })
+
+  it('acepta Crítica justificada y persiste la justificación', async () => {
+    const res = await POST(postReq(base(CUE_O, { severidad: 'Crítica', justificacionCritica: 'riesgo_fisico' })))
+    expect(res.status).toBe(201)
+    const filas = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.justificacionCritica, 'riesgo_fisico'))
+    expect(filas.length).toBe(1)
+  })
+
+  it('no pide justificación cuando el motivo ya sugiere Crítica', async () => {
+    const res = await POST(postReq({
+      cue: CUE_P, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(CUE_P, '10')] }],
+    }))
+    expect(res.status).toBe(201)
   })
 })
 

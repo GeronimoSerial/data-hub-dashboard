@@ -12,6 +12,7 @@
 import { z } from 'zod'
 import { normalizeCue } from './cue'
 import { SEVERIDADES } from './validacion'
+import { JUSTIFICACIONES_CRITICA } from './justificacion-critica'
 import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
 
 const HTML_RE = /<[^>]*>/
@@ -55,6 +56,8 @@ const asistenciaPedagogicaSchema = z.object({
 export const afectacionNuevaInputSchema = z.object({
   motivo: z.string().trim().min(1, 'Motivo requerido'),
   severidad: z.enum(SEVERIDADES),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
   // Misma semántica que en problematicaInputSchema: sección sin alumnos acá =
@@ -71,6 +74,8 @@ export type AfectacionNuevaInput = z.infer<typeof afectacionNuevaInputSchema>
 export const afectacionModificacionInputSchema = z.object({
   id: z.string().trim().min(1, 'Falta el identificador de la afectación'),
   severidad: z.enum(SEVERIDADES).optional(),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).optional(),
   alumnos: z.array(z.number().int().positive()).optional(),
