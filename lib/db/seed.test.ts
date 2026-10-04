@@ -7,6 +7,7 @@ import {
   categorias,
   infraAfectacion,
   infraJobRun,
+  infraMotivo,
   infraParte,
   infraPeriodo,
   infraServicioAlcance,
@@ -23,6 +24,30 @@ usarDbTemporal('seed-ddl-', { seed: false })
 beforeAll(async () => {
   const { ensureSeeded } = await import('./seed')
   await ensureSeeded()
+})
+
+it('la migración 0008 agrega las columnas del rediseño y siembra la gravedad sugerida', async () => {
+  const { ensureSeeded } = await import('./seed')
+  await ensureSeeded()
+  const db = getDb()
+  const motivos = await db.select().from(infraMotivo)
+  const porId = new Map(motivos.map((m) => [m.id, m.severidadSugerida]))
+  expect(porId.get('inundacion')).toBe('Crítica')
+  expect(porId.get('sin-energia-o-agua')).toBe('Media')
+  expect(porId.get('otro-establecimiento')).toBeNull()
+
+  const columnas = await crearEjecutorSql(getRawClient()).execute(
+    "SELECT column_name FROM information_schema.columns WHERE table_name = 'infra_afectacion'",
+  )
+  const nombres = (columnas.rows as Array<{ column_name: string }>).map((c) => c.column_name)
+  expect(nombres).toEqual(
+    expect.arrayContaining([
+      'justificacion_critica',
+      'justificacion_critica_detalle',
+      'causada_por_id',
+      'cierre',
+    ]),
+  )
 })
 
 // Una sola base para todo el archivo: getDb() memoiza la conexión a nivel de

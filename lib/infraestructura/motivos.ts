@@ -9,6 +9,8 @@ export interface MotivoRow {
   nombre: string
   categoria: CategoriaAfectacion
   orden: number
+  // Optional so fixtures need not set it; DB rows normalize absence to null.
+  severidadSugerida?: string | null
 }
 
 // Semilla inicial de motivos (reparto acordado en la spec de diseño).
@@ -24,20 +26,63 @@ export interface MotivoRow {
 // eso ensureMotivoNombreUnico() impone la unicidad a nivel de base: así el ABM
 // del admin tampoco puede recrear la ambigüedad más adelante.
 export const MOTIVOS_SEED: MotivoRow[] = [
-  { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
-  { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
-  { id: 'sin-energia-o-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 30 },
-  { id: 'evacuacion-preventiva', nombre: 'Evacuación preventiva', categoria: 'establecimiento', orden: 40 },
-  { id: 'inaccesibilidad-docentes', nombre: 'Inaccesibilidad de docentes', categoria: 'establecimiento', orden: 50 },
+  {
+    id: 'inundacion',
+    nombre: 'Inundación',
+    categoria: 'establecimiento',
+    orden: 10,
+    severidadSugerida: 'Crítica',
+  },
+  {
+    id: 'tormenta-severa',
+    nombre: 'Tormenta severa',
+    categoria: 'establecimiento',
+    orden: 20,
+    severidadSugerida: 'Alta',
+  },
+  {
+    id: 'sin-energia-o-agua',
+    nombre: 'Sin energía o agua',
+    categoria: 'establecimiento',
+    orden: 30,
+    severidadSugerida: 'Media',
+  },
+  {
+    id: 'evacuacion-preventiva',
+    nombre: 'Evacuación preventiva',
+    categoria: 'establecimiento',
+    orden: 40,
+    severidadSugerida: 'Crítica',
+  },
+  {
+    id: 'inaccesibilidad-docentes',
+    nombre: 'Inaccesibilidad de docentes',
+    categoria: 'establecimiento',
+    orden: 50,
+    severidadSugerida: 'Alta',
+  },
   {
     id: 'otro-establecimiento',
     nombre: 'Otro problema en el establecimiento',
     categoria: 'establecimiento',
     orden: 90,
+    severidadSugerida: null,
   },
-  { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
-  { id: 'acceso-interrumpido', nombre: 'Acceso interrumpido', categoria: 'alumnos', orden: 20 },
-  { id: 'otro-alumnos', nombre: 'Otro problema de acceso', categoria: 'alumnos', orden: 90 },
+  {
+    id: 'anegamiento',
+    nombre: 'Anegamiento',
+    categoria: 'alumnos',
+    orden: 10,
+    severidadSugerida: 'Alta',
+  },
+  {
+    id: 'acceso-interrumpido',
+    nombre: 'Acceso interrumpido',
+    categoria: 'alumnos',
+    orden: 20,
+    severidadSugerida: 'Alta',
+  },
+  { id: 'otro-alumnos', nombre: 'Otro problema de acceso', categoria: 'alumnos', orden: 90, severidadSugerida: null },
 ]
 
 // Nombres que usaron los comodines antes de que la unicidad fuera un
@@ -84,5 +129,7 @@ export async function listarMotivos(): Promise<MotivoRow[]> {
     .select()
     .from(infraMotivo)
     .orderBy(asc(infraMotivo.categoria), asc(infraMotivo.orden), asc(infraMotivo.nombre))
-  return rows.filter((r): r is MotivoRow => esCategoria(r.categoria))
+  return rows
+    .filter((r): r is typeof r & { categoria: CategoriaAfectacion } => esCategoria(r.categoria))
+    .map((r): MotivoRow => ({ ...r, severidadSugerida: r.severidadSugerida ?? null }))
 }
