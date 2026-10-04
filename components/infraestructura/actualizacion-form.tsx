@@ -34,6 +34,7 @@ import { contarCambios, diffParte, esDiffVacio } from '@/lib/infraestructura/mov
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import {
   crearAlmacenLocalStorage,
+  claveBorrador as claveBorradorCola,
   esEstadoReintentable,
   intentarEnviar,
   reenviarCola,
@@ -46,6 +47,7 @@ import {
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
   colapsarHistorial,
@@ -644,6 +646,7 @@ function ActualizacionFormCargado({
         setEstadoEnvio(borrador.estado)
         setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
+        if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
     }
   }
@@ -659,6 +662,11 @@ function ActualizacionFormCargado({
     setGuardado({ movimientoId })
   }
 
+  const alEnviarConExitoRef = useRef(alEnviarConExito)
+  useEffect(() => {
+    alEnviarConExitoRef.current = alEnviarConExito
+  })
+
   useEffect(() => {
     reintentarRef.current = () => {
       if (guardado) return
@@ -672,6 +680,14 @@ function ActualizacionFormCargado({
       })()
     }
   })
+
+  useEffect(() => {
+    void registrarServiceWorkerParte()
+  }, [])
+
+  useEffect(() => alEnviarEnSegundoPlano((clave) => {
+    if (clave === claveBorradorCola('actualizar', cue)) alEnviarConExitoRef.current('')
+  }), [cue])
 
   useEffect(() => {
     return registrarAutoReintento(() => reintentarRef.current())

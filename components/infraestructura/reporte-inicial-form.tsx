@@ -30,6 +30,7 @@ import {
 } from '@/lib/infraestructura/parte/borrador-historial'
 import {
   crearAlmacenLocalStorage,
+  claveBorrador as claveBorradorCola,
   esEstadoReintentable,
   intentarEnviar,
   reenviarCola,
@@ -42,6 +43,7 @@ import {
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 
 const almacenBorradores = crearAlmacenLocalStorage()
 
@@ -380,6 +382,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         setEstadoEnvio(borrador.estado)
         setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
+        if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
     }
   }
@@ -396,6 +399,11 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setGuardado({ movimientoId })
   }
 
+  const alEnviarConExitoRef = useRef(alEnviarConExito)
+  useEffect(() => {
+    alEnviarConExitoRef.current = alEnviarConExito
+  })
+
   useEffect(() => {
     reintentarRef.current = () => {
       if (guardado) return
@@ -409,6 +417,12 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       })()
     }
   })
+  useEffect(() => {
+    void registrarServiceWorkerParte()
+  }, [])
+  useEffect(() => alEnviarEnSegundoPlano((clave) => {
+    if (clave === claveBorradorCola('nuevo', cue)) alEnviarConExitoRef.current('')
+  }), [cue])
   useEffect(() => {
     return registrarAutoReintento(() => reintentarRef.current())
   }, [])
