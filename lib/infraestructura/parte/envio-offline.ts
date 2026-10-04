@@ -6,6 +6,7 @@
 export type EstadoEnvio =
   | 'guardado-local'
   | 'pendiente-envio'
+  | 'error-servidor'
   | 'enviando'
   | 'enviado'
   | 'error'
@@ -56,7 +57,8 @@ export type ResultadoEnvio =
 
 export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
   'guardado-local': 'Guardado en este dispositivo',
-  'pendiente-envio': 'Pendiente de envío — se enviará al recuperar conexión',
+  'pendiente-envio': 'Sin conexión: se enviará solo cuando vuelva la conexión',
+  'error-servidor': 'El servidor no respondió. Reintentamos en unos segundos.',
   enviando: 'Enviando…',
   enviado: 'Enviado',
   error: 'No se pudo enviar',
@@ -390,7 +392,7 @@ async function completarEnvio<T>(
       body: JSON.stringify(cuerpo),
     })
   } catch {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos)
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'pendiente-envio')
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -425,7 +427,7 @@ async function completarEnvio<T>(
   const clasificacion = clasificarRespuesta(respuesta.status)
 
   if (clasificacion === 'reintentable') {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos)
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor')
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -453,10 +455,11 @@ async function registrarPendiente<T>(
   opciones: EnviarOpciones<T>,
   borrador: BorradorParte<T>,
   intentos: number,
+  estado: 'pendiente-envio' | 'error-servidor',
 ): Promise<BorradorParte<T>> {
   const pendiente: BorradorParte<T> = {
     ...borrador,
-    estado: 'pendiente-envio',
+    estado,
     intentos: intentos + 1,
     actualizadoEn: new Date().toISOString(),
   }
@@ -524,4 +527,22 @@ export function registrarAutoReintento(callback: () => void): () => void {
       temporizador = null
     }
   }
+}
+
+// Un envío que quedó en cola por red o por un 5xx se puede reintentar sin
+// intervención del director; 'error' (4xx) y 'sesion-vencida' no.
+export function esEstadoReintentable(estado: EstadoEnvio | null): boolean {
+  return estado === 'pendiente-envio' || estado === 'error-servidor'
+}
+
+// Reintenta con los datos guardados en la cola y conserva su idempotencyKey.
+export async function reenviarCola<T>(opciones: EnviarOpciones<T>): Promise<ResultadoEnvio | null> {
+  const cola = await leerBorrador<T>(opciones.almacen, opciones.tipo, opciones.cue)
+  if (!cola || !esEstadoReintentable(cola.estado)) return null
+  return intentarEnviar(cola.datos, opciones)
+}
+
+export function programarReintento(intentos: number, callback: () => void): () => void {
+  const temporizador = setTimeout(callback, calcularEsperaReintento(intentos))
+  return () => clearTimeout(temporizador)
 }

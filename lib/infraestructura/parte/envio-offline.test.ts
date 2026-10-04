@@ -9,10 +9,14 @@ import {
   claveBorrador,
   clasificarRespuesta,
   crearAlmacenMemoria,
+  esEstadoReintentable,
   guardarBorrador,
   intentarEnviar,
   leerBorrador,
+  MENSAJES_ESTADO,
+  programarReintento,
   registrarAutoReintento,
+  reenviarCola,
   type BorradorParte,
   type EnviarOpciones,
 } from './envio-offline'
@@ -435,5 +439,90 @@ describe('registrarAutoReintento', () => {
       vi.advanceTimersByTime(30000)
       expect(callback).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('estado veraz: red vs servidor', () => {
+  it('un 5xx deja el borrador en error-servidor, no en pendiente-envio', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn(async () => respuesta(false, 503, { error: 'caído' }))
+    const resultado = await intentarEnviar({ observacion: 'x' }, {
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, k }),
+    })
+    expect(resultado).toEqual({ ok: false, estado: 'error-servidor' })
+    expect((await leerBorrador(almacen, 'nuevo', 'cue-1'))?.estado).toBe('error-servidor')
+  })
+
+  it('una falla de red deja el borrador en pendiente-envio', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn(async () => { throw new TypeError('Failed to fetch') })
+    const resultado = await intentarEnviar({ observacion: 'x' }, {
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, k }),
+    })
+    expect(resultado).toEqual({ ok: false, estado: 'pendiente-envio' })
+  })
+
+  it('los mensajes no hablan de conexión para un error del servidor', () => {
+    expect(MENSAJES_ESTADO['error-servidor']).not.toMatch(/conexi/i)
+    expect(MENSAJES_ESTADO['pendiente-envio']).toMatch(/sin conexión/i)
+  })
+
+  it('esEstadoReintentable sólo acepta pendiente-envio y error-servidor', () => {
+    expect(esEstadoReintentable('pendiente-envio')).toBe(true)
+    expect(esEstadoReintentable('error-servidor')).toBe(true)
+    expect(esEstadoReintentable('error')).toBe(false)
+    expect(esEstadoReintentable('enviando')).toBe(false)
+    expect(esEstadoReintentable(null)).toBe(false)
+  })
+})
+
+describe('reenviarCola', () => {
+  it('reenvía los datos guardados en la cola con la misma idempotencyKey', async () => {
+    const almacen = crearAlmacenMemoria()
+    await guardarBorrador(almacen, crearBorrador({ tipo: 'nuevo', estado: 'error-servidor', idempotencyKey: 'k-1', datos: { observacion: 'de la cola' } }))
+    const fetchImpl = vi.fn(async () => respuesta(true, 201, { ok: true }))
+    const resultado = await reenviarCola<Record<string, unknown>>({
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, idempotencyKey: k }),
+    })
+    expect(resultado).toEqual({ ok: true, respuesta: { ok: true } })
+    const cuerpo = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(cuerpo).toEqual({ observacion: 'de la cola', idempotencyKey: 'k-1' })
+  })
+
+  it('devuelve null si la cola está vacía o en un estado no reintentable', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn()
+    const opciones = { almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d: unknown) => d }
+    expect(await reenviarCola(opciones)).toBeNull()
+    await guardarBorrador(almacen, crearBorrador({ tipo: 'nuevo', estado: 'error' }))
+    expect(await reenviarCola(opciones)).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('programarReintento', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('dispara después de la espera con backoff y se puede cancelar', () => {
+    const callback = vi.fn()
+    programarReintento(1, callback)
+    vi.advanceTimersByTime(1999)
+    expect(callback).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(callback).toHaveBeenCalledTimes(1)
+
+    const otro = vi.fn()
+    const cancelar = programarReintento(0, otro)
+    cancelar()
+    vi.advanceTimersByTime(60_000)
+    expect(otro).not.toHaveBeenCalled()
+  })
+
+  it('nunca espera más de 30 segundos', () => {
+    const callback = vi.fn()
+    programarReintento(50, callback)
+    vi.advanceTimersByTime(30_000)
+    expect(callback).toHaveBeenCalledTimes(1)
   })
 })
