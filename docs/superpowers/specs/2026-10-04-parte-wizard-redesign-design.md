@@ -1,7 +1,7 @@
 # Rediseño del flujo de partes (iniciar y actualizar) — diseño
 
 - **Fecha:** 2026-10-04
-- **Estado:** aprobado en conversación, pendiente de revisión del documento escrito
+- **Estado:** aprobado (2026-10-04)
 - **Alcance:** wizard "Iniciar reporte" (`app/problematicas/parte/nuevo`), flujo "Actualizar" del director, catálogo de motivos (ABM admin) y envío resiliente.
 - **Plataforma objetivo:** mobile-first. El director carga el parte mayoritariamente desde el celular, con conectividad intermitente y bajo estrés.
 
@@ -179,7 +179,7 @@ Se agregan los tipos de movimiento `confirmacion` (sigue igual) y `cierre` a los
 3. **Gravedad** — §5.2.
 4. **A quién afecta** — §5.4 / §5.5.
 5. **Desde cuándo** — §5.3.
-6. **Clases y edificio** — §5.6 (solo categoría establecimiento; en alumnos se omite el paso y el parte conserva su estado de edificio actual — *supuesto a confirmar*).
+6. **Clases y edificio** — §5.6 (solo categoría establecimiento; en alumnos se omite el paso y el parte conserva su estado de edificio actual).
 7. **Revisión y envío** — resumen legible de todo + "Enviar".
 
 El orden exacto de pasos puede ajustarse en el plan si los tests de usabilidad lo piden, sin cambiar las reglas.
@@ -187,7 +187,7 @@ El orden exacto de pasos puede ajustarse en el plan si los tests de usabilidad l
 ### 5.2 Gravedad
 
 - Se muestran **siempre los 4 niveles**, cada uno con su criterio según la categoría (§4.2).
-- El nivel igual a `severidad_sugerida` del motivo lleva el badge **"Sugerido"**, pero **no** aparece preseleccionado: el director elige explícitamente (evita aceptar por inercia). *Supuesto a confirmar.*
+- El nivel igual a `severidad_sugerida` del motivo lleva el badge **"Sugerido"**, pero **no** aparece preseleccionado: el director elige explícitamente (evita aceptar por inercia).
 - Si elige **Crítica** y aplica §4.3, se abre un **bottom sheet** "¿Por qué es crítica?" con las 5 opciones (radio) y, si elige "Otro", un textarea obligatorio (máx. 300). No se puede avanzar sin completar.
 
 ### 5.3 Desde cuándo (reemplaza `VigenciaField`)
