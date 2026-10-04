@@ -41,6 +41,7 @@ import { listarSeccionesDelCue } from '@/lib/infraestructura/secciones-cue'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
 import { calcularEstadoServicioGeneral } from '@/lib/infraestructura/servicio-educativo'
+import { causaElegible } from '@/lib/infraestructura/causa-afectacion'
 import type {
   Afectacion,
   EstadoEstablecimiento,
@@ -141,13 +142,15 @@ async function buscarAfectacionEquivalente(
     motivo: string
     severidad: Severidad
     descripcion?: string | null
+    causadaPorId?: string | null
     secciones: number[]
     alumnos?: number[]
   },
   categoria: CategoriaAfectacion,
 ): Promise<Afectacion | undefined> {
   const posibles = candidatas.filter((existente) =>
-    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria),
+    motivoCategoriaSeveridadDescripcionCoinciden(existente, entrada, categoria) &&
+    (existente.causadaPorId ?? null) === (entrada.causadaPorId ?? null),
   )
   if (posibles.length === 0) return undefined
   const esperadas = await seccionesEsperadas(client, corteId, entrada.secciones, entrada.alumnos)
@@ -554,6 +557,22 @@ export async function POST(request: Request) {
     }
   }
 
+  const idsCausa = [...new Set(input.afectacionesNuevas.flatMap((a) => (a.causadaPorId ? [a.causadaPorId] : [])))]
+  if (idsCausa.length > 0) {
+    const causas = await db
+      .select({ id: infraAfectacion.id, retiradaEn: infraAfectacion.retiradaEn, cueAnexo: infraParte.cueAnexo })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(inArray(infraAfectacion.id, idsCausa))
+    const porId = new Map(causas.map((c) => [c.id, c]))
+    for (const id of idsCausa) {
+      const causa = porId.get(id)
+      if (!causa || !causaElegible(causa, cue.value, input.rigeDesde)) {
+        return jsonError('La situación indicada como causa no es válida', 400)
+      }
+    }
+  }
+
   const ahora = new Date().toISOString()
   // Definite assignment: cada iteración del loop de reintentos de más abajo
   // o bien asigna `resultado` y hace `break`, o bien `return`-ea antes de
@@ -670,6 +689,7 @@ export async function POST(request: Request) {
           justificacionCritica: entrada.justificacionCritica ?? null,
           justificacionCriticaDetalle: entrada.justificacionCriticaDetalle ?? null,
           descripcion: entrada.descripcion ?? null,
+          causadaPorId: entrada.causadaPorId ?? null,
           rigeDesde: input.rigeDesde,
           creadaEn: ahora,
           retiradaEn: null,

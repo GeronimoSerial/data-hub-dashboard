@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
@@ -127,6 +127,9 @@ const CUE_IDEM = '1801605-57'
 const CUE_CONCURRENTE = '1801605-58'
 const CUE_O = '1801605-59'
 const CUE_P = '1801605-60'
+const CUE_Q = '1801605-61'
+const CUE_R2 = '1801605-63'
+const CUE_R3 = '1801605-64'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -146,7 +149,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R2, CUE_R3,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -763,6 +766,102 @@ describe('parte con sesión acotada por CUE', () => {
       ),
     )
     expect(res.status).toBe(401)
+  })
+})
+
+describe('POST /api/problematicas/parte — causa', () => {
+  async function crearInundacion(cue: string): Promise<string> {
+    await POST(postReq({
+      cue,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(cue, '10')] }],
+    }))
+    const [fila] = await getDb()
+      .select({ id: infraAfectacion.id })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, cue), eq(infraAfectacion.motivo, 'Inundación')))
+    if (!fila) throw new Error(`No se encontró la inundación de ${cue}`)
+    return fila.id
+  }
+
+  it('persiste causadaPorId cuando la causa es de la misma escuela y está activa', async () => {
+    const causa = await crearInundacion(CUE_Q)
+    const res = await POST(postReq({
+      cue: CUE_Q, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Sin energía o agua', severidad: 'Media', secciones: [seccionId(CUE_Q, '20')], causadaPorId: causa }],
+    }))
+    expect(res.status).toBe(201)
+    const [hija] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.causadaPorId, causa))
+    expect(hija.motivo).toBe('Sin energía o agua')
+  })
+
+  it('rechaza una causa de otra escuela', async () => {
+    const ajena = await crearInundacion(CUE_O)
+    const res = await POST(postReq({
+      cue: CUE_P, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Sin energía o agua', severidad: 'Media', secciones: [seccionId(CUE_P, '20')], causadaPorId: ajena }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('La situación indicada como causa no es válida')
+  })
+
+  it('deduplica dos altas con el mismo contenido y la misma causa', async () => {
+    const causa = await crearInundacion(CUE_R2)
+    const entrada = {
+      motivo: 'Sin energía o agua',
+      severidad: 'Media' as const,
+      secciones: [seccionId(CUE_R2, '20')],
+      causadaPorId: causa,
+    }
+    const rigeDesde = new Date().toISOString()
+
+    await POST(postReq({
+      cue: CUE_R2,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde,
+      afectacionesNuevas: [entrada],
+    }))
+    await POST(postReq({
+      cue: CUE_R2,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde,
+      afectacionesNuevas: [entrada],
+    }))
+
+    const vinculadas = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.causadaPorId, causa), eq(infraAfectacion.motivo, entrada.motivo)))
+    expect(vinculadas).toHaveLength(1)
+  })
+
+  it('no deduplica contra una afectación sin causa cuando la entrada sí tiene causa', async () => {
+    const causa = await crearInundacion(CUE_R3)
+    const entrada = {
+      motivo: 'Sin energía o agua',
+      severidad: 'Media' as const,
+      secciones: [seccionId(CUE_R3, '20')],
+    }
+
+    await POST(postReq({
+      cue: CUE_R3,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [entrada],
+    }))
+    await POST(postReq({
+      cue: CUE_R3,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ ...entrada, causadaPorId: causa }],
+    }))
+
+    const [parte] = await getDb().select({ id: infraParte.id }).from(infraParte)
+      .where(eq(infraParte.cueAnexo, CUE_R3))
+    const vinculadas = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, parte!.id), eq(infraAfectacion.motivo, entrada.motivo)))
+    expect(vinculadas).toHaveLength(2)
+    expect(vinculadas.filter((fila) => fila.causadaPorId === causa)).toHaveLength(1)
   })
 })
 

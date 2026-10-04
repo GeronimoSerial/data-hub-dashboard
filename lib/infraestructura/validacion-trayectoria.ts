@@ -60,6 +60,7 @@ export const afectacionNuevaInputSchema = z.object({
   justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
+  causadaPorId: z.string().trim().min(1).optional(),
   // Misma semántica que en problematicaInputSchema: sección sin alumnos acá =
   // sección completa.
   alumnos: z.array(z.number().int().positive()).optional(),
