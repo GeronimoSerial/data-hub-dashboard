@@ -53,6 +53,12 @@ function leerNumeroKpi(etiqueta: string, contenedor: HTMLElement): string {
   return texto.previousElementSibling?.textContent ?? ''
 }
 
+async function elegirAgrupacion(nombre: string) {
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('combobox', { name: 'Agrupar por' }))
+  await user.click(await screen.findByRole('option', { name: nombre }))
+}
+
 describe('PanelEstadisticas', () => {
   afterEach(() => cleanup())
 
@@ -113,8 +119,8 @@ describe('PanelEstadisticas', () => {
     const selector = screen.getByRole('combobox', { name: 'Agrupar por' })
     expect(selector).toHaveTextContent('Departamento')
     await user.click(selector)
-    expect(screen.getAllByRole('option')).toHaveLength(4)
-    await user.click(screen.getByRole('option', { name: 'Nivel' }))
+    expect(await screen.findAllByRole('option')).toHaveLength(4)
+    await user.click(await screen.findByRole('option', { name: 'Nivel' }))
     expect(selector).toHaveTextContent('Nivel')
 
     const tabla = screen.getByRole('table')
@@ -128,10 +134,8 @@ describe('PanelEstadisticas', () => {
   })
 
   it('traduce las categorías al agrupar sin exponer sus claves internas', async () => {
-    const user = userEvent.setup()
     render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
-    await user.click(screen.getByRole('combobox', { name: 'Agrupar por' }))
-    await user.click(screen.getByRole('option', { name: 'Categoría' }))
+    await elegirAgrupacion('Categoría')
 
     const tabla = screen.getByRole('table')
     expect(within(tabla).getByRole('row', { name: /Afecta al establecimiento/ })).toBeInTheDocument()
@@ -142,11 +146,9 @@ describe('PanelEstadisticas', () => {
   })
 
   it('muestra estados vacíos sin tabla', async () => {
-    const user = userEvent.setup()
     const sinNiveles = escuelas.map((escuela) => ({ ...escuela, niveles: [] }))
     const { rerender } = render(<PanelEstadisticas escuelas={sinNiveles} filtros={FILTROS_MAPA_VACIOS} />)
-    await user.click(screen.getByRole('combobox', { name: 'Agrupar por' }))
-    await user.click(screen.getByRole('option', { name: 'Nivel' }))
+    await elegirAgrupacion('Nivel')
     expect(screen.getByText('No hay niveles cargados en el padrón.')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
