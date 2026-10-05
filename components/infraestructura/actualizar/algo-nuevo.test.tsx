@@ -69,19 +69,39 @@ describe('AlgoNuevo', () => {
     expect(callbacks.onTerminar).toHaveBeenCalledWith(null)
   })
 
-  it('pregunta la causa con situaciones activas primero y exige elegir antes de seguir', () => {
+  it('pregunta por el origen, muestra independencia primero y exige elegir antes de seguir', () => {
     renderAlgo()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
-    const opciones = within(screen.getByRole('group', { name: '¿Es consecuencia de algo anterior?' })).getAllByRole('radio')
+    const pregunta = '¿Esta situación se originó por otra anterior?'
+    expect(screen.getByText(pregunta)).toBeInTheDocument()
+    const opciones = within(screen.getByRole('group', { name: pregunta })).getAllByRole('radio')
     expect(opciones.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
-      'De Inundación (3 de octubre, 07:00)',
-      'De Tormenta severa (4 de octubre, 05:10)',
       'No, es independiente',
+      'Inundación · 3 de octubre a las 07:00Activa',
+      'Tormenta severa · 4 de octubre a las 05:10Solucionada',
     ])
+    expect(screen.getByRole('radio', { name: /Inundación · 3 de octubre a las 07:00/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+  })
+
+  it('muestra cinco causas y despliega las restantes con su cantidad', () => {
+    const candidatas = Array.from({ length: 8 }, (_, indice) => ({
+      id: `situacion-${indice}`,
+      motivo: `Situación ${indice}`,
+      fecha: `2026-10-0${5 - Math.floor(indice / 2)}T0${indice % 2}:00:00.000Z`,
+      activa: indice < 6,
+    }))
+    renderAlgo({ candidatasCausa: candidatas })
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+
+    const grupo = screen.getByRole('group', { name: '¿Esta situación se originó por otra anterior?' })
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(6)
+    expect(screen.getByRole('button', { name: 'Ver más (3)' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Ver más (3)' }))
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(9)
+    expect(screen.queryByRole('button', { name: /Ver más/ })).not.toBeInTheDocument()
   })
 
   it('permite distinguir el mismo motivo, actualizarlo o marcar cuándo se solucionó', () => {
@@ -146,7 +166,7 @@ describe('AlgoNuevo', () => {
   it('“Listo” envía la nueva situación completa con la causa elegida', () => {
     const callbacks = renderAlgo()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (3 de octubre, 07:00)' }))
+    fireEvent.click(screen.getByRole('radio', { name: /Inundación · 3 de octubre a las 07:00/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoria('Afecta al establecimiento')
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))

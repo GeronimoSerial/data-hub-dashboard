@@ -4479,6 +4479,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 0;
 }
 
+.algo-nuevo__causa-estado { color: var(--ink-faint); }
+.algo-nuevo__ver-causas { align-self: flex-start; }
+
 .aviso-retoma {
   display: flex;
   flex-direction: column;
