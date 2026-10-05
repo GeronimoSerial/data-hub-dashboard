@@ -141,7 +141,6 @@ import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/
 import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
   iconoEstadoEscuela,
   rangoSeveridad,
@@ -347,26 +346,6 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
     'fill-color': COLORES_DEPARTAMENTO.rellenoSeleccionado,
     'fill-opacity': COLORES_DEPARTAMENTO.opacidadRellenoSeleccionado,
   }
-}
-
-type FiltrosForm = {
-  territorio: string
-  nivel: string
-  establecimiento: string
-  motivo: string
-  severidad: string
-  categoria: string
-  servicio: string
-}
-
-const FILTROS_VACIOS: FiltrosForm = {
-  territorio: '',
-  nivel: '',
-  establecimiento: '',
-  motivo: '',
-  severidad: '',
-  categoria: '',
-  servicio: '',
 }
 
 // ── Tamaño: fijo en escuelas, por tramos en clusters ───────────────────────
@@ -738,11 +717,6 @@ export default function MapInfraestructuraPage(props: {
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
-  const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
-  // Apertura de "Filtros del mapa" (ListaAlertas): vive acá y no dentro del
-  // <details> para que sobreviva al remontaje de la lista cada vez que se
-  // cambia de modo (Situación actual / Radar).
-  const [filtrosAvanzadosAbiertos, setFiltrosAvanzadosAbiertos] = useState(false)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
   // la ficha (X o Esc) borraba `seleccionCue` y con él la ruta, el resaltado y
@@ -768,8 +742,8 @@ export default function MapInfraestructuraPage(props: {
   const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
-  // sólo tiene que tocar SU propio estado — nunca `filtrosForm`,
-  // `capasVisibles` ni el encuadre del mapa (MapGL no se remonta acá).
+  // sólo tiene que tocar SU propio estado — nunca `capasVisibles` ni el
+  // encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
@@ -890,23 +864,7 @@ export default function MapInfraestructuraPage(props: {
     seasonalActivo,
   )
 
-  const filtros = useMemo(
-    () => ({
-      territorio: filtrosForm.territorio || undefined,
-      nivel: filtrosForm.nivel || undefined,
-      cueAnexo: filtrosForm.establecimiento || undefined,
-      motivo: filtrosForm.motivo || undefined,
-      severidad: filtrosForm.severidad || undefined,
-      categoria:
-        filtrosForm.categoria && esCategoria(filtrosForm.categoria)
-          ? (filtrosForm.categoria as CategoriaAfectacion)
-          : undefined,
-      servicio: (filtrosForm.servicio || undefined) as EstadoServicioGeneral | undefined,
-    }),
-    [filtrosForm],
-  )
-
-  const { data, loading, error } = useAlertas(filtros)
+  const { data, loading, error } = useAlertas()
 
   const [ahoraMs, setAhoraMs] = useState<number | null>(null)
   useEffect(() => {
@@ -914,8 +872,8 @@ export default function MapInfraestructuraPage(props: {
     return () => clearTimeout(id)
   }, [data])
 
-  const { data: dataEscuelasMapa } = useEscuelasMapa(filtros)
-  const { data: dataTotalesMapa } = useTotalesMapa(filtros)
+  const { data: dataEscuelasMapa } = useEscuelasMapa()
+  const { data: dataTotalesMapa } = useTotalesMapa()
   const totalesPorDepartamento = useMemo(() => {
     const mapa = new Map<string, TotalesDepartamento>()
     for (const d of dataTotalesMapa?.departamentos ?? []) mapa.set(d.departamento, d)
@@ -1760,11 +1718,6 @@ export default function MapInfraestructuraPage(props: {
     if (angosto) setFichaCerradaCue(seleccionCue)
   }
 
-  function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
-    if (campo === 'territorio') setDepartamentoSeleccionado(null)
-    setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
-  }
-
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -1860,10 +1813,6 @@ export default function MapInfraestructuraPage(props: {
           )}
           <ListaAlertas
             partes={dataVisible.partes}
-            filtros={filtrosForm}
-            onFiltroChange={setFiltro}
-            filtrosAbiertos={filtrosAvanzadosAbiertos}
-            onFiltrosAbiertosChange={setFiltrosAvanzadosAbiertos}
           />
         </>
       )}

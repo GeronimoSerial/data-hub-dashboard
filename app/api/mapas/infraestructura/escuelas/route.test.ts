@@ -22,8 +22,6 @@ beforeAll(async () => {
   await client.execute(
     "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
   )
-  // Dos escuelas en dos departamentos distintos: permite probar que el
-  // filtro ?territorio= acota el padrón a un solo departamento/localidad.
   // A propósito NO se carga ningún infra_parte/infra_afectacion: el test
   // central del batch verifica que el mapa siga mostrando todo el padrón
   // aunque no haya ningún parte reportado.
@@ -111,21 +109,4 @@ describe('GET /api/mapas/infraestructura/escuelas', () => {
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
   })
 
-  it('acota el padrón al departamento pedido en ?territorio=', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'u3',
-      role: 'consulta',
-      banned: false,
-      nivelIds: [],
-      accesoRecursos: 'todos' as const,
-      recursoIds: [],
-    })
-    const res = await GET(req('?territorio=ER'))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.escuelas).toHaveLength(1)
-    expect(body.escuelas[0].cueAnexo).toBe(CUE_ER)
-    expect(body.escuelas[0].departamento).toBe('ER')
-    expect(body.totalPadron).toBe(1)
-  })
 })

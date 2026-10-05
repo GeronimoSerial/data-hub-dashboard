@@ -23,8 +23,8 @@ beforeAll(async () => {
   await client.execute(
     "INSERT INTO ge.ge_corte (id, ciclo_lectivo, fetched_at, estado) OVERRIDING SYSTEM VALUE VALUES (1, 2025, '2025-01-01T00:00:00Z', 'vigente')",
   )
-  // Dos escuelas en dos departamentos distintos: permite probar que el
-  // filtro ?territorio= acota los totales a un solo departamento.
+  // Dos escuelas en departamentos distintos: verifica los agregados del
+  // padrón completo de la provincia.
   await client.execute(
     `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('${CUE_ER}', NULL, 'Escuela ER', 'ER', 'Parana', -31.7, -60.5)`,
   )
@@ -100,23 +100,6 @@ describe('GET /api/mapas/infraestructura/totales', () => {
     expect(typeof body.provincia.porcentajeAfectadas).toBe('number')
     expect(body.provincia.totalEscuelas).toBe(2)
     expect(res.headers.get('Cache-Control')).toBe('private, no-cache')
-  })
-
-  it('acota los totales al departamento pedido en ?territorio=', async () => {
-    vi.mocked(getSessionUser).mockResolvedValue({
-      id: 'u3',
-      role: 'consulta',
-      banned: false,
-      nivelIds: [],
-      accesoRecursos: 'todos' as const,
-      recursoIds: [],
-    })
-    const res = await GET(req('?territorio=ER'))
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.departamentos).toHaveLength(1)
-    expect(body.departamentos[0].departamento).toBe('ER')
-    expect(body.provincia.totalEscuelas).toBe(1)
   })
 
   it('no filtra nada nominal en el payload', async () => {
