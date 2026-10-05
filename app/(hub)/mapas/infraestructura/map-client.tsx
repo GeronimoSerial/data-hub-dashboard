@@ -3,6 +3,8 @@
 import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
+import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
+import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
 
@@ -29,23 +31,16 @@ const EvolucionPanel = dynamic(
   { ssr: false, loading: () => <p>Cargando evolución…</p> },
 )
 
-// F5.1: las dos pestañas del mapa de infraestructura. `operativa` (el mapa)
-// es la default; `evolucion` se abre directo con la URL #evolucion.
-type PestanaMapa = 'operativa' | 'evolucion'
-
-const PESTANAS: readonly string[] = ['operativa', 'evolucion']
-
-function esPestana(valor: string): valor is PestanaMapa {
-  return PESTANAS.includes(valor)
-}
-
 export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
 }) {
-  const [tab, setTab] = React.useState<PestanaMapa>('operativa')
+  const [tab, setTab] = React.useState<PestanaMapa>('actual')
+  const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
+    Exclude<PestanaMapa, 'estadisticas'>
+  >('actual')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
   // local con useState espejado contra window.location.hash, para que la
@@ -54,33 +49,44 @@ export function InfraestructuraMapClient(props: {
   // para quien llega con un #evolucion ya armado, y no habría forma de copiar
   // una URL que lleve a la evolución desde la interfaz. El `hashchange` que
   // dispara esa escritura vuelve a llamar a setTab con el mismo valor, así que
-  // no re-renderiza de más. Un hash desconocido (URL vieja o copy-paste a
-  // medias) se ignora: no puede dejar la página sin ninguna pestaña activa.
+  // no re-renderiza de más. Los enlaces viejos y los hashes desconocidos
+  // siempre resuelven a una pestaña activa.
   const onTab = (valor: string) => {
-    if (!esPestana(valor)) return
-    setTab(valor)
+    const pestana = resolverPestana(`#${valor}`, '', {
+      radarHabilitado: !!props.riskRadarEnabled,
+    })
+    if (pestana !== valor) return
+    setTab(pestana)
     if (window.location.hash.slice(1) !== valor) window.location.hash = valor
   }
 
   React.useEffect(() => {
     const syncHash = () => {
-      const hash = window.location.hash.slice(1)
-      if (esPestana(hash)) setTab(hash)
+      setTab(
+        resolverPestana(window.location.hash, window.location.search, {
+          radarHabilitado: !!props.riskRadarEnabled,
+        }),
+      )
     }
     syncHash()
     window.addEventListener('hashchange', syncHash)
     return () => window.removeEventListener('hashchange', syncHash)
-  }, [])
+  }, [props.riskRadarEnabled])
 
-  const mapaVisible = tab === 'operativa'
+  const mapaVisible = tab !== 'estadisticas'
+  if (tab !== 'estadisticas' && tab !== ultimaPestanaMapa) {
+    setUltimaPestanaMapa(tab)
+  }
 
   return (
     <div className="mapa-pestanas">
       <div className="mapa-pestanas-barra">
         <Tabs value={tab} onValueChange={onTab}>
           <TabsList>
-            <TabsTab value="operativa">Operativa</TabsTab>
-            <TabsTab value="evolucion">Evolución</TabsTab>
+            <TabsTab value="actual">Situación actual</TabsTab>
+            {props.riskRadarEnabled && <TabsTab value="radar">Radar</TabsTab>}
+            <TabsTab value="planificacion">Planificación</TabsTab>
+            <TabsTab value="estadisticas">Estadísticas</TabsTab>
           </TabsList>
         </Tabs>
       </div>
@@ -97,27 +103,29 @@ export function InfraestructuraMapClient(props: {
           que al volver a mostrarse se redimensiona solo y la cámara no se
           toca.
         */}
-        <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-operativa">
+        <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-mapa">
           <MapInfraestructuraPage
             mostrarEnlaceNominal={props.mostrarEnlaceNominal}
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
             seasonalEnabled={props.seasonalEnabled ?? false}
+            pestana={ultimaPestanaMapa}
             visible={mapaVisible}
           />
         </div>
 
         {/*
-          La pestaña de evolución sí se monta y desmonta: son gráficos y un
+          La pestaña de Estadísticas sí se monta y desmonta: son gráficos y un
           fetch, sin estado caro que preservar, y así el pedido a /evolucion
           sólo se hace cuando alguien la abre. La regla de no desmontar es
           exclusiva del mapa, por lo que cuesta remontar.
         */}
-        {tab === 'evolucion' && (
+        {tab === 'estadisticas' && (
           <div
             className="mapa-pestana-panel mapa-pestana-panel--scroll"
-            data-testid="pestana-evolucion"
+            data-testid="pestana-estadisticas"
           >
+            {/* El batch 5 lo reemplaza por PanelEstadisticas. */}
             <EvolucionPanel />
           </div>
         )}

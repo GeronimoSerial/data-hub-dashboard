@@ -56,6 +56,7 @@ import {
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
+import { PanelLateral } from '@/components/mapas/panel-lateral'
 import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
@@ -158,6 +159,7 @@ import {
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
+import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
 
@@ -245,9 +247,6 @@ const CAPA_RIESGO_ICONO_ID = 'infra-riesgo-icono'
 const TAMANO_ICONO_RIESGO = 18
 
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
-
-// Etiqueta del conmutador de modo. Botones reales operables por teclado.
-type ModoMapa = 'actual' | 'radar'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
@@ -727,6 +726,7 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
 // efecto one-shot viejo no hacía.
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
+  pestana: Exclude<PestanaMapa, 'estadisticas'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
@@ -821,18 +821,9 @@ export default function MapInfraestructuraPage(props: {
 
   // ── Modo Radar (E4) ───────────────────────────────────────────
   //
-  // Todo el estado del radar es INDEPENDIENTE de los tres estados del modo
-  // actual (seleccionCue / nominalAfectacionId / historialCue) y también de
-  // `departamentoSeleccionado`: son dos modos distintos sobre el mismo mapa, y
-  // mezclarlos haría que abrir una ficha de radar pisara el filtro de partes.
-  // `modo` arranca SIEMPRE en 'actual' ("Situación actual"), aun con los
-  // flags prendidos; el conmutador sólo muestra el botón de cada modo si su
-  // propio flag está activo.
-  const [modo, setModo] = useState<ModoMapa>(() => {
-    const query = typeof window === 'undefined' ? null : new URLSearchParams(window.location.search)
-    return query?.get('modo') === 'radar' && props.riskRadarEnabled ? 'radar' : 'actual'
-  })
-  const modoRadar = modo === 'radar'
+  // El Radar es una pestaña del contenedor. Sin su flag, conserva el
+  // comportamiento de Situación actual aunque la prop recibida sea "radar".
+  const modoRadar = props.pestana === 'radar' && (props.riskRadarEnabled ?? false)
   // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
   // Sólo los numéricos viajan a la API; 'ahora' no tiene evidencia y el hook
   // no manda query (ver use-radar.ts). Default 'ahora' = lo más inmediato.
@@ -854,28 +845,36 @@ export default function MapInfraestructuraPage(props: {
     }),
     [horizonteSeleccionado],
   )
-  const radarActivo = (props.riskRadarEnabled ?? false) && modoRadar
+  const radarActivo = modoRadar
+  const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {
-    const shell = shellRef.current
-    const modePanel = shell?.querySelector<HTMLElement>('.map-modo-conmutador')
-    if (!shell || !modePanel || !radarActivo) {
-      shell?.style.removeProperty('--infra-modo-panel-bottom')
-      return
+    const anterior = pestanaPrevia.current
+    pestanaPrevia.current = props.pestana
+    if (anterior === props.pestana) return
+
+    const radarAnterior = anterior === 'radar' && (props.riskRadarEnabled ?? false)
+    const radarActual = modoRadar
+    const map = mapRef.current?.getMap()
+    if (radarAnterior !== radarActual && map) {
+      if (radarActual && typeof map.getCenter === 'function') {
+        const center = map.getCenter()
+        vistaPreviaRadar.current = {
+          center: [center.lng, center.lat],
+          zoom: map.getZoom(),
+          bearing: map.getBearing(),
+          pitch: map.getPitch(),
+        }
+        map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
+      } else if (radarAnterior && vistaPreviaRadar.current) {
+        map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
+      }
     }
-    const medir = () => {
-      const shellTop = shell.getBoundingClientRect().top
-      const panelBottom = modePanel.getBoundingClientRect().bottom
-      shell.style.setProperty('--infra-modo-panel-bottom', `${panelBottom - shellTop + 12}px`)
-    }
-    medir()
-    const observer = new ResizeObserver(medir)
-    observer.observe(modePanel)
-    window.addEventListener('resize', medir)
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', medir)
-    }
-  }, [radarActivo])
+    setCueRadarSeleccionado(null)
+    setDepartamentoRadarSeleccionado(null)
+    setDepartamentoInfoClic(null)
+    setClusterInfoClic(null)
+    setCruceInfoClic(null)
+  }, [modoRadar, props.pestana, props.riskRadarEnabled])
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
     false,
@@ -1761,23 +1760,6 @@ export default function MapInfraestructuraPage(props: {
     if (angosto) setFichaCerradaCue(seleccionCue)
   }
 
-  function cambiarModo(siguiente: ModoMapa) {
-    const map = mapRef.current?.getMap()
-    if (siguiente === 'radar' && modo !== 'radar' && map && typeof map.getCenter === 'function') {
-      const center = map.getCenter()
-      vistaPreviaRadar.current = { center: [center.lng, center.lat], zoom: map.getZoom(), bearing: map.getBearing(), pitch: map.getPitch() }
-      map.flyTo({ center: [-58.15, -29.55], zoom: 6.3, duration: 900 })
-    } else if (modo === 'radar' && siguiente !== 'radar' && map && vistaPreviaRadar.current) {
-      map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
-    }
-    setModo(siguiente)
-    setCueRadarSeleccionado(null)
-    setDepartamentoRadarSeleccionado(null)
-    setDepartamentoInfoClic(null)
-    setClusterInfoClic(null)
-    setCruceInfoClic(null)
-  }
-
   function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
     if (campo === 'territorio') setDepartamentoSeleccionado(null)
     setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
@@ -1788,6 +1770,111 @@ export default function MapInfraestructuraPage(props: {
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
     )
   }
+
+  const panelActual = dataVisible ? (
+    <>
+      {/*
+        Buscador de escuelas (hallazgos 8 y 19): montado SIEMPRE, no sólo
+        en la rama de "Situación actual", para que esté disponible también
+        en Radar. Selecciona con el mismo criterio en todos los
+        modos: vuela al punto y abre la ficha si corresponde.
+      */}
+      {!radarActivo && <EscuelaSearchBox
+        escuelas={dataEscuelasMapa?.escuelas ?? []}
+        onSeleccionar={handleSeleccionarEscuelaBuscada}
+      />}
+
+      {/*
+        Aviso del buscador (no error): una escuela del padrón sin
+        coordenadas se puede consultar igual, pero no se puede señalar en
+        el mapa. Va pegado al buscador, que es donde se la eligió, para que
+        el "no pasó nada" del vuelo al punto tenga una explicación a la
+        vista. `role="status"` (no alert): es informativo y no interrumpe.
+      */}
+      {avisoBusqueda && (
+        <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
+          {avisoBusqueda}
+        </p>
+      )}
+
+      {/*
+        Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
+        su propio dominio. Aparece sólo con el flag territorial prendido y
+        siempre que corresponda; sin bloques visibles el componente no renderiza
+        nada.
+
+        Va inmediatamente debajo del buscador, y no al final del panel como
+        estaba: ahí quedaba empujada debajo de "Indicadores consolidados" y
+        el usuario nunca la veía sin scrollear. Explica las capas
+        territoriales (aislamiento, inundación, cruces) justo donde se
+        elige la escuela a la que se aplican, y es también el bloque que
+        cambia con la selección — tiene que estar a la vista cuando eso
+        pasa.
+      */}
+      {hazardOn && (
+        <LeyendaAccesos
+          visibles={capasAccesosVisibles}
+          territorio={territorio}
+          territorioLoading={territorioLoading}
+          territorioError={territorioError}
+          resumen={resumenCobertura}
+          seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
+          geometria={geometria}
+          celdasExposicion={celdasExposicion}
+          geometriaLoading={geometriaLoading}
+          geometriaError={geometriaError}
+          onEncuadrarRuta={encuadrarRuta}
+        />
+      )}
+
+      {!modoRadar && (
+        <>
+          {(() => {
+            const totales = departamentoSeleccionado
+              ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
+              : dataTotalesMapa?.provincia
+            if (!totales) return null
+            return (
+              <p
+                className={styles.hint}
+                data-testid="infra-totales-indicador"
+                title="Afectadas sobre las escuelas del padrón con ubicación en el mapa. Puede diferir de los indicadores consolidados, que cuentan también los partes sin coordenadas."
+              >
+                <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
+                <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
+                {totales.porcentajeAfectadas}%
+              </p>
+            )
+          })()}
+          <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
+          {departamentoSeleccionado && (
+            <div className={`${styles.panel} map-departamento-seleccionado`}>
+              <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
+              <button type="button" onClick={() => {
+                entradaPuntosPendiente.current = true
+                setPuntosVisibles(false)
+                setDepartamentoSeleccionado(null)
+                mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+              }}>Quitar filtro</button>
+            </div>
+          )}
+          <ListaAlertas
+            partes={dataVisible.partes}
+            filtros={filtrosForm}
+            onFiltroChange={setFiltro}
+            filtrosAbiertos={filtrosAvanzadosAbiertos}
+            onFiltrosAbiertosChange={setFiltrosAvanzadosAbiertos}
+          />
+        </>
+      )}
+      <InfraLegendPanel
+        departamentosSinMatch={departamentosSinMatch}
+        mostrarLeyendaPeligro={false}
+        mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
+        hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
+      />
+    </>
+  ) : null
 
   return (
     <div className={styles.shell} ref={shellRef} data-ficha-abierta={fichaAbierta ? 'true' : 'false'} data-radar-activo={radarActivo ? 'true' : 'false'}>
@@ -2325,7 +2412,7 @@ export default function MapInfraestructuraPage(props: {
       */}
       <FichaParteModal
         cueAnexo={seleccionCue ?? ''}
-        open={fichaAbierta}
+        open={fichaAbierta && !modoRadar}
         onOpenChange={(next) => {
           if (!next) {
             setFichaCerradaCue(seleccionCue)
@@ -2385,138 +2472,18 @@ export default function MapInfraestructuraPage(props: {
           id="infra-left-stack"
           data-open={leftStackAbierto ? 'true' : 'false'}
         >
-          {/* Conmutador de modo: Radar aparece cuando está habilitado; Situación actual siempre está disponible. Botones reales
-              (operables por teclado) con aria-pressed; el modo activo es
-              "Situación actual" siempre al entrar, aunque los flags estén
-              prendidos. */}
-          {(props.riskRadarEnabled ?? false) && (
-            <div
-              className={`${styles.panel} map-modo-conmutador`}
-              role="group"
-              aria-label="Modo del mapa"
-            >
-              <button
-                type="button"
-                aria-pressed={modo === 'actual'}
-                onClick={() => cambiarModo('actual')}
-              >
-                Situación actual
-              </button>
-              {(props.riskRadarEnabled ?? false) && (
-                <button
-                  type="button"
-                  aria-pressed={modoRadar}
-                  onClick={() => cambiarModo('radar')}
-                >
-                  Radar
-                </button>
-              )}
-            </div>
-          )}
-
-          {/*
-            Buscador de escuelas (hallazgos 8 y 19): montado SIEMPRE, no sólo
-            en la rama de "Situación actual", para que esté disponible también
-            en Radar. Selecciona con el mismo criterio en todos los
-            modos: vuela al punto y abre la ficha si corresponde.
-          */}
-          {!radarActivo && <EscuelaSearchBox
-            escuelas={dataEscuelasMapa?.escuelas ?? []}
-            onSeleccionar={handleSeleccionarEscuelaBuscada}
-          />}
-
-          {/*
-            Aviso del buscador (no error): una escuela del padrón sin
-            coordenadas se puede consultar igual, pero no se puede señalar en
-            el mapa. Va pegado al buscador, que es donde se la eligió, para que
-            el "no pasó nada" del vuelo al punto tenga una explicación a la
-            vista. `role="status"` (no alert): es informativo y no interrumpe.
-          */}
-          {avisoBusqueda && (
-            <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
-              {avisoBusqueda}
-            </p>
-          )}
-
-          {/*
-            Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
-            su propio dominio. Aparece sólo con el flag territorial prendido y
-            siempre que corresponda; sin bloques visibles el componente no renderiza
-            nada.
-
-            Va inmediatamente debajo del buscador, y no al final del panel como
-            estaba: ahí quedaba empujada debajo de "Indicadores consolidados" y
-            el usuario nunca la veía sin scrollear. Explica las capas
-            territoriales (aislamiento, inundación, cruces) justo donde se
-            elige la escuela a la que se aplican, y es también el bloque que
-            cambia con la selección — tiene que estar a la vista cuando eso
-            pasa.
-          */}
-          {hazardOn && (
-            <LeyendaAccesos
-              visibles={capasAccesosVisibles}
-              territorio={territorio}
-              territorioLoading={territorioLoading}
-              territorioError={territorioError}
-              resumen={resumenCobertura}
-              seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
-              geometria={geometria}
-              celdasExposicion={celdasExposicion}
-              geometriaLoading={geometriaLoading}
-              geometriaError={geometriaError}
-              onEncuadrarRuta={encuadrarRuta}
-            />
-          )}
-
-          {!modoRadar && (
-            <>
-              {(() => {
-                const totales = departamentoSeleccionado
-                  ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
-                  : dataTotalesMapa?.provincia
-                if (!totales) return null
-                return (
-                  <p
-                    className={styles.hint}
-                    data-testid="infra-totales-indicador"
-                    title="Afectadas sobre las escuelas del padrón con ubicación en el mapa. Puede diferir de los indicadores consolidados, que cuentan también los partes sin coordenadas."
-                  >
-                    <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                    <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
-                    {totales.porcentajeAfectadas}%
-                  </p>
-                )
-              })()}
-              <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
-              {departamentoSeleccionado && (
-                <div className={`${styles.panel} map-departamento-seleccionado`}>
-                  <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
-                  <button type="button" onClick={() => {
-                    entradaPuntosPendiente.current = true
-                    setPuntosVisibles(false)
-                    setDepartamentoSeleccionado(null)
-                    mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
-                  }}>Quitar filtro</button>
-                </div>
-              )}
-              <ListaAlertas
-                partes={dataVisible.partes}
-                filtros={filtrosForm}
-                onFiltroChange={setFiltro}
-                filtrosAbiertos={filtrosAvanzadosAbiertos}
-                onFiltrosAbiertosChange={setFiltrosAvanzadosAbiertos}
-              />
-            </>
-          )}
-          <InfraLegendPanel
-            departamentosSinMatch={departamentosSinMatch}
-            mostrarLeyendaPeligro={false}
-            mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
-            hayNivelProvisorio={
-              radarActivo
-                ? (radarData?.hayNivelProvisorio ?? false)
-                : false
-            }
+          <PanelLateral
+            pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
+            seleccion={modoRadar ? cueRadarSeleccionado : seleccionCue}
+            onCerrarFicha={modoRadar
+              ? () => setCueRadarSeleccionado(null)
+              : () => setFichaCerradaCue(seleccionCue)}
+            actual={panelActual}
+            radar={(
+              // La Task 16 reemplaza este contenido por el panel real; hasta entonces no ocupa espacio.
+              <div className="map-panel-radar" data-testid="panel-radar" hidden />
+            )}
+            planificacion={panelActual}
           />
         </div>
       )}

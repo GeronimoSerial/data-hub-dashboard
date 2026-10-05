@@ -1,0 +1,34 @@
+import { describe, expect, it } from 'vitest'
+import { resolverPestana } from './pestanas'
+
+describe('resolverPestana', () => {
+  it.each([
+    ['#actual', '', 'actual'],
+    ['#radar', '', 'radar'],
+    ['#planificacion', '', 'planificacion'],
+    ['#estadisticas', '', 'estadisticas'],
+    ['#operativa', '', 'actual'],
+    ['#evolucion', '', 'estadisticas'],
+    ['', '?modo=radar', 'radar'],
+    ['#basura', '', 'actual'],
+    ['', '', 'actual'],
+  ])('hash %s + query %s → %s', (hash, query, esperado) => {
+    expect(resolverPestana(hash, query, { radarHabilitado: true })).toBe(esperado)
+  })
+
+  it('con el radar apagado, #radar cae en Situación actual', () => {
+    expect(resolverPestana('#radar', '', { radarHabilitado: false })).toBe('actual')
+  })
+
+  it('con el radar apagado, ?modo=radar cae en Situación actual', () => {
+    expect(resolverPestana('', '?modo=radar', { radarHabilitado: false })).toBe('actual')
+  })
+
+  it('el hash válido tiene prioridad sobre ?modo=radar', () => {
+    expect(resolverPestana('#estadisticas', '?modo=radar', { radarHabilitado: true })).toBe('estadisticas')
+  })
+
+  it('ignora nombres heredados de Object.prototype', () => {
+    expect(resolverPestana('#constructor', '', { radarHabilitado: true })).toBe('actual')
+  })
+})
