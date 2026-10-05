@@ -198,6 +198,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     // Oculto, no borrado.
     expect(mapa).not.toBeVisible()
 
+    expect(screen.getByRole('heading', { name: 'Estadísticas' })).toBeInTheDocument()
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))

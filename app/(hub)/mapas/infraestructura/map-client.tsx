@@ -8,6 +8,7 @@ import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
 import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { FiltrosChips } from '@/components/mapas/filtros-chips'
+import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
 
@@ -24,17 +25,6 @@ const MapInfraestructuraPage = dynamic(cargarMapa, {
 if (typeof window !== 'undefined') {
   void cargarMapa()
 }
-
-// Carga diferida al igual que el mapa: Recharts pesa y sólo hace falta cuando
-// alguien abre la pestaña de evolución, así el primer viewport del mapa no
-// arrastra el bundle de los gráficos.
-const EvolucionPanel = dynamic(
-  () =>
-    import('@/components/infraestructura/evolucion-panel').then(
-      (modulo) => modulo.EvolucionPanel,
-    ),
-  { ssr: false, loading: () => <p>Cargando evolución…</p> },
-)
 
 export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
@@ -165,18 +155,15 @@ export function InfraestructuraMapClient(props: {
         </div>
 
         {/*
-          La pestaña de Estadísticas sí se monta y desmonta: son gráficos y un
-          fetch, sin estado caro que preservar, y así el pedido a /evolucion
-          sólo se hace cuando alguien la abre. La regla de no desmontar es
-          exclusiva del mapa, por lo que cuesta remontar.
+          La pestaña de Estadísticas se monta al abrirla y se desmonta al salir.
+          Así, la evolución y su consulta sólo se cargan cuando hacen falta.
         */}
         {tab === 'estadisticas' && (
           <div
             className="mapa-pestana-panel mapa-pestana-panel--scroll"
             data-testid="pestana-estadisticas"
           >
-            {/* El batch 5 lo reemplaza por PanelEstadisticas. */}
-            <EvolucionPanel />
+            <PanelEstadisticas escuelas={escuelasFiltradas} />
           </div>
         )}
       </div>
