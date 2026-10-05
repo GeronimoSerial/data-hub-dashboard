@@ -76,6 +76,35 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('2 situaciones en los últimos 2 años')).toBeInTheDocument()
   })
 
+  it('actualiza el título de situaciones cuando llegan las afectaciones aunque el bloque esté cerrado', async () => {
+    let resolverFetch: ((respuesta: { ok: boolean; json: () => Promise<{ ok: true; parte: null; afectaciones: typeof afectaciones }> }) => void) | undefined
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      if (url.includes('/historial')) return Promise.resolve({ ok: true, json: async () => ({ movimientos }) })
+      return new Promise((resolve) => { resolverFetch = resolve })
+    }))
+    renderFicha()
+
+    expect(screen.getByText('Situaciones').closest('details')).toHaveProperty('open', false)
+    expect(screen.getByText('Situaciones').closest('summary')).toBeInTheDocument()
+
+    resolverFetch?.({ ok: true, json: async () => ({ ok: true, parte: null, afectaciones: [
+      afectaciones[0], { ...afectaciones[0], id: 'afectacion-2' },
+    ] }) })
+
+    expect(await screen.findByText('Situaciones (2 abiertas)')).toBeInTheDocument()
+    expect(screen.getByText('Situaciones (2 abiertas)').closest('details')).toHaveProperty('open', false)
+  })
+
+  it.each([
+    { situaciones: [afectaciones[0]], titulo: 'Situaciones (1 abierta)' },
+    { situaciones: [], titulo: 'Situaciones (0 abiertas)' },
+  ])('muestra el título "$titulo" según las afectaciones listas', async ({ situaciones, titulo }) => {
+    instalarFetch({ situaciones })
+    renderFicha()
+
+    expect(await screen.findByText(titulo)).toBeInTheDocument()
+  })
+
   it('muestra clases normales cerradas y la etiqueta Con clases', () => {
     instalarFetch()
     const normal = { ...escuela, clases: 'normal' as const, apoyo: null }
@@ -144,6 +173,7 @@ describe('FichaEscuelaPanel', () => {
     instalarFetch({ error: true })
     renderFicha()
     expect(await screen.findAllByText('No se pudo cargar la información de la escuela.')).toHaveLength(2)
+    expect(screen.getByText('Situaciones').closest('summary')).toBeInTheDocument()
   })
 
   it('muestra los estados de carga mientras fetch sigue pendiente', () => {
