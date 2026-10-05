@@ -125,7 +125,7 @@ const FIXTURE_RESPUESTA = {
     evacuadas: 1,
     establecimientosParciales: 0,
     centrosDeEvacuados: 0,
-    sinReportar: 0,
+    sinActualizar: 0,
     alumnosAlcanzados: 74,
     seccionesAlcanzadas: 3,
   },

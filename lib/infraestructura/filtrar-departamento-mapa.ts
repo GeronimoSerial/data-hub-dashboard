@@ -12,7 +12,7 @@ export function indicadoresDePartes(partes: ParteMapa[], ahoraMs: number): Indic
     evacuadas: partes.filter((p) => p.estadoEstablecimiento === 'evacuado').length,
     establecimientosParciales: partes.filter((p) => p.estadoEstablecimiento === 'parcial').length,
     centrosDeEvacuados: partes.filter((p) => p.estadoEstablecimiento === 'centro_evacuados').length,
-    sinReportar: partes.filter((p) => ahoraMs - new Date(p.actualizadaEn).getTime() > umbralMs).length,
+    sinActualizar: partes.filter((p) => ahoraMs - new Date(p.actualizadaEn).getTime() > umbralMs).length,
     alumnosAlcanzados: partes.reduce((total, p) => total + p.alumnosAlcanzados, 0),
     seccionesAlcanzadas: partes.reduce((total, p) => total + p.seccionesAlcanzadas, 0),
   }

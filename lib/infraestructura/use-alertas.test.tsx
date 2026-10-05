@@ -15,7 +15,7 @@ function resultado(n: number): RespuestaPartesMapa {
       evacuadas: n,
       establecimientosParciales: n,
       centrosDeEvacuados: n,
-      sinReportar: n,
+      sinActualizar: n,
       alumnosAlcanzados: n,
       seccionesAlcanzadas: n,
     },

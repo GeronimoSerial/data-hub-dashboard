@@ -25,10 +25,13 @@ import { SEVERIDADES, type Severidad } from './validacion'
 import type {
   Afectacion,
   AfectacionAlcanceSeccion,
+  AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
   ServicioAlcance,
 } from './trayectoria-tipos'
+import { enriquecerEscuela } from './mapa/enriquecer'
+import type { EscuelaMapaEnriquecida } from './mapa/tipos'
 
 // Mismos filtros de establecimiento/afectación que FiltrosAlertas
 // (consulta.ts), más los dos que agrega el modelo de parte: `categoria`
@@ -84,7 +87,7 @@ export interface IndicadoresMapa {
   evacuadas: number
   establecimientosParciales: number
   centrosDeEvacuados: number
-  sinReportar: number
+  sinActualizar: number
   alumnosAlcanzados: number
   seccionesAlcanzadas: number
 }
@@ -115,7 +118,7 @@ function indicadoresVacios(): IndicadoresMapa {
     evacuadas: 0,
     establecimientosParciales: 0,
     centrosDeEvacuados: 0,
-    sinReportar: 0,
+    sinActualizar: 0,
     alumnosAlcanzados: 0,
     seccionesAlcanzadas: 0,
   }
@@ -499,7 +502,7 @@ export async function listarPartesVigentes(
     evacuadas: partes.filter((p) => p.estadoEstablecimiento === 'evacuado').length,
     establecimientosParciales: partes.filter((p) => p.estadoEstablecimiento === 'parcial').length,
     centrosDeEvacuados: partes.filter((p) => p.estadoEstablecimiento === 'centro_evacuados').length,
-    sinReportar: partes.filter((p) => ahoraMs - new Date(p.actualizadaEn).getTime() > umbralMs).length,
+    sinActualizar: partes.filter((p) => ahoraMs - new Date(p.actualizadaEn).getTime() > umbralMs).length,
     alumnosAlcanzados: partes.reduce((acc, p) => acc + p.alumnosAlcanzados, 0),
     seccionesAlcanzadas: partes.reduce((acc, p) => acc + p.seccionesAlcanzadas, 0),
   }
@@ -533,6 +536,13 @@ export interface EscuelasMapaResultado {
     departamento: string
     localidad: string
   }>
+  totalPadron: number
+}
+
+export type EscuelaMapaPadron = EscuelaMapa & EscuelaMapaEnriquecida
+export type EscuelasMapaPadronResultado = {
+  escuelas: EscuelaMapaPadron[]
+  sinUbicacion: EscuelasMapaResultado['sinUbicacion']
   totalPadron: number
 }
 
@@ -657,4 +667,80 @@ export async function listarEscuelasMapa(
   }
 
   return { escuelas, sinUbicacion, totalPadron: escuelas.length + sinUbicacion.length }
+}
+
+function esAsistenciaPedagogica(valor: unknown): valor is AsistenciaPedagogica {
+  if (typeof valor !== 'object' || valor === null) return false
+  const asistencia = valor as { brinda?: unknown; modalidades?: unknown }
+  if (typeof asistencia.brinda !== 'boolean' || !Array.isArray(asistencia.modalidades)) return false
+  return asistencia.modalidades.every((modalidad: unknown) => modalidad === 'Clase virtual' || modalidad === 'Cuadernillo')
+}
+
+function parsearAsistenciaPedagogica(valor: unknown): AsistenciaPedagogica | null {
+  if (typeof valor !== 'string' || valor === '') return null
+  try {
+    const parseado: unknown = JSON.parse(valor)
+    return esAsistenciaPedagogica(parseado) ? parseado : null
+  } catch {
+    return null
+  }
+}
+
+export async function listarEscuelasMapaEnriquecidas(
+  filtros: FiltrosMapa = {},
+): Promise<EscuelasMapaPadronResultado> {
+  const resultado = await listarEscuelasMapa(filtros)
+  const client = crearEjecutorSql(getRawClient())
+  await asegurarGeAdjuntada(client)
+  const corte = await getCorteVigente(client)
+
+  const datosPorCue = new Map<string, { niveles: Set<string>; alumnos: number }>()
+  if (corte) {
+    const res = await client.execute({
+      sql: `SELECT s.cue_anexo, s.nivel, COUNT(DISTINCT a.ge_person_id) AS matricula
+        FROM ge.ge_seccion s
+        LEFT JOIN ge.ge_alumno_seccion a
+          ON a.corte_id = s.corte_id AND a.ge_section_id = s.ge_section_id
+        WHERE s.corte_id = ?
+        GROUP BY s.cue_anexo, s.nivel, s.ge_section_id`,
+      args: [corte.id],
+    })
+    for (const fila of res.rows) {
+      const cue = stringValor(fila.cue_anexo)
+      const dato = datosPorCue.get(cue) ?? { niveles: new Set<string>(), alumnos: 0 }
+      dato.niveles.add(stringValor(fila.nivel))
+      dato.alumnos += Number(fila.matricula ?? 0)
+      datosPorCue.set(cue, dato)
+    }
+  }
+
+  const partes = resultado.escuelas.flatMap((escuela) => escuela.parte ? [escuela.parte] : [])
+  const asistenciaPorParte = new Map<string, AsistenciaPedagogica | null>()
+  if (partes.length > 0) {
+    const placeholders = partes.map(() => '?').join(', ')
+    const asistenciaRes = await client.execute({
+      sql: `SELECT id, asistencia_pedagogica FROM infra_parte WHERE id IN (${placeholders})`,
+      args: partes.map((parte) => parte.parteId),
+    })
+    for (const fila of asistenciaRes.rows) {
+      asistenciaPorParte.set(stringValor(fila.id), parsearAsistenciaPedagogica(fila.asistencia_pedagogica))
+    }
+  }
+
+  const ahoraMs = Date.now()
+  return {
+    ...resultado,
+    escuelas: resultado.escuelas.map((escuela) => {
+      const datos = datosPorCue.get(escuela.cueAnexo)
+      const asistencia = escuela.parte ? asistenciaPorParte.get(escuela.parte.parteId) ?? null : null
+      return {
+        ...escuela,
+        ...enriquecerEscuela(escuela, {
+          niveles: datos ? [...datos.niveles] : [],
+          alumnos: datos?.alumnos ?? 0,
+          asistencia,
+        }, ahoraMs),
+      }
+    }),
+  }
 }

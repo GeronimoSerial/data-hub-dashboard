@@ -195,7 +195,7 @@ describe('construirFeatureCollection', () => {
     ])
   })
 
-  it('marca sinReportar según el umbral real de actualizadaEn vs ahoraMs', () => {
+  it('marca sinActualizar según el umbral real de actualizadaEn vs ahoraMs', () => {
     const partes: ParteMapa[] = [
       {
         ...baseFixture,
@@ -209,7 +209,7 @@ describe('construirFeatureCollection', () => {
       },
     ]
     const { features } = construirFeatureCollection(partes, ahoraMs)
-    expect(features.map((f) => [f.properties.cueAnexo, f.properties.sinReportar])).toEqual([
+    expect(features.map((f) => [f.properties.cueAnexo, f.properties.sinActualizar])).toEqual([
       ['vieja', true],
       ['reciente', false],
     ])

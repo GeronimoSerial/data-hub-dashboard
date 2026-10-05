@@ -464,7 +464,7 @@ type PropiedadesParte = {
   // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
   // según esSinReportar/UMBRAL_SIN_ACTUALIZAR_HORAS). Se une al feature para
   // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  sinReportar: boolean
+  sinActualizar: boolean
   // Booleano real por punto ("este establecimiento está evacuado o es centro
   // de evacuados", según estadoEstablecimiento). Se une al feature para que
   // clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
@@ -493,7 +493,7 @@ export function construirFeatureCollection(
         alumnosAlcanzados: parte.alumnosAlcanzados,
         severidad: parte.peorSeveridad,
         severidadRango: rangoSeveridad(parte.peorSeveridad),
-        sinReportar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
+        sinActualizar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
         esEvacuado:
           parte.estadoEstablecimiento === 'evacuado' ||
           parte.estadoEstablecimiento === 'centro_evacuados',
@@ -503,7 +503,7 @@ export function construirFeatureCollection(
 }
 
 // "Sin reportar" se calcula acá, no en el servidor: el indicador agregado
-// (indicadores.sinReportar) ya viaja en la respuesta, pero para mostrar el
+// (indicadores.sinActualizar) ya viaja en la respuesta, pero para mostrar el
 // badge hace falta saber CUÁL parte individual cruzó el umbral, y esa
 // información no se serializa aparte. UMBRAL_SIN_ACTUALIZAR_HORAS es la misma
 // constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
@@ -621,7 +621,7 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   // Capas informativas nuevas: apagadas por defecto para no sumar ruido
   // visual al encuadre inicial. El director las prende cuando las necesita.
   evacuacion: false,
-  sinReportar: false,
+  sinActualizar: false,
 }
 
 // Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
@@ -1008,8 +1008,8 @@ export default function MapInfraestructuraPage(props: {
           ? (parte?.estadoEstablecimiento ?? 'habitual')
           : 'habitual',
         servicio: parte?.servicio ?? 'normal',
-        sinReportar:
-          capasVisibles.sinReportar &&
+        sinActualizar:
+          capasVisibles.sinActualizar &&
           parte !== undefined &&
           ahoraMs !== null &&
           esSinReportar(parte, ahoraMs),
@@ -1029,7 +1029,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     ahoraMs,
     capasVisibles.evacuacion,
-    capasVisibles.sinReportar,
+    capasVisibles.sinActualizar,
   ])
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
@@ -2053,15 +2053,15 @@ export default function MapInfraestructuraPage(props: {
                 // T1.1b: agregados por max() entre los puntos agrupados — el
                 // El cluster hereda la severidad más alta, no un promedio.
                 severidadRango: ['max', ['get', 'severidadRango']],
-                // T1.1c: en el cluster `sinReportar` se agrega como 0/1 con
+                // T1.1c: en el cluster `sinActualizar` se agrega como 0/1 con
                 // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
                 // está sin reportar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
-                sinReportar: ['max', ['case', ['get', 'sinReportar'], 1, 0]],
+                sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
                 // En el cluster `esEvacuado` se agrega como 0/1 con max() —
                 // el cluster vale 1 si AL MENOS UNO de sus puntos es un
                 // establecimiento evacuado/centro de evacuados (semántica
-                // OR), igual que `sinReportar`.
+                // OR), igual que `sinActualizar`.
                 esEvacuado: ['max', ['case', ['get', 'esEvacuado'], 1, 0]],
                 // V2: mismo OR pero sólo para centro_evacuados. Es lo que
                 // permite elegir el ícono del cluster por prioridad (Tent si

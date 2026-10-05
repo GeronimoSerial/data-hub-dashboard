@@ -82,7 +82,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     expect(props.color).toBe(COLOR_SIN_AFECTACION)
     expect(props.servicio).toBe('normal')
     expect(props.severidadRango).toBe(0)
-    expect(props.sinReportar).toBe(false)
+    expect(props.sinActualizar).toBe(false)
     expect(props.esEvacuado).toBe(false)
     expect(props.esCentroEvacuados).toBe(false)
     expect(props.estado).toBe('sin_afectacion_reportada')
