@@ -249,32 +249,36 @@ export function FiltrosChips({
           </div>
         )}
       </div>
-      {(['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo'] as ClaveFiltro[]).map((clave) => (
-        <FiltroDesplegable
-          key={clave}
-          clave={clave}
-          escuelas={escuelas}
-          filtros={filtros}
-          onChange={onChange}
-          abierto={popoverAbierto === clave}
-          onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? clave : null)}
-        />
-      ))}
-      <button
-        type="button"
-        className={`filtros-chip filtros-chip--interruptor${filtros.sinActualizar ? ' filtros-chip--activo' : ''}`}
-        aria-pressed={filtros.sinActualizar}
-        onClick={() => onChange({ ...filtros, sinActualizar: !filtros.sinActualizar })}
-      >
-        <Clock aria-hidden="true" />
-        Sin actualizar
-        {filtros.sinActualizar ? <X aria-hidden="true" /> : null}
-      </button>
-      {hayFiltrosActivos ? (
-        <button type="button" className="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>
-          Limpiar filtros
-        </button>
-      ) : null}
+      <div className="filtros-controles">
+        {(['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo'] as ClaveFiltro[]).map((clave) => (
+          <FiltroDesplegable
+            key={clave}
+            clave={clave}
+            escuelas={escuelas}
+            filtros={filtros}
+            onChange={onChange}
+            abierto={popoverAbierto === clave}
+            onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? clave : null)}
+          />
+        ))}
+        <span className="filtros-chip-final">
+          <button
+            type="button"
+            className={`filtros-chip filtros-chip--interruptor${filtros.sinActualizar ? ' filtros-chip--activo' : ''}`}
+            aria-pressed={filtros.sinActualizar}
+            onClick={() => onChange({ ...filtros, sinActualizar: !filtros.sinActualizar })}
+          >
+            <Clock aria-hidden="true" />
+            Sin actualizar
+            {filtros.sinActualizar ? <X aria-hidden="true" /> : null}
+          </button>
+          {hayFiltrosActivos ? (
+            <button type="button" className="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>
+              Limpiar filtros
+            </button>
+          ) : null}
+        </span>
+      </div>
     </div>
   )
 }

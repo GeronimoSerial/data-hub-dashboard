@@ -77,6 +77,17 @@ describe('FiltrosChips', () => {
     expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
   })
 
+  it('mantiene Limpiar filtros junto a Sin actualizar al envolver los chips', () => {
+    renderFiltros({ ...FILTROS_MAPA_VACIOS, q: 'Goya' })
+
+    const sinActualizar = screen.getByRole('button', { name: /Sin actualizar/ })
+    const limpiar = screen.getByRole('button', { name: 'Limpiar filtros' })
+    const contenedor = sinActualizar.closest('.filtros-chip-final')
+
+    expect(contenedor).not.toBeNull()
+    expect(contenedor).toContainElement(limpiar)
+  })
+
   it('cada opción muestra cuántas escuelas tiene', async () => {
     const user = userEvent.setup()
     renderFiltros()
