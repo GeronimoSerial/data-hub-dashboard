@@ -135,7 +135,7 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     expect(await screen.findByRole('link', { name: 'Iniciar un reporte' })).toBeVisible()
     // El servicio y el establecimiento sí existen: se siguen mostrando.
     expect(screen.getByText('Funcionamiento escolar normal')).toBeVisible()
-    expect(screen.getByText('Funcionamiento habitual')).toBeVisible()
+    expect(screen.getByText('Sin daños / en uso normal')).toBeVisible()
     // Y la última actualización sigue siendo el ancla temporal del parte.
     expect(screen.getByText('Última actualización: 18 de septiembre, 10:35')).toBeVisible()
   })

@@ -96,12 +96,18 @@ export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
   suspendido: 'Funcionamiento escolar interrumpido',
 }
 
+// Respuestas de la pregunta de carga "¿Hay clases?" (spec rediseño §5.6).
+export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = {
+  normal: 'Sí, con normalidad',
+  suspendido: 'No, se suspendieron',
+}
+
 // spec §3.5.
 export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
-  habitual: 'Funcionamiento habitual',
-  parcial: 'Funcionamiento parcial',
-  evacuado: 'Establecimiento evacuado',
-  centro_evacuados: 'Utilizado como centro de evacuados',
+  habitual: 'Sin daños / en uso normal',
+  parcial: 'Uso parcial',
+  evacuado: 'Evacuado',
+  centro_evacuados: 'Usado como centro de evacuados',
 }
 
 // La provincia entera trabaja en un solo huso; fijarlo evita que el parte se

@@ -7,21 +7,33 @@ import {
   CamposQuePaso,
   aplanarSecciones,
   crearAfectacionVacia,
+  esAfectacionLista,
+  esAfectacionParcial,
   totalAlumnosDe,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
-import { VigenciaField } from '@/components/infraestructura/vigencia-field'
-import {
-  ETIQUETA_ESTABLECIMIENTO,
-  ETIQUETA_SERVICIO,
-} from '@/components/infraestructura/estado-actual-textos'
+import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
+import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
+import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
+import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
+import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
+import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import {
+  etiquetaVigencia,
+  esEleccionVigencia,
+  resolverVigencia,
+  VIGENCIA_AHORA,
+  type EleccionVigencia,
+} from '@/lib/infraestructura/vigencia-eleccion'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA } from '@/lib/infraestructura/vigencia-rango'
 import {
   colapsarHistorial,
   crearBorradorStore,
@@ -67,7 +79,10 @@ const MENSAJE_FALTA_ALCANCE_AFECTACION =
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
 
-const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', '¿Cómo sigue el servicio?', 'Confirmar'] as const
+export const MENSAJE_BORRADOR_PENDIENTE =
+  'Tiene un parte sin enviar. Puede continuar donde lo dejó.'
+
+const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4
 
@@ -92,6 +107,7 @@ interface BorradorParteNuevo {
   asistenciaBrinda: '' | 'si' | 'no'
   modalidadesAsistencia: string[]
   rigeDesde: string
+  vigencia?: EleccionVigencia
   // Vestigial (ver esBorradorParteNuevo): sólo se lee por compatibilidad con
   // borradores viejos, ya no se escribe.
   idempotencyKey?: string
@@ -103,6 +119,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   if (typeof b.generacion !== 'string' || typeof b.rigeDesde !== 'string') {
     return false
   }
+  if (b.vigencia !== undefined && !esEleccionVigencia(b.vigencia)) return false
   // `idempotencyKey` fue un campo vestigial del borrador de este asistente
   // (nunca lo usaba el POST: la idempotencyKey real la decide el motor de
   // envío por tipo+cue, ver lib/infraestructura/parte/envio-offline.ts). Ya
@@ -136,6 +153,9 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
   if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  if (a.justificacionCritica !== undefined && a.justificacionCritica !== '' && !JUSTIFICACIONES_CRITICA.includes(a.justificacionCritica as (typeof JUSTIFICACIONES_CRITICA)[number])) return false
+  if (a.justificacionCriticaDetalle !== undefined && typeof a.justificacionCriticaDetalle !== 'string') return false
+  if (a.alcanceEstablecimiento !== undefined && a.alcanceEstablecimiento !== '' && a.alcanceEstablecimiento !== 'toda' && a.alcanceEstablecimiento !== 'algunas') return false
   return true
 }
 
@@ -191,13 +211,16 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [confirmarInterrupcionTotal, setConfirmarInterrupcionTotal] = useState(false)
   const [asistenciaBrinda, setAsistenciaBrinda] = useState<'' | 'si' | 'no'>('')
   const [modalidadesAsistencia, setModalidadesAsistencia] = useState<string[]>([])
-  const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
+  const [vigencia, setVigencia] = useState<EleccionVigencia>(VIGENCIA_AHORA)
+  const [errorVigencia, setErrorVigencia] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
+  const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<() => void>(() => {})
   // Identidad de las entradas de historial de ESTE asistente: un popstate de
@@ -218,7 +241,31 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       setServicioEstado('')
       setEstadoEstablecimiento('')
     }
+    if (paso === 2 && siguiente.categoria === 'establecimiento' && siguiente.motivo === '') {
+      setPaso(1)
+      setError('Elija el motivo del problema del establecimiento.')
+    }
     setAfectacion(siguiente)
+  }
+
+  function aplicarBorrador(borrador: BorradorParteNuevo): void {
+    generacionRef.current = borrador.generacion
+    const pasosBorrador = pasosDe(borrador.afectacion.categoria)
+    const pasoSolicitado = pasosBorrador.includes(borrador.paso) ? borrador.paso : 4
+    const faltaMotivoEstablecimiento =
+      pasoSolicitado === 2 &&
+      borrador.afectacion.categoria === 'establecimiento' &&
+      borrador.afectacion.motivo === ''
+    const pasoRestaurado = faltaMotivoEstablecimiento ? 1 : pasoSolicitado
+    setPaso(pasoRestaurado)
+    setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
+    setError(faltaMotivoEstablecimiento ? 'Elija el motivo del problema del establecimiento.' : null)
+    setServicioEstado(borrador.servicioEstado)
+    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+    setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
+    setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
+    setVigencia(borrador.vigencia ?? VIGENCIA_AHORA)
+    sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasosBorrador)
   }
 
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
@@ -230,17 +277,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     ;(async () => {
       const borrador = await leerBorrador(claveBorrador)
       if (cancelado || !borrador) return
-      generacionRef.current = borrador.generacion
-      const pasos = pasosDe(borrador.afectacion.categoria)
-      const pasoRestaurado = pasos.includes(borrador.paso) ? borrador.paso : 4
-      setPaso(pasoRestaurado)
-      setAfectacion(borrador.afectacion)
-      setServicioEstado(borrador.servicioEstado)
-      setEstadoEstablecimiento(borrador.estadoEstablecimiento)
-      setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
-      setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
-      setRigeDesde(borrador.rigeDesde)
-      sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
+      if (
+        borrador.paso === 1 &&
+        !esAfectacionParcial(borrador.afectacion) &&
+        !esAfectacionLista(borrador.afectacion)
+      ) {
+        aplicarBorrador(borrador)
+      } else {
+        setBorradorPendiente(borrador)
+      }
     })()
     return () => {
       cancelado = true
@@ -294,10 +339,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const indicePaso = pasos.indexOf(paso)
 
   // Evacuating while only some sections are marked needs an explicit
-  // confirmation; marking every section already means the whole school.
+  // confirmation; the sheet updates the declared scope before continuing.
   const evacuaEstablecimiento = estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados'
-  const marcaTodasLasSecciones = afectacion.secciones.length >= aplanarSecciones(turnos).length
-  const requiereConfirmarInterrupcion = evacuaEstablecimiento && !marcaTodasLasSecciones
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -309,6 +352,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setError(null)
     setMotivoEnvio(null)
 
+    const rigeDesde = resolverVigencia(vigencia)
+    if (rigeDesde === null) {
+      enviandoRef.current = false
+      setEnviando(false)
+      setError(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      return
+    }
+
     const datosEnvio = {
       cue,
       rigeDesde,
@@ -316,6 +368,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         {
           motivo: afectacion.motivo,
           severidad: afectacion.severidad as Severidad,
+          justificacionCritica: afectacion.justificacionCritica || undefined,
+          justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle || undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
@@ -337,7 +391,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
           ? undefined
           : { estado: estadoEstablecimiento },
-      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && marcaTodasLasSecciones),
+      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && afectacion.alcanceEstablecimiento === 'toda'),
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
@@ -437,6 +491,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // run (montaje o "registrar otra") se salta para no reescribir la clave
   // recién limpia con el estado por defecto.
   useEffect(() => {
+    if (borradorPendiente) return
     if (omitirEscrituraRef.current) {
       omitirEscrituraRef.current = false
       return
@@ -449,7 +504,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       estadoEstablecimiento,
       asistenciaBrinda,
       modalidadesAsistencia,
-      rigeDesde,
+      rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
+      vigencia,
     })
   }, [
     claveBorrador,
@@ -459,7 +515,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     estadoEstablecimiento,
     asistenciaBrinda,
     modalidadesAsistencia,
-    rigeDesde,
+    vigencia,
+    borradorPendiente,
   ])
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
@@ -468,19 +525,34 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // contestar es una acusación, no una ayuda.
   function faltanteDelPaso(actual: Paso): string | null {
     if (actual === 1) {
-      const completo =
-        afectacion.categoria !== '' && afectacion.motivo !== '' && afectacion.severidad !== ''
+      const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
+      const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
+      if (
+        !completo &&
+        afectacion.categoria !== '' &&
+        afectacion.motivo !== '' &&
+        afectacion.severidad !== '' &&
+        requiereJustificacionCritica(afectacion.severidad, sugerida)
+      ) {
+        return 'Indique por qué la situación es crítica.'
+      }
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
-      return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
+        return MENSAJE_FALTA_ALCANCE_AFECTACION
+      }
+      if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.categoria === 'alumnos' && vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) {
+        return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+      }
+      return null
     }
     if (actual === 3) {
+      if (servicioEstado === '') return 'Indique si hay clases.'
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if (requiereConfirmarInterrupcion && !confirmarInterrupcionTotal) {
-        return 'Confirme que se interrumpe todo el establecimiento para continuar.'
-      }
+      if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
       return null
     }
     return null
@@ -490,6 +562,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
       setError(faltante)
+      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       return
     }
     setError(null)
@@ -527,7 +600,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
     setServicioEstado('')
     setEstadoEstablecimiento('')
-    setRigeDesde(new Date().toISOString())
+    setVigencia(VIGENCIA_AHORA)
+    setErrorVigencia(null)
     setEnviando(false)
     setError(null)
     setGuardado(null)
@@ -567,7 +641,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             secciones: afectacion.secciones.length,
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
-    rigeDesde,
+    rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
   }).concat(
     asistenciaBrinda === ''
       ? []
@@ -578,6 +652,26 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
 
   return (
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
+      {borradorPendiente ? (
+        <div className="aviso-retoma" role="status">
+          <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
+          <div className="asistente__acciones">
+            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>
+              Descartar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                aplicarBorrador(borradorPendiente)
+                setBorradorPendiente(null)
+              }}
+            >
+              Continuar donde lo dejé
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="asistente__progreso">
         <p className="asistente__contador">
           Paso {indicePaso + 1} de {pasos.length}
@@ -619,12 +713,19 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
               borrador={afectacion}
               idPrefijo="reporte"
               turnos={turnos}
+              usaSelectorEstablecimiento
               onChange={cambiarAfectacion}
               disabled={enviando}
             />
             {afectacion.categoria === 'alumnos' && (
               <div className="afectacion-campos__grupo">
-                <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
+                <VigenciaChips
+                  value={vigencia}
+                  onChange={(valor) => { setVigencia(valor); setErrorVigencia(null) }}
+                  label={etiquetaVigencia(afectacion.categoria)}
+                  disabled={enviando}
+                  error={errorVigencia}
+                />
               </div>
             )}
           </>
@@ -632,55 +733,23 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
 
         {paso === 3 && (
           <>
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo funciona la escuela?</legend>
-              <div className="afectacion-campos__opciones">
-                {(['normal', 'suspendido'] as const).map((estado) => (
-                  <label key={estado} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="servicio-educativo"
-                      value={estado}
-                      checked={servicioEstado === estado}
-                      onChange={() => setServicioEstado(estado)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{ETIQUETA_SERVICIO[estado]}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
-              <div className="afectacion-campos__opciones">
-                {Object.entries(ETIQUETA_ESTABLECIMIENTO).map(([valor, etiqueta]) => (
-                  <label key={valor} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="estado-establecimiento"
-                      value={valor}
-                      checked={estadoEstablecimiento === valor}
-                      onChange={() => setEstadoEstablecimiento(valor as EstadoEstablecimiento)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{etiqueta}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {requiereConfirmarInterrupcion && (
-              <div className="afectacion-campos__grupo" role="note">
-                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
-                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
-              </div>
-            )}
+            <CamposClasesEdificio
+              valor={{ servicioEstado, estadoEstablecimiento }}
+              onCambiar={(x) => {
+                setServicioEstado(x.servicioEstado)
+                setEstadoEstablecimiento(x.estadoEstablecimiento)
+              }}
+              alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
+              onInterrumpirTodaLaEscuela={() => {
+                setAfectacion((a) => ({
+                  ...a,
+                  alcanceEstablecimiento: 'toda',
+                  secciones: aplanarSecciones(turnos).map((s) => s.geSectionId),
+                }))
+                setConfirmarInterrupcionTotal(true)
+              }}
+              disabled={enviando}
+            />
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
@@ -699,7 +768,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             </fieldset>
 
             <div className="afectacion-campos__grupo">
-              <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
+              <VigenciaChips
+                value={vigencia}
+                onChange={(valor) => { setVigencia(valor); setErrorVigencia(null) }}
+                label={etiquetaVigencia(afectacion.categoria)}
+                disabled={enviando}
+                error={errorVigencia}
+              />
             </div>
           </>
         )}
@@ -717,14 +792,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           </div>
         )}
       </section>
-
-      {estadoEnvio && (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
-      )}
 
       {error && (
         <p className="reporte-inicial__error" role="alert">
@@ -761,6 +828,29 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           </Button>
         )}
       </div>
+        </>
+      )}
+      {estadoEnvio && (
+        <p role="status" aria-live="polite">
+          {estadoEnvio === 'error' && motivoEnvio
+            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+            : MENSAJES_ESTADO[estadoEnvio]}
+        </p>
+      )}
+      <ConfirmSheet
+        open={confirmarDescarte}
+        titulo="¿Descartar el parte sin enviar?"
+        confirmarLabel="Sí, descartar"
+        onCancelar={() => setConfirmarDescarte(false)}
+        onConfirmar={() => {
+          omitirEscrituraRef.current = true
+          void limpiarBorrador(claveBorrador)
+          setBorradorPendiente(null)
+          setConfirmarDescarte(false)
+        }}
+      >
+        <p>Se pierde lo que cargó y no se envía nada.</p>
+      </ConfirmSheet>
     </form>
   )
 }

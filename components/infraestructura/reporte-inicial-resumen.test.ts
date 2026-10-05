@@ -83,7 +83,7 @@ describe('armarResumen', () => {
     })
 
     expect(lineas).toContain('Funcionamiento escolar interrumpido en todo el establecimiento')
-    expect(lineas).toContain('Utilizado como centro de evacuados')
+    expect(lineas).toContain('Usado como centro de evacuados')
   })
 
   it('cierra con el momento desde el que rige', () => {

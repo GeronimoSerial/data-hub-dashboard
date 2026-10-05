@@ -41,7 +41,12 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 ## Progress / evidence
 
 - 2026-10-04: spec 03bf161, plan 47d3b36 on `feat/staging`.
+- Wave 1 launched: run run_a39bdf80d42b; B1 dispatch ctx_b5a273c7f5c5 (worktree mapa-b1), B6 dispatch ctx_d21c9931778b (worktree mapa-b6). N2 specs in ~/.cache/mapa-n2/<batch>/spec.md.
+- Rule change (user): N2 commits each verified task; N1 reviews only the whole batch (diff + visual).
+- B6 T23 data source (N1 decision, reversible): municipal population from Censo 2022 (Prov. Corrientes open data, CC BY 4.0) as proxy for the 2,000-inhabitant urban threshold; coordinates from Georef; 7 explicit name equivalences, 4 small municipios without a Georef locality excluded and listed in the README.
+- B1: T1 be0a61d, T2 b8386d3. B6: T23 e802c71, T24 23bef81.
+- Loop: cron a1b8266c every 10 min.
 
 ## Next step
 
-Launch wave 1.
+Wave 1 running (B1 on T3, B6 on T25). On each worker_done: full-batch diff review, gate, visual review, merge, next wave.

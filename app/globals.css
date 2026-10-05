@@ -1377,6 +1377,14 @@ time {
   margin-top: auto;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
+.confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
+.confirm-sheet__acciones {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) calc(var(--s-4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+.confirm-sheet__acciones > * { flex: 1; min-height: 44px; }
 .ui-sheet h2 { padding: var(--s-5) var(--s-5) 0; font-size: 1.25rem; }
 .ui-sheet-close {
   position: absolute;
@@ -2873,6 +2881,26 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink);
 }
 
+.selector-alumnos__cabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.badge-seleccion {
+  font-size: var(--t-small);
+  padding: 0 var(--s-2);
+  border-radius: 999px;
+  background: var(--fill);
+}
+
 /* ── Vigencia field ("Rige desde") ────────────────────────────────────── */
 
 /* A <fieldset> so `disabled` propagates to every input/button below it for
@@ -2936,6 +2964,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--danger);
   font-size: var(--t-small);
 }
+
+.vigencia-chips__opciones { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.chip-radio { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-4); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.chip-radio input { position: absolute; opacity: 0; pointer-events: none; }
+.chip-radio:has(input:checked) { border-color: var(--ink); background: var(--fill); font-weight: 600; }
+.chip-radio:has(input:focus-visible) { outline: 2px solid var(--focus, var(--ink)); outline-offset: 2px; }
+.vigencia-chips__campos { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-3); }
+.vigencia-chips__campos input { min-height: 44px; }
+.vigencia-chips__resumen { margin-top: var(--s-2); color: var(--ink-soft); }
 
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
@@ -3835,6 +3872,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   line-height: 1.3;
 }
 
+.badge-sugerido {
+  margin-left: var(--s-2);
+  font-size: var(--t-small);
+  padding: 0 var(--s-2);
+  border-radius: 999px;
+  background: var(--fill);
+}
+
 .opcion-radio__ayuda {
   font-size: var(--t-micro);
   color: var(--ink-soft);
@@ -4003,8 +4048,38 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 1px solid var(--line);
 }
 
+.aviso-retoma {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.aviso-retoma > p {
+  margin: 0;
+  color: var(--ink);
+}
+
+.aviso-retoma .asistente__acciones {
+  padding-top: 0;
+  border-top: 0;
+}
+
 @media (max-width: 480px) {
-  .asistente__acciones { flex-direction: column-reverse; align-items: stretch; }
+  .asistente__acciones {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    position: sticky;
+    bottom: 0;
+    background: var(--card);
+    padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
+    z-index: 1;
+  }
+  .asistente__acciones > * { min-height: 44px; }
 }
 
 /* ── Tarjeta de afectación plegable (inventario de la actualización) ──── */

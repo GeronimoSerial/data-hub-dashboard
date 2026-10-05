@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { AfectacionBorradorCard } from '@/components/infraestructura/afectacion-borrador'
+import { crearAfectacionVacia } from '@/components/infraestructura/afectacion-campos'
 import { CampoVigente } from '@/components/infraestructura/campo-vigente'
 import { VigenciaField } from '@/components/infraestructura/vigencia-field'
 import {
@@ -510,18 +511,13 @@ function ActualizacionFormCargado({
   }
 
   function agregarAfectacion() {
+    const borrador = crearAfectacionVacia(crypto.randomUUID())
     setAfectaciones((actuales) => [
       ...actuales,
       {
-        clientId: crypto.randomUUID(),
+        ...borrador,
         origenId: null,
         retirada: false,
-        categoria: '',
-        motivo: '',
-        severidad: '',
-        secciones: [],
-        alumnos: [],
-        descripcion: '',
       },
     ])
   }

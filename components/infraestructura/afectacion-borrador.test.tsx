@@ -13,6 +13,9 @@ const borradorBase: AfectacionBorrador = {
   categoria: '',
   motivo: '',
   severidad: '',
+  justificacionCritica: '',
+  justificacionCriticaDetalle: '',
+  alcanceEstablecimiento: '',
   secciones: [],
   alumnos: [],
   descripcion: '',
@@ -35,7 +38,7 @@ function renderCard(overrides: Partial<AfectacionBorradorCardProps> = {}) {
 }
 
 describe('AfectacionBorradorCard', () => {
-  it('renderiza los radios de categoría y seleccionar uno emite onChange con la categoría, motivo y alumnos limpios', () => {
+  it('confirmar una categoría emite onChange con los campos dependientes limpios', () => {
     const onChange = vi.fn()
     renderCard({
       borrador: { ...borradorBase, motivo: 'Inundación', alumnos: [1, 2], secciones: [10] },
@@ -43,13 +46,11 @@ describe('AfectacionBorradorCard', () => {
     })
 
     fireEvent.click(screen.getByRole('radio', { name: /afecta al establecimiento/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 
     expect(onChange).toHaveBeenCalledWith({
       ...borradorBase,
       categoria: 'establecimiento',
-      motivo: '',
-      alumnos: [],
-      secciones: [10],
     })
   })
 

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ReporteInicialForm } from './reporte-inicial-form'
+import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
@@ -14,6 +14,37 @@ const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
   'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+
+function sembrarBorradorWizard({
+  paso = 2,
+  sinCamposNuevos = false,
+  categoria = 'alumnos',
+  motivo = 'Anegamiento',
+}: {
+  paso?: 1 | 2 | 3 | 4
+  sinCamposNuevos?: boolean
+  categoria?: 'alumnos' | 'establecimiento'
+  motivo?: string
+} = {}) {
+  const borrador = {
+    generacion: 'generacion-test',
+    paso,
+    afectacion: {
+      clientId: 'afectacion-test',
+      categoria,
+      motivo,
+      severidad: 'Alta',
+      descripcion: '',
+      secciones: [],
+      alumnos: [],
+    },
+    servicioEstado: '',
+    estadoEstablecimiento: '',
+    rigeDesde: '2026-10-04T10:00:00.000Z',
+    ...(sinCamposNuevos ? {} : { asistenciaBrinda: 'no', modalidadesAsistencia: [], vigencia: { modo: 'ahora' } }),
+  }
+  localStorage.setItem(`parte-nuevo:draft:${props.cue}`, JSON.stringify(borrador))
+}
 
 function renderFormulario(overrides: Partial<typeof props> = {}) {
   return render(<ReporteInicialForm {...props} {...overrides} />)
@@ -27,22 +58,34 @@ function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 const volver = () => fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+const confirmarCategoria = () =>
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
 
 /** Paso 1: tipo de problema, motivo y severidad. */
 function completarQuePaso() {
   fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+  confirmarCategoria()
   fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
 }
 
-/** Paso 2: al menos una sección. */
-function completarAQuienAfecta() {
+/** Paso 2: alcance por sección o por alumno, según la categoría. */
+function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'establecimiento') {
+  if (categoria === 'alumnos') {
+    const seccion = turnos[0].niveles[0].secciones[0]
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
+    const alumno = seccion.alumnos[0]
+    fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
+    return
+  }
+  fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
 /** Paso 3: cómo está el edificio (obligatorio). */
 function completarEstadoEstablecimiento() {
-  fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento habitual' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
 }
 
 /** Deja el asistente en el paso 4, listo para guardar. */
@@ -78,17 +121,17 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
-  it('advierte y exige confirmar la interrupción total al declarar secciones y evacuación', () => {
+  it('confirma pasar a toda la escuela al declarar secciones y evacuación', () => {
     renderFormulario()
     completarQuePaso()
     continuar()
     completarAQuienAfecta()
     continuar()
-    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
-    expect(screen.getByText(/solo algunas secciones.*interrupción de toda la escuela/i)).toBeVisible()
-    continuar()
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeVisible()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Confirmo que se interrumpe todo el establecimiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByText(/interrumpe toda la escuela/)).toBeVisible()
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Sí, toda la escuela' }))
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeVisible()
     continuar()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeVisible()
   })
@@ -98,10 +141,10 @@ describe('ReporteInicialForm', () => {
     renderFormulario({ turnos: unaSeccion })
     completarQuePaso()
     continuar()
-    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     continuar()
-    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
-    expect(screen.queryByText(/solo algunas secciones/i)).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('incluye asistencia pedagógica y modalidad en el cuerpo del reporte', async () => {
@@ -120,6 +163,26 @@ describe('ReporteInicialForm', () => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
     })
+  })
+
+  it('una Crítica justificada viaja al servidor con su justificación', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin energía o agua' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Se prolonga en el tiempo o no tiene fecha de solución' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const cuerpo = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ severidad: 'Crítica', justificacionCritica: 'se_prolonga' })
   })
   // El motivo de fondo del rediseño: la pantalla anterior abría con un título
   // "Afectaciones" vacío y un botón de agregar, y se leía como una invitación
@@ -145,6 +208,38 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })
 
+  it('envía rigeDesde resuelto al momento de enviar cuando se deja "Ahora"', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    const fetchMock = stubFetch()
+    renderFormulario()
+    llegarAConfirmar()
+    vi.setSystemTime(new Date('2026-10-04T18:10:00.000Z'))
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).rigeDesde).toBe('2026-10-04T18:10:00.000Z')
+    vi.useRealTimers()
+  })
+
+  it('adapta la pregunta de vigencia a la categoría', () => {
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
+
+    cleanup()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByText('¿Desde cuándo ocurre?')).toBeInTheDocument()
+  })
+
   // Motivo y severidad ya no son <select>: con 3 a 5 opciones el desplegable
   // cuesta tres gestos y tapa la pantalla.
   it('ofrece motivo y severidad como opciones a la vista, no como desplegables', () => {
@@ -153,6 +248,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
 
     fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
 
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Tormenta severa' })).toBeInTheDocument()
@@ -200,7 +296,7 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar interrumpido' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
     expect(screen.queryByText('¿Dónde se interrumpió el funcionamiento?')).toBeNull()
     continuar()
     expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
@@ -217,13 +313,16 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarAQuienAfecta()
     continuar()
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
     continuar()
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique si hay clases.')
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
+    continuar()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
     completarEstadoEstablecimiento()
     continuar()
 
@@ -234,16 +333,46 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
 
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
-    completarAQuienAfecta()
+    completarAQuienAfecta('alumnos')
     continuar()
 
     expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
     expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
-    expect(screen.queryByText('Funcionamiento escolar interrumpido')).toBeNull()
+    expect(screen.queryByText('No, se suspendieron')).toBeNull()
+  })
+
+  it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
+    const turnosConMayoria = turnos.map((turno) => ({
+      ...turno,
+      niveles: turno.niveles.map((nivel) => ({
+        ...nivel,
+        secciones: nivel.secciones.map((seccion) => ({
+          ...seccion,
+          matricula: seccion.geSectionId === 10 ? 2 : 0,
+        })),
+      })),
+    }))
+    renderFormulario({ turnos: turnosConMayoria })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    const seccion = turnosConMayoria[0].niveles[0].secciones[0]
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
+    for (const alumno of seccion.alumnos) {
+      fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a establecimiento' }))
+
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
   })
 
   it('volver conserva lo ya cargado', () => {
@@ -542,7 +671,7 @@ describe('ReporteInicialForm', () => {
 describe('ReporteInicialForm — borrador persistente (#32) e historial del navegador (#31)', () => {
   const clave = `parte-nuevo:draft:${props.cue}`
 
-  it('guarda el borrador con su paso y lo restaura al remontar (#32)', async () => {
+  it('guarda el borrador con su paso y ofrece retomarlo al remontar (#32)', async () => {
     const primero = renderFormulario()
     completarQuePaso()
     continuar()
@@ -554,13 +683,55 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     primero.unmount()
     renderFormulario()
 
-    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '¿Qué pasó?' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
     volver()
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('al volver con un borrador sin enviar ofrece continuar o descartar', async () => {
+    sembrarBorradorWizard({ paso: 2 })
+    renderFormulario()
+
+    expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+  })
+
+  it('restaura un borrador de establecimiento sin motivo en el paso 1 y muestra el error', async () => {
+    sembrarBorradorWizard({ paso: 2, categoria: 'establecimiento', motivo: '' })
+    renderFormulario()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
+  })
+
+  it('descartar pide confirmación y arranca de cero', async () => {
+    sembrarBorradorWizard({ paso: 2 })
+    renderFormulario()
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, descartar' }))
+
+    await waitFor(() => expect(screen.queryByText(MENSAJE_BORRADOR_PENDIENTE)).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
+  })
+
+  it('un borrador viejo sin los campos nuevos se restaura con valores por defecto', async () => {
+    sembrarBorradorWizard({ paso: 2, sinCamposNuevos: true })
+    renderFormulario()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
   })
 
   it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
