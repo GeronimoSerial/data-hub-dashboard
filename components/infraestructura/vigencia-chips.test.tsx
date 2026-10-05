@@ -7,9 +7,9 @@ import { VigenciaChips } from './vigencia-chips'
 
 afterEach(cleanup)
 
-function Controlado() {
+function Controlado({ label = '¿Desde cuándo ocurre?' }: { label?: string }) {
   const [v, setV] = useState<EleccionVigencia>({ modo: 'ahora' })
-  return <VigenciaChips value={v} onChange={setV} label="¿Desde cuándo ocurre?" />
+  return <VigenciaChips value={v} onChange={setV} label={label} />
 }
 
 describe('VigenciaChips', () => {
@@ -22,6 +22,7 @@ describe('VigenciaChips', () => {
     expect(screen.queryByLabelText('Hora')).not.toBeInTheDocument()
     expect(screen.getByText('Desde ahora')).toBeInTheDocument()
   })
+
   it('"Hoy, más temprano" muestra sólo la hora', () => {
     render(<Controlado />)
     fireEvent.click(screen.getByRole('radio', { name: 'Hoy, más temprano' }))
@@ -30,12 +31,14 @@ describe('VigenciaChips', () => {
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '00:01' } })
     expect(screen.getByText('Desde hoy a las 00:01')).toBeInTheDocument()
   })
+
   it('"Otro día" muestra fecha y hora', () => {
     render(<Controlado />)
     fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
     expect(screen.getByLabelText('Fecha')).toBeInTheDocument()
     expect(screen.getByLabelText('Hora')).toBeInTheDocument()
   })
+
   it('muestra el error recibido', () => {
     const mensaje = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
     render(<VigenciaChips value={{ modo: 'hoy', hora: '23:59' }} onChange={() => {}} label="x" error={mensaje} />)
@@ -43,5 +46,20 @@ describe('VigenciaChips', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(mensaje)
     expect(hora).toHaveAttribute('aria-describedby', screen.getByRole('alert').id)
     expect(screen.getAllByText(mensaje)).toHaveLength(1)
+  })
+
+  it('sets the Argentine Spanish language on native date and time inputs', () => {
+    render(<VigenciaChips value={{ modo: 'otro', fecha: '', hora: '' }} onChange={() => {}} label="Vigencia" />)
+
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('lang', 'es-AR')
+    expect(screen.getByLabelText('Hora')).toHaveAttribute('lang', 'es-AR')
+  })
+
+  it('sets the Argentine Spanish language on the date input for a resolved situation', () => {
+    render(<Controlado label="¿Cuándo se solucionó?" />)
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: '¿Cuándo se solucionó?' })).getByLabelText('Otro día'))
+
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('lang', 'es-AR')
+    expect(screen.getByLabelText('Hora')).toHaveAttribute('lang', 'es-AR')
   })
 })

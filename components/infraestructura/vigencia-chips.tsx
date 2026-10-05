@@ -62,6 +62,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
               <input
                 id={`${id}-fecha`}
                 type="date"
+                lang="es-AR"
                 min={fechaInput(min)}
                 max={fechaInput(max)}
                 value={value.fecha}
@@ -74,6 +75,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
             <input
               id={`${id}-hora`}
               type="time"
+              lang="es-AR"
               value={value.hora}
               aria-describedby={error ? `${id}-error` : undefined}
               onChange={(evento) => onChange({ ...value, hora: evento.target.value })}
