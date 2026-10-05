@@ -31,12 +31,12 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 
 - [x] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b, visual fix ed05c46; merged b8bc99a
 - [x] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T6 cdef3c2, T7 abea36f, T8 bbac423+475fd7b+f38b245, T9 e2fd673; visual fixes b5b7d5d..316f81b, 1167160, bdeab3c; merged 9f81edd
-- [ ] B3 — Tasks 10–15 (situación actual) — running: worktree mapa-b3 from 9f81edd, dispatch ctx_877c93c4587f
-- [ ] B4 — Tasks 16–19 (radar y planificación)
+- [x] B3 — Tasks 10–15 (situación actual) — 8 task commits + 3 visual fix rounds + staging merge b10f183; merged 6761d1d
+- [ ] B4 — Tasks 16–19 (radar y planificación) — running: worktree mapa-b4 from 6761d1d
 - [ ] B5 — Tasks 20–22 (estadísticas)
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
 - [ ] T27 — vía principal en la UI
-- [ ] Visual review per batch (N1) — B1, B2 done
+- [ ] Visual review per batch (N1) — B1, B2, B3 done
 
 ## Progress / evidence
 
@@ -68,3 +68,4 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - B3 fixes round 1 (5be793d, 552dc8f, 440d09c, 0255ccd, 10d4b8d) checked in Chrome: two-line names OK, toggle removed and padrón always drawn, crossing markers now lucide on white. Round 2 dispatched (ctx_e429450c334c): unreported schools drawn as large solid grey discs mixed with house icons (must be one small neutral style), and the gravity banner still lacks 'desde hace' in the real app.
 - B3 fixes round 2 (1521200 neutral small unreported points, 98a2fc0 parte endpoint degrades without GE corte instead of 503) verified in Chrome: 'desde hace 33 d' shows, unreported points/clusters now small and neutral. New finding from the console: MapLibre rejects layer infra-partes (circle-radius uses zoom nested, not top-level) → round 3 fix N2 ctx_79cc697e4b16 (valid expression + style-spec validator test + nbsp in relative time).
 - B3 round 3 (035a156 valid zoom expression + style-spec validator test, adds devDependency @maplibre/maplibre-gl-style-spec 26.2.1; 49b51df nbsp) verified in Chrome with no console errors. B3 gate (N1): build 0, vitest 2600 passed / 1 known, lint 0 errors. Merge into feat/staging conflicted in ficha-parte-modal.tsx with the parte session's 7626a0c (shared severity) vs B3's useFichaParte extraction → merge aborted, resolution delegated to N2 ctx_bdc965bfc694 (merge feat/staging into feat/mapa-b3 keeping both intents).
+- B3 merged 6761d1d after the N2 resolved the ficha-parte-modal conflict (b10f183); post-merge on feat/staging: tsc clean, full vitest 2622 passed / 1 known failure. mapa-b3 removed. B4 launched.
