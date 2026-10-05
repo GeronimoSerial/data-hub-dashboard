@@ -47,7 +47,7 @@ describe('HistorialParte', () => {
       'fetch',
       responderCon([
         movimiento('mov-3', 18, 10, ['Clases normales → Clases suspendidas en 2.º A']),
-        movimiento('mov-2', 17, 16, ['Se inició el reporte por "Inundación"']),
+        movimiento('mov-2', 17, 16, ['Se inició la situación "Inundación"']),
         movimiento('mov-1', 16, 8, ['12 alumnos incorporados']),
       ]),
     )
@@ -58,7 +58,11 @@ describe('HistorialParte', () => {
     const cargas = Array.from(container.querySelectorAll('.linea-de-tiempo__hora')).map(
       (el) => el.textContent,
     )
-    expect(cargas).toEqual(['10:00', '16:00', '08:00'])
+    expect(cargas).toEqual([
+      '18 de septiembre, 10:00',
+      '17 de septiembre, 16:00',
+      '16 de septiembre, 08:00',
+    ])
   })
 
   it('muestra el estado vacío, y no un error, cuando no hay movimientos', async () => {
@@ -72,7 +76,7 @@ describe('HistorialParte', () => {
       ),
     ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Iniciar un reporte' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Cargar una situación' })).toHaveAttribute(
       'href',
       `/problematicas/parte/nuevo?cue=${CUE}`,
     )

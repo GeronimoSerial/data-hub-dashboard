@@ -30,13 +30,13 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 ## Checklist
 
 - [x] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b, visual fix ed05c46; merged b8bc99a
-- [ ] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T7 abea36f, T6 cdef3c2, T8 bbac423+475fd7b+f38b245, merge b1 dc12925, T9 e2fd673; N1 gate green; visual fixes in progress (ctx_373b53fb532c)
-- [ ] B3 — Tasks 10–15 (situación actual)
+- [x] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T6 cdef3c2, T7 abea36f, T8 bbac423+475fd7b+f38b245, T9 e2fd673; visual fixes b5b7d5d..316f81b, 1167160, bdeab3c; merged 9f81edd
+- [ ] B3 — Tasks 10–15 (situación actual) — running: worktree mapa-b3 from 9f81edd, dispatch ctx_877c93c4587f
 - [ ] B4 — Tasks 16–19 (radar y planificación)
 - [ ] B5 — Tasks 20–22 (estadísticas)
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
 - [ ] T27 — vía principal en la UI
-- [ ] Visual review per batch (N1) — B1 done
+- [ ] Visual review per batch (N1) — B1, B2 done
 
 ## Progress / evidence
 
@@ -63,3 +63,7 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - Visual review rule (user): Claude in Chrome, aesthetics + no AI-slop copy + behavior.
 - B2 visual fixes 1–6 committed (b5b7d5d..316f81b) and re-checked in Chrome: count follows filters, departments title case with accents, Nivel empty state, empty box gone, search no-results panel, Limpiar inline. New finding: long chip popovers open upward over the site header → fix N2 ctx_beff5b0fb93b. Review server moved to localhost:3217 (another agent's demo `parte-visual` holds :3210). Wait for hydration before typing into the login form (an unhydrated submit sends a GET with the fields in the URL).
 - B2 popover fix 1167160 verified in Chrome (opens downward, internal scroll). Gate rerun: build 0; vitest 2509 passed / 1 known failure. Reinforced visual criteria received from the parte session (~/.cache/parte-n2/visual/criterios.md, adopted at the user's request): native checkboxes in the filter popovers → fix N2 ctx_5cd23187f64c (system Checkbox). Then merge B2.
+- B2 checkbox fix bdeab3c verified in Chrome. Merged 9f81edd; post-merge tsc clean, 1689 tests in touched areas passed. Worktrees mapa-b1 and mapa-b2 removed. B3 launched (ctx_877c93c4587f) with wrappers heavy.sh/n3.sh, reinforced visual criteria, and N1 notes (cabecera hint copy, tab counter, demo DB without GE data, single ficha).
+- B3 done by N2 (T10 35f46ac, T11 528819a, T12 340143d, refactor 47986de, T13 c71c77e, T14 e21c11a, T15 bd38db3, tab counter a96012e); N2 gate: vitest 2588 passed / 1 known, lint 0, build + tsc OK. N2 decisions accepted: flood-cut risk Alto if max depth ≥ 0.5 m (to validate with product); history counts reporte_inicial movements in 730 days; ficha-parte-modal chain now unused in production but NOT deleted (needs user permission). B3 Chrome review: panel, ficha, access block and legend match the prototype; findings sent to fix N2 ctx_511da88acf47: report names truncated to one line, banner missing 'desde hace', 'Situaciones (N abiertas)', grey '?' crossing markers (lucide rule), 'Todas las escuelas' toggle (padrón must always be visible). Route still uses v2 geometry in the demo DB (v3 import pending authorization).
+- B3 fixes round 1 (5be793d, 552dc8f, 440d09c, 0255ccd, 10d4b8d) checked in Chrome: two-line names OK, toggle removed and padrón always drawn, crossing markers now lucide on white. Round 2 dispatched (ctx_e429450c334c): unreported schools drawn as large solid grey discs mixed with house icons (must be one small neutral style), and the gravity banner still lacks 'desde hace' in the real app.
+- B3 fixes round 2 (1521200 neutral small unreported points, 98a2fc0 parte endpoint degrades without GE corte instead of 503) verified in Chrome: 'desde hace 33 d' shows, unreported points/clusters now small and neutral. New finding from the console: MapLibre rejects layer infra-partes (circle-radius uses zoom nested, not top-level) → round 3 fix N2 ctx_79cc697e4b16 (valid expression + style-spec validator test + nbsp in relative time).

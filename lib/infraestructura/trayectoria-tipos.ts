@@ -128,6 +128,9 @@ export interface ServicioAlcance extends FilaConVigencia {
 export interface SeccionEstablecimiento {
   geSectionId: number
   turno: string
+  curso?: string
+  division?: string
+  nivel?: string
 }
 
 // --- Movimiento (spec §3.3, §15) ---

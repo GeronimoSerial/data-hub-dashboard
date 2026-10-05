@@ -30,6 +30,12 @@ const PARTES_FORMATO = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
   hourCycle: 'h23',
 })
+const FECHA_CLAVE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ZONA_HORARIA,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 
 interface PartesFecha {
   dia: number
@@ -61,6 +67,15 @@ export function formatearCargaCorta(iso: string): string {
   return `${dia} ${MESES_CORTOS[mes]} · ${hora}:${minuto}`
 }
 
+/** Fecha y hora de un movimiento: "Hoy, 00:49" o "1 de octubre, 10:45". */
+export function formatearMomentoHistorial(iso: string, ahora: Date = new Date()): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return ''
+  const { dia, mes, hora, minuto } = partesEnZona(fecha)
+  if (FECHA_CLAVE.format(fecha) === FECHA_CLAVE.format(ahora)) return `Hoy, ${hora}:${minuto}`
+  return `${dia} de ${MESES_LARGOS[mes]}, ${hora}:${minuto}`
+}
+
 /**
  * Vigencia en lenguaje llano: "Rige desde el 18 de septiembre a las 10:30"
  * (spec §13, misma redacción que el eco de VigenciaField).
@@ -70,6 +85,17 @@ export function formatearRigeDesde(iso: string): string {
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
   return `Rige desde el ${dia} de ${MESES_LARGOS[mes]} a las ${hora}:${minuto}`
+}
+
+/** Fecha para referencias breves a una situación: "5 de octubre". */
+export function formatearFechaHistorial(valor: string): string {
+  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor)
+  const fecha = local
+    ? new Date(Date.UTC(Number(local[3]), Number(local[2]) - 1, Number(local[1]), 12))
+    : new Date(valor)
+  if (Number.isNaN(fecha.getTime())) return valor
+  const { dia, mes } = partesEnZona(fecha)
+  return `${dia} de ${MESES_LARGOS[mes]}`
 }
 
 /**

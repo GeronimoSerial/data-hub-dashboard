@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { CircleCheck } from 'lucide-react'
 import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
@@ -16,9 +17,12 @@ import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -27,6 +31,7 @@ import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-cri
 import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
+  errorVigencia as obtenerErrorVigencia,
   etiquetaVigencia,
   esEleccionVigencia,
   resolverVigencia,
@@ -63,19 +68,20 @@ export interface ReporteInicialFormProps {
   cue: string
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
+  onGuardadoChange?: (guardado: boolean) => void
 }
 
 const MENSAJE_ERROR_GUARDADO =
-  'No pudimos guardar el reporte. La información ingresada se mantiene para que pueda volver a intentar.'
+  'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 
 const MENSAJE_GUARDADO =
-  'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+  'Parte registrado.'
 
 const MENSAJE_FALTA_QUE_PASO =
-  'Elija el tipo de problema, el motivo y la severidad para continuar.'
+  'Elija el tipo de situación, el motivo y la severidad para continuar.'
 
 const MENSAJE_FALTA_ALCANCE_AFECTACION =
-  'Elija al menos una sección afectada para continuar.'
+  'Elija al menos una sección para esta situación.'
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
 
@@ -196,7 +202,7 @@ function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string,
  * única afectación viaja en `afectacionesNuevas` y las otras dos listas van
  * vacías, igual que antes.
  */
-export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormProps): JSX.Element {
+export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: ReporteInicialFormProps): JSX.Element {
   const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
   function almacen(): Promise<AlmacenClaveValor> {
     almacenRef.current ??= crearAlmacenParte()
@@ -243,7 +249,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     }
     if (paso === 2 && siguiente.categoria === 'establecimiento' && siguiente.motivo === '') {
       setPaso(1)
-      setError('Elija el motivo del problema del establecimiento.')
+      setError('Elija el motivo de la situación del establecimiento.')
     }
     setAfectacion(siguiente)
   }
@@ -259,7 +265,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     const pasoRestaurado = faltaMotivoEstablecimiento ? 1 : pasoSolicitado
     setPaso(pasoRestaurado)
     setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
-    setError(faltaMotivoEstablecimiento ? 'Elija el motivo del problema del establecimiento.' : null)
+    setError(faltaMotivoEstablecimiento ? 'Elija el motivo de la situación del establecimiento.' : null)
     setServicioEstado(borrador.servicioEstado)
     setEstadoEstablecimiento(borrador.estadoEstablecimiento)
     setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
@@ -356,8 +362,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     if (rigeDesde === null) {
       enviandoRef.current = false
       setEnviando(false)
-      setError(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
-      setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setError(null)
+      setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       return
     }
 
@@ -451,6 +457,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     // componente).
     colapsarHistorial(indicePaso)
     setGuardado({ movimientoId })
+    onGuardadoChange?.(true)
   }
 
   const alEnviarConExitoRef = useRef(alEnviarConExito)
@@ -561,8 +568,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   function avanzar() {
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
-      setError(faltante)
-      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) {
+        setError(null)
+        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      } else setError(faltante)
       return
     }
     setError(null)
@@ -590,9 +599,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // se guardó. La idempotencyKey real la decide el motor de envío por
   // tipo+cue (ver envio-offline.ts) y ya quedó limpia sola: un envío exitoso
   // borra esa cola antes de mostrar la confirmación, así que el próximo
-  // "Guardar reporte" acuña una clave nueva sin que este formulario tenga que
+  // "guardar parte" acuña una clave nueva sin que este formulario tenga que
   // gestionar ninguna.
   function registrarOtra() {
+    onGuardadoChange?.(false)
     omitirEscrituraRef.current = true
     void limpiarBorrador(claveBorrador)
     enviandoRef.current = false
@@ -610,13 +620,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   if (guardado) {
     return (
       <div className="reporte-inicial__confirmacion" role="status">
-        <p>{MENSAJE_GUARDADO}</p>
+        <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
         <div className="reporte-inicial__confirmacion-acciones">
           <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
             Volver al panel
           </Button>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
-            Registrar otra incidencia
+            Cargar otra situación
           </Button>
         </div>
       </div>
@@ -642,13 +652,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
     rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
-  }).concat(
-    asistenciaBrinda === ''
-      ? []
-      : [asistenciaBrinda === 'si'
-          ? `Se brinda asistencia pedagógica: ${modalidadesAsistencia.join(' y ')}`
-          : 'No se brinda asistencia pedagógica'],
-  )
+    ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
+      ? {}
+      : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
+  })
 
   return (
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
@@ -702,7 +709,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
-            onChange={cambiarAfectacion}
+            onChange={(siguiente) => {
+              cambiarAfectacion(siguiente)
+              const sugerida = motivos.find((motivo) => motivo.nombre === siguiente.motivo)?.severidadSugerida ?? null
+              if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
+                setError(null)
+              }
+            }}
             disabled={enviando}
           />
         )}
@@ -754,16 +767,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
               {(['si', 'no'] as const).map((valor) => (
-                <label key={valor} className="opcion-radio opcion-radio--compacta">
-                  <input type="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} />
-                  <span>{valor === 'si' ? 'Sí' : 'No'}</span>
-                </label>
+                <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
               {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                <label key={modalidad} className="opcion-radio opcion-radio--compacta">
-                  <input type="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => setModalidadesAsistencia((actuales) => e.target.checked ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))} />
-                  <span>{modalidad}</span>
-                </label>
+                <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
+                  const marcada = e.currentTarget.checked
+                  setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
+                }} label={modalidad} compacta />
               ))}
             </fieldset>
 
@@ -784,11 +794,17 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             <p className="asistente__resumen-intro">
               Esto es lo que va a quedar informado. Revíselo antes de guardar.
             </p>
-            <ul className="asistente__resumen-lista">
-              {lineasResumen.map((linea) => (
-                <li key={linea}>{linea}</li>
+            <dl className="asistente__resumen-lista">
+              {lineasResumen.map((fila) => (
+                <div className="asistente__resumen-fila" key={fila.etiqueta}>
+                  <dt>{fila.etiqueta}</dt>
+                  <dd>
+                    {fila.valor}
+                    {fila.severidad ? <> · <EstadoActualSeveridad severidad={fila.severidad as Severidad} prefijo={false} /></> : null}
+                  </dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           </div>
         )}
       </section>
@@ -823,19 +839,21 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         ) : (
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
-          <Button key="guardar" type="submit" disabled={enviando}>
-            {enviando ? 'Guardando…' : 'Guardar reporte'}
+          <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Guardar parte'}
           </Button>
         )}
       </div>
         </>
       )}
       {estadoEnvio && (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
+          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={() => void reintentarRef.current()} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
       )}
       <ConfirmSheet
         open={confirmarDescarte}

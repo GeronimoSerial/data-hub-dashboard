@@ -1,7 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
@@ -24,8 +27,8 @@ export interface RecorridoActualizacionProps {
   motivos: MotivoRow[]
 }
 
-const MENSAJE_GUARDADO = 'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.'
-const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar la actualización. La información ingresada se mantiene para que pueda volver a intentar.'
+const MENSAJE_GUARDADO = 'Parte actualizado.'
+const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
 type Etapa = EtapaActualizacion | 'enviado'
@@ -80,19 +83,19 @@ function crearLineasResumen(situaciones: SituacionRecorrido[], recorrido: Estado
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
-    if (respuesta.tipo === 'sigue') lineas.push(`Sigue igual: ${situacion.motivo}`)
-    else if (respuesta.tipo === 'solucionada') lineas.push(`Se solucionó ${situacion.motivo} (${respuesta.solucionadaEn})`)
+    if (respuesta.tipo === 'sigue') lineas.push(`${situacion.motivo}: sin cambios`)
+    else if (respuesta.tipo === 'solucionada') lineas.push(`${situacion.motivo}: se solucionó (${respuesta.solucionadaEn})`)
     else {
       const datos: string[] = []
       if (respuesta.cambio.severidad) datos.push(`gravedad ${respuesta.cambio.severidad}`)
       if (respuesta.cambio.secciones) datos.push(`alcance actualizado`)
       if (respuesta.cambio.aspectos.includes('clases-edificio')) datos.push('cambiaron las clases o el edificio')
-      lineas.push(`Cambió ${situacion.motivo}: ${datos.join(', ')}`)
+      lineas.push(`${situacion.motivo}: ${datos.join(', ')}`)
     }
   }
   if (recorrido.nueva) {
     const causa = recorrido.nueva.causadaPorId ? situaciones.find((s) => s.id === recorrido.nueva?.causadaPorId)?.motivo : null
-    lineas.push(`Nuevo: ${recorrido.nueva.motivo}${causa ? ` (causado por ${causa})` : ''}`)
+    lineas.push(`Situación nueva: ${recorrido.nueva.motivo}${causa ? ` (causada por ${causa})` : ''}`)
   }
   return lineas
 }
@@ -143,12 +146,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const situaciones = useMemo(() => mapearSituaciones(datos), [datos])
   const ordenadas = useMemo(() => ordenarSituaciones(situaciones, datos.parte?.estadoEstablecimiento ?? 'habitual'), [situaciones, datos.parte?.estadoEstablecimiento])
   const claveBorrador = `parte-actualizar:draft:${cue}`
-  const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? null
+  const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? { brinda: false, modalidades: [] }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
   const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>(() => ({
-    brinda: asistenciaVigente ? (asistenciaVigente.brinda ? 'si' : 'no') : '',
-    modalidades: asistenciaVigente?.modalidades ?? [],
+    brinda: asistenciaVigente.brinda ? 'si' : 'no',
+    modalidades: asistenciaVigente.modalidades,
   }))
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorRecorridoActualizacion | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
@@ -157,6 +160,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [interaccionIniciada, setInteraccionIniciada] = useState(false)
   const generacionRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [situacionConError, setSituacionConError] = useState<string | null>(null)
   const [colaCascada, setColaCascada] = useState<Array<{ situacion: SituacionRecorrido; solucionadaEn: string }>>([])
   const [guardado, setGuardado] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -173,14 +177,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    const lineas = crearLineasResumen(situaciones, recorrido)
-    if (asistenciaCambiada && asistenciaSeleccionada) {
-      lineas.push(asistenciaSeleccionada.brinda
-        ? `Asistencia pedagógica: Sí, ${asistenciaSeleccionada.modalidades.join(' y ')}`
-        : 'Asistencia pedagógica: No se brinda')
-    }
-    return lineas
-  }, [situaciones, recorrido, asistenciaCambiada, asistenciaSeleccionada])
+    return crearLineasResumen(situaciones, recorrido)
+  }, [situaciones, recorrido])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -341,10 +339,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const pasoActual = typeof etapa === 'object' ? etapa.revisar : -1
     const situacionActual = ordenadas[pasoActual]
     if (situacionActual && !recorrido.respuestas[situacionActual.id]) {
-      setError('Indique cómo sigue cada situación antes de continuar.')
+      setError(null)
+      setSituacionConError(situacionActual.id)
       return
     }
     setError(null)
+    setSituacionConError(null)
     let indice = pasoActual + 1
     while (indice < ordenadas.length && recorrido.respuestas[ordenadas[indice].id]) indice += 1
     if (indice < ordenadas.length) {
@@ -352,7 +352,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       return
     }
     if (situacionesSinRespuesta(situaciones, recorrido).length > 0) {
-      setError('Indique cómo sigue cada situación antes de continuar.')
+      const faltante = ordenadas.find((situacion) => !recorrido.respuestas[situacion.id])
+      setSituacionConError(faltante?.id ?? null)
       return
     }
     moverEtapa('nuevo')
@@ -380,6 +381,22 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
+      {borradorPendiente ? (
+        <aside className="actualizacion-borrador" aria-label="Actualización guardada">
+          <p>Tiene una carga sin enviar.</p>
+          <div className="actualizacion-borrador__acciones">
+            <Button type="button" onClick={() => {
+              generacionRef.current = borradorPendiente.generacion
+              setEtapa(borradorPendiente.etapa)
+              setRecorrido(borradorPendiente.recorrido)
+              setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
+              setInteraccionIniciada(true)
+              setBorradorPendiente(null)
+            }}>Continuar</Button>
+            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
+          </div>
+        </aside>
+      ) : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -395,35 +412,27 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ) : null}
 
       {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
-      {borradorPendiente ? (
-        <aside className="estado-actual-aviso" aria-label="Actualización guardada">
-          <p>Tiene una actualización sin enviar. Puede continuar donde la dejó.</p>
-          <div className="asistente__acciones">
-            <Button type="button" onClick={() => {
-              generacionRef.current = borradorPendiente.generacion
-              setEtapa(borradorPendiente.etapa)
-              setRecorrido(borradorPendiente.recorrido)
-              setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
-              setInteraccionIniciada(true)
-              setBorradorPendiente(null)
-            }}>Continuar donde lo dejé</Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
-          </div>
-        </aside>
-      ) : null}
-
       {actual && typeof etapa === 'object' ? (
         <section>
+          <p className="recorrido-actualizacion__descripcion">Revise lo informado hasta ahora y agregue o corrija lo que cambió.</p>
           <RevisarSituacion
             key={actual.id}
             situacion={actual}
             turnos={turnos}
             sugerida={motivos.find((motivo) => motivo.nombre === actual.motivo)?.severidadSugerida ?? null}
             respuesta={recorrido.respuestas[actual.id]}
+            faltaRespuesta={situacionConError === actual.id}
+            onInteractuar={() => setSituacionConError(null)}
             consecuencias={consecuenciasActivas(situaciones, actual.id, recorrido)}
             clasesEdificio={clasesEdificio}
             onResponder={(respuesta) => {
-              setRecorrido((r) => responder(r, actual.id, respuesta))
+              setRecorrido((r) => {
+                if (respuesta) return responder(r, actual.id, respuesta)
+                const respuestas = { ...r.respuestas }
+                delete respuestas[actual.id]
+                return { ...r, respuestas }
+              })
+              setSituacionConError(null)
               setInteraccionIniciada(true)
               setError(null)
             }}
@@ -503,6 +512,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       {etapa === 'resumen' ? (
         <ResumenEnvio
           lineasResumen={lineasResumen}
+          asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}
           onCambiarAsistencia={(seleccion) => {
@@ -512,6 +522,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           }}
           estadoEnvio={estadoEnvio}
           motivoEnvio={motivoEnvio}
+          onRetry={() => reintentarRef.current()}
           error={error}
           onVolver={() => moverEtapa('nuevo')}
           onEnviar={() => void enviar()}
@@ -557,13 +568,13 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () => void }): JSX.Element {
   return (
     <div className="reporte-inicial__confirmacion" role="status">
-      <p>{MENSAJE_GUARDADO}</p>
+      <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
       <div className="reporte-inicial__confirmacion-acciones">
-        <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+        <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
           Volver al panel
-        </Button>
+        </a>
         <Button type="button" variant="secondary" onClick={onRecargar}>
-          Registrar otra novedad
+          Cargar otra situación
         </Button>
       </div>
     </div>
@@ -572,77 +583,87 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
 
 function ResumenEnvio({
   lineasResumen,
+  asistenciaVigente,
   asistenciaPedagogica,
   enviando,
   onCambiarAsistencia,
   estadoEnvio,
   motivoEnvio,
+  onRetry,
   error,
   onVolver,
   onEnviar,
 }: {
   lineasResumen: string[]
+  asistenciaVigente: 'Sí' | 'No'
   asistenciaPedagogica: AsistenciaSeleccionada
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
   estadoEnvio: EstadoEnvio | null
   motivoEnvio: string | null
+  onRetry: () => void
   error: string | null
   onVolver: () => void
   onEnviar: () => void
 }): JSX.Element {
   return (
-    <section className="reporte-inicial__seccion">
-      <h2>Cambios que se registrarán</h2>
-      <ul className="actualizacion-resumen__lista">
-        {lineasResumen.map((linea, indice) => <li key={indice}>{linea}</li>)}
-      </ul>
+    <section className="reporte-inicial__seccion actualizacion-resumen">
+      <h2>Resumen</h2>
+      <div className="actualizacion-resumen__lista">
+        {lineasResumen.map((linea, indice) => <p key={indice}>{linea}</p>)}
+      </div>
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
         <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
         {(['si', 'no'] as const).map((valor) => (
-          <label key={valor} className="opcion-radio opcion-radio--compacta" style={{ minHeight: 44 }}>
-            <input
-              type="radio"
+          <Opcion
+              key={valor}
+              tipo="radio"
               name="actualizacion-asistencia-pedagogica"
               checked={asistenciaPedagogica.brinda === valor}
               onChange={() => onCambiarAsistencia({
                 brinda: valor,
                 modalidades: valor === 'si' ? asistenciaPedagogica.modalidades : [],
               })}
-            />
-            <span>{valor === 'si' ? 'Sí' : 'No'}</span>
-          </label>
+              label={valor === 'si' ? 'Sí' : 'No'}
+              compacta
+          />
         ))}
         {asistenciaPedagogica.brinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-          <label key={modalidad} className="opcion-radio opcion-radio--compacta" style={{ minHeight: 44 }}>
-            <input
-              type="checkbox"
+          <Opcion
+              key={modalidad}
+              tipo="checkbox"
               checked={asistenciaPedagogica.modalidades.includes(modalidad)}
-              onChange={(evento) => onCambiarAsistencia({
+              onChange={(evento) => {
+                const marcada = evento.currentTarget.checked
+                onCambiarAsistencia({
                 brinda: 'si',
-                modalidades: evento.target.checked
+                modalidades: marcada
                   ? [...asistenciaPedagogica.modalidades, modalidad]
                   : asistenciaPedagogica.modalidades.filter((actual) => actual !== modalidad),
-              })}
+                })
+              }}
+              label={modalidad}
+              compacta
             />
-            <span>{modalidad}</span>
-          </label>
         ))}
+        <p className="actualizacion-resumen__vigente">Vigente: {asistenciaVigente}</p>
       </fieldset>
       {estadoEnvio ? (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
+          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={onRetry} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="actualizacion-resumen__acciones">
         <Button type="button" variant="secondary" onClick={onVolver} disabled={enviando}>
           Volver y corregir
         </Button>
-        <Button type="button" onClick={onEnviar} disabled={enviando}>
-          {enviando ? 'Enviando…' : 'Enviar'}
+        <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+          {enviando || estadoEnvio === 'enviando' ? 'Enviando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Enviar'}
         </Button>
       </div>
     </section>

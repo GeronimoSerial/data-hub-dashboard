@@ -13,7 +13,7 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
-  'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+  'Parte registrado.'
 
 function sembrarBorradorWizard({
   paso = 2,
@@ -58,8 +58,9 @@ function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 const volver = () => fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+const resumenConfirmacion = () => document.querySelector('.asistente__resumen-lista') as HTMLElement
 const confirmarCategoria = () =>
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
+  screen.queryByRole('dialog') && fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
 
 /** Paso 1: tipo de problema, motivo y severidad. */
 function completarQuePaso() {
@@ -100,7 +101,7 @@ function llegarAConfirmar() {
 
 function guardarReporte() {
   llegarAConfirmar()
-  fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+  fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
 }
 
 beforeEach(() => {
@@ -158,7 +159,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
     continuar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
     await waitFor(() => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
@@ -179,7 +180,7 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     continuar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const cuerpo = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ severidad: 'Crítica', justificacionCritica: 'se_prolonga' })
@@ -215,7 +216,7 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
     llegarAConfirmar()
     vi.setSystemTime(new Date('2026-10-04T18:10:00.000Z'))
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).rigeDesde).toBe('2026-10-04T18:10:00.000Z')
@@ -270,9 +271,19 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Elija el tipo de problema, el motivo y la severidad para continuar.',
+      'Elija el tipo de situación, el motivo y la severidad para continuar.',
     )
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+  })
+
+  it('limpia el mensaje del primer paso cuando completa tipo, motivo y severidad', () => {
+    renderFormulario()
+    continuar()
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el tipo de situación')
+
+    completarQuePaso()
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('no avanza del segundo paso sin secciones elegidas', () => {
@@ -284,7 +295,7 @@ describe('ReporteInicialForm', () => {
 
     continuar()
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Elija al menos una sección afectada para continuar.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija al menos una sección para esta situación.')
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
   })
 
@@ -372,7 +383,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cambiar a establecimiento' }))
 
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo de la situación del establecimiento.')
   })
 
   it('volver conserva lo ya cargado', () => {
@@ -393,8 +404,12 @@ describe('ReporteInicialForm', () => {
     llegarAConfirmar()
 
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
-    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
-    expect(screen.getByText('1 sección · 28 alumnos')).toBeInTheDocument()
+    const resumen = resumenConfirmacion()
+    expect(within(resumen).getByText('Situación')).toBeInTheDocument()
+    expect(within(resumen).getAllByRole('definition')[0]).toHaveTextContent(/Inundación.*Alta/)
+    expect(within(resumen).getByText('Afecta a')).toBeInTheDocument()
+    expect(within(resumen).getByText('1 sección · 28 alumnos')).toBeInTheDocument()
+    expect(within(resumen).queryByRole('list')).not.toBeInTheDocument()
   })
 
   // Se acabó el botón gris sin explicación: llegar al paso 4 ya exige los
@@ -402,16 +417,16 @@ describe('ReporteInicialForm', () => {
   it('el botón de guardar sólo existe en el último paso y llega habilitado', () => {
     renderFormulario()
 
-    expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /guardar parte/i })).toBeNull()
 
     llegarAConfirmar()
 
-    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
   })
 
   /*
     Regresión de un bug encontrado en el navegador, no en jsdom: React
-    reconciliaba "Continuar" y "Guardar reporte" como el MISMO nodo del DOM y
+    reconciliaba "Continuar" y "guardar parte" como el MISMO nodo del DOM y
     sólo le cambiaba el `type`. El click que avanzaba al paso 4 corría el
     handler, React reescribía type="submit" sobre ese mismo botón y recién
     entonces el navegador ejecutaba la acción por defecto del click — que ya
@@ -441,7 +456,7 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     continuar()
 
-    const guardar = screen.getByRole('button', { name: /guardar reporte/i })
+    const guardar = screen.getByRole('button', { name: /guardar parte/i })
     expect(guardar).not.toBe(continuarEnPaso3)
     expect(continuarEnPaso3.isConnected).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -524,18 +539,19 @@ describe('ReporteInicialForm', () => {
         MENSAJE_REPORTE_EXITOSO,
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /guardar reporte/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /guardar parte/i })).toBeNull()
   })
 
   // El reporte guardado no puede dejar al director en un callejón sin salida:
   // necesita una forma de volver y una de declarar un hecho distinto.
-  it('la confirmación ofrece volver al panel y registrar otra incidencia', async () => {
+  it('la confirmación ofrece volver al panel o cargar otra situación', async () => {
     stubFetch()
 
     renderFormulario()
     guardarReporte()
 
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
+    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
 
     const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
     expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
@@ -543,7 +559,7 @@ describe('ReporteInicialForm', () => {
     // No hay redirección automática: el mensaje y las acciones siguen ahí.
     expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
@@ -559,8 +575,8 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
-    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
+    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
   })
 
   it('un error de red deja el envío pendiente y conserva lo ingresado', async () => {
@@ -573,10 +589,10 @@ describe('ReporteInicialForm', () => {
 
     guardarReporte()
 
-    expect(
-      await screen.findByText(MENSAJES_ESTADO['pendiente-envio']),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
+    expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
   it('muestra Enviando… mientras se envía', async () => {
@@ -600,7 +616,9 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
     guardarReporte()
 
-    expect(await screen.findByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
     // Sin evento 'online': el temporizador dispara el reintento con backoff.
@@ -611,6 +629,23 @@ describe('ReporteInicialForm', () => {
     const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
     const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
     expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  it('el aviso de error permite reintentar de inmediato', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    guardarReporte()
+
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    expect(await screen.findByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
@@ -629,12 +664,12 @@ describe('ReporteInicialForm', () => {
       await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
     ).toBeInTheDocument()
     // No confirmó nada: el asistente sigue en pie con lo cargado.
-    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
+    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
 
     // Un reintento manual reutiliza la MISMA idempotencyKey: el cuerpo
     // inesperado no hizo que se acuñara una nueva.
-    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
     await screen.findByText(
       MENSAJE_REPORTE_EXITOSO,
     )
@@ -654,7 +689,7 @@ describe('ReporteInicialForm', () => {
 
     expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: /guardar reporte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
   })
 
   it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
@@ -664,7 +699,7 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
-    expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 })
 
@@ -712,7 +747,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo de la situación del establecimiento.')
   })
 
   it('descartar pide confirmación y arranca de cero', async () => {
@@ -777,14 +812,14 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
   })
 
-  it('"Registrar otra incidencia" limpia el borrador y no lo vuelve a escribir', async () => {
+  it('"Cargar otra situación" limpia el borrador y no lo vuelve a escribir', async () => {
     stubFetch()
 
     renderFormulario()
     guardarReporte()
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
 
-    fireEvent.click(screen.getByRole('button', { name: /registrar otra incidencia/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())

@@ -43,13 +43,19 @@ export async function listarSeccionesDeCues(
     const lote = unicos.slice(i, i + CUE_CHUNK_SIZE)
     const placeholders = lote.map(() => '?').join(',')
     const res = await client.execute({
-      sql: `SELECT ge_section_id, turno, cue_anexo FROM ge.ge_seccion WHERE corte_id = ? AND cue_anexo IN (${placeholders})`,
+      sql: `SELECT ge_section_id, curso, division, nivel, turno, cue_anexo FROM ge.ge_seccion WHERE corte_id = ? AND cue_anexo IN (${placeholders})`,
       args: [corteId, ...lote],
     })
     for (const r of res.rows) {
       const cueAnexo = String(r.cue_anexo)
       const lista = resultado.get(cueAnexo) ?? []
-      lista.push({ geSectionId: Number(r.ge_section_id), turno: String(r.turno) })
+      lista.push({
+        geSectionId: Number(r.ge_section_id),
+        curso: String(r.curso ?? ''),
+        division: String(r.division ?? ''),
+        nivel: String(r.nivel ?? ''),
+        turno: String(r.turno),
+      })
       resultado.set(cueAnexo, lista)
     }
   }

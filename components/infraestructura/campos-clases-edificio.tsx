@@ -3,6 +3,7 @@
 import { useState, type JSX } from 'react'
 import { ETIQUETA_CLASES, ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { Opcion } from '@/components/ui/opcion'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 
 export interface ValorClasesEdificio {
@@ -47,17 +48,17 @@ export function CamposClasesEdificio({
         <legend className="afectacion-campos__legend">¿Hay clases?</legend>
         <div className="afectacion-campos__opciones">
           {(['normal', 'suspendido'] as const).map((estado) => (
-            <label key={estado} className="opcion-radio opcion-radio--compacta">
-              <input
-                type="radio"
+            <Opcion
+                key={estado}
+                tipo="radio"
                 name="servicio-educativo"
                 value={estado}
                 checked={valor.servicioEstado === estado}
                 onChange={() => onCambiar({ ...valor, servicioEstado: estado })}
                 disabled={disabled || evacuado}
+                label={ETIQUETA_CLASES[estado]}
+                compacta
               />
-              <span className="opcion-radio__titulo">{ETIQUETA_CLASES[estado]}</span>
-            </label>
           ))}
         </div>
         {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
@@ -67,17 +68,17 @@ export function CamposClasesEdificio({
         <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
         <div className="afectacion-campos__opciones">
           {(Object.keys(ETIQUETA_ESTABLECIMIENTO) as EstadoEstablecimiento[]).map((estado) => (
-            <label key={estado} className="opcion-radio opcion-radio--compacta">
-              <input
-                type="radio"
+            <Opcion
+                key={estado}
+                tipo="radio"
                 name="estado-establecimiento"
                 value={estado}
                 checked={valor.estadoEstablecimiento === estado}
                 onChange={() => elegirEdificio(estado)}
                 disabled={disabled}
+                label={ETIQUETA_ESTABLECIMIENTO[estado]}
+                compacta
               />
-              <span className="opcion-radio__titulo">{ETIQUETA_ESTABLECIMIENTO[estado]}</span>
-            </label>
           ))}
         </div>
       </fieldset>

@@ -69,8 +69,8 @@ describe('SeccionesSelector', () => {
   it('renderiza cada sección con su curso, división y matrícula', () => {
     renderSelector()
 
-    expect(screen.getByText(textoConComillasNormalizadas('1° "A" — 28 alumnos'))).toBeInTheDocument()
-    expect(screen.getByText(textoConComillasNormalizadas('4° "A" — 30 alumnos'))).toBeInTheDocument()
+    expect(screen.getByText(textoConComillasNormalizadas('1° "A" · 28 alumnos'))).toBeInTheDocument()
+    expect(screen.getByText(textoConComillasNormalizadas('4° "A" · 30 alumnos'))).toBeInTheDocument()
   })
 
   it('agrega una sección a la selección al tildarla', async () => {
@@ -137,11 +137,33 @@ describe('SeccionesSelector', () => {
       )
     })
 
+    it('muestra contadores por turno y sección', async () => {
+      const { user } = renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10] })
+      expect(screen.getByRole('heading', { name: 'Mañana · 1 de 1 secciones' })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Primario · 1 de 1' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Elegir alumnos (2 de 2)' })).toBeInTheDocument()
+    })
+
+    it('busca alumnos cuando una sección tiene más de diez', async () => {
+      const alumnos = Array.from({ length: 11 }, (_, indice) => ({
+        gePersonId: 100 + indice,
+        apellido: indice === 10 ? 'Zárate' : `Apellido${indice}`,
+        nombre: `Nombre${indice}`,
+      }))
+      const { user } = renderSelector({
+        turnos: [{ ...turnosConAlumnos[0], niveles: [{ ...turnosConAlumnos[0].niveles[0], secciones: [{ ...turnosConAlumnos[0].niveles[0].secciones[0], alumnos }] }] }],
+      })
+      await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
+      await user.type(screen.getByRole('searchbox', { name: /buscar alumnos/i }), 'Zárate')
+      expect(screen.getByRole('checkbox', { name: 'Zárate, Nombre10' })).toBeInTheDocument()
+      expect(screen.queryByRole('checkbox', { name: 'Apellido0, Nombre0' })).not.toBeInTheDocument()
+    })
+
     it('arranca desplegada si la sección ya trae alumnos elegidos explícitamente', () => {
       renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], alumnosSeleccionados: [2] })
 
       expect(screen.getByRole('checkbox', { name: /Pérez, Luis/ })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /ocultar alumnos/i })).toHaveAttribute(
+      expect(screen.getByRole('button', { name: /elegir alumnos/i })).toHaveAttribute(
         'aria-expanded',
         'true',
       )
@@ -154,12 +176,12 @@ describe('SeccionesSelector', () => {
         alumnosSeleccionados: [2],
       })
 
-      await user.click(screen.getByRole('button', { name: /ocultar alumnos/i }))
+      await user.click(screen.getByRole('button', { name: /elegir alumnos/i }))
 
       expect(screen.queryByRole('checkbox', { name: /Pérez, Luis/ })).not.toBeInTheDocument()
       expect(onCambiar).not.toHaveBeenCalled()
       // Plegar no puede esconder que la sección quedó parcial.
-      expect(screen.getByRole('checkbox', { name: /1°/ })).toHaveAttribute('data-indeterminate')
+      expect(screen.getByRole('checkbox', { name: /1°/ })).toBePartiallyChecked()
     })
 
     it('no ofrece desplegar cuando la sección no tiene identidades cargadas', () => {
@@ -189,8 +211,8 @@ describe('SeccionesSelector', () => {
       renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], alumnosSeleccionados: [2] })
 
       const checkboxSeccion = screen.getByRole('checkbox', { name: /1°/ })
-      expect(checkboxSeccion).toHaveAttribute('data-indeterminate')
-      expect(checkboxSeccion).not.toHaveAttribute('data-checked')
+      expect(checkboxSeccion).toBePartiallyChecked()
+      expect(checkboxSeccion).not.toBeChecked()
     })
 
     it('destildar el único alumno restante de una selección parcial saca la sección entera', async () => {
@@ -262,8 +284,8 @@ describe('SeccionesSelector', () => {
       renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10], permiteAlumnos: false })
 
       const checkboxSeccion = screen.getByRole('checkbox', { name: /1°/ })
-      expect(checkboxSeccion).not.toHaveAttribute('data-indeterminate')
-      expect(checkboxSeccion).toHaveAttribute('data-checked')
+      expect(checkboxSeccion).not.toBePartiallyChecked()
+      expect(checkboxSeccion).toBeChecked()
     })
   })
 })

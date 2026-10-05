@@ -22,7 +22,7 @@ describe('EntradaActualizar', () => {
         onActualizar={() => {}}
       />,
     )
-    expect(screen.getByText(/Su última carga/)).toHaveTextContent('10:42')
+    expect(screen.getByText(/Su última carga/)).toHaveTextContent('4 de octubre, 10:42')
     const principal = screen.getByRole('region', { name: 'Situación principal' })
     expect(within(principal).getByText('Evacuación preventiva')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'También activas' })).getByText('Sin energía o agua')).toBeInTheDocument()
@@ -31,7 +31,7 @@ describe('EntradaActualizar', () => {
   it('el botón principal inicia el recorrido', () => {
     const onActualizar = vi.fn()
     render(<EntradaActualizar situaciones={situaciones} estadoEstablecimiento="habitual" estadoServicio="normal" ultimaCarga={null} historial={[]} onActualizar={onActualizar} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar el parte' }))
     expect(onActualizar).toHaveBeenCalled()
   })
 })

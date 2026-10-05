@@ -31,12 +31,14 @@ export interface EstadoActualSeveridadProps {
    * única señal no-basada-en-color de qué severidad se está mostrando.
    */
   marca?: boolean
+  sugerida?: boolean
 }
 
 export function EstadoActualSeveridad({
   severidad,
   prefijo = true,
   marca = true,
+  sugerida = false,
 }: EstadoActualSeveridadProps): JSX.Element {
   const forma = FORMA_POR_SEVERIDAD[severidad] ?? 'circulo'
   return (
@@ -51,6 +53,7 @@ export function EstadoActualSeveridad({
       <span className="estado-actual-severidad__texto">
         {prefijo ? `Severidad ${severidad}` : severidad}
       </span>
+      {sugerida ? <span className="badge-sugerido" aria-hidden="true">Sugerido</span> : null}
     </span>
   )
 }

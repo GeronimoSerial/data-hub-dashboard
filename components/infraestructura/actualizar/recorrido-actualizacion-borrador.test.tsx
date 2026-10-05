@@ -31,16 +31,16 @@ function stub(ids = ['a', 'b']) {
 }
 function montar() { return render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
 async function empezarYResponderPrimera() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
 }
 async function irAlResumen() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   for (let i = 0; i < 2; i++) {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks() })
 
@@ -49,7 +49,8 @@ describe('RecorridoActualizacion: borrador local', () => {
     stub(); montar(); await empezarYResponderPrimera()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(CLAVE) ?? '{}')).toMatchObject({ etapa: { revisar: 0 }, recorrido: { respuestas: { b: { tipo: 'sigue' } } }, idsSituaciones: ['a', 'b'] }))
     cleanup(); montar()
-    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    expect(await screen.findByText('Tiene una carga sin enviar.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
     expect(await screen.findByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sigue igual' })).toBeChecked()
   })
@@ -57,7 +58,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('avisa y empieza limpio si la forma del borrador es inválida', async () => {
     stub(); localStorage.setItem(CLAVE, '{"paso":"resumen"}'); montar()
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo recuperar la actualización guardada. Empezará una nueva.')
-    expect(screen.queryByRole('button', { name: 'Continuar donde lo dejé' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument()
   })
 
   it('avisa y descarta el borrador si cambiaron las situaciones activas', async () => {
@@ -73,27 +74,27 @@ describe('RecorridoActualizacion: borrador local', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(screen.getByRole('button', { name: 'Continuar donde lo dejé' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument()
     expect(localStorage.getItem(CLAVE)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Descartar actualización' }))
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
   })
 
-  it('limpia la clave tras guardar con éxito y al registrar otra novedad', async () => {
+  it('limpia la clave tras guardar con éxito y al cargar otra situación', async () => {
     stub(); montar(); await irAlResumen()
     await waitFor(() => expect(localStorage.getItem(CLAVE)).not.toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
-    await screen.findByText(/La actualización fue registrada/)
+    await screen.findByText('Parte actualizado.')
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar otra novedad' }))
-    await screen.findByRole('button', { name: 'Actualizar situación' })
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(localStorage.getItem(CLAVE)).toBeNull()
   })
 
   it('al volver con el historial del navegador desde resumen conserva las respuestas', async () => {
     stub(); montar(); await irAlResumen()
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
-    expect(await screen.findByRole('radio', { name: 'No, nada nuevo' })).toBeInTheDocument()
+    expect(await screen.findByRole('radio', { name: 'No, no hay una situación nueva' })).toBeInTheDocument()
   })
 })
