@@ -8,8 +8,8 @@ import { AlgoNuevo } from './algo-nuevo'
 afterEach(cleanup)
 
 const candidatasCausa = [
-  { id: 'reciente', motivo: 'Tormenta severa', fecha: '04/10/2026', activa: false },
-  { id: 'situacion-1', motivo: 'Inundación', fecha: '03/10/2026', activa: true },
+  { id: 'reciente', motivo: 'Tormenta severa', fecha: '2026-10-04T08:10:00.000Z', activa: false },
+  { id: 'situacion-1', motivo: 'Inundación', fecha: '2026-10-03T10:00:00.000Z', activa: true },
 ]
 
 const situacionActiva: SituacionRecorrido = {
@@ -43,7 +43,7 @@ function renderAlgo(overrides: Partial<React.ComponentProps<typeof AlgoNuevo>> =
 }
 
 function entrarDatosIndependiente() {
-  fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
   fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
   fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 }
@@ -55,22 +55,28 @@ function elegirCategoria(nombre: string) {
 }
 
 describe('AlgoNuevo', () => {
-  it('“No, no hay una situación nueva” termina sin agregar una situación', () => {
+  it('la pregunta de situación nueva usa un título propio y opciones breves', () => {
+    renderAlgo()
+    expect(screen.getByText('Otra situación')).toBeInTheDocument()
+    expect(screen.queryByText('Agregue una situación nueva si la hay.')).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' })).toBeInTheDocument()
+  })
+
+  it('“No” termina sin agregar una situación', () => {
     const callbacks = renderAlgo()
-    fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
     expect(callbacks.onTerminar).toHaveBeenCalledWith(null)
   })
 
   it('pregunta la causa con situaciones activas primero y exige elegir antes de seguir', () => {
     renderAlgo()
-    expect(screen.getByText('Agregue una situación nueva si la hay.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
-    expect(screen.queryByText('Agregue una situación nueva si la hay.')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
     expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
     const opciones = within(screen.getByRole('group', { name: '¿Es consecuencia de algo anterior?' })).getAllByRole('radio')
     expect(opciones.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
-      'De Inundación (3 de octubre)',
-      'De Tormenta severa (4 de octubre)',
+      'De Inundación (3 de octubre, 07:00)',
+      'De Tormenta severa (4 de octubre, 05:10)',
       'No, es independiente',
     ])
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
@@ -139,8 +145,8 @@ describe('AlgoNuevo', () => {
 
   it('“Listo” envía la nueva situación completa con la causa elegida', () => {
     const callbacks = renderAlgo()
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (3 de octubre)' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (3 de octubre, 07:00)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoria('Afecta al establecimiento')
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
@@ -161,7 +167,7 @@ describe('AlgoNuevo', () => {
     elegirCategoria('Inaccesibilidad de alumnos')
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Baja' }))
-    fireEvent.click(screen.getByRole('button', { name: /elegir alumnos.*1° "A"/i }))
+    fireEvent.click(screen.getByRole('button', { name: /1° "A".*elegir alumnos/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'García, Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     expect(callbacks.onTerminar).toHaveBeenCalledWith({

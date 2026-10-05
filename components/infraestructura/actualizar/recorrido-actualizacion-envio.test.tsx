@@ -61,7 +61,7 @@ async function prepararResumen() {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
 async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }

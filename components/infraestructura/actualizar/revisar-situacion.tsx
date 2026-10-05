@@ -198,6 +198,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
             value={cuando}
             onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}
             label="¿Cuándo se solucionó?"
+            etiquetaMomento="Se solucionó"
             error={p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null}
           />
         </div>

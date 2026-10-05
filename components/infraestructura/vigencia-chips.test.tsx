@@ -7,9 +7,9 @@ import { VigenciaChips } from './vigencia-chips'
 
 afterEach(cleanup)
 
-function Controlado({ label = '¿Desde cuándo ocurre?' }: { label?: string }) {
+function Controlado({ label = '¿Desde cuándo ocurre?', etiquetaMomento }: { label?: string; etiquetaMomento?: string }) {
   const [v, setV] = useState<EleccionVigencia>({ modo: 'ahora' })
-  return <VigenciaChips value={v} onChange={setV} label={label} />
+  return <VigenciaChips value={v} onChange={setV} label={label} etiquetaMomento={etiquetaMomento} />
 }
 
 describe('VigenciaChips', () => {
@@ -21,6 +21,20 @@ describe('VigenciaChips', () => {
     expect(within(opciones).getAllByRole('radio')).toHaveLength(3)
     expect(screen.queryByLabelText('Hora')).not.toBeInTheDocument()
     expect(screen.getByText('Desde ahora')).toBeInTheDocument()
+  })
+
+  it('permite usar el verbo de una situación solucionada y quita el borde inferior', () => {
+    render(<Controlado label="¿Cuándo se solucionó?" etiquetaMomento="Se solucionó" />)
+    const resumen = screen.getByText('Se solucionó ahora')
+    expect(resumen).toHaveClass('vigencia-chips__resumen--solucionada')
+  })
+
+  it('describe la hora y la fecha con el verbo elegido', () => {
+    render(<VigenciaChips value={{ modo: 'hoy', hora: '05:14' }} onChange={() => {}} label="Solución" etiquetaMomento="Se solucionó" />)
+    expect(screen.getByText('Se solucionó hoy a las 05:14')).toBeInTheDocument()
+    cleanup()
+    render(<VigenciaChips value={{ modo: 'otro', fecha: '2026-10-04', hora: '05:14' }} onChange={() => {}} label="Solución" etiquetaMomento="Se solucionó" />)
+    expect(screen.getByText('Se solucionó el dom 04/10 a las 05:14')).toBeInTheDocument()
   })
 
   it('"Hoy, más temprano" muestra sólo la hora', () => {

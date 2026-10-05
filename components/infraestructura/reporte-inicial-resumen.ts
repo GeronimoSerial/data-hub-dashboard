@@ -89,8 +89,8 @@ export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
 
   if (servicio) {
     const valor = describirAlcanceServicio(servicio)
-      .replace(/^Funcionamiento escolar normal$/, 'Con normalidad')
-      .replace(/^Funcionamiento escolar interrumpido/, 'Suspendidas')
+      .replace(/^Funcionamiento habitual$/, 'Con normalidad')
+      .replace(/^Funcionamiento interrumpido/, 'Suspendidas')
     lineas.push({ etiqueta: 'Clases', valor })
   }
   if (estadoEstablecimiento !== '') lineas.push({ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento] })

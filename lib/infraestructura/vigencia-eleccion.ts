@@ -60,12 +60,12 @@ export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date
   return MENSAJE_FUERA_DE_RANGO_VIGENCIA
 }
 
-export function resumenVigencia(eleccion: EleccionVigencia): string {
-  if (eleccion.modo === 'ahora') return 'Desde ahora'
-  if (eleccion.modo === 'hoy') return eleccion.hora ? `Desde hoy a las ${eleccion.hora}` : 'Elija la hora'
+export function resumenVigencia(eleccion: EleccionVigencia, etiquetaMomento = 'Desde'): string {
+  if (eleccion.modo === 'ahora') return `${etiquetaMomento} ahora`
+  if (eleccion.modo === 'hoy') return eleccion.hora ? `${etiquetaMomento} hoy a las ${eleccion.hora}` : 'Elija la hora'
   const fecha = fechaLocal(eleccion.fecha)
   if (!fecha || !eleccion.hora) return 'Elija la fecha y la hora'
-  return `Desde el ${DIAS[fecha.getDay()]} ${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)} a las ${eleccion.hora}`
+  return `${etiquetaMomento} el ${DIAS[fecha.getDay()]} ${pad(fecha.getDate())}/${pad(fecha.getMonth() + 1)} a las ${eleccion.hora}`
 }
 
 export function etiquetaVigencia(categoria: CategoriaAfectacion | ''): string {

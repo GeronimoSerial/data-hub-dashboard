@@ -10,6 +10,7 @@ import { EntradaActualizar } from '@/components/infraestructura/actualizar/entra
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
 import { AlgoNuevo } from '@/components/infraestructura/actualizar/algo-nuevo'
 import { MENSAJE_ACCESO_VENCIDO, MENSAJE_ERROR_LECTURA, MENSAJE_SIN_CORTE, MENSAJE_SIN_SITUACION, type EstadoActualRespuesta } from '@/components/infraestructura/estado-actual-textos'
+import { formatearMomento, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/components/infraestructura/verificacion-vinculo'
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
@@ -19,6 +20,7 @@ import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoR
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
+import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
 export interface RecorridoActualizacionProps {
@@ -78,32 +80,78 @@ function mapearSituaciones(datos: EstadoActualRespuesta): SituacionConAlcance[] 
   }))
 }
 
-function crearLineasResumen(situaciones: SituacionRecorrido[], recorrido: EstadoRecorrido): string[] {
-  const lineas: string[] = []
+interface FilaResumenActualizacion { etiqueta: string; valor: string }
+interface BloqueResumenActualizacion { titulo: string; filas: FilaResumenActualizacion[] }
+
+function contarAlumnos(secciones: number[], turnos: TurnoContexto[]): number {
+  const seleccionadas = new Set(secciones)
+  return turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
+    .filter((seccion) => seleccionadas.has(seccion.geSectionId))
+    .reduce((total, seccion) => total + seccion.matricula, 0)
+}
+
+function etiquetaServicio(estado: EstadoServicioGeneral | 'normal' | 'suspendido'): string {
+  if (estado === 'normal') return 'habitual'
+  if (estado === 'parcial') return 'parcial'
+  return 'interrumpido'
+}
+
+function detalleAlcance(secciones: number[], alumnos: number): string {
+  return resumirAlcance({ secciones: secciones.length, alumnos })
+}
+
+function crearLineasResumen(
+  situaciones: SituacionConAlcance[],
+  recorrido: EstadoRecorrido,
+  turnos: TurnoContexto[],
+  estadoServicio: EstadoServicioGeneral,
+): BloqueResumenActualizacion[] {
+  const bloques: BloqueResumenActualizacion[] = []
+  const sinCambios: string[] = []
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
-    if (respuesta.tipo === 'sigue') lineas.push(`${situacion.motivo}: sin cambios`)
-    else if (respuesta.tipo === 'solucionada') lineas.push(`${situacion.motivo}: se solucionó (${respuesta.solucionadaEn})`)
-    else {
-      const datos: string[] = []
-      if (respuesta.cambio.severidad) datos.push(`gravedad ${respuesta.cambio.severidad}`)
-      if (respuesta.cambio.secciones) datos.push(`alcance actualizado`)
-      if (respuesta.cambio.aspectos.includes('clases-edificio')) datos.push('cambiaron las clases o el edificio')
-      lineas.push(`${situacion.motivo}: ${datos.join(', ')}`)
+    if (respuesta.tipo === 'sigue') {
+      sinCambios.push(situacion.motivo)
+      continue
     }
-  }
-  if (recorrido.nueva) {
-    const causa = recorrido.nueva.causadaPorId ? situaciones.find((s) => s.id === recorrido.nueva?.causadaPorId)?.motivo : null
-    lineas.push(`Situación nueva: ${recorrido.nueva.motivo}${causa ? ` (causada por ${causa})` : ''}`)
-  }
-  return lineas
-}
+    if (respuesta.tipo === 'solucionada') {
+      const momento = formatearMomento(respuesta.solucionadaEn)
+      const fecha = momento && momento !== respuesta.solucionadaEn ? momento : 'fecha no disponible'
+      bloques.push({ titulo: situacion.motivo, filas: [{ etiqueta: 'Estado', valor: `Se solucionó · ${fecha}` }] })
+      continue
+    }
 
-function fechaCorta(iso: string): string {
-  const fecha = new Date(iso)
-  if (!Number.isFinite(fecha.getTime())) return iso
-  return new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', day: '2-digit', month: '2-digit', year: 'numeric' }).format(fecha)
+    const filas: FilaResumenActualizacion[] = []
+    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (respuesta.cambio.secciones) {
+      const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
+      filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
+    }
+    if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
+      filas.push({ etiqueta: 'Clases', valor: `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
+    }
+    if (filas.length) bloques.push({ titulo: situacion.motivo, filas })
+  }
+  if (sinCambios.length) bloques.push({ titulo: 'Sin cambios', filas: [{ etiqueta: 'Situaciones', valor: sinCambios.join(', ') }] })
+  if (recorrido.nueva) {
+    const nueva = recorrido.nueva
+    const todasLasSecciones = turnos.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
+    const cantidadAlumnos = nueva.alumnos?.length ?? contarAlumnos(nueva.secciones, turnos)
+    const alcance = detalleAlcance(nueva.secciones, cantidadAlumnos)
+    const todaLaEscuela = !nueva.alumnos && todasLasSecciones.length > 0 && nueva.secciones.length === todasLasSecciones.length
+    const prefijoAlcance = nueva.alumnos ? 'Algunos alumnos' : todaLaEscuela ? 'Toda la escuela' : ''
+    const valor = `${nueva.motivo} · ${nueva.severidad} · ${prefijoAlcance ? `${prefijoAlcance} (${alcance})` : alcance}`
+    const causa = nueva.causadaPorId ? situaciones.find((situacion) => situacion.id === nueva.causadaPorId)?.motivo : null
+    bloques.push({
+      titulo: 'Situación nueva',
+      filas: [
+        { etiqueta: 'Detalle', valor: causa ? `${valor} · Consecuencia de ${causa}` : valor },
+        ...(nueva.descripcion ? [{ etiqueta: 'Descripción', valor: nueva.descripcion }] : []),
+      ],
+    })
+  }
+  return bloques
 }
 
 export function RecorridoActualizacion({ cue, turnos, motivos }: RecorridoActualizacionProps): JSX.Element {
@@ -171,14 +219,14 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const reintentarRef = useRef<() => void>(() => {})
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
-    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({ id: s.id, motivo: s.motivo, fecha: fechaCorta(s.rigeDesde), activa: true })),
-    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: fechaCorta(s.retiradaEn), activa: false })),
+    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.rigeDesde, activa: true })),
+    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false })),
   ], [situaciones, recorrido.respuestas, datos.recientes])
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    return crearLineasResumen(situaciones, recorrido)
-  }, [situaciones, recorrido])
+    return crearLineasResumen(situaciones, recorrido, turnos, datos.servicio?.estadoGeneral ?? 'normal')
+  }, [situaciones, recorrido, turnos, datos.servicio?.estadoGeneral])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -596,7 +644,7 @@ function ResumenEnvio({
   onVolver,
   onEnviar,
 }: {
-  lineasResumen: string[]
+  lineasResumen: BloqueResumenActualizacion[]
   asistenciaVigente: 'Sí' | 'No'
   asistenciaPedagogica: AsistenciaSeleccionada
   enviando: boolean
@@ -610,9 +658,22 @@ function ResumenEnvio({
 }): JSX.Element {
   return (
     <section className="reporte-inicial__seccion actualizacion-resumen">
-      <h2>Resumen</h2>
+      <h2>Confirmar</h2>
+      <p className="asistente__resumen-intro">Esto es lo que va a quedar informado. Revíselo antes de guardar.</p>
       <div className="actualizacion-resumen__lista">
-        {lineasResumen.map((linea, indice) => <p key={indice}>{linea}</p>)}
+        {lineasResumen.map((bloque) => (
+          <section key={bloque.titulo} className="actualizacion-resumen__bloque">
+            <h3>{bloque.titulo}</h3>
+            <dl>
+              {bloque.filas.map((fila) => (
+                <div key={`${fila.etiqueta}-${fila.valor}`} className="actualizacion-resumen__fila">
+                  <dt>{fila.etiqueta}</dt>
+                  <dd>{fila.valor}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
       </div>
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
         <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
@@ -648,7 +709,7 @@ function ResumenEnvio({
               compacta
             />
         ))}
-        <p className="actualizacion-resumen__vigente">Vigente: {asistenciaVigente}</p>
+        <p className="actualizacion-resumen__vigente">Actualmente: {asistenciaVigente}</p>
       </fieldset>
       {estadoEnvio && estadoEnvio !== 'enviando' ? (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
