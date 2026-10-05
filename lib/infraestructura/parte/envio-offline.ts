@@ -388,7 +388,9 @@ async function completarEnvio<T>(
   const cuerpo = opciones.construirCuerpo(datos, idempotencyKey)
   let respuesta: Response
   try {
-    respuesta = await opciones.fetchImpl(opciones.url, {
+    const fetchImpl = opciones.fetchImpl
+    // Browser fetch requires `this` to be undefined or window.
+    respuesta = await fetchImpl(opciones.url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cuerpo),

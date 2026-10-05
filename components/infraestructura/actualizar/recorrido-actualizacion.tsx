@@ -239,7 +239,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     return {
       tipo: 'actualizacion',
       cue,
-      fetchImpl: fetch,
+      fetchImpl: (input, init) => fetch(input, init),
       url: '/api/problematicas/parte',
       construirCuerpo: (datosEnvio, idempotencyKey) => {
         const vinculo = leerVinculoVerificacion()
