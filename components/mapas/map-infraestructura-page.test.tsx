@@ -107,12 +107,6 @@ vi.mock('@/components/infraestructura/historial-parte-modal', () => ({
     ) : null,
 }))
 
-vi.mock('@/components/infraestructura/lista-alertas', () => ({
-  ListaAlertas: (props: { partes: ParteMapa[] }): JSX.Element => (
-    <div data-testid="mock-lista-alertas" data-cues={props.partes.map((parte) => parte.cueAnexo).join(',')} />
-  ),
-}))
-
 vi.mock('@/lib/map-worker', () => ({ ensureMapWorker: () => {} }))
 
 // Objeto ESTABLE (misma identidad en cada llamada al hook): el componente
@@ -563,7 +557,7 @@ async function renderMapa(props: OpcionesRenderMapa) {
 }
 
 describe('MapInfraestructuraPage — filtros de padrón', () => {
-  it('omite de la lista las alertas de escuelas fuera del padrón filtrado', async () => {
+  it('muestra el vacío cuando el padrón filtrado no tiene reportes', async () => {
     await renderMapa({
       mostrarEnlaceNominal: true,
       escuelasMapa: {
@@ -571,7 +565,7 @@ describe('MapInfraestructuraPage — filtros de padrón', () => {
         escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.filter((escuela) => escuela.cueAnexo === CUE_SIN_AFECTACION),
       },
     })
-    expect(screen.getByTestId('mock-lista-alertas')).toHaveAttribute('data-cues', '')
+    expect(screen.getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
 })
@@ -607,10 +601,8 @@ function viewport(ancho: number, alto: number) {
 }
 
 // Detecta el popup de clic del departamento ("En <depto> hay N escuelas · …").
-// No alcanza con buscar "escuelas ·": el indicador de totales permanente
-// (`infra-totales-indicador`) y el popup de cluster imprimen un resumen igual, así
-// que se ancla en la fórmula propia del popup de departamento para no dar por
-// presente un texto que siempre lo está.
+// Se ancla en la fórmula propia del popup de departamento para no confundirlo
+// con los textos del panel lateral o del popup de cluster.
 // Se usa como matcher de texto de Testing Library, que la invoca como
 // `(contenido, elemento)`: el segundo parámetro es el que lleva el tag. Por eso
 // el primero se descarta con `_`.
@@ -666,7 +658,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
       await renderMapa({ mostrarEnlaceNominal: true })
       await userEvent.click(screen.getByTestId('mock-click-departamento'))
       expect(screen.getByText('Departamento:')).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Capital' })).toBeInTheDocument()
+      expect(screen.getByText('Departamento:').parentElement).toHaveTextContent('Capital')
       await userEvent.click(screen.getByText('Quitar filtro'))
       expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
     },
@@ -734,10 +726,10 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
   it('cerrar cualquiera de los tres modales no toca los filtros ni las capas visibles', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    // Estado previo: se activa la capa "sin reportar", apagada por defecto.
-    const capaSinReportar = screen.getByRole('checkbox', { name: /sin novedades hace más de 72 h/i })
-    await userEvent.click(capaSinReportar)
-    expect(capaSinReportar).toBeChecked()
+    // Estado previo: se activa el padrón completo, apagado por defecto.
+    const capaPadron = screen.getByRole('checkbox', { name: 'Todas las escuelas' })
+    await userEvent.click(capaPadron)
+    expect(capaPadron).toBeChecked()
 
     await userEvent.click(screen.getByTestId('mock-click-parte'))
     await userEvent.click(await screen.findByText('abrir-nominal-desde-ficha'))
@@ -752,7 +744,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     await cerrarFicha()
 
     // La capa que se activó antes de abrir los modales sigue activa.
-    expect(screen.getByRole('checkbox', { name: /sin novedades hace más de 72 h/i })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Todas las escuelas' })).toBeChecked()
   })
 })
 
@@ -1019,29 +1011,29 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
   })
 })
 
-describe('M2: capa de padrón apagada por defecto', () => {
-  it('el indicador de totales cuenta las escuelas del padrón que recibe el mapa', async () => {
+describe('M2: panel de situación actual con padrón', () => {
+  it('muestra los indicadores del padrón y sus reportes', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    const indicador = screen.getByTestId('infra-totales-indicador')
-    expect(indicador).toHaveTextContent(/2 escuelas/)
-    expect(indicador).toHaveTextContent(/1 afectadas/)
-    expect(indicador).toHaveTextContent(/50%/)
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByText('Situación actual')).toBeInTheDocument()
+    expect(within(panel).getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('1')
+    expect(within(panel).getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
+    expect(within(panel).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
   })
 
-  it('actualiza los totales cuando recibe el padrón filtrado', async () => {
+  it('actualiza el panel cuando recibe el padrón filtrado', async () => {
     const escuelasFiltradas = {
       ...FIXTURE_ESCUELAS_MAPA,
-      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.filter((escuela) => escuela.estado === 'afectada'),
+      escuelas: [],
     }
     const { rerender } = await renderMapa({ mostrarEnlaceNominal: true })
 
     rerender({ escuelasMapa: escuelasFiltradas })
 
-    const indicador = screen.getByTestId('infra-totales-indicador')
-    expect(indicador).toHaveTextContent(/1 escuelas/)
-    expect(indicador).toHaveTextContent(/1 afectadas/)
-    expect(indicador).toHaveTextContent(/100%/)
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('0')
+    expect(within(panel).getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
 
@@ -1052,17 +1044,14 @@ describe('M2: capa de padrón apagada por defecto', () => {
     expect(checkbox).not.toBeChecked()
   })
 
-  it('tildar la casilla no hace desaparecer el indicador de totales', async () => {
+  it('tildar la casilla mantiene visible el panel de situación actual', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    const antes = screen.getByTestId('infra-totales-indicador').textContent
     await userEvent.click(
       screen.getByRole('checkbox', { name: /todas las escuelas/i }),
     )
 
-    const despues = screen.getByTestId('infra-totales-indicador')
-    expect(despues).toBeInTheDocument()
-    expect(despues.textContent).toBe(antes)
+    expect(screen.getByText('Situación actual')).toBeInTheDocument()
   })
 })
 
@@ -1226,25 +1215,19 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
   })
 
-  it('elegir una escuela en el buscador cierra el cajón izquierdo', async () => {
+  it('mantiene visible la columna izquierda y permite seleccionar una escuela', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     const cajon = document.getElementById('infra-left-stack')
-    expect(cajon).toHaveAttribute('data-open', 'false')
-
-    // En <= 720px el cajón es un overlay fijo z-index 20 que tapa la ficha
-    // (z-index 4): elegir una escuela desde el buscador sin cerrarlo hacía
-    // parecer que la selección se deshecía sola.
-    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuelas' }))
-    expect(cajon).toHaveAttribute('data-open', 'true')
+    expect(cajon).not.toHaveAttribute('data-open')
+    expect(screen.queryByRole('button', { name: 'Buscar escuelas' })).not.toBeInTheDocument()
 
     await seleccionarPorBuscador('Escuela 1')
 
-    expect(cajon).toHaveAttribute('data-open', 'false')
     expect(await screen.findByTestId('mock-ficha-modal')).toBeInTheDocument()
   })
 
-  it('la leyenda de accesos va antes de "Indicadores consolidados"', async () => {
+  it('la leyenda de accesos va antes del panel de situación actual', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
     // La leyenda explica las capas territoriales y cambia con la selección: al
@@ -1255,9 +1238,9 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     )
 
     const leyenda = await screen.findByTestId('leyenda-aislamiento')
-    const indicadores = screen.getByText('Indicadores consolidados')
+    const panelActual = screen.getByText('Situación actual')
     expect(
-      leyenda.compareDocumentPosition(indicadores) & Node.DOCUMENT_POSITION_FOLLOWING,
+      leyenda.compareDocumentPosition(panelActual) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
 })

@@ -8,6 +8,15 @@ export interface ResumenMapa {
   sinClasesConApoyo: number
 }
 
+export function ultimaActualizacion(escuelas: EscuelaMapaEnriquecida[]): string | null {
+  return escuelas.reduce<string | null>((masReciente, escuela) => {
+    const novedad = escuela.ultimaNovedad
+    if (novedad === null) return masReciente
+    if (masReciente === null || Date.parse(novedad) > Date.parse(masReciente)) return novedad
+    return masReciente
+  }, null)
+}
+
 export function resumir(escuelas: EscuelaMapaEnriquecida[]): ResumenMapa {
   return escuelas.reduce<ResumenMapa>((resumen, escuela) => {
     if (escuela.gravedad > 0) resumen.conReporte += 1

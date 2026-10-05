@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EscuelaMapaEnriquecida } from './tipos'
-import { ordenarReportes, resumir } from './agregar'
+import { ordenarReportes, resumir, ultimaActualizacion } from './agregar'
 
 function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquecida {
   return {
@@ -74,5 +74,26 @@ describe('ordenarReportes', () => {
       'gravedad-menor',
     ])
     expect(escuelas).toEqual(original)
+  })
+})
+
+describe('ultimaActualizacion', () => {
+  it('devuelve la novedad más reciente del padrón', () => {
+    const escuelas = [
+      escuela({ ultimaNovedad: '2026-10-01T12:00:00.000Z' }),
+      escuela({ cueAnexo: '1800002-00', ultimaNovedad: null }),
+      escuela({ cueAnexo: '1800003-00', ultimaNovedad: '2026-10-05T12:00:00.000Z' }),
+      escuela({ cueAnexo: '1800004-00', ultimaNovedad: '2026-10-03T12:00:00.000Z' }),
+    ]
+
+    expect(ultimaActualizacion(escuelas)).toBe('2026-10-05T12:00:00.000Z')
+  })
+
+  it('devuelve null para un padrón vacío', () => {
+    expect(ultimaActualizacion([])).toBeNull()
+  })
+
+  it('devuelve null cuando todas las escuelas carecen de novedad', () => {
+    expect(ultimaActualizacion([escuela(), escuela({ cueAnexo: '1800002-00' })])).toBeNull()
   })
 })

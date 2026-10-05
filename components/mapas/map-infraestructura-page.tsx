@@ -61,8 +61,7 @@ import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { Indicadores } from '@/components/infraestructura/indicadores'
-import { ListaAlertas } from '@/components/infraestructura/lista-alertas'
+import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { FichaParteModal } from '@/components/infraestructura/ficha-parte-modal'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
@@ -93,7 +92,7 @@ import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
-import { calcularTotalesEscuelasFiltradas } from '@/lib/infraestructura/mapa/totales-filtrados'
+import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
@@ -650,10 +649,6 @@ export default function MapInfraestructuraPage(props: {
   // cerrada no la reabriría.
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
   const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue
-  // T1.3: panel izquierdo colapsable en pantallas angostas (<= 720px), donde
-  // no hay ancho para la columna y el panel de controles a la vez. Arranca
-  // cerrado; el botón toggle y el CSS de globals.css lo gobiernan.
-  const [leftStackAbierto, setLeftStackAbierto] = useState(false)
   // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
   // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
   // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
@@ -791,6 +786,10 @@ export default function MapInfraestructuraPage(props: {
   }, [data])
 
   const dataEscuelasMapa = props.escuelasMapa
+  const actualizadoEn = useMemo(
+    () => ultimaActualizacion(dataEscuelasMapa?.escuelas ?? []),
+    [dataEscuelasMapa],
+  )
   const { data: dataTotalesMapa } = useTotalesMapa()
   const totalesPorDepartamento = useMemo(() => {
     const mapa = new Map<string, TotalesDepartamento>()
@@ -1473,7 +1472,6 @@ export default function MapInfraestructuraPage(props: {
       // La ruta OSM se calcula por red vial, no por la coordenada del padrón:
       // si existe, se puede encuadrar igual.
       encuadreRutaPendiente.current = escuela.cueAnexo
-      setLeftStackAbierto(false)
       setControlsStackAbierto(false)
       return
     }
@@ -1487,12 +1485,6 @@ export default function MapInfraestructuraPage(props: {
     // (ver más abajo). Con la capa de ruta apagada no hay nada que encuadrar
     // y el flyTo a la escuela es la respuesta correcta.
     encuadreRutaPendiente.current = escuela.cueAnexo
-    // En <= 720px el buscador vive dentro del cajón `.map-left-stack`, que se
-    // abre como overlay fijo z-index 20 por encima de la ficha (z-index 4).
-    // Sin cerrarlo, elegir una escuela desde el buscador tapaba la ficha recién
-    // abierta y parecía que la selección se había deshecho sola. El mismo
-    // razonamiento para el cajón de base/capas.
-    setLeftStackAbierto(false)
     setControlsStackAbierto(false)
   }, [])
 
@@ -1655,7 +1647,7 @@ export default function MapInfraestructuraPage(props: {
         nada.
 
         Va inmediatamente debajo del buscador, y no al final del panel como
-        estaba: ahí quedaba empujada debajo de "Indicadores consolidados" y
+        estaba: ahí quedaba empujada debajo del resumen de situación actual y
         el usuario nunca la veía sin scrollear. Explica las capas
         territoriales (aislamiento, inundación, cruces) justo donde se
         elige la escuela a la que se aplican, y es también el bloque que
@@ -1680,22 +1672,6 @@ export default function MapInfraestructuraPage(props: {
 
       {!modoRadar && (
         <>
-          {(() => {
-            if (!dataEscuelasMapaVisible) return null
-            const totales = calcularTotalesEscuelasFiltradas(dataEscuelasMapaVisible.escuelas)
-            return (
-              <p
-                className={styles.hint}
-                data-testid="infra-totales-indicador"
-                title="Afectadas sobre las escuelas del padrón con ubicación en el mapa. Puede diferir de los indicadores consolidados, que cuentan también los partes sin coordenadas."
-              >
-                <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
-                {totales.porcentajeAfectadas}%
-              </p>
-            )
-          })()}
-          <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
           {departamentoSeleccionado && (
             <div className={`${styles.panel} map-departamento-seleccionado`}>
               <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
@@ -1707,8 +1683,13 @@ export default function MapInfraestructuraPage(props: {
               }}>Quitar filtro</button>
             </div>
           )}
-          <ListaAlertas
-            partes={dataVisible.partes}
+          <PanelSituacionActual
+            escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
+            actualizadoEn={actualizadoEn}
+            onSeleccionar={(cueAnexo) => {
+              const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+              if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+            }}
           />
         </>
       )}
@@ -1773,12 +1754,7 @@ export default function MapInfraestructuraPage(props: {
           }}
         >
           <NavigationControl position="top-left" showCompass={!radarActivo} />
-          {/* UX móvil (390px): el default de MapLibre ancla la atribución abajo
-              como franja de ancho variable y tapaba los controles flotantes
-              (`.map-left-stack-toggle` y `.map-fullscreen-btn`, ambos a
-              `bottom: 25px`). En modo `compact` colapsa a un ícono chico en la
-              esquina inferior derecha; el refuerzo CSS del media query de
-              720px sube los botones para que el ícono no los pise. */}
+          {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
           <Source id="infra-mascara-src" type="geojson" data={MASCARA_URL}>
@@ -2304,19 +2280,10 @@ export default function MapInfraestructuraPage(props: {
         onOpenChange={(open) => !open && setHistorialCue(null)}
       />
 
-      {/*
-        Los tres paneles de la izquierda van en un contenedor propio y no
-        sueltos. Cada uno traía su propio `position: absolute` con el mismo
-        offset heredado del mapa de matrícula, que muestra un panel por
-        esquina; acá son tres y terminaban apilados uno encima del otro,
-        tapándose entre sí y tapando el control de zoom. El anclaje ahora vive
-        en .map-left-stack y los paneles vuelven al flujo normal.
-      */}
       {dataVisible && (
         <div
           className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
           id="infra-left-stack"
-          data-open={leftStackAbierto ? 'true' : 'false'}
         >
           <PanelLateral
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
@@ -2333,24 +2300,6 @@ export default function MapInfraestructuraPage(props: {
           />
         </div>
       )}
-
-      <Button
-        variant="secondary"
-        size="sm"
-        className={styles.leftStackToggle}
-        style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() =>
-          setLeftStackAbierto((abierto) => {
-            const proximo = !abierto
-            if (proximo) setControlsStackAbierto(false)
-            return proximo
-          })
-        }
-        aria-expanded={leftStackAbierto}
-        aria-controls="infra-left-stack"
-      >
-        {leftStackAbierto ? 'Cerrar' : departamentoSeleccionado ?? 'Buscar escuelas'}
-      </Button>
 
       <div
         className={styles.controlsStack}
@@ -2382,13 +2331,7 @@ export default function MapInfraestructuraPage(props: {
         size="sm"
         className={styles.controlsStackToggle}
         style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() =>
-          setControlsStackAbierto((abierto) => {
-            const proximo = !abierto
-            if (proximo) setLeftStackAbierto(false)
-            return proximo
-          })
-        }
+        onClick={() => setControlsStackAbierto((abierto) => !abierto)}
         aria-expanded={controlsStackAbierto}
         aria-controls="infra-controls-stack"
       >

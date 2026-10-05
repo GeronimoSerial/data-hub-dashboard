@@ -1,0 +1,79 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { PanelSituacionActual } from './panel-situacion-actual'
+import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+
+const ahora = Date.parse('2026-10-05T15:00:00.000Z')
+
+const escuelas: EscuelaMapaEnriquecida[] = [
+  {
+    cueAnexo: '100', nombre: 'Escuela Alta', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
+    niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 3, categoriaPrincipal: 'Anegamiento',
+    clases: 'sin', apoyo: 'virtual', sinActualizar: true, ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 50,
+  },
+  {
+    cueAnexo: '200', nombre: 'Escuela Parcial', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
+    niveles: ['Secundario'], alumnos: 60, gravedad: 3, categoriaPrincipal: 'Camino',
+    clases: 'parcial', apoyo: 'cuadernillo', sinActualizar: false, ultimaNovedad: '2026-10-05T14:00:00.000Z', alumnosSinClases: 10,
+  },
+  {
+    cueAnexo: '300', nombre: 'Escuela Baja', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null,
+    niveles: ['Inicial'], alumnos: 30, gravedad: 1, categoriaPrincipal: 'Otro',
+    clases: 'evacuado', apoyo: 'no', sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 30,
+  },
+  {
+    cueAnexo: '400', nombre: 'Escuela sin reporte', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null,
+    niveles: [], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
+    clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
+  },
+]
+
+describe('PanelSituacionActual', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('muestra los totales, apoyo pedagógico y reportes ordenados por gravedad', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(ahora)
+    const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn="2026-10-05T14:30:00.000Z" onSeleccionar={vi.fn()} />)
+
+    expect(screen.getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('3')
+    expect(screen.getByText('Alumnos sin clases').previousElementSibling).toHaveTextContent('90')
+    expect(screen.getByText('Sin actualizar', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
+    expect(container.querySelector('.map-sitact__apoyo p')).toHaveTextContent('2 de 3 escuelas sin clases brindan apoyo pedagógico')
+
+    const reportes = screen.getByRole('region', { name: /Reportes/ })
+    const filas = within(reportes).getAllByRole('button')
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
+      'Escuela Parcial, Bella Vista · Secundario',
+      'Escuela Alta, General Alvear · Primario, Inicial',
+      'Escuela Baja, Goya · Inicial',
+    ])
+    expect(filas[1]).toHaveTextContent('General Alvear · Primario, Inicial')
+    expect(filas[1]).toHaveTextContent('Sin clases')
+    expect(filas[1]).toHaveTextContent('Apoyo virtual')
+    expect(filas[1]).toHaveTextContent('Sin actualizar')
+    expect(filas[1]).toHaveTextContent('hace 3 h')
+    expect(within(reportes).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
+  })
+
+  it('selecciona la escuela al activar su renglón', () => {
+    const onSeleccionar = vi.fn()
+    render(<PanelSituacionActual escuelas={escuelas} actualizadoEn={null} onSeleccionar={onSeleccionar} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Escuela Alta/ }))
+
+    expect(onSeleccionar).toHaveBeenCalledWith('100')
+  })
+
+  it('muestra el vacío y omite la proporción cuando no hay escuelas sin clases', () => {
+    render(<PanelSituacionActual escuelas={[escuelas[3]]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
+
+    expect(screen.getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
+    expect(screen.queryByText(/escuelas sin clases brindan apoyo pedagógico/)).not.toBeInTheDocument()
+    expect(screen.getByText('Situación actual')).toBeInTheDocument()
+  })
+})

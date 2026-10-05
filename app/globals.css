@@ -178,6 +178,39 @@
 [data-theme='dark'] .ui-button--default { color: var(--black); }
 [data-theme='dark'] .ui-button--destructive { color: var(--white); }
 
+/* Panel de Situación actual del mapa de infraestructura. */
+.map-sitact { display: grid; gap: var(--s-4); align-content: start; }
+.map-sitact__encabezado { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
+.map-sitact__encabezado h2 { margin: 0; font-size: 1.375rem; font-weight: 700; }
+.map-sitact__hora { color: var(--ink-faint); font-size: var(--t-micro); white-space: nowrap; }
+.map-sitact__kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
+.map-sitact__kpi { display: grid; gap: var(--s-1); padding: var(--s-3); border-radius: var(--r-md); background: var(--fill); }
+.map-sitact__kpi strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.map-sitact__kpi span { color: var(--ink-soft); font-size: var(--t-micro); }
+.map-sitact__kpi--resaltado strong { color: var(--accent); }
+.map-sitact__apoyo { display: grid; gap: var(--s-2); }
+.map-sitact__apoyo p { margin: 0; font-size: var(--t-small); }
+.map-sitact__barra { display: flex; height: 8px; overflow: hidden; border-radius: var(--r-pill); background: var(--band); }
+.map-sitact__barra span { height: 100%; background: var(--ok); transition: width 180ms ease-out; }
+.map-sitact__titulo-seccion { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: 0; color: var(--ink-soft); font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+.map-sitact__atenuado { color: var(--ink-faint); font-family: var(--font-body); font-size: var(--t-micro); font-weight: 400; letter-spacing: normal; text-transform: none; }
+.map-sitact__lista { display: grid; border-top: 1px solid var(--line); }
+.map-sitact__fila { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1) var(--s-3) 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; }
+.map-sitact__fila:hover { background: var(--fill); }
+.map-sitact__franja { align-self: stretch; border-radius: var(--r-xs); }
+.map-sitact__contenido-fila { display: grid; min-width: 0; gap: var(--s-1); }
+.map-sitact__nombre { overflow: hidden; font-size: var(--t-small); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.map-sitact__meta { color: var(--ink-faint); font-size: var(--t-micro); }
+.map-sitact__chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
+.map-sitact__pill { display: inline-flex; align-items: center; gap: var(--s-1); padding: 1px var(--s-2); border-radius: var(--r-pill); font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
+.map-sitact__pill svg { width: 12px; height: 12px; }
+.map-sitact__pill--clases { color: var(--danger-ink); background: var(--danger-tint); }
+.map-sitact__pill--apoyo { color: var(--ok); background: var(--ok-tint); }
+.map-sitact__pill--aviso { color: var(--warn); background: var(--warn-tint); }
+.map-sitact__pill--neutro { color: var(--ink-soft); background: var(--band); }
+.map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
+
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
 .linea-de-tiempo__lista { list-style: none; margin: 0; padding: 0 0 0 var(--s-4); border-left: 2px solid var(--line); }
@@ -2347,24 +2380,6 @@ time {
   line-height: 1.4;
 }
 
-/* Vistas angostas (<= 720px): no alcanza el ancho para tener la columna
-   izquierda (escuelas/filtros/indicadores) y el panel de base/capas en la
-   esquina superior derecha a la vez — se pisan y se vuelven ilegibles. Debajo
-   de ese ancho la columna izquierda arranca colapsada (queda sólo este botón
-   pequeño abajo a la izquierda) y sólo ocupa la pantalla completa (panel
-   desplazable, z-index por encima de todo, incluido el panel de controles)
-   cuando la persona la abre explícitamente: los dos paneles nunca se ven
-   juntos ni se superponen. Oculto por defecto; el media query de 720px lo
-   vuelve visible únicamente en pantallas angostas. */
-.map-left-stack-toggle {
-  display: none;
-  position: absolute;
-  bottom: 25px;
-  left: 25px;
-  /* Debe superar el z-index:20 del cajón abierto para que el toggle nunca quede cubierto. */
-  z-index: 21;
-}
-
 /* Cabecera de la leyenda colapsable. Plano y con el mismo peso que el resto
    de los títulos de panel: el triángulo nativo de <summary> alcanza como
    afordancia, no hace falta un ícono propio. */
@@ -2423,18 +2438,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   }
 }
 
-/* Contraparte de .map-left-stack-toggle para el panel de base/capas (T1.3
-   extendido): oculto por defecto, sólo el media query de 720px lo muestra. En
-   mobile este panel arranca colapsado en este botón chico arriba a la
-   derecha, lejos del toggle de la izquierda (abajo a la izquierda) y del
-   botón de pantalla completa (abajo a la derecha), así los dos cajones y esos
-   botones nunca se superponen. */
+/* Botón del panel de base/capas, separado de la columna de escuelas. */
 .map-controls-stack-toggle {
   display: none;
   position: absolute;
   top: 12px;
   right: 12px;
-  /* Mismo criterio que .map-left-stack-toggle: por encima del cajón abierto. */
+  /* Por encima del panel de controles abierto. */
   z-index: 21;
 }
 .map-control-card {
@@ -2704,27 +2714,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (max-width: 720px) {
   .map-title-panel { left: 12px; right: 12px; max-width: none; }
   .map-legend-panel { bottom: 12px; left: 12px; }
-  .map-left-stack { display: none; }
-  /* El botón de cierre vive fijo sobre el cajón abierto (mismo z-index que la
-     barra del header, en una posición fija de pantalla); el cajón necesita
-     padding inferior extra para que el último ítem scrolleado (la leyenda de
-     Referencias) nunca termine oculto debajo de ese botón. */
-  .map-left-stack[data-open="true"] {
-    display: flex;
-    position: fixed;
-    inset: 0;
-    top: var(--header-h, 0px);
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    max-height: none;
-    z-index: 20;
-    background: var(--page);
-    padding: 12px 12px calc(12px + 44px + 12px) 12px;
-    overflow-y: auto;
+  .map-left-stack {
+    top: 12px;
+    left: 12px;
+    width: min(20rem, calc(100vw - 24px));
+    max-height: min(46vh, calc(100% - 24px));
   }
-  .map-left-stack-toggle { display: inline-flex; }
 
   /* El panel de base/capas tapaba casi la mitad del mapa en mobile (390x844):
      arranca colapsado en el toggle de arriba a la derecha y sólo ocupa la
@@ -2746,22 +2741,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   }
   .map-controls-stack-toggle { display: inline-flex; }
 
-  /* Refuerzo UX móvil (390px): el `AttributionControl` compacto de MapLibre
-     queda pegado a la esquina inferior derecha (~24x24, margin 10px) y tanto
-     `.map-fullscreen-btn` (bottom/right) como `.map-left-stack-toggle`
-     (bottom:25/left:25) caían dentro de esa franja. Se suben a 46px para
-     dejar libre la esquina del ícono "i" sin que ningún control se pise. */
-  .map-fullscreen-btn,
-  .map-left-stack-toggle { bottom: 46px; }
+  /* Deja libre la atribución compacta en la esquina inferior derecha. */
+  .map-fullscreen-btn { bottom: 46px; }
 
-  .map-shell[data-ficha-abierta="true"] .map-left-stack-toggle,
   .map-shell[data-ficha-abierta="true"] .map-fullscreen-btn {
     bottom: calc(60vh + 12px);
   }
 
-  /* `.map-seleccion-acciones` se sube a 96px para pasar por encima del toggle
-     "Buscar escuelas" (bottom: 46px) y del AttributionControl, que en 390px
-     ocupan la franja inferior. */
+  /* Separa las acciones de selección de la atribución del mapa. */
   .map-seleccion-acciones { bottom: 96px; }
 }
 
