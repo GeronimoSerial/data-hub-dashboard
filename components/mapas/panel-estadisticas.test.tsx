@@ -159,7 +159,7 @@ describe('PanelEstadisticas', () => {
 
     expect(reglaPanel).toMatch(/min-width:\s*0/)
     expect(reglaPanel).toMatch(/width:\s*100%/)
-    expect(reglaTabla).toMatch(/overflow-x:\s*auto/)
+    expect(reglaTabla).toMatch(/overflow-x:\s*hidden/)
   })
 
   it('mantiene el número antes de la barra dentro de la celda de porcentaje', () => {

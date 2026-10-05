@@ -79,3 +79,20 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 
 ## Gate final
 tsc limpio; `pnpm lint` 0 errores (13 warnings preexistentes); suite completa 316/317 archivos, 2832 tests verdes; única falla la conocida `radar-meteo/resumen/route.test.ts` (ya falla en feat/staging, no se tocó). Reporte completo en `~/.cache/mapa-n2/ajustes/report.md`.
+
+## Correcciones de la revisión visual (N1)
+Revisión de N1 sobre A1–A14 a 1456×835. Un commit `fix(mapa): …` por punto, un N3 nuevo por task, test primero cuando aplica. Ruta: delegada (N3 escribe; N2 verifica con tsc + vitest focalizado y commitea). Regla de layout: cada punto de layout anota la regla CSS/estructura que lo garantiza.
+- [ ] F1 (bloqueante) Sidebar sin scroll horizontal: ancho único 24rem, `overflow-x: hidden`, hijos `min-width: 0`, test por pestaña
+- [ ] F2 (bloqueante) Mismo sidebar en las 5 pestañas: acoplado, alto completo, mismo fondo/borde/padding/encabezado, scroll vertical interno
+- [ ] F3 (bloqueante) Estadísticas entra: grilla 2 col, "Agrupar por" sin cortes, tabla grupo|Escuelas|Con situaciones|%, gráficos al ancho
+- [ ] F4 (importante) Sin botones flotantes "Ver ficha"/"Quitar selección": van al sidebar
+- [ ] F5 (importante) Leyenda colapsada en una fila + botón "Símbolos"
+- [ ] F6 (importante) Chips largos y fecha relativa sin desborde en lista y ficha
+- [ ] F7 (importante) Situación actual: grilla 2×2 + tarjeta de ancho completo secundaria
+- [ ] F8 (menor) Ficha: "Asistencia pedagógica" sin valor redundante
+- [ ] F9 (menor) Foco programático al título de la ficha
+- [ ] F10 (importante) Filtros en línea desde ~1200 px de la fila
+- [ ] F11 (importante) Capas: Mapa base / Referencias / Riesgo
+
+### Evidencia por punto (F)
+- **F1** — Reglas que lo garantizan: `.map-left-stack` `width: min(24rem, calc(100vw - 80px))` (móvil `calc(100vw - 24px)`) + `overflow-x: hidden`; `.map-panel-lateral` y `.map-panel-lateral > *`/`:where(*)` con `min-width: 0; max-width: 100%; overflow-wrap: anywhere`; `.map-seg` con `flex-wrap: wrap`; tabla de Estadísticas `table-layout: fixed`. Test estático `sidebar-sin-scroll-horizontal.test.ts` (CSS + render de las 5 pestañas). Evidencia: vitest components/mapas 269/269, tsc limpio.
