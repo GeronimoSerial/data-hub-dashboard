@@ -38,6 +38,9 @@ export function InfraestructuraMapClient(props: {
   seasonalEnabled?: boolean
 }) {
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
+  const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
+    Exclude<PestanaMapa, 'estadisticas'>
+  >('actual')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
   // local con useState espejado contra window.location.hash, para que la
@@ -71,7 +74,9 @@ export function InfraestructuraMapClient(props: {
   }, [props.riskRadarEnabled])
 
   const mapaVisible = tab !== 'estadisticas'
-  // La prop `pestana` se cablea en la Task 3.
+  if (tab !== 'estadisticas' && tab !== ultimaPestanaMapa) {
+    setUltimaPestanaMapa(tab)
+  }
 
   return (
     <div className="mapa-pestanas">
@@ -104,6 +109,7 @@ export function InfraestructuraMapClient(props: {
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
             seasonalEnabled={props.seasonalEnabled ?? false}
+            pestana={ultimaPestanaMapa}
             visible={mapaVisible}
           />
         </div>

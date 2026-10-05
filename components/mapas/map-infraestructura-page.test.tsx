@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
@@ -499,14 +499,27 @@ async function cargar() {
 // próximo `render()` lo reemplace.
 let desmontarMapa: (() => void) | null = null
 
-async function renderMapa(props: {
+type PropsRenderMapa = {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
-}) {
+  pestana: 'actual' | 'radar' | 'planificacion'
+}
+
+type OpcionesRenderMapa = Omit<PropsRenderMapa, 'pestana'> & { pestana?: PropsRenderMapa['pestana'] }
+
+async function renderMapa(props: OpcionesRenderMapa) {
   const MapInfraestructuraPage = await cargar()
-  const { unmount } = render(<MapInfraestructuraPage {...props} />)
+  let propsActuales: PropsRenderMapa = { pestana: 'actual', ...props }
+  const vista = render(<MapInfraestructuraPage {...propsActuales} />)
+  const { unmount } = vista
   desmontarMapa = unmount
+  return {
+    rerender: (cambios: Partial<OpcionesRenderMapa>) => {
+      propsActuales = { ...propsActuales, ...cambios }
+      vista.rerender(<MapInfraestructuraPage {...propsActuales} />)
+    },
+  }
 }
 
 // Elige una escuela por el buscador (la ruta que usa el usuario: escribir el
@@ -691,12 +704,42 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 })
 
 describe('MapInfraestructuraPage — modo Radar', () => {
+  it('muestra el panel lateral de Situación actual y no el panel de Radar', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+
+    expect(await screen.findByTestId('panel-lateral')).toBeInTheDocument()
+    expect(screen.queryByTestId('panel-radar')).not.toBeInTheDocument()
+  })
+
+  it('muestra un panel de Radar con contenido dentro del panel lateral', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const panelLateral = await screen.findByTestId('panel-lateral')
+    expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
+    expect(panelLateral).not.toBeEmptyDOMElement()
+  })
+
+  it('no renderiza el conmutador Situación actual / Radar', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+    expect(document.querySelector('.map-modo-conmutador')).toBeNull()
+  })
+
+  it('con pestana="radar" activa el modo radar sin conmutador', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+    expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
+    expect(document.querySelector('.map-modo-conmutador')).toBeNull()
+  })
+
+  it('con pestana="radar" y el flag apagado se comporta como Situación actual', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: false, pestana: 'radar' })
+    expect(screen.queryByRole('group', { name: 'Variable meteorológica' })).not.toBeInTheDocument()
+    expect(llamadasRadar.activos.every((activo) => activo === false)).toBe(true)
+  })
+
   it('con el flag ausente NO monta el conmutador ni el selector, y el hook queda inactivo', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    // Ni un elemento nuevo del modo Radar en el DOM.
-    expect(screen.queryByRole('button', { name: 'Radar' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Situación actual' })).not.toBeInTheDocument()
+    expect(document.querySelector('.map-modo-conmutador')).toBeNull()
     expect(
       screen.queryByRole('group', { name: /horizonte temporal del radar/i }),
     ).not.toBeInTheDocument()
@@ -708,17 +751,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 
   it('con el flag en false tampoco monta el conmutador', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: false })
-    expect(screen.queryByRole('button', { name: 'Radar' })).not.toBeInTheDocument()
+    expect(document.querySelector('.map-modo-conmutador')).toBeNull()
     expect(llamadasRadar.activos.every((activo) => activo === false)).toBe(true)
   })
 
-  it('con el flag en true muestra el conmutador, arranca en Situación actual y no dispara el radar', async () => {
+  it('con el flag en true y pestaña Situación actual no dispara el radar', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
-    const botonRadar = screen.getByRole('button', { name: 'Radar' })
-    const botonActual = screen.getByRole('button', { name: 'Situación actual' })
-    expect(botonActual).toHaveAttribute('aria-pressed', 'true')
-    expect(botonRadar).toHaveAttribute('aria-pressed', 'false')
+    expect(document.querySelector('.map-modo-conmutador')).toBeNull()
 
     // Aún en Radar desactivado: hook inactivo y sin selector de horizonte.
     expect(
@@ -727,10 +767,8 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(llamadasRadar.activos.at(-1)).toBe(false)
   })
 
-  it('al activar Radar no consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+  it('con Radar activo no consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     expect(llamadasRadar.activos.at(-1)).toBe(false)
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
@@ -739,19 +777,16 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
     expect(llamadasRadar.activos.at(-1)).toBe(false)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Situación actual' }))
+    rerender({ pestana: 'actual' })
     expect(llamadasRadar.activos.at(-1)).toBe(false)
     expect(screen.queryByRole('group', { name: 'Variable meteorológica' })).not.toBeInTheDocument()
   })
 
   it('Radar no monta paneles de explicación de riesgo legados', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     expect(screen.queryByTestId('risk-explanation-panel')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-peligro'))
@@ -761,8 +796,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('no dibuja marcadores escolares de riesgo en el radar meteorológico', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     // El punto de riesgo ahora es un <Marker> DOM (ícono Lucide) con su
     // propio onClick, no una capa circle de MapLibre.
@@ -771,8 +805,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('no monta el marcador de riesgo legado', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     expect(screen.queryByRole('button', { name: `Riesgo alto: ${CUE}` })).not.toBeInTheDocument()
     // La fuente/capas circle viejas de riesgo compuesto desaparecieron. La de
@@ -810,8 +843,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     }))
 
     try {
-      await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-      await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+      await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
       for (const cueAnexo of CUES_SIN_PARTE) expect(screen.queryByRole('button', { name: `Riesgo alto: ${cueAnexo}` })).not.toBeInTheDocument()
     } finally {
@@ -822,8 +854,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('no pide detalles del riesgo escolar desde el radar meteorológico', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
     expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
@@ -833,9 +864,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('Radar sustituye las capas de riesgo por el radar meteorológico', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: /niveles de peligro meteorológico/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /todas las escuelas/i })).not.toBeInTheDocument()
@@ -897,12 +926,12 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
   // ya no hay tooltips de hover.
 
   it('al cambiar de modo se limpia el popup de departamento (no queda clavado)', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
+    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
     expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    rerender({ pestana: 'radar' })
     await esperarSinPopupHover()
   })
 
@@ -959,8 +988,7 @@ describe('M2: capa de padrón apagada por defecto', () => {
 
 describe('MapInfraestructuraPage — capas del radar de riesgo anteriores', () => {
   it('oculta el selector de riesgo escolar al activar Radar meteorológico', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /riesgo pronosticado de llegar/i })).not.toBeInTheDocument()
@@ -968,8 +996,7 @@ describe('MapInfraestructuraPage — capas del radar de riesgo anteriores', () =
   })
 
   it('no permite montar la capa de acceso antigua desde Radar', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-    await userEvent.click(screen.getByRole('button', { name: 'Radar' }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     expect(screen.queryByTestId('mock-source-infra-riesgo-acceso-src')).not.toBeInTheDocument()
   })

@@ -15,11 +15,11 @@ import { InfraestructuraMapClient } from './map-client'
 const montajesMapa = vi.hoisted(() => ({ total: 0 }))
 
 vi.mock('@/components/mapas/map-infraestructura-page', () => ({
-  default: function MapaDePrueba(): React.JSX.Element {
+  default: function MapaDePrueba(props: { pestana: string }): React.JSX.Element {
     React.useEffect(() => {
       montajesMapa.total += 1
     }, [])
-    return <div data-testid="mock-mapa" />
+    return <div data-testid="mock-mapa" data-pestana={props.pestana} />
   },
 }))
 
@@ -56,6 +56,20 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
     expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
     expect(screen.getByTestId('pestana-estadisticas')).toBeVisible()
+  })
+
+  it('mantiene la última pestaña del mapa mientras se muestran Estadísticas', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Radar' }))
+    const mapa = screen.getByTestId('mock-mapa')
+    expect(mapa).toHaveAttribute('data-pestana', 'radar')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    expect(mapa).toHaveAttribute('data-pestana', 'radar')
+    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
+    expect(mapa).toHaveAttribute('data-pestana', 'actual')
   })
 
   it('cambiar de pestaña oculta el mapa con CSS sin desmontarlo', async () => {
