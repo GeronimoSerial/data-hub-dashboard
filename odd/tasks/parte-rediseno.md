@@ -26,7 +26,8 @@
 - [x] Final blind re-review #2 — full coverage (m+d); NOT APPROVED: 5 important (cause list unfiltered, Retry disabled during hang, Actualizar CTA under the history, admin table clipped, Cambió cascade stacked) + 13 minor
 - [x] Polish 3 (#1–#18) — merged f21c40a (14 commits); 15-day cause window and auto-retry kept
 - [x] Final blind re-review #3 — NOT APPROVED: 6 important, all new and finer-grained (I1 hidden date error, I2 assistance options, I3 order of the new-situation flow, I4 401 copy uses voseo, I5 history events indistinguishable, I6 Actualizar draft restored incompletely) + 17 minor
-- [ ] Polish 4 (I1–I6 + M1, scoped) — running
+- [x] Polish 4 (I1–I6 + M1) — 8 commits on feat/parte-pulido4 (up to a8e8a53), closed early at the user's request
+- [ ] Designer N2 (fresh context, edits code itself, screen by screen, Claude in Chrome) — running on feat/parte-pulido4, dispatch ctx_09238a1c3872
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
@@ -52,3 +53,4 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - Polish merged 9a0f971: N1 checked the after-screenshots (grouped section list with custom controls; chips in a regular 3-up grid; date and time stacked). Gate on the integration: tsc clean; vitest 2572 passed, 1 failed (pre-existing radar-meteo; the flaky test is fixed); lint 0 errors; build 0.
 - Integrated feat/staging 297131a: tsc clean; vitest 2645 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
 - Integrated feat/staging f21c40a: tsc clean; vitest 2731 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
+- User decision 2026-10-05: the N3 polish looked bad. A fresh designer N2 polishes screen by screen, editing directly, with the Claude in Chrome MCP (mobile through a 390×844 iframe).
