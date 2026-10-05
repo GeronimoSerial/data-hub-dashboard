@@ -4219,6 +4219,17 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-3);
 }
 
+.recorrido-actualizacion__aviso {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--warn-tint);
+  color: var(--ink);
+  font-size: var(--t-small);
+}
+
 .actualizacion-borrador {
   width: 100%;
 }

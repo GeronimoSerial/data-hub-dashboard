@@ -462,6 +462,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           </div>
         </aside>
       ) : null}
+      {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -476,7 +477,6 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         />
       ) : null}
 
-      {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
       {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
       {actual && typeof etapa === 'object' ? (
         <section>
