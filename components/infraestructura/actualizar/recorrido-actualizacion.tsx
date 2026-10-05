@@ -424,7 +424,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             consecuencias={consecuenciasActivas(situaciones, actual.id, recorrido)}
             clasesEdificio={clasesEdificio}
             onResponder={(respuesta) => {
-              setRecorrido((r) => responder(r, actual.id, respuesta))
+              setRecorrido((r) => {
+                if (respuesta) return responder(r, actual.id, respuesta)
+                const respuestas = { ...r.respuestas }
+                delete respuestas[actual.id]
+                return { ...r, respuestas }
+              })
               setInteraccionIniciada(true)
               setError(null)
             }}

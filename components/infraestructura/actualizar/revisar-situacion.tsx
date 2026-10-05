@@ -30,7 +30,7 @@ export interface RevisarSituacionProps {
   respuesta: RespuestaSituacion | undefined
   consecuencias: SituacionRecorrido[]
   clasesEdificio: ValorClasesEdificio
-  onResponder: (respuesta: RespuestaSituacion) => void
+  onResponder: (respuesta: RespuestaSituacion | null) => void
   onCambiarClasesEdificio: (valor: ValorClasesEdificio & { confirmarInterrupcionTotal: boolean }) => void
   onCascada: (consecuenciaId: string, solucionadaEn: string) => void
   posicion: { actual: number; total: number }
@@ -59,6 +59,17 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
   const [cascada, setCascada] = useState<{ pendientes: SituacionRecorrido[]; solucionadaEn: string } | null>(null)
 
+  function completarSolucion(eleccion: EleccionVigencia) {
+    const solucionadaEn = resolverVigencia(eleccion)
+    if (!solucionadaEn) {
+      p.onResponder(null)
+      setCascada(null)
+      return
+    }
+    p.onResponder({ tipo: 'solucionada', solucionadaEn })
+    setCascada(p.consecuencias.length > 0 ? { pendientes: p.consecuencias, solucionadaEn } : null)
+  }
+
   function elegir(tipo: 'sigue' | 'cambio' | 'solucionada') {
     if (tipo === 'sigue') {
       setModo('eligiendo')
@@ -70,6 +81,8 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       return
     }
     setModo('solucion')
+    setCuando(VIGENCIA_AHORA)
+    completarSolucion(VIGENCIA_AHORA)
   }
 
   function listoCambio() {
@@ -87,14 +100,6 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       p.onCambiarClasesEdificio({ ...clases, confirmarInterrupcionTotal: interrumpeTodo })
     }
     p.onResponder({ tipo: 'cambio', cambio })
-    setModo('eligiendo')
-  }
-
-  function listoSolucion() {
-    const solucionadaEn = resolverVigencia(cuando)
-    if (!solucionadaEn) return
-    p.onResponder({ tipo: 'solucionada', solucionadaEn })
-    if (p.consecuencias.length > 0) setCascada({ pendientes: p.consecuencias, solucionadaEn })
     setModo('eligiendo')
   }
 
@@ -141,10 +146,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
 
       {modo === 'solucion' && (
         <div className="revisar-situacion__bloques">
-          <VigenciaChips value={cuando} onChange={setCuando} label="¿Cuándo se solucionó?" />
-          <div className="asistente__acciones">
-            <Button type="button" onClick={listoSolucion}>Listo</Button>
-          </div>
+          <VigenciaChips value={cuando} onChange={(valor) => { setCuando(valor); completarSolucion(valor) }} label="¿Cuándo se solucionó?" />
         </div>
       )}
 

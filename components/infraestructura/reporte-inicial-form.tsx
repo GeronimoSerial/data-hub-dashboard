@@ -28,6 +28,7 @@ import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-cri
 import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
+  errorVigencia as obtenerErrorVigencia,
   etiquetaVigencia,
   esEleccionVigencia,
   resolverVigencia,
@@ -357,8 +358,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     if (rigeDesde === null) {
       enviandoRef.current = false
       setEnviando(false)
-      setError(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
-      setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setError(null)
+      setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       return
     }
 
@@ -562,8 +563,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   function avanzar() {
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
-      setError(faltante)
-      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) {
+        setError(null)
+        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      } else setError(faltante)
       return
     }
     setError(null)

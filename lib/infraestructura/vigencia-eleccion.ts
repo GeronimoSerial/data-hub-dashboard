@@ -1,5 +1,7 @@
 import type { CategoriaAfectacion } from './categorias'
-import { dentroDeRangoVigencia } from './vigencia-rango'
+import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
+
+export const MENSAJE_HORA_FUTURA = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
 
 // Spec rediseño §5.3: tres chips en vez de un panel de fecha y hora. "Ahora"
 // se resuelve al ENVIAR, no al abrir el formulario: un parte que se carga en
@@ -46,6 +48,16 @@ export function resolverVigencia(eleccion: EleccionVigencia, ahora: Date = new D
   const momento = combinar(base, eleccion.hora)
   if (!momento || !dentroDeRangoVigencia(momento, ahora)) return null
   return momento.toISOString()
+}
+
+/** Mensaje accionable para una hora de hoy que aún no ocurrió. */
+export function errorVigencia(eleccion: EleccionVigencia, ahora: Date = new Date()): string | null {
+  if (eleccion.modo === 'ahora' || resolverVigencia(eleccion, ahora) !== null) return null
+  if (eleccion.modo === 'hoy' && eleccion.hora) {
+    const momento = combinar(ahora, eleccion.hora)
+    if (momento && momento.getTime() > ahora.getTime()) return MENSAJE_HORA_FUTURA
+  }
+  return MENSAJE_FUERA_DE_RANGO_VIGENCIA
 }
 
 export function resumenVigencia(eleccion: EleccionVigencia): string {

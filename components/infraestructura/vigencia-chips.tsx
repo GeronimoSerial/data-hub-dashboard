@@ -39,8 +39,8 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
 
   return (
     <fieldset className="vigencia-chips" disabled={disabled}>
-      <legend className="afectacion-campos__legend">{label}</legend>
-      <div className="vigencia-chips__opciones">
+      <legend className="vigencia-chips__titulo">{label}</legend>
+      <div className="vigencia-chips__opciones" role="radiogroup" aria-label={label}>
         {OPCIONES.map((opcion) => (
           <label key={opcion.modo} className="chip-radio">
             <input
@@ -75,14 +75,15 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
               id={`${id}-hora`}
               type="time"
               value={value.hora}
+              aria-describedby={error ? `${id}-error` : undefined}
               onChange={(evento) => onChange({ ...value, hora: evento.target.value })}
             />
           </label>
         </div>
       )}
 
+      {error ? <p id={`${id}-error`} className="vigencia-field__error" role="alert">{error}</p> : null}
       <p className="vigencia-chips__resumen" aria-live="polite">{resumenVigencia(value)}</p>
-      {error ? <p className="vigencia-field__error" role="alert">{error}</p> : null}
     </fieldset>
   )
 }

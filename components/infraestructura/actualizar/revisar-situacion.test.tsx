@@ -56,13 +56,13 @@ describe('RevisarSituacion', () => {
     expect(screen.queryByText('¿Qué tan grave es?')).not.toBeInTheDocument()
   })
 
-  it('"Se solucionó" pide cuándo y después pregunta en cascada por cada consecuencia', () => {
+  it('"Se solucionó" queda respondido con "Ahora" y pregunta en cascada sin un botón interno', () => {
     const p = base({ consecuencias: [{ id: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', rigeDesde: '2026-10-03T10:00:00.000Z', creadaEn: '2026-10-03T10:00:00.000Z', causadaPorId: 'a' }] })
     render(<RevisarSituacion {...p} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
     expect(screen.getByText('¿Cuándo se solucionó?')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     expect(p.onResponder).toHaveBeenCalledWith({ tipo: 'solucionada', solucionadaEn: expect.any(String) })
+    expect(screen.queryByRole('button', { name: 'Listo' })).not.toBeInTheDocument()
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByText(/Sin energía o agua \(causado por Inundación\)/)).toBeInTheDocument()
     fireEvent.click(within(sheet).getByRole('button', { name: 'Sí, también se solucionó' }))
@@ -73,7 +73,6 @@ describe('RevisarSituacion', () => {
     const p = base({ consecuencias: [{ id: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', rigeDesde: '2026-10-03T10:00:00.000Z', creadaEn: '2026-10-03T10:00:00.000Z', causadaPorId: 'a' }] })
     render(<RevisarSituacion {...p} />)
     fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'No, sigue activo' }))
 
     expect(p.onCascada).not.toHaveBeenCalled()

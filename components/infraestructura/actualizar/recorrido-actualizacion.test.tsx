@@ -40,8 +40,9 @@ describe('RecorridoActualizacion', () => {
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, también se solucionó' }))
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(screen.queryByRole('button', { name: 'Listo' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText('¿Pasó algo nuevo?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
@@ -50,6 +51,19 @@ describe('RecorridoActualizacion', () => {
     const [, init] = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!
     const cuerpo = JSON.parse(init!.body as string)
     expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('no avanza si se elige Otro día sin completar la fecha y la hora', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, también se solucionó' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue cada situación')
+    expect(screen.getByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
   })
 
   it('no deja pasar al paso 2 con situaciones sin responder', async () => {
