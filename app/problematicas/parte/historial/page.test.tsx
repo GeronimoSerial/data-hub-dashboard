@@ -100,7 +100,10 @@ async function sesionDeVerificacionParaCue(cueAnexo: string) {
 // componente cliente renderice su estado inicial de carga y la salida al parte.
 function esperaHistorial() {
   expect(screen.getByText('Buscando los movimientos del parte…')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: /volver al parte/i })).toBeInTheDocument()
+  const volver = screen.getByRole('link', { name: /volver al parte/i })
+  expect(volver).toBeInTheDocument()
+  expect(volver.parentElement).toHaveClass('historial-contenido')
+  expect(screen.getByRole('heading', { level: 1 }).parentElement?.parentElement).toHaveClass('historial-contenido')
 }
 
 describe('HistorialPartePage', () => {

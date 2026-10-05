@@ -1389,6 +1389,19 @@ time {
   margin-top: auto;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
+@media (min-width: 768px) {
+  .ui-sheet--bottom {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    width: min(30rem, calc(100vw - 2rem));
+    max-height: 80vh;
+    margin: 0;
+    border-radius: var(--r-lg);
+    transform: translate(-50%, -50%);
+  }
+}
 .confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
 .confirm-sheet__acciones {
   display: flex;
@@ -1407,6 +1420,8 @@ time {
   color: var(--ink-soft);
   width: 44px;
   height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -3180,6 +3195,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 /* ── Historial del parte (spec §15) ────────────────────────────────────── */
 
+.historial-contenido {
+  display: grid;
+  gap: var(--s-5);
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
+
 /* Sólo lectura, en un teléfono, posiblemente durante una emergencia: una
    columna, sin adornos, y cada movimiento separado por una línea en lugar
    de una tarjeta (no hay Card en components/ui/ y no hace falta). */
@@ -3737,6 +3760,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .reporte-inicial__confirmacion {
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
   padding: var(--s-5);
   border-radius: var(--r-md);
   background: var(--ok-tint);
@@ -3765,18 +3791,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* Una sola columna hasta que entran las dos sin comprimir ninguna:
    640 de formulario + 2rem + 17rem de panel. Debajo de eso el panel vuelve
    a su lugar en el flujo, entre el último campo y el botón. */
-@media (min-width: 1060px) {
+@media (min-width: 768px) {
   .reporte-inicial--con-panel {
     display: grid;
-    /* La primera pista va fija en la medida del formulario: una pista
-       elástica se dimensiona por su contenido, y un paso con pocos campos
-       encogería la columna y movería el panel de lugar entre pantallas. El
-       punto de quiebre garantiza que 640 + separación entren sin desbordar. */
-    grid-template-columns: 640px minmax(0, 1fr);
-    column-gap: var(--s-6);
-    /* Sin separación entre filas: el panel abarca todas, y una separación
-       se cobraría también en las filas vacías que ese tramo deja debajo.
-       El aire vuelve como margen entre hermanos de la primera columna. */
+    grid-template-columns: minmax(0, 640px);
+    justify-content: center;
     row-gap: 0;
     align-items: start;
     max-width: none;
@@ -3784,6 +3803,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
   .reporte-inicial--con-panel > * { grid-column: 1; }
   .reporte-inicial--con-panel > * + * { margin-top: var(--s-5); }
+
+}
+
+@media (min-width: 1060px) {
+  .reporte-inicial--con-panel:has(> .actualizacion-pendientes) {
+    grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
+    column-gap: var(--s-6);
+  }
 
   /* El tramo de filas abarca el formulario entero para que el pegado tenga
      por dónde viajar: su razón de ser es acompañar, y el director necesita

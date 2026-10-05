@@ -574,9 +574,9 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
     <div className="reporte-inicial__confirmacion" role="status">
       <p>{MENSAJE_GUARDADO}</p>
       <div className="reporte-inicial__confirmacion-acciones">
-        <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+        <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
           Volver al panel
-        </Button>
+        </a>
         <Button type="button" variant="secondary" onClick={onRecargar}>
           Cargar otra situación
         </Button>

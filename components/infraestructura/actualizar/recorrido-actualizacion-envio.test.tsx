@@ -134,12 +134,23 @@ describe('RecorridoActualizacion: envío', () => {
   })
 
   it('la confirmación permite volver al panel o cargar otra situación recargando el estado', async () => {
-    const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
-    expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
-    const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
-    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
-    await screen.findByRole('button', { name: 'Actualizar el parte' })
-    expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
+    const erroresConsola = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
+      expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
+      const botonCargarOtro = screen.getByRole('button', { name: 'Cargar otra situación' })
+      expect(botonCargarOtro.tagName).toBe('BUTTON')
+      const avisos = [...erroresConsola.mock.calls, ...avisosConsola.mock.calls].flat().map(String).join('\n')
+      expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')
+      const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
+      fireEvent.click(botonCargarOtro)
+      await screen.findByRole('button', { name: 'Actualizar el parte' })
+      expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
+    } finally {
+      erroresConsola.mockRestore()
+      avisosConsola.mockRestore()
+    }
   })
 
   it('si falla la conexión conserva el recorrido y deja el envío pendiente', async () => {
