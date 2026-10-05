@@ -158,6 +158,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
     for (const afectacion of body.afectaciones) {
       expect(afectacion.creadaEn).toEqual(expect.any(String))
       expect(Number.isNaN(Date.parse(afectacion.creadaEn))).toBe(false)
+      expect(afectacion).toHaveProperty('causadaPorId', null)
     }
 
     // El diseño obligatorio (F3.2) prohíbe nombres e ids de alumno DENTRO de
@@ -169,7 +170,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
       expect(afectacion).not.toHaveProperty('secciones')
       expect(afectacion).not.toHaveProperty('alumnos')
       expect(Object.keys(afectacion).sort()).toEqual(
-        ['categoria', 'creadaEn', 'descripcion', 'id', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
+        ['categoria', 'causadaPorId', 'creadaEn', 'descripcion', 'id', 'motivo', 'rigeDesde', 'severidad', 'totales'].sort(),
       )
     }
 

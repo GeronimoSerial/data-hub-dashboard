@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, BookMinus, BookX, ChevronDown, Clock, DoorOpen, House } from 'lucide-react'
-import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
+import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { ETIQUETA_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
@@ -151,6 +153,7 @@ export function FichaEscuelaPanel({
             <dt>Clases</dt><dd>{ETIQUETA_CLASES[escuela.clases]}</dd>
             <dt>Apoyo</dt><dd>{escuela.clases === 'normal' ? 'No corresponde' : etiquetaApoyoMapa(escuela.clases, escuela.apoyo) ?? 'Sin apoyo'}</dd>
             <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
+            {datos?.parte && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
           </dl>
         </Desplegable>
 
@@ -163,22 +166,33 @@ export function FichaEscuelaPanel({
             <p>Sin situaciones abiertas.</p>
           ) : (
             <>
-              {afectaciones.map((afectacion) => (
-                <dl className="map-ficha-escuela__kv" key={afectacion.id}>
-                  <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
-                  {afectacion.descripcion && <><dt>Afecta</dt><dd>{afectacion.descripcion}</dd></>}
-                  {novedad && <><dt>Última novedad</dt><dd>{novedad}</dd></>}
-                  {mostrarEnlaceNominal && (
-                    <dd className="map-ficha-escuela__accion">
-                      <button type="button" className="map-ficha-escuela__link" onClick={() => onVerAlumnosAlcanzados(afectacion.id)}>
-                        Ver alumnos alcanzados
-                      </button>
-                    </dd>
-                  )}
-                </dl>
-              ))}
+              {afectaciones.map((afectacion) => {
+                const causadaPor = afectaciones.find((otra) => otra.id === afectacion.causadaPorId)
+                const rigeDesde = formatearMomentoHistorial(afectacion.rigeDesde).replace(/^Hoy/, 'hoy')
+                return (
+                  <div className="map-ficha-escuela__situacion" key={afectacion.id}>
+                    <h3>{afectacion.motivo}</h3>
+                    <EstadoActualSeveridad severidad={afectacion.severidad} />
+                    <dl className="map-ficha-escuela__kv">
+                      <dt>Alcance</dt><dd>{resumirAlcance(afectacion.totales)}</dd>
+                      {rigeDesde && <><dt>Desde</dt><dd>{rigeDesde}</dd></>}
+                      {causadaPor && <><dt>Causada por</dt><dd>{causadaPor.motivo}</dd></>}
+                      {afectacion.descripcion && <><dt>Descripción</dt><dd>{afectacion.descripcion}</dd></>}
+                      <dt>Categoría</dt><dd>{CATEGORIA_META[afectacion.categoria].label}</dd>
+                      {mostrarEnlaceNominal && (
+                        <dd className="map-ficha-escuela__accion">
+                          <button type="button" className="map-ficha-escuela__link" onClick={() => onVerAlumnosAlcanzados(afectacion.id)}>
+                            Ver alumnos alcanzados
+                          </button>
+                        </dd>
+                      )}
+                    </dl>
+                  </div>
+                )
+              })}
             </>
           )}
+          {datos?.parte && novedad && <p><strong>Última novedad:</strong> {novedad}</p>}
           <button type="button" className="map-ficha-escuela__link" onClick={onVerHistorialCompleto}>Ver historial</button>
         </Desplegable>
 

@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import type { AfectacionFicha } from '@/lib/infraestructura/use-ficha-parte'
 import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
@@ -16,9 +17,9 @@ const escuela: EscuelaMapaEnriquecida = {
   situacionesHistoricas: 0,
 }
 
-const afectaciones = [{
+const afectaciones: AfectacionFicha[] = [{
   id: 'afectacion-1', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta',
-  descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
+  descripcion: 'Dos aulas sin acceso', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', causadaPorId: null, totales: { secciones: 2, alumnos: 30 },
 }]
 
 const movimientos: MovimientoHistorial[] = [
@@ -27,10 +28,10 @@ const movimientos: MovimientoHistorial[] = [
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones }: { error?: boolean; situaciones?: typeof afectaciones } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
-    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: null, afectaciones: situaciones },
+    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones },
   })))
 }
 
@@ -95,7 +96,37 @@ describe('FichaEscuelaPanel', () => {
     )).toBeInTheDocument()
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
     expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
-    expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
+    expect(await screen.findByText('Dos aulas sin acceso')).toBeInTheDocument()
+  })
+
+  it('muestra los campos de cada situación y la última novedad una sola vez', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], causadaPorId: 'afectacion-2' },
+      { ...afectaciones[0], id: 'afectacion-2', motivo: 'Inundación', descripcion: null, severidad: 'Media' },
+    ] })
+    renderFicha()
+    const situaciones = (await screen.findByText('Situaciones (2 abiertas)')).closest('details')
+
+    expect(await screen.findByText('Inaccesibilidad')).toBeInTheDocument()
+    expect(situaciones).toHaveTextContent('Gravedad Alta')
+    expect(situaciones).toHaveTextContent('2 secciones · 30 alumnos')
+    expect(situaciones).toHaveTextContent('Desde2 de octubre, 12:00')
+    expect(situaciones).toHaveTextContent('Causada porInundación')
+    expect(situaciones).toHaveTextContent('DescripciónDos aulas sin acceso')
+    expect(situaciones).not.toHaveTextContent('Afecta')
+    expect(situaciones?.querySelectorAll('strong')).toHaveLength(1)
+    expect(situaciones).toHaveTextContent('Última novedad: hace 3 h')
+  })
+
+  it.each([
+    { estado: 'parcial' as const, etiqueta: 'Uso parcial' },
+    { estado: 'habitual' as const, etiqueta: 'Sin daños / en uso normal' },
+  ])('muestra el estado del edificio "$etiqueta"', async ({ estado, etiqueta }) => {
+    instalarFetch({ estadoEstablecimiento: estado })
+    renderFicha()
+    const clases = screen.getByText('Clases y apoyo pedagógico').closest('details')
+    expect(await screen.findByText('Edificio')).toBeInTheDocument()
+    expect(clases).toHaveTextContent(`Edificio${etiqueta}`)
   })
 
   it('muestra el total de situaciones y el movimiento en la línea de tiempo', async () => {
@@ -122,7 +153,7 @@ describe('FichaEscuelaPanel', () => {
   })
 
   it('actualiza el título de situaciones cuando llegan las afectaciones aunque el bloque esté cerrado', async () => {
-    let resolverFetch: ((respuesta: { ok: boolean; json: () => Promise<{ ok: true; parte: null; afectaciones: typeof afectaciones }> }) => void) | undefined
+    let resolverFetch: ((respuesta: { ok: boolean; json: () => Promise<{ ok: true; parte: null; afectaciones: AfectacionFicha[] }> }) => void) | undefined
     vi.stubGlobal('fetch', vi.fn((url: string) => {
       if (url.includes('/historial')) return Promise.resolve({ ok: true, json: async () => ({ movimientos }) })
       return new Promise((resolve) => { resolverFetch = resolve })
@@ -239,7 +270,7 @@ describe('FichaEscuelaPanel', () => {
     instalarFetch()
     const onVerAlumnosAlcanzados = vi.fn()
     const { rerender } = renderFicha({ mostrarEnlaceNominal: false, onVerAlumnosAlcanzados })
-    expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
+    expect(await screen.findByText('Dos aulas sin acceso')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Ver alumnos alcanzados' })).not.toBeInTheDocument()
 
     rerender(
@@ -270,13 +301,13 @@ describe('FichaEscuelaPanel', () => {
   it('no conserva la ficha anterior al cambiar de CUE', async () => {
     instalarFetch()
     const { rerender } = renderFicha()
-    expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
+    expect(await screen.findByText('Dos aulas sin acceso')).toBeInTheDocument()
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
     rerender(
       <FichaEscuelaPanel escuela={{ ...escuela, cueAnexo: '180000999-00' }} acceso={<p>Acceso de prueba</p>}
         mostrarEnlaceNominal={false} onCerrar={vi.fn()} onVerAlumnosAlcanzados={vi.fn()} onVerHistorialCompleto={vi.fn()} />,
     )
     await waitFor(() => expect(screen.getAllByText('Cargando…')).toHaveLength(2))
-    expect(screen.queryByText('Afecta dos aulas')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dos aulas sin acceso')).not.toBeInTheDocument()
   })
 })

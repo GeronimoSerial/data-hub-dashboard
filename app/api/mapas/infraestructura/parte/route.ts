@@ -61,13 +61,14 @@ export async function GET(request: Request) {
       parte: ficha.parte,
       servicio: ficha.servicio,
       // Deliberadamente sin `secciones` (ids de alumno): sólo id, motivo,
-      // categoría, severidad, descripción, vigencia y totales agregados.
+      // categoría, severidad, descripción, vigencia, causalidad y totales agregados.
       afectaciones: ficha.afectaciones.map((afectacion) => ({
         id: afectacion.id,
         motivo: afectacion.motivo,
         categoria: afectacion.categoria,
         severidad: afectacion.severidad,
         descripcion: afectacion.descripcion,
+        causadaPorId: afectacion.causadaPorId,
         rigeDesde: afectacion.rigeDesde,
         creadaEn: afectacion.creadaEn,
         totales: afectacion.totales,
