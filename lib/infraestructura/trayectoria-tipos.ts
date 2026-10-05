@@ -34,6 +34,7 @@ export type TipoMovimiento =
   | 'actualizacion'
   | 'cambio_servicio'
   | 'cambio_establecimiento'
+  | 'confirmacion'
   // Reservado para el futuro recorrido de supervisor (spec §3.3, §10 de
   // CONTRACT.md). Ninguna función de este batch produce este valor.
   | 'resolucion'

@@ -130,6 +130,7 @@ const CUE_P = '1801605-60'
 const CUE_Q = '1801605-61'
 const CUE_R = '1801605-62'
 const CUE_R2 = '1801605-63'
+const CUE_S = CUE_R2
 const CUE_R3 = '1801605-64'
 
 beforeAll(async () => {
@@ -865,6 +866,25 @@ describe('POST /api/problematicas/parte — causa', () => {
     const vinculadas = await getDb().select().from(infraAfectacion)
       .where(and(eq(infraAfectacion.causadaPorId, causa), eq(infraAfectacion.motivo, entrada.motivo)))
     expect(vinculadas).toHaveLength(1)
+  })
+
+  it('"sigue igual" registra un movimiento de confirmación aunque no cambie nada', async () => {
+    await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Tormenta severa', severidad: 'Alta', secciones: [seccionId(CUE_S, '10')] }],
+    }))
+    const [fila] = await getDb().select().from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, CUE_S), eq(infraAfectacion.motivo, 'Tormenta severa')))
+    const res = await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesConfirmadas: [fila!.infra_afectacion.id],
+    }))
+    expect(res.status).toBe(201)
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, fila!.infra_parte.id))
+    const ultimo = movimientos.sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]
+    expect(ultimo!.tipo).toBe('confirmacion')
+    expect((ultimo!.resumen as { afectacionesConfirmadas: unknown[] }).afectacionesConfirmadas).toEqual([{ afectacionId: fila!.infra_afectacion.id, motivo: 'Tormenta severa' }])
   })
 
   it('no deduplica contra una afectación sin causa cuando la entrada sí tiene causa', async () => {

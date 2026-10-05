@@ -197,3 +197,31 @@ describe('describirMovimiento', () => {
     }
   })
 })
+
+const vacioRediseño: DiffParte = {
+  afectacionesAgregadas: [],
+  afectacionesRetiradas: [],
+  severidadesCambiadas: [],
+  alcancesCambiados: [],
+  datosCambiados: [],
+  serviciosCambiados: [],
+  establecimientoCambiado: null,
+  asistenciaPedagogicaCambiada: null,
+}
+
+describe('describirMovimiento — rediseño', () => {
+  it('describe una confirmación', () => {
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesConfirmadas: [{ afectacionId: 'a', motivo: 'Inundación' }] })).toContain('Sigue igual: "Inundación"')
+  })
+  it('distingue solucionada de retirada', () => {
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación', cierre: 'solucionada' }] })).toContain('Se solucionó "Inundación"')
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación' }] })).toContain('Se resolvió "Inundación"')
+  })
+  it('agrega el vínculo causal', () => {
+    const lineas = describirMovimiento({
+      ...vacioRediseño,
+      afectacionesAgregadas: [{ afectacionId: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', secciones: 1, alumnos: 0, causadaPor: { afectacionId: 'a', motivo: 'Inundación' } }],
+    })
+    expect(lineas).toContain('Causado por "Inundación"')
+  })
+})

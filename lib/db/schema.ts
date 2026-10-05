@@ -423,7 +423,7 @@ export const infraMovimiento = pgTable(
       .notNull()
       .references(() => infraParte.id, { onDelete: 'cascade' }),
     // 'reporte_inicial' | 'actualizacion' | 'cambio_servicio' |
-    // 'cambio_establecimiento' | 'resolucion' (esta última reservada para el
+    // 'cambio_establecimiento' | 'confirmacion' | 'resolucion' (esta última reservada para el
     // futuro flujo de supervisor, nunca producida en esta etapa)
     tipo: text('tipo').notNull(),
     rol: text('rol').notNull(), // 'director' | 'supervisor'
