@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useEffect, useImperativeHandle, type JSX, type ReactNode } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState, type JSX, type ReactNode } from 'react'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -34,6 +34,11 @@ const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
 // escuelas sin depender de los globales; `beforeEach` la deja en su valor por
 // defecto (las dos escuelas del padrón de abajo).
 const CUES_DESAGRUPADOS_MOCK = vi.hoisted(() => ({ cues: [] as string[] }))
+const MAPA_ESTILO_MOCK = vi.hoisted(() => ({
+  mapStyle: '' as string,
+  onStyleData: null as (() => void) | null,
+  montajesFuente: 0,
+}))
 
 const PARTE: ParteMapa = crearParteMapa({
   cueAnexo: CUE,
@@ -411,8 +416,12 @@ vi.mock('react-map-gl/maplibre', () => {
       children?: React.ReactNode
       onClick?: (event: MouseEventMock) => void
       onLoad?: () => void
+      mapStyle?: string
+      onStyleData?: () => void
     }
   >(function MapGL(props, ref) {
+    MAPA_ESTILO_MOCK.mapStyle = props.mapStyle ?? ''
+    MAPA_ESTILO_MOCK.onStyleData = props.onStyleData ?? null
     useImperativeHandle(
       ref,
       () => ({
@@ -421,6 +430,7 @@ vi.mock('react-map-gl/maplibre', () => {
           fitBounds: FIT_BOUNDS_MOCK,
           resize: vi.fn(),
           stop: vi.fn(),
+          isStyleLoaded: () => true,
           // `infra-partes-src` tiene que existir para que
           // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
           // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
@@ -470,7 +480,7 @@ vi.mock('react-map-gl/maplibre', () => {
       ['mock-click-cruce', [feature('infra-cruces-acceso-symbol', { clasificacion: 'sin_evidencia' }), feature('infra-departamentos-relleno', { nombre: 'Capital' })], { lng: -58.81, lat: -27.48 }],
     ]
     return (
-      <div data-testid="mock-maplibre">
+      <div data-testid="mock-maplibre" data-map-style={props.mapStyle}>
         {clickCases.map(([testId, target, lngLat]) => (
           <button
             key={testId}
@@ -506,11 +516,14 @@ vi.mock('react-map-gl/maplibre', () => {
     // pero se expone acá como atributo serializado: es la única forma de
     // inspeccionar, desde un test de integración, qué features terminan en
     // el GeoJSON de cada fuente sin depender del click handler.
-    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => (
-      <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-geojson={JSON.stringify(props.data)}>
-        {props.children ?? null}
-      </div>
-    ),
+    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => {
+      const [mountId] = useState(() => ++MAPA_ESTILO_MOCK.montajesFuente)
+      return (
+        <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-mount-id={mountId} data-geojson={JSON.stringify(props.data)}>
+          {props.children ?? null}
+        </div>
+      )
+    },
   }
 })
 
@@ -632,6 +645,9 @@ function esParrafoPopupDepartamento(_contenido: string, elemento: Element | null
 }
 
 beforeEach(() => {
+  MAPA_ESTILO_MOCK.mapStyle = ''
+  MAPA_ESTILO_MOCK.onStyleData = null
+  MAPA_ESTILO_MOCK.montajesFuente = 0
   vi.restoreAllMocks()
   // Los spies del doble del mapa son `vi.fn()` de módulo: se limpian a mano
   // para que el conteo de encuadres (`toHaveBeenCalledTimes`) sea el de este
@@ -1031,6 +1047,28 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 })
 
 describe('MapInfraestructuraPage — Planificación', () => {
+  it.each([
+    ['planificacion', 'mock-layer-infra-puntos-nivel'],
+    ['actual', 'mock-source-infra-partes-src'],
+  ] as const)('cambio de pestaña radar → %s restaura estilo/basemap y monta sus capas', async (pestana, testIdCapa) => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+    expect(screen.getByTestId('mock-maplibre')).toHaveAttribute('data-map-style', 'https://tiles.openfreemap.org/styles/dark')
+    await act(async () => MAPA_ESTILO_MOCK.onStyleData?.())
+
+    vista.rerender({ pestana })
+
+    expect(screen.getByTestId('mock-maplibre')).toHaveAttribute('data-map-style', 'https://tiles.openfreemap.org/styles/bright')
+    expect(screen.getByTestId(testIdCapa)).toBeInTheDocument()
+    const montajeAntesDeStyleData = screen.getByTestId('mock-source-infra-mascara-src').getAttribute('data-mount-id')
+
+    await act(async () => MAPA_ESTILO_MOCK.onStyleData?.())
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-source-infra-mascara-src').getAttribute('data-mount-id')).not.toBe(montajeAntesDeStyleData)
+    })
+    desmontarMapa?.()
+  })
+
   it('muestra el panel de Planificación y sus tres vistas en la pestaña', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
 

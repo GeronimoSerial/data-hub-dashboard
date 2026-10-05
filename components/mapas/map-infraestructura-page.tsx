@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -86,6 +87,7 @@ import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
+import { cambioEstiloCargado } from '@/lib/infraestructura/mapa/estilo'
 import {
   construirCoropletaPeligro,
   construirPuntosRiesgoAcceso,
@@ -682,6 +684,8 @@ export default function MapInfraestructuraPage(props: {
   // inexistente. Se vuelve a false al cambiar de base (el estilo se recarga y
   // MapLibre descarta las imágenes) y `onStyleData` las re-registra.
   const [iconosClusterListos, setIconosClusterListos] = useState(false)
+  const [versionEstilo, setVersionEstilo] = useState(0)
+  const ultimoEstiloCargado = useRef<string | null>(null)
 
   // ── Modo Radar (E4) ───────────────────────────────────────────
   //
@@ -1397,11 +1401,18 @@ export default function MapInfraestructuraPage(props: {
           }}
           cursor="pointer"
           onLoad={handleMapLoad}
-          // V2: cambiar de base recarga el estilo y MapLibre descarta las
-          // imágenes registradas; `styledata` vuelve a registrarlas.
+          // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.
+          // Al terminar la carga se vuelve a montar el árbol dinámico en orden.
           onStyleData={() => {
-            registrarIconosCluster()
             const map = mapRef.current?.getMap()
+            if (map?.isStyleLoaded()) {
+              if (cambioEstiloCargado(ultimoEstiloCargado.current, mapStyle, true)) {
+                setVersionEstilo((version) => version + 1)
+                setIconosClusterListos(false)
+              }
+              ultimoEstiloCargado.current = mapStyle
+            }
+            registrarIconosCluster()
             if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
           }}
           onMoveEnd={actualizarCuesNoAgrupados}
@@ -1412,6 +1423,7 @@ export default function MapInfraestructuraPage(props: {
             }
           }}
         >
+          <Fragment key={versionEstilo}>
           <NavigationControl position="top-left" showCompass={!radarActivo} />
           {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
@@ -1822,7 +1834,7 @@ export default function MapInfraestructuraPage(props: {
             </Marker>
           ))}
 
-
+          </Fragment>
         </MapGL>
       </div>
 
