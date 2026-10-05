@@ -120,7 +120,7 @@ describe('RecorridoActualizacion: borrador local', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado.')
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar de nuevo' }))
     await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(localStorage.getItem(CLAVE)).toBeNull()
   })

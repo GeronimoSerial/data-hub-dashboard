@@ -139,8 +139,8 @@ describe('RecorridoActualizacion: envío', () => {
     const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
-      expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
-      const botonCargarOtro = screen.getByRole('button', { name: 'Cargar otra situación' })
+      expect(screen.getByRole('link', { name: 'Ver estado actual' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
+      const botonCargarOtro = screen.getByRole('button', { name: 'Actualizar de nuevo' })
       expect(botonCargarOtro.tagName).toBe('BUTTON')
       const avisos = [...erroresConsola.mock.calls, ...avisosConsola.mock.calls].flat().map(String).join('\n')
       expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')

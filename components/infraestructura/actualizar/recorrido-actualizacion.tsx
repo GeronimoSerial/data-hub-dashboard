@@ -652,10 +652,10 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
       <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
-          Volver al panel
+          Ver estado actual
         </a>
         <Button type="button" variant="secondary" onClick={onRecargar}>
-          Cargar otra situación
+          Actualizar de nuevo
         </Button>
       </div>
     </div>

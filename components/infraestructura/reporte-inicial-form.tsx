@@ -669,7 +669,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         </div>
         <div className="reporte-inicial__confirmacion-acciones">
           <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
-            Volver al panel
+            Ver estado actual
           </a>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
             Cargar otra situación

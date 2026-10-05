@@ -654,7 +654,7 @@ describe('ReporteInicialForm', () => {
       expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
 
-      const volverAlPanel = screen.getByRole('link', { name: 'Volver al panel' })
+      const volverAlPanel = screen.getByRole('link', { name: 'Ver estado actual' })
       expect(volverAlPanel.tagName).toBe('A')
       expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
       expect(consoleError).not.toHaveBeenCalled()
