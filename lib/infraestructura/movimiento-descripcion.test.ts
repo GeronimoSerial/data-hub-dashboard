@@ -60,6 +60,32 @@ describe('describirMovimiento', () => {
     expect(describirMovimiento(diff)).toEqual(['Funcionamiento escolar interrumpido'])
   })
 
+  it('resuelve nombres de sección y agrupa secciones desconocidas sin exponer sus ids', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      serviciosCambiados: [
+        { alcance: { tipo: 'seccion', referenciaId: '1099916' }, de: null, a: 'normal' },
+        { alcance: { tipo: 'seccion', referenciaId: '1099920' }, de: null, a: 'normal' },
+        { alcance: { tipo: 'seccion', referenciaId: '1099918' }, de: null, a: 'normal' },
+      ],
+    }
+    const textos = describirMovimiento(diff)
+    expect(textos).toEqual(['Funcionamiento escolar normal en 3 secciones'])
+    expect(textos.join(' ')).not.toMatch(/1099916|1099920|1099918/)
+  })
+
+  it('resuelve el curso, la división y el turno para mostrar el nombre de sección', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      serviciosCambiados: [
+        { alcance: { tipo: 'seccion', referenciaId: '1099916' }, de: null, a: 'normal' },
+      ],
+    }
+    expect(describirMovimiento(diff, {
+      secciones: [{ geSectionId: 1099916, curso: 'Sala 3', division: 'B', turno: 'Mañana' }],
+    })).toEqual(['Funcionamiento escolar normal en Sala 3 "B" (Mañana)'])
+  })
+
   it('afectación agregada produce el texto del ejemplo de §15', () => {
     const antes = crearSnapshotVacio()
     const despues: ParteSnapshot = {

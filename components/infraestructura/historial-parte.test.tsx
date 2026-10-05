@@ -58,7 +58,11 @@ describe('HistorialParte', () => {
     const cargas = Array.from(container.querySelectorAll('.linea-de-tiempo__hora')).map(
       (el) => el.textContent,
     )
-    expect(cargas).toEqual(['10:00', '16:00', '08:00'])
+    expect(cargas).toEqual([
+      '18 de septiembre, 10:00',
+      '17 de septiembre, 16:00',
+      '16 de septiembre, 08:00',
+    ])
   })
 
   it('muestra el estado vacío, y no un error, cuando no hay movimientos', async () => {

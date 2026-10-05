@@ -3,7 +3,7 @@ import type { RolMovimiento, TipoMovimiento } from '@/lib/infraestructura/trayec
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import {
   debeMostrarRigeDesde,
-  formatearCargaCorta,
+  formatearMomentoHistorial,
   formatearRigeDesde,
 } from './historial-formato'
 
@@ -36,7 +36,7 @@ const ROL_TEXTO: Record<RolMovimiento, string> = {
  * contenedor (historial-parte.tsx) resuelve la carga y el orden.
  */
 export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHistorial }): JSX.Element {
-  const carga = formatearCargaCorta(movimiento.creadaEn)
+  const carga = formatearMomentoHistorial(movimiento.creadaEn)
   const rol = ROL_TEXTO[movimiento.rol] ?? movimiento.rol
   const mostrarVigencia = debeMostrarRigeDesde(movimiento.creadaEn, movimiento.rigeDesde)
 

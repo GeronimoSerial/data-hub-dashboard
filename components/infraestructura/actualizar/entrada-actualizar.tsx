@@ -3,14 +3,12 @@
 import type { JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
+import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { ETIQUETA_ESTABLECIMIENTO, ETIQUETA_SERVICIO } from '@/components/infraestructura/estado-actual-textos'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 import { ordenarSituaciones, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import type { EstadoEstablecimiento, EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
-
-const ZONA = 'America/Argentina/Buenos_Aires'
-const fmt = new Intl.DateTimeFormat('es-AR', { timeZone: ZONA, weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
 
 export interface EntradaActualizarProps {
   situaciones: SituacionRecorrido[]
@@ -29,7 +27,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
     <div className="entrada-actualizar">
       {ultimaCarga ? (
         <p className="entrada-actualizar__ultima">
-          Su última carga: <strong>{fmt.format(new Date(ultimaCarga.creadaEn))}</strong>
+          Su última carga: <strong>{formatearMomentoHistorial(ultimaCarga.creadaEn)}</strong>
           {ultimaCarga.cambios[0] ? ` · ${ultimaCarga.cambios[0]}` : null}
         </p>
       ) : null}
@@ -41,7 +39,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
             <strong>{principal.motivo}</strong> <EstadoActualSeveridad severidad={principal.severidad} prefijo={false} />
           </p>
           <p className="entrada-actualizar__detalle">
-            {`${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]} · ${ETIQUETA_SERVICIO[estadoServicio]} · desde ${fmt.format(new Date(principal.rigeDesde))}`}
+            {`${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]} · ${ETIQUETA_SERVICIO[estadoServicio]} · desde ${formatearMomentoHistorial(principal.rigeDesde)}`}
           </p>
         </section>
       ) : null}
@@ -53,7 +51,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
             {otras.map((situacion) => (
               <li key={situacion.id}>
                 <span>{situacion.motivo}</span> <EstadoActualSeveridad severidad={situacion.severidad} prefijo={false} />
-                <span className="entrada-actualizar__detalle">{` · desde ${fmt.format(new Date(situacion.rigeDesde))}`}</span>
+                <span className="entrada-actualizar__detalle">{` · desde ${formatearMomentoHistorial(situacion.rigeDesde)}`}</span>
               </li>
             ))}
           </ul>

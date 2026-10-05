@@ -30,6 +30,12 @@ const PARTES_FORMATO = new Intl.DateTimeFormat('en-US', {
   minute: '2-digit',
   hourCycle: 'h23',
 })
+const FECHA_CLAVE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: ZONA_HORARIA,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 
 interface PartesFecha {
   dia: number
@@ -59,6 +65,15 @@ export function formatearCargaCorta(iso: string): string {
   if (Number.isNaN(fecha.getTime())) return ''
   const { dia, mes, hora, minuto } = partesEnZona(fecha)
   return `${dia} ${MESES_CORTOS[mes]} · ${hora}:${minuto}`
+}
+
+/** Fecha y hora de un movimiento: "Hoy, 00:49" o "1 de octubre, 10:45". */
+export function formatearMomentoHistorial(iso: string, ahora: Date = new Date()): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return ''
+  const { dia, mes, hora, minuto } = partesEnZona(fecha)
+  if (FECHA_CLAVE.format(fecha) === FECHA_CLAVE.format(ahora)) return `Hoy, ${hora}:${minuto}`
+  return `${dia} de ${MESES_LARGOS[mes]}, ${hora}:${minuto}`
 }
 
 /**
