@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   debeMostrarRigeDesde,
   formatearCargaCorta,
+  formatearMomentoHistorial,
   formatearRigeDesde,
 } from './historial-formato'
 
@@ -24,6 +25,22 @@ describe('formatearCargaCorta', () => {
 
   it('devuelve cadena vacía ante un timestamp ilegible', () => {
     expect(formatearCargaCorta('no es una fecha')).toBe('')
+  })
+})
+
+describe('formatearMomentoHistorial', () => {
+  const ahora = new Date('2026-10-05T03:00:00.000Z')
+
+  it('muestra Hoy y la hora local para una carga del día actual', () => {
+    expect(formatearMomentoHistorial('2026-10-05T03:49:00.000Z', ahora)).toBe('Hoy, 00:49')
+  })
+
+  it('muestra el día, el mes y la hora local para otras fechas', () => {
+    expect(formatearMomentoHistorial('2026-10-01T13:45:00.000Z', ahora)).toBe('1 de octubre, 10:45')
+  })
+
+  it('devuelve cadena vacía ante un timestamp ilegible', () => {
+    expect(formatearMomentoHistorial('fecha inválida', ahora)).toBe('')
   })
 })
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
@@ -16,6 +16,9 @@ describe('VigenciaChips', () => {
   it('arranca en "Ahora" sin campos de fecha ni hora', () => {
     render(<Controlado />)
     expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    const opciones = screen.getByRole('radiogroup', { name: '¿Desde cuándo ocurre?' })
+    expect(opciones).toHaveClass('vigencia-chips__opciones')
+    expect(within(opciones).getAllByRole('radio')).toHaveLength(3)
     expect(screen.queryByLabelText('Hora')).not.toBeInTheDocument()
     expect(screen.getByText('Desde ahora')).toBeInTheDocument()
   })
@@ -34,7 +37,11 @@ describe('VigenciaChips', () => {
     expect(screen.getByLabelText('Hora')).toBeInTheDocument()
   })
   it('muestra el error recibido', () => {
-    render(<VigenciaChips value={{ modo: 'ahora' }} onChange={() => {}} label="x" error="La fecha debe estar entre hace 12 meses y el momento actual." />)
-    expect(screen.getByRole('alert')).toHaveTextContent('12 meses')
+    const mensaje = 'Esa hora todavía no pasó. Elija una hora anterior a la actual.'
+    render(<VigenciaChips value={{ modo: 'hoy', hora: '23:59' }} onChange={() => {}} label="x" error={mensaje} />)
+    const hora = screen.getByLabelText('Hora')
+    expect(screen.getByRole('alert')).toHaveTextContent(mensaje)
+    expect(hora).toHaveAttribute('aria-describedby', screen.getByRole('alert').id)
+    expect(screen.getAllByText(mensaje)).toHaveLength(1)
   })
 })

@@ -38,20 +38,19 @@ describe('SelectorEstablecimiento', () => {
     expect(v()).toEqual({ alcance: 'algunas', secciones: [s.geSectionId] })
     expect(screen.getByRole('radio', { name: 'Toda la escuela' })).not.toBeChecked()
   })
-  it('marcar una sección despliega sus alumnos en sólo lectura', () => {
+  it('usa la lista agrupada compartida para elegir secciones', () => {
     render(<Controlado />)
     fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
     const s = todas.find((x) => x.alumnos.length > 0)!
     fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(`^${s.curso} "${s.division}"`) }))
-    expect(screen.getByText(`${s.alumnos[0].apellido}, ${s.alumnos[0].nombre}`)).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: `${s.alumnos[0].apellido}, ${s.alumnos[0].nombre}` })).not.toBeInTheDocument()
+    expect(v()).toEqual({ alcance: 'algunas', secciones: [s.geSectionId] })
+    expect(screen.getByRole('heading', { name: /Mañana · \d+ de \d+ secciones/ })).toBeInTheDocument()
   })
-  it('"Todo el turno" marca las secciones del turno', () => {
+  it('no expone controles separados para cada turno', () => {
     render(<Controlado />)
     fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
     const turno = TURNOS_FIXTURE[0]
-    fireEvent.click(screen.getByRole('checkbox', { name: `Todo el turno ${turno.turno}` }))
-    const ids = turno.niveles.flatMap((n) => n.secciones.map((s) => s.geSectionId))
-    expect(v().secciones).toEqual(ids)
+    expect(screen.queryByRole('checkbox', { name: `Todo el turno ${turno.turno}` })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: new RegExp(turno.turno) })).toBeInTheDocument()
   })
 })

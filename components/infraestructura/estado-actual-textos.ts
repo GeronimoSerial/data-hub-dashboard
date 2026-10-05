@@ -182,7 +182,7 @@ export function rigeDesdeDelServicio(alcanceVigente: ServicioAlcance[] | undefin
  * "Sin situación en seguimiento" según spec §17: no hay período provincial
  * abierto, todavía no se inició el parte, o el parte no tiene ninguna
  * afectación vigente. Los tres casos se comunican igual y ofrecen la misma
- * acción, "Iniciar un reporte".
+ * acción, "Cargar una situación".
  */
 export function sinSituacionEnSeguimiento(respuesta: EstadoActualRespuesta): boolean {
   if (!respuesta.periodo || !respuesta.parte) return true

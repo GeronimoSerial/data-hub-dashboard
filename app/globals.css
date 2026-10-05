@@ -181,12 +181,16 @@
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
 .linea-de-tiempo__lista { list-style: none; margin: 0; padding: 0 0 0 var(--s-4); border-left: 2px solid var(--line); }
-.linea-de-tiempo__entrada { position: relative; padding: 0 0 var(--s-3) var(--s-3); }
+.linea-de-tiempo__entrada { position: relative; padding: 0 0 var(--s-4) var(--s-3); }
+.linea-de-tiempo__entrada:last-child { padding-bottom: 0; }
 .linea-de-tiempo__punto { position: absolute; left: calc(-1 * var(--s-4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: 50%; }
-.linea-de-tiempo__dia { font-size: var(--t-small); text-transform: uppercase; color: var(--ink-soft); margin: var(--s-3) 0 var(--s-2); }
-.linea-de-tiempo__hora { font-weight: 600; }
-.linea-de-tiempo__cambios p { margin: var(--s-1) 0 0; }
-.linea-de-tiempo__mas { min-height: 44px; background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+.linea-de-tiempo__hora { font-size: var(--t-small); font-weight: 600; color: var(--ink-soft); }
+.linea-de-tiempo__cambios { margin-top: var(--s-1); }
+.linea-de-tiempo__cambios p { margin: 0; }
+.linea-de-tiempo__titulo { font-weight: 700; color: var(--ink); }
+.linea-de-tiempo__detalles { list-style: none; margin: var(--s-1) 0 0; padding: 0; color: var(--ink-soft); font-size: var(--t-small); }
+.linea-de-tiempo__detalles li + li { margin-top: var(--s-1); }
+.linea-de-tiempo__mas { margin-top: var(--s-3); }
 
 * { box-sizing: border-box; }
 /* The document itself never scrolls: every page scrolls inside the shell's
@@ -1385,6 +1389,19 @@ time {
   margin-top: auto;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
+@media (min-width: 768px) {
+  .ui-sheet--bottom {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    width: min(30rem, calc(100vw - 2rem));
+    max-height: 80vh;
+    margin: 0;
+    border-radius: var(--r-lg);
+    transform: translate(-50%, -50%);
+  }
+}
 .confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
 .confirm-sheet__acciones {
   display: flex;
@@ -1401,8 +1418,10 @@ time {
   border: 0;
   background: transparent;
   color: var(--ink-soft);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -2826,13 +2845,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 /* Master toggle: it governs everything below, so it sits above the list on
    its own tinted row rather than inline with the sections it controls. */
-.secciones-selector > .ui-checkbox {
+.secciones-selector > .opcion {
   min-height: 48px;
   padding: var(--s-3) var(--s-4);
   background: var(--fill);
   border-bottom: 1px solid var(--line);
 }
-.secciones-selector > .ui-checkbox .ui-checkbox__label { font-weight: 600; }
+.secciones-selector > .opcion .opcion__label { font-weight: 600; }
 
 .secciones-selector__turno { display: flex; flex-direction: column; }
 
@@ -2868,13 +2887,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: 44px;
-  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  min-height: 48px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
   transition: background-color 140ms ease;
 }
 .secciones-selector__fila:hover { background: var(--fill); }
-.secciones-selector__fila > .ui-checkbox { flex: 1; min-width: 0; gap: var(--s-3); }
-.secciones-selector__fila .ui-checkbox__label { font-weight: 600; }
+.secciones-selector__fila > .opcion { flex: 1; min-width: 0; gap: var(--s-3); border: 0; background: transparent; }
+.secciones-selector__fila > .opcion:has(.opcion__input:checked),
+.secciones-selector__fila > .opcion[data-indeterminate='true'] { background: var(--accent-tint); }
+.secciones-selector__fila .opcion__label { font-weight: 600; }
 
 /* Disclosure for the nominal list. The section checkbox keeps showing its
    indeterminate state while collapsed, so a partial pick is never hidden by
@@ -2884,8 +2905,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-height: 32px;
-  padding: 0 0.6rem;
+  min-height: 44px;
+  padding: 0 var(--s-3);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
@@ -2914,14 +2935,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .secciones-selector__alumnos[hidden] { display: none; }
 
-.secciones-selector__alumnos .ui-checkbox {
-  min-height: 34px;
-  padding: 2px 0;
-}
-
-.secciones-selector__alumnos .ui-checkbox__label {
-  font-size: var(--t-small);
+.secciones-selector__alumnos .opcion { min-height: 48px; border: 0; border-radius: var(--r-xs); }
+.secciones-selector__busqueda {
+  min-height: 44px;
+  margin: var(--s-2) 0;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
   color: var(--ink);
+  font: inherit;
 }
 
 .selector-alumnos__cabecera {
@@ -2929,13 +2952,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   align-items: center;
   gap: var(--s-2);
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   justify-content: space-between;
   background: none;
   border: 0;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
+.selector-alumnos__lista { display: flex; flex-direction: column; padding: 0 0 0 var(--s-4); border-left: 1px solid var(--line); margin: 0 var(--s-4) var(--s-3); }
+.selector-alumnos__lista[hidden] { display: none; }
+.selector-alumnos__lista .opcion { min-height: 48px; border: 0; }
 
 .badge-seleccion {
   font-size: var(--t-small);
@@ -3008,14 +3034,37 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-size: var(--t-small);
 }
 
-.vigencia-chips__opciones { display: flex; flex-wrap: wrap; gap: var(--s-2); }
-.chip-radio { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s-4); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.vigencia-chips { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; margin: 0; padding: 0; border: 0; }
+.vigencia-chips__titulo { margin: 0 0 var(--s-1, 4px); padding: 0; font-family: var(--font-display); font-size: var(--t-body); font-weight: 700; color: var(--ink); }
+.vigencia-chips__opciones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); }
+.chip-radio { display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 48px; padding: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-sm); text-align: center; cursor: pointer; }
 .chip-radio input { position: absolute; opacity: 0; pointer-events: none; }
-.chip-radio:has(input:checked) { border-color: var(--ink); background: var(--fill); font-weight: 600; }
+.chip-radio:has(input:checked) { border-color: var(--accent); background: var(--accent-tint); font-weight: 600; }
 .chip-radio:has(input:focus-visible) { outline: 2px solid var(--focus, var(--ink)); outline-offset: 2px; }
-.vigencia-chips__campos { display: flex; flex-wrap: wrap; gap: var(--s-3); margin-top: var(--s-3); }
-.vigencia-chips__campos input { min-height: 44px; }
-.vigencia-chips__resumen { margin-top: var(--s-2); color: var(--ink-soft); }
+.vigencia-chips__campos { display: flex; flex-direction: column; gap: var(--s-3); margin-top: var(--s-2); }
+.vigencia-chips__campos .ui-label { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
+.vigencia-chips__campos input { width: 100%; min-height: 48px; }
+.vigencia-chips__resumen { margin: 0; color: var(--ink-soft); }
+.revisar-situacion .vigencia-chips__resumen { margin-top: var(--s-2); }
+
+.selector-establecimiento__opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--s-2);
+}
+.selector-establecimiento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.selector-establecimiento__opciones > .opcion {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  text-align: left;
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
@@ -3155,7 +3204,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    le robaría 32px a cada lado justo donde menos sobran. */
 @media (min-width: 880px) {
   .publico-content--ancho,
-  .publico-layout:has(.publico-content--ancho) {
+  .publico-layout:has(.publico-content--ancho),
+  .publico-layout:has(.publico-content--parte) {
     /* El tope es fluido, no fijo: en un monitor de 2500px una tarjeta clavada
        en 1120 se lee como una tira angosta en el medio de la nada, y en uno
        de 1200 una clavada en 1440 se pega a los bordes. El `100% - 4rem`
@@ -3164,7 +3214,40 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   }
 }
 
+/* El contenido del parte se lee como una sola columna. El marco institucional
+   conserva la medida amplia del sitio y la tarjeta limita su propio ancho. */
+@media (min-width: 768px) {
+  .publico-content.publico-content--parte { max-width: 720px; }
+  .publico-content--parte .reporte-inicial,
+  .publico-content--parte .recorrido-actualizacion,
+  .publico-content--parte .historial-contenido { max-width: none; }
+  .publico-content--parte .reporte-inicial--con-panel {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: none;
+  }
+  .publico-content--parte .reporte-inicial--con-panel > * { grid-column: 1; }
+  .publico-content--parte .reporte-inicial--con-panel > .actualizacion-pendientes {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    max-width: none;
+    justify-self: stretch;
+  }
+}
+
+.publico-content--parte:has(.actualizacion-resumen) .encabezado-parte__pantalla {
+  display: none;
+}
+
 /* ── Historial del parte (spec §15) ────────────────────────────────────── */
+
+.historial-contenido {
+  display: grid;
+  gap: var(--s-5);
+  width: 100%;
+  max-width: 640px;
+  margin-inline: auto;
+}
 
 /* Sólo lectura, en un teléfono, posiblemente durante una emergencia: una
    columna, sin adornos, y cada movimiento separado por una línea en lugar
@@ -3311,6 +3394,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-5);
   margin-top: var(--s-5);
 }
+.publico-content--estado-actual .estado-actual { margin-top: 0; }
 
 /* Aviso de carga, de error y de acceso vencido. Bloque propio para que el
    mensaje no se confunda con un dato del parte. */
@@ -3495,18 +3579,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .estado-actual-acciones {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-3);
 }
 
 /* Un solo botón oscuro por pantalla (§5.3). En el teléfono ocupa el ancho
    completo para que sea imposible errarle. */
 .estado-actual-acciones__principal {
-  flex: 1 1 14rem;
+  flex: 0 1 auto;
+  min-height: 48px;
 }
+
+.estado-actual-acciones > .ui-button { min-height: 48px; }
 
 @media (max-width: 480px) {
   .estado-actual-acciones { flex-direction: column; align-items: stretch; }
-  .estado-actual-bloque__accion { width: 100%; }
+  .estado-actual-acciones > .ui-button { width: 100%; }
 }
 
 /* En escritorio los dos datos de cabecera —servicio y establecimiento— se
@@ -3690,13 +3778,53 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-size: var(--t-small);
 }
 
+.estado-envio-aviso {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-sm);
+  background: var(--warn-tint);
+  color: var(--warn);
+  font-size: var(--t-small);
+}
+
+.estado-envio-aviso__icono {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.1em;
+  stroke-width: 1.75;
+}
+
+.estado-envio-aviso > p { margin: 0; }
+
+.estado-envio-aviso > .ui-button {
+  grid-column: 2;
+  justify-self: start;
+  min-height: 44px;
+}
+
 .reporte-inicial__confirmacion {
+  width: 100%;
+  max-width: none;
+  margin-inline: auto;
   padding: var(--s-5);
   border-radius: var(--r-md);
   background: var(--ok-tint);
   color: var(--ok);
   font-weight: 500;
 }
+
+.reporte-inicial__confirmacion-mensaje {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-weight: 600;
+}
+.reporte-inicial__confirmacion-mensaje svg { flex: none; }
 
 .reporte-inicial__confirmacion-acciones {
   display: flex;
@@ -3706,31 +3834,21 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-weight: 400;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .reporte-inicial__confirmacion-acciones { flex-direction: column; align-items: stretch; }
+  .reporte-inicial__confirmacion-acciones > * { width: 100%; min-height: 48px; }
 }
 
 @media (max-width: 480px) {
   .reporte-inicial { max-width: none; }
 }
 
-/* ── Formulario con panel al costado (actualización del parte) ───────────── */
-
-/* Una sola columna hasta que entran las dos sin comprimir ninguna:
-   640 de formulario + 2rem + 17rem de panel. Debajo de eso el panel vuelve
-   a su lugar en el flujo, entre el último campo y el botón. */
-@media (min-width: 1060px) {
+/* ── Recorrido de actualización del parte ──────────────────────────────── */
+@media (min-width: 768px) {
   .reporte-inicial--con-panel {
     display: grid;
-    /* La primera pista va fija en la medida del formulario: una pista
-       elástica se dimensiona por su contenido, y un paso con pocos campos
-       encogería la columna y movería el panel de lugar entre pantallas. El
-       punto de quiebre garantiza que 640 + separación entren sin desbordar. */
-    grid-template-columns: 640px minmax(0, 1fr);
-    column-gap: var(--s-6);
-    /* Sin separación entre filas: el panel abarca todas, y una separación
-       se cobraría también en las filas vacías que ese tramo deja debajo.
-       El aire vuelve como margen entre hermanos de la primera columna. */
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: center;
     row-gap: 0;
     align-items: start;
     max-width: none;
@@ -3739,31 +3857,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .reporte-inicial--con-panel > * { grid-column: 1; }
   .reporte-inicial--con-panel > * + * { margin-top: var(--s-5); }
 
-  /* El tramo de filas abarca el formulario entero para que el pegado tenga
-     por dónde viajar: su razón de ser es acompañar, y el director necesita
-     ver lo que lleva cambiado mientras completa una sección de más abajo. El
-     número es holgado a propósito —las filas se crean solas según cuántas
-     secciones muestre el paso— y las que sobran no ocupan nada, porque están
-     vacías y no hay separación entre filas. */
-  .reporte-inicial--con-panel > .actualizacion-pendientes {
-    grid-column: 2;
-    grid-row: 1 / span 40;
-    margin-top: 0;
-    position: sticky;
-    top: var(--s-5);
-    /* El tope va en el panel y no en la pista: una pista topeada desborda
-       cuando el contenedor se achica, y esta lista son tres renglones de
-       texto — a 700px de ancho deja de leerse como una columna. */
-    /* El `width` acompaña al tope porque `justify-self` deja al panel del
-       ancho de su contenido: sin él, el borde izquierdo se corre cada vez
-       que entra o sale una línea de la lista de cambios. */
-    width: 100%;
-    max-width: 26rem;
-    /* Contra el borde derecho de la tarjeta, donde ya está la referencia que
-       marcan el encabezado y las líneas de sección. Pegado al formulario
-       dejaba una franja muerta a la derecha y el conjunto quedaba corrido. */
-    justify-self: end;
-  }
 }
 
 /* ── Actualización del parte (batch 6) ────────────────────────────────── */
@@ -3782,16 +3875,63 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex-direction: column;
   gap: var(--s-2);
   margin: 0;
-  padding-left: var(--s-4);
   font-size: var(--t-small);
   color: var(--ink);
 }
+.actualizacion-resumen__lista > p { margin: 0; }
+.actualizacion-resumen__vigente {
+  margin: calc(-1 * var(--s-2)) 0 0;
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+}
+.actualizacion-resumen { padding-top: 0; border-top: 0; }
 
 .actualizacion-resumen__acciones {
   display: flex;
   flex-wrap: wrap;
   gap: var(--s-3);
 }
+
+.actualizacion-borrador {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.actualizacion-borrador > p { margin: 0; }
+
+.actualizacion-borrador__acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.actualizacion-borrador__acciones > * { width: 100%; min-height: 48px; }
+
+.revisar-situacion,
+.algo-nuevo,
+.algo-nuevo__datos,
+.algo-nuevo__campos,
+.revisar-situacion__bloques {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.recorrido-actualizacion__descripcion {
+  margin: 0 0 var(--s-4);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.revisar-situacion > h3,
+.revisar-situacion > .asistente__contador { margin: 0; }
 
 
 
@@ -3855,7 +3995,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .encabezado-parte__pantalla {
-  margin: var(--s-3) 0 0;
+  margin: var(--s-2) 0 0;
   font-size: clamp(1.125rem, 2vw, 1.375rem);
   letter-spacing: 0;
   color: var(--ink);
@@ -3916,7 +4056,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .badge-sugerido {
-  margin-left: var(--s-2);
+  margin-left: 0;
   font-size: var(--t-small);
   padding: 0 var(--s-2);
   border-radius: 999px;
@@ -3936,6 +4076,72 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .opcion-radio--compacta input {
   margin-top: 0;
 }
+
+/* Opción reutilizable para los flujos del parte. El input sigue siendo nativo
+   y enfocable; el indicador visible mantiene el sistema visual de las tarjetas. */
+.opcion {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition-property: border-color, background-color;
+  transition-duration: 120ms;
+}
+.opcion:hover { border-color: var(--accent); }
+.opcion:has(.opcion__input:checked), .opcion[data-indeterminate='true'] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+.opcion:has(.opcion__input:disabled) { opacity: 0.55; cursor: not-allowed; }
+.opcion__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  clip-path: inset(50%);
+}
+.opcion__indicador {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: var(--r-xs);
+  background: var(--card);
+  color: var(--white);
+}
+.opcion:has([type='radio']) .opcion__indicador { border-radius: 50%; }
+.opcion__indicador::after { content: ''; display: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.opcion:has(.opcion__input:checked) .opcion__indicador,
+.opcion[data-indeterminate='true'] .opcion__indicador { background: var(--accent); border-color: var(--accent); }
+.opcion:has([type='radio']:checked) .opcion__indicador::after { display: block; }
+.opcion:has([type='checkbox']:checked) .opcion__indicador::after,
+.opcion[data-indeterminate='true'] .opcion__indicador::after {
+  display: block;
+  width: 9px;
+  height: 5px;
+  border: 2px solid currentColor;
+  border-top: 0;
+  border-right: 0;
+  border-radius: 0;
+  background: transparent;
+  rotate: -45deg;
+  translate: 0 -1px;
+}
+.opcion[data-indeterminate='true'] .opcion__indicador::after { width: 9px; height: 2px; border: 0; background: currentColor; rotate: 0deg; translate: 0 0; }
+.opcion:has(.opcion__input:focus-visible) { outline: 3px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.opcion__contenido { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.opcion__label { font-size: var(--t-small); font-weight: 500; line-height: 1.3; }
+.opcion__ayuda { font-size: var(--t-micro); color: var(--ink-soft); line-height: 1.35; }
+.opcion--compacta { padding: var(--s-2) var(--s-3); }
 
 /* ── Campos de afectación ─────────────────────────────────────────────── */
 
@@ -4051,11 +4257,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .asistente__titulo {
   margin: 0 0 var(--s-3);
-  padding-bottom: var(--s-3);
+  padding: 0;
   font-size: clamp(1.125rem, 2vw, 1.375rem);
   letter-spacing: 0;
-  text-align: center;
-  border-bottom: 1px solid var(--line);
+  text-align: left;
 }
 
 .asistente__resumen {
@@ -4071,16 +4276,28 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .asistente__resumen-lista {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
+  display: grid;
+  gap: var(--s-3);
   margin: 0;
   padding: var(--s-4);
-  padding-left: calc(var(--s-4) + var(--s-4));
   border-radius: var(--r-sm);
   background: var(--fill);
   font-size: var(--t-small);
   color: var(--ink);
+}
+
+.asistente__resumen-fila {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) 2fr;
+  align-items: baseline;
+  gap: var(--s-3);
+}
+
+.asistente__resumen-fila dt { color: var(--ink-soft); }
+.asistente__resumen-fila dd { margin: 0; }
+
+@media (max-width: 480px) {
+  .asistente__resumen-fila { grid-template-columns: 1fr; gap: var(--s-1); }
 }
 
 .asistente__acciones {
@@ -4108,8 +4325,30 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .aviso-retoma .asistente__acciones {
-  padding-top: 0;
+  flex-direction: row;
+  align-items: center;
+  position: static;
+  bottom: auto;
+  background: transparent;
+  padding: 0;
   border-top: 0;
+  z-index: auto;
+}
+
+.aviso-retoma .asistente__acciones > * {
+  width: auto;
+  min-height: 48px;
+}
+
+@media (max-width: 767px) {
+  .aviso-retoma .asistente__acciones {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .aviso-retoma .asistente__acciones > * {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {

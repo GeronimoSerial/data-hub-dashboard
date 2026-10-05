@@ -133,13 +133,6 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
           {rigeServicio && (
             <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>
           )}
-          <a
-            className="ui-button ui-button--secondary estado-actual-bloque__accion"
-            href={enlaceCon('/problematicas/parte/actualizar', cue, 'servicio')}
-            aria-label="Informar un cambio en el servicio educativo"
-          >
-            Informar un cambio
-          </a>
         </section>
       )}
 
@@ -154,13 +147,6 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
           {rigeEstablecimiento && (
             <p className="estado-actual-bloque__vigencia">Rige desde el {rigeEstablecimiento}</p>
           )}
-          <a
-            className="ui-button ui-button--secondary estado-actual-bloque__accion"
-            href={enlaceCon('/problematicas/parte/actualizar', cue, 'establecimiento')}
-            aria-label="Informar un cambio en la situación del establecimiento"
-          >
-            Informar un cambio
-          </a>
         </section>
       )}
 
@@ -179,7 +165,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
               className="ui-button ui-button--default estado-actual-acciones__principal"
               href={enlaceCon('/problematicas/parte/nuevo', cue)}
             >
-              Iniciar un reporte
+              Cargar una situación
             </a>
           </>
         ) : (

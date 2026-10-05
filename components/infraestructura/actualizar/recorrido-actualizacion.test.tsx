@@ -38,13 +38,14 @@ describe('RecorridoActualizacion', () => {
   it('solucionar la causa pregunta por la consecuencia y envía un único POST', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, también se solucionó' }))
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(screen.queryByRole('button', { name: 'Listo' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
-    expect(screen.getByText('¿Pasó algo nuevo?')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+    expect(screen.getByText('¿Hay una situación nueva?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
     fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
     await waitFor(() => expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1))
     const [, init] = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!
@@ -52,23 +53,72 @@ describe('RecorridoActualizacion', () => {
     expect(cuerpo.afectacionesSolucionadas.map((s: { id: string }) => s.id).sort()).toEqual(['a', 'b'])
   })
 
+  it('no avanza si se elige Otro día sin completar la fecha y la hora', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Se solucionó' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, también se solucionó' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Falta indicar cuándo se solucionó.')
+    expect(document.activeElement).toBe(screen.getByLabelText('Fecha'))
+    expect(screen.getByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
+  })
+
   it('no deja pasar al paso 2 con situaciones sin responder', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue cada situación')
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue esta situación.')
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Sigue igual' }))
+  })
+
+  it('valida el alcance junto al selector y lo enfoca antes de avanzar', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+    const sheet = screen.getByRole('dialog')
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'A quién afecta (secciones / alumnos)' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija a quién afecta esta situación.')
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Toda la escuela' }))
+  })
+
+  it('resume las situaciones sin cambios y muestra la asistencia vigente seleccionada', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Resumen' })).toBeInTheDocument()
+    expect(document.querySelector('.actualizacion-resumen h2')).toHaveTextContent('Resumen')
+    expect(screen.getByText('Inundación: sin cambios')).toBeInTheDocument()
+    expect(screen.getByText('Sin energía o agua: sin cambios')).toBeInTheDocument()
+    expect(screen.queryByText(/Asistencia pedagógica: No/)).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
+    expect(screen.getByText('Vigente: No')).toBeInTheDocument()
+    expect(document.querySelector('.actualizacion-resumen__lista ul')).not.toBeInTheDocument()
   })
 
   it('un problema nuevo siempre pregunta si es consecuencia de algo anterior', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
     for (let i = 0; i < 2; i++) {
       fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /De Inundación/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
@@ -86,13 +136,13 @@ describe('RecorridoActualizacion', () => {
   it('vuelve a revisar la situación al elegir actualizar el mismo motivo', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoriaEstablecimiento()
@@ -113,12 +163,12 @@ describe('RecorridoActualizacion', () => {
   it('cargar un motivo igual a uno activo pregunta qué pasó con el anterior', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
-    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
     for (let i = 0; i < 2; i++) {
       fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoriaEstablecimiento()
@@ -126,8 +176,8 @@ describe('RecorridoActualizacion', () => {
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByText(/Ya tiene activa "Sin energía o agua" desde el/)).toBeInTheDocument()
     expect(within(sheet).getByRole('radio', { name: 'Sigue igual: es la misma, quiero actualizarla' })).toBeInTheDocument()
-    expect(within(sheet).getByRole('radio', { name: 'Se solucionó y esto es un problema nuevo' })).toBeInTheDocument()
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Son dos problemas distintos a la vez' }))
+    expect(within(sheet).getByRole('radio', { name: 'Se solucionó y esto es una situación nueva' })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Son dos situaciones distintas a la vez' }))
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Media' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
@@ -142,7 +192,8 @@ describe('RecorridoActualizacion', () => {
 
 function elegirCategoriaEstablecimiento() {
   fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
+  const sheet = screen.queryByRole('dialog')
+  if (sheet) fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
 }
 
 async function cuerpoDelPost(fetchMock: ReturnType<typeof vi.fn>) {

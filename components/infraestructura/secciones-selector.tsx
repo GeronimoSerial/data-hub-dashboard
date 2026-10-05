@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import type { SeccionContexto, TurnoContexto } from '@/lib/infraestructura/contexto'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Opcion } from '@/components/ui/opcion'
 
 export interface SeccionesSelectorProps {
   turnos: TurnoContexto[]
@@ -101,6 +101,7 @@ export function SeccionesSelector({
   const [expandidas, setExpandidas] = useState<Set<number>>(() =>
     seccionesAbiertasAlMontar(turnos, alumnosSeleccionados),
   )
+  const [busquedas, setBusquedas] = useState<Record<number, string>>({})
 
   function alternarExpansion(geSectionId: number) {
     setExpandidas((actuales) => {
@@ -158,21 +159,22 @@ export function SeccionesSelector({
 
   return (
     <div className="secciones-selector">
-      <Checkbox
+      <Opcion
+        tipo="checkbox"
         label={`Todas las secciones (${todosLosIds.length} secciones · ${matriculaTotal} alumnos)`}
         checked={todasSeleccionadas}
         indeterminate={!todasSeleccionadas && algunaSeleccionada}
-        onCheckedChange={(checked: boolean) => onCambiar(checked ? todosLosIds : [], [])}
+        onChange={(event) => onCambiar(event.currentTarget.checked ? todosLosIds : [], [])}
         disabled={disabled}
       />
 
       {turnos.map((turno) => (
         <section className="secciones-selector__turno" key={turno.turno}>
-          <h3>{turno.turno}</h3>
+          <h3>{turno.turno} · {turno.niveles.reduce((n, nivel) => n + nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length, 0)} de {turno.niveles.reduce((n, nivel) => n + nivel.secciones.length, 0)} secciones</h3>
 
           {turno.niveles.map((nivel) => (
             <div className="secciones-selector__nivel" key={nivel.nivel}>
-              <h4>{nivel.nivel}</h4>
+              <h4>{nivel.nivel} · {nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length} de {nivel.secciones.length}</h4>
 
               {nivel.secciones.map((seccion) => {
                 const efectivo = efectivoDeSeccion(seccion, seleccionadas, alumnosSeleccionados)
@@ -190,12 +192,14 @@ export function SeccionesSelector({
                 return (
                   <div className="secciones-selector__seccion" key={seccion.geSectionId}>
                     <div className="secciones-selector__fila">
-                      <Checkbox
-                        label={`${seccion.curso} "${seccion.division}" — ${seccion.matricula} alumnos`}
+                      <Opcion
+                        tipo="checkbox"
+                        label={`${seccion.curso} "${seccion.division}" · ${seccion.matricula} alumnos`}
                         checked={seccionSeleccionada && !esParcial}
                         indeterminate={esParcial}
-                        onCheckedChange={(checked: boolean) => alternarSeccion(seccion, checked)}
+                        onChange={(event) => alternarSeccion(seccion, event.currentTarget.checked)}
                         disabled={disabled}
+                        compacta
                       />
 
                       {ofreceAlumnos && (
@@ -206,7 +210,7 @@ export function SeccionesSelector({
                           aria-controls={panelId}
                           onClick={() => alternarExpansion(seccion.geSectionId)}
                         >
-                          {expandida ? 'Ocultar alumnos' : 'Elegir alumnos'}
+                          {`Elegir alumnos (${efectivo.size} de ${seccion.alumnos.length})`}
                           <ChevronDown size={14} aria-hidden="true" />
                         </button>
                       )}
@@ -214,15 +218,27 @@ export function SeccionesSelector({
 
                     {ofreceAlumnos && (
                       <div className="secciones-selector__alumnos" id={panelId} hidden={!expandida}>
-                        {seccion.alumnos.map((alumno) => (
-                          <Checkbox
+                        {seccion.alumnos.length > 10 ? (
+                          <input
+                            className="secciones-selector__busqueda"
+                            type="search"
+                            aria-label={`Buscar alumnos de ${seccion.curso} ${seccion.division}`}
+                            placeholder="Buscar alumno"
+                            value={busquedas[seccion.geSectionId] ?? ''}
+                            onChange={(event) => setBusquedas((actual) => ({ ...actual, [seccion.geSectionId]: event.target.value }))}
+                          />
+                        ) : null}
+                        {seccion.alumnos.filter((alumno) => `${alumno.apellido} ${alumno.nombre}`.toLocaleLowerCase('es').includes((busquedas[seccion.geSectionId] ?? '').toLocaleLowerCase('es'))).map((alumno) => (
+                          <Opcion
                             key={alumno.gePersonId}
+                            tipo="checkbox"
                             label={`${alumno.apellido}, ${alumno.nombre}`}
                             checked={efectivo.has(alumno.gePersonId)}
-                            onCheckedChange={(checked: boolean) =>
-                              alternarAlumno(seccion, alumno.gePersonId, checked)
+                            onChange={(event) =>
+                              alternarAlumno(seccion, alumno.gePersonId, event.currentTarget.checked)
                             }
                             disabled={disabled}
+                            compacta
                           />
                         ))}
                       </div>

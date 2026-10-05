@@ -12,34 +12,82 @@ import type {
   DiffServicioAlcanceRef,
   DiffServicioCambio,
 } from './movimiento-diff'
-import type { EstadoEstablecimiento, ServicioEstado, TipoMovimiento } from './trayectoria-tipos'
+import type { EstadoEstablecimiento, SeccionEstablecimiento, ServicioEstado, TipoMovimiento } from './trayectoria-tipos'
 
 export interface DescribirMovimientoOpciones {
   // Cuando el movimiento es el reporte inicial, la primera afectación
-  // agregada se narra como "Se inició el reporte por…" en vez de
+  // agregada se narra como "Se inició la situación…" en vez de
   // "Se agregó…" (spec §15, segundo ejemplo del historial). El resto de las
   // líneas usa el mismo criterio que una actualización.
   tipo?: TipoMovimiento
+  secciones?: SeccionEstablecimiento[]
 }
 
 function textoServicioEstado(estado: ServicioEstado): string {
   return estado === 'suspendido' ? 'Funcionamiento escolar interrumpido' : 'Funcionamiento escolar normal'
 }
 
-function textoAlcanceServicio(alcance: DiffServicioAlcanceRef): string {
+export function resolverNombreSeccion(
+  referenciaId: string | null,
+  secciones: SeccionEstablecimiento[],
+): string | null {
+  const id = Number(referenciaId)
+  if (!Number.isSafeInteger(id) || referenciaId === null) return null
+  const seccion = secciones.find((item) => item.geSectionId === id)
+  if (!seccion?.curso || !seccion.division || !seccion.turno) return null
+  return `${seccion.curso} "${seccion.division}" (${seccion.turno})`
+}
+
+function textoAlcanceServicio(
+  alcance: DiffServicioAlcanceRef,
+  secciones: SeccionEstablecimiento[],
+): string {
   if (alcance.tipo === 'establecimiento') return ''
-  const etiqueta = alcance.etiqueta ?? alcance.referenciaId ?? ''
+  const etiqueta = alcance.tipo === 'seccion'
+    ? (alcance.etiqueta && !/^\d+$/.test(alcance.etiqueta) ? alcance.etiqueta : null)
+      ?? resolverNombreSeccion(alcance.referenciaId, secciones)
+      ?? '1 sección'
+    : alcance.etiqueta ?? (alcance.tipo === 'turno' ? alcance.referenciaId : null) ?? ''
   if (alcance.tipo === 'turno') return ` en el turno ${etiqueta}`
   return ` en ${etiqueta}`
 }
 
-function lineaServicio(cambio: DiffServicioCambio): string {
-  const sufijo = textoAlcanceServicio(cambio.alcance)
+function lineaServicio(cambio: DiffServicioCambio, secciones: SeccionEstablecimiento[]): string {
+  const sufijo = textoAlcanceServicio(cambio.alcance, secciones)
   if (cambio.de === null || cambio.a === null) {
     const estado = cambio.a ?? cambio.de
     return estado ? `${textoServicioEstado(estado)}${sufijo}` : ''
   }
   return `${textoServicioEstado(cambio.de)} → ${textoServicioEstado(cambio.a)}${sufijo}`
+}
+
+function lineasServicio(cambios: DiffServicioCambio[], secciones: SeccionEstablecimiento[]): string[] {
+  const grupos = new Map<string, { base: string; alcance: DiffServicioCambio['alcance']; nombres: string[]; sinNombre: number }>()
+  for (const cambio of cambios) {
+    const clave = `${cambio.de ?? ''}|${cambio.a ?? ''}|${cambio.alcance.tipo}`
+    let grupo = grupos.get(clave)
+    if (!grupo) {
+      grupo = { base: lineaServicio({ ...cambio, alcance: { tipo: 'establecimiento', referenciaId: null } }, secciones), alcance: cambio.alcance, nombres: [], sinNombre: 0 }
+      grupos.set(clave, grupo)
+    }
+    if (cambio.alcance.tipo === 'seccion') {
+      const nombre = cambio.alcance.etiqueta && !/^\d+$/.test(cambio.alcance.etiqueta)
+        ? cambio.alcance.etiqueta
+        : resolverNombreSeccion(cambio.alcance.referenciaId, secciones)
+      if (nombre) grupo.nombres.push(nombre)
+      else grupo.sinNombre++
+    } else if (cambio.alcance.tipo === 'turno') {
+      const nombre = cambio.alcance.etiqueta ?? cambio.alcance.referenciaId
+      if (nombre) grupo.nombres.push(`turno ${nombre}`)
+    }
+  }
+
+  return [...grupos.values()].map((grupo) => {
+    const alcances = [...grupo.nombres]
+    if (grupo.sinNombre > 0) alcances.push(`${grupo.sinNombre} ${grupo.sinNombre === 1 ? 'sección' : 'secciones'}`)
+    if (grupo.alcance.tipo === 'establecimiento') return grupo.base
+    return `${grupo.base} en ${alcances.join(', ')}`
+  })
 }
 
 function pluralizar(cantidad: number, singular: string, plural: string): string {
@@ -63,16 +111,13 @@ export function describirMovimiento(
     lineas.push(`Sigue igual: "${confirmada.motivo}"`)
   }
 
-  for (const cambio of diff.serviciosCambiados) {
-    const linea = lineaServicio(cambio)
-    if (linea) lineas.push(linea)
-  }
+  lineas.push(...lineasServicio(diff.serviciosCambiados, opciones.secciones ?? []).filter(Boolean))
 
   const esReporteInicial = opciones.tipo === 'reporte_inicial'
 
   diff.afectacionesAgregadas.forEach((agregada, indice) => {
     if (esReporteInicial && indice === 0) {
-      lineas.push(`Se inició el reporte por "${agregada.motivo}"`)
+      lineas.push(`Se inició la situación "${agregada.motivo}"`)
       const partes: string[] = [`Severidad ${agregada.severidad}`]
       if (agregada.secciones > 0) {
         partes.push(`${agregada.secciones} ${pluralizar(agregada.secciones, 'sección', 'secciones')}`)

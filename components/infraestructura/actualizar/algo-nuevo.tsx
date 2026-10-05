@@ -5,7 +5,9 @@ import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type Afectacio
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { formatearFechaHistorial } from '@/components/infraestructura/historial-formato'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import {
@@ -144,21 +146,18 @@ export function AlgoNuevo({
   }
 
   return (
-    <section className="algo-nuevo" aria-label="Problema nuevo">
+    <section className="algo-nuevo" aria-label="Situación nueva">
       {etapa === 'pregunta' ? (
-        <fieldset className="afectacion-campos__grupo">
-          <legend className="afectacion-campos__legend">¿Pasó algo nuevo?</legend>
-          <div className="afectacion-campos__opciones">
-            <label className="opcion-radio">
-              <input type="radio" name="algo-nuevo" onChange={() => onTerminar(null)} />
-              <span className="opcion-radio__titulo">No, nada nuevo</span>
-            </label>
-            <label className="opcion-radio">
-              <input type="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} />
-              <span className="opcion-radio__titulo">Sí, hay un problema nuevo</span>
-            </label>
-          </div>
-        </fieldset>
+        <>
+          <p className="recorrido-actualizacion__descripcion">Agregue una situación nueva si la hay.</p>
+          <fieldset className="afectacion-campos__grupo">
+            <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
+            <div className="afectacion-campos__opciones">
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, no hay una situación nueva" />
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, hay una situación nueva" />
+            </div>
+          </fieldset>
+        </>
       ) : null}
 
       {etapa === 'causa' ? (
@@ -167,25 +166,24 @@ export function AlgoNuevo({
             <legend className="afectacion-campos__legend">¿Es consecuencia de algo anterior?</legend>
             <div className="afectacion-campos__opciones">
               {candidatasOrdenadas.map((candidata) => (
-                <label key={candidata.id} className="opcion-radio opcion-radio--compacta">
-                  <input
-                    type="radio"
+                <Opcion
+                    key={candidata.id}
+                    tipo="radio"
                     name="causa-problema-nuevo"
                     checked={causadaPorId === candidata.id}
                     onChange={() => setCausadaPorId(candidata.id)}
+                    label={`De ${candidata.motivo} (${formatearFechaHistorial(candidata.fecha)})`}
+                    compacta
                   />
-                  <span className="opcion-radio__titulo">{`De ${candidata.motivo} (${candidata.fecha})`}</span>
-                </label>
               ))}
-              <label className="opcion-radio opcion-radio--compacta">
-                <input
-                  type="radio"
+              <Opcion
+                  tipo="radio"
                   name="causa-problema-nuevo"
                   checked={causadaPorId === null}
                   onChange={() => setCausadaPorId(null)}
+                  label="No, es independiente"
+                  compacta
                 />
-                <span className="opcion-radio__titulo">No, es independiente</span>
-              </label>
             </div>
           </fieldset>
           <div className="asistente__acciones">
@@ -198,14 +196,16 @@ export function AlgoNuevo({
 
       {etapa === 'datos' ? (
         <div className="algo-nuevo__datos">
-          <CamposQuePaso
-            borrador={borrador}
-            idPrefijo="algo-nuevo"
-            motivos={motivos}
-            otrasAfectaciones={[]}
-            esNueva
-            onChange={cambiarBorrador}
-          />
+          <div className="algo-nuevo__campos">
+            <CamposQuePaso
+              borrador={borrador}
+              idPrefijo="algo-nuevo"
+              motivos={motivos}
+              otrasAfectaciones={[]}
+              esNueva
+              onChange={cambiarBorrador}
+            />
+          </div>
           <CamposAQuienAfecta
             borrador={borrador}
             idPrefijo="algo-nuevo"
@@ -236,18 +236,9 @@ export function AlgoNuevo({
         onConfirmar={confirmarMotivoPendiente}
       >
         <div className="afectacion-campos__opciones">
-          <label className="opcion-radio opcion-radio--compacta">
-            <input type="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'distintos'} onChange={() => setDecisionDuplicado('distintos')} />
-            <span className="opcion-radio__titulo">Son dos problemas distintos a la vez</span>
-          </label>
-          <label className="opcion-radio opcion-radio--compacta">
-            <input type="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'actualizar'} onChange={() => setDecisionDuplicado('actualizar')} />
-            <span className="opcion-radio__titulo">Sigue igual: es la misma, quiero actualizarla</span>
-          </label>
-          <label className="opcion-radio opcion-radio--compacta">
-            <input type="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'solucionada'} onChange={() => setDecisionDuplicado('solucionada')} />
-            <span className="opcion-radio__titulo">Se solucionó y esto es un problema nuevo</span>
-          </label>
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'distintos'} onChange={() => setDecisionDuplicado('distintos')} label="Son dos situaciones distintas a la vez" compacta />
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'actualizar'} onChange={() => setDecisionDuplicado('actualizar')} label="Sigue igual: es la misma, quiero actualizarla" compacta />
+          <Opcion tipo="radio" name="decision-mismo-motivo" checked={decisionDuplicado === 'solucionada'} onChange={() => setDecisionDuplicado('solucionada')} label="Se solucionó y esto es una situación nueva" compacta />
         </div>
         {decisionDuplicado === 'solucionada' ? (
           <VigenciaChips value={cuandoSolucionada} onChange={setCuandoSolucionada} label="¿Cuándo se solucionó?" />

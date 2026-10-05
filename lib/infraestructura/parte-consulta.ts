@@ -427,7 +427,7 @@ export async function listarMovimientosDescritos(
       rol: fila.rol as RolMovimiento,
       creadaEn: fila.creadaEn,
       rigeDesde: fila.rigeDesde,
-      cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo }),
+      cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo, secciones: actual.secciones }),
       severidad: severidadDelMovimiento(fila.resumen as unknown as DiffParte),
     }
   })

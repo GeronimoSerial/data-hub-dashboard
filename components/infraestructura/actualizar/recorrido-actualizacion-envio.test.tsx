@@ -35,7 +35,7 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
 })
 
 const CUE = '1801605-41'
-const guardado = 'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.'
+const guardado = 'Parte actualizado.'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
   parte: { id: 'parte', cueAnexo: CUE, estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: '2026-10-02T10:00:00.000Z', actualizadaEn: '2026-10-03T10:00:00.000Z' },
@@ -56,12 +56,12 @@ function stub(fetcher?: (url: string, init?: RequestInit) => Promise<Response>) 
 }
 function montar() { return render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
 async function prepararResumen() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   for (let i = 0; i < 2; i++) {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
 }
 async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Enviar' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
@@ -71,6 +71,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
     const fetchMock = stub(); montar(); await enviar()
     await screen.findByText(guardado)
+    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
     const [, init] = posteos(fetchMock)[0]
     const cuerpo = JSON.parse(String((init as RequestInit).body))
     expect(cuerpo).toMatchObject({ cue: CUE, afectacionesConfirmadas: ['a', 'b'] })
@@ -112,7 +113,7 @@ describe('RecorridoActualizacion: envío', () => {
 
   it('registra el service worker al montar', async () => {
     stub(); montar()
-    await screen.findByRole('button', { name: 'Actualizar situación' })
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(syncMocks.registrar).toHaveBeenCalledOnce()
   })
 
@@ -133,18 +134,31 @@ describe('RecorridoActualizacion: envío', () => {
     expect(fallo).toHaveBeenCalled()
   })
 
-  it('la confirmación permite volver al panel o registrar otra novedad recargando el estado', async () => {
-    const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
-    expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
-    const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar otra novedad' }))
-    await screen.findByRole('button', { name: 'Actualizar situación' })
-    expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
+  it('la confirmación permite volver al panel o cargar otra situación recargando el estado', async () => {
+    const erroresConsola = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
+      expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
+      const botonCargarOtro = screen.getByRole('button', { name: 'Cargar otra situación' })
+      expect(botonCargarOtro.tagName).toBe('BUTTON')
+      const avisos = [...erroresConsola.mock.calls, ...avisosConsola.mock.calls].flat().map(String).join('\n')
+      expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')
+      const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
+      fireEvent.click(botonCargarOtro)
+      await screen.findByRole('button', { name: 'Actualizar el parte' })
+      expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
+    } finally {
+      erroresConsola.mockRestore()
+      avisosConsola.mockRestore()
+    }
   })
 
   it('si falla la conexión conserva el recorrido y deja el envío pendiente', async () => {
     const fetchMock = stub(async () => { throw new Error('network') }); montar(); await enviar()
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
+    expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
     expect(screen.getByText(/Inundación/)).toBeInTheDocument()
     expect(screen.queryByText(guardado)).toBeNull()
     expect(posteos(fetchMock)).toHaveLength(1)
@@ -167,8 +181,8 @@ describe('RecorridoActualizacion: envío', () => {
 
   it('el aviso del service worker confirma el envío de la cola de este CUE', async () => {
     stub(); montar()
-    await screen.findByRole('button', { name: 'Actualizar situación' })
-    expect(syncMocks.callback).toEqual(expect.any(Function))
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
+    await waitFor(() => expect(syncMocks.callback).toEqual(expect.any(Function)))
     act(() => syncMocks.callback?.(claveBorrador('actualizacion', CUE)))
     expect(await screen.findByText(guardado)).toBeInTheDocument()
   })
@@ -204,6 +218,18 @@ describe('RecorridoActualizacion: envío', () => {
     const primera = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body)).idempotencyKey
     await screen.findByText(guardado, undefined, { timeout: 5000 })
     expect(JSON.parse(String((posteos(fetchMock)[1][1] as RequestInit).body)).idempotencyKey).toBe(primera)
+  })
+
+  it('el aviso de error ofrece un reintento manual inmediato', async () => {
+    let n = 0
+    const fetchMock = stub(async () => ++n === 1 ? respuesta({ error: 'sin servicio' }, 503) : respuesta())
+    montar(); await enviar()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toHaveClass('ui-button')
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    await screen.findByText(guardado)
+    expect(posteos(fetchMock)).toHaveLength(2)
   })
 
   it('crea el almacén al usar la cola y reenvía el borrador pendiente al montar', async () => {

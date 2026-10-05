@@ -101,7 +101,7 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     vi.stubGlobal('fetch', responderCon(SIN_SITUACION))
   })
 
-  it('states the spec §17 message and offers "Iniciar un reporte"', async () => {
+  it('states the spec §17 message and offers "Cargar una situación"', async () => {
     render(<EstadoActualParte cue={CUE} />)
 
     expect(
@@ -110,13 +110,13 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
       ),
     ).toBeVisible()
 
-    const iniciar = screen.getByRole('link', { name: 'Iniciar un reporte' })
+    const iniciar = screen.getByRole('link', { name: 'Cargar una situación' })
     expect(iniciar).toHaveAttribute('href', `/problematicas/parte/nuevo?cue=${CUE}`)
   })
 
   it('does not offer "Actualizar el parte" when there is nothing to update', async () => {
     render(<EstadoActualParte cue={CUE} />)
-    await screen.findByRole('link', { name: 'Iniciar un reporte' })
+    await screen.findByRole('link', { name: 'Cargar una situación' })
 
     expect(screen.queryByRole('link', { name: 'Actualizar el parte' })).toBeNull()
   })
@@ -136,7 +136,7 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     )
     render(<EstadoActualParte cue={CUE} />)
 
-    expect(await screen.findByRole('link', { name: 'Iniciar un reporte' })).toBeVisible()
+    expect(await screen.findByRole('link', { name: 'Cargar una situación' })).toBeVisible()
     // El servicio y el establecimiento sí existen: se siguen mostrando.
     expect(screen.getByText('Funcionamiento escolar normal')).toBeVisible()
     expect(screen.getByText('Sin daños / en uso normal')).toBeVisible()
@@ -161,15 +161,12 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     expect(screen.getByText('1 sección · 12 alumnos')).toBeVisible()
   })
 
-  it('gives each "Informar un cambio" link a distinguishable name', async () => {
+  it('keeps the update screen to one primary action and one history action', async () => {
     render(<EstadoActualParte cue={CUE} />)
-
-    expect(
-      await screen.findByRole('link', { name: 'Informar un cambio en el servicio educativo' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=servicio`)
-    expect(
-      screen.getByRole('link', { name: 'Informar un cambio en la situación del establecimiento' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=establecimiento`)
+    await screen.findByText('Inundación del establecimiento')
+    expect(screen.getAllByRole('link', { name: 'Actualizar el parte' })).toHaveLength(1)
+    expect(screen.getAllByRole('link', { name: 'Ver historial' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: /Informar un cambio/ })).toBeNull()
   })
 
   it('shows the derived "parcial" service state with the spec §3.4 wording', async () => {

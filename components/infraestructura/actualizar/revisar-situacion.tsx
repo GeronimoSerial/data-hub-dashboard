@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, type JSX } from 'react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useEffect, useState, type JSX } from 'react'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { CampoGravedad, gravedadCompleta, type ValorGravedad } from '@/components/infraestructura/campo-gravedad'
 import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
@@ -28,9 +27,11 @@ export interface RevisarSituacionProps {
   turnos: TurnoContexto[]
   sugerida: Severidad | null
   respuesta: RespuestaSituacion | undefined
+  faltaRespuesta: boolean
+  onInteractuar: () => void
   consecuencias: SituacionRecorrido[]
   clasesEdificio: ValorClasesEdificio
-  onResponder: (respuesta: RespuestaSituacion) => void
+  onResponder: (respuesta: RespuestaSituacion | null) => void
   onCambiarClasesEdificio: (valor: ValorClasesEdificio & { confirmarInterrupcionTotal: boolean }) => void
   onCascada: (consecuenciaId: string, solucionadaEn: string) => void
   posicion: { actual: number; total: number }
@@ -59,7 +60,19 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
   const [cascada, setCascada] = useState<{ pendientes: SituacionRecorrido[]; solucionadaEn: string } | null>(null)
 
+  function completarSolucion(eleccion: EleccionVigencia) {
+    const solucionadaEn = resolverVigencia(eleccion)
+    if (!solucionadaEn) {
+      p.onResponder(null)
+      setCascada(null)
+      return
+    }
+    p.onResponder({ tipo: 'solucionada', solucionadaEn })
+    setCascada(p.consecuencias.length > 0 ? { pendientes: p.consecuencias, solucionadaEn } : null)
+  }
+
   function elegir(tipo: 'sigue' | 'cambio' | 'solucionada') {
+    p.onInteractuar()
     if (tipo === 'sigue') {
       setModo('eligiendo')
       p.onResponder({ tipo: 'sigue' })
@@ -70,81 +83,123 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       return
     }
     setModo('solucion')
+    setCuando(VIGENCIA_AHORA)
+    completarSolucion(VIGENCIA_AHORA)
   }
 
-  function listoCambio() {
-    const cambio: CambioSituacion = { aspectos }
-    if (aspectos.includes('gravedad') && gravedad.severidad !== '') {
-      cambio.severidad = gravedad.severidad
-      if (gravedad.justificacionCritica) cambio.justificacionCritica = gravedad.justificacionCritica
-      if (gravedad.justificacionCriticaDetalle) cambio.justificacionCriticaDetalle = gravedad.justificacionCriticaDetalle
+  function guardarCambio(
+    aspectosActuales = aspectos,
+    gravedadActual = gravedad,
+    alcanceActual = alcance,
+    clasesActuales = clases,
+    interrumpeTodoActual = interrumpeTodo,
+  ) {
+    const completo = aspectosActuales.length > 0 &&
+      (!aspectosActuales.includes('gravedad') || gravedadCompleta(gravedadActual, p.sugerida)) &&
+      (!aspectosActuales.includes('alcance') || (
+        alcanceActual.secciones.length > 0 &&
+        (p.situacion.categoria !== 'establecimiento' || alcanceActual.alcanceEstablecimiento !== '')
+      )) &&
+      (!aspectosActuales.includes('clases-edificio') || Boolean(clasesActuales.servicioEstado && clasesActuales.estadoEstablecimiento))
+
+    if (!completo) {
+      p.onResponder(null)
+      return
     }
-    if (aspectos.includes('alcance')) {
-      cambio.secciones = alcance.secciones
-      if (p.situacion.categoria === 'alumnos') cambio.alumnos = alcance.alumnos
+
+    const cambio: CambioSituacion = { aspectos: aspectosActuales }
+    if (aspectosActuales.includes('gravedad') && gravedadActual.severidad !== '') {
+      cambio.severidad = gravedadActual.severidad
+      if (gravedadActual.justificacionCritica) cambio.justificacionCritica = gravedadActual.justificacionCritica
+      if (gravedadActual.justificacionCriticaDetalle) cambio.justificacionCriticaDetalle = gravedadActual.justificacionCriticaDetalle
     }
-    if (aspectos.includes('clases-edificio')) {
-      p.onCambiarClasesEdificio({ ...clases, confirmarInterrupcionTotal: interrumpeTodo })
+    if (aspectosActuales.includes('alcance')) {
+      cambio.secciones = alcanceActual.secciones
+      if (p.situacion.categoria === 'alumnos') cambio.alumnos = alcanceActual.alumnos
+    }
+    if (aspectosActuales.includes('clases-edificio')) {
+      p.onCambiarClasesEdificio({ ...clasesActuales, confirmarInterrupcionTotal: interrumpeTodoActual })
     }
     p.onResponder({ tipo: 'cambio', cambio })
-    setModo('eligiendo')
-  }
-
-  function listoSolucion() {
-    const solucionadaEn = resolverVigencia(cuando)
-    if (!solucionadaEn) return
-    p.onResponder({ tipo: 'solucionada', solucionadaEn })
-    if (p.consecuencias.length > 0) setCascada({ pendientes: p.consecuencias, solucionadaEn })
-    setModo('eligiendo')
   }
 
   const actual = cascada?.pendientes[0]
   const tipoRespondido = p.respuesta?.tipo
-  const cambioListo = aspectos.length > 0 && (!aspectos.includes('gravedad') || gravedadCompleta(gravedad, p.sugerida))
+  const bloqueIncompleto = aspectos.includes('gravedad') && !gravedadCompleta(gravedad, p.sugerida)
+    ? { id: 'revisar-situacion-gravedad', mensaje: 'Complete la gravedad de esta situación.' }
+    : aspectos.includes('alcance') && (alcance.secciones.length === 0 || (p.situacion.categoria === 'establecimiento' && alcance.alcanceEstablecimiento === ''))
+      ? { id: 'revisar-situacion-alcance', mensaje: 'Elija a quién afecta esta situación.' }
+      : aspectos.includes('clases-edificio') && (!clases.servicioEstado || !clases.estadoEstablecimiento)
+        ? { id: 'revisar-situacion-clases', mensaje: 'Indique cómo están las clases y el edificio.' }
+        : null
+
+  useEffect(() => {
+    if (!p.faltaRespuesta) return
+    const selector = modo === 'solucion'
+      ? cuando.modo === 'otro' && !cuando.fecha ? 'input[type="date"]' : 'input[type="time"]'
+      : modo === 'cambio' && bloqueIncompleto
+        ? `#${bloqueIncompleto.id} input`
+        : '.revisar-situacion__respuesta input'
+    const campo = document.querySelector<HTMLElement>(selector)
+    campo?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    campo?.focus()
+  }, [p.faltaRespuesta, modo, cuando, bloqueIncompleto?.id])
 
   return (
     <section className="revisar-situacion" aria-label={`Situación ${p.posicion.actual} de ${p.posicion.total}`}>
       <p className="asistente__contador">{`Lo que ya reportó · ${p.posicion.actual} de ${p.posicion.total}`}</p>
       <h3>{p.situacion.motivo} <EstadoActualSeveridad severidad={p.situacion.severidad} prefijo={false} /></h3>
 
-      <fieldset className="afectacion-campos__grupo">
+      <fieldset className="afectacion-campos__grupo revisar-situacion__respuesta" aria-describedby={p.faltaRespuesta && modo !== 'solucion' ? 'revisar-situacion-error' : undefined}>
         <legend className="afectacion-campos__legend">¿Cómo sigue?</legend>
         {(['sigue', 'cambio', 'solucionada'] as const).map((tipo) => (
-          <label key={tipo} className="opcion-radio opcion-radio--compacta">
-            <input
-              type="radio"
+          <Opcion
+              key={tipo}
+              tipo="radio"
               name={`revisar-${p.situacion.id}`}
               checked={tipoRespondido === tipo || (modo === 'solucion' && tipo === 'solucionada') || (modo === 'cambio' && tipo === 'cambio')}
               onChange={() => elegir(tipo)}
+              label={tipo === 'sigue' ? 'Sigue igual' : tipo === 'cambio' ? 'Cambió' : 'Se solucionó'}
+              compacta
             />
-            <span className="opcion-radio__titulo">{tipo === 'sigue' ? 'Sigue igual' : tipo === 'cambio' ? 'Cambió' : 'Se solucionó'}</span>
-          </label>
         ))}
+        {p.faltaRespuesta && modo !== 'solucion' && modo !== 'cambio' ? <p id="revisar-situacion-error" className="reporte-inicial__error-campo" role="alert">Indique cómo sigue esta situación.</p> : null}
       </fieldset>
 
       {modo === 'cambio' && (
         <div className="revisar-situacion__bloques">
           {aspectos.includes('gravedad') && (
-            <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} sugerida={p.sugerida} valor={gravedad} onCambiar={setGravedad} />
+            <div id="revisar-situacion-gravedad" tabIndex={-1}>
+              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} sugerida={p.sugerida} valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
+              {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-gravedad' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
+            </div>
           )}
           {aspectos.includes('alcance') && (p.situacion.categoria === 'alumnos'
-            ? <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => setAlcance((actual) => ({ ...actual, secciones, alumnos }))} />
-            : <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => setAlcance((actual) => ({ ...actual, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }))} />)}
+            ? <div id="revisar-situacion-alcance" tabIndex={-1}>
+              <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => { const siguiente = { ...alcance, secciones, alumnos }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
+              {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
+            </div>
+            : <div id="revisar-situacion-alcance" tabIndex={-1}>
+              <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
+              {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
+            </div>)}
           {aspectos.includes('clases-edificio') && (
-            <CamposClasesEdificio valor={clases} onCambiar={setClases} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => setInterrumpeTodo(true)} />
+            <div id="revisar-situacion-clases" tabIndex={-1}>
+              <CamposClasesEdificio valor={clases} onCambiar={(valor) => { setClases(valor); guardarCambio(aspectos, gravedad, alcance, valor) }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} />
+              {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-clases' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
+            </div>
           )}
-          <div className="asistente__acciones">
-            <Button type="button" onClick={listoCambio} disabled={!cambioListo}>Listo</Button>
-          </div>
         </div>
       )}
 
       {modo === 'solucion' && (
         <div className="revisar-situacion__bloques">
-          <VigenciaChips value={cuando} onChange={setCuando} label="¿Cuándo se solucionó?" />
-          <div className="asistente__acciones">
-            <Button type="button" onClick={listoSolucion}>Listo</Button>
-          </div>
+          <VigenciaChips
+            value={cuando}
+            onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}
+            label="¿Cuándo se solucionó?"
+            error={p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null}
+          />
         </div>
       )}
 
@@ -154,10 +209,15 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         confirmarLabel="Continuar"
         confirmarDeshabilitado={aspectos.length === 0}
         onCancelar={() => setPreguntandoAspectos(false)}
-        onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio') }}
+        onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio'); guardarCambio() }}
       >
         {ASPECTOS.map((aspecto) => (
-          <Checkbox key={aspecto.id} label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onCheckedChange={(checked: boolean) => setAspectos((actuales) => checked ? [...actuales, aspecto.id] : actuales.filter((id) => id !== aspecto.id))} />
+          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
+            const marcado = event.currentTarget.checked
+            const siguientes = marcado ? [...aspectos, aspecto.id] : aspectos.filter((id) => id !== aspecto.id)
+            setAspectos(siguientes)
+            guardarCambio(siguientes)
+          }} />
         ))}
       </ConfirmSheet>
 

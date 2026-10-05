@@ -2,6 +2,7 @@
 
 import { useState, type JSX } from 'react'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { Opcion } from '@/components/ui/opcion'
 import { Textarea } from '@/components/ui/textarea'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import type { CategoriaAfectacion } from '@/lib/infraestructura/categorias'
@@ -68,28 +69,24 @@ export function CampoGravedad({
       <legend className="afectacion-campos__legend">¿Qué tan grave es?</legend>
       <div className="afectacion-campos__opciones">
         {SEVERIDADES.map((severidad) => (
-          <label key={severidad} className="opcion-radio">
-            <input
-              type="radio"
+          <Opcion
+              key={severidad}
+              tipo="radio"
               name={`${idPrefijo}-severidad`}
               value={severidad}
               checked={valor.severidad === severidad}
               onChange={() => elegir(severidad)}
               aria-labelledby={`${idPrefijo}-severidad-${severidad}-nombre`}
               aria-describedby={`${idPrefijo}-severidad-${severidad}-criterio`}
-            />
-            <span className="opcion-radio__texto">
-              <span className="opcion-radio__titulo">
+              label={<>
                 <span id={`${idPrefijo}-severidad-${severidad}-nombre`}>
-                  <EstadoActualSeveridad severidad={severidad} prefijo={false} marca={false} />
+                  <EstadoActualSeveridad severidad={severidad} prefijo={false} sugerida={sugerida === severidad} />
                 </span>
-                {sugerida === severidad ? <span className="badge-sugerido">Sugerido</span> : null}
-              </span>
-              <span className="opcion-radio__ayuda" id={`${idPrefijo}-severidad-${severidad}-criterio`}>
+              </>}
+              ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>
                 {criterioSeveridad(severidad, categoriaCriterio)}
-              </span>
-            </span>
-          </label>
+              </span>}
+            />
         ))}
       </div>
 
@@ -111,16 +108,16 @@ export function CampoGravedad({
       >
         <div className="afectacion-campos__opciones">
           {JUSTIFICACIONES_CRITICA.map((justificacion) => (
-            <label key={justificacion} className="opcion-radio opcion-radio--compacta">
-              <input
-                type="radio"
+            <Opcion
+                key={justificacion}
+                tipo="radio"
                 name={`${idPrefijo}-justificacion`}
                 checked={razon === justificacion}
                 disabled={disabled}
                 onChange={() => setRazon(justificacion)}
+                label={ETIQUETA_JUSTIFICACION_CRITICA[justificacion]}
+                compacta
               />
-              <span className="opcion-radio__titulo">{ETIQUETA_JUSTIFICACION_CRITICA[justificacion]}</span>
-            </label>
           ))}
         </div>
         {razon === 'otro' ? (

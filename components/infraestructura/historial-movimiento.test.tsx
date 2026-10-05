@@ -37,7 +37,7 @@ describe('HistorialMovimiento', () => {
   it('muestra la fecha y hora de carga y el rol', () => {
     renderEnLista(movimiento())
 
-    expect(screen.getByText('18 sep · 10:35')).toBeInTheDocument()
+    expect(screen.getByText('18 de septiembre, 10:35')).toBeInTheDocument()
     expect(screen.getByText('Director')).toBeInTheDocument()
   })
 

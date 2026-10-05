@@ -71,6 +71,27 @@ describe('CamposAQuienAfecta — selector legado', () => {
   })
 })
 
+describe('confirmación de categoría', () => {
+  it('elige la primera categoría sin abrir la confirmación', () => {
+    const onChange = vi.fn()
+    renderCamposQuePaso({ onChange })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ categoria: 'establecimiento' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('confirma cuando cambia una categoría elegida', () => {
+    const borrador = { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' as const }
+    renderCamposQuePaso({ borrador })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
 /*
   La especificación funcional define que la severidad es por afectación pero
   NO define sus criterios. Sin ellos, "Alta" y "Crítica" quedaban a
@@ -125,7 +146,7 @@ describe('CamposQuePaso — criterios de severidad', () => {
 
   it('elegir una categoría pide confirmación y cancelar no la aplica', () => {
     const onChange = vi.fn()
-    renderCamposQuePaso({ onChange })
+    renderCamposQuePaso({ onChange, borrador: { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' } })
 
     const categoriaAlumnos = screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ })
     fireEvent.click(categoriaAlumnos)
