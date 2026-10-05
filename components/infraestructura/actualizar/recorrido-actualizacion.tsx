@@ -17,7 +17,6 @@ import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INI
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
-import type { Severidad } from '@/lib/infraestructura/validacion'
 
 export interface RecorridoActualizacionProps {
   cue: string
@@ -105,24 +104,37 @@ function fechaCorta(iso: string): string {
 }
 
 export function RecorridoActualizacion({ cue, turnos, motivos }: RecorridoActualizacionProps): JSX.Element {
-  const [carga, setCarga] = useState<Carga>({ fase: 'cargando' })
+  const [carga, setCarga] = useState<{ cue: string; resultado: Carga }>(() => ({ cue, resultado: { fase: 'cargando' } }))
+  const solicitudRef = useRef(0)
 
   const recargar = useCallback(() => {
-    let vigente = true
-    setCarga({ fase: 'cargando' })
-    void obtenerCarga(cue).then((nueva) => { if (vigente) setCarga(nueva) })
-    return () => { vigente = false }
+    const solicitud = ++solicitudRef.current
+    setCarga({ cue, resultado: { fase: 'cargando' } })
+    void obtenerCarga(cue).then((resultado) => {
+      if (solicitud === solicitudRef.current) setCarga({ cue, resultado })
+    })
   }, [cue])
 
-  useEffect(() => recargar(), [recargar])
+  useEffect(() => {
+    let vigente = true
+    const solicitud = ++solicitudRef.current
+    void obtenerCarga(cue).then((resultado) => {
+      if (vigente && solicitud === solicitudRef.current) setCarga({ cue, resultado })
+    })
+    return () => {
+      vigente = false
+      solicitudRef.current += 1
+    }
+  }, [cue])
 
   useEffect(() => { void registrarServiceWorkerParte() }, [])
 
-  if (carga.fase === 'cargando') return <p className="estado-actual-aviso" role="status">Buscando el estado actual del establecimiento…</p>
-  if (carga.fase === 'error') return <p className="estado-actual-aviso__texto" role="alert">{carga.mensaje}</p>
-  if (!carga.datos.parte) return <p className="estado-actual-aviso__texto" role="alert">{MENSAJE_SIN_SITUACION}</p>
+  const resultado = carga.cue === cue ? carga.resultado : { fase: 'cargando' as const }
+  if (resultado.fase === 'cargando') return <p className="estado-actual-aviso" role="status">Buscando el estado actual del establecimiento…</p>
+  if (resultado.fase === 'error') return <p className="estado-actual-aviso__texto" role="alert">{resultado.mensaje}</p>
+  if (!resultado.datos.parte) return <p className="estado-actual-aviso__texto" role="alert">{MENSAJE_SIN_SITUACION}</p>
 
-  return <RecorridoCargado key={`${cue}:${carga.datos.parte.id}`} cue={cue} turnos={turnos} motivos={motivos} datos={carga.datos} historial={carga.historial} onRecargar={recargar} />
+  return <RecorridoCargado key={`${cue}:${resultado.datos.parte.id}`} cue={cue} turnos={turnos} motivos={motivos} datos={resultado.datos} historial={resultado.historial} onRecargar={recargar} />
 }
 
 function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }: RecorridoActualizacionProps & { datos: EstadoActualRespuesta; historial: MovimientoHistorial[]; onRecargar: () => void }): JSX.Element {
@@ -223,24 +235,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     return () => window.removeEventListener('popstate', alVolverAtras)
   }, [etapa, ordenadas.length])
 
-  useEffect(() => {
-    let cancelado = false
-    void (async () => {
-      const cola = await leerColaEnvio<PayloadActualizacion>(await almacen(), 'actualizacion', cue)
-      if (!cancelado && cola) {
-        setEstadoEnvio(cola.estado)
-        setMotivoEnvio(cola.motivoError ?? null)
-        setIntentosEnvio(cola.intentos)
-        if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
-          const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
-          if (!cancelado && resultado?.ok) alEnviarConExito()
-        }
-      }
-    })()
-    return () => { cancelado = true }
-  }, [almacen, cue])
-
-  function opcionesEnvio(): Omit<EnviarOpciones<PayloadActualizacion>, 'almacen'> {
+  const opcionesEnvio = useCallback((): Omit<EnviarOpciones<PayloadActualizacion>, 'almacen'> => {
     return {
       tipo: 'actualizacion',
       cue,
@@ -261,16 +256,34 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
     }
-  }
+  }, [cue])
 
-  function alEnviarConExito() {
+  const alEnviarConExito = useCallback(() => {
     void borradorStore.limpiar(almacenBorradores, claveBorrador)
     limpiarVinculoVerificacion()
     setBorradorPendiente(null)
     setGuardado(true)
     setEnviando(false)
     enviandoRef.current = false
-  }
+  }, [claveBorrador])
+
+  useEffect(() => {
+    let cancelado = false
+    void (async () => {
+      const cola = await leerColaEnvio<PayloadActualizacion>(await almacen(), 'actualizacion', cue)
+      if (!cancelado && cola) {
+        setEstadoEnvio(cola.estado)
+        setMotivoEnvio(cola.motivoError ?? null)
+        setIntentosEnvio(cola.intentos)
+        if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+          const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
+          if (!cancelado && resultado?.ok) alEnviarConExito()
+        }
+      }
+    })()
+    return () => { cancelado = true }
+  }, [almacen, cue, opcionesEnvio, alEnviarConExito])
+
   useEffect(() => { exitoRef.current = alEnviarConExito })
 
   useEffect(() => {

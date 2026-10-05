@@ -3,8 +3,6 @@
 import { useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
-import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
-import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'

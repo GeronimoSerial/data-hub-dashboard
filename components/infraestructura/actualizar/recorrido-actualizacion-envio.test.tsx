@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from '@/components/infraestructura/verificacion-vinculo'
 import { claveBorrador, MENSAJES_ESTADO } from '@/lib/infraestructura/parte/envio-offline'
+import type * as AlmacenIndexedDb from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
 
 const syncMocks = vi.hoisted(() => ({
@@ -23,7 +24,7 @@ vi.mock('@/lib/infraestructura/parte/registrar-sync', () => ({
 }))
 
 vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@/lib/infraestructura/parte/almacen-indexeddb')>()
+  const original = await importOriginal<typeof AlmacenIndexedDb>()
   return {
     ...original,
     crearAlmacenParte: async () => {
