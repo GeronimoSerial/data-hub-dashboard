@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelaMapaPadron, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import {
   COLOR_SIN_AFECTACION,
   construirEscuelasMapaFeatureCollection,
@@ -30,7 +30,7 @@ function parte(overrides: Partial<ParteMapa> = {}): ParteMapa {
   }
 }
 
-function escuelaAfectada(overrides: Partial<EscuelaMapa> = {}): EscuelaMapa {
+function escuelaAfectada(overrides: Partial<EscuelaMapaPadron> = {}): EscuelaMapaPadron {
   const p = parte(overrides.parte ?? {})
   return {
     cueAnexo: p.cueAnexo,
@@ -41,11 +41,20 @@ function escuelaAfectada(overrides: Partial<EscuelaMapa> = {}): EscuelaMapa {
     lon: p.lon,
     estado: 'afectada',
     parte: p,
+    niveles: [],
+    alumnos: 0,
+    gravedad: 1,
+    categoriaPrincipal: null,
+    clases: 'normal',
+    apoyo: null,
+    sinActualizar: false,
+    ultimaNovedad: p.actualizadaEn,
+    alumnosSinClases: 0,
     ...overrides,
   }
 }
 
-function escuelaSinAfectacion(overrides: Partial<EscuelaMapa> = {}): EscuelaMapa {
+function escuelaSinAfectacion(overrides: Partial<EscuelaMapaPadron> = {}): EscuelaMapaPadron {
   return {
     cueAnexo: '1800002',
     nombre: 'Escuela Sin Reportar',
@@ -54,17 +63,35 @@ function escuelaSinAfectacion(overrides: Partial<EscuelaMapa> = {}): EscuelaMapa
     lat: -29.14,
     lon: -59.26,
     estado: 'sin_afectacion_reportada',
+    niveles: [],
+    alumnos: 0,
+    gravedad: 0,
+    categoriaPrincipal: null,
+    clases: 'normal',
+    apoyo: null,
+    sinActualizar: false,
+    ultimaNovedad: null,
+    alumnosSinClases: 0,
     ...overrides,
   }
 }
 
 describe('construirEscuelasMapaFeatureCollection', () => {
+  it('incluye gravedad e icono en las propiedades del punto', () => {
+    const escuela = escuelaAfectada({ gravedad: 4, clases: 'evacuado', sinActualizar: true })
+
+    const fc = construirEscuelasMapaFeatureCollection([escuela])
+
+    expect(fc.features[0].properties.gravedad).toBe(4)
+    expect(fc.features[0].properties.icono).toBe('evacuado')
+  })
+
   it("una escuela 'afectada' usa el color de severidad y estado 'afectada'", () => {
     const escuela = escuelaAfectada({ parte: parte({ peorSeveridad: 'Crítica' }) })
     // peorSeveridad se lleve al parte; el cueAnexo/nombre de la escuela también.
     escuela.cueAnexo = '1800001'
 
-    const fc = construirEscuelasMapaFeatureCollection([escuela], null)
+    const fc = construirEscuelasMapaFeatureCollection([escuela])
 
     expect(fc.features).toHaveLength(1)
     const props = fc.features[0].properties
@@ -74,7 +101,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
   })
 
   it("una escuela 'sin_afectacion_reportada' usa el gris sin-afectación y valores neutros", () => {
-    const fc = construirEscuelasMapaFeatureCollection([escuelaSinAfectacion()], null)
+    const fc = construirEscuelasMapaFeatureCollection([escuelaSinAfectacion()])
 
     expect(fc.features).toHaveLength(1)
     const props = fc.features[0].properties
@@ -99,7 +126,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
       }),
     ]
 
-    const fc = construirEscuelasMapaFeatureCollection(escuelas, null)
+    const fc = construirEscuelasMapaFeatureCollection(escuelas)
 
     expect(
       fc.features.map((f) => [
@@ -120,7 +147,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     const sinLon = escuelaSinAfectacion({ cueAnexo: 'X2', lat: -27, lon: null })
     const valida = escuelaSinAfectacion({ cueAnexo: 'V1' })
 
-    const fc = construirEscuelasMapaFeatureCollection([sinLat, sinLon, valida], null)
+    const fc = construirEscuelasMapaFeatureCollection([sinLat, sinLon, valida])
 
     expect(fc.features).toHaveLength(1)
     expect(fc.features[0].properties.cueAnexo).toBe('V1')
@@ -134,7 +161,7 @@ describe('construirEscuelasMapaFeatureCollection', () => {
       escuelaAfectada({ cueAnexo: 'D' }),
     ]
 
-    const fc = construirEscuelasMapaFeatureCollection(entrada, null)
+    const fc = construirEscuelasMapaFeatureCollection(entrada)
 
     expect(fc.type).toBe('FeatureCollection')
     expect(fc.features).toHaveLength(3)

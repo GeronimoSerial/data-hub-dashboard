@@ -483,7 +483,7 @@ function BloqueRuta({
     return (
       <div className={styles.legendItemStack} data-testid="leyenda-ruta">
         <div className={styles.hint} data-testid="leyenda-ruta-sin-seleccion">
-          Elegí una escuela para ver el camino calculado hasta la ciudad cabecera del departamento.
+          Seleccione una escuela para ver el camino calculado.
         </div>
       </div>
     )

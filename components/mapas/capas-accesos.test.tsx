@@ -401,7 +401,7 @@ describe('LeyendaAccesos — ruta', () => {
   it('sin selección pide elegir una escuela', () => {
     renderLeyenda({ visibles: visibles(['rutaSeleccion']) })
     expect(screen.getByTestId('leyenda-ruta-sin-seleccion')).toHaveTextContent(
-      'Elegí una escuela para ver el camino calculado hasta la ciudad cabecera del departamento.',
+      'Seleccione una escuela para ver el camino calculado.',
     )
   })
 

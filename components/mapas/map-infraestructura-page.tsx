@@ -27,7 +27,7 @@ import type {
   MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
-import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
@@ -44,12 +44,12 @@ const LOCALE_MAPLIBRE_ES: Record<string, string> = {
   'Popup.Close': 'Cerrar',
 }
 import {
-  Building2,
-  CircleHelp,
-  CircleSlash,
+  BookMinus,
+  BookX,
+  Clock,
   DoorOpen,
+  House,
   MapPin,
-  Tent,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
@@ -138,13 +138,8 @@ import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import {
-  iconoEstadoEscuela,
-  rangoSeveridad,
-  type IconoEstadoEscuela,
-} from '@/lib/mapas/severidad-visual'
+import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -156,7 +151,6 @@ import {
   ID_IMAGEN_ESCUELA_NORMAL,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
@@ -364,11 +358,8 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // punto del fondo, ya no codifica el servicio.
 const ANILLO_COLOR = '#1c1c1c'
 
-// El color del cluster es el de la severidad MÁS ALTA entre sus puntos,
-// leída del agregado `severidadRango` que calcula clusterProperties (max). Es
-// una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
-// mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
-// no el mayor es Alta (>=2), y así hasta Baja (default).
+// El color del punto o cluster sale de la gravedad más alta (0 sin reporte,
+// 1 Baja, 2 Media, 3 Alta, 4 Crítica).
 //
 // Antes de mirar la severidad se chequea `escuelasAfectadas === 0`: un cluster
 // que agrupa SÓLO escuelas sin afectación reportada (severidadRango = 0, el
@@ -378,9 +369,9 @@ const ANILLO_COLOR = '#1c1c1c'
 export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
   const expresion: unknown[] = ['case', ['==', ['get', 'escuelasAfectadas'], 0], COLOR_SIN_AFECTACION]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
-    expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
+    expresion.push(['>=', ['get', 'gravedad'], i + 1], colorSeveridad(SEVERIDADES[i]))
   }
-  expresion.push(colorSeveridad(SEVERIDADES[0]))
+  expresion.push(['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, colorSeveridad(SEVERIDADES[0]))
   return expresion as unknown as DataDrivenPropertyValueSpecification<string>
 }
 
@@ -395,16 +386,10 @@ export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<nu
 
 export function circlePaintPartes(): CircleLayerSpecification['paint'] {
   return {
-    // Radio mayor que RADIO_DOT_BASE a propósito: el ícono de escuela (badge
-    // blanco ~22px) se dibuja encima y necesita un anillo de color visible
-    // alrededor para que la severidad siga leyéndose.
-    'circle-radius': 14,
-    'circle-color': ['get', 'color'],
+    'circle-radius': ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+    'circle-color': colorPorSeveridadRango(),
     'circle-opacity': 0.9,
-    'circle-stroke-color': ANILLO_COLOR,
-    // Borde neutro FIJO: el servicio ya no se codifica acá (lo dice el badge
-    // de estado). El grosor/opacidad variables por `servicio` se eliminaron
-    // junto con los anillos apilados de V2.
+    'circle-stroke-color': ['case', ['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, ANILLO_COLOR],
     'circle-stroke-width': 1,
   }
 }
@@ -431,86 +416,22 @@ export function filtroClusterPartes(mostrarPadron: boolean): FilterSpecification
   return ['all', base, ['>', ['get', 'escuelasAfectadas'], 0]] as unknown as FilterSpecification
 }
 
-type PropiedadesParte = {
-  cueAnexo: string
-  color: string
-  servicio: EstadoServicioGeneral
-  alumnosAlcanzados: number
-  // Etiqueta cruda para la ficha y rango numérico para el cluster.
-  severidad: string
-  severidadRango: number
-  // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
-  // según esSinReportar/UMBRAL_SIN_ACTUALIZAR_HORAS). Se une al feature para
-  // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  sinActualizar: boolean
-  // Booleano real por punto ("este establecimiento está evacuado o es centro
-  // de evacuados", según estadoEstablecimiento). Se une al feature para que
-  // clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  esEvacuado: boolean
-}
-
-// Función de módulo (no closure del componente) a propósito: así useMemo
-// puede depender sólo de `partes` sin arrastrar warnings de exhaustive-deps
-// por una función recreada en cada render.
-export function construirFeatureCollection(
-  partes: ParteMapa[],
-  ahoraMs: number | null,
-): FeatureCollection<Point, PropiedadesParte> {
-  const features = partes
-    .filter((parte) => parte.lat !== null && parte.lon !== null)
-    .map((parte) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [parte.lon as number, parte.lat as number],
-      },
-      properties: {
-        cueAnexo: parte.cueAnexo,
-        color: colorSeveridad(parte.peorSeveridad),
-        servicio: parte.servicio,
-        alumnosAlcanzados: parte.alumnosAlcanzados,
-        severidad: parte.peorSeveridad,
-        severidadRango: rangoSeveridad(parte.peorSeveridad),
-        sinActualizar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
-        esEvacuado:
-          parte.estadoEstablecimiento === 'evacuado' ||
-          parte.estadoEstablecimiento === 'centro_evacuados',
-      },
-    }))
-  return { type: 'FeatureCollection', features }
-}
-
-// "Sin reportar" se calcula acá, no en el servidor: el indicador agregado
-// (indicadores.sinActualizar) ya viaja en la respuesta, pero para mostrar el
-// badge hace falta saber CUÁL parte individual cruzó el umbral, y esa
-// información no se serializa aparte. UMBRAL_SIN_ACTUALIZAR_HORAS es la misma
-// constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
-// un solo lugar define "viejo", nunca dos criterios que puedan divergir.
-export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
-  return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
-}
-
-// Componente Lucide por nombre lógico del badge. El nombre (no el componente)
-// es lo que devuelve la función pura `iconoEstadoEscuela`, para poder testear
-// la prioridad sin montar el mapa.
-const ICONOS_BADGE_ESTADO: Record<IconoEstadoEscuela, LucideIcon> = {
-  Building: Building2,
-  Tent,
-  DoorOpen,
-  CircleSlash,
-  TriangleAlert,
-  CircleHelp,
+// Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
+const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
+  sin: BookX,
+  parcial: BookMinus,
+  evacuado: DoorOpen,
+  centro: House,
+  reloj: Clock,
 }
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
-const ETIQUETA_ICONO_ESTADO: Record<IconoEstadoEscuela, string> = {
-  Building: 'Funcionamiento parcial',
-  Tent: 'Centro de evacuados',
-  DoorOpen: 'Establecimiento evacuado',
-  CircleSlash: 'Servicio suspendido',
-  TriangleAlert: 'Servicio parcial',
-  CircleHelp: 'Sin reportar',
+const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
+  sin: 'Sin clases',
+  parcial: 'Clases parciales',
+  evacuado: 'Evacuado',
+  centro: 'Centro de evacuados',
+  reloj: 'Sin actualizar',
 }
 
 // ── Popup de CLIC del departamento ──────────────────────────────────────────
@@ -596,10 +517,6 @@ function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<
 
 const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   escuelas: false,
-  // Capas informativas nuevas: apagadas por defecto para no sumar ruido
-  // visual al encuadre inicial. El director las prende cuando las necesita.
-  evacuacion: false,
-  sinActualizar: false,
 }
 
 // Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
@@ -889,8 +806,8 @@ export default function MapInfraestructuraPage(props: {
   // capa de puntos. Requisito no negociable: el mapa muestra TODAS las
   // escuelas siempre, no depende de si hay partes cargados.
   const featureCollectionPadron = useMemo(
-    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? [], ahoraMs),
-    [dataEscuelasMapaVisible, ahoraMs],
+    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? []),
+    [dataEscuelasMapaVisible],
   )
 
   // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
@@ -947,16 +864,8 @@ export default function MapInfraestructuraPage(props: {
   }, [dataVisible])
 
   // V2: badge de estado por escuela NO agrupada. Un ícono lucide por punto,
-  // elegido por prioridad con `iconoEstadoEscuela`. Las capas "evacuación" y
-  // "sin reportar" siguen siendo toggles: apagadas, esas condiciones no
-  // participan del badge y se cae a la siguiente prioridad (p. ej. una
-  // escuela evacuada con el toggle apagado pero servicio suspendido muestra
-  // CircleSlash). El servicio siempre participa: reemplaza al anillo de
-  // grosor, que estaba siempre visible.
-  //
-  // `ahoraMs` es null hasta que corre el efecto de arriba (Date.now() es
-  // impuro y no puede llamarse en render): en ese primer render no hay
-  // badge de "sin reportar", igual que antes no había halo.
+  // La función pura resume el estado de clases o, si es normal, el reloj de
+  // actualización. Cada escuela muestra como máximo un badge.
   const badgesEstado = useMemo(() => {
     if (cuesNoAgrupados === null) return []
     const badges: Array<{
@@ -964,23 +873,12 @@ export default function MapInfraestructuraPage(props: {
       nombre: string
       lng: number
       lat: number
-      icono: IconoEstadoEscuela
+      icono: IconoPunto
     }> = []
     for (const escuela of dataEscuelasMapaVisible?.escuelas ?? []) {
       if (escuela.lat === null || escuela.lon === null) continue
       if (!cuesNoAgrupados.has(escuela.cueAnexo)) continue
-      const parte = escuela.estado === 'afectada' ? escuela.parte : undefined
-      const icono = iconoEstadoEscuela({
-        estadoEstablecimiento: capasVisibles.evacuacion
-          ? (parte?.estadoEstablecimiento ?? 'habitual')
-          : 'habitual',
-        servicio: parte?.servicio ?? 'normal',
-        sinActualizar:
-          capasVisibles.sinActualizar &&
-          parte !== undefined &&
-          ahoraMs !== null &&
-          esSinReportar(parte, ahoraMs),
-      })
+      const icono = iconoPunto(escuela)
       if (icono === null) continue
       badges.push({
         cueAnexo: escuela.cueAnexo,
@@ -994,9 +892,6 @@ export default function MapInfraestructuraPage(props: {
   }, [
     cuesNoAgrupados,
     dataEscuelasMapaVisible,
-    ahoraMs,
-    capasVisibles.evacuacion,
-    capasVisibles.sinActualizar,
   ])
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
@@ -2008,6 +1903,7 @@ export default function MapInfraestructuraPage(props: {
                 // está sin reportar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
                 sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
+                gravedad: ['max', ['get', 'gravedad']],
                 // En el cluster `esEvacuado` se agrega como 0/1 con max() —
                 // el cluster vale 1 si AL MENOS UNO de sus puntos es un
                 // establecimiento evacuado/centro de evacuados (semántica
@@ -2149,7 +2045,7 @@ export default function MapInfraestructuraPage(props: {
                 tapar el número del conteo. Sólo se montan cuando las imágenes
                 SVG ya quedaron registradas (ver `registrarIconosCluster`).
               */}
-              {iconosClusterListos && capasVisibles.evacuacion && (
+              {iconosClusterListos && (
                 <Layer
                   id={CAPA_CLUSTER_CENTRO_EVACUADOS_ID}
                   type="symbol"
@@ -2157,7 +2053,7 @@ export default function MapInfraestructuraPage(props: {
                   layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS)}
                 />
               )}
-              {iconosClusterListos && capasVisibles.evacuacion && (
+              {iconosClusterListos && (
                 <Layer
                   id={CAPA_CLUSTER_EVACUADO_ID}
                   type="symbol"

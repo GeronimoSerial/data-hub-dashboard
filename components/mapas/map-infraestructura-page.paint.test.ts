@@ -1,17 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
   circlePaintPartes,
   colorPorSeveridadRango,
-  construirFeatureCollection,
-  esSinReportar,
   expresionRadioCluster,
   filtroClusterPartes,
   filtroPuntosPartes,
@@ -20,36 +14,27 @@ import {
   RADIO_CLUSTER_MENOR,
 } from './map-infraestructura-page'
 
-const CUE = '1801605-04'
-
-// Fixture base de un ParteMapa válido (ver lib/infraestructura/parte-mapa.ts
-// para el contrato de campos). Cada test varía sólo lo que necesita con un
-// spread `{ ...baseFixture, campo: valor }`.
-const baseFixture: ParteMapa = crearParteMapa({ cueAnexo: CUE })
-
 describe('colorPorSeveridadRango', () => {
   it('es una expresión `case` con la guarda de sin afectación, los pares condición/color y el color de Baja como default', () => {
     const expresion = colorPorSeveridadRango() as unknown[]
     expect(expresion[0]).toBe('case')
-    // 'case' + 1 par [condición, color] para "sin afectación" + (n-1) pares
-    // [condición, color] de severidad + 1 default. Para n severidades la
-    // longitud es 2 + 2n (par, no impar).
-    expect(expresion.length).toBe(2 + 2 * SEVERIDADES.length)
+    // Guarda de cluster sin escuelas afectadas, tres rangos de gravedad,
+    // gravedad 0 neutra y color de Baja como default.
+    expect(expresion.length).toBe(4 + 2 * SEVERIDADES.length)
     expect(expresion[1]).toEqual(['==', ['get', 'escuelasAfectadas'], 0])
     expect(expresion[2]).toBe(COLOR_SIN_AFECTACION)
     expect(expresion[expresion.length - 1]).toBe(colorSeveridad('Baja'))
   })
 
-  it('la severidad más alta presente gana: pares condición/color en el orden real de SEVERIDADES', () => {
+  it('la gravedad más alta presente gana según la escala del padrón', () => {
     const expresion = colorPorSeveridadRango() as unknown[]
     for (let i = 1; i < SEVERIDADES.length; i++) {
-      // Los pares de severidad arrancan en el índice 3 (después de la guarda
-      // de "sin afectación", que ocupa los índices 1 y 2).
+      // Los pares de gravedad arrancan después de la guarda de cluster.
       const indiceCondicion = 3 + (i - 1) * 2
       expect(expresion[indiceCondicion]).toEqual([
         '>=',
-        ['get', 'severidadRango'],
-        SEVERIDADES.length - i,
+        ['get', 'gravedad'],
+        SEVERIDADES.length - i + 1,
       ])
       expect(expresion[indiceCondicion + 1]).toBe(
         colorSeveridad(SEVERIDADES[SEVERIDADES.length - i]),
@@ -59,7 +44,7 @@ describe('colorPorSeveridadRango', () => {
 
   function evaluarColorCluster(
     expresion: unknown[],
-    props: { escuelasAfectadas: number; severidadRango: number },
+    props: { escuelasAfectadas: number; gravedad: number },
   ): string {
     // ['case', cond1, out1, cond2, out2, ..., default]
     for (let i = 1; i < expresion.length - 1; i += 2) {
@@ -77,9 +62,9 @@ describe('colorPorSeveridadRango', () => {
     return expresion[expresion.length - 1] as string
   }
 
-  it('con 0 escuelas afectadas en el cluster el color es el gris neutro, sin importar severidadRango', () => {
+  it('con 0 escuelas afectadas en el cluster el color es el gris neutro', () => {
     const expresion = colorPorSeveridadRango() as unknown[]
-    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, severidadRango: 0 })).toBe(
+    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe(
       COLOR_SIN_AFECTACION,
     )
   })
@@ -89,13 +74,13 @@ describe('colorPorSeveridadRango', () => {
     expect(
       evaluarColorCluster(expresion, {
         escuelasAfectadas: 1,
-        severidadRango: rangoSeveridad('Alta'),
+        gravedad: 3,
       }),
     ).toBe(colorSeveridad('Alta'))
     expect(
       evaluarColorCluster(expresion, {
         escuelasAfectadas: 1,
-        severidadRango: rangoSeveridad('Baja'),
+        gravedad: 1,
       }),
     ).toBe(colorSeveridad('Baja'))
   })
@@ -118,9 +103,9 @@ describe('expresionRadioCluster', () => {
 })
 
 describe('circlePaintPartes', () => {
-  it('radio fijo 14 (mayor que RADIO_DOT_BASE) y todas las claves del paint del punto', () => {
+  it('el radio usa la gravedad y declara todas las claves del paint del punto', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-radius']).toBe(14)
+    expect(paint['circle-radius']).toEqual(['case', ['==', ['get', 'gravedad'], 0], 5, 8])
     expect(Object.keys(paint).sort()).toEqual([
       'circle-color',
       'circle-opacity',
@@ -130,99 +115,15 @@ describe('circlePaintPartes', () => {
     ])
   })
 
-  it('el borde es neutro y fijo: el servicio ya no se codifica con grosor/opacidad', () => {
+  it('el borde usa gris neutro para gravedad 0 y no codifica el servicio', () => {
     const paint = circlePaintPartes()!
     expect(paint['circle-stroke-width']).toBe(1)
+    expect(paint['circle-stroke-color']).toEqual([
+      'case', ['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, '#1c1c1c',
+    ])
     // El estado del servicio pasó al badge de íconos (V2): el paint del punto
     // ya no debe tener ninguna expresión data-driven sobre `servicio`.
     expect(paint).not.toHaveProperty('circle-stroke-opacity')
-  })
-})
-
-describe('esSinReportar', () => {
-  const ahoraMs = Date.parse('2026-09-01T12:00:00Z')
-  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
-
-  it('devuelve true cuando actualizadaEn supera el umbral real de UMBRAL_SIN_ACTUALIZAR_HORAS', () => {
-    const parte = {
-      ...baseFixture,
-      actualizadaEn: new Date(ahoraMs - umbralMs - 60_000).toISOString(),
-    }
-    expect(esSinReportar(parte, ahoraMs)).toBe(true)
-  })
-
-  it('devuelve false cuando la actualización es reciente (dentro del umbral)', () => {
-    const parte = { ...baseFixture, actualizadaEn: new Date(ahoraMs).toISOString() }
-    expect(esSinReportar(parte, ahoraMs)).toBe(false)
-  })
-
-  it('el umbral es excluyente: exactamente en el límite todavía cuenta como reportado', () => {
-    const parte = {
-      ...baseFixture,
-      actualizadaEn: new Date(ahoraMs - umbralMs).toISOString(),
-    }
-    expect(esSinReportar(parte, ahoraMs)).toBe(false)
-  })
-})
-
-describe('construirFeatureCollection', () => {
-  const ahoraMs = Date.parse('2026-09-01T12:00:00Z')
-  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
-
-  it('arma un Feature/Point con las coordenadas de lon/lat y las propiedades derivadas', () => {
-    const parte = baseFixture
-    const { features } = construirFeatureCollection([parte], ahoraMs)
-    expect(features).toHaveLength(1)
-    const feature = features[0]
-    expect(feature.type).toBe('Feature')
-    expect(feature.geometry.type).toBe('Point')
-    expect(feature.geometry.coordinates).toEqual([parte.lon, parte.lat])
-    expect(feature.properties.color).toBe(colorSeveridad(parte.peorSeveridad))
-    expect(feature.properties.severidadRango).toBe(rangoSeveridad(parte.peorSeveridad))
-  })
-
-  it('marca esEvacuado sólo para evacuado/centro_evacuados, no para habitual', () => {
-    const partes: ParteMapa[] = [
-      { ...baseFixture, cueAnexo: 'a', estadoEstablecimiento: 'habitual' },
-      { ...baseFixture, cueAnexo: 'b', estadoEstablecimiento: 'evacuado' },
-      { ...baseFixture, cueAnexo: 'c', estadoEstablecimiento: 'centro_evacuados' },
-    ]
-    const { features } = construirFeatureCollection(partes, ahoraMs)
-    expect(features.map((f) => [f.properties.cueAnexo, f.properties.esEvacuado])).toEqual([
-      ['a', false],
-      ['b', true],
-      ['c', true],
-    ])
-  })
-
-  it('marca sinActualizar según el umbral real de actualizadaEn vs ahoraMs', () => {
-    const partes: ParteMapa[] = [
-      {
-        ...baseFixture,
-        cueAnexo: 'vieja',
-        actualizadaEn: new Date(ahoraMs - umbralMs - 60_000).toISOString(),
-      },
-      {
-        ...baseFixture,
-        cueAnexo: 'reciente',
-        actualizadaEn: new Date(ahoraMs).toISOString(),
-      },
-    ]
-    const { features } = construirFeatureCollection(partes, ahoraMs)
-    expect(features.map((f) => [f.properties.cueAnexo, f.properties.sinActualizar])).toEqual([
-      ['vieja', true],
-      ['reciente', false],
-    ])
-  })
-
-  it('filtra las partes sin lat o sin lon', () => {
-    const partes: ParteMapa[] = [
-      baseFixture,
-      { ...baseFixture, cueAnexo: 'sin-lat', lat: null },
-      { ...baseFixture, cueAnexo: 'sin-lon', lon: null },
-    ]
-    const { features } = construirFeatureCollection(partes, ahoraMs)
-    expect(features.map((f) => f.properties.cueAnexo)).toEqual([baseFixture.cueAnexo])
   })
 })
 

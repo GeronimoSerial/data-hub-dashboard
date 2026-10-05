@@ -46,31 +46,14 @@ export function LayerControl({ overlays, onChange }: Props) {
 
 // ── Capas del mapa de infraestructura ───────────────────────────────────────
 //
-// Fase 2 (parte-mapa): una escuela = un punto, ya no una capa por categoría
-// (la categoría pasó a ser filtro y dato de ficha, ver
-// map-infraestructura-page). F2.3 agrega 'evacuacion' y 'sinActualizar' como
-// capas toggleables aparte de 'escuelas', sin tocar esa forma: son
-// símbolos/anillos superpuestos sobre los mismos puntos, no una
-// recodificación de color ni de tamaño. Componente propio en vez de
-// generalizar LayerControl para no acoplar dos dominios de mapa distintos a
-// un mismo tipo de clave.
-export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinActualizar'
+// El único control de infraestructura que queda es el padrón completo.
+export type CapaInfraestructura = 'escuelas'
 
 export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
   escuelas: 'Todas las escuelas',
-  // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
-  // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
-  // responden a la misma pregunta operativa ("¿hay algo pasando con el
-  // edificio en sí?"), la leyenda es la que distingue cuál es cuál.
-  evacuacion: 'Evacuación (edificio evacuado o centro de evacuados)',
-  sinActualizar: 'Sin novedades hace más de 72 h',
 }
 
-const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = [
-  'escuelas',
-  'evacuacion',
-  'sinActualizar',
-]
+const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = ['escuelas']
 
 export function InfraLayerControl({
   capas,
