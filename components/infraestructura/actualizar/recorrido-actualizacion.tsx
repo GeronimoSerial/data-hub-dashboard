@@ -220,9 +220,17 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
-    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.rigeDesde, activa: true })),
-    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false })),
-  ], [situaciones, recorrido.respuestas, datos.recientes])
+    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({
+      id: s.id,
+      motivo: s.motivo,
+      fecha: s.rigeDesde,
+      activa: true,
+      severidad: s.severidad,
+      secciones: s.secciones.length,
+      alumnos: s.categoria === 'alumnos' ? s.alumnos.length : contarAlumnos(s.secciones, turnos),
+    })),
+    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false, severidad: s.severidad })),
+  ], [situaciones, recorrido.respuestas, datos.recientes, turnos])
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {

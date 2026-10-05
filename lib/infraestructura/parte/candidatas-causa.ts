@@ -1,10 +1,14 @@
 import { VENTANA_CAUSA_DIAS } from '@/lib/infraestructura/causa-afectacion'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 
 export interface CandidataCausa {
   id: string
   motivo: string
   fecha: string
   activa: boolean
+  severidad?: Severidad
+  secciones?: number
+  alumnos?: number
 }
 
 const MS_POR_DIA = 24 * 60 * 60 * 1000
