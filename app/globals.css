@@ -3201,7 +3201,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
    le robaría 32px a cada lado justo donde menos sobran. */
 @media (min-width: 880px) {
   .publico-content--ancho,
-  .publico-layout:has(.publico-content--ancho) {
+  .publico-layout:has(.publico-content--ancho),
+  .publico-layout:has(.publico-content--parte) {
     /* El tope es fluido, no fijo: en un monitor de 2500px una tarjeta clavada
        en 1120 se lee como una tira angosta en el medio de la nada, y en uno
        de 1200 una clavada en 1440 se pega a los bordes. El `100% - 4rem`
@@ -3210,8 +3211,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   }
 }
 
-/* El parte se lee como una sola columna. El encabezado y los pasos comparten
-   el mismo marco, incluso en pantallas donde antes aparecía el layout ancho. */
+/* El contenido del parte se lee como una sola columna. El marco institucional
+   conserva la medida amplia del sitio y la tarjeta limita su propio ancho. */
 @media (min-width: 768px) {
   .publico-content.publico-content--parte { max-width: 720px; }
   .publico-content--parte .reporte-inicial,
@@ -3229,6 +3230,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     max-width: none;
     justify-self: stretch;
   }
+}
+
+.publico-content--parte:has(.actualizacion-resumen) .encabezado-parte__pantalla {
+  display: none;
 }
 
 /* ── Historial del parte (spec §15) ────────────────────────────────────── */

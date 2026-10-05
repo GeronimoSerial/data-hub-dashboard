@@ -100,7 +100,8 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
     fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
-    expect(screen.getByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Resumen' })).toBeInTheDocument()
+    expect(document.querySelector('.actualizacion-resumen h2')).toHaveTextContent('Resumen')
     expect(screen.getByText('Inundación: sin cambios')).toBeInTheDocument()
     expect(screen.getByText('Sin energía o agua: sin cambios')).toBeInTheDocument()
     expect(screen.queryByText(/Asistencia pedagógica: No/)).not.toBeInTheDocument()
