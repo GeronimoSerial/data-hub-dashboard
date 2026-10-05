@@ -120,7 +120,6 @@ export function SeccionesSelector({
     seleccionadas.length === todosLosIds.length &&
     todosLosIds.every((id) => setSeleccionadas.has(id)) &&
     alumnosSeleccionados.length === 0
-  const algunaSeleccionada = seleccionadas.length > 0 || alumnosSeleccionados.length > 0
 
   function alternarSeccion(seccion: SeccionContexto, marcar: boolean) {
     // Categoría sin selección nominal (permiteAlumnos: false): la sección es
@@ -184,9 +183,8 @@ export function SeccionesSelector({
     <div className="secciones-selector">
       <Opcion
         tipo="checkbox"
-        label={`Todas las secciones (${todosLosIds.length} secciones · ${matriculaTotal} alumnos)`}
+        label={`Todas las secciones · ${seleccionadas.length} de ${todosLosIds.length} (${matriculaTotal} alumnos)`}
         checked={todasSeleccionadas}
-        indeterminate={!todasSeleccionadas && algunaSeleccionada}
         onChange={(event) => onCambiar(event.currentTarget.checked ? todosLosIds : [], [])}
         disabled={disabled}
       />
@@ -199,9 +197,6 @@ export function SeccionesSelector({
             (!permiteAlumnos || seccion.alumnos.length === 0 || efectivos.size === seccion.alumnos.length)
         }).length
         const todasDelTurno = seccionesTurno.length > 0 && seccionesCompletas === seccionesTurno.length
-        const algunaDelTurno = seccionesCompletas > 0 || (permiteAlumnos && seccionesTurno.some((seccion) =>
-          seccion.alumnos.some((alumno) => alumnosSeleccionados.includes(alumno.gePersonId)),
-        ))
         return (
         <section className="secciones-selector__turno" key={turno.turno}>
           <Opcion
@@ -209,7 +204,6 @@ export function SeccionesSelector({
             className="secciones-selector__turno-opcion"
             label={`Todo el turno ${turno.turno}`}
             checked={todasDelTurno}
-            indeterminate={!todasDelTurno && algunaDelTurno}
             onChange={(event) => alternarTurno(turno, event.currentTarget.checked)}
             disabled={disabled}
             compacta

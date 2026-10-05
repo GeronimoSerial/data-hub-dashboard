@@ -44,6 +44,16 @@ describe('LineaDeTiempo', () => {
     expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(3)
   })
 
+  it('no repite en el detalle el cambio que ya resume el título', () => {
+    render(<LineaDeTiempo movimientos={[mov(
+      'severidad',
+      '2026-10-04T13:42:00.000Z',
+      ['Severidad de "Tormenta severa": Media → Baja', '3 secciones incorporadas'],
+    )].map((movimiento) => ({ ...movimiento, titulo: 'Tormenta severa · Media → Baja · desde 07:00' }))} />)
+    const entrada = document.querySelector('.linea-de-tiempo__entrada') as HTMLLIElement
+    expect(entrada.querySelector('.linea-de-tiempo__detalles')?.textContent).toBe('3 secciones incorporadas')
+  })
+
   it('muestra una fecha y hora unificadas por movimiento', () => {
     render(<LineaDeTiempo movimientos={movimientos} />)
     expect(document.querySelectorAll('.linea-de-tiempo__lista > li')).toHaveLength(2)

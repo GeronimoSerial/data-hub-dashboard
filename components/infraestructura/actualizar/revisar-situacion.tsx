@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { CampoGravedad, gravedadCompleta, type ValorGravedad } from '@/components/infraestructura/campo-gravedad'
@@ -8,7 +8,6 @@ import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/inf
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { SelectorEstablecimiento, type ValorAlcanceEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
-import { Label } from '@/components/ui/label'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { AspectoCambio, CambioSituacion, RespuestaSituacion, SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
@@ -60,6 +59,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const [interrumpeTodo, setInterrumpeTodo] = useState(false)
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
   const [cascada, setCascada] = useState<{ pendientes: SituacionRecorrido[]; solucionadaEn: string } | null>(null)
+  const solucionRef = useRef<HTMLDivElement>(null)
 
   function completarSolucion(eleccion: EleccionVigencia) {
     const solucionadaEn = resolverVigencia(eleccion)
@@ -146,6 +146,12 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
     campo?.focus()
   }, [p.faltaRespuesta, modo, cuando, bloqueIncompleto?.id])
 
+  useEffect(() => {
+    if (modo !== 'solucion') return
+    const reducirMovimiento = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+    solucionRef.current?.scrollIntoView?.({ behavior: reducirMovimiento ? 'auto' : 'smooth', block: 'start' })
+  }, [modo])
+
   return (
     <section className="revisar-situacion" aria-label={`Situación ${p.posicion.actual} de ${p.posicion.total}`}>
       <p className="asistente__contador">{`Lo que ya reportó · ${p.posicion.actual} de ${p.posicion.total}`}</p>
@@ -170,25 +176,26 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       {modo === 'cambio' && (
         <div className="revisar-situacion__bloques">
           {aspectos.includes('gravedad') && (
-            <div id="revisar-situacion-gravedad" tabIndex={-1}>
-              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} sugerida={p.sugerida} valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
+            <div id="revisar-situacion-gravedad" className="revisar-situacion__bloque" tabIndex={-1}>
+              <CampoGravedad idPrefijo={`rev-${p.situacion.id}`} categoria={p.situacion.categoria} sugerida={p.sugerida} severidadActual={p.situacion.severidad} pregunta="¿Qué tan grave es ahora?" valor={gravedad} onCambiar={(valor) => { setGravedad(valor); guardarCambio(aspectos, valor) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-gravedad' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
           )}
           {aspectos.includes('alcance') && (p.situacion.categoria === 'alumnos'
-            ? <div id="revisar-situacion-alcance" tabIndex={-1}>
+            ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
+              <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
               <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => { const siguiente = { ...alcance, secciones, alumnos }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
-            : <div id="revisar-situacion-alcance" tabIndex={-1}>
+            : <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="afectacion-campos__grupo">
-                <Label>Alcance</Label>
+                <p className="afectacion-campos__legend">¿A quiénes afecta?</p>
                 <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>)}
           {aspectos.includes('clases-edificio') && (
-            <div id="revisar-situacion-clases" tabIndex={-1}>
+            <div id="revisar-situacion-clases" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="revisar-situacion__preguntas-edificio">
                 <CamposClasesEdificio valor={clases} onCambiar={(valor) => { setClases(valor); guardarCambio(aspectos, gravedad, alcance, valor) }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} />
               </div>
@@ -199,7 +206,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       )}
 
       {modo === 'solucion' && (
-        <div className="revisar-situacion__bloques">
+        <div ref={solucionRef} className="revisar-situacion__bloques revisar-situacion__solucion" tabIndex={-1}>
           <VigenciaChips
             value={cuando}
             onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}

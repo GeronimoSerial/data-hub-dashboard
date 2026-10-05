@@ -275,6 +275,7 @@ export function CamposQuePaso({
 export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
   usaSelectorEstablecimiento?: boolean
+  ocultarPreguntaAlcance?: boolean
 }
 
 export function CamposAQuienAfecta({
@@ -282,6 +283,7 @@ export function CamposAQuienAfecta({
   idPrefijo,
   turnos,
   usaSelectorEstablecimiento = false,
+  ocultarPreguntaAlcance = false,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
@@ -328,7 +330,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <Label>Alcance</Label>
+          <p className={`afectacion-campos__legend${ocultarPreguntaAlcance ? ' sr-only' : ''}`}>¿A quiénes afecta?</p>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'establecimiento',
@@ -355,10 +357,12 @@ export function CamposAQuienAfecta({
             onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
             disabled={disabled}
           />
-          <p className="afectacion-borrador__resumen" aria-live="polite">
-            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-            {matriculaDisponible} alumnos
-          </p>
+          {borrador.alcanceEstablecimiento === 'algunas' ? (
+            <p className="afectacion-borrador__resumen" aria-live="polite">
+              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+              {matriculaDisponible} alumnos
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="afectacion-campos__grupo">
@@ -371,10 +375,12 @@ export function CamposAQuienAfecta({
             disabled={disabled}
             permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
           />
-          <p className="afectacion-borrador__resumen" aria-live="polite">
-            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-            {matriculaDisponible} alumnos
-          </p>
+          {borrador.secciones.length > 0 ? (
+            <p className="afectacion-borrador__resumen" aria-live="polite">
+              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+              {matriculaDisponible} alumnos
+            </p>
+          ) : null}
         </div>
       )}
 

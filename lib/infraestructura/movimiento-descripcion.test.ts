@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { diffParte } from './movimiento-diff'
 import type { DiffParte } from './movimiento-diff'
@@ -31,6 +31,9 @@ const diffVacio: DiffParte = {
   serviciosCambiados: [],
   establecimientoCambiado: null,
 }
+
+beforeEach(() => vi.setSystemTime(new Date('2026-10-05T18:00:00.000Z')))
+afterEach(() => vi.useRealTimers())
 
 describe('describirMovimiento', () => {
   it('describe el alta y las modalidades de asistencia pedagógica', () => {
@@ -162,14 +165,24 @@ describe('describirMovimiento', () => {
         { afectacionId: 'a', motivo: 'Tormenta severa', categoria: 'establecimiento', severidad: 'Alta', secciones: 0, alumnos: 0 },
       ],
     }
-    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-04T06:50:00.000Z')).toBe('Tormenta severa · Alta · desde 03:50')
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-04T06:50:00.000Z')).toBe('Tormenta severa · Alta · desde el 4 de octubre, 03:50')
+  })
+
+  it('muestra sólo la hora cuando la vigencia comienza hoy', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      afectacionesAgregadas: [
+        { afectacionId: 'a', motivo: 'Tormenta severa', categoria: 'establecimiento', severidad: 'Alta', secciones: 0, alumnos: 0 },
+      ],
+    }
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-05T13:50:00.000Z')).toBe('Tormenta severa · Alta · desde 10:50')
   })
 
   it('titula una solución y un cambio de gravedad según el cambio principal', () => {
     expect(tituloMovimiento({ ...diffVacio, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación', cierre: 'solucionada' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
-      .toBe('Inundación · Solucionada · desde 03:50')
+      .toBe('Inundación · Solucionada · desde el 4 de octubre, 03:50')
     expect(tituloMovimiento({ ...diffVacio, severidadesCambiadas: [{ afectacionId: 'a', motivo: 'Inundación', de: 'Media', a: 'Alta' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
-      .toBe('Inundación · Media → Alta · desde 03:50')
+      .toBe('Inundación · Media → Alta · desde el 4 de octubre, 03:50')
   })
 
   it('cambio de motivo en una afectación existente se traduce a español llano', () => {

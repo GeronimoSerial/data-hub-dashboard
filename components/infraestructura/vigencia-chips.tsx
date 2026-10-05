@@ -30,6 +30,9 @@ export interface VigenciaChipsProps {
 export function VigenciaChips({ value, onChange, label, disabled = false, error = null, etiquetaMomento = 'Desde' }: VigenciaChipsProps): JSX.Element {
   const id = useId()
   const { min, max } = rangoVigencia()
+  const mostrarResumen = value.modo === 'hoy'
+    ? Boolean(value.hora)
+    : value.modo === 'otro' && Boolean(value.fecha && value.hora)
 
   function elegir(modo: EleccionVigencia['modo']) {
     if (modo === value.modo) return
@@ -86,7 +89,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
       )}
 
       {error ? <p id={`${id}-error`} className="vigencia-field__error" role="alert">{error}</p> : null}
-      {!error ? <p className={`vigencia-chips__resumen${etiquetaMomento === 'Se solucionó' ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento)}</p> : null}
+      {!error && mostrarResumen ? <p className={`vigencia-chips__resumen${etiquetaMomento === 'Se solucionó' ? ' vigencia-chips__resumen--solucionada' : ''}`} aria-live="polite">{resumenVigencia(value, etiquetaMomento)}</p> : null}
     </fieldset>
   )
 }

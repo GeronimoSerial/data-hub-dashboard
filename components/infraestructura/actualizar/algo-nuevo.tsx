@@ -7,10 +7,9 @@ import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
-import { formatearFechaHistorial } from '@/components/infraestructura/historial-formato'
-import { formatearMomento } from '@/components/infraestructura/estado-actual-textos'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { armarCandidatasCausa, type CandidataCausa } from '@/lib/infraestructura/parte/candidatas-causa'
 import {
   situacionConMismoMotivo,
   type EstadoRecorrido,
@@ -18,13 +17,6 @@ import {
   type SituacionRecorrido,
 } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { VIGENCIA_AHORA, resolverVigencia, type EleccionVigencia } from '@/lib/infraestructura/vigencia-eleccion'
-
-interface CandidataCausa {
-  id: string
-  motivo: string
-  fecha: string
-  activa: boolean
-}
 
 export interface AlgoNuevoProps {
   candidatasCausa: CandidataCausa[]
@@ -40,13 +32,6 @@ export interface AlgoNuevoProps {
 type Etapa = 'pregunta' | 'causa' | 'datos'
 type DecisionDuplicado = 'distintos' | 'actualizar' | 'solucionada'
 
-function marcaDeTiempo(fecha: string): number {
-  const iso = Date.parse(fecha)
-  if (Number.isFinite(iso)) return iso
-  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(fecha)
-  return local ? new Date(Number(local[3]), Number(local[2]) - 1, Number(local[1])).getTime() : 0
-}
-
 function fechaCorta(fecha: string): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
@@ -55,6 +40,19 @@ function fechaCorta(fecha: string): string {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+  }).format(fechaValida)
+}
+
+function fechaCausaLegible(fecha: string): string {
+  const fechaValida = new Date(fecha)
+  if (!Number.isFinite(fechaValida.getTime())) return fecha
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    day: 'numeric',
+    month: 'long',
+    hourCycle: 'h23',
+    hour: '2-digit',
+    minute: '2-digit',
   }).format(fechaValida)
 }
 
@@ -89,11 +87,11 @@ export function AlgoNuevo({
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
   const [cuandoSolucionada, setCuandoSolucionada] = useState<EleccionVigencia>(VIGENCIA_AHORA)
+  const [mostrarTodasLasCausas, setMostrarTodasLasCausas] = useState(false)
 
-  const candidatasOrdenadas = [...candidatasCausa].sort((a, b) => {
-    if (a.activa !== b.activa) return a.activa ? -1 : 1
-    return marcaDeTiempo(b.fecha) - marcaDeTiempo(a.fecha)
-  })
+  const candidatasOrdenadas = armarCandidatasCausa(candidatasCausa)
+  const candidatasVisibles = mostrarTodasLasCausas ? candidatasOrdenadas : candidatasOrdenadas.slice(0, 5)
+  const cantidadOculta = candidatasOrdenadas.length - candidatasVisibles.length
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
   const completaLaGravedad = gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = borrador.secciones.length > 0 &&
@@ -148,11 +146,10 @@ export function AlgoNuevo({
 
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
+      <h2 className="asistente__titulo">¿Hay algo nuevo?</h2>
       {etapa === 'pregunta' ? (
         <>
-          <p className="asistente__contador">Otra situación</p>
-          <fieldset className="afectacion-campos__grupo">
-            <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
+          <fieldset className="afectacion-campos__grupo" aria-label="¿Hay algo nuevo?">
             <div className="afectacion-campos__opciones">
               <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No" />
               <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, agregar una situación nueva" />
@@ -164,32 +161,45 @@ export function AlgoNuevo({
       {etapa === 'causa' ? (
         <>
           <fieldset className="afectacion-campos__grupo">
-            <legend className="afectacion-campos__legend">¿Es consecuencia de algo anterior?</legend>
-            <div className="afectacion-campos__opciones">
-              {candidatasOrdenadas.map((candidata) => (
-                <Opcion
-                    key={candidata.id}
-                    tipo="radio"
-                    name="causa-problema-nuevo"
-                    checked={causadaPorId === candidata.id}
-                    onChange={() => setCausadaPorId(candidata.id)}
-                    label={`De ${candidata.motivo} (${formatearMomento(candidata.fecha) ?? formatearFechaHistorial(candidata.fecha)})`}
-                    compacta
-                  />
-              ))}
+            <legend className="afectacion-campos__legend">¿Esta situación se originó por otra anterior?</legend>
+            <div className="afectacion-campos__opciones algo-nuevo__causas">
               <Opcion
+                tipo="radio"
+                name="causa-problema-nuevo"
+                checked={causadaPorId === null}
+                onChange={() => setCausadaPorId(null)}
+                label="No, es independiente"
+                compacta
+              />
+              {candidatasVisibles.map((candidata) => (
+                <Opcion
+                  key={candidata.id}
                   tipo="radio"
                   name="causa-problema-nuevo"
-                  checked={causadaPorId === null}
-                  onChange={() => setCausadaPorId(null)}
-                  label="No, es independiente"
+                  aria-label={`${candidata.motivo} · ${fechaCausaLegible(candidata.fecha)} · ${candidata.activa ? 'Activa' : 'Solucionada'}`}
+                  checked={causadaPorId === candidata.id}
+                  onChange={() => setCausadaPorId(candidata.id)}
+                  label={`${candidata.motivo} · ${fechaCausaLegible(candidata.fecha)}`}
+                  ayuda={<span className="algo-nuevo__causa-estado">{candidata.activa ? 'Activa' : 'Solucionada'}</span>}
                   compacta
                 />
+              ))}
             </div>
+            {cantidadOculta > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="algo-nuevo__ver-causas"
+                aria-expanded={mostrarTodasLasCausas}
+                onClick={() => setMostrarTodasLasCausas(true)}
+              >
+                Ver más ({cantidadOculta})
+              </Button>
+            ) : null}
           </fieldset>
           <div className="asistente__acciones">
             <Button type="button" disabled={causadaPorId === undefined} onClick={() => setEtapa('datos')}>
-              Siguiente
+              Continuar
             </Button>
           </div>
         </>
@@ -216,7 +226,7 @@ export function AlgoNuevo({
           />
           <div className="asistente__acciones">
             <Button type="button" disabled={!datosCompletos || motivoPendiente !== null} onClick={terminar}>
-              Listo
+              Continuar
             </Button>
           </div>
         </div>

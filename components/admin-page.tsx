@@ -374,7 +374,7 @@ function RecursoForm({
 
   return (
       <DialogContent>
-        <DialogTitle>
+        <DialogTitle className="admin-form__title">
           {editing ? 'Editar recurso' : 'Nuevo recurso'}
         </DialogTitle>
         <div className="ui-form-grid">
@@ -703,7 +703,7 @@ function TaxonomyForm({
 
   return (
     <DialogContent>
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle className="admin-form__title">{title}</DialogTitle>
         <div className="ui-form-grid">
           {fields.map((f) => {
             if (f.type === 'color') {
@@ -1004,7 +1004,7 @@ function UserForm({
 
   return (
     <DialogContent>
-      <DialogTitle>
+      <DialogTitle className="admin-form__title">
           {editing ? 'Editar usuario' : 'Nuevo usuario'}
         </DialogTitle>
         <div className="ui-form-grid">
@@ -1274,7 +1274,7 @@ function MotivoForm({
 
   return (
     <DialogContent>
-      <DialogTitle className="motivo-form__title">{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
+      <DialogTitle className="admin-form__title">{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
       <div className="ui-form-grid">
         {error ? (
           <div className="ui-messagebar ui-messagebar--error" role="alert">
@@ -1357,10 +1357,15 @@ function MotivosAdmin() {
 
       <div className="ui-table-wrap admin-motivos__table-wrap" data-testid="admin-motivos-table-wrap">
         <table className="ui-table" aria-label="Administración de motivos">
+          <colgroup>
+            <col className="admin-motivos__col-nombre" />
+            <col className="admin-motivos__col-gravedad" />
+            <col className="admin-motivos__col-orden" />
+            <col className="admin-motivos__col-acciones" />
+          </colgroup>
           <thead>
             <tr>
               <th>Motivo</th>
-              <th>Categoría</th>
               <th>Gravedad sugerida</th>
               <th>Orden</th>
               <th>Acciones</th>
@@ -1369,12 +1374,18 @@ function MotivosAdmin() {
           <tbody>
             {motivos.map((m) => (
               <tr key={m.id}>
-                <td>{m.nombre}</td>
-                <td>{CATEGORIA_META[m.categoria]?.label ?? m.categoria}</td>
-                <td>{m.severidadSugerida ?? '—'}</td>
-                <td>{m.orden}</td>
+                <td className="admin-motivos__nombre">
+                  <div className="admin-motivos__nombre-contenido">
+                    <span className="admin-motivos__nombre-texto">{m.nombre}</span>
+                    <span className="admin-motivos__categoria">
+                      {CATEGORIA_META[m.categoria]?.label ?? m.categoria}
+                    </span>
+                  </div>
+                </td>
+                <td data-label="Gravedad sugerida">{m.severidadSugerida ?? '—'}</td>
+                <td data-label="Orden">{m.orden}</td>
                 <td>
-                  <div className="ui-actions">
+                  <div className="ui-actions admin-motivos__acciones">
                     <BotonEditar onClick={() => editar(m)} />
                     <ConfirmDelete
                       title="¿Eliminar motivo?"

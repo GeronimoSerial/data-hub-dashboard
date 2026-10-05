@@ -97,6 +97,35 @@ describe('CamposAQuienAfecta — selector legado', () => {
   })
 })
 
+describe('resumen de secciones', () => {
+  it('espera a que se elijan algunas secciones para mostrar el contador', () => {
+    const borrador = { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' as const }
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <CamposAQuienAfecta
+        borrador={borrador}
+        idPrefijo="reporte"
+        turnos={TURNOS_FIXTURE}
+        usaSelectorEstablecimiento
+        onChange={onChange}
+      />,
+    )
+
+    expect(screen.queryByText(/Seleccionadas:/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    rerender(
+      <CamposAQuienAfecta
+        borrador={{ ...borrador, alcanceEstablecimiento: 'algunas' }}
+        idPrefijo="reporte"
+        turnos={TURNOS_FIXTURE}
+        usaSelectorEstablecimiento
+        onChange={onChange}
+      />,
+    )
+    expect(screen.getByText(/Seleccionadas: 0 de/)).toBeInTheDocument()
+  })
+})
+
 describe('confirmación de categoría', () => {
   it('elige la primera categoría sin abrir la confirmación', () => {
     const onChange = vi.fn()

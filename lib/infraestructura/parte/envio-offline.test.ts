@@ -195,18 +195,52 @@ describe('intentarEnviar', () => {
       expect(resultado).toEqual({
         ok: false,
         estado: 'error-servidor',
-        motivo: 'El servidor no respondió. Su parte queda guardado; puede reintentar.',
+        motivo: 'El servidor no respondió. Reintentamos solos; su parte queda guardado.',
       })
       expect((fetchImpl.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true)
       const borrador = await leerBorrador<{ observacion: string }>(almacen, 'problematica', 'cue-1')
       expect(borrador?.estado).toBe('error-servidor')
-      expect(borrador?.motivoError).toBe('El servidor no respondió. Su parte queda guardado; puede reintentar.')
+      expect(borrador?.motivoError).toBe('El servidor no respondió. Reintentamos solos; su parte queda guardado.')
 
       fetchImpl.mockImplementationOnce(async () => respuesta(true, 200, { id: 'parte-9' }))
       await intentarEnviar({ observacion: 'Texto' }, config)
       const claveInicial = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string).idempotencyKey
       const claveReintento = JSON.parse((fetchImpl.mock.calls[1][1] as RequestInit).body as string).idempotencyKey
       expect(claveReintento).toBe(claveInicial)
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('aborta un envío colgado al reintentar deliberadamente y conserva la misma clave', async () => {
+    vi.useFakeTimers()
+    const almacen = crearAlmacenMemoria()
+    const resoluciones: Array<(response: Response) => void> = []
+    const fetchImpl = vi.fn((_url: string, _init?: RequestInit) => new Promise<Response>((resolve) => {
+      resoluciones.push(resolve)
+    }))
+    const config = { ...opciones(almacen, fetchImpl), timeoutMs: 15000 }
+
+    const primero = intentarEnviar({ observacion: 'Texto' }, config)
+    try {
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length === 0; microtarea += 1) await Promise.resolve()
+      const segunda = reenviarCola(config, { deliberado: true })
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length < 2; microtarea += 1) await Promise.resolve()
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2)
+      const initPrimera = fetchImpl.mock.calls[0][1] as RequestInit
+      const initSegunda = fetchImpl.mock.calls[1][1] as RequestInit
+      const clavePrimera = JSON.parse(initPrimera.body as string).idempotencyKey
+      expect(initPrimera.signal?.aborted).toBe(true)
+      expect(JSON.parse(initSegunda.body as string).idempotencyKey).toBe(clavePrimera)
+      expect(new Headers(initSegunda.headers).get('Idempotency-Key')).toBe(clavePrimera)
+
+      resoluciones[0](respuesta(true, 200, { id: 'tardío' }))
+      await primero
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toMatchObject({ estado: 'enviando' })
+      resoluciones[1](respuesta(true, 200, { id: 'actual' }))
+      expect(await segunda).toEqual({ ok: true, respuesta: { id: 'actual' } })
       expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
     } finally {
       vi.useRealTimers()

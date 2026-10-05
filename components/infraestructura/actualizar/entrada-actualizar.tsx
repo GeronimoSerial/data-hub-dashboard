@@ -1,6 +1,6 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
@@ -19,19 +19,13 @@ export interface EntradaActualizarProps {
   onActualizar: () => void
 }
 
-// Layout A del spec rediseño §6.1: resume la carga anterior y el estado activo.
-export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoServicio, ultimaCarga, historial, onActualizar }: EntradaActualizarProps): JSX.Element {
+// Layout A del spec rediseño §6.1: prioriza el estado activo y su acción.
+export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoServicio, historial, onActualizar }: EntradaActualizarProps): JSX.Element {
+  const [historialAbierto, setHistorialAbierto] = useState(false)
   const [principal, ...otras] = ordenarSituaciones(situaciones, estadoEstablecimiento)
 
   return (
     <div className="entrada-actualizar">
-      {ultimaCarga ? (
-        <p className="entrada-actualizar__ultima">
-          Su última carga: <strong>{formatearMomentoHistorial(ultimaCarga.creadaEn)}</strong>
-          {ultimaCarga.titulo ? ` · ${ultimaCarga.titulo}` : null}
-        </p>
-      ) : null}
-
       {principal ? (
         <section aria-label="Situación principal" className="entrada-actualizar__principal">
           <p className="entrada-actualizar__etiqueta">Situación principal</p>
@@ -43,6 +37,22 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
           </p>
         </section>
       ) : null}
+
+      <div className="asistente__acciones">
+        <Button type="button" onClick={onActualizar}>Actualizar el parte</Button>
+      </div>
+
+      <section aria-label="Historial" className="entrada-actualizar__historial">
+        <button
+          type="button"
+          className="entrada-actualizar__historial-control"
+          aria-expanded={historialAbierto}
+          onClick={() => setHistorialAbierto((abierto) => !abierto)}
+        >
+          {historialAbierto ? 'Ocultar historial' : 'Ver historial'}
+        </button>
+        {historialAbierto ? <LineaDeTiempo movimientos={historial} limite={2} /> : null}
+      </section>
 
       {otras.length > 0 ? (
         <section aria-label="También activas" className="entrada-actualizar__otras">
@@ -57,15 +67,6 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
           </ul>
         </section>
       ) : null}
-
-      <section aria-label="Historial">
-        <p className="entrada-actualizar__etiqueta">Historial</p>
-        <LineaDeTiempo movimientos={historial} limite={2} />
-      </section>
-
-      <div className="asistente__acciones">
-        <Button type="button" onClick={onActualizar}>Actualizar el parte</Button>
-      </div>
     </div>
   )
 }

@@ -52,6 +52,8 @@ export interface EnviarOpciones<T> {
   // hallazgo, el que siguen usando los tests genéricos del motor).
   validarExito?: (respuesta: unknown) => boolean
   timeoutMs?: number
+  // El reintento manual puede sustituir un POST que sigue colgado.
+  reintentoDeliberado?: boolean
 }
 
 export type ResultadoEnvio =
@@ -68,7 +70,7 @@ export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
 }
 
 export const TIEMPO_MAXIMO_ENVIO_MS = 15000
-export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Su parte queda guardado; puede reintentar.'
+export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Reintentamos solos; su parte queda guardado.'
 
 const MENSAJE_SESION_VENCIDA =
   'La sesión venció. Iniciá sesión nuevamente para reintentar; el borrador se conserva.'
@@ -373,7 +375,7 @@ export async function intentarEnviar<T>(
   const claveResultado = `${clave}:${idempotencyKey}`
   const enCurso = mapaDelAlmacen(enviosEnCursoPorAlmacen, opciones.almacen)
   const envioExistente = enCurso.get(claveResultado)
-  if (envioExistente && !envioExistente.controlador.signal.aborted) return envioExistente.promesa
+  if (envioExistente && !envioExistente.controlador.signal.aborted && !opciones.reintentoDeliberado) return envioExistente.promesa
   envioExistente?.controlador.abort()
 
   const controlador = new AbortController()
@@ -587,10 +589,13 @@ export function esEstadoReintentable(estado: EstadoEnvio | null): boolean {
 }
 
 // Reintenta con los datos guardados en la cola y conserva su idempotencyKey.
-export async function reenviarCola<T>(opciones: EnviarOpciones<T>): Promise<ResultadoEnvio | null> {
+export async function reenviarCola<T>(
+  opciones: EnviarOpciones<T>,
+  { deliberado = false }: { deliberado?: boolean } = {},
+): Promise<ResultadoEnvio | null> {
   const cola = await leerBorrador<T>(opciones.almacen, opciones.tipo, opciones.cue)
-  if (!cola || !esEstadoReintentable(cola.estado)) return null
-  return intentarEnviar(cola.datos, opciones)
+  if (!cola || (!esEstadoReintentable(cola.estado) && !(deliberado && cola.estado === 'enviando'))) return null
+  return intentarEnviar(cola.datos, { ...opciones, reintentoDeliberado: deliberado })
 }
 
 export function programarReintento(intentos: number, callback: () => void): () => void {

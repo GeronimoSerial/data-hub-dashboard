@@ -45,7 +45,7 @@ function renderAlgo(overrides: Partial<React.ComponentProps<typeof AlgoNuevo>> =
 function entrarDatosIndependiente() {
   fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
   fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 }
 
 function elegirCategoria(nombre: string) {
@@ -57,10 +57,23 @@ function elegirCategoria(nombre: string) {
 describe('AlgoNuevo', () => {
   it('la pregunta de situación nueva usa un título propio y opciones breves', () => {
     renderAlgo()
-    expect(screen.getByText('Otra situación')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Hay algo nuevo?' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '¿Hay algo nuevo?' })).toBeInTheDocument()
+    expect(screen.getAllByText('¿Hay algo nuevo?')).toHaveLength(1)
+    expect(screen.queryByText('¿Hay una situación nueva?')).not.toBeInTheDocument()
     expect(screen.queryByText('Agregue una situación nueva si la hay.')).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' })).toBeInTheDocument()
+  })
+
+  it('pregunta a quiénes afecta la situación nueva y conserva la descripción opcional', () => {
+    renderAlgo()
+    entrarDatosIndependiente()
+    elegirCategoria('Afecta al establecimiento')
+
+    expect(screen.getByText('¿A quiénes afecta?')).toBeInTheDocument()
+    expect(screen.queryByText('Alcance')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Descripción (opcional)')).toBeInTheDocument()
   })
 
   it('“No” termina sin agregar una situación', () => {
@@ -69,19 +82,39 @@ describe('AlgoNuevo', () => {
     expect(callbacks.onTerminar).toHaveBeenCalledWith(null)
   })
 
-  it('pregunta la causa con situaciones activas primero y exige elegir antes de seguir', () => {
+  it('pregunta por el origen, muestra independencia primero y exige elegir antes de seguir', () => {
     renderAlgo()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
-    const opciones = within(screen.getByRole('group', { name: '¿Es consecuencia de algo anterior?' })).getAllByRole('radio')
+    const pregunta = '¿Esta situación se originó por otra anterior?'
+    expect(screen.getByText(pregunta)).toBeInTheDocument()
+    const opciones = within(screen.getByRole('group', { name: pregunta })).getAllByRole('radio')
     expect(opciones.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
-      'De Inundación (3 de octubre, 07:00)',
-      'De Tormenta severa (4 de octubre, 05:10)',
       'No, es independiente',
+      'Inundación · 3 de octubre a las 07:00Activa',
+      'Tormenta severa · 4 de octubre a las 05:10Solucionada',
     ])
-    expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /Inundación · 3 de octubre a las 07:00/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar' })).toBeDisabled()
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  })
+
+  it('muestra cinco causas y despliega las restantes con su cantidad', () => {
+    const candidatas = Array.from({ length: 8 }, (_, indice) => ({
+      id: `situacion-${indice}`,
+      motivo: `Situación ${indice}`,
+      fecha: `2026-10-0${5 - Math.floor(indice / 2)}T0${indice % 2}:00:00.000Z`,
+      activa: indice < 6,
+    }))
+    renderAlgo({ candidatasCausa: candidatas })
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+
+    const grupo = screen.getByRole('group', { name: '¿Esta situación se originó por otra anterior?' })
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(6)
+    expect(screen.getByRole('button', { name: 'Ver más (3)' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Ver más (3)' }))
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(9)
+    expect(screen.queryByRole('button', { name: /Ver más/ })).not.toBeInTheDocument()
   })
 
   it('permite distinguir el mismo motivo, actualizarlo o marcar cuándo se solucionó', () => {
@@ -143,16 +176,16 @@ describe('AlgoNuevo', () => {
     expect(screen.getByRole('radio', { name: /^Inaccesibilidad de alumnos/ })).not.toBeChecked()
   })
 
-  it('“Listo” envía la nueva situación completa con la causa elegida', () => {
+  it('“Continuar” envía la nueva situación completa con la causa elegida', () => {
     const callbacks = renderAlgo()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (3 de octubre, 07:00)' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.click(screen.getByRole('radio', { name: /Inundación · 3 de octubre a las 07:00/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     elegirCategoria('Afecta al establecimiento')
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     expect(callbacks.onTerminar).toHaveBeenCalledWith({
       causadaPorId: 'situacion-1',
       motivo: 'Tormenta severa',
@@ -169,7 +202,7 @@ describe('AlgoNuevo', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Baja' }))
     fireEvent.click(screen.getByRole('button', { name: /1° "A".*elegir alumnos/i }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'García, Ana' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     expect(callbacks.onTerminar).toHaveBeenCalledWith({
       causadaPorId: null,
       motivo: 'Anegamiento',
