@@ -30,6 +30,12 @@ const parte = crearParteMapa({
 })
 
 describe('ListaAlertas', () => {
+  it('no renderiza una caja vacía cuando hay partes', () => {
+    const { container } = render(<ListaAlertas partes={[parte]} />)
+
+    expect(container.querySelector('.map-panel')).not.toBeInTheDocument()
+  })
+
   it('no renderiza filtros ni acciones de gestión', () => {
     render(<ListaAlertas partes={[parte]} />)
 

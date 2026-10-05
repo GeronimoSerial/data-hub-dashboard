@@ -6,16 +6,15 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
 export function ListaAlertas(props: {
   partes: ParteMapa[]
-}): JSX.Element {
+}): JSX.Element | null {
   const styles = useOverlayStyles()
+  if (props.partes.length > 0) return null
 
   return (
     <div className={`${styles.panel} ${styles.legendPanel}`}>
-      {props.partes.length === 0 ? (
-        <span className={styles.hint}>
-          No hay escuelas con afectación vigente.
-        </span>
-      ) : null}
+      <span className={styles.hint}>
+        No hay escuelas con afectación vigente.
+      </span>
     </div>
   )
 }
