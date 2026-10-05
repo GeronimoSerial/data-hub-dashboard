@@ -138,8 +138,8 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: /De Inundación/ }))
+    expect(screen.getByRole('group', { name: '¿Esta situación se originó por otra anterior?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: /^Inundación/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoriaEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
