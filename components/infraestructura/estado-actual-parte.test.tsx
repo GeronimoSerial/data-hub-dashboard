@@ -161,15 +161,12 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     expect(screen.getByText('1 sección · 12 alumnos')).toBeVisible()
   })
 
-  it('gives each "Informar un cambio" link a distinguishable name', async () => {
+  it('keeps the update screen to one primary action and one history action', async () => {
     render(<EstadoActualParte cue={CUE} />)
-
-    expect(
-      await screen.findByRole('link', { name: 'Informar un cambio en el servicio educativo' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=servicio`)
-    expect(
-      screen.getByRole('link', { name: 'Informar un cambio en la situación del establecimiento' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=establecimiento`)
+    await screen.findByText('Inundación del establecimiento')
+    expect(screen.getAllByRole('link', { name: 'Actualizar el parte' })).toHaveLength(1)
+    expect(screen.getAllByRole('link', { name: 'Ver historial' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: /Informar un cambio/ })).toBeNull()
   })
 
   it('shows the derived "parcial" service state with the spec §3.4 wording', async () => {

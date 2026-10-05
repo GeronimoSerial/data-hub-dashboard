@@ -192,14 +192,16 @@ export function AlgoNuevo({
 
       {etapa === 'datos' ? (
         <div className="algo-nuevo__datos">
-          <CamposQuePaso
-            borrador={borrador}
-            idPrefijo="algo-nuevo"
-            motivos={motivos}
-            otrasAfectaciones={[]}
-            esNueva
-            onChange={cambiarBorrador}
-          />
+          <div className="algo-nuevo__campos">
+            <CamposQuePaso
+              borrador={borrador}
+              idPrefijo="algo-nuevo"
+              motivos={motivos}
+              otrasAfectaciones={[]}
+              esNueva
+              onChange={cambiarBorrador}
+            />
+          </div>
           <CamposAQuienAfecta
             borrador={borrador}
             idPrefijo="algo-nuevo"

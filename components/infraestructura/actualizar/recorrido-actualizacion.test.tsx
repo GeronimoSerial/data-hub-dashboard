@@ -62,7 +62,8 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue cada situación')
+    expect(screen.getByRole('alert')).toHaveTextContent('Falta indicar cuándo se solucionó.')
+    expect(document.activeElement).toBe(screen.getByLabelText('Fecha'))
     expect(screen.getByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
   })
 
@@ -71,7 +72,24 @@ describe('RecorridoActualizacion', () => {
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue cada situación')
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo sigue esta situación.')
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Sigue igual' }))
+  })
+
+  it('resume las situaciones sin cambios y muestra la asistencia vigente seleccionada', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+    expect(screen.getByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
+    expect(screen.getByText('Inundación: sin cambios')).toBeInTheDocument()
+    expect(screen.getByText('Sin energía o agua: sin cambios')).toBeInTheDocument()
+    expect(screen.getByText('Asistencia pedagógica: No (vigente)')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
   })
 
   it('un problema nuevo siempre pregunta si es consecuencia de algo anterior', async () => {

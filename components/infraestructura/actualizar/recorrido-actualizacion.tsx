@@ -81,7 +81,7 @@ function crearLineasResumen(situaciones: SituacionRecorrido[], recorrido: Estado
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
-    if (respuesta.tipo === 'sigue') lineas.push(`Sigue igual: ${situacion.motivo}`)
+    if (respuesta.tipo === 'sigue') lineas.push(`${situacion.motivo}: sin cambios`)
     else if (respuesta.tipo === 'solucionada') lineas.push(`Se solucionó ${situacion.motivo} (${respuesta.solucionadaEn})`)
     else {
       const datos: string[] = []
@@ -144,12 +144,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const situaciones = useMemo(() => mapearSituaciones(datos), [datos])
   const ordenadas = useMemo(() => ordenarSituaciones(situaciones, datos.parte?.estadoEstablecimiento ?? 'habitual'), [situaciones, datos.parte?.estadoEstablecimiento])
   const claveBorrador = `parte-actualizar:draft:${cue}`
-  const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? null
+  const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? { brinda: false, modalidades: [] }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
   const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>(() => ({
-    brinda: asistenciaVigente ? (asistenciaVigente.brinda ? 'si' : 'no') : '',
-    modalidades: asistenciaVigente?.modalidades ?? [],
+    brinda: asistenciaVigente.brinda ? 'si' : 'no',
+    modalidades: asistenciaVigente.modalidades,
   }))
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorRecorridoActualizacion | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
@@ -158,6 +158,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [interaccionIniciada, setInteraccionIniciada] = useState(false)
   const generacionRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [situacionConError, setSituacionConError] = useState<string | null>(null)
   const [colaCascada, setColaCascada] = useState<Array<{ situacion: SituacionRecorrido; solucionadaEn: string }>>([])
   const [guardado, setGuardado] = useState(false)
   const [enviando, setEnviando] = useState(false)
@@ -175,10 +176,11 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
     const lineas = crearLineasResumen(situaciones, recorrido)
-    if (asistenciaCambiada && asistenciaSeleccionada) {
-      lineas.push(asistenciaSeleccionada.brinda
-        ? `Asistencia pedagógica: Sí, ${asistenciaSeleccionada.modalidades.join(' y ')}`
-        : 'Asistencia pedagógica: No se brinda')
+    if (asistenciaSeleccionada) {
+      const valor = asistenciaSeleccionada.brinda
+        ? `Sí${asistenciaSeleccionada.modalidades.length ? `, ${asistenciaSeleccionada.modalidades.join(' y ')}` : ''}`
+        : 'No'
+      lineas.push(`Asistencia pedagógica: ${valor}${asistenciaCambiada ? '' : ' (vigente)'}`)
     }
     return lineas
   }, [situaciones, recorrido, asistenciaCambiada, asistenciaSeleccionada])
@@ -342,10 +344,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     const pasoActual = typeof etapa === 'object' ? etapa.revisar : -1
     const situacionActual = ordenadas[pasoActual]
     if (situacionActual && !recorrido.respuestas[situacionActual.id]) {
-      setError('Indique cómo sigue cada situación antes de continuar.')
+      setError(null)
+      setSituacionConError(situacionActual.id)
       return
     }
     setError(null)
+    setSituacionConError(null)
     let indice = pasoActual + 1
     while (indice < ordenadas.length && recorrido.respuestas[ordenadas[indice].id]) indice += 1
     if (indice < ordenadas.length) {
@@ -353,7 +357,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       return
     }
     if (situacionesSinRespuesta(situaciones, recorrido).length > 0) {
-      setError('Indique cómo sigue cada situación antes de continuar.')
+      const faltante = ordenadas.find((situacion) => !recorrido.respuestas[situacion.id])
+      setSituacionConError(faltante?.id ?? null)
       return
     }
     moverEtapa('nuevo')
@@ -381,6 +386,22 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
+      {borradorPendiente ? (
+        <aside className="actualizacion-borrador" aria-label="Actualización guardada">
+          <p>Tiene una carga sin enviar.</p>
+          <div className="actualizacion-borrador__acciones">
+            <Button type="button" onClick={() => {
+              generacionRef.current = borradorPendiente.generacion
+              setEtapa(borradorPendiente.etapa)
+              setRecorrido(borradorPendiente.recorrido)
+              setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
+              setInteraccionIniciada(true)
+              setBorradorPendiente(null)
+            }}>Continuar</Button>
+            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
+          </div>
+        </aside>
+      ) : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -396,23 +417,6 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ) : null}
 
       {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
-      {borradorPendiente ? (
-        <aside className="estado-actual-aviso" aria-label="Actualización guardada">
-          <p>Tiene una actualización sin enviar. Puede continuar donde la dejó.</p>
-          <div className="asistente__acciones">
-            <Button type="button" onClick={() => {
-              generacionRef.current = borradorPendiente.generacion
-              setEtapa(borradorPendiente.etapa)
-              setRecorrido(borradorPendiente.recorrido)
-              setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
-              setInteraccionIniciada(true)
-              setBorradorPendiente(null)
-            }}>Continuar donde lo dejé</Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
-          </div>
-        </aside>
-      ) : null}
-
       {actual && typeof etapa === 'object' ? (
         <section>
           <RevisarSituacion
@@ -421,6 +425,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             turnos={turnos}
             sugerida={motivos.find((motivo) => motivo.nombre === actual.motivo)?.severidadSugerida ?? null}
             respuesta={recorrido.respuestas[actual.id]}
+            faltaRespuesta={situacionConError === actual.id}
+            onInteractuar={() => setSituacionConError(null)}
             consecuencias={consecuenciasActivas(situaciones, actual.id, recorrido)}
             clasesEdificio={clasesEdificio}
             onResponder={(respuesta) => {
@@ -430,6 +436,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
                 delete respuestas[actual.id]
                 return { ...r, respuestas }
               })
+              setSituacionConError(null)
               setInteraccionIniciada(true)
               setError(null)
             }}
@@ -599,7 +606,7 @@ function ResumenEnvio({
 }): JSX.Element {
   return (
     <section className="reporte-inicial__seccion">
-      <h2>Cambios que se registrarán</h2>
+      <h2>Resumen</h2>
       <ul className="actualizacion-resumen__lista">
         {lineasResumen.map((linea, indice) => <li key={indice}>{linea}</li>)}
       </ul>

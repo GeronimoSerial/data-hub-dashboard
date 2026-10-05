@@ -3505,18 +3505,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .estado-actual-acciones {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-3);
 }
 
 /* Un solo botón oscuro por pantalla (§5.3). En el teléfono ocupa el ancho
    completo para que sea imposible errarle. */
 .estado-actual-acciones__principal {
-  flex: 1 1 14rem;
+  flex: 0 1 auto;
+  min-height: 48px;
 }
+
+.estado-actual-acciones > .ui-button { min-height: 48px; }
 
 @media (max-width: 480px) {
   .estado-actual-acciones { flex-direction: column; align-items: stretch; }
-  .estado-actual-bloque__accion { width: 100%; }
+  .estado-actual-acciones > .ui-button { width: 100%; }
 }
 
 /* En escritorio los dos datos de cabecera —servicio y establecimiento— se
@@ -3802,6 +3806,41 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex-wrap: wrap;
   gap: var(--s-3);
 }
+
+.actualizacion-borrador {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.actualizacion-borrador > p { margin: 0; }
+
+.actualizacion-borrador__acciones {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.actualizacion-borrador__acciones > * { width: 100%; min-height: 48px; }
+
+.revisar-situacion,
+.algo-nuevo,
+.algo-nuevo__datos,
+.algo-nuevo__campos,
+.revisar-situacion__bloques {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.revisar-situacion > h3,
+.revisar-situacion > .asistente__contador { margin: 0; }
 
 
 

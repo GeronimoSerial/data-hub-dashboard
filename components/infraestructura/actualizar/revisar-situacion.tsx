@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
@@ -28,6 +28,8 @@ export interface RevisarSituacionProps {
   turnos: TurnoContexto[]
   sugerida: Severidad | null
   respuesta: RespuestaSituacion | undefined
+  faltaRespuesta: boolean
+  onInteractuar: () => void
   consecuencias: SituacionRecorrido[]
   clasesEdificio: ValorClasesEdificio
   onResponder: (respuesta: RespuestaSituacion | null) => void
@@ -71,6 +73,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   }
 
   function elegir(tipo: 'sigue' | 'cambio' | 'solucionada') {
+    p.onInteractuar()
     if (tipo === 'sigue') {
       setModo('eligiendo')
       p.onResponder({ tipo: 'sigue' })
@@ -107,12 +110,22 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
   const tipoRespondido = p.respuesta?.tipo
   const cambioListo = aspectos.length > 0 && (!aspectos.includes('gravedad') || gravedadCompleta(gravedad, p.sugerida))
 
+  useEffect(() => {
+    if (!p.faltaRespuesta) return
+    const selector = modo === 'solucion'
+      ? cuando.modo === 'otro' && !cuando.fecha ? 'input[type="date"]' : 'input[type="time"]'
+      : '.revisar-situacion__respuesta input'
+    const campo = document.querySelector<HTMLElement>(selector)
+    campo?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    campo?.focus()
+  }, [p.faltaRespuesta, modo, cuando])
+
   return (
     <section className="revisar-situacion" aria-label={`Situación ${p.posicion.actual} de ${p.posicion.total}`}>
       <p className="asistente__contador">{`Lo que ya reportó · ${p.posicion.actual} de ${p.posicion.total}`}</p>
       <h3>{p.situacion.motivo} <EstadoActualSeveridad severidad={p.situacion.severidad} prefijo={false} /></h3>
 
-      <fieldset className="afectacion-campos__grupo">
+      <fieldset className="afectacion-campos__grupo revisar-situacion__respuesta" aria-describedby={p.faltaRespuesta && modo !== 'solucion' ? 'revisar-situacion-error' : undefined}>
         <legend className="afectacion-campos__legend">¿Cómo sigue?</legend>
         {(['sigue', 'cambio', 'solucionada'] as const).map((tipo) => (
           <Opcion
@@ -125,6 +138,7 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
               compacta
             />
         ))}
+        {p.faltaRespuesta && modo !== 'solucion' ? <p id="revisar-situacion-error" className="reporte-inicial__error-campo" role="alert">Indique cómo sigue esta situación.</p> : null}
       </fieldset>
 
       {modo === 'cambio' && (
@@ -146,7 +160,12 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
 
       {modo === 'solucion' && (
         <div className="revisar-situacion__bloques">
-          <VigenciaChips value={cuando} onChange={(valor) => { setCuando(valor); completarSolucion(valor) }} label="¿Cuándo se solucionó?" />
+          <VigenciaChips
+            value={cuando}
+            onChange={(valor) => { setCuando(valor); completarSolucion(valor) }}
+            label="¿Cuándo se solucionó?"
+            error={p.faltaRespuesta ? 'Falta indicar cuándo se solucionó.' : null}
+          />
         </div>
       )}
 

@@ -11,6 +11,8 @@ const base = (over: Partial<RevisarSituacionProps> = {}): RevisarSituacionProps 
   turnos: TURNOS_FIXTURE,
   sugerida: 'Crítica',
   respuesta: undefined,
+  faltaRespuesta: false,
+  onInteractuar: vi.fn(),
   consecuencias: [],
   clasesEdificio: { servicioEstado: 'normal', estadoEstablecimiento: 'habitual' },
   onResponder: vi.fn(),
