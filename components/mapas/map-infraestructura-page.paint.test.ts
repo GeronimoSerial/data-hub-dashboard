@@ -107,9 +107,10 @@ describe('circlePaintPartes', () => {
   it('el radio usa la gravedad y declara todas las claves del paint del punto', () => {
     const paint = circlePaintPartes()!
     expect(paint['circle-radius']).toEqual([
-      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      ['interpolate', ['linear'], ['zoom'], 6, 3, 10, 5, 14, 6],
-      ['case', ['==', ['get', 'gravedad'], 0], 5, 8],
+      'interpolate', ['linear'], ['zoom'],
+      6, ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 3, ['case', ['==', ['get', 'gravedad'], 0], 5, 8]],
+      10, ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 5, ['case', ['==', ['get', 'gravedad'], 0], 5, 8]],
+      14, ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 6, ['case', ['==', ['get', 'gravedad'], 0], 5, 8]],
     ])
     expect(Object.keys(paint).sort()).toEqual([
       'circle-color',

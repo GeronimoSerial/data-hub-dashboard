@@ -354,6 +354,7 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // sería una segunda escala). El borde es un trazo mínimo fijo que separa el
 // punto del fondo, ya no codifica el servicio.
 const ANILLO_COLOR = '#1c1c1c'
+const RADIOS_ESCUELA_SIN_REPORTE = [[6, 3], [10, 5], [14, 6]] as const
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
 // contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
@@ -382,7 +383,7 @@ export function expresionRadioClusterSinReporte(): ExpressionSpecification {
 }
 
 export function radioEscuelaSinReporte(): ExpressionSpecification {
-  return ['interpolate', ['linear'], ['zoom'], 6, 3, 10, 5, 14, 6]
+  return ['interpolate', ['linear'], ['zoom'], ...RADIOS_ESCUELA_SIN_REPORTE.flat()]
 }
 
 export function colorEscuelaSinReporte(oscuro: boolean): string {
@@ -408,8 +409,19 @@ export function circlePaintEscuelasSinReporte(oscuro: boolean): CircleLayerSpeci
 export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
   return {
     'circle-radius': [
-      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
-      radioEscuelaSinReporte(), ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      'interpolate', ['linear'], ['zoom'],
+      RADIOS_ESCUELA_SIN_REPORTE[0][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[0][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
+      RADIOS_ESCUELA_SIN_REPORTE[1][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[1][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
+      RADIOS_ESCUELA_SIN_REPORTE[2][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[2][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
     ],
     'circle-color': [
       'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
