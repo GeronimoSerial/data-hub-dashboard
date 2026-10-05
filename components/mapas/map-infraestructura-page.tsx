@@ -93,6 +93,7 @@ import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
+import { calcularTotalesEscuelasFiltradas } from '@/lib/infraestructura/mapa/totales-filtrados'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
@@ -1785,10 +1786,8 @@ export default function MapInfraestructuraPage(props: {
       {!modoRadar && (
         <>
           {(() => {
-            const totales = departamentoSeleccionado
-              ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
-              : dataTotalesMapa?.provincia
-            if (!totales) return null
+            if (!dataEscuelasMapaVisible) return null
+            const totales = calcularTotalesEscuelasFiltradas(dataEscuelasMapaVisible.escuelas)
             return (
               <p
                 className={styles.hint}

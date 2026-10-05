@@ -1020,13 +1020,29 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
 })
 
 describe('M2: capa de padrón apagada por defecto', () => {
-  it('el indicador de totales se ve aunque la capa de padrón esté apagada', async () => {
+  it('el indicador de totales cuenta las escuelas del padrón que recibe el mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     const indicador = screen.getByTestId('infra-totales-indicador')
-    expect(indicador).toHaveTextContent(/10 escuelas/)
-    expect(indicador).toHaveTextContent(/3 afectadas/)
-    expect(indicador).toHaveTextContent(/30%/)
+    expect(indicador).toHaveTextContent(/2 escuelas/)
+    expect(indicador).toHaveTextContent(/1 afectadas/)
+    expect(indicador).toHaveTextContent(/50%/)
+  })
+
+  it('actualiza los totales cuando recibe el padrón filtrado', async () => {
+    const escuelasFiltradas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.filter((escuela) => escuela.estado === 'afectada'),
+    }
+    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true })
+
+    rerender({ escuelasMapa: escuelasFiltradas })
+
+    const indicador = screen.getByTestId('infra-totales-indicador')
+    expect(indicador).toHaveTextContent(/1 escuelas/)
+    expect(indicador).toHaveTextContent(/1 afectadas/)
+    expect(indicador).toHaveTextContent(/100%/)
+    desmontarMapa?.()
   })
 
   it('la casilla de "Todas las escuelas" arranca destildada', async () => {
