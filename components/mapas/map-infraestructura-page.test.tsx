@@ -409,7 +409,11 @@ vi.mock('@/lib/infraestructura/use-radar', () => ({
 // punto del parte (equivalente a queryRenderedFeatures + interactiveLayerIds
 // del componente real) y deja pasar el resto de los hijos sin más.
 vi.mock('react-map-gl/maplibre', () => {
-  type FeatureMock = { layer?: { id: string }; properties: Record<string, unknown> }
+  type FeatureMock = {
+    layer?: { id: string }
+    properties: Record<string, unknown>
+    geometry?: { type: 'Point'; coordinates: [number, number] }
+  }
   // El clic de departamento arrastra coordenadas: el popup de clic se ancla
   // en el `lngLat` del evento, igual que el evento real de MapLibre.
   type MouseEventMock = { features: FeatureMock[]; lngLat?: { lng: number; lat: number } }
@@ -471,6 +475,16 @@ vi.mock('react-map-gl/maplibre', () => {
     > = [
       ['mock-click-parte', feature('infra-partes', { cueAnexo: CUE })],
       ['mock-click-parte-sin-afectacion', feature('infra-partes', { cueAnexo: CUE_SIN_AFECTACION })],
+      ['mock-click-cluster', {
+        ...feature('infra-partes-cluster', {
+          cluster_id: 1,
+          point_count: 8,
+          escuelasAfectadas: 3,
+          criticas: 1,
+          altas: 2,
+        }),
+        geometry: { type: 'Point', coordinates: [-58.8, -27.5] },
+      }],
       // El click real ahora acierta el ícono de escuela (capa `symbol`),
       // no el círculo chico de abajo: la feature que MapLibre entrega
       // pertenece a `infra-partes-escuela-icono`.
@@ -1228,7 +1242,7 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
   const esperarSinPopupHover = () =>
     waitFor(() => expect(popupHover()).not.toBeInTheDocument())
 
-  it('clic de departamento muestra total, afectadas y porcentaje, y se cierra con Esc', async () => {
+  it('clic de departamento muestra total, con reporte y porcentaje, y se cierra con Esc', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     expect(popupHover()).not.toBeInTheDocument()
@@ -1237,11 +1251,21 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
 
     const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
     expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
-    expect(popup).toHaveTextContent('3 están afectadas')
+    expect(popup).toHaveTextContent('3 con reporte')
     expect(popup).toHaveTextContent('30%')
 
     await userEvent.keyboard('{Escape}')
     await esperarSinPopupHover()
+  })
+
+  it('clic de cluster muestra escuelas con reporte', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-cluster'))
+
+    expect(await screen.findByText((_contenido, element) =>
+      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
+    )).toHaveTextContent('3 con reporte (1 críticas, 2 altas)')
   })
 
   it('clickear el mismo departamento de nuevo cierra el popup', async () => {

@@ -1743,7 +1743,7 @@ export default function MapInfraestructuraPage(props: {
               >
                 <p>
                   En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                  <strong>{totales.escuelasAfectadas}</strong> están afectadas · representa <strong>{totales.porcentajeAfectadas}%</strong>
+                  <strong>{totales.escuelasAfectadas}</strong> con reporte · representa <strong>{totales.porcentajeAfectadas}%</strong>
                 </p>
               </Popup>
             )
@@ -1785,7 +1785,7 @@ export default function MapInfraestructuraPage(props: {
                 className='mapa-tooltip mapa-tooltip-cluster'
               >
                 <p>
-                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> afectadas ({criticas} críticas, {altas} altas)
+                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con reporte ({criticas} críticas, {altas} altas)
                 </p>
                 <button
                   type='button'
