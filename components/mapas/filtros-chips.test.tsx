@@ -106,6 +106,23 @@ describe('FiltrosChips', () => {
     expect(screen.getByRole('button', { name: /Departamento: 2 elegidos/ })).toBeInTheDocument()
   })
 
+  it('presenta departamento con tildes en el popover y el chip activo, conservando el valor del padrón', async () => {
+    const user = userEvent.setup()
+    const bellaVista = escuela({ departamento: 'BELLA VISTA' })
+    const onChange = vi.fn()
+    render(<FiltrosChips escuelas={[bellaVista]} filtros={FILTROS_MAPA_VACIOS} onChange={onChange} />)
+
+    await user.click(screen.getByRole('button', { name: 'Departamento' }))
+    const opcion = screen.getByRole('checkbox', { name: /Bella Vista/ })
+    expect(opcion).toBeInTheDocument()
+    await user.click(opcion)
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ departamentos: ['BELLA VISTA'] }))
+
+    cleanup()
+    render(<FiltrosChips escuelas={[bellaVista]} filtros={{ ...FILTROS_MAPA_VACIOS, departamentos: ['BELLA VISTA'] }} onChange={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Departamento: Bella Vista' })).toBeInTheDocument()
+  })
+
   it('Sin actualizar alterna su estado', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
@@ -137,6 +154,15 @@ describe('FiltrosChips', () => {
     expect(onSeleccionar).toHaveBeenCalledWith('1800087-00')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(busqueda).toHaveValue('')
+  })
+
+  it('presenta con tildes el departamento en el detalle de sugerencias', async () => {
+    const user = userEvent.setup()
+    const escuelaConPadron = escuela({ departamento: 'SAN LUIS DEL PALMAR' })
+    render(<FiltrosControlados escuelas={[escuelaConPadron]} onSeleccionar={vi.fn()} />)
+
+    await user.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'ejemplo')
+    expect(screen.getByRole('option')).toHaveTextContent('1800001-00 · San Luis del Palmar')
   })
 
   it('muestra un estado cuando la búsqueda no tiene resultados', async () => {

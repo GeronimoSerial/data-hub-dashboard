@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, X } from 'lucide-react'
 import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
-import { ETIQUETA_APOYO, ETIQUETA_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 
 type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo'
@@ -52,7 +52,7 @@ function esApoyo(valor: string): valor is FiltrosMapa['apoyo'][number] {
 function opcionesPorFiltro(escuelas: EscuelaMapaEnriquecida[], clave: ClaveFiltro): Opcion[] {
   if (clave === 'departamentos' || clave === 'niveles') {
     const disponibles = opcionesDisponibles(escuelas)[clave]
-    return disponibles.map((valor) => ({ valor, etiqueta: valor }))
+    return disponibles.map((valor) => ({ valor, etiqueta: clave === 'departamentos' ? etiquetaDepartamento(valor) : valor }))
   }
   if (clave === 'gravedades') return OPCIONES_GRAVEDAD
   if (clave === 'clases') return OPCIONES_CLASES
@@ -239,7 +239,7 @@ export function FiltrosChips({
                 onClick={() => seleccionar(escuela.cueAnexo)}
               >
                 <span className="filtros-sugerencias__nombre">{escuela.nombre}</span>
-                <span className="filtros-sugerencias__detalle">{escuela.cueAnexo} · {escuela.departamento}</span>
+                <span className="filtros-sugerencias__detalle">{escuela.cueAnexo} · {etiquetaDepartamento(escuela.departamento)}</span>
               </div>
             ))}
           </div>
