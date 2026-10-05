@@ -214,7 +214,7 @@ export function AlgoNuevo({
 
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
-      <h2 className="asistente__titulo">{etapa === 'pregunta' ? '¿Hay algo nuevo?' : 'Situación nueva'}</h2>
+      <h2 className={etapa === 'pregunta' ? 'asistente__titulo' : 'asistente__titulo asistente__titulo--rotulo'}>{etapa === 'pregunta' ? '¿Hay algo nuevo?' : 'Situación nueva'}</h2>
       {etapa === 'pregunta' ? (
         <>
           <fieldset className="afectacion-campos__grupo" aria-label="¿Hay algo nuevo?">

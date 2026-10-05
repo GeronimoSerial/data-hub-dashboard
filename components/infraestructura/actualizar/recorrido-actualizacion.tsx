@@ -447,6 +447,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
+      <p className="asistente__titulo asistente__titulo--paso" aria-hidden="true">Actualizar</p>
       {borradorPendiente ? (
         <aside className="aviso-retoma actualizacion-borrador" aria-label="Parte sin enviar">
           <p>Tiene un parte sin enviar.</p>

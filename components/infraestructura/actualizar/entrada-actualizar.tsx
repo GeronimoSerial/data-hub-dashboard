@@ -33,7 +33,6 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
     <div className="entrada-actualizar">
       {principal ? (
         <section aria-label="Situación principal" className="entrada-actualizar__principal">
-          <p className="entrada-actualizar__etiqueta">Situación principal</p>
           <p className="entrada-actualizar__motivo">
             <strong>{principal.motivo}</strong> <EstadoActualSeveridad severidad={principal.severidad} prefijo={false} />
           </p>

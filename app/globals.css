@@ -2438,7 +2438,6 @@ time {
 
 .entrada-actualizar__principal {
   border: 1px solid var(--line);
-  border-left: 4px solid var(--ink);
   border-radius: var(--r-md);
   background: var(--fill);
   padding: var(--s-4);
@@ -3840,25 +3839,18 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   white-space: nowrap;
 }
 
-.estado-actual-severidad__marca {
-  width: 12px;
-  height: 12px;
-  flex: none;
-  border: 1px solid rgb(128 128 128 / 0.55);
-}
-
-.estado-actual-severidad__marca--circulo { border-radius: var(--r-pill); }
-.estado-actual-severidad__marca--cuadrado { border-radius: 0; }
-.estado-actual-severidad__marca--rombo { border-radius: 0; rotate: 45deg; }
-.estado-actual-severidad__marca--triangulo {
-  border: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-
 .estado-actual-severidad__texto {
   font-size: var(--t-small);
   font-weight: 600;
   color: var(--ink);
+}
+
+.estado-actual-severidad__texto--tono {
+  padding: 2px var(--s-2);
+  border-radius: var(--r-pill);
+  font-family: var(--font-body);
+  line-height: 1.3;
+  text-transform: none;
 }
 
 /* ── Pie: última actualización y acciones ──────────────────────────────── */
@@ -4691,7 +4683,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* "Situación nueva" es el título de la pantalla; los bloques que siguen son
    secciones de ella, así que van un escalón más chicas y el primero no repite
    el filete bajo el título. */
-.algo-nuevo__datos > .asistente__titulo--paso { font-size: 1.0625rem; margin-bottom: 0; }
+.algo-nuevo__datos > .asistente__cuerpo > .asistente__titulo { font-size: 1.0625rem; margin-bottom: 0; }
 .algo-nuevo__datos > .asistente__cuerpo:first-child { border-top: 0; padding-top: 0; }
 
 .algo-nuevo__causa-estado { color: var(--ink-faint); }
@@ -5705,18 +5697,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 /* ── Asistente del parte: jerarquía y opciones ────────────────────────── */
 
-/* Dentro del asistente la pregunta del paso es el título principal; el
-   nombre de la pantalla baja a rótulo para no competir con ella. */
-.publico-content--parte:has(.asistente__cuerpo) .encabezado-parte__pantalla {
-  font-family: var(--font-body);
-  font-size: var(--t-small);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--ink-soft);
-}
-
 .asistente__titulo--paso {
   margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 0.96;
   font-size: clamp(1.5rem, 6vw, 1.875rem);
   text-align: center;
 }
@@ -5732,8 +5718,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 /* El texto de la opción arranca contra el borde izquierdo de la tarjeta;
    el indicador de selección pasa a la derecha. */
-.asistente__cuerpo .afectacion-campos__opciones > .opcion .opcion__contenido { flex: 1; min-width: 0; }
-.asistente__cuerpo .afectacion-campos__opciones > .opcion .opcion__indicador { order: 2; }
+.afectacion-campos__opciones > .opcion .opcion__contenido,
+.afectacion-campos__grupo > .opcion .opcion__contenido { flex: 1; min-width: 0; }
+.afectacion-campos__opciones > .opcion .opcion__indicador,
+.afectacion-campos__grupo > .opcion .opcion__indicador { order: 2; }
 
 /* Gravedad por tono: la escala tonal del mapa (lib/mapas/paleta-tonal.ts)
    marca cada nivel con una franja; el nombre escrito sigue siendo la señal
@@ -5752,4 +5740,31 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--sev);
   border-color: var(--sev);
   color: var(--sev-tinta);
+}
+
+/* El resumen de lo elegido se separa de los selectores que resume. */
+:not(.afectacion-borrador__resumen) + .afectacion-borrador__resumen { margin-top: var(--s-3); }
+
+
+.revisar-situacion__fecha {
+  margin: calc(var(--s-5) * -1 + var(--s-1)) 0 0;
+  color: var(--ink-faint);
+  font-size: var(--t-small);
+}
+
+/* Situación nueva: misma jerarquía que el asistente de carga. El nombre de la
+   pantalla queda como rótulo y la pregunta de cada bloque es el título. */
+.algo-nuevo > .asistente__titulo--rotulo {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.algo-nuevo__datos > .asistente__cuerpo > .asistente__titulo {
+  font-size: clamp(1.5rem, 6vw, 1.875rem);
+  text-align: center;
 }
