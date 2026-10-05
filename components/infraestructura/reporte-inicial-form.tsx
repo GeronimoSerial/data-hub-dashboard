@@ -723,26 +723,26 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
   return (
     <form className="reporte-inicial reporte-inicial--asistente" onSubmit={manejarEnvio}>
-      {borradorPendiente ? (
-        <div className="aviso-retoma" role="status">
-          <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
-          <div className="asistente__acciones">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                aplicarBorrador(borradorPendiente)
-                setBorradorPendiente(null)
-              }}
-            >
-              Continuar donde lo dejé
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>
-              Descartar
-            </Button>
-          </div>
-        </div>
-      ) : (
+      <ConfirmSheet
+        open={borradorPendiente !== null && !confirmarDescarte}
+        titulo={MENSAJE_BORRADOR_PENDIENTE}
+        confirmarLabel="Continuar donde lo dejé"
+        cancelarLabel="Descartar"
+        onConfirmar={() => {
+          if (!borradorPendiente) return
+          aplicarBorrador(borradorPendiente)
+          setBorradorPendiente(null)
+        }}
+        onCancelar={() => setConfirmarDescarte(true)}
+        onCerrar={() => {
+          if (!borradorPendiente) return
+          aplicarBorrador(borradorPendiente)
+          setBorradorPendiente(null)
+        }}
+      >
+        <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
+      </ConfirmSheet>
+      {borradorPendiente ? null : (
         <>
       <h3 id="asistente-paso-titulo" className="asistente__titulo asistente__titulo--paso">
         {PASOS[paso - 1]}

@@ -54,15 +54,21 @@ describe('RecorridoActualizacion: borrador local', () => {
     await waitFor(() => expect(JSON.parse(localStorage.getItem(CLAVE) ?? '{}')).toMatchObject({ etapa: { revisar: 0 }, recorrido: { respuestas: { b: { tipo: 'sigue' } } }, idsSituaciones: ['a', 'b'] }))
     cleanup(); montar()
     expect(await screen.findByText('Tiene un parte sin enviar.')).toBeInTheDocument()
-    const banner = screen.getByRole('complementary', { name: 'Parte sin enviar' })
-    const continuar = within(banner).getByRole('button', { name: 'Continuar donde lo dejé' })
-    const descartar = within(banner).getByRole('button', { name: 'Descartar' })
-    expect(continuar).toHaveClass('ui-button--secondary')
-    expect(within(banner).getByRole('button', { name: 'Descartar' })).toHaveClass('ui-button--ghost')
-    expect(continuar.compareDocumentPosition(descartar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    fireEvent.click(within(banner).getByRole('button', { name: 'Continuar donde lo dejé' }))
+    const panel = screen.getByRole('dialog', { name: 'Tiene un parte sin enviar.' })
+    expect(within(panel).getByRole('button', { name: 'Descartar' })).toBeInTheDocument()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Continuar donde lo dejé' }))
     expect(await screen.findByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sigue igual' })).toBeChecked()
+  })
+
+  it('cerrar el panel del borrador sin elegir lo retoma, nunca lo descarta', async () => {
+    stub(); montar(); await empezarYResponderPrimera()
+    await waitFor(() => expect(localStorage.getItem(CLAVE)).not.toBeNull())
+    cleanup(); montar()
+    const panel = await screen.findByRole('dialog', { name: 'Tiene un parte sin enviar.' })
+    fireEvent.keyDown(panel, { key: 'Escape' })
+    expect(await screen.findByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
+    expect(localStorage.getItem(CLAVE)).not.toBeNull()
   })
 
   it('restaura los aspectos y valores de un cambio al retomar', async () => {

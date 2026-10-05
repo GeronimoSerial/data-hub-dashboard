@@ -948,12 +948,9 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '¿Qué pasó?' })).not.toBeInTheDocument()
-    const aviso = document.querySelector('.aviso-retoma') as HTMLElement
+    const aviso = screen.getByRole('dialog', { name: MENSAJE_BORRADOR_PENDIENTE })
     const continuarBorrador = within(aviso).getByRole('button', { name: 'Continuar donde lo dejé' })
-    const descartarBorrador = within(aviso).getByRole('button', { name: 'Descartar' })
-    expect(continuarBorrador).toHaveClass('ui-button--secondary')
-    expect(descartarBorrador).toHaveClass('ui-button--ghost')
-    expect(continuarBorrador.compareDocumentPosition(descartarBorrador) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(aviso).getByRole('button', { name: 'Descartar' })).toBeInTheDocument()
     fireEvent.click(continuarBorrador)
     expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
