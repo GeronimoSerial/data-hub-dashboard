@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, X } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
 import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -91,7 +92,7 @@ function FiltroDesplegable({
   const seleccionados = valoresSeleccionados(filtros, clave)
   const opciones = opcionesPorFiltro(escuelas, clave)
   const conteos = contarOpciones(escuelas, clave)
-  const primerCheckbox = useRef<HTMLInputElement>(null)
+  const primerCheckbox = useRef<HTMLElement>(null)
   const textoChip = seleccionados.length === 0
     ? etiqueta
     : `${etiqueta}: ${seleccionados.length > 1
@@ -124,16 +125,19 @@ function FiltroDesplegable({
                   {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
                 </div>
               ) : opciones.map((opcion, indice) => (
-                <label className="filtros-opcion" key={opcion.valor}>
-                  <input
-                    ref={indice === 0 ? primerCheckbox : undefined}
-                    type="checkbox"
-                    checked={seleccionados.includes(opcion.valor)}
-                    onChange={() => onChange(alternarValor(filtros, clave, opcion.valor))}
-                  />
-                  <span>{opcion.etiqueta}</span>
-                  <span className="filtros-opcion__conteo">{conteos.get(opcion.valor) ?? 0}</span>
-                </label>
+                <Checkbox
+                  key={opcion.valor}
+                  className="filtros-opcion"
+                  checked={seleccionados.includes(opcion.valor)}
+                  ref={indice === 0 ? primerCheckbox : undefined}
+                  onCheckedChange={() => onChange(alternarValor(filtros, clave, opcion.valor))}
+                  label={(
+                    <>
+                      <span className="filtros-opcion__etiqueta">{opcion.etiqueta}</span>
+                      <span className="filtros-opcion__conteo">{conteos.get(opcion.valor) ?? 0}</span>
+                    </>
+                  )}
+                />
               ))}
             </Popover.Popup>
           </Popover.Positioner>

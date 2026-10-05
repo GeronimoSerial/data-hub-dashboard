@@ -120,6 +120,24 @@ describe('FiltrosChips', () => {
     expect(primario).toHaveAccessibleName(/Primario.*2/)
   })
 
+  it('renderiza cada opción del popover con el Checkbox del sistema', async () => {
+    const user = userEvent.setup()
+    renderFiltros()
+    await user.click(screen.getByRole('button', { name: /Nivel/ }))
+
+    const popover = screen.getByRole('dialog', { name: 'Nivel' })
+    const opciones = within(popover).getAllByRole('checkbox')
+    const filas = popover.querySelectorAll(':scope > label.filtros-opcion.ui-checkbox')
+    const inputsSueltos = [...popover.querySelectorAll('input[type="checkbox"]')]
+      .filter((input) => input.closest('.ui-checkbox') === null)
+
+    expect(opciones.length).toBeGreaterThan(0)
+    expect(opciones.every((opcion) => opcion.classList.contains('ui-checkbox__control'))).toBe(true)
+    expect(filas).toHaveLength(opciones.length)
+    expect(popover.querySelectorAll('label.filtros-opcion:not(.ui-checkbox)')).toHaveLength(0)
+    expect(inputsSueltos).toHaveLength(0)
+  })
+
   it('muestra un estado vacío en Nivel cuando el padrón no trae niveles', async () => {
     const user = userEvent.setup()
     const escuelasSinNiveles = [escuela({ niveles: [] })]
