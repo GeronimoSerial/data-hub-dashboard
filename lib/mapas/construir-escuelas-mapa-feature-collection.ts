@@ -15,7 +15,7 @@ import type { FeatureCollection, Point } from 'geojson'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 
 // Mismo gris "sin dato" que COLOR_NIVEL_PELIGRO.sin_dato de peligro-capas.ts
 // (token --ink-faint, globals.css). Se repite el literal EN VEZ de importarlo
@@ -63,7 +63,7 @@ export interface PropiedadesEscuelaMapa {
 // pide explícitamente importar rangoSeveridad/colorSeveridad de sus módulos
 // reales, pero no marca ese helper como importable.
 function esSinReportar(actualizadaEn: string, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(actualizadaEn).getTime() > umbralMs
 }
 

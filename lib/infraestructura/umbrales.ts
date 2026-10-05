@@ -17,4 +17,4 @@
 // semana largo no aparezca marcado en falso, pero sí lo haga si pasó una
 // semana sin ninguna actualización durante una situación en curso. Si el
 // producto define otro criterio, este es el único lugar que hay que tocar.
-export const UMBRAL_SIN_REPORTAR_HORAS = 72
+export const UMBRAL_SIN_ACTUALIZAR_HORAS = 72

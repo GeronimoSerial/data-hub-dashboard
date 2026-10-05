@@ -139,7 +139,7 @@ import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
@@ -462,7 +462,7 @@ type PropiedadesParte = {
   severidad: string
   severidadRango: number
   // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
-  // según esSinReportar/UMBRAL_SIN_REPORTAR_HORAS). Se une al feature para
+  // según esSinReportar/UMBRAL_SIN_ACTUALIZAR_HORAS). Se une al feature para
   // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
   sinReportar: boolean
   // Booleano real por punto ("este establecimiento está evacuado o es centro
@@ -505,11 +505,11 @@ export function construirFeatureCollection(
 // "Sin reportar" se calcula acá, no en el servidor: el indicador agregado
 // (indicadores.sinReportar) ya viaja en la respuesta, pero para mostrar el
 // badge hace falta saber CUÁL parte individual cruzó el umbral, y esa
-// información no se serializa aparte. UMBRAL_SIN_REPORTAR_HORAS es la misma
+// información no se serializa aparte. UMBRAL_SIN_ACTUALIZAR_HORAS es la misma
 // constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
 // un solo lugar define "viejo", nunca dos criterios que puedan divergir.
 export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
 }
 

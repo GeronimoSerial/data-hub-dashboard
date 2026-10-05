@@ -48,9 +48,10 @@ export interface AfectacionMapa {
   id: string
   motivo: string
   categoria: CategoriaAfectacion
-  severidad: string
+  severidad: Severidad
   descripcion: string | null
   rigeDesde: string
+  creadaEn: string
 }
 
 export interface ParteMapa {
@@ -101,8 +102,8 @@ export function calcularAlumnosAlcanzados(params: {
 
 // El umbral vive en umbrales.ts, un modulo sin importaciones de servidor:
 // el mapa lo necesita en runtime y este modulo arrastra node:fs via getDb.
-import { UMBRAL_SIN_REPORTAR_HORAS } from './umbrales'
-export { UMBRAL_SIN_REPORTAR_HORAS }
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from './umbrales'
+export { UMBRAL_SIN_ACTUALIZAR_HORAS }
 
 const resultadoVacio = { partes: [] as ParteMapa[], indicadores: indicadoresVacios() }
 
@@ -478,6 +479,7 @@ export async function listarPartesVigentes(
         severidad: a.severidad,
         descripcion: a.descripcion,
         rigeDesde: a.rigeDesde,
+        creadaEn: a.creadaEn,
       })),
       seccionesAlcanzadas: seccionesAlcanzadas.size,
       alumnosDelHecho,
@@ -488,7 +490,7 @@ export async function listarPartesVigentes(
   }
 
   const ahoraMs = Date.now()
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
 
   const indicadores: IndicadoresMapa = {
     escuelas: partes.length,

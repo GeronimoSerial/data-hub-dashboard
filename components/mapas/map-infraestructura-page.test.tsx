@@ -43,6 +43,7 @@ const PARTE: ParteMapa = crearParteMapa({
       severidad: 'Alta',
       descripcion: null,
       rigeDesde: '2026-08-01T00:00:00Z',
+      creadaEn: '2026-08-01T00:00:00Z',
     },
   ],
   seccionesAlcanzadas: 3,

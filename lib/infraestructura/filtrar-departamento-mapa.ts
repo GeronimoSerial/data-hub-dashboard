@@ -1,10 +1,10 @@
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
 import type { RespuestaPartesMapa } from './use-alertas'
 import type { IndicadoresMapa, ParteMapa } from './parte-mapa'
-import { UMBRAL_SIN_REPORTAR_HORAS } from './umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from './umbrales'
 
 export function indicadoresDePartes(partes: ParteMapa[], ahoraMs: number): IndicadoresMapa {
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
   return {
     escuelas: partes.length,
     conServicioSuspendido: partes.filter((p) => p.servicio === 'suspendido').length,

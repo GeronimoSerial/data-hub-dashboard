@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
@@ -141,9 +141,9 @@ describe('circlePaintPartes', () => {
 
 describe('esSinReportar', () => {
   const ahoraMs = Date.parse('2026-09-01T12:00:00Z')
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
 
-  it('devuelve true cuando actualizadaEn supera el umbral real de UMBRAL_SIN_REPORTAR_HORAS', () => {
+  it('devuelve true cuando actualizadaEn supera el umbral real de UMBRAL_SIN_ACTUALIZAR_HORAS', () => {
     const parte = {
       ...baseFixture,
       actualizadaEn: new Date(ahoraMs - umbralMs - 60_000).toISOString(),
@@ -167,7 +167,7 @@ describe('esSinReportar', () => {
 
 describe('construirFeatureCollection', () => {
   const ahoraMs = Date.parse('2026-09-01T12:00:00Z')
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
 
   it('arma un Feature/Point con las coordenadas de lon/lat y las propiedades derivadas', () => {
     const parte = baseFixture
