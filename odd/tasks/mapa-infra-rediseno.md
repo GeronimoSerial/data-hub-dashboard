@@ -33,10 +33,10 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - [x] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T6 cdef3c2, T7 abea36f, T8 bbac423+475fd7b+f38b245, T9 e2fd673; visual fixes b5b7d5d..316f81b, 1167160, bdeab3c; merged 9f81edd
 - [x] B3 — Tasks 10–15 (situación actual) — 8 task commits + 3 visual fix rounds + staging merge b10f183; merged 6761d1d
 - [x] B4 — Tasks 16–19 (radar y planificación) — T16 17a0e7b, ad3086a, T17 7391e6d, T18 56df91f, T19 23319a8; visual fixes be02a61..e76281e; merged 18cf4bc
-- [ ] B5 — Tasks 20–22 (estadísticas) — running: worktree mapa-b5 from 18cf4bc
+- [x] B5 — Tasks 20–22 (estadísticas) — T20 f36b49b, T21 5f614f3, T22 3a19c5b+5bcf262; fixes 19152b7, 5b5e995; merged 35ed90e
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
-- [ ] T27 — vía principal en la UI
-- [ ] Visual review per batch (N1) — B1, B2, B3, B4 done
+- [ ] T27 — vía principal en la UI — running: worktree mapa-t27 from 35ed90e, dispatch ctx_5cfd7af71b39
+- [ ] Visual review per batch (N1) — B1, B2, B3, B4, B5 done
 
 ## Progress / evidence
 
@@ -72,3 +72,4 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - B4 done by N2 (T16 17a0e7b, data ad3086a, T17 7391e6d, T18 56df91f, T19 23319a8); N2 gate: vitest 2639 passed / 1 known, lint 0, build + tsc OK. N2 deleted risk-explanation-panel (plan-authorized). Not deleted, pending user decision: selector-horizonte, resumen-panel, old layer controls, riesgo/estacional hooks. Chrome review findings → fix N2 ctx_056e147d0cd7: Radar→Planificación leaves dark basemap/unreadable panel/no points; radar panel without card and layer selector overlapping; duplicate empty states and 'Actualizado —'; grey discs in Radar and 'Nulo'; expanded attribution in Radar; aislamiento almost all 'Alto' (verify thresholds with real data).
 - B4 fixes (be02a61, dbe341e, 6a438f0, 9a8234a, c33fc7b, e76281e) verified in Chrome: radar card, single empty state, neutral points, Radar→Planificación restores the light basemap and points (≈10 s basemap reload). Aislamiento distribution is real (demo: Alto 38 %, Medio 3 %, Bajo 30 %, Nulo 28 %; inundación 96.7 % Nulo), thresholds unchanged. B4 gate (N1): build 0, lint 0 errors, vitest 2650 passed / 2 failed: known radar-meteo + reporte-inicial-form 'reintentar de inmediato', which passes alone in mapa-b4 and staging (flaky under full-suite load, not touched by B4). Merged 18cf4bc; post-merge tsc clean, 1980 tests in touched areas passed. mapa-b4 removed; B5 launched.
 - B5 done by N2 (T20 f36b49b, T21 5f614f3, T22 3a19c5b + 5bcf262); N2 gate: full vitest with only the known failure, lint 0, build OK. Note: the evolution endpoint filters only by department and level (as the plan says); other chips do not affect the charts. Chrome review: stats tab clean, numbers match Situación actual, Nivel empty state OK. Findings → fix N2 ctx_1934089a163f: 'Escuelas afectadas' vs 'Escuelas con reporte' terminology, numeric columns left-aligned. T27 spec prepared (~/.cache/mapa-n2/t27/spec.md); launch after B5 merges.
+- B5 fixes verified in Chrome ('Escuelas con reporte', numeric columns right-aligned). B5 gate (N1): build 0, vitest 2700 passed / 1 known, lint 0 errors. Merged 35ed90e; post-merge tsc clean, 2006 tests in touched areas passed. mapa-b5 removed. T27 launched (also unifies 'afectadas' in map popups).
