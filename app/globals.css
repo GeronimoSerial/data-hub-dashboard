@@ -1099,6 +1099,7 @@ time {
 /* ── Fields ────────────────────────────────────────────────────────────── */
 
 .ui-label, .ui-field__label { font-size: var(--t-small); font-weight: 600; color: var(--ink); }
+.afectacion-campos__detalle { display: grid; gap: var(--s-2); margin-top: var(--s-2); }
 .ui-field { display: flex; flex-direction: column; gap: var(--s-2); }
 .ui-field__control { min-width: 0; }
 .ui-field__description { font-size: var(--t-small); color: var(--ink-soft); }
@@ -1314,6 +1315,7 @@ time {
   padding: clamp(1.5rem, 4vw, 2rem);
 }
 .ui-dialog-popup h2 { font-size: 1.4rem; }
+.motivo-form__title { margin-bottom: var(--s-2); }
 .ui-dialog-close {
   position: absolute;
   top: var(--s-3);
@@ -1698,6 +1700,7 @@ time {
   flex: 1;
 }
 .admin-layout .page-stack { gap: var(--s-6); }
+.admin-layout .admin-main { min-width: 0; }
 
 .admin-sidebar {
   align-self: start;
@@ -1810,6 +1813,8 @@ time {
 }
 
 .admin-layout .ui-table td:last-child .ui-actions { flex-wrap: nowrap; }
+.admin-motivos { min-width: 0; width: 100%; }
+.admin-motivos__table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 
 .ui-actions { display: flex; gap: var(--s-1); align-items: center; flex-wrap: wrap; }
 .ui-form-grid { display: grid; gap: var(--s-4); min-width: min(20rem, 100%); }

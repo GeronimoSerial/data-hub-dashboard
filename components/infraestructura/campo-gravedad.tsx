@@ -121,7 +121,7 @@ export function CampoGravedad({
           ))}
         </div>
         {razon === 'otro' ? (
-          <label className="ui-label">
+          <label className="ui-label afectacion-campos__detalle">
             Describa qué pasa
             <Textarea maxLength={300} value={detalle} disabled={disabled} onChange={(e) => setDetalle(e.target.value)} />
           </label>
