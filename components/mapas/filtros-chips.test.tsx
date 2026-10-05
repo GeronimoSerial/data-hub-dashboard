@@ -24,6 +24,7 @@ function escuela(overrides: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEn
     sinActualizar: false,
     ultimaNovedad: null,
     alumnosSinClases: 0,
+    situacionesHistoricas: 0,
     ...overrides,
   }
 }

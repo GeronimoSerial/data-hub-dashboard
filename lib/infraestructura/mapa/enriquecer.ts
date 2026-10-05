@@ -72,7 +72,7 @@ export function gravedadDe(parte: ParteMapa | undefined): GravedadMapa {
 
 export function enriquecerEscuela(
   e: EscuelaMapa,
-  extra: { niveles: string[]; alumnos: number; asistencia: AsistenciaPedagogica | null },
+  extra: { niveles: string[]; alumnos: number; asistencia: AsistenciaPedagogica | null; situacionesHistoricas: number },
   ahoraMs: number,
 ): EscuelaMapaEnriquecida {
   const parte = e.parte
@@ -97,6 +97,7 @@ export function enriquecerEscuela(
     sinActualizar: esSinActualizar(parte, ahoraMs),
     ultimaNovedad: parte?.actualizadaEn ?? null,
     alumnosSinClases: clases === 'sin' || clases === 'evacuado' || clases === 'centro' ? extra.alumnos : 0,
+    situacionesHistoricas: extra.situacionesHistoricas,
     ...(parte ? { parte } : {}),
   }
 }

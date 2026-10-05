@@ -694,6 +694,18 @@ export async function listarEscuelasMapaEnriquecidas(
   await asegurarGeAdjuntada(client)
   const corte = await getCorteVigente(client)
 
+  const situacionesPorCue = new Map<string, number>()
+  const situacionesRes = await client.execute({
+    sql: `SELECT p.cue_anexo, COUNT(a.id) AS situaciones
+      FROM infra_afectacion a
+      INNER JOIN infra_parte p ON p.id = a.parte_id
+      GROUP BY p.cue_anexo`,
+    args: [],
+  })
+  for (const fila of situacionesRes.rows) {
+    situacionesPorCue.set(stringValor(fila.cue_anexo), Number(fila.situaciones ?? 0))
+  }
+
   const datosPorCue = new Map<string, { niveles: Set<string>; alumnos: number }>()
   if (corte) {
     const res = await client.execute({
@@ -739,6 +751,7 @@ export async function listarEscuelasMapaEnriquecidas(
           niveles: datos ? [...datos.niveles] : [],
           alumnos: datos?.alumnos ?? 0,
           asistencia,
+          situacionesHistoricas: situacionesPorCue.get(escuela.cueAnexo) ?? 0,
         }, ahoraMs),
       }
     }),

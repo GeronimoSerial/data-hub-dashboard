@@ -32,7 +32,8 @@ describe('tarjeta de pronóstico puntual', () => {
     expect(screen.getByText('2,3 mm')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(container.querySelectorAll('.radar-escuela-dias > span')).toHaveLength(7)
-    expect(screen.getByText(/P≥25 mm en el departamento: 38 %/)).toBeInTheDocument()
+    expect(screen.getByText(/Probabilidad de más de 25 mm: 38 %/)).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/P≥25|ensamble/i)
   })
 
   it('muestra un estado explícito cuando el pronóstico puntual está seco en 48 h', async () => {
@@ -47,6 +48,7 @@ describe('tarjeta de pronóstico puntual', () => {
     render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
     expect(await screen.findByText('Sin lluvia prevista en 48 h')).toBeInTheDocument()
     expect(screen.queryByLabelText('Lluvia por hora, próximas 48 horas')).toBeNull()
+    expect(screen.queryByText(/Actualizado hace|hace — min/)).not.toBeInTheDocument()
   })
 
   it('oculta la probabilidad departamental menor a cinco por ciento', async () => {

@@ -26,6 +26,7 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
     sinActualizar: false,
     ultimaNovedad: null,
     alumnosSinClases: 0,
+    situacionesHistoricas: 0,
     ...parcial,
   }
 }

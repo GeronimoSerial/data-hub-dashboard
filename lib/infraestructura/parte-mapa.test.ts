@@ -8,7 +8,7 @@ import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
 import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
-import { infraParte } from '@/lib/db/schema'
+import { infraAfectacion, infraParte, infraPeriodo } from '@/lib/db/schema'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
 // tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
@@ -464,6 +464,46 @@ describe('listarEscuelasMapa', () => {
 })
 
 describe('listarEscuelasMapaEnriquecidas', () => {
+  it('cuenta todas las situaciones históricas por escuela y deja en cero las que no tienen', async () => {
+    const cueConHistorial = 'MAPA-ENRIQ-HISTORIAL'
+    const cueSinHistorial = 'MAPA-ENRIQ-SIN-HISTORIAL'
+    await sembrarEscuelaPadron({ cue: cueConHistorial, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    await sembrarEscuelaPadron({ cue: cueSinHistorial, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.4, lon: -58.4 })
+
+    const parteActual = await crearParte(cueConHistorial)
+    const solucionadaId = await crearAfectacion({ parteId: parteActual, secciones: [] })
+    await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, solucionadaId))
+
+    const periodoHistoricoId = 'MAPA-ENRIQ-PERIODO-HISTORICO'
+    const ahora = new Date().toISOString()
+    await getDb().insert(infraPeriodo).values({
+      id: periodoHistoricoId,
+      nombre: 'Período histórico de prueba',
+      inicioEn: ahora,
+      finEn: ahora,
+      estado: 'historico',
+      creadaEn: ahora,
+    })
+    const parteHistorica = crypto.randomUUID()
+    await getDb().insert(infraParte).values({
+      id: parteHistorica,
+      periodoId: periodoHistoricoId,
+      cueAnexo: cueConHistorial,
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      corteId: 1,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
+    await crearAfectacion({ parteId: parteHistorica, secciones: [] })
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ territorio: 'MAPA-ENRIQ' })
+
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(3)
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueSinHistorial)?.situacionesHistoricas).toBe(0)
+  })
+
   it('incluye niveles y la matrícula del corte vigente', async () => {
     const cue = 'MAPA-ENRIQ-NIVELES'
     await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })

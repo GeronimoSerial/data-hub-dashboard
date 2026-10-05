@@ -212,6 +212,14 @@
 .map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
+/* Control segmentado compartido por Radar y Planificación. */
+.map-seg { display: flex; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.map-seg__opcion { flex: 1 1 0; min-width: 0; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; }
+.map-seg__opcion[aria-pressed='true'] { background: var(--page); color: var(--ink); box-shadow: 0 1px 2px var(--line); }
+.map-seg__opcion[aria-disabled='true'] { color: var(--ink-faint); cursor: not-allowed; }
+.map-seg__opcion:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+[data-theme='dark'] .map-seg__opcion:focus-visible { outline-color: var(--marker); }
+
 /* Ficha de escuela dentro del panel lateral del mapa. */
 .map-ficha-escuela { display: grid; align-content: start; gap: var(--s-4); }
 .map-ficha-escuela__back { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; justify-self: start; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--t-small); font-weight: 600; cursor: pointer; }
@@ -2000,6 +2008,11 @@ time {
   border-top: 1px solid var(--line);
   padding-top: var(--s-2);
 }
+.map-leyenda__titulo {
+  font-weight: 600;
+  font-size: var(--t-small);
+  white-space: nowrap;
+}
 .map-leyenda__elemento {
   display: inline-flex;
   align-items: center;
@@ -2012,7 +2025,15 @@ time {
   flex: 0 0 auto;
   border-radius: 50%;
 }
+.map-leyenda__muestra--neutra {
+  background: var(--page);
+  border: 1.5px solid var(--ink-faint);
+}
 .map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
+.map-shell[data-radar-activo='true'] .map-leyenda {
+  z-index: 13;
+  bottom: calc(7.5rem + var(--s-3));
+}
 
 /* Panel propio del mapa para la ficha del parte (hallazgo estético): NO es el
    Sheet genérico — vive dentro de .map-shell, sin backdrop ni foco atrapado,
@@ -2152,17 +2173,26 @@ time {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-float);
+  padding: var(--s-4);
 }
-.map-panel-radar {
-  display: none;
+.radar-meteo-controls {
+  --radar-meteo-controls-left: calc(55px + min(20rem, calc(100vw - 80px)) + var(--s-3));
+  top:25px;
+  left:var(--radar-meteo-controls-left);
+  padding:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
 }
-.radar-meteo-controls { top:16px; left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
 .radar-meteo-segments { display:flex; gap:3px; }
 .radar-meteo-mobile-variable { display:none; }
 .radar-meteo-segments button,.radar-meteo-timeline button,.radar-meteo-popup button { color:inherit; background:transparent; border:0; border-radius:7px; padding:7px 9px; cursor:pointer; }
 .radar-meteo-segments button[aria-pressed="true"],.radar-meteo-timeline button[aria-pressed="true"] { background:#176985; color:white; }
-.radar-meteo-empty { position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); padding:18px 22px; max-width:min(380px,90vw); background:#111f30; border:1px solid #354b60; border-radius:12px; color:#fff; box-shadow:0 12px 40px #0008; }
-.radar-meteo-empty button { margin-left:10px; }
 .radar-meteo-loading { color:#b5d6e7; animation:radar-shimmer 1.3s infinite alternate; }
 .radar-meteo-skeleton { position:absolute; z-index:4; pointer-events:none; inset:0; background:linear-gradient(105deg,transparent 35%,rgba(180,220,245,.07) 48%,transparent 62%); background-size:220% 100%; animation:radar-skeleton 1.4s linear infinite; }
 @keyframes radar-shimmer { to { opacity:.4 } }
@@ -2275,8 +2305,6 @@ time {
     width:min(230px,calc(100vw - 100px)) !important;
     max-height:none !important;
     overflow:visible !important;
-    padding:0 !important;
-    background:transparent !important;
     z-index:13;
   }
   .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
@@ -2373,7 +2401,7 @@ time {
 .radar-alertas {
   position:absolute;
   z-index:14;
-  top:12px;
+  top:calc(25px + 44px + var(--s-3));
   left:430px;
   right:444px;
   display:flex;
@@ -2409,7 +2437,6 @@ time {
 .radar-resumen-table th:first-child { width:88px; min-width:88px; }
 .radar-dia-cell { min-width:36px; padding-right:1px; padding-left:1px; }
 .radar-resumen ~ .radar-meteo-legend { right:auto; left:16px; bottom:122px; }
-.radar-meteo-empty { display:none; }
 .radar-meteo-retry {
   position:absolute;
   z-index:13;
@@ -2421,23 +2448,6 @@ time {
   border:1px solid #607783;
   border-radius:5px;
 }
-.radar-mapa-sin-pronostico {
-  position:absolute;
-  z-index:5;
-  top:50%;
-  left:50%;
-  transform:translate(-50%,-50%);
-  max-width:min(340px,42vw);
-  padding:11px 14px;
-  color:#e8f1f4;
-  background:rgba(10,21,30,.88);
-  border:1px solid rgba(169,194,207,.3);
-  border-radius:8px;
-  text-align:center;
-  font-size:12px;
-  pointer-events:none;
-}
-.radar-mapa-sin-pronostico button { pointer-events:auto; }
 .radar-escuela-card {
   position:absolute;
   z-index:13;
@@ -2456,7 +2466,6 @@ time {
 .radar-escuela-result p { margin:7px 0; }
 .radar-meteo-timeline { z-index:12; }
 .radar-resumen { z-index:11; }
-.radar-mapa-sin-pronostico { z-index:6; }
 [data-radar-activo="true"] .maplibregl-ctrl-compass { display:none !important; }
 @media(max-width:700px) {
   .radar-alertas { top:5px; left:8px; right:8px; }
@@ -2464,7 +2473,13 @@ time {
   .radar-resumen.is-open { height:min(55vh,440px); }
   .radar-resumen ~ .radar-meteo-legend { right:auto; bottom:118px; left:14px; }
   .radar-escuela-card { top:calc(12px + 55px); left:8px; width:min(310px,82vw); max-height:42vh; }
-  .radar-mapa-sin-pronostico { top:48%; max-width:74vw; }
+}
+@media(min-width:701px) and (max-width:1100px) {
+  .radar-meteo-controls {
+    max-width:calc(100vw - var(--radar-meteo-controls-left) - 270px - 16px - var(--s-3));
+  }
+  .radar-meteo-segments { flex-wrap:wrap; }
+  .radar-alertas { top:calc(25px + 88px + var(--s-3)); }
 }
 /* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
    habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
@@ -2588,22 +2603,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-leyenda-accesos .map-legend-item { gap: 0.4rem; line-height: 1.3; }
 .map-leyenda-accesos img { width: 18px; height: 18px; flex: none; }
 .map-leyenda-accesos .map-hint { line-height: 1.35; }
-.peligro-legend__provisorio {
-  display: flex;
-  align-items: center;
-  gap: var(--s-1);
-  margin: var(--s-1) 0 0;
-  color: var(--ink-soft);
-  font-size: var(--t-micro);
-  line-height: 1.4;
-}
 .map-swatch { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
-.peligro-legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
-.peligro-legend__item { display: flex; align-items: center; gap: var(--s-2); }
-.peligro-legend__muestra { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--ink); flex-shrink: 0; }
-.peligro-legend__icono { flex-shrink: 0; }
-.peligro-legend__etiqueta { font-size: var(--t-small); }
-.peligro-legend__titulo { font-weight: 600; margin: 0 0 0.35rem; }
 .map-search-results { list-style: none; margin: var(--s-1) 0 0; padding: 0; }
 .map-search-hit { width: 100%; justify-content: flex-start; }
 /* El contenedor de MapLibre (.maplibregl-popup-content) se deja transparente y sin
@@ -5398,8 +5398,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     width:min(230px,calc(100vw - 100px)) !important;
     max-height:none !important;
     overflow:visible !important;
-    padding:0 !important;
-    background:transparent !important;
     z-index:13;
   }
   .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }

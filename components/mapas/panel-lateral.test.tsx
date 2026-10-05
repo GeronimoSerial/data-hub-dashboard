@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { PanelLateral } from './panel-lateral'
+import { PanelRadar } from './panel-radar'
 
 afterEach(cleanup)
 
@@ -23,20 +24,34 @@ describe('PanelLateral', () => {
   })
 
   it('muestra Radar sin mostrar Situación actual', () => {
+    const radar = <PanelRadar
+      horizonte={72}
+      disponibles={[]}
+      onHorizonte={() => {}}
+      puntos={null}
+      escuelas={[]}
+      cargando={false}
+      error={null}
+      onSeleccionar={() => {}}
+    />
     render(
       <PanelLateral
         pestana="radar"
         seleccion={null}
         onCerrarFicha={() => {}}
         actual={<p>Contenido actual</p>}
-        radar={<p>Contenido radar</p>}
+        radar={radar}
         planificacion={<p>Contenido de planificación</p>}
       />,
     )
 
-    expect(screen.getByText('Contenido radar')).toBeInTheDocument()
+    const panel = screen.getByTestId('panel-lateral')
+    expect(panel).toContainElement(screen.getByTestId('panel-radar'))
+    expect(screen.getByRole('heading', { name: 'Radar' }).parentElement).toHaveClass('map-sitact__encabezado')
+    expect(screen.getByRole('group', { name: 'Horizonte' })).toBeInTheDocument()
+    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toHaveClass('map-sitact__vacio')
     expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()
-    expect(screen.getByTestId('panel-lateral')).not.toBeEmptyDOMElement()
+    expect(panel).not.toBeEmptyDOMElement()
   })
 
   it('muestra Planificación', () => {

@@ -2,7 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useEffect, useImperativeHandle, type JSX, type ReactNode } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState, type JSX, type ReactNode } from 'react'
+import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
+import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -20,9 +23,10 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // pulsar "Ver recorrido"). Es un spy además de `flyTo` para poder contar
 // cuántas veces se encuadró: encuadrar de más es un bug tan visible como no
 // encuadrar.
-const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
+const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK } = vi.hoisted(() => ({
   FLY_TO_MOCK: vi.fn(),
   FIT_BOUNDS_MOCK: vi.fn(),
+  MAP_CONTAINER_MOCK: { container: null as HTMLElement | null, getContainer: vi.fn() },
 }))
 
 // T5a: cues que el doble del mapa devuelve como DESAGRUPADAS en
@@ -30,6 +34,11 @@ const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
 // escuelas sin depender de los globales; `beforeEach` la deja en su valor por
 // defecto (las dos escuelas del padrón de abajo).
 const CUES_DESAGRUPADOS_MOCK = vi.hoisted(() => ({ cues: [] as string[] }))
+const MAPA_ESTILO_MOCK = vi.hoisted(() => ({
+  mapStyle: '' as string,
+  onStyleData: null as (() => void) | null,
+  montajesFuente: 0,
+}))
 
 const PARTE: ParteMapa = crearParteMapa({
   cueAnexo: CUE,
@@ -166,6 +175,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: PARTE.actualizadaEn,
       alumnosSinClases: 74,
+      situacionesHistoricas: 0,
     },
     {
       cueAnexo: CUE_SIN_AFECTACION,
@@ -184,6 +194,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
+      situacionesHistoricas: 0,
     },
   ],
   sinUbicacion: [],
@@ -300,7 +311,17 @@ vi.mock('@/lib/infraestructura/use-exposicion-ruta', () => ({
 // pero con activo=false el hook real no hace fetch — acá se verifica el
 // contrato del lado del componente (el activo que recibe) y del hook
 // (devolver null/vacío sin datos).
-const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[] }))
+const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
+const estadoRadar = vi.hoisted(() => ({ sinPronostico: false }))
+const estadoRadarMeteo = vi.hoisted(() => ({ sinDatos: false }))
+
+vi.mock('@/lib/infraestructura/radar-meteo/use-radar-meteo', () => ({
+  useRadarMeteo: () => ({
+    data: estadoRadarMeteo.sinDatos ? { sinDatos: true, razon: 'Todavía no se cargó ningún pronóstico.' } : null,
+    loading: false,
+    error: null,
+  }),
+}))
 
 const RADAR_DATA = {
   corte: {
@@ -321,6 +342,13 @@ const RADAR_DATA = {
     {
       cueAnexo: CUE,
       horizonteHoras: 24,
+      nivelRiesgo: 'moderado',
+      confianza: 'media',
+      nivelRiesgoAcceso: 'alto',
+    },
+    {
+      cueAnexo: CUE,
+      horizonteHoras: 72,
       nivelRiesgo: 'alto',
       confianza: 'media',
       nivelRiesgoAcceso: 'alto',
@@ -355,41 +383,24 @@ const RADAR_DATA = {
 }
 
 vi.mock('@/lib/infraestructura/use-radar', () => ({
-  useRadar: (_filtros: unknown, activo: boolean) => {
+  useRadar: (filtros: unknown, activo: boolean) => {
     llamadasRadar.activos.push(activo)
+    llamadasRadar.filtros.push(filtros)
     return activo
-      ? { data: RADAR_DATA, loading: false, error: null }
+      ? {
+          data: estadoRadar.sinPronostico
+            ? {
+                ...RADAR_DATA,
+                corte: null,
+                departamentos: [24, 72, 240].map((horizonteHoras) => ({ departamento: 'CAPITAL', peorNivel: 'sin_dato', horizonteHoras, celdas: 0 })),
+                puntos: [],
+                escuelas: { ...RADAR_DATA.escuelas, items: [], total: 0, totalPages: 0 },
+              }
+            : RADAR_DATA,
+          loading: false,
+          error: null,
+        }
       : { data: null, loading: false, error: null }
-  },
-}))
-
-// Mock del hook de detalle por snapshot (follow-up 4 del Gate de E4): el
-// hook real haría un fetch real que este archivo no necesita ejercitar (ya
-// está cubierto por `use-riesgo-snapshot.test.tsx`); acá sólo se verifica que
-// el componente pase los 3 estados (factores/cargando/error) al panel.
-const llamadasSnapshot = vi.hoisted(() => ({ snapshotIds: [] as (string | null)[] }))
-const SNAPSHOT_DETALLE = vi.hoisted(() => ({
-  factores: [
-    {
-      tipo: 'amenaza',
-      fuente: 'ensemble ECMWF',
-      variable: 'precipitacion_72h',
-      valor: 45,
-      unidad: 'mm',
-      contribucion: 0.3,
-      peso: 0.5,
-      explicacion: 'Precipitación sobre P95',
-      observadoEn: '2026-09-26T06:00:00Z',
-    },
-  ],
-}))
-
-vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
-  useRiesgoSnapshot: (snapshotId: string | null) => {
-    llamadasSnapshot.snapshotIds.push(snapshotId)
-    return snapshotId === null
-      ? { data: null, loading: false, error: null }
-      : { data: SNAPSHOT_DETALLE, loading: false, error: null }
   },
 }))
 
@@ -414,8 +425,12 @@ vi.mock('react-map-gl/maplibre', () => {
       children?: React.ReactNode
       onClick?: (event: MouseEventMock) => void
       onLoad?: () => void
+      mapStyle?: string
+      onStyleData?: () => void
     }
   >(function MapGL(props, ref) {
+    MAPA_ESTILO_MOCK.mapStyle = props.mapStyle ?? ''
+    MAPA_ESTILO_MOCK.onStyleData = props.onStyleData ?? null
     useImperativeHandle(
       ref,
       () => ({
@@ -424,6 +439,8 @@ vi.mock('react-map-gl/maplibre', () => {
           fitBounds: FIT_BOUNDS_MOCK,
           resize: vi.fn(),
           stop: vi.fn(),
+          getContainer: MAP_CONTAINER_MOCK.getContainer,
+          isStyleLoaded: () => true,
           // `infra-partes-src` tiene que existir para que
           // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
           // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
@@ -458,6 +475,8 @@ vi.mock('react-map-gl/maplibre', () => {
       // no el círculo chico de abajo: la feature que MapLibre entrega
       // pertenece a `infra-partes-escuela-icono`.
       ['mock-click-escuela-icono', feature('infra-partes-escuela-icono', { cueAnexo: CUE_SIN_AFECTACION })],
+      ['mock-click-punto-nivel', feature('infra-puntos-nivel', { cueAnexo: CUE })],
+      ['mock-click-vacio-radar', [], { lng: -58.82, lat: -27.48 }],
       ['mock-click-departamento', feature('infra-departamentos-relleno', { nombre: 'Capital' }), { lng: -58.8, lat: -27.5 }],
       ['mock-click-departamento-empedrado', feature('infra-departamentos-relleno', { nombre: 'Empedrado' }), { lng: -58.8, lat: -27.5 }],
       ['mock-click-peligro', feature('infra-peligro-fill', { nombre: 'CAPITAL' })],
@@ -471,7 +490,7 @@ vi.mock('react-map-gl/maplibre', () => {
       ['mock-click-cruce', [feature('infra-cruces-acceso-symbol', { clasificacion: 'sin_evidencia' }), feature('infra-departamentos-relleno', { nombre: 'Capital' })], { lng: -58.81, lat: -27.48 }],
     ]
     return (
-      <div data-testid="mock-maplibre">
+      <div data-testid="mock-maplibre" data-map-style={props.mapStyle}>
         {clickCases.map(([testId, target, lngLat]) => (
           <button
             key={testId}
@@ -491,11 +510,12 @@ vi.mock('react-map-gl/maplibre', () => {
   return {
     __esModule: true,
     default: MapGL,
-    Layer: (props: { id?: string; filter?: unknown; paint?: unknown }) => (
+    Layer: (props: { id?: string; filter?: unknown; paint?: unknown; layout?: Record<string, unknown> }) => (
       <div
         data-testid={`mock-layer-${props.id ?? 'sin-id'}`}
         data-filter={JSON.stringify(props.filter)}
         data-paint={JSON.stringify(props.paint)}
+        data-layout-visibility={props.layout?.visibility}
       />
     ),
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
@@ -506,11 +526,14 @@ vi.mock('react-map-gl/maplibre', () => {
     // pero se expone acá como atributo serializado: es la única forma de
     // inspeccionar, desde un test de integración, qué features terminan en
     // el GeoJSON de cada fuente sin depender del click handler.
-    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => (
-      <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-geojson={JSON.stringify(props.data)}>
-        {props.children ?? null}
-      </div>
-    ),
+    Source: (props: { id?: string; data?: unknown; children?: React.ReactNode }) => {
+      const [mountId] = useState(() => ++MAPA_ESTILO_MOCK.montajesFuente)
+      return (
+        <div data-testid={`mock-source-${props.id ?? 'sin-id'}`} data-mount-id={mountId} data-geojson={JSON.stringify(props.data)}>
+          {props.children ?? null}
+        </div>
+      )
+    },
   }
 })
 
@@ -632,7 +655,13 @@ function esParrafoPopupDepartamento(_contenido: string, elemento: Element | null
 }
 
 beforeEach(() => {
+  MAPA_ESTILO_MOCK.mapStyle = ''
+  MAPA_ESTILO_MOCK.onStyleData = null
+  MAPA_ESTILO_MOCK.montajesFuente = 0
   vi.restoreAllMocks()
+  MAP_CONTAINER_MOCK.container = document.createElement('div')
+  MAP_CONTAINER_MOCK.container.innerHTML = '<details class="maplibregl-ctrl maplibregl-ctrl-attrib maplibregl-compact maplibregl-compact-show" open></details>'
+  MAP_CONTAINER_MOCK.getContainer.mockReset().mockImplementation(() => MAP_CONTAINER_MOCK.container)
   // Los spies del doble del mapa son `vi.fn()` de módulo: se limpian a mano
   // para que el conteo de encuadres (`toHaveBeenCalledTimes`) sea el de este
   // test y no la suma de los anteriores.
@@ -641,7 +670,9 @@ beforeEach(() => {
   estadoGeometria.disponible = true
   estadoGeometria.cueForzado = null
   llamadasRadar.activos.length = 0
-    llamadasSnapshot.snapshotIds.length = 0
+  llamadasRadar.filtros.length = 0
+  estadoRadar.sinPronostico = false
+  estadoRadarMeteo.sinDatos = false
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
   llamadasGeometria.habilitados.length = 0
@@ -661,6 +692,29 @@ afterEach(() => {
   desmontarMapa = null
   window.history.replaceState({}, '', '/')
   document.body.innerHTML = ''
+})
+
+describe('MapInfraestructuraPage — atribución compacta', () => {
+  it('colapsa la atribución al cambiar de Situación actual a Radar y Planificación', async () => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+    const atribucion = MAP_CONTAINER_MOCK.container?.querySelector('.maplibregl-ctrl-attrib')
+
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+
+    atribucion?.setAttribute('open', '')
+    atribucion?.classList.add('maplibregl-compact-show')
+    vista.rerender({ pestana: 'radar' })
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+
+    atribucion?.setAttribute('open', '')
+    atribucion?.classList.add('maplibregl-compact-show')
+    vista.rerender({ pestana: 'planificacion' })
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+    expect(MAP_CONTAINER_MOCK.getContainer).toHaveBeenCalled()
+  })
 })
 
 describe('MapInfraestructuraPage — orquestación de modales', () => {
@@ -782,14 +836,17 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
+    expect(screen.getByText('Riesgo de afectación · 72 h')).toBeInTheDocument()
   })
 
-  it('no dibuja una caja vacía en la columna izquierda del Radar', async () => {
+  it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    const panelRadar = screen.getByTestId('panel-radar')
-    expect(panelRadar).toHaveAttribute('hidden')
-    expect(panelRadar).toBeEmptyDOMElement()
+    const panelLateral = await screen.findByTestId('panel-lateral')
+    expect(within(panelLateral).getByRole('heading', { name: 'Radar' })).toBeInTheDocument()
+    expect(within(panelLateral).getByRole('group', { name: 'Horizonte' })).toBeInTheDocument()
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
+    expect(llamadasRadar.filtros.at(-1)).toEqual({ horizonte: 72 })
   })
 
   it('no renderiza el conmutador Situación actual / Radar', async () => {
@@ -840,18 +897,102 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(llamadasRadar.activos.at(-1)).toBe(false)
   })
 
-  it('con Radar activo no consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
+  it('con Radar activo consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Lluvia (mm)' })).toBeInTheDocument()
+    expect(screen.getByText('Consultando alertas…')).toBeInTheDocument()
+    expect(screen.queryByText(/Estimación no calibrada/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/lluvia observada|fuente:|ECMWF|IMERG|ensamble|metodología/i)).not.toBeInTheDocument()
     expect(screen.queryByTestId('radar-kpi-riesgo-alto')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Pronóstico por departamento' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
+  })
+
+  it('dibuja el padrón completo con el color del riesgo y sólo monta la capa en Radar', async () => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+    const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+    const colores = new Map(geojson.features.map((feature: { properties: { cueAnexo: string; color: string; conDato: boolean } }) => [
+      feature.properties.cueAnexo,
+      [feature.properties.color, feature.properties.conDato],
+    ]))
+    expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true])
+    expect(colores.get(CUE_SIN_AFECTACION)).toEqual([undefined, false])
+    expect(screen.getByTestId('mock-layer-infra-puntos-nivel')).toBeInTheDocument()
+
+    vista.rerender({ pestana: 'actual' })
+    expect(screen.queryByTestId('mock-source-infra-puntos-nivel-src')).not.toBeInTheDocument()
+  })
+
+  it('cambia el color del punto al cambiar el horizonte y el click abre la ficha', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+    const clicksMeteorologicos: Array<{ lat: number; lng: number }> = []
+    const escucharClickMeteorologico = (event: Event) => {
+      clicksMeteorologicos.push((event as CustomEvent<{ lat: number; lng: number }>).detail)
+    }
+    window.addEventListener('radar-meteo-map-click', escucharClickMeteorologico)
+    const leerColor = () => {
+      const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+      const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      return geojson.features.find((feature: { properties: { cueAnexo: string } }) => feature.properties.cueAnexo === CUE)?.properties.color
+    }
+    expect(leerColor()).toBe(colorRiesgo('alto'))
+    await userEvent.click(screen.getByRole('button', { name: '24 h' }))
+    await waitFor(() => expect(leerColor()).toBe(colorRiesgo('moderado')))
+
+    await userEvent.click(screen.getByTestId('mock-click-punto-nivel'))
+    expect(screen.getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    expect(clicksMeteorologicos).toEqual([])
+
+    await userEvent.click(screen.getByTestId('mock-click-vacio-radar'))
+    expect(clicksMeteorologicos).toEqual([{ lat: -27.48, lng: -58.82 }])
+    window.removeEventListener('radar-meteo-map-click', escucharClickMeteorologico)
+  })
+
+  it('al cambiar el horizonte vuelve a consultar el radar con el valor elegido', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    await userEvent.click(screen.getByRole('button', { name: '24 h' }))
+    await waitFor(() => expect(llamadasRadar.filtros.at(-1)).toEqual({ horizonte: 24 }))
+  })
+
+  it('al elegir una escuela en riesgo abre su ficha en el mismo panel lateral', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    await userEvent.click(screen.getByRole('button', { name: /Escuela 1, Capital/i }))
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    expect(within(panel).getByTestId('mock-ficha-escuela')).toBeInTheDocument()
+  })
+
+  it('sin horizontes con datos muestra el aviso y deshabilita las tres opciones', async () => {
+    estadoRadar.sinPronostico = true
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    const grupo = screen.getByRole('group', { name: 'Horizonte' })
+    for (const nombre of ['24 h', '72 h', '10 días']) {
+      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'true')
+    }
+  })
+
+  it('sin datos de meteorología deja un solo mensaje vacío en el panel lateral', async () => {
+    estadoRadar.sinPronostico = true
+    estadoRadarMeteo.sinDatos = true
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    expect(screen.getAllByText(/pronóstico disponible/i)).toHaveLength(1)
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
     const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
-    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
 
     rerender({ pestana: 'actual' })
     expect(llamadasRadar.activos.at(-1)).toBe(false)
@@ -913,6 +1054,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
         sinActualizar: false,
         ultimaNovedad: null,
         alumnosSinClases: 0,
+        situacionesHistoricas: 0,
       })
       CUES_DESAGRUPADOS_MOCK.cues.push(cueAnexo)
     }
@@ -935,14 +1077,12 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     }
   })
 
-  it('no pide detalles del riesgo escolar desde el radar meteorológico', async () => {
+  it('muestra la lista simple de riesgo sin paneles de explicación técnica', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
-    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
-
-    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
+    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
     expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
 
   it('Radar sustituye las capas de riesgo por el radar meteorológico', async () => {
@@ -950,6 +1090,129 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: /niveles de peligro meteorológico/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /todas las escuelas/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('MapInfraestructuraPage — Planificación', () => {
+  it.each([
+    ['planificacion', 'mock-layer-infra-puntos-nivel'],
+    ['actual', 'mock-source-infra-partes-src'],
+  ] as const)('cambio de pestaña radar → %s restaura estilo/basemap y monta sus capas', async (pestana, testIdCapa) => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+    expect(screen.getByTestId('mock-maplibre')).toHaveAttribute('data-map-style', 'https://tiles.openfreemap.org/styles/dark')
+    await act(async () => MAPA_ESTILO_MOCK.onStyleData?.())
+
+    vista.rerender({ pestana })
+
+    expect(screen.getByTestId('mock-maplibre')).toHaveAttribute('data-map-style', 'https://tiles.openfreemap.org/styles/bright')
+    expect(screen.getByTestId(testIdCapa)).toBeInTheDocument()
+    const montajeAntesDeStyleData = screen.getByTestId('mock-source-infra-mascara-src').getAttribute('data-mount-id')
+
+    await act(async () => MAPA_ESTILO_MOCK.onStyleData?.())
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-source-infra-mascara-src').getAttribute('data-mount-id')).not.toBe(montajeAntesDeStyleData)
+    })
+    desmontarMapa?.()
+  })
+
+  it('muestra el panel de Planificación y sus tres vistas en la pestaña', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+
+    const panel = await screen.findByTestId('panel-lateral')
+    expect(within(panel).getByRole('heading', { name: 'Planificación' })).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Vista' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Escuelas aisladas' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Inundación' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Historial' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('heading', { name: 'Situación actual' })).not.toBeInTheDocument()
+    expect(screen.getByText('Aislamiento')).toBeInTheDocument()
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Historial' }))
+    expect(screen.getByText('Veces con situaciones')).toBeInTheDocument()
+  })
+
+  it('mantiene sólo el mapa base como control de capas en Situación actual', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true, pestana: 'actual' })
+
+    expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
+    expect(screen.getByText('Mapa base')).toBeInTheDocument()
+  })
+
+  it('colorea los puntos por vista y cambia los colores al elegir Historial', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+
+    const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+    const coloresAisladas = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      .features.map((feature: { properties: { cueAnexo: string; color?: string; conDato: boolean } }) => [feature.properties.cueAnexo, feature.properties.color, feature.properties.conDato])
+    expect(coloresAisladas).toEqual([
+      [CUE, undefined, false],
+      [CUE_SIN_AFECTACION, undefined, false],
+    ])
+
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+
+    const coloresHistorial = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      .features.map((feature: { properties: { cueAnexo: string; color?: string; conDato: boolean } }) => [feature.properties.cueAnexo, feature.properties.color, feature.properties.conDato])
+    expect(coloresHistorial).toEqual([
+      [CUE, colorSeveridad('Crítica'), true],
+      [CUE_SIN_AFECTACION, undefined, false],
+    ])
+  })
+
+  it('abre la ficha desde Prioridad en el panel actual y no la conserva al cambiar de pestaña', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: /Escuela 1/ }))
+
+    expect(await within(screen.getByTestId('panel-lateral')).findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    rerender({ pestana: 'actual' })
+    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByRole('heading', { name: 'Situación actual' })).toBeInTheDocument()
+  })
+
+  it('sin contexto territorial muestra el vacío en Escuelas aisladas y mantiene Historial', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+
+    expect(within(screen.getByTestId('panel-planificacion')).getByText('Todavía no hay datos para esta vista.')).toBeInTheDocument()
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+    expect(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
+  })
+
+  it('oculta las capas de partes mientras está activa', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+    expect(screen.getByTestId('mock-layer-infra-partes')).toHaveAttribute('data-layout-visibility', 'none')
+    expect(screen.getByTestId('mock-layer-infra-partes-cluster')).toHaveAttribute('data-layout-visibility', 'none')
+    expect(document.querySelector('[data-capa="infra-badge-estado"]')).toBeNull()
+  })
+
+  it('permite seleccionar una escuela desde sus puntos coloreados', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+    await userEvent.click(screen.getByTestId('mock-click-punto-nivel'))
+
+    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
   })
 })
 
@@ -1117,10 +1380,12 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     expect(llamadasTerritorio.habilitados.every((habilitado) => habilitado === false)).toBe(true)
   })
 
-  it('con el flag prendido monta el control y habilita el hook territorial', async () => {
+  it('con el flag prendido mantiene el contexto territorial sin ofrecer capas ni controles', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
+    expect(screen.getByText('Mapa base')).toBeInTheDocument()
     expect(screen.queryByLabelText(/agua estimada por crecida de río/i)).not.toBeInTheDocument()
     expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
   })
@@ -1139,6 +1404,29 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
   })
 
 
+})
+
+describe('MapInfraestructuraPage — textos visibles con contexto completo', () => {
+  it.each(['actual', 'radar', 'planificacion'] as const)(
+    'no muestra textos técnicos con la ficha abierta en la pestaña %s',
+    async (pestana) => {
+      await renderMapa({
+        mostrarEnlaceNominal: true,
+        hazardContextEnabled: true,
+        riskRadarEnabled: true,
+        pestana,
+      })
+
+      await seleccionarPorBuscador('Escuela 1')
+      await userEvent.click(screen.getByTestId('mock-click-cruce'))
+
+      const mapa = document.querySelector('.map-shell')
+      expect(mapa).not.toBeNull()
+      expect(mapa?.textContent).not.toMatch(
+        /vencid|fuente|extracto|corrida|ODbL|arcsec|Aqueduct|OpenStreetMap|\bOSM\b|physrisk|per[ií]odo de retorno|metodolog/i,
+      )
+    },
+  )
 })
 
 // Q1: la ficha abierta/cerrada pasó a ser un estado DISTINTO del de selección.
@@ -1244,21 +1532,10 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(await screen.findByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
-  it('la leyenda de accesos va antes del panel de situación actual', async () => {
+  it('oculta la leyenda de accesos cuando ambas capas generales están apagadas', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    // La leyenda explica las capas territoriales y cambia con la selección: al
-    // final del panel quedaba empujada debajo del pliegue de indicadores y el
-    // usuario nunca la veía.
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
-    )
-
-    const leyenda = await screen.findByTestId('leyenda-aislamiento')
-    const panelActual = screen.getByText('Situación actual')
-    expect(
-      leyenda.compareDocumentPosition(panelActual) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(screen.queryByTestId('leyenda-aislamiento')).not.toBeInTheDocument()
   })
 })
 
@@ -1339,6 +1616,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
+      situacionesHistoricas: 0,
     }
     // Se usa un array nuevo para no alterar el fixture compartido con otros tests.
     const padronOriginal = FIXTURE_ESCUELAS_MAPA.escuelas
@@ -1376,7 +1654,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
 })
 
 describe('Task 4: cambiar de pestaña a Radar', () => {
-  it('con una ficha abierta, pasar a Radar muestra su panel y oculta la ficha de Situación actual', async () => {
+  it('con una ficha abierta, pasar a Radar muestra el panel Radar y la restaura al volver', async () => {
     const { rerender } = await renderMapa({
       mostrarEnlaceNominal: true,
       riskRadarEnabled: true,
@@ -1389,7 +1667,11 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     const panel = screen.getByTestId('panel-lateral')
     expect(panel).not.toBeEmptyDOMElement()
     expect(within(panel).getByTestId('panel-radar')).toBeInTheDocument()
-    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(panel).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+
+    rerender({ pestana: 'actual' })
+
+    expect(within(screen.getByTestId('panel-lateral')).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
   })
 
   it('mantiene el mismo mapa montado al cambiar a Radar', async () => {
@@ -1428,23 +1710,14 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
   })
 })
 
-// Q3: los íconos de las capas territoriales (aislamiento, inundación y cruces
-// de agua) se dibujan ENCIMA del polígono del departamento y no estaban en
-// `capasInteractivas`: el click caía en el departamento y terminaba
-// filtrando la provincia entera en vez de abrir la escuela del ícono.
-describe('Q3: los íconos territoriales no caen en el departamento', () => {
-  it('clickear el ícono de aislamiento abre esa escuela y no filtra el departamento', async () => {
+// Q3: la ruta y los cruces de la escuela seleccionada siguen disponibles,
+// pero las capas territoriales generales ya no se ofrecen desde el mapa.
+describe('accesos territoriales fuera de los controles generales', () => {
+  it('no ofrece capas generales de aislamiento o inundación', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
-    )
-
-    await userEvent.click(screen.getByTestId('mock-click-aislamiento'))
-
-    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-    expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
-    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-layer-infra-aislamiento-symbol')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-layer-infra-inundacion-symbol')).not.toBeInTheDocument()
   })
 
   it('no ofrece el toggle ni la capa de agua estimada', async () => {

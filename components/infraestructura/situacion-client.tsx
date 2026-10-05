@@ -7,7 +7,7 @@
 // reabre/cierra nada que el usuario tenga abierto. El selector "Cambios
 // desde" persiste su propia selección entre refrescos (no se resetea).
 //
-// Contrato de color (mismo que el modo Radar de E4, ver risk-explanation-panel.tsx):
+// La escala de riesgo escolar mantiene los niveles definidos para el mapa:
 // el color es SIEMPRE un refuerzo de un texto, nunca la única señal; "Sin
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
 import { useCallback, useEffect, useState, type JSX } from 'react'

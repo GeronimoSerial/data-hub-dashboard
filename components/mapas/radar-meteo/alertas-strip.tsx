@@ -42,7 +42,7 @@ export function AlertasStrip({ alertas, actualizado, onSelect }: {
     return (
       <div className="radar-alertas radar-alertas-empty">
         Sin alertas oficiales vigentes para Corrientes · SMN
-        <small>Actualizado {actualizado ? horaArgentina(actualizado) : '—'}</small>
+        {actualizado && <small>Actualizado {horaArgentina(actualizado)}</small>}
       </div>
     )
   }
@@ -58,7 +58,7 @@ export function AlertasStrip({ alertas, actualizado, onSelect }: {
           <strong>{alerta.evento}</strong> · {alerta.severidad}
           <small>
             {departamentosAlertaLabel(alerta.departamentos) || 'Corrientes'} ·
-            {' '}{horaArgentina(alerta.onset)}–{horaArgentina(alerta.expires)} · Fuente: SMN
+            {' '}{horaArgentina(alerta.onset)}–{horaArgentina(alerta.expires)}
           </small>
         </span>
       </button>
