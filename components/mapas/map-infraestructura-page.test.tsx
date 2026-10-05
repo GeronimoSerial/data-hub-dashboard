@@ -175,7 +175,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: PARTE.actualizadaEn,
       alumnosSinClases: 74,
-      situacionesHistoricas: 0,
+      situacionesHistoricas: 0, solucionadasRecientes: 0,
     },
     {
       cueAnexo: CUE_SIN_AFECTACION,
@@ -194,7 +194,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
-      situacionesHistoricas: 0,
+      situacionesHistoricas: 0, solucionadasRecientes: 0,
     },
   ],
   sinUbicacion: [],
@@ -1068,7 +1068,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
         sinActualizar: false,
         ultimaNovedad: null,
         alumnosSinClases: 0,
-        situacionesHistoricas: 0,
+        situacionesHistoricas: 0, solucionadasRecientes: 0,
       })
       CUES_DESAGRUPADOS_MOCK.cues.push(cueAnexo)
     }
@@ -1640,7 +1640,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
-      situacionesHistoricas: 0,
+      situacionesHistoricas: 0, solucionadasRecientes: 0,
     }
     // Se usa un array nuevo para no alterar el fixture compartido con otros tests.
     const padronOriginal = FIXTURE_ESCUELAS_MAPA.escuelas

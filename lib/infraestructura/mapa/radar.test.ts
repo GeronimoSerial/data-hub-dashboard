@@ -9,7 +9,7 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
     lat: null, lon: null, niveles: ['Primario'], alumnos: 0, gravedad: 0,
     categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false,
     ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0, ...parcial,
+    situacionesHistoricas: 0, solucionadasRecientes: 0, ...parcial,
   }
 }
 

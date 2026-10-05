@@ -27,6 +27,7 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
     ultimaNovedad: null,
     alumnosSinClases: 0,
     situacionesHistoricas: 0,
+    solucionadasRecientes: 0,
     ...parcial,
   }
 }
@@ -62,6 +63,11 @@ describe('filtrarEscuelas', () => {
   it('sinActualizar=true deja sólo las sin actualizar', () => {
     const lista = [esc({ sinActualizar: false }), esc({ sinActualizar: true }), esc({ sinActualizar: true })]
     expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, sinActualizar: true })).toEqual([lista[1], lista[2]])
+  })
+
+  it('solucionadasRecientes=true deja sólo escuelas con situaciones solucionadas recientes', () => {
+    const lista = [esc(), esc({ cueAnexo: '1800002-00', solucionadasRecientes: 2 })]
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true })).toEqual([lista[1]])
   })
 
   it('los filtros vacíos devuelven todas las escuelas en el mismo orden', () => {

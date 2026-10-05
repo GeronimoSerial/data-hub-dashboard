@@ -26,6 +26,7 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
     if (f.clases.length > 0 && !f.clases.includes(escuela.clases)) return false
     if (f.apoyo.length > 0 && !f.apoyo.some((opcion) => coincideApoyo(escuela, opcion))) return false
     if (f.sinActualizar && !escuela.sinActualizar) return false
+    if (f.solucionadasRecientes && escuela.solucionadasRecientes <= 0) return false
     if (q && !normalizar(escuela.nombre).includes(q)) {
       const cue = normalizar(escuela.cueAnexo).replace(/-/g, '')
       if (!qCue || !cue.includes(qCue)) return false

@@ -18,6 +18,7 @@ export interface ResumenMapa {
   sinActualizar: number
   sinClasesConApoyo: number
   sinClasesSinDato: number
+  solucionadasRecientes: number
 }
 
 export function ultimaActualizacion(escuelas: EscuelaMapaEnriquecida[]): string | null {
@@ -41,6 +42,7 @@ export function resumir(escuelas: EscuelaMapaEnriquecida[]): ResumenMapa {
       if (escuela.apoyo === 'sin_dato') resumen.sinClasesSinDato += 1
     }
     if (escuela.sinActualizar) resumen.sinActualizar += 1
+    if (escuela.solucionadasRecientes > 0) resumen.solucionadasRecientes += 1
     return resumen
   }, {
     conReporte: 0,
@@ -49,6 +51,7 @@ export function resumir(escuelas: EscuelaMapaEnriquecida[]): ResumenMapa {
     sinActualizar: 0,
     sinClasesConApoyo: 0,
     sinClasesSinDato: 0,
+    solucionadasRecientes: 0,
   })
 }
 

@@ -128,7 +128,7 @@ describe('enriquecerEscuela', () => {
     const original = escuela({ parte: parte({ estadoEstablecimiento: 'evacuado', abiertas: 0 }) })
 
     expect(enriquecerEscuela(original, {
-      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1,
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
     }, ahora)).toMatchObject({ clases: 'normal', apoyo: null, alumnosSinClases: 0 })
   })
 
@@ -138,7 +138,7 @@ describe('enriquecerEscuela', () => {
     }) })
 
     expect(enriquecerEscuela(original, {
-      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1,
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
     }, ahora)).toMatchObject({ clases: 'normal', apoyo: null, alumnosSinClases: 0 })
   })
 
@@ -146,7 +146,7 @@ describe('enriquecerEscuela', () => {
     const original = escuela({ parte: parte({ estadoEstablecimiento: 'evacuado' }) })
 
     expect(enriquecerEscuela(original, {
-      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1,
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
     }, ahora).clases).toBe('evacuado')
   })
 
@@ -154,7 +154,7 @@ describe('enriquecerEscuela', () => {
     const original = escuela({ parte: parte({ servicio: 'suspendido' }) })
 
     expect(enriquecerEscuela(original, {
-      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1,
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 1, solucionadasRecientes: 0,
     }, ahora).clases).toBe('sin')
   })
 
@@ -169,7 +169,7 @@ describe('enriquecerEscuela', () => {
     } })
 
     expect(enriquecerEscuela(original, {
-      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 2,
+      niveles: [], alumnos: 12, asistencia: null, situacionesHistoricas: 2, solucionadasRecientes: 0,
     }, ahora).clases).toBe('evacuado')
   })
 
@@ -184,6 +184,7 @@ describe('enriquecerEscuela', () => {
       alumnos: 42,
       asistencia: { brinda: true, modalidades: ['Cuadernillo'] },
       situacionesHistoricas: 7,
+      solucionadasRecientes: 3,
     }, ahora)).toMatchObject({
       niveles: ['Inicial', 'Primario'],
       alumnos: 42,
@@ -195,6 +196,7 @@ describe('enriquecerEscuela', () => {
       ultimaNovedad: iso(ahora - 73 * H),
       alumnosSinClases: 42,
       situacionesHistoricas: 7,
+      solucionadasRecientes: 3,
       parte: original.parte,
     })
   })

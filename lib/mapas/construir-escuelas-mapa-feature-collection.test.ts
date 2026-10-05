@@ -50,7 +50,7 @@ function escuelaAfectada(overrides: Partial<EscuelaMapaPadron> = {}): EscuelaMap
     sinActualizar: false,
     ultimaNovedad: p.actualizadaEn,
     alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
     ...overrides,
   }
 }
@@ -73,7 +73,7 @@ function escuelaSinAfectacion(overrides: Partial<EscuelaMapaPadron> = {}): Escue
     sinActualizar: false,
     ultimaNovedad: null,
     alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
     ...overrides,
   }
 }

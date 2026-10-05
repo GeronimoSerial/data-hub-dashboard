@@ -15,7 +15,7 @@ import { obtenerDatosPadronEscuela } from '@/lib/infraestructura/datos-padron-es
 import { crearEjecutorSql, getCorteVigente } from '@/lib/infraestructura/ge-db'
 import { asegurarGeAdjuntada } from '@/lib/infraestructura/impacto'
 import { jsonNoStore } from '@/lib/infraestructura/respuesta-no-store'
-import { armarFichaParte } from '@/lib/infraestructura/parte-consulta'
+import { armarFichaParte, listarSituacionesRecientes } from '@/lib/infraestructura/parte-consulta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,8 +50,11 @@ export async function GET(request: Request) {
     : null
 
   const ficha = await armarFichaParte(cue.value, corte?.id ?? SIN_CORTE)
+  const recientes = (await listarSituacionesRecientes(cue.value))
+    .filter((situacion) => situacion.cierre === 'solucionada')
+    .map(({ id, motivo, severidad, retiradaEn }) => ({ id, motivo, severidad, retiradaEn }))
   if (!ficha) {
-    return jsonNoStore({ ok: true, periodo: null, parte: null, datosPadron })
+    return jsonNoStore({ ok: true, periodo: null, parte: null, datosPadron, recientes })
   }
 
   return jsonNoStore(
@@ -75,6 +78,7 @@ export async function GET(request: Request) {
       })),
       secciones: ficha.secciones,
       datosPadron,
+      recientes,
       ultimaActualizacion: ficha.ultimaActualizacion,
     },
   )

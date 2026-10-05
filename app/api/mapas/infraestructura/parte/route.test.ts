@@ -73,6 +73,19 @@ beforeAll(async () => {
   })
   await db.insert(infraAfectacionSeccion).values({ afectacionId, geSectionId: 6010 })
   await db.insert(infraAfectacionAlumno).values({ afectacionId, gePersonId: 501 })
+  const fecha = Date.now()
+  const recientes = [
+    { motivo: 'Situación solucionada reciente', retiradaEn: new Date(fecha - 3 * 24 * 60 * 60 * 1000).toISOString(), cierre: 'solucionada' as const },
+    { motivo: 'Situación retirada reciente', retiradaEn: new Date(fecha - 2 * 24 * 60 * 60 * 1000).toISOString(), cierre: 'retirada' as const },
+    { motivo: 'Situación solucionada antigua', retiradaEn: new Date(fecha - 20 * 24 * 60 * 60 * 1000).toISOString(), cierre: 'solucionada' as const },
+  ]
+  for (const situacion of recientes) {
+    await db.insert(infraAfectacion).values({
+      id: crypto.randomUUID(), parteId, motivo: situacion.motivo, categoria: 'establecimiento',
+      severidad: 'Media', descripcion: null, rigeDesde: situacion.retiradaEn,
+      creadaEn: situacion.retiradaEn, retiradaEn: situacion.retiradaEn, cierre: situacion.cierre,
+    })
+  }
   GET = (await import('./route')).GET
 })
 
@@ -153,6 +166,9 @@ describe('GET /api/mapas/infraestructura/parte', () => {
     const body = await res.json()
     expect(body.ok).toBe(true)
     expect(body.parte).not.toBeNull()
+    expect(body.recientes).toHaveLength(1)
+    expect(body.recientes[0]).toMatchObject({ motivo: 'Situación solucionada reciente', severidad: 'Media' })
+    expect(body.recientes[0].retiradaEn).toEqual(expect.any(String))
     expect(body.afectaciones).toHaveLength(1)
     expect(body.afectaciones[0].totales).toEqual({ secciones: 1, alumnos: 1 })
     for (const afectacion of body.afectaciones) {
@@ -196,6 +212,7 @@ describe('GET /api/mapas/infraestructura/parte', () => {
 
     const body = await res.json()
     expect(body.parte).toBeNull()
+    expect(body.recientes).toEqual([])
     expect(body.datosPadron).toEqual({
       niveles: ['SECUNDARIA'],
       secciones: 1,

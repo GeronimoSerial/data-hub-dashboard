@@ -24,6 +24,8 @@ export interface EscuelaMapaEnriquecida {
   alumnosSinClases: number
   // Cantidad de filas de infra_afectacion de la escuela, en todos los períodos y estados; cada fila cuenta una vez.
   situacionesHistoricas: number
+  // Cantidad de situaciones solucionadas en los últimos 15 días.
+  solucionadasRecientes: number
   parte?: ParteMapa
 }
 
@@ -35,8 +37,9 @@ export interface FiltrosMapa {
   clases: EstadoClases[]
   apoyo: Array<'brinda' | 'no' | 'sin_dato'>
   sinActualizar: boolean
+  solucionadasRecientes: boolean
 }
 
 export const FILTROS_MAPA_VACIOS: FiltrosMapa = {
-  q: '', departamentos: [], niveles: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false,
+  q: '', departamentos: [], niveles: [], gravedades: [], clases: [], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
 }

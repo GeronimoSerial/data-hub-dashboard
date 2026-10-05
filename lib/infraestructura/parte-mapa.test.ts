@@ -547,6 +547,24 @@ describe('listarEscuelasMapaEnriquecidas', () => {
     expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueSinHistorial)?.situacionesHistoricas).toBe(0)
   })
 
+  it('cuenta sólo situaciones solucionadas dentro de los últimos 15 días', async () => {
+    const cue = 'MAPA-ENRIQ-SOLUCIONADAS-RECIENTES'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    const parteId = await crearParte(cue)
+    const ahora = Date.now()
+    const reciente = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 3 * 24 * 60 * 60 * 1000).toISOString() })
+    const vieja = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 20 * 24 * 60 * 60 * 1000).toISOString() })
+    const retirada = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 2 * 24 * 60 * 60 * 1000).toISOString() })
+    await crearAfectacion({ parteId, secciones: [] })
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, reciente))
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, vieja))
+    await getDb().update(infraAfectacion).set({ cierre: 'retirada' }).where(eq(infraAfectacion.id, retirada))
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0].solucionadasRecientes).toBe(1)
+  })
+
   it('incluye niveles y la matrícula del corte vigente', async () => {
     const cue = 'MAPA-ENRIQ-NIVELES'
     await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })

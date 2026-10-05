@@ -26,6 +26,13 @@ export interface AfectacionFicha {
   totales: { secciones: number; alumnos: number }
 }
 
+export interface SolucionadaFicha {
+  id: string
+  motivo: string
+  severidad: Severidad
+  retiradaEn: string
+}
+
 export interface ParteFicha {
   id: string
   cueAnexo: string
@@ -43,6 +50,7 @@ export interface RespuestaParteMapa {
   afectaciones?: AfectacionFicha[]
   secciones?: SeccionEstablecimiento[]
   datosPadron?: DatosPadronEscuela | null
+  recientes?: SolucionadaFicha[]
   ultimaActualizacion?: string | null
 }
 

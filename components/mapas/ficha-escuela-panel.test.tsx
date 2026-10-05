@@ -14,7 +14,7 @@ const escuela: EscuelaMapaEnriquecida = {
   lat: null, lon: null, niveles: ['Inicial', 'Primario'], alumnos: 1234, gravedad: 3,
   categoriaPrincipal: 'alumnos', clases: 'sin', apoyo: 'virtual', sinActualizar: true,
   ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 1234,
-  situacionesHistoricas: 0,
+  situacionesHistoricas: 0, solucionadasRecientes: 0,
 }
 
 const afectaciones: AfectacionFicha[] = [{

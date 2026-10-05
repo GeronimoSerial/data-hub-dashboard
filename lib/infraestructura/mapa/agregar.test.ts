@@ -22,6 +22,7 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
     ultimaNovedad: null,
     alumnosSinClases: 0,
     situacionesHistoricas: 0,
+    solucionadasRecientes: 0,
     ...parcial,
   }
 }
@@ -29,9 +30,9 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
 describe('resumir', () => {
   it('calcula los números sobre el padrón recibido', () => {
     const escuelas = [
-      escuela({ gravedad: 2, clases: 'sin', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 12 }),
+      escuela({ gravedad: 2, clases: 'sin', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 12, solucionadasRecientes: 2 }),
       escuela({ cueAnexo: '1800002-00', gravedad: 1, clases: 'parcial', apoyo: 'cuadernillo', alumnosSinClases: 5 }),
-      escuela({ cueAnexo: '1800003-00', gravedad: 0, clases: 'evacuado', apoyo: 'ambos', sinActualizar: true, alumnosSinClases: 8 }),
+      escuela({ cueAnexo: '1800003-00', gravedad: 0, clases: 'evacuado', apoyo: 'ambos', sinActualizar: true, alumnosSinClases: 8, solucionadasRecientes: 1 }),
       escuela({ cueAnexo: '1800004-00', gravedad: 3, clases: 'normal', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 0 }),
       escuela({ cueAnexo: '1800005-00', gravedad: 0, clases: 'normal', sinActualizar: false, alumnosSinClases: 0 }),
       escuela({ cueAnexo: '1800006-00', gravedad: 0, clases: 'sin', apoyo: 'brinda', alumnosSinClases: 4 }),
@@ -45,6 +46,7 @@ describe('resumir', () => {
       sinActualizar: 3,
       sinClasesConApoyo: 4,
       sinClasesSinDato: 1,
+      solucionadasRecientes: 2,
     })
   })
 
@@ -56,6 +58,7 @@ describe('resumir', () => {
       sinActualizar: 0,
       sinClasesConApoyo: 0,
       sinClasesSinDato: 0,
+      solucionadasRecientes: 0,
     })
   })
 })
@@ -115,7 +118,7 @@ describe('agrupar', () => {
     ]
     const filtros: FiltrosMapa = {
       q: '', departamentos: ['Goya', 'Capital'], niveles: ['Primario'], gravedades: [],
-      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false,
+      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
     }
     const filtradas = filtrarEscuelas(padron, filtros)
     const filas = agrupar(filtradas, 'departamento')
@@ -128,6 +131,7 @@ describe('agrupar', () => {
       sinActualizar: 0,
       sinClasesConApoyo: 0,
       sinClasesSinDato: 0,
+      solucionadasRecientes: 0,
     })
     expect(filas.reduce((total, fila) => total + fila.afectadas, 0)).toBe(resumen.conReporte)
     expect(filas.reduce((total, fila) => total + fila.alumnosSinClases, 0)).toBe(resumen.alumnosSinClases)

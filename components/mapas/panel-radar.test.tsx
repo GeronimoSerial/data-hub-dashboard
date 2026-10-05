@@ -10,25 +10,25 @@ const escuelas: EscuelaMapaEnriquecida[] = [
     cueAnexo: '100', nombre: 'Escuela Moderada', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '200', nombre: 'Escuela Alta', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Secundario'], alumnos: 60, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '300', nombre: 'Escuela Muy Alta', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Inicial'], alumnos: 30, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '400', nombre: 'Escuela Baja', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario'], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
 ]
 
