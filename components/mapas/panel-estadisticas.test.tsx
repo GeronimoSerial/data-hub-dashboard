@@ -53,7 +53,10 @@ describe('PanelEstadisticas', () => {
     const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const kpis = container.querySelector<HTMLElement>('.map-est__kpis') ?? container
 
-    expect(leerNumeroKpi('Escuelas afectadas', kpis)).toBe('3')
+    expect(leerNumeroKpi('Escuelas con reporte', kpis)).toBe('3')
+    expect(screen.getByRole('columnheader', { name: 'Con reporte' })).toBeInTheDocument()
+    expect(screen.queryByText('Afectadas', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('Escuelas afectadas', { exact: true })).not.toBeInTheDocument()
     expect(leerNumeroKpi('Sin clases', kpis)).toBe(String(resumen.sinClases))
     expect(leerNumeroKpi('Alumnos sin clases', kpis)).toBe(String(resumen.alumnosSinClases))
     expect(leerNumeroKpi('Sin actualizar', kpis)).toBe(String(resumen.sinActualizar))
@@ -73,7 +76,7 @@ describe('PanelEstadisticas', () => {
     const estadisticas = container.querySelector<HTMLElement>('.map-est')!
 
     for (const [etiquetaActual, etiquetaEstadistica] of [
-      ['Escuelas con reporte', 'Escuelas afectadas'],
+      ['Escuelas con reporte', 'Escuelas con reporte'],
       ['Sin clases', 'Sin clases'],
       ['Alumnos sin clases', 'Alumnos sin clases'],
       ['Sin actualizar', 'Sin actualizar'],
