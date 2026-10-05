@@ -22,6 +22,8 @@ export interface BorradorParte<T> {
   cue: string
   idempotencyKey: string
   datos: T
+  url?: string
+  cuerpo?: unknown
   estado: EstadoEnvio
   motivoError?: string
   intentos: number
@@ -210,7 +212,7 @@ function operarIndice<T>(
   )
 }
 
-function crearAlmacenLocalStorage(): AlmacenClaveValor {
+export function crearAlmacenLocalStorage(): AlmacenClaveValor {
   return {
     async obtener(clave) {
       try {
@@ -392,7 +394,7 @@ async function completarEnvio<T>(
       body: JSON.stringify(cuerpo),
     })
   } catch {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'pendiente-envio')
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'pendiente-envio', cuerpo)
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -413,7 +415,7 @@ async function completarEnvio<T>(
     // intento — se conserva el MISMO borrador (misma idempotencyKey) marcado
     // como error, para que un reintento posterior siga pudiendo deduplicar
     // contra lo que el servidor haya llegado a persistir.
-    await registrarError(opciones, borradorEnviando, MENSAJE_RESPUESTA_INESPERADA)
+    await registrarError(opciones, borradorEnviando, MENSAJE_RESPUESTA_INESPERADA, cuerpo)
     return { ok: false, estado: 'error', motivo: MENSAJE_RESPUESTA_INESPERADA }
   }
 
@@ -427,7 +429,7 @@ async function completarEnvio<T>(
   const clasificacion = clasificarRespuesta(respuesta.status)
 
   if (clasificacion === 'reintentable') {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor')
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo)
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -436,13 +438,15 @@ async function completarEnvio<T>(
       ? MENSAJE_SESION_VENCIDA
       : motivo ?? MENSAJES_ESTADO.error
 
-  await registrarError(opciones, borradorEnviando, motivoError)
+  await registrarError(opciones, borradorEnviando, motivoError, cuerpo)
   return { ok: false, estado: 'error', motivo: motivoError }
 }
 
-async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string): Promise<void> {
+async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string, cuerpo: unknown): Promise<void> {
   const borradorError: BorradorParte<T> = {
     ...borrador,
+    url: opciones.url,
+    cuerpo,
     estado: 'error',
     motivoError,
     actualizadoEn: new Date().toISOString(),
@@ -456,9 +460,12 @@ async function registrarPendiente<T>(
   borrador: BorradorParte<T>,
   intentos: number,
   estado: 'pendiente-envio' | 'error-servidor',
+  cuerpo: unknown,
 ): Promise<BorradorParte<T>> {
   const pendiente: BorradorParte<T> = {
     ...borrador,
+    url: opciones.url,
+    cuerpo,
     estado,
     intentos: intentos + 1,
     actualizadoEn: new Date().toISOString(),

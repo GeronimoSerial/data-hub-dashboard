@@ -33,7 +33,8 @@ import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { contarCambios, diffParte, esDiffVacio } from '@/lib/infraestructura/movimiento-diff'
 import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcion'
 import {
-  crearAlmacenNavegador,
+  crearAlmacenLocalStorage,
+  claveBorrador as claveBorradorCola,
   esEstadoReintentable,
   intentarEnviar,
   reenviarCola,
@@ -41,9 +42,12 @@ import {
   programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  type AlmacenClaveValor,
   type EnviarOpciones,
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
   colapsarHistorial,
@@ -52,7 +56,7 @@ import {
   leerPasoBaseHistorial,
 } from '@/lib/infraestructura/parte/borrador-historial'
 
-const almacenParte = crearAlmacenNavegador()
+const almacenBorradores = crearAlmacenLocalStorage()
 
 export interface ActualizacionFormProps {
   cue: string
@@ -178,10 +182,10 @@ function esBorradorParteActualizacion(valor: unknown): valor is BorradorParteAct
 }
 
 const borradorStore = crearBorradorStore(esBorradorParteActualizacion)
-const leerBorrador = (clave: string) => borradorStore.leer(almacenParte, clave)
+const leerBorrador = (clave: string) => borradorStore.leer(almacenBorradores, clave)
 const guardarBorrador = (clave: string, borrador: BorradorParteActualizacion) =>
-  borradorStore.guardar(almacenParte, clave, borrador)
-const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenParte, clave)
+  borradorStore.guardar(almacenBorradores, clave, borrador)
+const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenBorradores, clave)
 
 // La pantalla restaurada tiene que ser alcanzable con el botón "atrás" del
 // navegador (#31): si la entrada actual es la inicial, empujamos la que falta;
@@ -306,6 +310,11 @@ function ActualizacionFormCargado({
   datos,
   onRegistrarOtra,
 }: ActualizacionFormProps & { datos: EstadoActualRespuesta; onRegistrarOtra: () => void }): JSX.Element {
+  const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
+  function almacen(): Promise<AlmacenClaveValor> {
+    almacenRef.current ??= crearAlmacenParte()
+    return almacenRef.current
+  }
   const vigentes = datos.afectaciones ?? []
   const estadoEstablecimientoVigente: EstadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
 
@@ -379,7 +388,7 @@ function ActualizacionFormCargado({
   useEffect(() => {
     let cancelado = false
     ;(async () => {
-      const colaPendiente = await leerColaEnvio(almacenParte, 'actualizar', cue)
+      const colaPendiente = await leerColaEnvio(await almacen(), 'actualizar', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
@@ -595,7 +604,7 @@ function ActualizacionFormCargado({
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     })
 
-    const resultado = await intentarEnviar(datosEnvio, opcionesEnvio())
+    const resultado = await intentarEnviar(datosEnvio, { ...opcionesEnvio(), almacen: await almacen() })
 
     if (resultado.ok) {
       const cuerpo = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
@@ -617,9 +626,8 @@ function ActualizacionFormCargado({
     // conserva y el motivo viaja en motivoEnvio.
   }
 
-  function opcionesEnvio(): EnviarOpciones<PayloadActualizacion> {
+  function opcionesEnvio(): Omit<EnviarOpciones<PayloadActualizacion>, 'almacen'> {
     return {
-      almacen: almacenParte,
       tipo: 'actualizar',
       cue,
       fetchImpl: fetch,
@@ -638,6 +646,7 @@ function ActualizacionFormCargado({
         setEstadoEnvio(borrador.estado)
         setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
+        if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
     }
   }
@@ -653,12 +662,17 @@ function ActualizacionFormCargado({
     setGuardado({ movimientoId })
   }
 
+  const alEnviarConExitoRef = useRef(alEnviarConExito)
+  useEffect(() => {
+    alEnviarConExitoRef.current = alEnviarConExito
+  })
+
   useEffect(() => {
     reintentarRef.current = () => {
       if (guardado) return
       if (!esEstadoReintentable(estadoEnvio)) return
       void (async () => {
-        const resultado = await reenviarCola(opcionesEnvio())
+        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
         if (resultado?.ok) {
           const datos = resultado.respuesta as { movimientoId: string }
           alEnviarConExito(datos.movimientoId)
@@ -666,6 +680,14 @@ function ActualizacionFormCargado({
       })()
     }
   })
+
+  useEffect(() => {
+    void registrarServiceWorkerParte()
+  }, [])
+
+  useEffect(() => alEnviarEnSegundoPlano((clave) => {
+    if (clave === claveBorradorCola('actualizar', cue)) alEnviarConExitoRef.current('')
+  }), [cue])
 
   useEffect(() => {
     return registrarAutoReintento(() => reintentarRef.current())
