@@ -2,7 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
-import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
+import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 
 const escuela: EscuelaMapaEnriquecida = {
@@ -59,6 +62,22 @@ describe('FichaEscuelaPanel', () => {
     cleanup()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  const gravedadesYSeveridades: Array<{ gravedad: GravedadMapa; severidad: Severidad }> = [
+    { gravedad: 2, severidad: 'Media' },
+    { gravedad: 4, severidad: 'Crítica' },
+  ]
+
+  it.each(gravedadesYSeveridades)('usa la tinta y el fondo de la severidad $severidad', ({ gravedad, severidad }) => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, gravedad } })
+
+    const banda = document.querySelector('.map-ficha-escuela__gravedad')
+    expect(banda).toHaveStyle({
+      color: TINTA_POR_SEVERIDAD[severidad],
+      backgroundColor: colorSeveridad(severidad),
+    })
   })
 
   it('muestra gravedad, cabecera, chips y los bloques desplegables', async () => {

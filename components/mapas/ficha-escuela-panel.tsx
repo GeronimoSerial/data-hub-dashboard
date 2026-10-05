@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ArrowLeft, BookMinus, BookX, ChevronDown, Clock, DoorOpen, House } from 'lucide-react'
+import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { ETIQUETA_CLASES, ETIQUETA_GRAVEDAD, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { ETIQUETA_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
@@ -90,7 +92,7 @@ export function FichaEscuelaPanel({
   const [ahoraMs] = useState(() => Date.now())
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
-  const severidad = ETIQUETA_GRAVEDAD[escuela.gravedad]
+  const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal = situacionPrincipal(afectaciones.map((afectacion) => ({
     ...afectacion,
     estadoEstablecimiento: datos?.parte?.estadoEstablecimiento ?? 'habitual',
@@ -125,10 +127,10 @@ export function FichaEscuelaPanel({
         </p>
       </header>
 
-      {escuela.gravedad > 0 ? (
+      {severidad ? (
         <div
           className="map-ficha-escuela__gravedad"
-          style={{ backgroundColor: colorSeveridad(severidad), color: escuela.gravedad === 1 ? 'var(--ink)' : 'var(--white)' }}
+          style={{ backgroundColor: colorSeveridad(severidad), color: TINTA_POR_SEVERIDAD[severidad] }}
         >
           <strong>Gravedad {severidad}</strong>
           <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>

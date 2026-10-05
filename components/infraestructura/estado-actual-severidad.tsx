@@ -5,7 +5,7 @@ import type { Severidad } from '@/lib/infraestructura/trayectoria-tipos'
 // Indicador de severidad de una afectación: el nombre escrito sobre una
 // pastilla con el tono de la paleta oficial. El texto es la señal que no
 // depende del color; el tono permite escanear la gravedad de reojo.
-const TINTA_POR_SEVERIDAD: Record<Severidad, string> = {
+export const TINTA_POR_SEVERIDAD: Record<Severidad, string> = {
   Baja: '#7f1d1d',
   Media: '#450a0a',
   Alta: '#ffffff',
