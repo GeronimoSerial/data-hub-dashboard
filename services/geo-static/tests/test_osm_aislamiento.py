@@ -42,12 +42,14 @@ from geo_static.osm_aislamiento import (
     calcular_indice_aislamiento,
     calcular_metricas_departamento,
     calcular_metricas_escuela,
+    buscar_destinos_mas_cercanos,
     clasificar_cruce,
     clasificar_sin_conexion,
     construir_arbol_agua,
     construir_cruces_por_arista,
     construir_grafo_seguro,
     construir_indice_no_conectadas,
+    construir_indice_aristas,
     construir_red_local,
 )
 from _helpers import patch_nearest_nodes
@@ -97,6 +99,121 @@ def test_distancia_reportada_es_longitud_real_de_ruta_elegida_por_costo(monkeypa
         grafo, grafo.reverse(copy=False), [escuela], "L"
     )[0]
     assert resultado["distancia_cabecera_departamental_m"] == 7000
+
+
+def _grafo_destinos_localidades():
+    """Red pequeña con destinos urbanos y un tramo de ruta con geometría."""
+    g = nx.MultiDiGraph()
+    coords = {
+        "E": (-58.90, -27.50), "A": (-58.85, -27.48),
+        "L1": (-58.80, -27.45), "B": (-58.92, -27.49),
+        "L2": (-58.95, -27.47), "C": (-58.70, -27.40),
+    }
+    for nodo, (x, y) in coords.items():
+        g.add_node(nodo, x=x, y=y)
+    # L1 gana por costo aunque la ruta física hacia L2 sea menor.
+    aristas = [
+        ("E", "A", 1000, "primary"), ("A", "L1", 1000, "primary"),
+        ("E", "B", 600, "track"), ("B", "L2", 600, "track"),
+        ("L1", "C", 5000, "primary"),
+    ]
+    for u, v, length, highway in aristas:
+        g.add_edge(
+            u, v, length=length, highway=highway,
+            geometry=LineString([coords[u], coords[v]]),
+        )
+    asignar_costo(g)
+    return g
+
+
+def test_destino_urbano_mas_cercano_por_costo_y_longitud_real(monkeypatch):
+    g = _grafo_destinos_localidades()
+    escuela = {"lat": -27.50, "lon": -58.90, "departamento": "Depto A"}
+    _patch_nearest_nodes_departamento(
+        monkeypatch, {(-58.90, -27.50): ("E", 0.0)}
+    )
+    nodos_destino = {"L1": "L1", "L2": "L2"}
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), nodos_destino)
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [escuela], "C", busqueda_destinos=busqueda
+    )[0]
+    assert resultado["destino"] == {"nombre": "L1"}
+    assert resultado["distancia_cabecera_departamental_m"] == 2000
+    assert resultado["distancia_destino_m"] == 2000
+
+
+def test_destino_puede_ser_de_otro_departamento(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E", "L", length=700, highway="primary")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {(-58.90, -27.50): ("E", 0.0)})
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "Localidad vecina"})
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False),
+        [{"lat": -27.50, "lon": -58.90, "departamento": "Depto A"}], "L",
+        busqueda_destinos=busqueda,
+    )[0]
+    assert resultado["destino"] == {"nombre": "Localidad vecina"}
+    assert resultado["distancia_destino_m"] == 700
+
+
+def test_escuela_sin_camino_a_localidades_queda_sin_conexion(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E", "A", length=100, highway="primary")
+    g.add_node("L")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {(-58.90, -27.50): ("E", 0.0)})
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "L1"})
+    geometrias = []
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [{"lat": -27.50, "lon": -58.90}], "L",
+        busqueda_destinos=busqueda, geometrias_out=geometrias,
+    )[0]
+    assert resultado["motivo_sin_datos"] == "sin_conexion_red"
+    assert geometrias[0]["motivo_sin_geometria"] == "sin_conexion_red"
+
+
+def test_destino_urbano_por_camino_snap_a_arista():
+    g = _grafo_destinos_localidades()
+    indice = construir_indice_aristas(g)
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L1": "L1", "L2": "L2"})
+    geometria = []
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [{"lat": -27.48, "lon": -58.85}], "C",
+        busqueda_destinos=busqueda, geometrias_out=geometria, indice_aristas=indice,
+    )[0]
+    assert resultado["destino"] == {"nombre": "L1"}
+    assert resultado["distancia_destino_m"] == resultado["distancia_cabecera_departamental_m"]
+    assert geometria[0]["ruta"]["coordinates"][-1] == [-58.80, -27.45]
+    assert geometria[0]["destino"] == {"nombre": "L1"}
+    assert geometria[0]["distancia_destino_m"] == resultado["distancia_destino_m"]
+
+
+def test_busqueda_destinos_se_calcula_una_vez_para_varios_departamentos(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E1", "L", length=100, highway="primary")
+    g.add_edge("E2", "L", length=200, highway="primary")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {
+        (-58.90, -27.50): ("E1", 0.0), (-58.80, -27.40): ("E2", 0.0),
+    })
+    llamadas = 0
+    original = nx.multi_source_dijkstra
+
+    def contar(*args, **kwargs):
+        nonlocal llamadas
+        llamadas += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(nx, "multi_source_dijkstra", contar)
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "L1"})
+    for escuela in [
+        {"lat": -27.50, "lon": -58.90}, {"lat": -27.40, "lon": -58.80},
+    ]:
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), [escuela], None, busqueda_destinos=busqueda
+        )
+    assert llamadas == 1
 
 
 class TestCalcularIndiceAislamiento:
@@ -728,7 +845,10 @@ class TestCalcularMetricasDepartamentoEquivalencia:
             cruces_por_arista=cruces, grafo_seguro_invertido=grafo_seguro_invertido,
         )
 
-        assert obtenido == esperado
+        assert [
+            {k: v for k, v in metricas.items() if k not in ("destino", "distancia_destino_m")}
+            for metricas in obtenido
+        ] == esperado
         # Sanity: se ejercitaron las 4 categorias documentadas (nunca todas
         # "con puente", que era exactamente el bug de G1-fix2b).
         assert esperado[0]["cruces_agua_con_vado_count"] == 0

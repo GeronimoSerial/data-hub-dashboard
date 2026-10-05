@@ -49,6 +49,7 @@ from pathlib import Path
 
 from geo_static import padron_geo
 from geo_static.csv_utils import escribir_csv
+from geo_static.localidades import cargar_localidades_urbanas
 
 # v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
 # departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
@@ -68,6 +69,9 @@ OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 # temporales; `correr` las consume siempre via estos nombres globales.
 DEPARTAMENTOS_GEOJSON_PATH = padron_geo.DEPARTAMENTOS_GEOJSON_PATH
 CABECERAS_PATH = padron_geo.CABECERAS_PATH
+LOCALIDADES_URBANAS_PATH = (
+    REPO_ROOT / "services" / "geo-static" / "data" / "localidades_urbanas.json"
+)
 
 # Extracto Geofabrik de Argentina descargado localmente (gitignorado). Si existe,
 # la corrida de produccion construye la red con pyrosm (construir_red_local);
@@ -280,6 +284,7 @@ def _escribir_csv_sin_ruta(
 def correr(limite_escuelas: int | None = None, departamentos: list[str] | None = None) -> None:
     from geo_static.osm_aislamiento import (
         MOTIVO_RED_NO_CONECTADA,
+        UMBRAL_SNAP_SIN_CONEXION_M,
         asignar_costo,
         calcular_indice_aislamiento,
         calcular_metricas_departamento,
@@ -293,6 +298,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         construir_indice_no_conectadas,
         construir_red,
         construir_red_local,
+        buscar_destinos_mas_cercanos,
     )
     import osmnx as ox
 
@@ -420,6 +426,50 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         grafo_invertido = grafo.reverse(copy=False)
         grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
 
+        # Las localidades se buscan en toda la provincia, sin filtrar por
+        # departamento. nearest_nodes vectoriza un unico snap para todas.
+        localidades = cargar_localidades_urbanas(LOCALIDADES_URBANAS_PATH)
+        nodos_localidad, distancias_snap = ox.distance.nearest_nodes(
+            grafo,
+            X=[localidad["lon"] for localidad in localidades],
+            Y=[localidad["lat"] for localidad in localidades],
+            return_dist=True,
+        )
+        destinos_por_nodo = {}
+        for localidad, nodo, distancia_snap in zip(
+            localidades, nodos_localidad, distancias_snap
+        ):
+            if distancia_snap > UMBRAL_SNAP_SIN_CONEXION_M:
+                print(
+                    f"[calcular_aislamiento] localidad descartada por snap "
+                    f"> {UMBRAL_SNAP_SIN_CONEXION_M:.0f} m: "
+                    f"{localidad['nombre']} ({distancia_snap:.0f} m)",
+                    flush=True,
+                )
+                continue
+            anterior = destinos_por_nodo.get(nodo)
+            if anterior is None or localidad["poblacion"] > anterior["poblacion"]:
+                if anterior is not None:
+                    print(
+                        f"[calcular_aislamiento] localidades en el mismo nodo {nodo}: "
+                        f"se conserva {localidad['nombre']} por mayor población "
+                        f"({localidad['poblacion']} > {anterior['poblacion']})",
+                        flush=True,
+                    )
+                destinos_por_nodo[nodo] = localidad
+            elif anterior is not None:
+                print(
+                    f"[calcular_aislamiento] localidades en el mismo nodo {nodo}: "
+                    f"se conserva {anterior['nombre']} por mayor población "
+                    f"({anterior['poblacion']} >= {localidad['poblacion']})",
+                    flush=True,
+                )
+        busqueda_destinos = buscar_destinos_mas_cercanos(
+            grafo_invertido,
+            {nodo: localidad["nombre"] for nodo, localidad in destinos_por_nodo.items()},
+            grafo_seguro_invertido=grafo_seguro_invertido,
+        )
+
         registros_geometria: list[dict] = []
         # N3-B: datos de la via no conectada por escuela, para la auditoria.
         info_sin_ruta: dict[str, dict] = {}
@@ -427,8 +477,9 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         for depto, escuelas_depto in por_depto.items():
             t_depto0 = time.monotonic()
             try:
-                lat_cab, lon_cab = cabeceras[depto]
-                nodo_cabecera = ox.distance.nearest_nodes(grafo, X=lon_cab, Y=lat_cab)
+                # En el extracto local los destinos son localidades urbanas
+                # provinciales; la cabecera se conserva solo para Overpass.
+                nodo_cabecera = None
                 geometrias_depto: list[dict] = []
                 lista_metricas = calcular_metricas_departamento(
                     grafo,
@@ -439,6 +490,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     grafo_seguro_invertido=grafo_seguro_invertido,
                     geometrias_out=geometrias_depto,
                     indice_aristas=indice_aristas,
+                    busqueda_destinos=busqueda_destinos,
                 )
                 for escuela, metricas, geometria in zip(
                     escuelas_depto, lista_metricas, geometrias_depto
@@ -547,7 +599,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         )
     else:
         # Fallback documentado (comportamiento anterior a G1-fix1): red por
-        # departamento via Overpass/osmnx. Solo se usa si falta el extracto local.
+        # departamento via Overpass/osmnx. Solo se usa si falta el extracto local;
+        # en esta rama las cabeceras departamentales siguen siendo el destino.
         fecha_extracto = date.today().isoformat()
         print(
             f"[calcular_aislamiento] extracto local NO encontrado en {PBF_LOCAL_DEFAULT}; "
