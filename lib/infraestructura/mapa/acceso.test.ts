@@ -57,6 +57,58 @@ describe('lineasAcceso', () => {
     })
   })
 
+  it('muestra la vía principal, el destino y la distancia informada', () => {
+    expect(lineasAcceso(geometria({
+      viaPrincipal: { nombre: 'Ruta Provincial 13', tipo: 'primary', pavimentada: true },
+      destino: { nombre: 'Saladas' },
+      distanciaKm: 14,
+    }), null)?.via).toBe('Ruta Provincial 13 (pavimentada) → Saladas · 14 km')
+  })
+
+  it('calcula la distancia cuando no viene informada', () => {
+    expect(lineasAcceso(geometria({
+      viaPrincipal: { nombre: 'Ruta Provincial 13', tipo: 'primary', pavimentada: true },
+      destino: { nombre: 'Saladas' },
+    }), null)?.via).toBe('Ruta Provincial 13 (pavimentada) → Saladas · 1,1 km')
+  })
+
+  it.each([
+    [
+      { nombre: null, tipo: 'residential', pavimentada: true },
+      { nombre: 'Corrientes' },
+      3,
+      'Calle urbana (pavimentada) → Corrientes · 3 km',
+    ],
+    [
+      { nombre: null, tipo: 'unclassified', pavimentada: false },
+      { nombre: 'Saladas' },
+      6,
+      'Camino rural (de ripio) → Saladas · 6 km',
+    ],
+    [
+      { nombre: 'Camino vecinal', tipo: 'track', pavimentada: false },
+      { nombre: 'Mercedes' },
+      31,
+      'Camino vecinal (de tierra) → Mercedes · 31 km',
+    ],
+  ] as const)('aplica el nombre y la superficie de la vía', (viaPrincipal, destino, distanciaKm, texto) => {
+    expect(lineasAcceso(geometria({ viaPrincipal, destino, distanciaKm }), null)?.via).toBe(texto)
+  })
+
+  it('omite el destino cuando no está disponible', () => {
+    expect(lineasAcceso(geometria({
+      viaPrincipal: { nombre: 'Ruta Nacional 12', tipo: 'primary', pavimentada: true },
+      distanciaKm: 9,
+    }), null)?.via).toBe('Ruta Nacional 12 (pavimentada) · 9 km')
+  })
+
+  it('conserva el formato de acceso cuando no hay vía principal', () => {
+    expect(lineasAcceso(geometria({
+      viaPrincipal: null,
+      destino: { nombre: 'Saladas' },
+    }), null)?.via).toBe('Camino de acceso · 1,1 km')
+  })
+
   it.each([
     ['geometría nula', null],
     ['geometría no disponible', geometria({ disponible: false })],
