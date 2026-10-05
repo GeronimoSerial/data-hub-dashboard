@@ -144,7 +144,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
                 >
                   <span className="map-sitact__franja" style={{ backgroundColor: colorSeveridad(NOMBRE_SEVERIDAD[escuela.gravedad]) }} />
                   <span className="map-sitact__contenido-fila">
-                    <span className="map-sitact__nombre">{escuela.nombre}</span>
+                    <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                     <span className="map-sitact__meta">{departamento}{nivel}</span>
                     {chipsEscuela(escuela)}
                   </span>

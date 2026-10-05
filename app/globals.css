@@ -199,7 +199,7 @@
 .map-sitact__fila:hover { background: var(--fill); }
 .map-sitact__franja { align-self: stretch; border-radius: var(--r-xs); }
 .map-sitact__contenido-fila { display: grid; min-width: 0; gap: var(--s-1); }
-.map-sitact__nombre { overflow: hidden; font-size: var(--t-small); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.map-sitact__nombre { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; font-size: var(--t-small); font-weight: 600; }
 .map-sitact__meta { color: var(--ink-faint); font-size: var(--t-micro); }
 .map-sitact__chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
 .map-sitact__pill { display: inline-flex; align-items: center; gap: var(--s-1); padding: 1px var(--s-2); border-radius: var(--r-pill); font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PanelSituacionActual } from './panel-situacion-actual'
@@ -67,6 +68,19 @@ describe('PanelSituacionActual', () => {
     fireEvent.click(screen.getByRole('button', { name: /Escuela Alta/ }))
 
     expect(onSeleccionar).toHaveBeenCalledWith('100')
+  })
+
+  it('conserva el nombre completo y lo limita visualmente a dos líneas', () => {
+    const nombre = 'ESCUELA Nº 276 "SERAFIN IBAÑEZ" - ANEXO DE PARAJE EL CARMEN'
+    const escuela = { ...escuelas[0], cueAnexo: '500', nombre }
+    const { container } = render(<PanelSituacionActual escuelas={[escuela]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
+    const elementoNombre = container.querySelector('.map-sitact__nombre')
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaNombre = css.match(/\.map-sitact__nombre\s*\{[^}]*\}/)?.[0]
+
+    expect(elementoNombre).toHaveTextContent(nombre)
+    expect(elementoNombre).toHaveAttribute('title', nombre)
+    expect(reglaNombre).toContain('line-clamp: 2')
   })
 
   it('muestra el vacío y omite la proporción cuando no hay escuelas sin clases', () => {
