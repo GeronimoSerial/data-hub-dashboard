@@ -2412,7 +2412,7 @@ export default function MapInfraestructuraPage(props: {
       */}
       <FichaParteModal
         cueAnexo={seleccionCue ?? ''}
-        open={fichaAbierta}
+        open={fichaAbierta && !modoRadar}
         onOpenChange={(next) => {
           if (!next) {
             setFichaCerradaCue(seleccionCue)

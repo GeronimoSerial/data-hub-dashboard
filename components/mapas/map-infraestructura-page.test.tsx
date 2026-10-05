@@ -1370,6 +1370,59 @@ describe('Q3: encuadre de la ruta de acceso', () => {
   })
 })
 
+describe('Task 4: cambiar de pestaña a Radar', () => {
+  it('con una ficha abierta, pasar a Radar muestra su panel y oculta la ficha de Situación actual', async () => {
+    const { rerender } = await renderMapa({
+      mostrarEnlaceNominal: true,
+      riskRadarEnabled: true,
+      pestana: 'actual',
+    })
+    await seleccionarPorBuscador('Escuela 1')
+
+    rerender({ pestana: 'radar' })
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(panel).not.toBeEmptyDOMElement()
+    expect(within(panel).getByTestId('panel-radar')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+  })
+
+  it('mantiene el mismo mapa montado al cambiar a Radar', async () => {
+    const { rerender } = await renderMapa({
+      mostrarEnlaceNominal: true,
+      riskRadarEnabled: true,
+      pestana: 'actual',
+    })
+    const mapa = screen.getByTestId('mock-maplibre')
+
+    rerender({ pestana: 'radar' })
+
+    expect(screen.getByTestId('mock-maplibre')).toBe(mapa)
+  })
+
+  it('al volver a Situación actual conserva la selección y permite reabrir la ficha', async () => {
+    const { rerender } = await renderMapa({
+      mostrarEnlaceNominal: true,
+      riskRadarEnabled: true,
+      pestana: 'actual',
+    })
+    await seleccionarPorBuscador('Escuela 1')
+    await cerrarFicha()
+
+    rerender({ pestana: 'radar' })
+    expect(within(screen.getByTestId('panel-lateral')).getByTestId('panel-radar')).toBeInTheDocument()
+
+    rerender({ pestana: 'actual' })
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(panel).not.toBeEmptyDOMElement()
+    expect(within(panel).queryByTestId('panel-radar')).not.toBeInTheDocument()
+    expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('reabrir-ficha'))
+    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute('data-cue', CUE)
+  })
+})
+
 // Q3: los íconos de las capas territoriales (aislamiento, inundación y cruces
 // de agua) se dibujan ENCIMA del polígono del departamento y no estaban en
 // `capasInteractivas`: el click caía en el departamento y terminaba
