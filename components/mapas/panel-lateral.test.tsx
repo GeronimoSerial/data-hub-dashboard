@@ -149,7 +149,6 @@ describe('PanelLateral', () => {
         capas={<p>Contenido capas</p>}
       />,
     )
-    const panel = screen.getByTestId('panel-lateral')
     expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent('Resumen del departamento')
     expect(screen.getByTestId('panel-cuerpo')).toHaveTextContent('Contenido actual')
 
@@ -170,6 +169,24 @@ describe('PanelLateral', () => {
     expect(screen.queryByText('Resumen del departamento')).not.toBeInTheDocument()
     expect(screen.getByText('Ficha seleccionada')).toBeInTheDocument()
   })
+
+  it.each(['actual', 'radar', 'planificacion', 'estadisticas', 'capas'] as const)(
+    'muestra la cabecera en la pestaña %s', (pestana) => {
+      render(
+        <PanelLateral
+          pestana={pestana}
+          seleccion={null}
+          onCerrarFicha={() => {}}
+          cabecera={<p>Escuela seleccionada: Escuela 1</p>}
+          {...contenidos}
+        />,
+      )
+
+      expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent(
+        'Escuela seleccionada: Escuela 1',
+      )
+    },
+  )
 
   it('usa el panel de la pestaña si hay selección pero no se pasó una ficha', () => {
     render(
@@ -224,7 +241,6 @@ describe('PanelLateral', () => {
       />,
     )
 
-    const panel = screen.getByTestId('panel-lateral')
     expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent('Resumen del departamento')
     expect(screen.getByText('Contenido estadísticas')).toBeInTheDocument()
     expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()

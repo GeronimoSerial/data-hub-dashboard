@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InfraestructuraMapClient } from './map-client'
 import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
@@ -48,7 +48,20 @@ vi.mock('@/components/mapas/map-infraestructura-page', () => ({
       })
       return () => props.onRegistrarSeleccion?.(null)
     }, [props.onRegistrarSeleccion])
-    return <div data-testid="mock-mapa" data-pestana={props.pestana} data-panel={props.panel} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''}><div data-testid="panel-lateral">{props.panel === 'estadisticas' && props.estadisticas}</div></div>
+    return (
+      <div data-testid="mock-mapa" data-pestana={props.pestana} data-panel={props.panel} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''}>
+        <div data-testid="panel-lateral">
+          {props.panel === 'estadisticas' && (
+            <>
+              <header data-testid="panel-encabezado">
+                <h2>Estadísticas</h2>
+              </header>
+              {props.estadisticas}
+            </>
+          )}
+        </div>
+      </div>
+    )
   },
 }))
 
@@ -192,7 +205,9 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.getByTestId('pestana-mapa')).not.toHaveAttribute('hidden')
     expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
     expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-panel', 'estadisticas')
-    expect(screen.getByTestId('panel-lateral')).toContainElement(screen.getByRole('heading', { name: 'Estadísticas' }))
+    const panelLateral = screen.getByTestId('panel-lateral')
+    expect(panelLateral).toBeVisible()
+    expect(within(panelLateral).getByRole('heading', { name: 'Estadísticas' })).toBeVisible()
   })
 
   it('muestra las capas de Situación actual mientras el panel cambia a Estadísticas', async () => {
@@ -241,7 +256,9 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(montajesMapa.total).toBe(1)
     expect(mapa).toBeVisible()
 
-    expect(screen.getByRole('heading', { name: 'Estadísticas' })).toBeInTheDocument()
+    const panelLateral = screen.getByTestId('panel-lateral')
+    expect(panelLateral).toBeVisible()
+    expect(within(panelLateral).getByRole('heading', { name: 'Estadísticas' })).toBeVisible()
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))

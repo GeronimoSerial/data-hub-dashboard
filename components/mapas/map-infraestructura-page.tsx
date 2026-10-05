@@ -60,8 +60,8 @@ import '@/components/mapas/maplibre-popup.css'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
 import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
+import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
-import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
@@ -612,8 +612,8 @@ export default function MapInfraestructuraPage(props: {
   // la ficha (X o Esc) borraba `seleccionCue` y con él la ruta, el resaltado y
   // la leyenda, sin forma de volver atrás. Ahora `seleccionCue` sigue siendo la
   // selección (dura hasta "Quitar selección" o hasta otro cue) y este estado
-  // sólo recuerda el cue cuya ficha el usuario cerró, para que el grupo
-  // `.map-seleccion-acciones` ofrezca "Ver ficha" de nuevo.
+  // sólo recuerda el cue cuya ficha el usuario cerró, para que el sidebar
+  // ofrezca "Ver ficha" de nuevo.
   //
   // `fichaAbierta` se DERIVA (sin sincronizarla con un useEffect): hay una
   // selección no cerrada y la pestaña donde se eligió es la actual. Toda
@@ -1799,20 +1799,41 @@ export default function MapInfraestructuraPage(props: {
             pestana={panelLateral}
             seleccion={fichaAbierta ? seleccionCue : null}
             onCerrarFicha={cerrarFicha}
-            cabecera={departamentoSeleccionado ? (
-              <ResumenDepartamento
-                nombre={departamentoSeleccionado}
-                totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
-                onQuitar={() => {
-                  entradaPuntosPendiente.current = true
-                  setPuntosVisibles(false)
-                  setDepartamentoSeleccionado(null)
-                  mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
-                }}
-              />
-            ) : undefined}
+            cabecera={(
+              <>
+                {seleccionCue !== null && !fichaAbierta && (
+                  <SeleccionEscuela
+                    nombre={escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}
+                    onVerFicha={() => {
+                      setFichaPestana(panelLateral)
+                      setFichaCerradaCue(null)
+                    }}
+                    onQuitarSeleccion={() => {
+                      setSeleccionCue(null)
+                      setEscuelaResaltada(null)
+                      setFichaCerradaCue(null)
+                      setFichaPestana(null)
+                      setAvisoBusqueda(null)
+                      setCruceInfoClic(null)
+                    }}
+                  />
+                )}
+                {departamentoSeleccionado && (
+                  <ResumenDepartamento
+                    nombre={departamentoSeleccionado}
+                    totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
+                    onQuitar={() => {
+                      entradaPuntosPendiente.current = true
+                      setPuntosVisibles(false)
+                      setDepartamentoSeleccionado(null)
+                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+                    }}
+                  />
+                )}
+              </>
+            )}
             subtitulos={{
-              actual: actualizadoEn ? horaActualizacion(actualizadoEn, Date.now()) : undefined,
+              actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
               radar: 'Pronóstico',
               estadisticas: 'Según los filtros activos',
             }}
@@ -1883,53 +1904,6 @@ export default function MapInfraestructuraPage(props: {
 
       {!radarActivo && <FullscreenButton targetRef={shellRef} />}
 
-      {/*
-        Con una escuela seleccionada y la ficha cerrada, la selección queda
-        visible en el mapa (resaltado + ruta) pero sin ningún control: la
-        única forma de volver atrás era abrir otra escuela y perder el trabajo
-        de leer la ruta. Este grupo devuelve las dos acciones que importan.
-
-        Deliberadamente NO usa un modal: es un par de botones, y sin ficha
-        abierta no hay backdrop que esconda nada. Sólo en "Situación actual" —
-        en Radar el grupo estorbaría a los paneles de riesgo, y la
-        selección de ficha no compite ahí con su propio panel de explicación.
-      */}
-      {seleccionCue !== null &&
-        !fichaAbierta &&
-        !modoRadar &&
-        (
-          <div className="map-seleccion-acciones" role="group" aria-label="Escuela seleccionada">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              data-testid="reabrir-ficha"
-              aria-label={`Reabrir la ficha de ${escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}`}
-              onClick={() => {
-                setFichaPestana(panelLateral)
-                setFichaCerradaCue(null)
-              }}
-            >
-              Ver ficha
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              data-testid="quitar-seleccion"
-              onClick={() => {
-                setSeleccionCue(null)
-                setEscuelaResaltada(null)
-                setFichaCerradaCue(null)
-                setFichaPestana(null)
-                setAvisoBusqueda(null)
-                setCruceInfoClic(null)
-              }}
-            >
-              Quitar selección
-            </Button>
-          </div>
-        )}
     </div>
   )
 }

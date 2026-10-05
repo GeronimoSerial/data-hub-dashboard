@@ -2254,24 +2254,36 @@ time {
 .ayuda-leyenda p,
 .ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
 
-/* Acciones de una selección viva con la ficha cerrada ("Ver ficha" /
-   "Quitar selección"). Quedan por encima de la leyenda centrada en el borde
-   inferior. */
-.map-seleccion-acciones {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(var(--s-3) + var(--s-8) + var(--s-5));
-  z-index: 5;
-  display: flex;
-  gap: var(--s-2);
-}
-
 .map-sitact__resumen-depto {
   display: grid;
   gap: var(--s-1);
   padding-bottom: var(--s-2);
   border-bottom: 1px solid var(--line);
+}
+.map-sidebar-seleccion {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--fill);
+  border-radius: var(--r-md);
+}
+.map-sidebar-seleccion__rotulo,
+.map-sidebar-seleccion__nombre { margin: 0; }
+.map-sidebar-seleccion__rotulo {
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+.map-sidebar-seleccion__nombre {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.map-sidebar-seleccion__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
 }
 .map-sitact__resumen-depto h2,
 .map-sitact__resumen-depto p { margin: 0; }
@@ -3003,8 +3015,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     bottom: calc(60vh + 12px);
   }
 
-  /* Separa las acciones de selección de la atribución del mapa. */
-  .map-seleccion-acciones { bottom: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
