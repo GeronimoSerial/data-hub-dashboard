@@ -25,7 +25,8 @@
 - [x] Polish 2 (H1–H14 + full B4 visual coverage) — merged 297131a (11 commits). N1 rejected a "no auto-retry after timeout" change (it broke the auto-resend guarantee); fixed in 866abe3
 - [x] Final blind re-review #2 — full coverage (m+d); NOT APPROVED: 5 important (cause list unfiltered, Retry disabled during hang, Actualizar CTA under the history, admin table clipped, Cambió cascade stacked) + 13 minor
 - [x] Polish 3 (#1–#18) — merged f21c40a (14 commits); 15-day cause window and auto-retry kept
-- [ ] Final blind re-review #3 — running, dispatch ctx_664ecfddf206, isolated env visual4
+- [x] Final blind re-review #3 — NOT APPROVED: 6 important, all new and finer-grained (I1 hidden date error, I2 assistance options, I3 order of the new-situation flow, I4 401 copy uses voseo, I5 history events indistinguishable, I6 Actualizar draft restored incompletely) + 17 minor
+- [ ] Polish 4 (I1–I6 + M1, scoped) — running
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
