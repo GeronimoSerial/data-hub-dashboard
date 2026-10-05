@@ -3671,15 +3671,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .historial-estado__accion { align-self: flex-start; }
 
 .historial-volver {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--accent);
-  font-size: var(--t-small);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  justify-self: start;
+  min-height: 48px;
+}
+
+@media (max-width: 480px) {
+  .historial-volver:last-child { justify-self: stretch; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

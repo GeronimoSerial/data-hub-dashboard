@@ -42,20 +42,22 @@ export default async function HistorialPartePage({
     )
   }
 
+  const enlaceVolver = `/problematicas/parte?cue=${encodeURIComponent(cueNormalizado.value)}`
+
   return (
     <div className="publico-content publico-content--parte">
       <div className="historial-contenido">
         <EncabezadoParte pantalla={TITULO} descripcion="Los cambios más recientes aparecen primero." />
-        <a
-          className="historial-volver"
-          href={`/problematicas/parte?cue=${encodeURIComponent(cueNormalizado.value)}`}
-        >
-          Volver al parte
+        <a className="ui-button ui-button--secondary historial-volver" href={enlaceVolver}>
+          Volver al estado actual
         </a>
         <HistorialParte
           cue={cueNormalizado.value}
           endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cueNormalizado.value)}`}
         />
+        <a className="ui-button ui-button--secondary historial-volver" href={enlaceVolver}>
+          Volver al estado actual
+        </a>
       </div>
     </div>
   )
