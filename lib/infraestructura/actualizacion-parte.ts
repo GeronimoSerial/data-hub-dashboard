@@ -41,6 +41,9 @@ export function afectacionVigenteABorrador(vigente: AfectacionVigente): Afectaci
     categoria: vigente.categoria,
     motivo: vigente.motivo,
     severidad: vigente.severidad,
+    justificacionCritica: '',
+    justificacionCriticaDetalle: '',
+    alcanceEstablecimiento: '',
     secciones: vigente.secciones.map((s) => s.geSectionId),
     alumnos: vigente.secciones.flatMap((s) =>
       s.seccionCompleta ? [] : s.alumnos.map((a) => a.gePersonId),

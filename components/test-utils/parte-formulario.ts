@@ -29,5 +29,6 @@ export const turnos = [
 export const motivos: MotivoRow[] = [
   { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
   { id: 'tormenta-severa', nombre: 'Tormenta severa', categoria: 'establecimiento', orden: 20 },
+  { id: 'sin-energia-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 30, severidadSugerida: 'Media' },
   { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
 ]

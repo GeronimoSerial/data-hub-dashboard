@@ -117,6 +117,25 @@ describe('ReporteInicialForm', () => {
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
     })
   })
+
+  it('una Crítica justificada viaja al servidor con su justificación', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sin energía o agua' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Se prolonga en el tiempo o no tiene fecha de solución' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar' }))
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const cuerpo = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ severidad: 'Crítica', justificacionCritica: 'se_prolonga' })
+  })
   // El motivo de fondo del rediseño: la pantalla anterior abría con un título
   // "Afectaciones" vacío y un botón de agregar, y se leía como una invitación
   // a encadenar problemas. El primer reporte declara UN hecho.

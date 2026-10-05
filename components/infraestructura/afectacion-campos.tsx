@@ -3,11 +3,11 @@
 import type { JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
-import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
-import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
-import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
+import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
+import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +17,9 @@ export interface AfectacionBorrador {
   categoria: CategoriaAfectacion | ''
   motivo: string
   severidad: Severidad | ''
+  justificacionCritica: JustificacionCritica | ''
+  justificacionCriticaDetalle: string
+  alcanceEstablecimiento: '' | 'toda' | 'algunas'
   secciones: number[]
   alumnos: number[]
   descripcion: string
@@ -67,6 +70,9 @@ export function crearAfectacionVacia(clientId: string): AfectacionBorrador {
     categoria: '',
     motivo: '',
     severidad: '',
+    justificacionCritica: '',
+    justificacionCriticaDetalle: '',
+    alcanceEstablecimiento: '',
     secciones: [],
     alumnos: [],
     descripcion: '',
@@ -193,7 +199,13 @@ export function CamposQuePaso({
                   name={`${idPrefijo}-motivo`}
                   value={m.nombre}
                   checked={borrador.motivo === m.nombre}
-                  onChange={() => onChange({ ...borrador, motivo: m.nombre })}
+                  onChange={() => onChange({
+                    ...borrador,
+                    motivo: m.nombre,
+                    severidad: '',
+                    justificacionCritica: '',
+                    justificacionCriticaDetalle: '',
+                  })}
                   disabled={disabled}
                 />
                 <span className="opcion-radio__texto">
@@ -205,53 +217,14 @@ export function CamposQuePaso({
         )}
       </fieldset>
 
-      {/*
-        Cada nivel lleva escrito qué lo distingue del siguiente. La
-        especificación define que la severidad es por afectación pero no sus
-        criterios, así que sin esto "Alta" y "Crítica" quedaban a
-        interpretación de cada director y el dato dejaba de ser comparable
-        entre escuelas.
-
-        Va como texto a la vista y NO como tooltip: lo llena un director desde
-        el celular, donde no existe el hover, y el contrato de UX de este
-        recorrido prohíbe poner algo necesario detrás de él. El criterio se lee
-        justo cuando hay que decidir, sin un gesto extra.
-
-        El criterio viaja por aria-describedby y no dentro de la etiqueta: así
-        el nombre accesible de la opción sigue siendo "Alta" y no la frase
-        entera, que es lo que un lector de pantalla necesita para anunciar la
-        selección.
-      */}
-      <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Qué tan grave es?</legend>
-        <div className="afectacion-campos__opciones">
-          {SEVERIDADES.map((s) => (
-            <label key={s} className="opcion-radio">
-              <input
-                type="radio"
-                name={`${idPrefijo}-severidad`}
-                value={s}
-                checked={borrador.severidad === s}
-                onChange={() => onChange({ ...borrador, severidad: s })}
-                disabled={disabled}
-                aria-labelledby={`${idPrefijo}-severidad-${s}-nombre`}
-                aria-describedby={`${idPrefijo}-severidad-${s}-criterio`}
-              />
-              <span className="opcion-radio__texto">
-                {/* Con la marca al lado, elegir severidad deja de ser leer
-                    cuatro palabras sueltas y pasa a ser ubicarse en una
-                    escala — la misma que después ve en el parte. */}
-                <span className="opcion-radio__titulo" id={`${idPrefijo}-severidad-${s}-nombre`}>
-                  <EstadoActualSeveridad severidad={s} prefijo={false} marca={false} />
-                </span>
-                <span className="opcion-radio__ayuda" id={`${idPrefijo}-severidad-${s}-criterio`}>
-                  {SEVERIDAD_CRITERIOS[s]}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <CampoGravedad
+        idPrefijo={idPrefijo}
+        categoria={borrador.categoria}
+        sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
+        valor={borrador}
+        onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}
+        disabled={disabled}
+      />
 
       {duplicado?.coincidenciaExacta && (
         <p className="aviso-badge" role="status">

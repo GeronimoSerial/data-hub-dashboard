@@ -10,6 +10,7 @@ import {
   totalAlumnosDe,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
+import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import {
   ETIQUETA_ESTABLECIMIENTO,
@@ -21,6 +22,8 @@ import { Button } from '@/components/ui/button'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
+import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
+import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
 import {
   etiquetaVigencia,
@@ -142,6 +145,9 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
   if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  if (a.justificacionCritica !== undefined && a.justificacionCritica !== '' && !JUSTIFICACIONES_CRITICA.includes(a.justificacionCritica as (typeof JUSTIFICACIONES_CRITICA)[number])) return false
+  if (a.justificacionCriticaDetalle !== undefined && typeof a.justificacionCriticaDetalle !== 'string') return false
+  if (a.alcanceEstablecimiento !== undefined && a.alcanceEstablecimiento !== '' && a.alcanceEstablecimiento !== 'toda' && a.alcanceEstablecimiento !== 'algunas') return false
   return true
 }
 
@@ -236,7 +242,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       const pasos = pasosDe(borrador.afectacion.categoria)
       const pasoRestaurado = pasos.includes(borrador.paso) ? borrador.paso : 4
       setPaso(pasoRestaurado)
-      setAfectacion(borrador.afectacion)
+      setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
       setServicioEstado(borrador.servicioEstado)
       setEstadoEstablecimiento(borrador.estadoEstablecimiento)
       setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
@@ -327,6 +333,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         {
           motivo: afectacion.motivo,
           severidad: afectacion.severidad as Severidad,
+          justificacionCritica: afectacion.justificacionCritica || undefined,
+          justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle || undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
@@ -469,8 +477,17 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // contestar es una acusación, no una ayuda.
   function faltanteDelPaso(actual: Paso): string | null {
     if (actual === 1) {
-      const completo =
-        afectacion.categoria !== '' && afectacion.motivo !== '' && afectacion.severidad !== ''
+      const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
+      const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
+      if (
+        !completo &&
+        afectacion.categoria !== '' &&
+        afectacion.motivo !== '' &&
+        afectacion.severidad !== '' &&
+        requiereJustificacionCritica(afectacion.severidad, sugerida)
+      ) {
+        return 'Indique por qué la situación es crítica.'
+      }
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
