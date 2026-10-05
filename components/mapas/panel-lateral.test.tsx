@@ -90,6 +90,39 @@ describe('PanelLateral', () => {
     expect(screen.getByTestId('panel-lateral')).not.toBeEmptyDOMElement()
   })
 
+  it('muestra la cabecera antes del contenido y la oculta con la ficha', () => {
+    const cabecera = <p>Resumen del departamento</p>
+    const { rerender } = render(
+      <PanelLateral
+        pestana="actual"
+        seleccion={null}
+        onCerrarFicha={() => {}}
+        cabecera={cabecera}
+        actual={<p>Contenido actual</p>}
+        radar={<p>Contenido radar</p>}
+        planificacion={<p>Contenido de planificación</p>}
+      />,
+    )
+    const panel = screen.getByTestId('panel-lateral')
+    expect(panel.firstElementChild).toHaveTextContent('Resumen del departamento')
+    expect(panel.lastElementChild).toHaveTextContent('Contenido actual')
+
+    rerender(
+      <PanelLateral
+        pestana="actual"
+        seleccion="1801605-04"
+        onCerrarFicha={() => {}}
+        ficha={<p>Ficha seleccionada</p>}
+        cabecera={cabecera}
+        actual={<p>Contenido actual</p>}
+        radar={<p>Contenido radar</p>}
+        planificacion={<p>Contenido de planificación</p>}
+      />,
+    )
+    expect(screen.queryByText('Resumen del departamento')).not.toBeInTheDocument()
+    expect(screen.getByText('Ficha seleccionada')).toBeInTheDocument()
+  })
+
   it('usa el panel de la pestaña si hay selección pero no se pasó una ficha', () => {
     render(
       <PanelLateral

@@ -662,17 +662,6 @@ function viewport(ancho: number, alto: number) {
   vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(alto)
 }
 
-// Detecta el popup de clic del departamento ("En <depto> hay N escuelas · …").
-// Se ancla en la fórmula propia del popup de departamento para no confundirlo
-// con los textos del panel lateral o del popup de cluster.
-// Se usa como matcher de texto de Testing Library, que la invoca como
-// `(contenido, elemento)`: el segundo parámetro es el que lleva el tag. Por eso
-// el primero se descarta con `_`.
-function esParrafoPopupDepartamento(_contenido: string, elemento: Element | null): boolean {
-  if (elemento?.tagName !== 'P') return false
-  return /^\s*En .+ hay .+escuelas ·/.test(elemento.textContent ?? '')
-}
-
 beforeEach(() => {
   MAPA_ESTILO_MOCK.mapStyle = ''
   MAPA_ESTILO_MOCK.onStyleData = null
@@ -750,10 +739,12 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     async () => {
       await renderMapa({ mostrarEnlaceNominal: true })
       await userEvent.click(screen.getByTestId('mock-click-departamento'))
-      expect(screen.getByText('Departamento:')).toBeInTheDocument()
-      expect(screen.getByText('Departamento:').parentElement).toHaveTextContent('Capital')
+      const panel = within(screen.getByTestId('panel-lateral'))
+      expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
+      expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('10 escuelas · 3 con situaciones abiertas · 30%')
+      expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
       await userEvent.click(screen.getByText('Quitar filtro'))
-      expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
+      expect(screen.queryByRole('region', { name: 'Departamento seleccionado' })).not.toBeInTheDocument()
     },
     15000,
   )
@@ -798,7 +789,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
     // El click noSeleccionó el departamento que está debajo del ícono.
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+    expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
   })
 
   it('abre el modal nominal desde la ficha', async () => {
@@ -1245,31 +1236,13 @@ describe('MapInfraestructuraPage — Planificación', () => {
 })
 
 describe('M1: clic de departamento y buscador de escuelas', () => {
-  // El popup de departamento arma su texto con <strong> intercalados ("En
-  // <strong>Capital</strong> hay <strong>10</strong> escuelas…"), así que el
-  // matcher por defecto de getByText (que sólo mira los text nodes DIRECTOS)
-  // no lo ve. Se matchea por tagName + textContent completo del <p>.
-  const esParrafoHover = (element: Element | null): boolean =>
-    element?.tagName === 'P' &&
-    /En Capital hay 10 escuelas/.test(element.textContent ?? '')
-  const popupHover = () => screen.queryByText((_contenido, element) => esParrafoHover(element))
-  const esperarSinPopupHover = () =>
-    waitFor(() => expect(popupHover()).not.toBeInTheDocument())
-
-  it('clic de departamento muestra el total, las situaciones abiertas y el porcentaje, y se cierra con Esc', async () => {
+  it('clic de departamento muestra el resumen en el sidebar, sin popup flotante', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
-
-    expect(popupHover()).not.toBeInTheDocument()
-
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-
-    const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
-    expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
-    expect(popup).toHaveTextContent('3 con situaciones abiertas')
-    expect(popup).toHaveTextContent('30%')
-
-    await userEvent.keyboard('{Escape}')
-    await esperarSinPopupHover()
+    const panel = within(await screen.findByTestId('panel-lateral'))
+    expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Departamento: Capital')
+    expect(panel.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('10 escuelas · 3 con situaciones abiertas · 30%')
+    expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
   })
 
   it('clic de cluster muestra escuelas con situaciones abiertas', async () => {
@@ -1282,41 +1255,51 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     )).toHaveTextContent('3 con situaciones abiertas (1 críticas, 2 altas)')
   })
 
-  it('clickear el mismo departamento de nuevo cierra el popup', async () => {
+  it('Esc cierra el popup de cluster', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
+    await userEvent.click(screen.getByTestId('mock-click-cluster'))
 
-    await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
-
-    await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    await esperarSinPopupHover()
+    const popup = () => screen.queryByText((_contenido, element) =>
+      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
+    )
+    expect(await screen.findByText((_contenido, element) =>
+      element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
+    )).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(popup()).not.toBeInTheDocument()
   })
 
-  it('clickear otro departamento reemplaza el popup', async () => {
+  it('clickear el mismo departamento de nuevo quita el filtro', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Departamento seleccionado' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(screen.queryByRole('region', { name: 'Departamento seleccionado' })).not.toBeInTheDocument()
+  })
+
+  it('clickear otro departamento reemplaza el resumen del sidebar', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
+
+    await userEvent.click(screen.getByTestId('mock-click-departamento'))
+    expect(await screen.findByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Capital')
 
     await userEvent.click(screen.getByTestId('mock-click-departamento-empedrado'))
-    await esperarSinPopupHover()
+    expect(screen.getByRole('region', { name: 'Departamento seleccionado' })).toHaveTextContent('Empedrado')
   })
 
-  // Q20: el hover se sacó; estos dos casos ahora clickean una escuela/cluster.
-  // El clic sobre la escuela abre su ficha (no un tooltip) y el clic sobre un
-  // cluster dispara el zoom de expansión, así que el popup de departamento no
-  // aplica: se borran los tests "el tooltip X gana al de departamento" porque
-  // ya no hay tooltips de hover.
-
-  it('al cambiar de modo se limpia el popup de departamento (no queda clavado)', async () => {
-    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true })
-
+  it('oculta el resumen del departamento mientras la ficha de escuela está abierta', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
     await userEvent.click(screen.getByTestId('mock-click-departamento'))
-    expect(await screen.findByText((_contenido, element) => esParrafoHover(element))).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mock-click-parte'))
 
-    rerender({ pestana: 'radar' })
-    await esperarSinPopupHover()
+    expect(await screen.findByTestId('mock-ficha-escuela')).toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).queryByRole('region', { name: 'Departamento seleccionado' })).not.toBeInTheDocument()
   })
+
+  // El clic sobre una escuela abre su ficha y el clic sobre un cluster
+  // expande el zoom; ninguno cambia el filtro departamental.
 
   it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y abre la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
@@ -1778,12 +1761,20 @@ describe('accesos territoriales fuera de los controles generales', () => {
     // Un cruce es un dato, no una selección: no abre ficha ni filtra.
     expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+    expect(screen.queryByText(/En Capital hay 10 escuelas/)).not.toBeInTheDocument()
 
-    // Cualquier otro clic lo cierra (mismo criterio que el popup de
-    // departamento).
+    // Cualquier otro clic lo cierra.
     await userEvent.click(screen.getByTestId('mock-click-parte'))
     await waitFor(() => expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument())
+  })
+
+  it('Esc cierra el popup del cruce de agua', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+    await userEvent.click(screen.getByTestId('mock-click-cruce'))
+    expect(await screen.findByText(/Cruce de agua: Sin puente registrado/)).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByText(/Cruce de agua: Sin puente registrado/)).not.toBeInTheDocument()
   })
 })
 

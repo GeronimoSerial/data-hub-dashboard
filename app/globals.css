@@ -2244,17 +2244,23 @@ time {
   gap: var(--s-2);
 }
 
-.map-departamento-seleccionado {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
+.map-sitact__resumen-depto {
+  display: grid;
+  gap: var(--s-1);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
 }
-.map-departamento-seleccionado button {
-  flex: none;
+.map-sitact__resumen-depto h2,
+.map-sitact__resumen-depto p { margin: 0; }
+.map-sitact__resumen-depto h2 { font-size: var(--t-body); }
+.map-sitact__resumen-depto p { color: var(--ink-soft); font-size: var(--t-small); }
+.map-sitact__resumen-depto button {
+  justify-self: start;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--ink);
+  font: inherit;
   text-decoration: underline;
   cursor: pointer;
 }

@@ -8,6 +8,8 @@ export interface PanelLateralProps {
   onCerrarFicha: () => void
   /** Ficha de la selección; sólo se muestra si hay `seleccion`. */
   ficha?: ReactNode
+  /** Cabecera compartida por las pestañas, oculta mientras se muestra una ficha. */
+  cabecera?: ReactNode
   actual: ReactNode
   radar: ReactNode
   planificacion: ReactNode
@@ -15,7 +17,8 @@ export interface PanelLateralProps {
 
 export function PanelLateral(props: PanelLateralProps) {
   let contenido = props.actual
-  if (props.seleccion !== null && props.ficha != null) {
+  const mostrandoFicha = props.seleccion !== null && props.ficha != null
+  if (mostrandoFicha) {
     contenido = props.ficha
   } else if (props.pestana === 'radar') {
     contenido = props.radar
@@ -24,5 +27,10 @@ export function PanelLateral(props: PanelLateralProps) {
   }
 
   // Lo invocan las fichas que se montan acá desde la Task 13.
-  return <div className="map-panel-lateral" data-testid="panel-lateral">{contenido}</div>
+  return (
+    <div className="map-panel-lateral" data-testid="panel-lateral">
+      {!mostrandoFicha && props.cabecera}
+      {contenido}
+    </div>
+  )
 }

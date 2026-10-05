@@ -58,6 +58,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
+import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
@@ -459,16 +460,6 @@ const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
   reloj: 'Sin actualizar',
 }
 
-// ── Popup de CLIC del departamento ──────────────────────────────────────────
-//
-// El resumen de un departamento (total, afectadas, porcentaje) ya no aparece
-// al pasar el mouse: se guarda acá y se muestra recién al hacer CLIC sobre la
-// capa del departamento (ver `handleClick`). Un solo estado, un solo Popup.
-// Se cierra al volver a clickear el mismo departamento (toggle), al clickear
-// otro (se reemplaza), al clickear una escuela/cluster, al cambiar de modo o
-// con Esc.
-type InfoDepartamentoClic = { lng: number; lat: number; nombre: string }
-
 // Popup del cruce de agua clickeado: misma forma (anclado al `lngLat` del
 // evento) que el del departamento. Guarda la CLASE del cruce, no su texto: la
 // etiqueta sale de `ETIQUETAS_CRUCE`, la única fuente de verdad del dominio.
@@ -638,13 +629,8 @@ export default function MapInfraestructuraPage(props: {
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
-  // Resumen del departamento clickeado. Reemplaza al tooltip de hover: la
-  // información aparece recién con el CLIC (ver `handleClick`), nunca con el
-  // mouse quieto encima.
-  const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
-    setDepartamentoInfoClic(null)
   }, [seleccionCue])
   const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
@@ -732,7 +718,6 @@ export default function MapInfraestructuraPage(props: {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
-    setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
@@ -831,20 +816,18 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [props.visible])
 
-  // Cierre con Esc de los popups abiertos por clic. Un solo listener los cierra
-  // todos, y sólo existe mientras alguno está abierto (mismo patrón que
-  // `FichaParteModal`).
+  // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
+  // listener vive mientras alguno está abierto (mismo patrón que `FichaParteModal`).
   useEffect(() => {
-    if (!departamentoInfoClic && !clusterInfoClic && !cruceInfoClic) return
+    if (!clusterInfoClic && !cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setDepartamentoInfoClic(null)
       setClusterInfoClic(null)
       setCruceInfoClic(null)
     }
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [departamentoInfoClic, clusterInfoClic, cruceInfoClic])
+  }, [clusterInfoClic, cruceInfoClic])
 
   const datosAlertasFiltrados = useMemo(() => {
     if (!data || !props.escuelasMapa) return data
@@ -1152,9 +1135,6 @@ export default function MapInfraestructuraPage(props: {
   const handleClick = useCallback((event: MapLayerMouseEvent) => {
     const features = event.features ?? []
 
-    // Cualquier clic cierra el popup de departamento vigente; si el clic cae
-    // sobre un departamento, se vuelve a abrir más abajo con sus números.
-    setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
 
@@ -1229,11 +1209,6 @@ export default function MapInfraestructuraPage(props: {
       if (siguiente === null) {
         mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
       }
-      // Mismo resumen que antes mostraba el hover, ahora atado al clic. Al
-      // deseleccionar (toggle sobre el mismo departamento) queda cerrado.
-      setDepartamentoInfoClic(
-        siguiente === null ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
-      )
     }
   }, [
     radarActivo,
@@ -1241,7 +1216,6 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
-    setDepartamentoInfoClic,
     setClusterInfoClic,
     setCruceInfoClic,
     setSeleccionCue,
@@ -1341,17 +1315,6 @@ export default function MapInfraestructuraPage(props: {
     <>
       {!modoRadar && (
         <>
-          {departamentoSeleccionado && (
-            <div className={`${styles.panel} map-departamento-seleccionado`}>
-              <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
-              <button type="button" onClick={() => {
-                entradaPuntosPendiente.current = true
-                setPuntosVisibles(false)
-                setDepartamentoSeleccionado(null)
-                mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
-              }}>Quitar filtro</button>
-            </div>
-          )}
           <PanelSituacionActual
             escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
             actualizadoEn={actualizadoEn}
@@ -1750,29 +1713,6 @@ export default function MapInfraestructuraPage(props: {
 
           <RadarMeteo activo={radarActivo} variable={variableRadar} escuelas={dataEscuelasMapa?.escuelas ?? []} />
 
-          {/*
-            Popup del departamento clickeado: mismo contenido y estilo que el
-            viejo tooltip de hover, pero atado al CLIC (ver `handleClick`). Las
-            escuelas y los clusters no tienen popup: el clic ya abre la ficha o
-            hace zoom de expansión.
-          */}
-          {departamentoInfoClic && (() => {
-            const clave = normalizarNombreDepartamento(departamentoInfoClic.nombre)
-            const totales = totalesPorDepartamento.get(clave)
-            if (!totales) return null
-            return (
-              <Popup
-                longitude={departamentoInfoClic.lng}
-                latitude={departamentoInfoClic.lat}
-                {...PROPS_POPUP_INFO}
-              >
-                <p>
-                  En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                  <strong>{totales.escuelasAfectadas}</strong> con situaciones abiertas · representa <strong>{totales.porcentajeAfectadas}%</strong>
-                </p>
-              </Popup>
-            )
-          })()}
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
               Mismo componente y estilo que el del departamento: un dato
               puntual que se lee sin cambiar de modo. La etiqueta sale de
@@ -1884,6 +1824,18 @@ export default function MapInfraestructuraPage(props: {
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
             seleccion={fichaAbierta ? seleccionCue : null}
             onCerrarFicha={cerrarFicha}
+            cabecera={departamentoSeleccionado ? (
+              <ResumenDepartamento
+                nombre={departamentoSeleccionado}
+                totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
+                onQuitar={() => {
+                  entradaPuntosPendiente.current = true
+                  setPuntosVisibles(false)
+                  setDepartamentoSeleccionado(null)
+                  mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+                }}
+              />
+            ) : undefined}
             ficha={fichaAbierta && escuelaSeleccionada ? (
               <FichaEscuelaPanel
                 key={seleccionCue}
