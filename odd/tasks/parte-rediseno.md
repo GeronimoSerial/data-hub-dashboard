@@ -57,3 +57,4 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - Integrated feat/staging 8208242: tsc clean; vitest 2749 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
 - Pending product decisions: split wizard step 3 (4 decisions on one screen); "No" preselected for pedagogical assistance in Actualizar; unify validation (wizard shows the error vs Situación nueva disables the button).
 - Pending minors: admin side menu on mobile; outdated-draft notice and the category/Crítica sheets not re-captured; minor findings in ~/.cache/parte-n2/visual4/report.md.
+- Step 3 split (user decision): establecimiento 1·2·3 Clases y edificio·4 ¿Desde cuándo?·5 Confirmar; alumnos 1·2·4·5. Versioned draft migration (borrador-migracion.ts, version 2). Merged bfcd8ab; tsc clean; vitest 2763 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0. Minor: the step-4 title repeats the question.
