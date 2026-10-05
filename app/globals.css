@@ -4677,7 +4677,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .algo-nuevo__datos > .asistente__cuerpo:first-child { border-top: 0; padding-top: 0; }
 
 .algo-nuevo__causa-estado { color: var(--ink-faint); }
-.algo-nuevo__ver-causas { align-self: flex-start; }
+.algo-nuevo__ver-causas { align-self: flex-start; padding-inline: 0; text-decoration: underline; text-underline-offset: 3px; }
 .algo-nuevo__acciones {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

@@ -123,13 +123,13 @@ function crearLineasResumen(
     }
 
     const filas: FilaResumenActualizacion[] = []
-    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
     if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
       filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
-      filas.push({ etiqueta: 'Clases', valor: `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
+      filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
     }
     if (filas.length) bloques.push({ titulo: situacion.motivo, filas })
   }
