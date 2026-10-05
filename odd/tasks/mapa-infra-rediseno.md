@@ -29,14 +29,14 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 
 ## Checklist
 
-- [ ] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b; N2 done and released; N1 code review OK; pending: N1 build + full suite + visual review, then merge
+- [x] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b, visual fix ed05c46; merged b8bc99a
 - [ ] B2 — Tasks 5–9 (datos enriquecidos y filtros)
 - [ ] B3 — Tasks 10–15 (situación actual)
 - [ ] B4 — Tasks 16–19 (radar y planificación)
 - [ ] B5 — Tasks 20–22 (estadísticas)
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
 - [ ] T27 — vía principal en la UI
-- [ ] Visual review per batch (N1)
+- [ ] Visual review per batch (N1) — B1 done
 
 ## Progress / evidence
 
@@ -54,4 +54,5 @@ Wave 1: B6 merged; B1 running (T1–T4 committed, N2 on its gate). Full isolatio
 B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (worktree mapa-b2, dispatch ctx_355231408d95); if B1 changes after review, the B2 N2 merges feat/mapa-b1 into its branch. B2 merges into feat/staging only after B1.
 - B1 gate (N2): tsc clean, lint 0 errors, focused vitest 192 green; full suite timed out at 900 s under machine load (48 DB/PGlite files failing in beforeAll, unrelated to the diff) and build skipped because the isolation job held heavy.lock. N1 runs build + full suite before merging.
 - Isolation job v3 (user-authorized, local): success in 1126 s; 1989/2001 schools with route (99.4%, was 1985); 51 destinations used; median 4.7 km, p90 36.6 km; crossings puente 943, sin_evidencia 765, vado 0. Output committed with GEOMETRIA_DEFAULT → v3 (86d2135). Not done: route-exposure recompute (exposicion_ruta v1 still computed on v2 routes) and import into staging (needs authorization).
-- B1 visual review (N1, dev server :3210 from mapa-b1, demo DB copy): tab row OK; Estadísticas hides the map OK. FINDING: in Radar the placeholder `panel-radar` in the left stack renders as an empty white box behind `.radar-meteo-controls` → fix dispatched (ctx_070bc14bbf17). Notes for B3: access hint copy still says 'hasta la ciudad cabecera del departamento' (Task 14 must change it); demo DB has 0 partes, so seed demo partes before B3 visual review. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
+- B1 visual review (N1, dev server :3210 from mapa-b1, demo DB copy): tab row OK; Estadísticas hides the map OK. FINDING: in Radar the placeholder `panel-radar` in the left stack renders as an empty white box behind `.radar-meteo-controls` → fix dispatched (ctx_070bc14bbf17) → ed05c46, re-checked visually OK.
+- B1 gate (N1): build exit 0; full vitest 2455 passed / 1 failed (known radar-meteo/resumen) / 23 skipped. Merged b8bc99a; post-merge tsc clean, map tests 221 passed. B2 N2 told to merge feat/mapa-b1. Notes for B3: access hint copy still says 'hasta la ciudad cabecera del departamento' (Task 14 must change it); demo DB has 0 partes, so seed demo partes before B3 visual review. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
