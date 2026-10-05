@@ -1494,6 +1494,7 @@ time {
   }
 }
 .confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
+.confirm-sheet__cuerpo > .opcion + .opcion { margin-top: var(--s-2); }
 .confirm-sheet__acciones {
   display: flex;
   gap: var(--s-3);
@@ -3127,6 +3128,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .secciones-selector__seccion { display: flex; flex-direction: column; }
+.secciones-selector__seccion + .secciones-selector__seccion { border-top: 1px solid var(--line-soft); }
 
 /* Each section is a row, not a floating checkbox: full-bleed hit area and a
    hover tint so the list scans like a list. */
@@ -3349,8 +3351,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   box-sizing: border-box;
   width: 100%;
   min-height: 48px;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: left;
+}
+
+/* En el celular las dos opciones se apilan: lado a lado "Algunas secciones"
+   cortaba en dos líneas y quedaba más alta que su vecina. */
+@media (max-width: 480px) {
+  .selector-establecimiento__opciones { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
