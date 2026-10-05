@@ -95,7 +95,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('al volver con el historial del navegador desde resumen conserva las respuestas', async () => {
     stub(); montar(); await irAlResumen()
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
-    const preguntaNueva = await screen.findByRole('group', { name: '¿Hay una situación nueva?' })
+    const preguntaNueva = await screen.findByRole('group', { name: '¿Hay algo nuevo?' })
     expect(within(preguntaNueva).getByRole('radio', { name: 'No' })).toBeInTheDocument()
   })
 })

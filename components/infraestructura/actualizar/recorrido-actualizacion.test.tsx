@@ -46,7 +46,7 @@ describe('RecorridoActualizacion', () => {
     expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
     expect(screen.queryByRole('button', { name: 'Listo' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    expect(screen.getByText('¿Hay una situación nueva?')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: '¿Hay algo nuevo?' })).toBeInTheDocument()
     expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'No' }))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
