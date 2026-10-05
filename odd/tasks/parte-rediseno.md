@@ -23,7 +23,9 @@
 - [x] Polish H2–H23 + flaky test — merged 9a0f971 (12 commits)
 - [x] Final blind re-review #1 — NOT APPROVED: H1 send hangs with no timeout, H2 movement title says "normal" for an Alta storm, plus 12 minor; the Actualizar walkthrough was not covered
 - [x] Polish 2 (H1–H14 + full B4 visual coverage) — merged 297131a (11 commits). N1 rejected a "no auto-retry after timeout" change (it broke the auto-resend guarantee); fixed in 866abe3
-- [ ] Final blind re-review #2 (must cover Actualizar end to end) — running, dispatch ctx_675ad9eeb356, isolated env visual3
+- [x] Final blind re-review #2 — full coverage (m+d); NOT APPROVED: 5 important (cause list unfiltered, Retry disabled during hang, Actualizar CTA under the history, admin table clipped, Cambió cascade stacked) + 13 minor
+- [ ] Polish 3 (#1–#18) — running, dispatch ctx_39437fc12de4. N1: keep the 15-day cause window and the automatic retry
+- [ ] Final blind re-review #3
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
