@@ -102,9 +102,11 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.escuelas)}</td>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.afectadas)}</td>
                     <td className="map-est__numero">
-                      <span>{fila.porcentaje}%</span>
-                      <span className="map-est__barra" aria-hidden="true">
-                        <span style={{ width: `${fila.porcentaje}%` }} />
+                      <span className="map-est__porcentaje">
+                        <span className="map-est__porcentaje-numero">{fila.porcentaje}%</span>
+                        <span className="map-est__barra" aria-hidden="true">
+                          <span style={{ width: `${fila.porcentaje}%` }} />
+                        </span>
                       </span>
                     </td>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.alumnosSinClases)}</td>

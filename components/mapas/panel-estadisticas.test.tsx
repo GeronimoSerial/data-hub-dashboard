@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PanelEstadisticas } from './panel-estadisticas'
@@ -120,6 +121,27 @@ describe('PanelEstadisticas', () => {
     const barra = fila?.querySelector<HTMLElement>('.map-est__barra span')
     expect(barra?.style.width).toBe('100%')
     expect(barra?.parentElement).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('alinea las columnas numéricas a la derecha y mantiene la primera a la izquierda', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaNumerica = css.match(/\.ui-table\.map-est__tabla\s+th,\s*\.ui-table\.map-est__tabla\s+td\s*\{([^}]*)\}/)?.[1]
+    const reglaPrimeraColumna = css.match(/\.ui-table\.map-est__tabla\s+th:first-child,\s*\.ui-table\.map-est__tabla\s+td:first-child\s*\{([^}]*)\}/)?.[1]
+
+    expect(reglaNumerica).toMatch(/text-align:\s*right/)
+    expect(reglaNumerica).toMatch(/font-variant-numeric:\s*tabular-nums/)
+    expect(reglaPrimeraColumna).toMatch(/text-align:\s*left/)
+  })
+
+  it('mantiene el número antes de la barra dentro de la celda de porcentaje', () => {
+    const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
+    const celdaPorcentaje = container.querySelector('.map-est__tabla tbody tr td:nth-child(4)')
+    const numero = celdaPorcentaje?.querySelector('.map-est__porcentaje-numero')
+    const barra = celdaPorcentaje?.querySelector('.map-est__barra')
+
+    expect(numero).toHaveTextContent('100%')
+    expect(barra).not.toBeNull()
+    expect(numero?.compareDocumentPosition(barra!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
   })
 
   it('pasa los filtros activos a EvolucionPanel', () => {
