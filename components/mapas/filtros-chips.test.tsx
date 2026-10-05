@@ -248,8 +248,50 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     fireEvent.change(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), { target: { value: 'Tatacuá' } })
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'Tatacuá' }))
+  })
+
+  it('abre la búsqueda con foco y la colapsa con Escape cuando no hay sugerencias', async () => {
+    const user = userEvent.setup()
+    renderFiltros()
+
+    const abrir = screen.getByRole('button', { name: 'Buscar escuela o CUE' })
+    expect(abrir).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
+    await user.click(abrir)
+    const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
+    expect(busqueda).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
+  })
+
+  it('colapsa al perder el foco si está vacía y permanece abierta si tiene texto', async () => {
+    const user = userEvent.setup()
+    const { rerender } = renderFiltros()
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
+    const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
+    fireEvent.blur(busqueda)
+    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
+
+    rerender(<FiltrosChips escuelas={padronEjemplo} filtros={{ ...FILTROS_MAPA_VACIOS, q: 'Goya' }} onChange={() => {}} />)
+    expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toHaveValue('Goya')
+  })
+
+  it('con sugerencias Escape primero las cierra y el segundo colapsa la búsqueda', async () => {
+    const user = userEvent.setup()
+    render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
+    const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
+    await user.type(busqueda, 'tatacua')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(busqueda).toHaveValue('tatacua')
+    expect(busqueda).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
   })
 
   it('muestra sugerencias por nombre y selecciona con Enter limpiando la búsqueda', async () => {
@@ -257,6 +299,7 @@ describe('FiltrosChips', () => {
     const onSeleccionar = vi.fn()
     render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={onSeleccionar} />)
 
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
     await user.type(busqueda, 'tatacua')
     expect(screen.getByRole('listbox')).toHaveTextContent('Escuela N° 87 Colonia Tatacuá')
@@ -265,7 +308,7 @@ describe('FiltrosChips', () => {
     await user.keyboard('{Enter}')
     expect(onSeleccionar).toHaveBeenCalledWith('1800087-00')
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
-    expect(busqueda).toHaveValue('')
+    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
   })
 
   it('presenta con tildes el departamento en el detalle de sugerencias', async () => {
@@ -273,6 +316,7 @@ describe('FiltrosChips', () => {
     const escuelaConPadron = escuela({ departamento: 'SAN LUIS DEL PALMAR' })
     render(<FiltrosControlados escuelas={[escuelaConPadron]} onSeleccionar={vi.fn()} />)
 
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await user.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'ejemplo')
     expect(screen.getByRole('option')).toHaveTextContent('1800001-00 · San Luis del Palmar')
   })
@@ -280,6 +324,7 @@ describe('FiltrosChips', () => {
   it('muestra un estado cuando la búsqueda no tiene resultados', async () => {
     const user = userEvent.setup()
     render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await user.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin coincidencias')
     const sugerencias = screen.getByRole('listbox', { name: 'Escuelas coincidentes' })
     expect(within(sugerencias).getByRole('status')).toHaveTextContent('Ninguna escuela coincide')
@@ -289,6 +334,7 @@ describe('FiltrosChips', () => {
   it('cambia la opción activa con flechas y Esc cierra sin limpiar', async () => {
     const user = userEvent.setup()
     render(<FiltrosControlados escuelas={[escuelaTatacua, escuela({ cueAnexo: '1800088-00', nombre: 'Escuela N° 88 Tatacuá' })]} onSeleccionar={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
     await user.type(busqueda, 'tatacua')
     await user.keyboard('{ArrowDown}')
@@ -305,8 +351,23 @@ describe('FiltrosChips', () => {
     const primario = escuelaTatacua
     const secundario = escuela({ cueAnexo: '1800088-00', nombre: 'Escuela Secundaria Tatacuá', niveles: ['Secundario'] })
     render(<FiltrosChips escuelas={[primario, secundario]} filtros={{ ...FILTROS_MAPA_VACIOS, niveles: ['Secundario'], q: 'tatacua' }} onChange={vi.fn()} onSeleccionar={vi.fn()} />)
-    await user.click(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }))
     expect(screen.getByRole('option')).toHaveTextContent('1800088-00')
     expect(screen.queryByText('1800087-00')).not.toBeInTheDocument()
+  })
+
+  it('abre y cierra el panel compacto con Escape o clic fuera y cuenta los filtros activos', async () => {
+    const user = userEvent.setup()
+    renderFiltros({ ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], sinActualizar: true })
+    const boton = screen.getByRole('button', { name: 'Filtros, 2 activos' })
+    const barra = boton.closest('.filtros-barra')
+
+    expect(barra).toHaveAttribute('data-abierto', 'false')
+    await user.click(boton)
+    expect(barra).toHaveAttribute('data-abierto', 'true')
+    await user.keyboard('{Escape}')
+    expect(barra).toHaveAttribute('data-abierto', 'false')
+    await user.click(boton)
+    await user.click(document.body)
+    expect(barra).toHaveAttribute('data-abierto', 'false')
   })
 })

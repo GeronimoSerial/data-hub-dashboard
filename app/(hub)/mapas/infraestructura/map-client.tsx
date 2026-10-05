@@ -110,14 +110,13 @@ export function InfraestructuraMapClient(props: {
             <TabsTab value="capas">Capas</TabsTab>
           </TabsList>
         </Tabs>
+        <FiltrosChips
+          escuelas={padron?.escuelas ?? []}
+          filtros={filtros}
+          onChange={setFiltros}
+          onSeleccionar={seleccionarEscuela}
+        />
       </div>
-
-      <FiltrosChips
-        escuelas={padron?.escuelas ?? []}
-        filtros={filtros}
-        onChange={setFiltros}
-        onSeleccionar={seleccionarEscuela}
-      />
 
       <div className="mapa-pestanas-cuerpo">
         {/*

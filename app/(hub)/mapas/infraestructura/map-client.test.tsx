@@ -105,21 +105,26 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
   it('no muestra el contador cuando no hay escuelas con situaciones abiertas', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin resultados')
 
     const pestaña = screen.getByRole('tab', { name: 'Situación actual' })
     expect(pestaña.querySelector('.map-sitact__pill')).toBeNull()
   })
 
-  it('muestra los filtros debajo de las pestañas también en Estadísticas', async () => {
+  it('mantiene las pestañas y los filtros en el mismo contenedor, con las pestañas primero', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const tabs = screen.getByRole('tab', { name: /^Situación actual/ })
-    const filtros = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
+    const filtros = screen.getByRole('button', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
     expect(filtros).not.toBeNull()
+    const barra = tabs.closest('.mapa-pestanas-barra')
+    expect(barra).not.toBeNull()
+    expect(barra).toContainElement(tabs)
+    expect(barra).toContainElement(filtros as HTMLElement)
     expect(tabs.compareDocumentPosition(filtros as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
-    expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Buscar escuela o CUE' })).toBeVisible()
   })
 
   it('pasa los filtros activos a la sección de evolución', async () => {
@@ -153,6 +158,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
   it('selecciona la escuela sugerida mediante el callback registrado por la página', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     const busqueda = await screen.findByRole('combobox', { name: 'Buscar escuela o CUE' })
     await userEvent.type(busqueda, 'tatacua')
     await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
@@ -163,6 +169,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
   it('selecciona una escuela desde Estadísticas sin cambiar el hash', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'tatacua')
     await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
 
@@ -173,6 +180,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
   it('filtra las escuelas del mapa por texto de búsqueda', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const mapa = await screen.findByTestId('mock-mapa')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'secundaria')
     expect(mapa).toHaveAttribute('data-escuelas', '1')
     expect(mapa).toHaveAttribute('data-cues', '180002-00')

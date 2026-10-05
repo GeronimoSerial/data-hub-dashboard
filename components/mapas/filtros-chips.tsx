@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import { ChevronDown, Clock, Search, X } from 'lucide-react'
+import { ChevronDown, Clock, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
 import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
@@ -171,6 +171,10 @@ export function FiltrosChips({
   const [popoverAbierto, setPopoverAbierto] = useState<ClaveFiltro | null>(null)
   const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
   const [opcionActiva, setOpcionActiva] = useState(0)
+  const [busquedaAbierta, setBusquedaAbierta] = useState(Boolean(filtros.q))
+  const [filtrosCompactosAbiertos, setFiltrosCompactosAbiertos] = useState(false)
+  const busquedaRef = useRef<HTMLInputElement>(null)
+  const filtrosBarraRef = useRef<HTMLDivElement>(null)
   const idLista = useId()
   const idOpcionActiva = `${idLista}-opcion-${opcionActiva}`
   const queryRecortada = filtros.q.trim()
@@ -180,10 +184,35 @@ export function FiltrosChips({
     : []
   const indiceActivo = sugerencias.length > 0 ? Math.min(opcionActiva, sugerencias.length - 1) : -1
 
+  useEffect(() => {
+    if (busquedaAbierta) busquedaRef.current?.focus()
+  }, [busquedaAbierta])
+
+  useEffect(() => {
+    if (filtros.q) setBusquedaAbierta(true)
+  }, [filtros.q])
+
+  useEffect(() => {
+    if (!filtrosCompactosAbiertos) return
+    const cerrarAlHacerClicFuera = (evento: PointerEvent) => {
+      if (!(evento.target instanceof Node) || !filtrosBarraRef.current?.contains(evento.target)) setFiltrosCompactosAbiertos(false)
+    }
+    const cerrarConEscape = (evento: KeyboardEvent) => {
+      if (evento.key === 'Escape') setFiltrosCompactosAbiertos(false)
+    }
+    document.addEventListener('pointerdown', cerrarAlHacerClicFuera)
+    document.addEventListener('keydown', cerrarConEscape)
+    return () => {
+      document.removeEventListener('pointerdown', cerrarAlHacerClicFuera)
+      document.removeEventListener('keydown', cerrarConEscape)
+    }
+  }, [filtrosCompactosAbiertos])
+
   function seleccionar(cueAnexo: string) {
     onSeleccionar?.(cueAnexo)
     onChange({ ...filtros, q: '' })
     setSugerenciasCerradas(true)
+    setBusquedaAbierta(false)
   }
   const hayFiltrosActivos = Boolean(filtros.q.trim())
     || filtros.departamentos.length > 0
@@ -193,46 +222,68 @@ export function FiltrosChips({
     || filtros.apoyo.length > 0
     || filtros.sinActualizar
     || filtros.solucionadasRecientes
+  const cantidadFiltrosActivos = filtros.departamentos.length + filtros.niveles.length
+    + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length
+    + Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
 
   return (
-    <div className="filtros-barra" aria-label="Filtros de escuelas">
-      <div className="filtros-busqueda-contenedor">
-        <label className="filtros-busqueda">
-          <Search aria-hidden="true" />
-          <input
-            type="search"
-            role="combobox"
+    <div className="filtros-barra" aria-label="Filtros de escuelas" data-abierto={filtrosCompactosAbiertos} ref={filtrosBarraRef}>
+      <div className={`filtros-busqueda-contenedor${busquedaAbierta ? ' filtros-busqueda-contenedor--abierto' : ''}`}>
+        {busquedaAbierta ? (
+          <label className="filtros-busqueda">
+            <Search aria-hidden="true" />
+            <input
+              ref={busquedaRef}
+              type="search"
+              role="combobox"
+              aria-label="Buscar escuela o CUE"
+              aria-expanded={sugerenciasAbiertas}
+              aria-controls={idLista}
+              aria-activedescendant={indiceActivo >= 0 ? idOpcionActiva : undefined}
+              aria-autocomplete="list"
+              placeholder="Buscar escuela o CUE"
+              value={filtros.q}
+              onChange={(evento) => {
+                onChange({ ...filtros, q: evento.currentTarget.value })
+                setOpcionActiva(0)
+                setSugerenciasCerradas(false)
+              }}
+              onBlur={() => {
+                if (!filtros.q.trim()) setBusquedaAbierta(false)
+              }}
+              onKeyDown={(evento) => {
+                if (evento.key === 'Escape') {
+                  evento.preventDefault()
+                  if (sugerenciasAbiertas) setSugerenciasCerradas(true)
+                  else setBusquedaAbierta(false)
+                  return
+                }
+                if (!sugerenciasAbiertas) return
+                if (evento.key === 'ArrowDown' && sugerencias.length > 0) {
+                  evento.preventDefault()
+                  setOpcionActiva((actual) => (actual + 1) % sugerencias.length)
+                } else if (evento.key === 'ArrowUp' && sugerencias.length > 0) {
+                  evento.preventDefault()
+                  setOpcionActiva((actual) => (actual - 1 + sugerencias.length) % sugerencias.length)
+                } else if (evento.key === 'Enter' && indiceActivo >= 0) {
+                  evento.preventDefault()
+                  seleccionar(sugerencias[indiceActivo].cueAnexo)
+                }
+              }}
+            />
+          </label>
+        ) : (
+          <button
+            type="button"
+            className="filtros-busqueda-boton"
             aria-label="Buscar escuela o CUE"
-            aria-expanded={sugerenciasAbiertas}
-            aria-controls={idLista}
-            aria-activedescendant={indiceActivo >= 0 ? idOpcionActiva : undefined}
-            aria-autocomplete="list"
-            placeholder="Buscar escuela o CUE"
-            value={filtros.q}
-            onChange={(evento) => {
-              onChange({ ...filtros, q: evento.currentTarget.value })
-              setOpcionActiva(0)
-              setSugerenciasCerradas(false)
-            }}
-            onKeyDown={(evento) => {
-              if (!sugerenciasAbiertas) return
-              if (evento.key === 'ArrowDown' && sugerencias.length > 0) {
-                evento.preventDefault()
-                setOpcionActiva((actual) => (actual + 1) % sugerencias.length)
-              } else if (evento.key === 'ArrowUp' && sugerencias.length > 0) {
-                evento.preventDefault()
-                setOpcionActiva((actual) => (actual - 1 + sugerencias.length) % sugerencias.length)
-              } else if (evento.key === 'Enter' && indiceActivo >= 0) {
-                evento.preventDefault()
-                seleccionar(sugerencias[indiceActivo].cueAnexo)
-              } else if (evento.key === 'Escape') {
-                evento.preventDefault()
-                setSugerenciasCerradas(true)
-              }
-            }}
-          />
-        </label>
-        {sugerenciasAbiertas && (
+            aria-expanded={false}
+            onClick={() => setBusquedaAbierta(true)}
+          >
+            <Search aria-hidden="true" />
+          </button>
+        )}
+        {busquedaAbierta && sugerenciasAbiertas && (
           <div className="filtros-sugerencias" id={idLista} role="listbox" aria-label="Escuelas coincidentes">
             {sugerencias.length === 0 ? (
               <div className="filtros-sugerencias__vacio" role="status">Ninguna escuela coincide</div>
@@ -254,6 +305,17 @@ export function FiltrosChips({
           </div>
         )}
       </div>
+      <button
+        type="button"
+        className="filtros-compactos-boton"
+        aria-expanded={filtrosCompactosAbiertos}
+        aria-label={`Filtros${cantidadFiltrosActivos ? `, ${cantidadFiltrosActivos} activos` : ''}`}
+        onClick={() => setFiltrosCompactosAbiertos((abiertos) => !abiertos)}
+      >
+        <SlidersHorizontal aria-hidden="true" />
+        Filtros
+        {cantidadFiltrosActivos > 0 ? <span aria-hidden="true">{cantidadFiltrosActivos}</span> : null}
+      </button>
       <div className="filtros-controles">
         {(['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo'] as ClaveFiltro[]).map((clave) => (
           <FiltroDesplegable

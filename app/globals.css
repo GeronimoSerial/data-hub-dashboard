@@ -5054,16 +5054,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .mapa-pestanas-barra {
   display: flex;
-  justify-content: center;
-  overflow-x: auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
   flex: 0 0 auto;
-  display: flex;
-  justify-content: center;
-  padding: var(--s-2) var(--gutter) 0;
+  min-width: 0;
+  overflow: visible;
+  padding: var(--s-1) var(--gutter);
   background: var(--page);
+  container-type: inline-size;
 }
+.mapa-pestanas-barra > .ui-tabs { flex: 0 0 auto; min-width: 0; }
 .mapa-pestanas-barra .ui-tabs-list { flex-wrap: nowrap; }
-.mapa-pestanas-barra .ui-tabs-tab { white-space: nowrap; }
+.mapa-pestanas-barra .ui-tabs-tab {
+  min-height: 2.25rem;
+  padding-block: var(--s-1);
+  white-space: nowrap;
+}
 .mapa-pestanas-cuerpo {
   position: relative;
   display: flex;
@@ -5086,19 +5093,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   /* Abre sugerencias sobre el mapa, pero queda bajo el header. */
   z-index: calc(var(--z-header) - 1);
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--s-2);
   padding: var(--s-2) var(--gutter);
   border-bottom: 1px solid var(--line);
   background: var(--page);
+  overflow: visible;
 }
+.mapa-pestanas-barra .filtros-barra { padding: 0; border: 0; background: transparent; }
 .filtros-busqueda {
   display: flex;
-  flex: 0 1 15rem;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: var(--s-1);
+  min-height: 2.25rem;
   padding: var(--s-1) var(--s-2);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
@@ -5117,17 +5128,51 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-busqueda:focus-within { outline: 2px solid var(--info); outline-offset: 2px; }
 .filtros-busqueda-contenedor {
   position: relative;
-  flex: 0 1 15rem;
+  flex: 0 0 auto;
   min-width: 0;
 }
+.filtros-busqueda-contenedor--abierto { flex: 0 1 15rem; min-width: 10rem; }
 .filtros-busqueda-contenedor .filtros-busqueda { width: 100%; }
+.filtros-busqueda-boton,
+.filtros-compactos-boton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  min-width: 2.75rem;
+  min-height: 2.25rem;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.filtros-busqueda-boton svg,
+.filtros-compactos-boton svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.filtros-busqueda-boton:focus-visible,
+.filtros-compactos-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.filtros-compactos-boton { display: none; white-space: nowrap; }
+.filtros-compactos-boton span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--page);
+  font-size: var(--t-small);
+}
 .filtros-controles {
   display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--s-2);
-  min-width: 0;
+  min-width: max-content;
 }
 .filtros-chip-final {
   display: inline-flex;
@@ -5135,6 +5180,32 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   align-items: center;
   gap: var(--s-2);
   white-space: nowrap;
+}
+
+/* Punto único de quiebre: los controles pasan al panel si la barra mide menos de 1500 px. */
+@container (max-width: 1500px) {
+  .mapa-pestanas-barra .filtros-compactos-boton { display: inline-flex; }
+  .mapa-pestanas-barra .filtros-controles {
+    position: absolute;
+    z-index: var(--z-popup);
+    top: calc(100% + var(--s-1));
+    right: 0;
+    display: none;
+    width: min(22rem, calc(100vw - 2 * var(--gutter)));
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: var(--s-2);
+    padding: var(--s-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--card);
+    box-shadow: var(--e-float);
+    overflow: visible;
+  }
+  .mapa-pestanas-barra .filtros-barra[data-abierto='true'] .filtros-controles { display: grid; }
+  .mapa-pestanas-barra .filtros-controles .filtros-chip-final { display: grid; white-space: normal; }
+  .mapa-pestanas-barra .filtros-controles .filtros-chip { justify-content: flex-start; white-space: normal; }
 }
 .filtros-sugerencias {
   position: absolute;
@@ -5165,6 +5236,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-sugerencias__vacio { padding: var(--s-2); }
 .filtros-chip-grupo { display: inline-flex; align-items: center; }
 .filtros-chip-grupo--activo { border-radius: var(--r-pill); background: var(--ink); }
+.mapa-pestanas-barra .filtros-chip { min-height: 2.25rem; }
 .filtros-chip {
   display: inline-flex;
   align-items: center;
