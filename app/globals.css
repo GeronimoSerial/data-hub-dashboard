@@ -4325,8 +4325,30 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .aviso-retoma .asistente__acciones {
-  padding-top: 0;
+  flex-direction: row;
+  align-items: center;
+  position: static;
+  bottom: auto;
+  background: transparent;
+  padding: 0;
   border-top: 0;
+  z-index: auto;
+}
+
+.aviso-retoma .asistente__acciones > * {
+  width: auto;
+  min-height: 48px;
+}
+
+@media (max-width: 767px) {
+  .aviso-retoma .asistente__acciones {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .aviso-retoma .asistente__acciones > * {
+    width: 100%;
+  }
 }
 
 @media (max-width: 480px) {
