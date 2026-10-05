@@ -21,7 +21,7 @@ const OPCIONES_CLASES: Opcion[] = (['normal', 'parcial', 'sin', 'evacuado', 'cen
   etiqueta: ETIQUETA_CLASES[valor],
 }))
 
-const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'virtual', 'cuadernillo'] as const).map((valor) => ({
+const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'sin_dato'] as const).map((valor) => ({
   valor,
   etiqueta: ETIQUETA_APOYO[valor],
 }))
@@ -31,7 +31,7 @@ const ETIQUETAS_FILTRO: Record<ClaveFiltro, string> = {
   niveles: 'Nivel',
   gravedades: 'Gravedad',
   clases: 'Clases',
-  apoyo: 'Apoyo pedagógico',
+  apoyo: 'Asistencia pedagógica',
 }
 
 function valoresSeleccionados(filtros: FiltrosMapa, clave: ClaveFiltro): string[] {

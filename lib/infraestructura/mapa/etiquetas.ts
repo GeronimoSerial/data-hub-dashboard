@@ -59,9 +59,8 @@ export const ETIQUETA_CLASES: Record<EstadoClases, string> = {
   centro: 'Centro de evacuados',
 }
 
-export const ETIQUETA_APOYO: Record<'brinda' | 'no' | 'virtual' | 'cuadernillo', string> = {
-  brinda: 'Brinda',
-  no: 'No brinda',
-  virtual: 'Clase virtual',
-  cuadernillo: 'Cuadernillo',
+export const ETIQUETA_APOYO: Record<'brinda' | 'no' | 'sin_dato', string> = {
+  brinda: 'Se brinda',
+  no: 'No se brinda',
+  sin_dato: 'Sin dato',
 }

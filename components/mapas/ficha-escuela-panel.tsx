@@ -53,7 +53,7 @@ function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
         </span>
       )}
       {etiquetaApoyo && (
-        <span className={`map-sitact__pill ${escuela.apoyo === 'no' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--apoyo'}`}>
+        <span className={`map-sitact__pill ${escuela.apoyo === 'no' ? 'map-sitact__pill--aviso' : escuela.apoyo === 'sin_dato' ? 'map-sitact__pill--neutro' : 'map-sitact__pill--apoyo'}`}>
           {etiquetaApoyo}
         </span>
       )}
@@ -148,10 +148,10 @@ export function FichaEscuelaPanel({
           {acceso}
         </Desplegable>
 
-        <Desplegable titulo="Clases y apoyo pedagógico" abierto={escuela.clases !== 'normal'}>
+        <Desplegable titulo="Clases y asistencia pedagógica" abierto={escuela.clases !== 'normal'}>
           <dl className="map-ficha-escuela__kv">
             <dt>Clases</dt><dd>{ETIQUETA_CLASES[escuela.clases]}</dd>
-            <dt>Apoyo</dt><dd>{escuela.clases === 'normal' ? 'No corresponde' : etiquetaApoyoMapa(escuela.clases, escuela.apoyo) ?? 'Sin apoyo'}</dd>
+            <dt>Asistencia pedagógica</dt><dd>{escuela.clases === 'normal' ? 'No corresponde' : etiquetaApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
             <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
             {datos?.parte && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
           </dl>

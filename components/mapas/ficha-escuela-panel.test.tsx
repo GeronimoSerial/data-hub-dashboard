@@ -88,14 +88,15 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
     expect(screen.getAllByText('Sin clases').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Apoyo virtual').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
     expect(await screen.findByText((_, element) =>
       element?.textContent === 'Inaccesibilidad de alumnos · desde 2 de octubre, 12:00'
     )).toBeInTheDocument()
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
-    expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
+    expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', true)
+    expect(screen.getByText('Asistencia pedagógica').tagName).toBe('DT')
     expect(await screen.findByText('Dos aulas sin acceso')).toBeInTheDocument()
   })
 
@@ -124,7 +125,7 @@ describe('FichaEscuelaPanel', () => {
   ])('muestra el estado del edificio "$etiqueta"', async ({ estado, etiqueta }) => {
     instalarFetch({ estadoEstablecimiento: estado })
     renderFicha()
-    const clases = screen.getByText('Clases y apoyo pedagógico').closest('details')
+    const clases = screen.getByText('Clases y asistencia pedagógica').closest('details')
     expect(await screen.findByText('Edificio')).toBeInTheDocument()
     expect(clases).toHaveTextContent(`Edificio${etiqueta}`)
   })
@@ -198,7 +199,17 @@ describe('FichaEscuelaPanel', () => {
     renderFicha({ escuela: normal })
 
     expect(screen.getAllByText('Con clases').length).toBeGreaterThan(0)
-    expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', false)
+    expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', false)
+  })
+
+  it('muestra el dato ausente de asistencia con el chip neutro y la etiqueta compartida', () => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, apoyo: 'sin_dato' } })
+
+    const chip = screen.getAllByText('Asistencia pedagógica sin dato').find((element) => element.classList.contains('map-sitact__pill--neutro'))
+    expect(chip).toBeDefined()
+    expect(chip).toHaveClass('map-sitact__pill--neutro')
+    expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('Asistencia pedagógica sin dato')
   })
 
   it('muestra Sin reportes abiertos cuando la gravedad es cero', () => {

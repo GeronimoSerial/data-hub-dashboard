@@ -32,6 +32,12 @@ const escuelas: EscuelaMapaEnriquecida[] = [
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
     situacionesHistoricas: 0,
   },
+  {
+    cueAnexo: '500', nombre: 'Escuela sin dato', departamento: 'Esquina', localidad: 'Centro', lat: null, lon: null,
+    niveles: [], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
+    clases: 'sin', apoyo: 'sin_dato', sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 20,
+    situacionesHistoricas: 0,
+  },
 ]
 
 describe('PanelSituacionActual', () => {
@@ -40,15 +46,17 @@ describe('PanelSituacionActual', () => {
     vi.restoreAllMocks()
   })
 
-  it('muestra los totales, apoyo pedagógico y reportes ordenados por gravedad', () => {
+  it('muestra los totales, asistencia pedagógica y reportes ordenados por gravedad', () => {
     vi.spyOn(Date, 'now').mockReturnValue(ahora)
     const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn="2026-10-05T14:30:00.000Z" onSeleccionar={vi.fn()} />)
 
     expect(screen.getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('3')
-    expect(screen.getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('3')
-    expect(screen.getByText('Alumnos sin clases').previousElementSibling).toHaveTextContent('90')
+    expect(screen.getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('4')
+    expect(screen.getByText('Alumnos sin clases').previousElementSibling).toHaveTextContent('110')
     expect(screen.getByText('Sin actualizar', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
-    expect(container.querySelector('.map-sitact__apoyo p')).toHaveTextContent('2 de 3 escuelas sin clases brindan apoyo pedagógico')
+    expect(container.querySelector('.map-sitact__apoyo p')).toHaveTextContent('2 de 4 escuelas sin clases brindan asistencia pedagógica')
+    expect(container.querySelector('.map-sitact__apoyo')).toHaveTextContent('1 sin dato')
+    expect(screen.getByRole('progressbar', { name: 'Escuelas sin clases que brindan asistencia pedagógica' })).toBeInTheDocument()
 
     const reportes = screen.getByRole('region', { name: /Reportes/ })
     const filas = within(reportes).getAllByRole('button')
@@ -59,7 +67,7 @@ describe('PanelSituacionActual', () => {
     ])
     expect(filas[1]).toHaveTextContent('General Alvear · Primario, Inicial')
     expect(filas[1]).toHaveTextContent('Sin clases')
-    expect(filas[1]).toHaveTextContent('Apoyo virtual')
+    expect(filas[1]).toHaveTextContent('Asistencia pedagógica: clase virtual')
     expect(filas[1]).toHaveTextContent('Sin actualizar')
     expect(filas[1].textContent).toContain('hace 3\u00A0h')
     expect(within(reportes).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
@@ -91,7 +99,7 @@ describe('PanelSituacionActual', () => {
     render(<PanelSituacionActual escuelas={[escuelas[3]]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
 
     expect(screen.getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
-    expect(screen.queryByText(/escuelas sin clases brindan apoyo pedagógico/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/escuelas sin clases brindan asistencia pedagógica/)).not.toBeInTheDocument()
     expect(screen.getByText('Situación actual')).toBeInTheDocument()
   })
 })

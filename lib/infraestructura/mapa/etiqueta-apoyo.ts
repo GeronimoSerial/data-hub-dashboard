@@ -1,10 +1,14 @@
 import type { ApoyoPedagogico, EstadoClases } from './tipos'
 
-/** Comparte la etiqueta de apoyo entre la lista y la ficha de la escuela. */
+/** Comparte la etiqueta de asistencia pedagógica entre la lista y la ficha de la escuela. */
 export function etiquetaApoyoMapa(clases: EstadoClases, apoyo: ApoyoPedagogico): string | null {
   if (clases === 'normal' || apoyo === null) return null
-  if (apoyo === 'no') return 'Sin apoyo'
-  if (apoyo === 'virtual') return 'Apoyo virtual'
-  if (apoyo === 'cuadernillo') return 'Cuadernillo'
-  return 'Virtual y cuadernillo'
+  switch (apoyo) {
+    case 'sin_dato': return 'Asistencia pedagógica sin dato'
+    case 'no': return 'No se brinda asistencia pedagógica'
+    case 'brinda': return 'Se brinda asistencia pedagógica'
+    case 'virtual': return 'Asistencia pedagógica: clase virtual'
+    case 'cuadernillo': return 'Asistencia pedagógica: cuadernillo'
+    case 'ambos': return 'Asistencia pedagógica: clase virtual y cuadernillo'
+  }
 }

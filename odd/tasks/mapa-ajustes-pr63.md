@@ -22,7 +22,7 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - [x] A4 Hallazgo 4: tinta por gravedad + test de contraste ≥ 4,5:1
 - [x] A5 Hallazgos 5, 16: sección Situaciones completa + edificio en la ficha
 - [x] A6 Hallazgos 8, 14: Estadísticas con etiquetas traducidas; gravedad desde `SEVERIDADES`
-- [ ] A7 D1 Sin dato + hallazgos 6 y 9
+- [x] A7 D1 Sin dato + hallazgos 6 y 9
 - [ ] A8 D2 clases/edificio + hallazgo 7
 - [ ] A9 D3 vocabulario + hallazgos 10, 11 + comentarios viejos
 - [ ] A10 D4 recién solucionadas + hallazgo 15
@@ -62,3 +62,4 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - **A4** — La banda usa `TINTA_POR_SEVERIDAD` (export de una palabra); test de contraste calculado WCAG ≥ 4,5:1 en los 4 niveles (6,93 / 5,84 / 4,83 / 10,02). Evidencia: vitest 25/25, tsc limpio.
 - **A5** — Ficha: por situación motivo, `EstadoActualSeveridad`, alcance (`resumirAlcance`), desde absoluto, causada por, descripción (antes "Afecta"), categoría; "Última novedad" una sola vez; fila "Edificio" con `ETIQUETA_ESTABLECIMIENTO`. El endpoint del mapa expone `causadaPorId`. Evidencia: vitest 24/24 + endpoint, tsc limpio.
 - **A6** — Estadísticas traduce la categoría con `CATEGORIA_META`; la gravedad se deriva de `SEVERIDADES` (`lib/infraestructura/mapa/gravedad.ts`) y reemplaza las tres tablas duplicadas; fixtures con valores reales. Evidencia: vitest components/mapas + lib/infraestructura/mapa 342/342, tsc limpio.
+- **A7** — Estado `sin_dato` (asistencia null) y `brinda` (brinda sin modalidades); "No se brinda" sólo con `brinda:false`. Filtro "Asistencia pedagógica": Se brinda / No se brinda / Sin dato (se quitan las opciones virtual/cuadernillo por decisión D1; las modalidades siguen en el chip y la ficha). Panel: "N de M … brindan asistencia pedagógica" + "K sin dato"; Estadísticas con KPI de sin dato. Los identificadores `apoyo` se conservan (sólo cambia el texto visible). Evidencia: vitest 372/372, tsc limpio.

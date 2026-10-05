@@ -33,6 +33,7 @@ const padronEjemplo = [
   escuela(),
   escuela({ cueAnexo: '1800002-00', nombre: 'Escuela rural', departamento: 'Esquina', niveles: ['Primario', 'Inicial'], gravedad: 4, apoyo: 'virtual' }),
   escuela({ cueAnexo: '1800003-00', nombre: 'Escuela secundaria', niveles: ['Secundario'], clases: 'sin', apoyo: 'cuadernillo', sinActualizar: true }),
+  escuela({ cueAnexo: '1800004-00', nombre: 'Escuela sin dato', niveles: [], clases: 'sin', apoyo: 'sin_dato' }),
 ]
 
 function renderFiltros(filtros: FiltrosMapa = FILTROS_MAPA_VACIOS, onChange = vi.fn()) {
@@ -119,6 +120,22 @@ describe('FiltrosChips', () => {
 
     const primario = screen.getByRole('checkbox', { name: /Primario/ })
     expect(primario).toHaveAccessibleName(/Primario.*2/)
+  })
+
+  it('ofrece las tres opciones de asistencia pedagógica y filtra con sus valores canónicos', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderFiltros(FILTROS_MAPA_VACIOS, onChange)
+
+    await user.click(screen.getByRole('button', { name: 'Asistencia pedagógica' }))
+    const dialog = screen.getByRole('dialog', { name: 'Asistencia pedagógica' })
+    expect(within(dialog).getAllByRole('checkbox')).toHaveLength(3)
+    expect(within(dialog).getByRole('checkbox', { name: /Se brinda/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: /No se brinda/ })).toBeInTheDocument()
+    expect(within(dialog).getByRole('checkbox', { name: /Sin dato/ })).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('checkbox', { name: /Se brinda/ }))
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ apoyo: ['brinda'] }))
   })
 
   it('renderiza cada opción del popover con el Checkbox del sistema', async () => {

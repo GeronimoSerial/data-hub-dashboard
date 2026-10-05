@@ -94,7 +94,7 @@ describe('derivarApoyo', () => {
   it('con clases normales no corresponde', () => {
     expect(derivarApoyo('normal', { brinda: true, modalidades: ['Cuadernillo'] })).toBeNull()
   })
-  it('sin clases y sin dato → no', () => expect(derivarApoyo('sin', null)).toBe('no'))
+  it('sin clases y sin dato → sin_dato', () => expect(derivarApoyo('sin', null)).toBe('sin_dato'))
   it('ambas modalidades → ambos', () => {
     expect(derivarApoyo('sin', { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] })).toBe('ambos')
   })
@@ -107,7 +107,10 @@ describe('derivarApoyo', () => {
   it('brinda false → no', () => {
     expect(derivarApoyo('sin', { brinda: false, modalidades: ['Clase virtual'] })).toBe('no')
   })
-  it('clases parciales con dato ausente → no', () => expect(derivarApoyo('parcial', null)).toBe('no'))
+  it('brinda true sin modalidades → brinda', () => {
+    expect(derivarApoyo('sin', { brinda: true, modalidades: [] })).toBe('brinda')
+  })
+  it('clases parciales con dato ausente → sin_dato', () => expect(derivarApoyo('parcial', null)).toBe('sin_dato'))
 })
 
 describe('gravedadDe', () => {

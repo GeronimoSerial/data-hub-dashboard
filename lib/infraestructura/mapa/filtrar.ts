@@ -7,13 +7,11 @@ function normalizar(texto: string): string {
 function coincideApoyo(escuela: EscuelaMapaEnriquecida, opcion: FiltrosMapa['apoyo'][number]): boolean {
   switch (opcion) {
     case 'brinda':
-      return escuela.apoyo === 'virtual' || escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos'
+      return escuela.apoyo === 'virtual' || escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos' || escuela.apoyo === 'brinda'
     case 'no':
       return escuela.apoyo === 'no'
-    case 'virtual':
-      return escuela.apoyo === 'virtual' || escuela.apoyo === 'ambos'
-    case 'cuadernillo':
-      return escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos'
+    case 'sin_dato':
+      return escuela.apoyo === 'sin_dato'
   }
 }
 
@@ -61,7 +59,7 @@ export function contarOpciones(
         sumar(escuela.clases)
         break
       case 'apoyo':
-        for (const opcion of ['brinda', 'no', 'virtual', 'cuadernillo'] as const) {
+        for (const opcion of ['brinda', 'no', 'sin_dato'] as const) {
           if (coincideApoyo(escuela, opcion)) sumar(opcion)
         }
         break

@@ -58,7 +58,7 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
         </span>
       )}
       {apoyo && (
-        <span className={`map-sitact__pill ${escuela.apoyo === 'no' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--apoyo'}`}>
+        <span className={`map-sitact__pill ${escuela.apoyo === 'no' ? 'map-sitact__pill--aviso' : escuela.apoyo === 'sin_dato' ? 'map-sitact__pill--neutro' : 'map-sitact__pill--apoyo'}`}>
           {apoyo}
         </span>
       )}
@@ -110,10 +110,11 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
 
       {resumen.sinClases > 0 && (
         <div className="map-sitact__apoyo">
-          <p><strong>{resumen.sinClasesConApoyo} de {resumen.sinClases}</strong> escuelas sin clases brindan apoyo pedagógico</p>
-          <div className="map-sitact__barra" role="progressbar" aria-label="Escuelas sin clases que brindan apoyo pedagógico" aria-valuemin={0} aria-valuemax={resumen.sinClases} aria-valuenow={resumen.sinClasesConApoyo}>
+          <p><strong>{resumen.sinClasesConApoyo} de {resumen.sinClases}</strong> escuelas sin clases brindan asistencia pedagógica</p>
+          <div className="map-sitact__barra" role="progressbar" aria-label="Escuelas sin clases que brindan asistencia pedagógica" aria-valuemin={0} aria-valuemax={resumen.sinClases} aria-valuenow={resumen.sinClasesConApoyo}>
             <span style={{ width: `${porcentajeApoyo}%` }} />
           </div>
+          {resumen.sinClasesSinDato > 0 && <p>{resumen.sinClasesSinDato} sin dato</p>}
         </div>
       )}
 

@@ -30,14 +30,15 @@ export function derivarApoyo(
   asistencia: AsistenciaPedagogica | null,
 ): ApoyoPedagogico {
   if (clases === 'normal') return null
-  if (!asistencia?.brinda) return 'no'
+  if (asistencia === null) return 'sin_dato'
+  if (!asistencia.brinda) return 'no'
 
   const virtual = asistencia.modalidades.includes('Clase virtual')
   const cuadernillo = asistencia.modalidades.includes('Cuadernillo')
   if (virtual && cuadernillo) return 'ambos'
   if (virtual) return 'virtual'
   if (cuadernillo) return 'cuadernillo'
-  return 'no'
+  return 'brinda'
 }
 
 export function esSinActualizar(parte: ParteMapa | undefined, ahoraMs: number): boolean {

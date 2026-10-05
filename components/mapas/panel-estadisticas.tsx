@@ -67,7 +67,11 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
         </div>
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.sinClasesConApoyo)} / {FORMATO_NUMERO.format(resumen.sinClases)}</strong>
-          <span>Sin clases con apoyo pedagógico</span>
+          <span>Sin clases con asistencia pedagógica</span>
+        </div>
+        <div className="map-sitact__kpi">
+          <strong>{FORMATO_NUMERO.format(resumen.sinClasesSinDato)}</strong>
+          <span>Sin clases sin dato de asistencia pedagógica</span>
         </div>
       </div>
 

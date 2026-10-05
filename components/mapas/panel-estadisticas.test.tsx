@@ -39,6 +39,12 @@ const escuelas: EscuelaMapaEnriquecida[] = [
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
     situacionesHistoricas: 0,
   },
+  {
+    cueAnexo: '500', nombre: 'Escuela sin dato', departamento: 'Esquina', localidad: 'Centro', lat: null, lon: null,
+    niveles: [], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
+    clases: 'sin', apoyo: 'sin_dato', sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 20,
+    situacionesHistoricas: 0,
+  },
 ]
 
 function leerNumeroKpi(etiqueta: string, contenedor: HTMLElement): string {
@@ -49,7 +55,7 @@ function leerNumeroKpi(etiqueta: string, contenedor: HTMLElement): string {
 describe('PanelEstadisticas', () => {
   afterEach(() => cleanup())
 
-  it('muestra las cinco tarjetas con los números de resumir', () => {
+  it('muestra las tarjetas con los números de resumir', () => {
     const resumen = resumir(escuelas)
     const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const kpis = container.querySelector<HTMLElement>('.map-est__kpis') ?? container
@@ -61,7 +67,8 @@ describe('PanelEstadisticas', () => {
     expect(leerNumeroKpi('Sin clases', kpis)).toBe(String(resumen.sinClases))
     expect(leerNumeroKpi('Alumnos sin clases', kpis)).toBe(String(resumen.alumnosSinClases))
     expect(leerNumeroKpi('Sin actualizar', kpis)).toBe(String(resumen.sinActualizar))
-    expect(leerNumeroKpi('Sin clases con apoyo pedagógico', kpis)).toBe(`${resumen.sinClasesConApoyo} / ${resumen.sinClases}`)
+    expect(leerNumeroKpi('Sin clases con asistencia pedagógica', kpis)).toBe(`${resumen.sinClasesConApoyo} / ${resumen.sinClases}`)
+    expect(leerNumeroKpi('Sin clases sin dato de asistencia pedagógica', kpis)).toBe(String(resumen.sinClasesSinDato))
   })
 
   it('coincide con Situación actual para el mismo padrón filtrado', () => {

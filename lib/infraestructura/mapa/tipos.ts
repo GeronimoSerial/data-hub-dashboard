@@ -3,7 +3,7 @@ import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 export type PestanaMapa = 'actual' | 'radar' | 'planificacion' | 'estadisticas'
 
 export type EstadoClases = 'normal' | 'parcial' | 'sin' | 'evacuado' | 'centro'
-export type ApoyoPedagogico = 'virtual' | 'cuadernillo' | 'ambos' | 'no' | null // null = no corresponde
+export type ApoyoPedagogico = 'virtual' | 'cuadernillo' | 'ambos' | 'brinda' | 'no' | 'sin_dato' | null // null = no corresponde
 export type GravedadMapa = 0 | 1 | 2 | 3 | 4 // 0 sin reporte, 1 Baja … 4 Crítica
 
 export interface EscuelaMapaEnriquecida {
@@ -33,7 +33,7 @@ export interface FiltrosMapa {
   niveles: string[]
   gravedades: GravedadMapa[]
   clases: EstadoClases[]
-  apoyo: Array<'brinda' | 'no' | 'virtual' | 'cuadernillo'>
+  apoyo: Array<'brinda' | 'no' | 'sin_dato'>
   sinActualizar: boolean
 }
 
