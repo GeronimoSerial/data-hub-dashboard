@@ -24,8 +24,7 @@ from geo_static.physrisk_susceptibilidad import (
 )
 
 VERSION_JOB = "1"
-# la salida v3 (con via_principal) se genera en una corrida aparte; actualizar este default cuando exista
-GEOMETRIA_DEFAULT = Path(__file__).resolve().parents[3] / "output" / "accesos_osm_geometria-v2-2026-09-26.ndjson.gz"
+GEOMETRIA_DEFAULT = Path(__file__).resolve().parents[3] / "output" / "accesos_osm_geometria-v3-2026-09-26.ndjson.gz"
 OUTPUT_DIR = Path(__file__).resolve().parents[3] / "output"
 CHECKPOINT_DEFAULT = Path(__file__).resolve().parents[3] / ".data" / "exposicion_ruta_celdas.ndjson"
 ESCENARIO = "historico WRI Aqueduct v2, WATCH 1980"
