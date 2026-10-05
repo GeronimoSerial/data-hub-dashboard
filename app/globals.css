@@ -3891,9 +3891,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .estado-actual-acciones > .ui-button { min-height: 48px; }
 
+/* Celular: lo que el director viene a hacer (actualizar) queda fijo abajo,
+   al alcance del pulgar, en vez de al final de una pantalla que hay que
+   recorrer entera. Los bloques de arriba se compactan para que el estado se
+   lea sin tanto scroll. */
 @media (max-width: 480px) {
-  .estado-actual-acciones { flex-direction: column; align-items: stretch; }
-  .estado-actual-acciones > .ui-button { width: 100%; }
+  .estado-actual { gap: var(--s-4); }
+  .estado-actual-bloque { padding-top: var(--s-4); gap: var(--s-2); }
+  .estado-actual-pie {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    gap: var(--s-2);
+    padding: var(--s-3) 0 calc(var(--s-3) + env(safe-area-inset-bottom));
+    background: var(--card);
+  }
+  .estado-actual-acciones { flex-wrap: nowrap; }
+  .estado-actual-acciones__principal { flex: 1 1 auto; }
 }
 
 /* En escritorio los dos datos de cabecera —servicio y establecimiento— se
