@@ -111,6 +111,8 @@ describe('sinSituacionEnSeguimiento', () => {
             severidad: 'Alta',
             descripcion: null,
             rigeDesde: '2026-09-18T13:30:00.000Z',
+            creadaEn: '2026-09-18T13:30:00.000Z',
+            causadaPorId: null,
             secciones: [],
             totales: { secciones: 3, alumnos: 74 },
           },

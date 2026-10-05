@@ -71,6 +71,8 @@ const VIGENTE: AfectacionVigente = {
   severidad: 'Media',
   descripcion: null,
   rigeDesde: '2026-09-17T16:20:00.000Z',
+  creadaEn: '2026-09-17T16:20:00.000Z',
+  causadaPorId: null,
   secciones: [{ geSectionId: 10, seccionCompleta: true, alumnos: [] }],
   totales: { secciones: 1, alumnos: 0 },
 }
@@ -106,6 +108,8 @@ const VIGENTE_PAYLOAD: AfectacionVigente = {
   severidad: 'Media',
   descripcion: 'Aula inundada',
   rigeDesde: '2026-09-17T16:20:00.000Z',
+  creadaEn: '2026-09-17T16:20:00.000Z',
+  causadaPorId: null,
   secciones: [
     { geSectionId: 10, seccionCompleta: true, alumnos: [alumnoAfectado(101), alumnoAfectado(102)] },
     { geSectionId: 20, seccionCompleta: false, alumnos: [alumnoAfectado(201)] },
@@ -122,6 +126,8 @@ describe('afectacionVigenteABorrador', () => {
       severidad: 'Media',
       descripcion: 'Aula afectada',
       rigeDesde: '2026-09-17T16:20:00.000Z',
+      creadaEn: '2026-09-17T16:20:00.000Z',
+      causadaPorId: null,
       secciones: [
         { geSectionId: 10, seccionCompleta: true, alumnos: [alumnoAfectado(101), alumnoAfectado(102)] },
         // La sección matricula 3 alumnos, pero la selección vigente es 1.
@@ -152,6 +158,8 @@ describe('snapshotAntesDeVigente', () => {
           severidad: 'Media',
           descripcion: null,
           rigeDesde: '2026-09-17T16:20:00.000Z',
+          creadaEn: '2026-09-17T16:20:00.000Z',
+          causadaPorId: null,
           secciones: [
             { geSectionId: 10, seccionCompleta: true, alumnos: [alumnoAfectado(101), alumnoAfectado(102)] },
           ],

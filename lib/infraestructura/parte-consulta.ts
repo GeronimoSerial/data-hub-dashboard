@@ -5,7 +5,7 @@
 // batch 2, que son puros): esta capa SÍ hace I/O, a propósito, porque es la
 // que arma los snapshots que consume la capa pura.
 import { crearEjecutorSql, type EjecutorSql } from './ge-db'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull } from 'drizzle-orm'
 import { getDb, getRawClient } from '@/lib/db'
 import {
   infraAfectacion,
@@ -21,6 +21,7 @@ import { describirMovimiento } from './movimiento-descripcion'
 import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
+import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
 import type {
   Afectacion,
@@ -37,8 +38,11 @@ import type {
   ServicioAlcance,
   ServicioAlcanceTipo,
   ServicioEstado,
+  SituacionReciente,
   TipoMovimiento,
 } from './trayectoria-tipos'
+
+export type { SituacionReciente } from './trayectoria-tipos'
 
 // Cualquiera de los dos: la conexión de Drizzle "suelta" (getDb()) o el `tx`
 // que entrega `db.transaction(async (tx) => ...)` — ambos exponen la misma
@@ -74,6 +78,38 @@ export async function obtenerPeriodoVigente(
     .where(eq(infraPeriodo.estado, 'vigente'))
     .limit(1)
   return row ?? null
+}
+
+export async function listarSituacionesRecientes(
+  cueAnexo: string,
+  ahora: Date = new Date(),
+): Promise<SituacionReciente[]> {
+  const desde = new Date(ahora.getTime() - VENTANA_CAUSA_DIAS * 24 * 60 * 60 * 1000).toISOString()
+  const filas = await getDb()
+    .select({
+      id: infraAfectacion.id,
+      motivo: infraAfectacion.motivo,
+      severidad: infraAfectacion.severidad,
+      retiradaEn: infraAfectacion.retiradaEn,
+      cierre: infraAfectacion.cierre,
+    })
+    .from(infraAfectacion)
+    .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+    .where(
+      and(
+        eq(infraParte.cueAnexo, cueAnexo),
+        isNotNull(infraAfectacion.retiradaEn),
+        gte(infraAfectacion.retiradaEn, desde),
+      ),
+    )
+    .orderBy(desc(infraAfectacion.retiradaEn))
+
+  return filas.map((fila) => ({
+    ...fila,
+    severidad: fila.severidad as Severidad,
+    retiradaEn: fila.retiradaEn!,
+    cierre: (fila.cierre as SituacionReciente['cierre']) ?? null,
+  }))
 }
 
 // Arma las AfectacionAlcanceSeccion de una afectación aplicando el MISMO
@@ -276,6 +312,8 @@ export interface AfectacionFicha {
   severidad: Severidad
   descripcion: string | null
   rigeDesde: string
+  creadaEn: string
+  causadaPorId: string | null
   secciones: AfectacionAlcanceSeccion[]
   totales: { secciones: number; alumnos: number }
 }
@@ -322,6 +360,8 @@ export async function armarFichaParte(cueAnexo: string, corteId: number): Promis
       severidad: afectacion.severidad,
       descripcion: afectacion.descripcion,
       rigeDesde: afectacion.rigeDesde,
+      creadaEn: afectacion.creadaEn,
+      causadaPorId: afectacion.causadaPorId ?? null,
       secciones: afectacion.secciones,
       totales: { secciones: afectacion.secciones.length, alumnos: alumnosUnicos.size },
     }

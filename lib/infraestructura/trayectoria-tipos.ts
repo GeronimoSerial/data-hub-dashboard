@@ -91,6 +91,14 @@ export interface Afectacion extends FilaConVigencia {
   secciones: AfectacionAlcanceSeccion[]
 }
 
+export interface SituacionReciente {
+  id: string
+  motivo: string
+  severidad: Severidad
+  retiradaEn: string
+  cierre: 'solucionada' | 'retirada' | null
+}
+
 // --- Servicio educativo (spec §10) ---
 
 export interface ServicioAlcance extends FilaConVigencia {

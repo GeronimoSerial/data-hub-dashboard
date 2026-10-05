@@ -42,6 +42,8 @@ const CON_SITUACION: EstadoActualRespuesta = {
       severidad: 'Alta',
       descripcion: null,
       rigeDesde: '2026-09-18T13:30:00.000Z',
+      creadaEn: '2026-09-18T13:30:00.000Z',
+      causadaPorId: null,
       secciones: [],
       totales: { secciones: 3, alumnos: 74 },
     },
@@ -52,6 +54,8 @@ const CON_SITUACION: EstadoActualRespuesta = {
       severidad: 'Media',
       descripcion: null,
       rigeDesde: '2026-09-18T13:30:00.000Z',
+      creadaEn: '2026-09-18T13:30:00.000Z',
+      causadaPorId: null,
       secciones: [
         {
           geSectionId: 11,

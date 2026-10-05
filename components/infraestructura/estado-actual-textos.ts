@@ -13,7 +13,10 @@ import type {
   SeccionEstablecimiento,
   ServicioAlcance,
   Severidad,
+  SituacionReciente,
 } from '@/lib/infraestructura/trayectoria-tipos'
+
+export type { SituacionReciente } from '@/lib/infraestructura/trayectoria-tipos'
 
 // --- Forma de la respuesta de GET /api/problematicas/parte ---
 //
@@ -47,6 +50,8 @@ export interface AfectacionVigente {
   severidad: Severidad
   descripcion: string | null
   rigeDesde: string
+  creadaEn: string
+  causadaPorId: string | null
   secciones: SeccionAfectada[]
   totales: TotalesAfectacion
 }
@@ -68,6 +73,8 @@ export interface EstadoActualRespuesta {
   afectaciones?: AfectacionVigente[]
   secciones?: SeccionEstablecimiento[]
   ultimaActualizacion?: string | null
+  recientes?: SituacionReciente[]
+  ultimaCarga?: { creadaEn: string; cambios: string[] } | null
 }
 
 // --- Cadenas textuales de la especificación ---

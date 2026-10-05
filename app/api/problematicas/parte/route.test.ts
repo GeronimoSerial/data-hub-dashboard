@@ -917,6 +917,25 @@ describe('POST /api/problematicas/parte — causa', () => {
   })
 })
 
+describe('GET /api/problematicas/parte — contexto del estado actual', () => {
+  it('devuelve situaciones recientes cerradas y la última carga', async () => {
+    const res = await GET(getReq(CUE_R))
+    const body = await res.json()
+
+    expect(body.recientes.map((r: { motivo: string }) => r.motivo)).toContain('Tormenta severa')
+    expect(body.recientes[0].cierre).toBe('solucionada')
+    expect(body.ultimaCarga.cambios.join(' ')).toMatch(/Se solucionó "Tormenta severa"/)
+    expect(typeof body.ultimaCarga.creadaEn).toBe('string')
+  })
+
+  it('expone la causa en las afectaciones vigentes', async () => {
+    const body = await (await GET(getReq(CUE_Q))).json()
+    const hija = body.afectaciones.find((a: { motivo: string }) => a.motivo === 'Sin energía o agua')
+
+    expect(hija.causadaPorId).toEqual(expect.any(String))
+  })
+})
+
 // Batch E1: el enlace opcional `verificacion: { id, token }` en el body del
 // POST enlaza el movimiento recién creado con la verificación de origen
 // (infra_verificacion.movimiento_id) y la pasa a 'respondida'/'con_afectacion'.

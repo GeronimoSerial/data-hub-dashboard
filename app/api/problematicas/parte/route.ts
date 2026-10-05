@@ -31,6 +31,8 @@ import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcio
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import {
   armarFichaParte,
+  listarMovimientosDescritos,
+  listarSituacionesRecientes,
   obtenerAfectacionesYServicio,
   obtenerParteActual,
   obtenerPeriodoVigente,
@@ -229,6 +231,8 @@ export async function GET(request: Request) {
     severidad: afectacion.severidad,
     descripcion: afectacion.descripcion,
     rigeDesde: afectacion.rigeDesde,
+    creadaEn: afectacion.creadaEn,
+    causadaPorId: afectacion.causadaPorId,
     secciones: afectacion.secciones.map((seccion) => ({
       geSectionId: seccion.geSectionId,
       seccionCompleta: seccion.seccionCompleta,
@@ -242,6 +246,14 @@ export async function GET(request: Request) {
     totales: afectacion.totales,
   }))
 
+  const [recientes, movimientos] = await Promise.all([
+    listarSituacionesRecientes(cue.value),
+    listarMovimientosDescritos(cue.value, corte.id),
+  ])
+  const ultimaCarga = movimientos[0]
+    ? { creadaEn: movimientos[0].creadaEn, cambios: movimientos[0].cambios }
+    : null
+
   return jsonNoStore(
     {
       ok: true,
@@ -251,6 +263,8 @@ export async function GET(request: Request) {
       afectaciones: afectacionesRespuesta,
       secciones: ficha.secciones,
       ultimaActualizacion: ficha.ultimaActualizacion,
+      recientes,
+      ultimaCarga,
     },
   )
 }
