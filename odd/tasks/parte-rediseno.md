@@ -22,8 +22,8 @@
 - [x] Visual review of B1–B5 — done (report: 2 blockers, 9 important, 12 minor)
 - [x] Polish H2–H23 + flaky test — merged 9a0f971 (12 commits)
 - [x] Final blind re-review #1 — NOT APPROVED: H1 send hangs with no timeout, H2 movement title says "normal" for an Alta storm, plus 12 minor; the Actualizar walkthrough was not covered
-- [ ] Polish 2 (H1–H14 + full B4 visual coverage) — running, dispatch ctx_17b1813361fe
-- [ ] Final blind re-review #2 (must cover Actualizar end to end)
+- [x] Polish 2 (H1–H14 + full B4 visual coverage) — merged 297131a (11 commits). N1 rejected a "no auto-retry after timeout" change (it broke the auto-resend guarantee); fixed in 866abe3
+- [ ] Final blind re-review #2 (must cover Actualizar end to end) — running, dispatch ctx_675ad9eeb356, isolated env visual3
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
@@ -47,3 +47,4 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - Visual review B1–B5 done (Playwright headless + Read of every screenshot, because Claude in Chrome and chrome-devtools MCP fail when the Chrome window is covered). 2 blockers (fetch, already fixed; internal section ids in the history), 9 important, 12 minor. The user's known findings (student list, chips) were reported as H5/H6, but the reviewer had read the private file, so the blind test is inconclusive. Criteria reinforced (lists/options/chips) and sent to the other session's terminal as agreed.
 - Polish N2 (H2–H23 + flaky test) running: dispatch ctx_f4cac2624413, worktree parte-pulido. Then a final blind re-review.
 - Polish merged 9a0f971: N1 checked the after-screenshots (grouped section list with custom controls; chips in a regular 3-up grid; date and time stacked). Gate on the integration: tsc clean; vitest 2572 passed, 1 failed (pre-existing radar-meteo; the flaky test is fixed); lint 0 errors; build 0.
+- Integrated feat/staging 297131a: tsc clean; vitest 2645 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
