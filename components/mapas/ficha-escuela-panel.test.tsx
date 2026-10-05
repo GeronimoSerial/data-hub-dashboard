@@ -7,13 +7,13 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 const escuela: EscuelaMapaEnriquecida = {
   cueAnexo: '180000123-00', nombre: 'Escuela N.º 123', departamento: 'CAPITAL', localidad: 'Corrientes',
   lat: null, lon: null, niveles: ['Inicial', 'Primario'], alumnos: 1234, gravedad: 3,
-  categoriaPrincipal: 'establecimiento', clases: 'sin', apoyo: 'virtual', sinActualizar: true,
+  categoriaPrincipal: 'alumnos', clases: 'sin', apoyo: 'virtual', sinActualizar: true,
   ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 1234,
 }
 
 const afectaciones = [{
-  id: 'afectacion-1', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta',
-  descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-01T12:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
+  id: 'afectacion-1', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta',
+  descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-02T15:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
 }]
 
 const movimientos = [
@@ -22,10 +22,10 @@ const movimientos = [
   { id: 'mov-3', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-09-02T12:00:00.000Z', rigeDesde: '2026-09-02T12:00:00.000Z', cambios: [] },
 ]
 
-function instalarFetch({ error = false }: { error?: boolean } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones }: { error?: boolean; situaciones?: typeof afectaciones } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
-    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: null, afectaciones },
+    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: null, afectaciones: situaciones },
   })))
 }
 
@@ -69,6 +69,7 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getAllByText('Apoyo virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
+    expect(await screen.findByText('Inaccesibilidad de alumnos · desde hace 3 d')).toBeInTheDocument()
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
     expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
     expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
@@ -88,6 +89,17 @@ describe('FichaEscuelaPanel', () => {
     instalarFetch()
     renderFicha({ escuela: { ...escuela, gravedad: 0, categoriaPrincipal: null } })
     expect(screen.getByText('Sin reportes abiertos')).toBeInTheDocument()
+  })
+
+  it('usa la situación de mayor severidad cuando no coincide con la gravedad de la escuela', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], id: 'media-reciente', severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'media-antigua', severidad: 'Media', rigeDesde: '2026-10-02T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'baja-antigua', severidad: 'Baja', rigeDesde: '2026-09-01T15:00:00.000Z' },
+    ] })
+    renderFicha()
+
+    expect(await screen.findByText('Inaccesibilidad de alumnos · desde hace 3 d')).toBeInTheDocument()
   })
 
   it('vuelve a la lista y abre el historial completo', () => {
@@ -140,6 +152,7 @@ describe('FichaEscuelaPanel', () => {
     const secciones = screen.getAllByText('Cargando…')
     expect(secciones).toHaveLength(2)
     expect(screen.getByText('Situaciones').closest('summary')).toBeInTheDocument()
+    expect(screen.getByText('Inaccesibilidad de alumnos')).toBeInTheDocument()
   })
 
   it('no conserva la ficha anterior al cambiar de CUE', async () => {

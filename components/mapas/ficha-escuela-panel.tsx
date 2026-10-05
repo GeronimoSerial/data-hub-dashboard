@@ -11,6 +11,7 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { HistorialMovimiento } from '@/components/infraestructura/historial-movimiento'
 import type { AfectacionFicha } from '@/lib/infraestructura/use-ficha-parte'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -37,13 +38,18 @@ function etiquetaCategoria(categoria: string | null): string | null {
   return esCategoria(categoria) ? CATEGORIA_META[categoria].label : categoria
 }
 
-function fechaGravedad(afectaciones: AfectacionFicha[], gravedad: string): string | null {
-  const deMayorSeveridad = afectaciones
-    .filter((afectacion) => afectacion.severidad === gravedad)
-    .map((afectacion) => afectacion.rigeDesde)
-    .filter((fecha) => Number.isFinite(Date.parse(fecha)))
-    .sort((a, b) => Date.parse(a) - Date.parse(b))[0]
-  return deMayorSeveridad ?? null
+function fechaSituacionPrincipal(afectaciones: AfectacionFicha[], gravedad: string): string | null {
+  const candidatas = afectaciones
+    .map((afectacion) => ({
+      fecha: afectacion.rigeDesde,
+      severidadEtiqueta: afectacion.severidad,
+      severidad: SEVERIDADES.indexOf(afectacion.severidad),
+    }))
+    .filter(({ fecha, severidad }) => severidad >= 0 && Number.isFinite(Date.parse(fecha)))
+  const coincidentes = candidatas.filter((afectacion) => afectacion.severidadEtiqueta === gravedad)
+  const principales = (coincidentes.length > 0 ? coincidentes : candidatas)
+    .sort((a, b) => b.severidad - a.severidad || Date.parse(a.fecha) - Date.parse(b.fecha))
+  return principales[0]?.fecha ?? null
 }
 
 function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
@@ -100,7 +106,7 @@ export function FichaEscuelaPanel({
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
   const severidad = ETIQUETA_GRAVEDAD[escuela.gravedad]
-  const desde = fechaGravedad(afectaciones, severidad)
+  const desde = fechaSituacionPrincipal(afectaciones, severidad)
   const categoria = etiquetaCategoria(escuela.categoriaPrincipal)
   const novedad = datos?.parte?.actualizadaEn
     ? tiempoRelativo(datos.parte.actualizadaEn, ahoraMs)
