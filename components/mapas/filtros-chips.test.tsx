@@ -86,6 +86,16 @@ describe('FiltrosChips', () => {
     expect(primario).toHaveAccessibleName(/Primario.*2/)
   })
 
+  it('muestra un estado vacío en Nivel cuando el padrón no trae niveles', async () => {
+    const user = userEvent.setup()
+    const escuelasSinNiveles = [escuela({ niveles: [] })]
+    render(<FiltrosChips escuelas={escuelasSinNiveles} filtros={FILTROS_MAPA_VACIOS} onChange={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Nivel' }))
+
+    expect(screen.getByText('No hay niveles cargados en el padrón.')).toBeInTheDocument()
+  })
+
   it('Esc cierra el popover y devuelve el foco al chip', async () => {
     const user = userEvent.setup()
     renderFiltros()

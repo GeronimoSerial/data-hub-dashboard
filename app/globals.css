@@ -4426,6 +4426,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-size: var(--t-small);
   cursor: pointer;
 }
+.filtros-opcion-vacio {
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
 .filtros-opcion:hover { background: var(--fill); }
 .filtros-opcion input { accent-color: var(--ink); }
 .filtros-opcion__conteo { margin-left: auto; color: var(--ink-faint); font-variant-numeric: tabular-nums; }

@@ -119,7 +119,11 @@ function FiltroDesplegable({
         <Popover.Portal>
           <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4}>
             <Popover.Popup className="filtros-popover" aria-label={etiqueta}>
-              {opciones.map((opcion, indice) => (
+              {opciones.length === 0 ? (
+                <div className="filtros-opcion-vacio" role="status">
+                  {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
+                </div>
+              ) : opciones.map((opcion, indice) => (
                 <label className="filtros-opcion" key={opcion.valor}>
                   <input
                     ref={indice === 0 ? primerCheckbox : undefined}
