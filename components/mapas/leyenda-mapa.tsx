@@ -1,6 +1,6 @@
 'use client'
 
-import { BookMinus, BookX, Clock, DoorOpen, House } from 'lucide-react'
+import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
@@ -19,6 +19,7 @@ const ESTADOS_LEYENDA = [
   { Icono: DoorOpen, etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
   { Icono: House, etiqueta: ETIQUETA_ESTADO_CLASES.centro },
   { Icono: Clock, etiqueta: 'Sin actualizar' },
+  { Icono: Check, etiqueta: 'Solucionada recientemente' },
 ] as const
 
 export function LeyendaMapa(props: PropsLeyendaMapa) {

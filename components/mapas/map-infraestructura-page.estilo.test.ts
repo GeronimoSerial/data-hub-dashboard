@@ -7,6 +7,7 @@ import {
   colorTextoCluster,
   expresionConteoCluster,
   filtroIconoEscuelaAfectada,
+  filtroIconoEscuelaSolucionada,
 } from './map-infraestructura-page'
 import { paintPuntosNivel } from './capa-puntos-nivel'
 
@@ -65,6 +66,13 @@ describe('estilo del mapa de infraestructura', () => {
           type: 'symbol',
           source: 'infra',
           filter: filtroIconoEscuelaAfectada(),
+          layout: {},
+        },
+        {
+          id: 'infra-icono-escuela-solucionada',
+          type: 'symbol',
+          source: 'infra',
+          filter: filtroIconoEscuelaSolucionada(),
           layout: {},
         },
         {

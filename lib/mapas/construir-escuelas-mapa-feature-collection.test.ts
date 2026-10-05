@@ -115,6 +115,20 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     expect(props.esEvacuado).toBe(false)
     expect(props.esCentroEvacuados).toBe(false)
     expect(props.estado).toBe('sin_afectacion_reportada')
+    expect(props.solucionadaReciente).toBe(false)
+  })
+
+  it('marca sólo las situaciones recién solucionadas de escuelas sin afectación', () => {
+    const fc = construirEscuelasMapaFeatureCollection([
+      escuelaSinAfectacion({ solucionadasRecientes: 1 }),
+      escuelaSinAfectacion({ solucionadasRecientes: 0 }),
+      escuelaAfectada({ solucionadasRecientes: 1 }),
+      escuelaSinAfectacion({ gravedad: 1, solucionadasRecientes: 1 }),
+    ])
+
+    expect(fc.features.map((feature) => feature.properties.solucionadaReciente)).toEqual([
+      true, false, false, false,
+    ])
   })
 
   it('ninguna escuela sin reporte lleva badge aunque sus clases o actualización sugieran un ícono', () => {

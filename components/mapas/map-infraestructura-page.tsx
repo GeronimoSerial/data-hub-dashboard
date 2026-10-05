@@ -156,6 +156,7 @@ import {
   ID_IMAGEN_ESCUELA_BAJA,
   ID_IMAGEN_ESCUELA_CRITICA,
   ID_IMAGEN_ESCUELA_MEDIA,
+  ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -211,6 +212,7 @@ const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
 // círculo de 6 px el click sobre una escuela del padrón casi siempre perdía
 // contra el polígono del departamento de abajo.
 const CAPA_PARTES_ESCUELA_ICONO_ID = 'infra-partes-escuela-icono'
+const CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID = 'infra-partes-escuela-solucionada-icono'
 
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
 // `--marker` (= `--yellow`, globals.css) que el hub usa para selección/foco.
@@ -432,6 +434,10 @@ export function colorTextoCluster(oscuro = false): ExpressionSpecification {
 
 export function filtroIconoEscuelaAfectada(): FilterSpecification {
   return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'estado'], 'afectada']]
+}
+
+export function filtroIconoEscuelaSolucionada(): FilterSpecification {
+  return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'solucionadaReciente'], true]]
 }
 
 // Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
@@ -1107,6 +1113,7 @@ export default function MapInfraestructuraPage(props: {
     // individual (~22 px contra los 12 px del círculo). Sin esto, el click
     // sobre una escuela del padrón lo gana el polígono del departamento.
     CAPA_PARTES_ESCUELA_ICONO_ID,
+    CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
     CAPA_PARTES_CLUSTER_ID,
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
@@ -1184,7 +1191,8 @@ export default function MapInfraestructuraPage(props: {
       ?? features.find(
         (item) =>
           item.layer?.id === CAPA_PARTES_ID ||
-          item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID,
+          item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID ||
+          item.layer?.id === CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
       )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
       setClusterInfoClic(feature)
@@ -1605,6 +1613,25 @@ export default function MapInfraestructuraPage(props: {
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
                       ID_IMAGEN_ESCUELA_BAJA,
                     ],
+                    'icon-size': 1.2,
+                    'icon-anchor': 'center',
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                  }}
+                  paint={{
+                    'icon-opacity': puntosVisibles ? 1 : 0,
+                    'icon-opacity-transition': { duration: 180, delay: 0 },
+                  }}
+                />
+              )}
+              {iconosClusterListos && (
+                <Layer
+                  id={CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID}
+                  type="symbol"
+                  filter={filtroIconoEscuelaSolucionada()}
+                  layout={{
+                    visibility: ocultarPartes ? 'none' : 'visible',
+                    'icon-image': ID_IMAGEN_ESCUELA_SOLUCIONADA,
                     'icon-size': 1.2,
                     'icon-anchor': 'center',
                     'icon-allow-overlap': true,

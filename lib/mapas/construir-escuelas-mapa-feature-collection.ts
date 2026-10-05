@@ -51,6 +51,9 @@ export interface PropiedadesEscuelaMapa {
   // el agregado de cluster distinga centro de evacuados (prioridad 1, Tent)
   // de evacuado (prioridad 2, DoorOpen) al elegir el ícono del cluster.
   esCentroEvacuados: boolean
+  // Sólo escuelas sin afectación vigente con una situación solucionada en
+  // los últimos 15 días; se usa para distinguir su punto neutro en el mapa.
+  solucionadaReciente: boolean
   // Campo explícito para que la ficha/tooltip distinga sin adivinar por color.
   estado: 'afectada' | 'sin_afectacion_reportada'
 }
@@ -85,6 +88,7 @@ export function construirEscuelasMapaFeatureCollection(
               parte.estadoEstablecimiento === 'evacuado' ||
               parte.estadoEstablecimiento === 'centro_evacuados',
             esCentroEvacuados: parte.estadoEstablecimiento === 'centro_evacuados',
+            solucionadaReciente: false,
             estado: 'afectada',
           }
         : {
@@ -100,6 +104,10 @@ export function construirEscuelasMapaFeatureCollection(
             sinActualizar: false,
             esEvacuado: false,
             esCentroEvacuados: false,
+            solucionadaReciente:
+              escuela.estado === 'sin_afectacion_reportada' &&
+              escuela.gravedad === 0 &&
+              escuela.solucionadasRecientes > 0,
             estado: 'sin_afectacion_reportada',
           }
 

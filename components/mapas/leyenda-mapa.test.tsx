@@ -24,8 +24,9 @@ describe('LeyendaMapa', () => {
     expect(sinReporte).toHaveClass('map-leyenda__muestra--neutra')
     expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
     expect(Array.from(filas[1].querySelectorAll('li')).map((item) => item.textContent)).toEqual([
-      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar',
+      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar', 'Solucionada recientemente',
     ])
+    expect(filas[1].querySelector('li:last-child svg')).toHaveAttribute('aria-hidden', 'true')
     expect(container.querySelector('p')).toBeNull()
   })
 

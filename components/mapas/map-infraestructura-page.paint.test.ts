@@ -11,6 +11,7 @@ import {
   expresionConteoCluster,
   expresionRadioClusterSinReporte,
   filtroIconoEscuelaAfectada,
+  filtroIconoEscuelaSolucionada,
   expresionRadioCluster,
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
@@ -275,6 +276,13 @@ describe('filtro del ícono de escuela', () => {
     expect(evaluarFiltro(filtro, { estado: 'afectada' })).toBe(true)
     expect(evaluarFiltro(filtro, { estado: 'sin_afectacion_reportada' })).toBe(false)
     expect(evaluarFiltro(filtro, { estado: 'afectada', point_count: 7 })).toBe(false)
+  })
+
+  it('incluye sólo escuelas individuales con situación solucionada recientemente', () => {
+    const filtro = filtroIconoEscuelaSolucionada() as unknown[]
+    expect(evaluarFiltro(filtro, { solucionadaReciente: true })).toBe(true)
+    expect(evaluarFiltro(filtro, { solucionadaReciente: false })).toBe(false)
+    expect(evaluarFiltro(filtro, { solucionadaReciente: true, point_count: 7 })).toBe(false)
   })
 })
 
