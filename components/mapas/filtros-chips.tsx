@@ -178,6 +178,7 @@ export function FiltrosChips({
   const idLista = useId()
   const idOpcionActiva = `${idLista}-opcion-${opcionActiva}`
   const queryRecortada = filtros.q.trim()
+  const busquedaVisible = busquedaAbierta || Boolean(filtros.q)
   const sugerenciasAbiertas = queryRecortada.length >= 2 && !sugerenciasCerradas
   const sugerencias = sugerenciasAbiertas
     ? filtrarEscuelas(escuelas, filtros).slice(0, 8)
@@ -187,10 +188,6 @@ export function FiltrosChips({
   useEffect(() => {
     if (busquedaAbierta) busquedaRef.current?.focus()
   }, [busquedaAbierta])
-
-  useEffect(() => {
-    if (filtros.q) setBusquedaAbierta(true)
-  }, [filtros.q])
 
   useEffect(() => {
     if (!filtrosCompactosAbiertos) return
@@ -228,8 +225,8 @@ export function FiltrosChips({
 
   return (
     <div className="filtros-barra" aria-label="Filtros de escuelas" data-abierto={filtrosCompactosAbiertos} ref={filtrosBarraRef}>
-      <div className={`filtros-busqueda-contenedor${busquedaAbierta ? ' filtros-busqueda-contenedor--abierto' : ''}`}>
-        {busquedaAbierta ? (
+      <div className={`filtros-busqueda-contenedor${busquedaVisible ? ' filtros-busqueda-contenedor--abierto' : ''}`}>
+        {busquedaVisible ? (
           <label className="filtros-busqueda">
             <Search aria-hidden="true" />
             <input
@@ -283,7 +280,7 @@ export function FiltrosChips({
             <Search aria-hidden="true" />
           </button>
         )}
-        {busquedaAbierta && sugerenciasAbiertas && (
+        {busquedaVisible && sugerenciasAbiertas && (
           <div className="filtros-sugerencias" id={idLista} role="listbox" aria-label="Escuelas coincidentes">
             {sugerencias.length === 0 ? (
               <div className="filtros-sugerencias__vacio" role="status">Ninguna escuela coincide</div>

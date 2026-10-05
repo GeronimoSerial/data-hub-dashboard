@@ -280,7 +280,7 @@ describe('FiltrosChips', () => {
     expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toHaveValue('Goya')
   })
 
-  it('con sugerencias Escape primero las cierra y el segundo colapsa la búsqueda', async () => {
+  it('con texto Escape cierra las sugerencias sin colapsar la búsqueda', async () => {
     const user = userEvent.setup()
     render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={vi.fn()} />)
     await user.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
@@ -291,7 +291,7 @@ describe('FiltrosChips', () => {
     expect(busqueda).toHaveValue('tatacua')
     expect(busqueda).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('combobox', { name: 'Buscar escuela o CUE' })).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toHaveValue('tatacua')
   })
 
   it('muestra sugerencias por nombre y selecciona con Enter limpiando la búsqueda', async () => {
@@ -347,7 +347,6 @@ describe('FiltrosChips', () => {
   })
 
   it('respeta los demás filtros activos al sugerir escuelas', async () => {
-    const user = userEvent.setup()
     const primario = escuelaTatacua
     const secundario = escuela({ cueAnexo: '1800088-00', nombre: 'Escuela Secundaria Tatacuá', niveles: ['Secundario'] })
     render(<FiltrosChips escuelas={[primario, secundario]} filtros={{ ...FILTROS_MAPA_VACIOS, niveles: ['Secundario'], q: 'tatacua' }} onChange={vi.fn()} onSeleccionar={vi.fn()} />)

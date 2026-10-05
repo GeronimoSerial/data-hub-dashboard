@@ -680,7 +680,7 @@ export default function MapInfraestructuraPage(props: {
   // opción inicial cuando todavía no hay evidencia disponible.
   const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteMotor>(72)
   const [variableRadar, setVariableRadar] = useState<VariableRadarUI>('lluvia')
-  const [capasRadarVisibles, setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
+  const [capasRadarVisibles, _setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
 
   // El hook SIEMPRE se llama (regla de hooks), pero sólo dispara request con
   // `activo` true — es decir, flag prendido Y modo Radar. En "Situación actual"
