@@ -252,6 +252,7 @@ describe('ActualizacionForm', () => {
 
     const radiosEstablecimiento = screen.getAllByRole('radio', { name: /afecta al establecimiento/i })
     fireEvent.click(radiosEstablecimiento[radiosEstablecimiento.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 
     const motivoRadios = screen.getAllByRole('radio', { name: 'Inundación' })
     fireEvent.click(motivoRadios[motivoRadios.length - 1])
@@ -551,6 +552,7 @@ describe('ActualizacionForm — una situación en blanco no es un cambio', () =>
 
     const categorias = screen.getAllByRole('radio', { name: /Afecta al establecimiento/ })
     fireEvent.click(categorias[categorias.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     const motivos = screen.getAllByRole('radio', { name: 'Tormenta severa' })
     fireEvent.click(motivos[motivos.length - 1])
     const severidades = screen.getAllByRole('radio', { name: 'Media' })

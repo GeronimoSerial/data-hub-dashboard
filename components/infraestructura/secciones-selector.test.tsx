@@ -34,6 +34,14 @@ const turnosConAlumnos = [
   },
 ]
 
+const turnosSinIdentidades = turnos.map((turno) => ({
+  ...turno,
+  niveles: turno.niveles.map((nivel) => ({
+    ...nivel,
+    secciones: nivel.secciones.map((seccion) => ({ ...seccion, alumnos: [] })),
+  })),
+}))
+
 const textoConComillasNormalizadas = (esperado: string) => (contenido: string) =>
   contenido.replace(/[“”]/g, '"') === esperado
 
@@ -155,7 +163,7 @@ describe('SeccionesSelector', () => {
     })
 
     it('no ofrece desplegar cuando la sección no tiene identidades cargadas', () => {
-      renderSelector()
+      renderSelector({ turnos: turnosSinIdentidades })
 
       expect(screen.queryByRole('button', { name: /alumnos/i })).not.toBeInTheDocument()
     })

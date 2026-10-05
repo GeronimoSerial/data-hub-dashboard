@@ -487,6 +487,16 @@ export async function POST(request: Request) {
     }
   }
 
+  for (const { input: entrada, categoria } of nuevasConCategoria) {
+    if (categoria !== 'alumnos') continue
+    const membresia = await obtenerMembresiaSecciones(client, { corteId, geSectionIds: entrada.secciones })
+    const alumnos = new Set(entrada.alumnos ?? [])
+    const todasConAlumno = entrada.secciones.every((seccion) =>
+      [...(membresia.get(seccion) ?? [])].some((id) => alumnos.has(id)),
+    )
+    if (!todasConAlumno) return jsonError('Cada sección elegida debe incluir al menos un alumno', 400)
+  }
+
   const [parteExistente] = await db
     .select()
     .from(infraParte)

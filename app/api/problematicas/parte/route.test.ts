@@ -345,6 +345,15 @@ describe('POST /api/problematicas/parte', () => {
     expect(res.status).toBe(400)
   })
 
+  it('en categoría alumnos rechaza una sección sin alumnos explícitos', async () => {
+    const res = await POST(postReq({
+      cue: CUE_O, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Anegamiento', severidad: 'Alta', secciones: [seccionId(CUE_O, '10'), seccionId(CUE_O, '20')], alumnos: alumnoIds(CUE_O, '000', 2) }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Cada sección elegida debe incluir al menos un alumno')
+  })
+
   it('el primer POST crea el parte con el corteId del corte vigente y un movimiento reporte_inicial', async () => {
     const idempotencyKey = crypto.randomUUID()
     const rigeDesde = new Date().toISOString()
@@ -517,7 +526,7 @@ describe('POST /api/problematicas/parte', () => {
         rigeDesde: rigeDesdeInicial,
         afectacionesNuevas: [
           { motivo: 'Inundación', severidad: 'Media', secciones: [seccionId(CUE_D, '10')] },
-          { motivo: 'Anegamiento', severidad: 'Baja', secciones: [seccionId(CUE_D, '20')] },
+          { motivo: 'Anegamiento', severidad: 'Baja', secciones: [seccionId(CUE_D, '20')], alumnos: alumnoIds(CUE_D, '100', 5) },
         ],
       }),
     )

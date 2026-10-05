@@ -35,8 +35,15 @@ function completarQuePaso() {
   fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
 }
 
-/** Paso 2: al menos una sección. */
-function completarAQuienAfecta() {
+/** Paso 2: alcance por sección o por alumno, según la categoría. */
+function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'establecimiento') {
+  if (categoria === 'alumnos') {
+    const seccion = turnos[0].niveles[0].secciones[0]
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
+    const alumno = seccion.alumnos[0]
+    fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
+    return
+  }
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
@@ -290,13 +297,42 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
-    completarAQuienAfecta()
+    completarAQuienAfecta('alumnos')
     continuar()
 
     expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
     expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
     expect(screen.queryByText('Funcionamiento escolar interrumpido')).toBeNull()
+  })
+
+  it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
+    const turnosConMayoria = turnos.map((turno) => ({
+      ...turno,
+      niveles: turno.niveles.map((nivel) => ({
+        ...nivel,
+        secciones: nivel.secciones.map((seccion) => ({
+          ...seccion,
+          matricula: seccion.geSectionId === 10 ? 2 : 0,
+        })),
+      })),
+    }))
+    renderFormulario({ turnos: turnosConMayoria })
+
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
+    fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    const seccion = turnosConMayoria[0].niveles[0].secciones[0]
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
+    for (const alumno of seccion.alumnos) {
+      fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar a establecimiento' }))
+
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
   })
 
   it('volver conserva lo ya cargado', () => {

@@ -12,6 +12,9 @@ import { SeccionesSelector } from '@/components/infraestructura/secciones-select
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
+import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
+import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
@@ -290,21 +293,58 @@ export function CamposAQuienAfecta({
 
   return (
     <>
-      <div className="afectacion-campos__grupo">
-        <Label>Secciones afectadas</Label>
-        <SeccionesSelector
-          turnos={turnos}
-          seleccionadas={borrador.secciones}
-          alumnosSeleccionados={borrador.alumnos}
-          onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
-          disabled={disabled}
-          permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
-        />
-        <p className="afectacion-borrador__resumen" aria-live="polite">
-          Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-          {matriculaDisponible} alumnos
-        </p>
-      </div>
+      {borrador.categoria === 'alumnos' ? (
+        <div className="afectacion-campos__grupo">
+          <Label>Alumnos afectados</Label>
+          <SelectorAlumnos
+            turnos={turnos}
+            alumnosSeleccionados={borrador.alumnos}
+            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            disabled={disabled}
+          />
+          <AvisosRedSeguridad
+            avisos={evaluarRedesSeguridad({
+              categoria: 'alumnos',
+              alumnosMarcados: borrador.alumnos.length,
+              matricula: matriculaDisponible,
+              seccionesMarcadas: borrador.secciones.length,
+              seccionesTotales: seccionesDisponibles.length,
+              alcanceEstablecimiento: '',
+            })}
+            onAccion={(tipo) => {
+              if (tipo === 'cambiar-a-establecimiento') {
+                onChange({
+                  ...borrador,
+                  categoria: 'establecimiento',
+                  motivo: '',
+                  severidad: '',
+                  justificacionCritica: '',
+                  justificacionCriticaDetalle: '',
+                  alumnos: [],
+                  secciones: [],
+                  alcanceEstablecimiento: '',
+                })
+              }
+            }}
+          />
+        </div>
+      ) : (
+        <div className="afectacion-campos__grupo">
+          <Label>Secciones afectadas</Label>
+          <SeccionesSelector
+            turnos={turnos}
+            seleccionadas={borrador.secciones}
+            alumnosSeleccionados={borrador.alumnos}
+            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            disabled={disabled}
+            permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
+          />
+          <p className="afectacion-borrador__resumen" aria-live="polite">
+            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+            {matriculaDisponible} alumnos
+          </p>
+        </div>
+      )}
 
       <div className="afectacion-campos__grupo">
         <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>

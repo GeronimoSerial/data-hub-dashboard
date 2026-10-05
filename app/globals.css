@@ -2881,6 +2881,26 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink);
 }
 
+.selector-alumnos__cabecera {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 44px;
+  justify-content: space-between;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.badge-seleccion {
+  font-size: var(--t-small);
+  padding: 0 var(--s-2);
+  border-radius: 999px;
+  background: var(--fill);
+}
+
 /* ── Vigencia field ("Rige desde") ────────────────────────────────────── */
 
 /* A <fieldset> so `disabled` propagates to every input/button below it for

@@ -471,6 +471,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     vigencia,
   ])
 
+  useEffect(() => {
+    if (paso === 2 && afectacion.categoria === 'establecimiento' && afectacion.motivo === '') {
+      setPaso(1)
+      setError('Elija el motivo del problema del establecimiento.')
+    }
+  }, [paso, afectacion.categoria, afectacion.motivo])
+
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
   // escribe: un error que aparece antes de que el director termine de
