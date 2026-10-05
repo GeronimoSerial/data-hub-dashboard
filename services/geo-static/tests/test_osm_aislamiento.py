@@ -19,6 +19,7 @@ import json
 import math
 
 import pandas as pd
+import pytest
 from shapely.geometry import LineString, Point
 from shapely.ops import transform as shapely_transform
 
@@ -37,6 +38,7 @@ from geo_static.osm_aislamiento import (
     _primer_valor,
     _tiene_ford,
     _tiene_puente,
+    asignar_costo,
     calcular_indice_aislamiento,
     calcular_metricas_departamento,
     calcular_metricas_escuela,
@@ -51,6 +53,50 @@ from geo_static.osm_aislamiento import (
 from _helpers import patch_nearest_nodes
 
 NAN = float("nan")
+
+
+def grafo_juguete(aristas):
+    """Construye un MultiDiGraph local para pruebas de rutas y costos."""
+    grafo = nx.MultiDiGraph()
+    for u, v, datos in aristas:
+        grafo.add_edge(u, v, **datos)
+    return grafo
+
+
+def test_prefiere_ruta_pavimentada_sobre_huella_mas_corta():
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 4000, "highway": "track"}),
+        ("A", "L", {"length": 1000, "highway": "track"}),
+        ("E", "B", {"length": 3000, "highway": "primary"}),
+        ("B", "L", {"length": 4000, "highway": "primary"}),
+    ])
+    asignar_costo(grafo)
+    ruta = nx.shortest_path(grafo, "E", "L", weight="costo")
+    assert ruta == ["E", "B", "L"]
+
+
+def test_superficie_no_pavimentada_penaliza():
+    grafo = grafo_juguete([
+        ("E", "L", {"length": 1000, "highway": "secondary", "surface": "dirt"})
+    ])
+    asignar_costo(grafo)
+    assert grafo["E"]["L"][0]["costo"] == pytest.approx(1000 * 1.2 * 1.5)
+
+
+def test_distancia_reportada_es_longitud_real_de_ruta_elegida_por_costo(monkeypatch):
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 4000, "highway": "track"}),
+        ("A", "L", {"length": 1000, "highway": "track"}),
+        ("E", "B", {"length": 3000, "highway": "secondary"}),
+        ("B", "L", {"length": 4000, "highway": "secondary"}),
+    ])
+    asignar_costo(grafo)
+    _patch_nearest_nodes_departamento(monkeypatch, {(0.0, 0.0): ("E", 0.0)})
+    escuela = {"lat": 0.0, "lon": 0.0}
+    resultado = calcular_metricas_departamento(
+        grafo, grafo.reverse(copy=False), [escuela], "L"
+    )[0]
+    assert resultado["distancia_cabecera_departamental_m"] == 7000
 
 
 class TestCalcularIndiceAislamiento:

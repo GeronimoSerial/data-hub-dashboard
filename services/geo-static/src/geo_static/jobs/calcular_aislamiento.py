@@ -280,6 +280,7 @@ def _escribir_csv_sin_ruta(
 def correr(limite_escuelas: int | None = None, departamentos: list[str] | None = None) -> None:
     from geo_static.osm_aislamiento import (
         MOTIVO_RED_NO_CONECTADA,
+        asignar_costo,
         calcular_indice_aislamiento,
         calcular_metricas_departamento,
         calcular_metricas_escuela,
@@ -368,6 +369,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             oeste,
             aristas_no_conectadas_out=aristas_no_conectadas,
         )
+        asignar_costo(grafo)
         indice_no_conectadas = construir_indice_no_conectadas(aristas_no_conectadas)
         print(
             f"[calcular_aislamiento] red local construida: {len(grafo.nodes)} nodos, "
@@ -573,6 +575,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 for e in escuelas_depto:
                     filas.append(_fila_sin_datos(e, fecha_extracto))
                 continue
+
+            asignar_costo(grafo)
 
             lat_cab, lon_cab = cabeceras[depto]
             nodo_cabecera = ox.distance.nearest_nodes(grafo, X=lon_cab, Y=lat_cab)
