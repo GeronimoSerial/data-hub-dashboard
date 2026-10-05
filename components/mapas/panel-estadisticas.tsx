@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Segmentado } from '@/components/mapas/segmentado'
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
 import { agrupar, resumir, type AgruparPor } from '@/lib/infraestructura/mapa/agregar'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
@@ -72,12 +72,14 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
 
       <section className="map-est__agrupacion" aria-labelledby="map-est-agrupar-titulo">
         <h3 id="map-est-agrupar-titulo" className="map-sitact__titulo-seccion">Agrupar por</h3>
-        <Segmentado
-          etiqueta="Agrupar por"
-          opciones={OPCIONES_AGRUPACION}
-          valor={por}
-          onChange={setPor}
-        />
+        <Select value={por} items={Object.fromEntries(OPCIONES_AGRUPACION.map(({ valor, etiqueta }) => [valor, etiqueta]))} onValueChange={(valor) => valor != null && setPor(valor as AgruparPor)}>
+          <SelectTrigger aria-label="Agrupar por" />
+          <SelectContent>
+            {OPCIONES_AGRUPACION.map(({ valor, etiqueta }) => (
+              <SelectItem key={valor} value={valor}>{etiqueta}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </section>
 
       {escuelas.length === 0 ? (
@@ -92,9 +94,8 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                 <tr>
                   <th scope="col">{ETIQUETAS_AGRUPACION[por]}</th>
                   <th scope="col">Escuelas</th>
-                  <th scope="col">Con situaciones abiertas</th>
+                  <th scope="col">Con situaciones</th>
                   <th scope="col">%</th>
-                  <th scope="col">Alumnos sin clases</th>
                 </tr>
               </thead>
               <tbody>
@@ -103,15 +104,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                     <th scope="row">{etiquetaFila(fila.clave, por)}</th>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.escuelas)}</td>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.afectadas)}</td>
-                    <td className="map-est__numero">
-                      <span className="map-est__porcentaje">
-                        <span className="map-est__porcentaje-numero">{fila.porcentaje}%</span>
-                        <span className="map-est__barra" aria-hidden="true">
-                          <span style={{ width: `${fila.porcentaje}%` }} />
-                        </span>
-                      </span>
-                    </td>
-                    <td className="map-est__numero">{FORMATO_NUMERO.format(fila.alumnosSinClases)}</td>
+                    <td className="map-est__numero">{fila.porcentaje}%</td>
                   </tr>
                 ))}
               </tbody>

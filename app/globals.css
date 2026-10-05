@@ -211,21 +211,30 @@
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
 .map-est { display: grid; width: 100%; min-width: 0; margin: 0; gap: var(--s-5); align-content: start; }
-.map-est .map-sitact__kpis { grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr)); }
+.map-est .map-sitact__kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.map-est .map-sitact__kpi { min-width: 0; align-content: start; }
+.map-est .map-sitact__kpi span { min-width: 0; overflow-wrap: anywhere; }
 .map-est__agrupacion { display: grid; gap: var(--s-2); }
-.map-est__agrupacion .map-seg { max-width: 28rem; }
+.map-est__agrupacion .ui-select-trigger { width: 100%; }
 .map-est__tabla-wrap { min-width: 0; max-width: 100%; overflow-x: hidden; }
 .map-est__tabla { width: 100%; table-layout: fixed; }
 .map-est__tabla th, .map-est__tabla td { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.map-est__tabla th:first-child, .map-est__tabla td:first-child { width: 40%; }
+.map-est__tabla th:nth-child(2), .map-est__tabla td:nth-child(2) { width: 20%; }
+.map-est__tabla th:nth-child(3), .map-est__tabla td:nth-child(3) { width: 25%; }
+.map-est__tabla th:nth-child(4), .map-est__tabla td:nth-child(4) { width: 15%; }
 .ui-table.map-est__tabla th, .ui-table.map-est__tabla td { text-align: right; font-variant-numeric: tabular-nums; }
 .ui-table.map-est__tabla th:first-child, .ui-table.map-est__tabla td:first-child { text-align: left; }
 .map-est__tabla tbody th { background: transparent; color: var(--ink); font-size: var(--t-small); letter-spacing: normal; text-transform: none; white-space: normal; overflow-wrap: anywhere; }
 .map-est__numero { white-space: normal; overflow-wrap: anywhere; }
-.map-est__porcentaje { display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2); }
-.map-est__porcentaje-numero { display: inline-block; width: 4ch; text-align: right; }
-.map-est__barra { display: inline-block; flex: 0 1 4rem; width: 4rem; max-width: 100%; height: 0.375rem; overflow: hidden; border-radius: var(--r-pill); background: var(--band); vertical-align: middle; }
-.map-est__barra span { display: block; height: 100%; border-radius: var(--r-pill); background: var(--warn); }
-.map-est__evolucion { display: grid; gap: var(--s-3); }
+.map-est__evolucion { display: grid; min-width: 0; width: 100%; gap: var(--s-3); }
+.map-est__evolucion .evolucion-panel, .map-est__evolucion .evolucion-vista, .map-est__evolucion .grafico-contenedor { min-width: 0; max-width: 100%; width: 100%; }
+.map-est__evolucion svg { display: block; max-width: 100%; }
+.map-est__evolucion svg text { font-family: var(--font-body); font-size: var(--t-micro); }
+.map-est__evolucion .ui-table-wrap { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.map-est__evolucion .evolucion-tabla { width: 100%; table-layout: fixed; }
+.map-est__evolucion .evolucion-tabla th, .map-est__evolucion .evolucion-tabla td { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.map-est__evolucion .evolucion-tabla td.evolucion-barra-celda { width: 18%; min-width: 0; }
 
 /* Control segmentado compartido por Radar y Planificación. */
 .map-seg { display: flex; flex-wrap: wrap; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
