@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, TEXTO_CONFIRMAR_CATEGORIA, type AfectacionBorrador } from './afectacion-campos'
 import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 
 const motivos: MotivoRow[] = [
   { id: 'inundacion', nombre: 'Inundación', categoria: 'establecimiento', orden: 10 },
@@ -68,6 +69,31 @@ describe('CamposAQuienAfecta — selector legado', () => {
 
     expect(screen.queryByRole('button', { name: /elegir alumnos/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
+  })
+
+  it('muestra el aviso de todas las secciones antes de la lista larga', () => {
+    const secciones = TURNOS_FIXTURE.flatMap((turno) => turno.niveles.flatMap((nivel) => nivel.secciones))
+    const borrador = {
+      ...crearAfectacionVacia('a1'),
+      categoria: 'establecimiento' as const,
+      alcanceEstablecimiento: 'algunas' as const,
+      secciones: secciones.map((seccion) => seccion.geSectionId),
+    }
+    const { container } = render(
+      <CamposAQuienAfecta
+        borrador={borrador}
+        idPrefijo="reporte"
+        turnos={TURNOS_FIXTURE}
+        usaSelectorEstablecimiento
+        onChange={vi.fn()}
+      />,
+    )
+
+    const aviso = screen.getByRole('status')
+    const grupo = container.querySelector('.afectacion-campos__grupo')!
+    expect(aviso).toHaveTextContent('Marcó todas las secciones')
+    expect(grupo.children[1]).toBe(aviso)
+    expect(grupo.children[2]).toHaveClass('selector-establecimiento')
   })
 })
 

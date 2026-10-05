@@ -5,6 +5,8 @@ import { ChevronDown } from 'lucide-react'
 import { Opcion } from '@/components/ui/opcion'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 
+const colacionAlumnos = new Intl.Collator('es-AR')
+
 export function seccionesDeAlumnos(turnos: TurnoContexto[], alumnos: number[]): number[] {
   const marcados = new Set(alumnos)
   return turnos.flatMap((t) =>
@@ -43,6 +45,14 @@ export function SelectorAlumnos({
     onCambiar(seccionesDeAlumnos(turnos, siguiente), siguiente)
   }
 
+  function alternarSeccionCompleta(gePersonIds: number[], marcar: boolean) {
+    const idsSeccion = new Set(gePersonIds)
+    const siguiente = marcar
+      ? [...alumnosSeleccionados.filter((id) => !idsSeccion.has(id)), ...gePersonIds]
+      : alumnosSeleccionados.filter((id) => !idsSeccion.has(id))
+    onCambiar(seccionesDeAlumnos(turnos, siguiente), siguiente)
+  }
+
   function alternarSeccion(id: number) {
     setAbiertas((actual) => {
       const siguiente = new Set(actual)
@@ -69,22 +79,35 @@ export function SelectorAlumnos({
             <h4>{nivel.nivel} · {elegidosNivel} de {alumnosNivel.length} alumnos</h4>
             {nivel.secciones.map((seccion) => {
               const elegidos = seccion.alumnos.filter((a) => marcados.has(a.gePersonId)).length
+              const completa = seccion.alumnos.length > 0 && elegidos === seccion.alumnos.length
               const abierta = abiertas.has(seccion.geSectionId)
               const panelId = `selector-alumnos-${seccion.geSectionId}`
               return (
                 <div key={seccion.geSectionId} className="selector-alumnos__seccion">
-                  <button
-                    type="button"
-                    className="selector-alumnos__cabecera"
-                    aria-expanded={abierta}
-                    aria-controls={panelId}
-                    onClick={() => alternarSeccion(seccion.geSectionId)}
-                    disabled={disabled}
-                  >
-                    <span>{`Elegir alumnos (${elegidos} de ${seccion.alumnos.length}) · ${seccion.curso} "${seccion.division}"`}</span>
-                    <ChevronDown size={16} aria-hidden="true" />
-                  </button>
+                  <div className="selector-alumnos__cabecera">
+                    <button
+                      type="button"
+                      className="selector-alumnos__desplegar"
+                      aria-expanded={abierta}
+                      aria-controls={panelId}
+                      onClick={() => alternarSeccion(seccion.geSectionId)}
+                      disabled={disabled}
+                    >
+                      <span className="selector-alumnos__titulo">{`${seccion.curso} "${seccion.division}" · ${elegidos} de ${seccion.alumnos.length}`}</span>
+                      <span className="selector-alumnos__accion">Elegir alumnos</span>
+                      <ChevronDown size={16} aria-hidden="true" />
+                    </button>
+                  </div>
                   <div id={panelId} hidden={!abierta} className="selector-alumnos__lista">
+                    <Opcion
+                      tipo="checkbox"
+                      label={completa ? 'Quitar toda la sección' : 'Marcar toda la sección'}
+                      checked={completa}
+                      indeterminate={elegidos > 0 && !completa}
+                      onChange={(event) => alternarSeccionCompleta(seccion.alumnos.map((alumno) => alumno.gePersonId), event.currentTarget.checked)}
+                      disabled={disabled || seccion.alumnos.length === 0}
+                      compacta
+                    />
                     {seccion.alumnos.length > 10 ? <input
                       className="secciones-selector__busqueda"
                       type="search"
@@ -93,7 +116,10 @@ export function SelectorAlumnos({
                       value={busquedas[seccion.geSectionId] ?? ''}
                       onChange={(event) => setBusquedas((actual) => ({ ...actual, [seccion.geSectionId]: event.target.value }))}
                     /> : null}
-                    {seccion.alumnos.filter((alumno) => `${alumno.apellido} ${alumno.nombre}`.toLocaleLowerCase('es').includes((busquedas[seccion.geSectionId] ?? '').toLocaleLowerCase('es'))).map((alumno) => (
+                    {seccion.alumnos
+                      .filter((alumno) => `${alumno.apellido} ${alumno.nombre}`.toLocaleLowerCase('es-AR').includes((busquedas[seccion.geSectionId] ?? '').toLocaleLowerCase('es-AR')))
+                      .sort((a, b) => colacionAlumnos.compare(a.apellido, b.apellido) || colacionAlumnos.compare(a.nombre, b.nombre))
+                      .map((alumno) => (
                       <Opcion
                         key={alumno.gePersonId}
                         tipo="checkbox"
@@ -103,7 +129,7 @@ export function SelectorAlumnos({
                         disabled={disabled}
                         compacta
                       />
-                    ))}
+                      ))}
                   </div>
                 </div>
               )

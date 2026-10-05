@@ -157,6 +157,29 @@ export function SeccionesSelector({
     onCambiar(resultado.seleccionadas, resultado.alumnosSeleccionados)
   }
 
+  function alternarTurno(turno: TurnoContexto, marcar: boolean) {
+    let siguientes = [...seleccionadas]
+    let alumnosSiguientes = [...alumnosSeleccionados]
+    for (const seccion of turno.niveles.flatMap((nivel) => nivel.secciones)) {
+      if (!permiteAlumnos || seccion.alumnos.length === 0) {
+        siguientes = marcar
+          ? [...siguientes.filter((id) => id !== seccion.geSectionId), seccion.geSectionId]
+          : siguientes.filter((id) => id !== seccion.geSectionId)
+        if (marcar && !permiteAlumnos) alumnosSiguientes = []
+        continue
+      }
+      const resultado = aplicarEfectivo(
+        seccion,
+        marcar ? new Set(seccion.alumnos.map((alumno) => alumno.gePersonId)) : new Set<number>(),
+        siguientes,
+        alumnosSiguientes,
+      )
+      siguientes = resultado.seleccionadas
+      alumnosSiguientes = resultado.alumnosSeleccionados
+    }
+    onCambiar(siguientes, alumnosSiguientes)
+  }
+
   return (
     <div className="secciones-selector">
       <Opcion
@@ -168,8 +191,29 @@ export function SeccionesSelector({
         disabled={disabled}
       />
 
-      {turnos.map((turno) => (
+      {turnos.map((turno) => {
+        const seccionesTurno = turno.niveles.flatMap((nivel) => nivel.secciones)
+        const seccionesCompletas = seccionesTurno.filter((seccion) => {
+          const efectivos = efectivoDeSeccion(seccion, seleccionadas, alumnosSeleccionados)
+          return seleccionadas.includes(seccion.geSectionId) &&
+            (!permiteAlumnos || seccion.alumnos.length === 0 || efectivos.size === seccion.alumnos.length)
+        }).length
+        const todasDelTurno = seccionesTurno.length > 0 && seccionesCompletas === seccionesTurno.length
+        const algunaDelTurno = seccionesCompletas > 0 || (permiteAlumnos && seccionesTurno.some((seccion) =>
+          seccion.alumnos.some((alumno) => alumnosSeleccionados.includes(alumno.gePersonId)),
+        ))
+        return (
         <section className="secciones-selector__turno" key={turno.turno}>
+          <Opcion
+            tipo="checkbox"
+            className="secciones-selector__turno-opcion"
+            label={`Todo el turno ${turno.turno}`}
+            checked={todasDelTurno}
+            indeterminate={!todasDelTurno && algunaDelTurno}
+            onChange={(event) => alternarTurno(turno, event.currentTarget.checked)}
+            disabled={disabled}
+            compacta
+          />
           <h3>{turno.turno} · {turno.niveles.reduce((n, nivel) => n + nivel.secciones.filter((s) => setSeleccionadas.has(s.geSectionId)).length, 0)} de {turno.niveles.reduce((n, nivel) => n + nivel.secciones.length, 0)} secciones</h3>
 
           {turno.niveles.map((nivel) => (
@@ -249,7 +293,8 @@ export function SeccionesSelector({
             </div>
           ))}
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }

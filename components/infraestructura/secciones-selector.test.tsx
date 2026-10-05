@@ -117,6 +117,31 @@ describe('SeccionesSelector', () => {
     expect(onCambiar.mock.calls[0][1]).toEqual([])
   })
 
+  it('permite seleccionar y quitar todas las secciones de un turno', async () => {
+    const { onCambiar, user, unmount } = renderSelector({ turnos: turnosConAlumnos })
+    const turno = screen.getByRole('checkbox', { name: 'Todo el turno Mañana' })
+
+    await user.click(turno)
+    expect(onCambiar).toHaveBeenLastCalledWith([10], [])
+    unmount()
+
+    const { onCambiar: onQuitar, user: userQuitar } = renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10] })
+    await userQuitar.click(screen.getByRole('checkbox', { name: 'Todo el turno Mañana' }))
+    expect(onQuitar).toHaveBeenCalledWith([], [])
+  })
+
+  it('muestra indeterminado el turno con selección parcial y marcado cuando están todas', () => {
+    const turno = turnosConAlumnos[0]
+    const segunda = { ...turno.niveles[0].secciones[0], geSectionId: 11, curso: '2°' }
+    const turnosDosSecciones = [{ ...turno, niveles: [{ ...turno.niveles[0], secciones: [turno.niveles[0].secciones[0], segunda] }] }]
+    const { rerender } = renderSelector({ turnos: turnosDosSecciones, seleccionadas: [10] })
+    const todoTurno = screen.getByRole('checkbox', { name: 'Todo el turno Mañana' })
+    expect(todoTurno).toBePartiallyChecked()
+
+    rerender(<SeccionesSelector turnos={turnosDosSecciones} seleccionadas={[10, 11]} alumnosSeleccionados={[]} onCambiar={vi.fn()} />)
+    expect(screen.getByRole('checkbox', { name: 'Todo el turno Mañana' })).toBeChecked()
+  })
+
   describe('con alumnos por sección', () => {
     it('muestra un checkbox por alumno al desplegar la sección', async () => {
       const { user } = renderSelector({ turnos: turnosConAlumnos })

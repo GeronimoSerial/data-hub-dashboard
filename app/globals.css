@@ -2855,6 +2855,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .secciones-selector__turno { display: flex; flex-direction: column; }
 
+.secciones-selector__turno-opcion {
+  min-height: 48px;
+  padding: var(--s-2) var(--s-4) 0;
+  border: 0;
+  border-radius: 0;
+}
+.secciones-selector__turno-opcion .opcion__label { font-weight: 600; }
+
 .secciones-selector__turno > h3 {
   font-family: var(--font-title);
   font-size: var(--t-micro);
@@ -2951,17 +2959,47 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  width: 100%;
   min-height: 48px;
+  padding: 0;
+}
+.selector-alumnos__seccion { margin: 0 var(--s-4); }
+.selector-alumnos__desplegar {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  align-items: center;
   justify-content: space-between;
+  gap: var(--s-2);
+  padding: 0 var(--s-2);
   background: none;
   border: 0;
   border-bottom: 1px solid var(--line);
+  color: var(--ink);
   text-align: left;
+  cursor: pointer;
 }
-.selector-alumnos__lista { display: flex; flex-direction: column; padding: 0 0 0 var(--s-4); border-left: 1px solid var(--line); margin: 0 var(--s-4) var(--s-3); }
+.selector-alumnos__desplegar:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.selector-alumnos__titulo { font-weight: 600; }
+.selector-alumnos__accion {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: var(--t-micro);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.selector-alumnos__desplegar svg { flex: 0 0 auto; transition: rotate 200ms ease; }
+.selector-alumnos__desplegar[aria-expanded='true'] svg { rotate: 180deg; }
+.selector-alumnos__lista {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 0 var(--s-4);
+  border-left: 1px solid var(--line);
+  margin: 0 var(--s-4) var(--s-3);
+}
 .selector-alumnos__lista[hidden] { display: none; }
 .selector-alumnos__lista .opcion { min-height: 48px; border: 0; }
+.selector-alumnos__lista .opcion__label { font-weight: 400; }
 
 .badge-seleccion {
   font-size: var(--t-small);
