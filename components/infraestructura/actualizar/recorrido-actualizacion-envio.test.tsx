@@ -35,7 +35,7 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
 })
 
 const CUE = '1801605-41'
-const guardado = 'Parte actualizado.'
+const guardado = 'Parte actualizado'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
   parte: { id: 'parte', cueAnexo: CUE, estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: '2026-10-02T10:00:00.000Z', actualizadaEn: '2026-10-03T10:00:00.000Z' },

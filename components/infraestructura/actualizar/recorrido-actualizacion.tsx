@@ -29,7 +29,8 @@ export interface RecorridoActualizacionProps {
   motivos: MotivoRow[]
 }
 
-const MENSAJE_GUARDADO = 'Parte actualizado.'
+const TITULO_GUARDADO = 'Parte actualizado'
+const MENSAJE_GUARDADO = 'Ya figura en el estado actual de su escuela.'
 const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
@@ -649,7 +650,10 @@ function ProgresoActualizacion({ paso, total }: { paso: number; total: number })
 function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () => void }): JSX.Element {
   return (
     <div className="reporte-inicial__confirmacion" role="status">
-      <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
+      <div className="reporte-inicial__confirmacion-mensaje">
+        <CircleCheck aria-hidden="true" size={20} />
+        <div><h2>{TITULO_GUARDADO}</h2><p>{MENSAJE_GUARDADO}</p></div>
+      </div>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
           Ver estado actual
