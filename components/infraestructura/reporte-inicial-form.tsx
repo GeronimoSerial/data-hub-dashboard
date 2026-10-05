@@ -229,7 +229,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const enviandoRef = useRef(false)
-  const reintentarRef = useRef<() => void>(() => {})
+  const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   // Identidad de las entradas de historial de ESTE asistente: un popstate de
   // una sesión ya reiniciada no debe revivir sus pasos.
   const generacionRef = useRef<string | null>(null)
@@ -469,11 +469,12 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   })
 
   useEffect(() => {
-    reintentarRef.current = () => {
+    reintentarRef.current = (deliberado = false) => {
       if (guardado) return
-      if (!esEstadoReintentable(estadoEnvio)) return
+      const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
+      if (!esEstadoReintentable(estadoEnvio) && !(deliberado && errorEnReintento)) return
       void (async () => {
-        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
+        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
         if (resultado?.ok) {
           const datos = resultado.respuesta as { movimientoId: string }
           alEnviarConExito(datos.movimientoId)
@@ -826,7 +827,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
 
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
-          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current()} disabled={estadoEnvio === 'enviando'} />
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current(true)} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
                 ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
@@ -859,7 +860,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
           <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
+            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
           </Button>
         )}
       </div>

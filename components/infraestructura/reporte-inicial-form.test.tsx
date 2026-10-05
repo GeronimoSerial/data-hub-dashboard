@@ -644,9 +644,14 @@ describe('ReporteInicialForm', () => {
 
   it('un timeout se reintenta solo con la misma clave y conserva el aviso durante el reintento', async () => {
     vi.useFakeTimers()
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    let intentos = 0
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      intentos += 1
+      if (intentos === 3) return Promise.resolve(jsonResponse({ ok: true, movimientoId: 'm2' }, 201))
+      return new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
-    }))
+      })
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
@@ -654,15 +659,22 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
-    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
+    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Reintentamos solos; su parte queda guardado.')
 
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
-    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reintentando…' })).toBeDisabled()
+    const retry = within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })
+    expect(retry).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: 'Reintentar ahora' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Guardar parte' })).toBeNull()
+    fireEvent.click(retry)
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument())
+    expect((fetchMock.mock.calls[1][1] as RequestInit).signal?.aborted).toBe(true)
     const claves = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
-    expect(claves[1]).toBe(claves[0])
+    expect(claves[1]).toBe(claves[0]); expect(claves[2]).toBe(claves[0])
   })
 
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
@@ -938,7 +950,7 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
       idempotencyKey: 'k-timeout',
       datos: { cue: props.cue, rigeDesde: '2026-10-04T10:00:00.000Z', afectacionesNuevas: [] },
       estado: 'error-servidor',
-      motivoError: 'El servidor no respondió. Su parte queda guardado; puede reintentar.',
+      motivoError: 'El servidor no respondió. Reintentamos solos; su parte queda guardado.',
       intentos: 1,
       actualizadoEn: '2026-10-04T10:00:00.000Z',
     })

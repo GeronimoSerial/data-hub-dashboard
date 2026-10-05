@@ -169,6 +169,7 @@ describe('RecorridoActualizacion: envío', () => {
     let intentos = 0
     const fetchMock = stub((_url, init) => {
       intentos += 1
+      if (intentos === 3) return Promise.resolve(respuesta())
       return new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
@@ -183,15 +184,22 @@ describe('RecorridoActualizacion: envío', () => {
     const volver = screen.getByRole('button', { name: 'Volver y corregir' })
     expect(volver).toBeEnabled()
     const aviso = screen.getByRole('alert')
-    expect(within(aviso).getByText('El servidor no respondió. Su parte queda guardado; puede reintentar.')).toBeInTheDocument()
-    expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Guardar parte' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(aviso).getByText('El servidor no respondió. Reintentamos solos; su parte queda guardado.')).toBeInTheDocument()
+    expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Reintentando…' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(posteos(fetchMock)).toHaveLength(2)
     expect(screen.getByRole('alert')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
-    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Reintentando…' })).toBeDisabled()
+    const retry = within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })
+    expect(retry).toBeEnabled()
+    expect(screen.getAllByRole('button', { name: 'Reintentar ahora' })).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Guardar parte' })).toBeNull()
+    fireEvent.click(retry)
+    await vi.waitFor(() => expect(posteos(fetchMock)).toHaveLength(3))
+    await vi.waitFor(() => expect(screen.getByText(guardado)).toBeInTheDocument())
+    expect((posteos(fetchMock)[1][1] as RequestInit).signal?.aborted).toBe(true)
     const claves = posteos(fetchMock).map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
-    expect(claves[0]).toBe(claves[1])
+    expect(claves[0]).toBe(claves[1]); expect(claves[1]).toBe(claves[2])
   })
 
   it('el reintento automático al volver la conexión actúa sobre una cola reintentable', async () => {

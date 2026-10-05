@@ -217,7 +217,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
-  const reintentarRef = useRef<() => void>(() => {})
+  const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
     ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.rigeDesde, activa: true })),
@@ -336,10 +336,11 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => { exitoRef.current = alEnviarConExito })
 
   useEffect(() => {
-    reintentarRef.current = () => {
-      if (guardado || !esEstadoReintentable(estadoEnvio)) return
+    reintentarRef.current = (deliberado = false) => {
+      const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
+      if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && errorEnReintento))) return
       void (async () => {
-        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
+        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
         if (resultado?.ok) alEnviarConExito()
       })()
     }
@@ -574,7 +575,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           estadoEnvio={estadoEnvio}
           estadoAvisoEnvio={estadoAvisoEnvio}
           motivoEnvio={motivoEnvio}
-          onRetry={() => reintentarRef.current()}
+          onRetry={() => reintentarRef.current(true)}
           error={error}
           onVolver={() => moverEtapa('nuevo')}
           onEnviar={() => void enviar()}
@@ -717,7 +718,7 @@ function ResumenEnvio({
       </fieldset>
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
-          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando'} />
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
                 ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
@@ -730,7 +731,7 @@ function ResumenEnvio({
           Volver y corregir
         </Button>
         <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-          {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
+          {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
         </Button>
       </div>
     </section>
