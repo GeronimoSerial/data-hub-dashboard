@@ -1377,6 +1377,14 @@ time {
   margin-top: auto;
   border-radius: var(--r-lg) var(--r-lg) 0 0;
 }
+.confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
+.confirm-sheet__acciones {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5) calc(var(--s-4) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+}
+.confirm-sheet__acciones > * { flex: 1; min-height: 44px; }
 .ui-sheet h2 { padding: var(--s-5) var(--s-5) 0; font-size: 1.25rem; }
 .ui-sheet-close {
   position: absolute;
@@ -4004,7 +4012,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 @media (max-width: 480px) {
-  .asistente__acciones { flex-direction: column-reverse; align-items: stretch; }
+  .asistente__acciones {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    position: sticky;
+    bottom: 0;
+    background: var(--card);
+    padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
+    z-index: 1;
+  }
+  .asistente__acciones > * { min-height: 44px; }
 }
 
 /* ── Tarjeta de afectación plegable (inventario de la actualización) ──── */
