@@ -744,6 +744,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         </div>
       ) : (
         <>
+      <h3 id="asistente-paso-titulo" className="asistente__titulo asistente__titulo--paso">
+        {PASOS[paso - 1]}
+      </h3>
       <div className="asistente__progreso">
         <p className="asistente__contador">
           Paso {indicePaso + 1} de {pasos.length}
@@ -764,10 +767,6 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       </div>
 
       <section className="asistente__cuerpo" aria-labelledby="asistente-paso-titulo">
-        <h3 id="asistente-paso-titulo" className="asistente__titulo">
-          {PASOS[paso - 1]}
-        </h3>
-
         {paso === 1 && (
           <CamposQuePaso
             borrador={afectacion}

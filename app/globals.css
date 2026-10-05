@@ -4691,7 +4691,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 /* "Situación nueva" es el título de la pantalla; los bloques que siguen son
    secciones de ella, así que van un escalón más chicas y el primero no repite
    el filete bajo el título. */
-.algo-nuevo__datos > .asistente__cuerpo > .asistente__titulo { font-size: 1.0625rem; margin-bottom: 0; }
+.algo-nuevo__datos > .asistente__titulo--paso { font-size: 1.0625rem; margin-bottom: 0; }
 .algo-nuevo__datos > .asistente__cuerpo:first-child { border-top: 0; padding-top: 0; }
 
 .algo-nuevo__causa-estado { color: var(--ink-faint); }
@@ -5715,7 +5715,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-soft);
 }
 
-.asistente__cuerpo > .asistente__titulo {
+.asistente__titulo--paso {
   margin: 0;
   font-size: clamp(1.5rem, 6vw, 1.875rem);
   text-align: center;
