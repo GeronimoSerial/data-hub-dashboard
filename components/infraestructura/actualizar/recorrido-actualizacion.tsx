@@ -436,7 +436,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
       {borradorPendiente ? (
-        <aside className="actualizacion-borrador" aria-label="Actualización guardada">
+        <aside className="aviso-retoma actualizacion-borrador" aria-label="Actualización guardada">
           <p>Tiene una carga sin enviar.</p>
           <div className="actualizacion-borrador__acciones">
             <Button type="button" onClick={() => {
