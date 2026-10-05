@@ -4659,6 +4659,19 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .algo-nuevo__causa-estado { color: var(--ink-faint); }
 .algo-nuevo__ver-causas { align-self: flex-start; }
+.algo-nuevo__continuar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.algo-nuevo__continuar > button { min-height: 48px; }
+.algo-nuevo__continuar > p,
+.afectacion-borrador__resumen {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  line-height: 1.4;
+}
 
 .aviso-retoma {
   display: flex;
@@ -4717,6 +4730,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     z-index: 1;
   }
   .asistente__acciones > * { min-height: 44px; }
+  .algo-nuevo__continuar { width: 100%; }
+  .algo-nuevo__continuar > button { width: 100%; min-height: 48px; }
 
   .vigencia-chips input[type='date'],
   .vigencia-chips input[type='time'],

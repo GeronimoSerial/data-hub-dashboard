@@ -276,6 +276,7 @@ export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
   usaSelectorEstablecimiento?: boolean
   ocultarPreguntaAlcance?: boolean
+  ocultarDescripcion?: boolean
 }
 
 export function CamposAQuienAfecta({
@@ -284,12 +285,19 @@ export function CamposAQuienAfecta({
   turnos,
   usaSelectorEstablecimiento = false,
   ocultarPreguntaAlcance = false,
+  ocultarDescripcion = false,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
   const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
+  const cantidadSecciones = borrador.secciones.length
+  const textoSecciones = cantidadSecciones === 0
+    ? 'Ninguna sección seleccionada'
+    : cantidadSecciones === 1
+      ? '1 sección seleccionada'
+      : `${cantidadSecciones} secciones seleccionadas`
 
   return (
     <>
@@ -302,6 +310,7 @@ export function CamposAQuienAfecta({
             onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
             disabled={disabled}
           />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'alumnos',
@@ -357,6 +366,7 @@ export function CamposAQuienAfecta({
             onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
             disabled={disabled}
           />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
           {borrador.alcanceEstablecimiento === 'algunas' ? (
             <p className="afectacion-borrador__resumen" aria-live="polite">
               Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
@@ -375,25 +385,27 @@ export function CamposAQuienAfecta({
             disabled={disabled}
             permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
           />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
           {borrador.secciones.length > 0 ? (
-            <p className="afectacion-borrador__resumen" aria-live="polite">
-              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-              {matriculaDisponible} alumnos
+            <p className="afectacion-borrador__resumen">
+              {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de {matriculaDisponible} alumnos
             </p>
           ) : null}
         </div>
       )}
 
-      <div className="afectacion-campos__grupo">
-        <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
-        <Textarea
-          id={`${idPrefijo}-descripcion`}
-          maxLength={500}
-          value={borrador.descripcion}
-          onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
-          disabled={disabled}
-        />
-      </div>
+      {!ocultarDescripcion ? (
+        <div className="afectacion-campos__grupo">
+          <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
+          <Textarea
+            id={`${idPrefijo}-descripcion`}
+            maxLength={500}
+            value={borrador.descripcion}
+            onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
+            disabled={disabled}
+          />
+        </div>
+      ) : null}
     </>
   )
 }

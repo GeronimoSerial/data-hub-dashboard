@@ -77,9 +77,56 @@ describe('AlgoNuevo', () => {
     entrarDatosIndependiente()
     elegirCategoria('Afecta al establecimiento')
 
-    expect(screen.getByText('¿A quiénes afecta?')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     expect(screen.queryByText('Alcance')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Descripción (opcional)')).toBeInTheDocument()
+  })
+
+  it('organiza los datos en los dos bloques del asistente', () => {
+    renderAlgo()
+    entrarDatosIndependiente()
+
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Descripción (opcional)').closest('.asistente__cuerpo'))
+      .toBe(screen.getByRole('heading', { name: '¿Qué pasó?' }).parentElement)
+  })
+
+  it('muestra el contador de secciones seleccionadas en cero, singular y plural', () => {
+    renderAlgo()
+    entrarDatosIndependiente()
+    expect(screen.getByText('Ninguna sección seleccionada')).toHaveAttribute('aria-live', 'polite')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
+    expect(screen.getByText('1 sección seleccionada')).toHaveAttribute('aria-live', 'polite')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /1° "B"/ }))
+    expect(screen.getByText('2 secciones seleccionadas')).toHaveAttribute('aria-live', 'polite')
+  })
+
+  it('explica los datos faltantes y asocia el mensaje al botón Continuar', () => {
+    renderAlgo()
+    entrarDatosIndependiente()
+
+    const continuar = screen.getByRole('button', { name: 'Continuar' })
+    let faltantes = screen.getByText('Elija el tipo, el motivo, la gravedad y al menos una sección.')
+    expect(continuar).toBeDisabled()
+    expect(continuar).toHaveAttribute('aria-describedby', faltantes.id)
+
+    elegirCategoria('Afecta al establecimiento')
+    faltantes = screen.getByText('Elija el motivo, la gravedad y el alcance del establecimiento.')
+    expect(continuar).toHaveAttribute('aria-describedby', faltantes.id)
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
+    faltantes = screen.getByText('Elija la gravedad y el alcance del establecimiento.')
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    faltantes = screen.getByText('Elija el alcance del establecimiento.')
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    faltantes = screen.getByText('Elija al menos una sección.')
+    fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
+    expect(screen.queryByText(/Elija /)).not.toBeInTheDocument()
+    expect(continuar).not.toHaveAttribute('aria-describedby')
+    expect(continuar).toBeEnabled()
   })
 
   it('“No” termina sin agregar una situación', () => {

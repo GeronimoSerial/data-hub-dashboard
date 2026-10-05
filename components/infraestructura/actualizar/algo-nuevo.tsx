@@ -7,6 +7,8 @@ import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { armarCandidatasCausa, type CandidataCausa } from '@/lib/infraestructura/parte/candidatas-causa'
@@ -130,6 +132,26 @@ export function AlgoNuevo({
   const alcanceCompleto = borrador.secciones.length > 0 &&
     (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
   const datosCompletos = borrador.categoria !== '' && borrador.motivo !== '' && completaLaGravedad && alcanceCompleto
+
+  function mensajeFaltantes(): string | null {
+    const faltantes: string[] = []
+    if (!borrador.categoria) faltantes.push('el tipo')
+    if (!borrador.motivo) faltantes.push('el motivo')
+    if (!completaLaGravedad) faltantes.push('la gravedad')
+    if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
+      faltantes.push('el alcance del establecimiento')
+    } else if (borrador.secciones.length === 0) {
+      faltantes.push('al menos una sección')
+    }
+
+    if (faltantes.length === 0) return null
+    const lista = faltantes.length === 1
+      ? faltantes[0]
+      : `${faltantes.slice(0, -1).join(', ')} y ${faltantes[faltantes.length - 1]}`
+    return `Elija ${lista}.`
+  }
+
+  const textoFaltantes = mensajeFaltantes()
 
   function aplicarMotivo(motivo: string): void {
     setBorrador((actual) => ({
@@ -258,7 +280,8 @@ export function AlgoNuevo({
 
       {etapa === 'datos' ? (
         <div className="algo-nuevo__datos">
-          <div className="algo-nuevo__campos">
+          <div className="asistente__cuerpo">
+            <h2 className="asistente__titulo">¿Qué pasó?</h2>
             <CamposQuePaso
               borrador={borrador}
               idPrefijo="algo-nuevo"
@@ -267,19 +290,41 @@ export function AlgoNuevo({
               esNueva
               onChange={cambiarBorrador}
             />
+            <div className="afectacion-campos__grupo">
+              <Label htmlFor="algo-nuevo-descripcion">Descripción (opcional)</Label>
+              <Textarea
+                id="algo-nuevo-descripcion"
+                maxLength={500}
+                value={borrador.descripcion}
+                onChange={(evento) => setBorrador({ ...borrador, descripcion: evento.target.value })}
+              />
+            </div>
           </div>
-          <CamposAQuienAfecta
-            borrador={borrador}
-            idPrefijo="algo-nuevo"
-            turnos={turnos}
-            usaSelectorEstablecimiento
-            onChange={setBorrador}
-          />
+          <div className="asistente__cuerpo">
+            <h2 className="asistente__titulo">¿A quiénes afecta?</h2>
+            <CamposAQuienAfecta
+              borrador={borrador}
+              idPrefijo="algo-nuevo"
+              turnos={turnos}
+              usaSelectorEstablecimiento
+              ocultarPreguntaAlcance
+              ocultarDescripcion
+              onChange={setBorrador}
+            />
+          </div>
           <div className="asistente__acciones">
             <Button type="button" variant="ghost" onClick={() => setEtapa('pregunta')}>Volver</Button>
-            <Button type="button" disabled={!datosCompletos || motivoPendiente !== null} onClick={continuarDesdeDatos}>
-              Continuar
-            </Button>
+            <div className="algo-nuevo__continuar">
+              <Button
+                type="button"
+                disabled={!datosCompletos || motivoPendiente !== null}
+                aria-describedby={textoFaltantes ? 'algo-nuevo-faltantes' : undefined}
+                onClick={continuarDesdeDatos}
+              >
+                Continuar
+              </Button>
+              {textoFaltantes ? <p id="algo-nuevo-faltantes" role="status">{textoFaltantes}</p> : null}
+            </div>
           </div>
         </div>
       ) : null}
