@@ -38,6 +38,24 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
+  it('muestra una sola fila con Situación actual, Radar, Planificación y Estadísticas', () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
+    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas'])
+  })
+
+  it('sin el flag del radar no muestra la pestaña Radar', () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled={false} />)
+    expect(screen.queryByRole('tab', { name: /Radar/ })).toBeNull()
+  })
+
+  it('Estadísticas oculta el mapa sin desmontarlo', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+    expect(screen.getByTestId('pestana-estadisticas')).toBeVisible()
+  })
+
   it('cambiar de pestaña oculta el mapa con CSS sin desmontarlo', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
@@ -45,7 +63,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(montajesMapa.total).toBe(1)
     expect(screen.queryByTestId('mock-evolucion')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Evolución' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
     // Mismo nodo del DOM y un solo montaje: MapLibre no se remontó.
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
@@ -55,7 +73,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Operativa' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
 
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
     expect(montajesMapa.total).toBe(1)
@@ -63,8 +81,8 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.queryByTestId('mock-evolucion')).not.toBeInTheDocument()
   })
 
-  it('la pestaña de evolución se abre directo desde el hash de la URL', async () => {
-    window.location.hash = 'evolucion'
+  it('Estadísticas se abre directo desde el hash de la URL', async () => {
+    window.location.hash = 'estadisticas'
 
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
@@ -78,10 +96,10 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     await screen.findByTestId('mock-mapa')
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Evolución' }))
-    expect(window.location.hash).toBe('#evolucion')
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    expect(window.location.hash).toBe('#estadisticas')
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Operativa' }))
-    expect(window.location.hash).toBe('#operativa')
+    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
+    expect(window.location.hash).toBe('#actual')
   })
 })
