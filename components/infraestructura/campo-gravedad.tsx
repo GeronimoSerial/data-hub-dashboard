@@ -39,6 +39,13 @@ export interface CampoGravedadProps {
   disabled?: boolean
 }
 
+const CLASE_SEVERIDAD: Record<Severidad, string> = {
+  Baja: 'baja',
+  Media: 'media',
+  Alta: 'alta',
+  Crítica: 'critica',
+}
+
 // Los cuatro niveles permanecen visibles: el sugerido orienta, pero la
 // gravedad que declara la escuela siempre se elige de forma explícita.
 export function CampoGravedad({
@@ -76,6 +83,7 @@ export function CampoGravedad({
           <Opcion
               key={severidad}
               tipo="radio"
+              className={`opcion--severidad opcion--sev-${CLASE_SEVERIDAD[severidad]}`}
               name={`${idPrefijo}-severidad`}
               value={severidad}
               checked={valor.severidad === severidad}
@@ -84,7 +92,7 @@ export function CampoGravedad({
               aria-describedby={`${idPrefijo}-severidad-${severidad}-criterio`}
               label={<>
                 <span id={`${idPrefijo}-severidad-${severidad}-nombre`}>
-                  <EstadoActualSeveridad severidad={severidad} prefijo={false} sugerida={sugerida === severidad && severidad !== severidadActual} actual={severidadActual === severidad} />
+                  <EstadoActualSeveridad severidad={severidad} prefijo={false} marca={false} sugerida={sugerida === severidad && severidad !== severidadActual} actual={severidadActual === severidad} />
                 </span>
               </>}
               ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>

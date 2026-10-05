@@ -5702,3 +5702,54 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
   .radar-meteo-legend-title small { display:inline; font-size:8px; }
 }
+
+/* ── Asistente del parte: jerarquía y opciones ────────────────────────── */
+
+/* Dentro del asistente la pregunta del paso es el título principal; el
+   nombre de la pantalla baja a rótulo para no competir con ella. */
+.publico-content--parte:has(.asistente__cuerpo) .encabezado-parte__pantalla {
+  font-family: var(--font-body);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.asistente__cuerpo > .asistente__titulo {
+  margin: 0;
+  font-size: clamp(1.5rem, 6vw, 1.875rem);
+  text-align: center;
+}
+
+/* Las preguntas internas del paso son subordinadas: tipografía de texto,
+   no la display del título. */
+.asistente__cuerpo .afectacion-campos__legend {
+  margin-bottom: var(--s-1);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+
+/* El texto de la opción arranca contra el borde izquierdo de la tarjeta;
+   el indicador de selección pasa a la derecha. */
+.asistente__cuerpo .afectacion-campos__opciones > .opcion .opcion__contenido { flex: 1; min-width: 0; }
+.asistente__cuerpo .afectacion-campos__opciones > .opcion .opcion__indicador { order: 2; }
+
+/* Gravedad por tono: la escala tonal del mapa (lib/mapas/paleta-tonal.ts)
+   marca cada nivel con una franja; el nombre escrito sigue siendo la señal
+   que no depende del color. */
+.opcion--sev-baja { --sev: #fecaca; --sev-tinta: #7f1d1d; }
+.opcion--sev-media { --sev: #f87171; --sev-tinta: #fff; }
+.opcion--sev-alta { --sev: #dc2626; --sev-tinta: #fff; }
+.opcion--sev-critica { --sev: #7f1d1d; --sev-tinta: #fff; }
+.opcion--severidad { border-left: 8px solid var(--sev); }
+.opcion--severidad:hover { border-color: var(--sev); }
+.opcion--severidad:has(.opcion__input:checked) {
+  border-color: var(--sev);
+  background: color-mix(in srgb, var(--sev) 16%, var(--card));
+}
+.opcion--severidad:has(.opcion__input:checked) .opcion__indicador {
+  background: var(--sev);
+  border-color: var(--sev);
+  color: var(--sev-tinta);
+}
