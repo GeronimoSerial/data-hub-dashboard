@@ -18,7 +18,9 @@
 - [x] B1 — Tasks 1–2 (estado de envío veraz) — commits 378bc07, c89f1c5; merged ff into feat/staging; worktree removed
 - [x] B2 — Tasks 3–10 (modelo de datos) — T3 235e597 … T10 ec2c112; merged into feat/staging 41ee369; worktree removed
 - [x] B3 — Tasks 11–19 (wizard iniciar reporte) — T11 69bbde1 … T19 5690f13; merged a699cb7 (import conflict in reporte-inicial-form.test.tsx resolved by union); worktree removed
-- [ ] B4 — Tasks 20–26 (recorrido actualizar) — running, worktree `parte-b4`, dispatch ctx_08e78cf52def; N2 commits its own tasks
+- [x] B4 — Tasks 20–26 (recorrido actualizar) — T20 b016c47 … T26 73516de, d97f31c, 9a22d2d, f895110; merged 523e136; worktree removed
+- [ ] Visual review of B1–B5 (Claude in Chrome MCP; aesthetics, copy, behavior) — running, dispatch ctx_ddbdd0d90f05
+- [ ] Fix flaky test `recorrido-actualizacion-envio.test.tsx` ("el aviso del service worker…": asserts the SW callback before the effect registers it; wrap in waitFor) + visual findings
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
@@ -35,3 +37,6 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - Integrated feat/staging 461e2e8 (B1+B2+B5): tsc clean; full vitest 2416 passed, 1 failed (pre-existing radar-meteo).
 - Integrated feat/staging a699cb7 (B1+B2+B3+B5): tsc clean; full vitest 2465 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
 - From B4 on (user decision 2026-10-04): N2 reviews and commits each task; N1 reviews only the finished batch; N1 polls every 10 min (cron job 64121470).
+- Second Orca OOM restart (~23:58) killed the B4 and first visual-review N2s; B4 resumed (RETOMA) and finished. Now one N2 at a time.
+- B4 decision (N1): keep the verification link and pedagogical assistance in the new walkthrough (no loss of existing functionality).
+- Integrated feat/staging 523e136 (B1–B5; it also contains the map redesign commits from the other session): tsc clean; vitest 2493 passed, 2 failed (pre-existing radar-meteo + a flaky envio test that passes 3\/3 in isolation); lint 0 errors; build 0.
