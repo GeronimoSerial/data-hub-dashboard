@@ -55,7 +55,7 @@ export function EstadoActualSeveridad({
       <span className="estado-actual-severidad__texto">
         {prefijo ? `Severidad ${severidad}` : severidad}
       </span>
-      {sugerida ? <span className="badge-sugerido" aria-hidden="true">Sugerido</span> : actual ? <span className="badge-sugerido" aria-hidden="true">Actual</span> : null}
+      {sugerida ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Sugerido</span> : actual ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Actual</span> : null}
     </span>
   )
 }

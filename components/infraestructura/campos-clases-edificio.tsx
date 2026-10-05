@@ -44,8 +44,8 @@ export function CamposClasesEdificio({
 
   return (
     <>
-      <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Hay clases?</legend>
+      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Hay clases?">
+        <p className="afectacion-campos__legend">¿Hay clases?</p>
         <div className="afectacion-campos__opciones">
           {(['normal', 'suspendido'] as const).map((estado) => (
             <Opcion
@@ -64,8 +64,8 @@ export function CamposClasesEdificio({
         {evacuado ? <p className="afectacion-campos__espera">El edificio está evacuado</p> : null}
       </fieldset>
 
-      <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
+      <fieldset className="afectacion-campos__grupo" disabled={disabled} aria-label="¿Cómo está el edificio?">
+        <p className="afectacion-campos__legend">¿Cómo está el edificio?</p>
         <div className="afectacion-campos__opciones">
           {(Object.keys(ETIQUETA_ESTABLECIMIENTO) as EstadoEstablecimiento[]).map((estado) => (
             <Opcion

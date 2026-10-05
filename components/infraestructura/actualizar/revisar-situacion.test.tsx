@@ -64,7 +64,9 @@ describe('RevisarSituacion', () => {
     expect(screen.getByText('¿A quiénes afecta?')).toBeInTheDocument()
     expect(screen.getByText('¿Hay clases?')).toBeInTheDocument()
     expect(screen.getByText('¿Cómo está el edificio?')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '¿Cómo está el edificio?' })).toBeInTheDocument()
     const actual = screen.getByRole('radio', { name: /^Alta/ }).closest('label')!
+    expect(actual.querySelector('.badge-sugerido')).toHaveClass('badge', 'badge--neutral')
     expect(within(actual).getByText('Actual')).toBeInTheDocument()
     expect(within(actual).queryByText('Sugerido')).not.toBeInTheDocument()
     const sugerida = screen.getByRole('radio', { name: /^Crítica/ }).closest('label')!

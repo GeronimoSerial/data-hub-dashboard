@@ -328,7 +328,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <Label>Alcance</Label>
+          <p className="afectacion-campos__legend">¿A quiénes afecta?</p>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'establecimiento',

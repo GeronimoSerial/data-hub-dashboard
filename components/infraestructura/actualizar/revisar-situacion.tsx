@@ -183,13 +183,13 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
           )}
           {aspectos.includes('alcance') && (p.situacion.categoria === 'alumnos'
             ? <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
-              <h4 className="revisar-situacion__titulo">¿A quiénes afecta?</h4>
+              <h4 className="afectacion-campos__legend">¿A quiénes afecta?</h4>
               <SelectorAlumnos turnos={p.turnos} alumnosSeleccionados={alcance.alumnos} onCambiar={(secciones, alumnos) => { const siguiente = { ...alcance, secciones, alumnos }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
             : <div id="revisar-situacion-alcance" className="revisar-situacion__bloque" tabIndex={-1}>
               <div className="afectacion-campos__grupo">
-                <p className="revisar-situacion__titulo">¿A quiénes afecta?</p>
+                <p className="afectacion-campos__legend">¿A quiénes afecta?</p>
                 <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
               </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}

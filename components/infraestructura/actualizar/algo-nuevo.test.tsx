@@ -58,9 +58,22 @@ describe('AlgoNuevo', () => {
   it('la pregunta de situación nueva usa un título propio y opciones breves', () => {
     renderAlgo()
     expect(screen.getByRole('heading', { name: '¿Hay algo nuevo?' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: '¿Hay algo nuevo?' })).toBeInTheDocument()
+    expect(screen.getAllByText('¿Hay algo nuevo?')).toHaveLength(1)
+    expect(screen.queryByText('¿Hay una situación nueva?')).not.toBeInTheDocument()
     expect(screen.queryByText('Agregue una situación nueva si la hay.')).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' })).toBeInTheDocument()
+  })
+
+  it('pregunta a quiénes afecta la situación nueva y conserva la descripción opcional', () => {
+    renderAlgo()
+    entrarDatosIndependiente()
+    elegirCategoria('Afecta al establecimiento')
+
+    expect(screen.getByText('¿A quiénes afecta?')).toBeInTheDocument()
+    expect(screen.queryByText('Alcance')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Descripción (opcional)')).toBeInTheDocument()
   })
 
   it('“No” termina sin agregar una situación', () => {
