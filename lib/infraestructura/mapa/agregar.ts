@@ -1,4 +1,15 @@
 import type { EscuelaMapaEnriquecida } from './tipos'
+import { ETIQUETA_GRAVEDAD } from './etiquetas'
+
+export type AgruparPor = 'departamento' | 'nivel' | 'gravedad' | 'categoria'
+
+export interface FilaAgrupada {
+  clave: string
+  escuelas: number
+  afectadas: number
+  porcentaje: number
+  alumnosSinClases: number
+}
 
 export interface ResumenMapa {
   conReporte: number
@@ -36,6 +47,51 @@ export function resumir(escuelas: EscuelaMapaEnriquecida[]): ResumenMapa {
     sinActualizar: 0,
     sinClasesConApoyo: 0,
   })
+}
+
+export function agrupar(escuelas: EscuelaMapaEnriquecida[], por: AgruparPor): FilaAgrupada[] {
+  const grupos = new Map<string, FilaAgrupada>()
+
+  for (const escuela of escuelas) {
+    let claves: string[]
+    switch (por) {
+      case 'departamento':
+        claves = [escuela.departamento]
+        break
+      case 'nivel':
+        claves = [...new Set(escuela.niveles)]
+        break
+      case 'gravedad':
+        claves = [ETIQUETA_GRAVEDAD[escuela.gravedad]]
+        break
+      case 'categoria':
+        claves = [escuela.categoriaPrincipal ?? 'Sin categoría']
+        break
+    }
+
+    for (const clave of claves) {
+      const fila = grupos.get(clave) ?? {
+        clave,
+        escuelas: 0,
+        afectadas: 0,
+        porcentaje: 0,
+        alumnosSinClases: 0,
+      }
+      fila.escuelas += 1
+      if (escuela.gravedad > 0) fila.afectadas += 1
+      if (escuela.clases !== 'normal') fila.alumnosSinClases += escuela.alumnosSinClases
+      grupos.set(clave, fila)
+    }
+  }
+
+  return [...grupos.values()].map((fila) => ({
+    ...fila,
+    porcentaje: Math.round(fila.afectadas / fila.escuelas * 100),
+  })).sort((a, b) =>
+    b.afectadas - a.afectadas ||
+    b.escuelas - a.escuelas ||
+    a.clave.localeCompare(b.clave, 'es'),
+  )
 }
 
 export function ordenarReportes(escuelas: EscuelaMapaEnriquecida[]): EscuelaMapaEnriquecida[] {
