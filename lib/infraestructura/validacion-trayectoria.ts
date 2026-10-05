@@ -138,6 +138,7 @@ export const parteActualizacionInputSchema = z
     afectacionesSolucionadas: z
       .array(z.object({ id: z.string().trim().min(1), solucionadaEn: rigeDesdeSchema.optional() }))
       .default([]),
+    afectacionesConfirmadas: z.array(z.string().trim().min(1)).default([]),
     servicioEducativo: servicioEducativoInputSchema.optional(),
     estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
     confirmarInterrupcionTotal: z.boolean().optional(),
@@ -149,6 +150,7 @@ export const parteActualizacionInputSchema = z
       data.afectacionesModificadas.length > 0 ||
       data.afectacionesRetiradas.length > 0 ||
       data.afectacionesSolucionadas.length > 0 ||
+      data.afectacionesConfirmadas.length > 0 ||
       data.servicioEducativo !== undefined ||
       data.estadoEstablecimiento !== undefined ||
       data.asistenciaPedagogica !== undefined,

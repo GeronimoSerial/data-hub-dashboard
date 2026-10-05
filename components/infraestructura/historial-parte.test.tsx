@@ -55,10 +55,10 @@ describe('HistorialParte', () => {
     const { container } = render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
     await screen.findByText('12 alumnos incorporados')
-    const cargas = Array.from(container.querySelectorAll('.historial-movimiento__carga')).map(
+    const cargas = Array.from(container.querySelectorAll('.linea-de-tiempo__hora')).map(
       (el) => el.textContent,
     )
-    expect(cargas).toEqual(['18 sep · 10:00', '17 sep · 16:00', '16 sep · 08:00'])
+    expect(cargas).toEqual(['10:00', '16:00', '08:00'])
   })
 
   it('muestra el estado vacío, y no un error, cuando no hay movimientos', async () => {

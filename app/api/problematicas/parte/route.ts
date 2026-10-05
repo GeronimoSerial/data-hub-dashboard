@@ -31,6 +31,8 @@ import { describirMovimiento } from '@/lib/infraestructura/movimiento-descripcio
 import { diffParte, esDiffVacio, type DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import {
   armarFichaParte,
+  listarMovimientosDescritos,
+  listarSituacionesRecientes,
   obtenerAfectacionesYServicio,
   obtenerParteActual,
   obtenerPeriodoVigente,
@@ -229,6 +231,8 @@ export async function GET(request: Request) {
     severidad: afectacion.severidad,
     descripcion: afectacion.descripcion,
     rigeDesde: afectacion.rigeDesde,
+    creadaEn: afectacion.creadaEn,
+    causadaPorId: afectacion.causadaPorId,
     secciones: afectacion.secciones.map((seccion) => ({
       geSectionId: seccion.geSectionId,
       seccionCompleta: seccion.seccionCompleta,
@@ -242,6 +246,14 @@ export async function GET(request: Request) {
     totales: afectacion.totales,
   }))
 
+  const [recientes, movimientos] = await Promise.all([
+    listarSituacionesRecientes(cue.value),
+    listarMovimientosDescritos(cue.value, corte.id),
+  ])
+  const ultimaCarga = movimientos[0]
+    ? { creadaEn: movimientos[0].creadaEn, cambios: movimientos[0].cambios }
+    : null
+
   return jsonNoStore(
     {
       ok: true,
@@ -251,6 +263,8 @@ export async function GET(request: Request) {
       afectaciones: afectacionesRespuesta,
       secciones: ficha.secciones,
       ultimaActualizacion: ficha.ultimaActualizacion,
+      recientes,
+      ultimaCarga,
     },
   )
 }
@@ -522,6 +536,7 @@ export async function POST(request: Request) {
     ...input.afectacionesModificadas.map((m) => m.id),
     ...input.afectacionesRetiradas,
     ...input.afectacionesSolucionadas.map((s) => s.id),
+    ...input.afectacionesConfirmadas,
   ]
   if (idsReferenciados.length > 0) {
     if (!parteExistente) {
@@ -569,13 +584,15 @@ export async function POST(request: Request) {
   }
 
   const idsCausa = [...new Set(input.afectacionesNuevas.flatMap((a) => (a.causadaPorId ? [a.causadaPorId] : [])))]
+  const motivoCausaExterna = new Map<string, string>()
   if (idsCausa.length > 0) {
     const causas = await db
-      .select({ id: infraAfectacion.id, retiradaEn: infraAfectacion.retiradaEn, cueAnexo: infraParte.cueAnexo })
+      .select({ id: infraAfectacion.id, motivo: infraAfectacion.motivo, retiradaEn: infraAfectacion.retiradaEn, cueAnexo: infraParte.cueAnexo })
       .from(infraAfectacion)
       .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
       .where(inArray(infraAfectacion.id, idsCausa))
     const porId = new Map(causas.map((c) => [c.id, c]))
+    for (const causa of causas) motivoCausaExterna.set(causa.id, causa.motivo)
     for (const id of idsCausa) {
       const causa = porId.get(id)
       if (!causa || !causaElegible(causa, cue.value, input.rigeDesde)) {
@@ -675,6 +692,7 @@ export async function POST(request: Request) {
         : { periodo, parte: null, afectaciones: [], servicioAlcance: [], secciones }
       const antes = snapshotDesde(actualAntesReal, input.rigeDesde)
       const afectacionesVigentesActuales = afectacionesActuales.filter((a) => a.retiradaEn === null)
+      const causaPorNuevaId = new Map<string, string>()
 
       for (const { input: entrada, categoria } of nuevasConCategoria) {
         // Nunca duplicar una afectación que otro dispositivo ya insertó para
@@ -691,6 +709,7 @@ export async function POST(request: Request) {
         if (equivalente) continue
 
         const id = crypto.randomUUID()
+        if (entrada.causadaPorId) causaPorNuevaId.set(id, entrada.causadaPorId)
         await tx.insert(infraAfectacion).values({
           id,
           parteId,
@@ -840,6 +859,14 @@ export async function POST(request: Request) {
       )
 
       const diff = diffParte(antes, despues)
+      const motivoPorId = new Map(afectacionesActuales.map((a) => [a.id, a.motivo]))
+      diff.afectacionesConfirmadas = input.afectacionesConfirmadas.map((id) => ({ afectacionId: id, motivo: motivoPorId.get(id) ?? '' }))
+      const solucionadas = new Set(input.afectacionesSolucionadas.map((s) => s.id))
+      diff.afectacionesRetiradas = diff.afectacionesRetiradas.map((r) => ({ ...r, cierre: solucionadas.has(r.afectacionId) ? 'solucionada' : 'retirada' }))
+      diff.afectacionesAgregadas = diff.afectacionesAgregadas.map((a) => {
+        const causaId = causaPorNuevaId.get(a.afectacionId)
+        return causaId ? { ...a, causadaPor: { afectacionId: causaId, motivo: motivoPorId.get(causaId) ?? motivoCausaExterna.get(causaId) ?? '' } } : a
+      })
       if (esDiffVacio(diff)) {
         // Revierte todo lo escrito en la transacción: al lanzar desde el
         // callback, db.transaction() hace ROLLBACK real y relanza este mismo
@@ -847,7 +874,12 @@ export async function POST(request: Request) {
         throw new RollbackDiffVacio()
       }
 
-      const tipoMovimiento: TipoMovimiento = esNuevoParte ? 'reporte_inicial' : 'actualizacion'
+      const soloConfirmaciones = (diff.afectacionesConfirmadas?.length ?? 0) > 0 &&
+        diff.afectacionesAgregadas.length === 0 && diff.afectacionesRetiradas.length === 0 &&
+        diff.severidadesCambiadas.length === 0 && diff.alcancesCambiados.length === 0 &&
+        diff.datosCambiados.length === 0 && diff.serviciosCambiados.length === 0 &&
+        diff.establecimientoCambiado === null && diff.asistenciaPedagogicaCambiada == null
+      const tipoMovimiento: TipoMovimiento = soloConfirmaciones ? 'confirmacion' : esNuevoParte ? 'reporte_inicial' : 'actualizacion'
       const movimientoId = crypto.randomUUID()
       await tx.insert(infraMovimiento).values({
         id: movimientoId,

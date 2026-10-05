@@ -130,6 +130,7 @@ const CUE_P = '1801605-60'
 const CUE_Q = '1801605-61'
 const CUE_R = '1801605-62'
 const CUE_R2 = '1801605-63'
+const CUE_S = CUE_R2
 const CUE_R3 = '1801605-64'
 
 beforeAll(async () => {
@@ -867,6 +868,25 @@ describe('POST /api/problematicas/parte — causa', () => {
     expect(vinculadas).toHaveLength(1)
   })
 
+  it('"sigue igual" registra un movimiento de confirmación aunque no cambie nada', async () => {
+    await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Tormenta severa', severidad: 'Alta', secciones: [seccionId(CUE_S, '10')] }],
+    }))
+    const [fila] = await getDb().select().from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, CUE_S), eq(infraAfectacion.motivo, 'Tormenta severa')))
+    const res = await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesConfirmadas: [fila!.infra_afectacion.id],
+    }))
+    expect(res.status).toBe(201)
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, fila!.infra_parte.id))
+    const ultimo = movimientos.sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]
+    expect(ultimo!.tipo).toBe('confirmacion')
+    expect((ultimo!.resumen as { afectacionesConfirmadas: unknown[] }).afectacionesConfirmadas).toEqual([{ afectacionId: fila!.infra_afectacion.id, motivo: 'Tormenta severa' }])
+  })
+
   it('no deduplica contra una afectación sin causa cuando la entrada sí tiene causa', async () => {
     const causa = await crearInundacion(CUE_R3)
     const entrada = {
@@ -894,6 +914,25 @@ describe('POST /api/problematicas/parte — causa', () => {
       .where(and(eq(infraAfectacion.parteId, parte!.id), eq(infraAfectacion.motivo, entrada.motivo)))
     expect(vinculadas).toHaveLength(2)
     expect(vinculadas.filter((fila) => fila.causadaPorId === causa)).toHaveLength(1)
+  })
+})
+
+describe('GET /api/problematicas/parte — contexto del estado actual', () => {
+  it('devuelve situaciones recientes cerradas y la última carga', async () => {
+    const res = await GET(getReq(CUE_R))
+    const body = await res.json()
+
+    expect(body.recientes.map((r: { motivo: string }) => r.motivo)).toContain('Tormenta severa')
+    expect(body.recientes[0].cierre).toBe('solucionada')
+    expect(body.ultimaCarga.cambios.join(' ')).toMatch(/Se solucionó "Tormenta severa"/)
+    expect(typeof body.ultimaCarga.creadaEn).toBe('string')
+  })
+
+  it('expone la causa en las afectaciones vigentes', async () => {
+    const body = await (await GET(getReq(CUE_Q))).json()
+    const hija = body.afectaciones.find((a: { motivo: string }) => a.motivo === 'Sin energía o agua')
+
+    expect(hija.causadaPorId).toEqual(expect.any(String))
   })
 })
 

@@ -59,6 +59,10 @@ export function describirMovimiento(
 ): string[] {
   const lineas: string[] = []
 
+  for (const confirmada of diff.afectacionesConfirmadas ?? []) {
+    lineas.push(`Sigue igual: "${confirmada.motivo}"`)
+  }
+
   for (const cambio of diff.serviciosCambiados) {
     const linea = lineaServicio(cambio)
     if (linea) lineas.push(linea)
@@ -77,6 +81,7 @@ export function describirMovimiento(
         partes.push(`${agregada.alumnos} ${pluralizar(agregada.alumnos, 'alumno', 'alumnos')}`)
       }
       lineas.push(partes.join(' · '))
+      if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
       return
     }
 
@@ -91,13 +96,14 @@ export function describirMovimiento(
         `${agregada.alumnos} ${pluralizar(agregada.alumnos, 'alumno incorporado', 'alumnos incorporados')}`,
       )
     }
+    if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 
   for (const retirada of diff.afectacionesRetiradas) {
     // "Se resolvió", no "Se retiró": la §15 no fija una cadena para esto, y
     // "retirar" nombra lo que el sistema hace con la fila, no lo que pasó en
     // la escuela. Es la misma palabra que el director tocó para llegar acá.
-    lineas.push(`Se resolvió "${retirada.motivo}"`)
+    lineas.push(retirada.cierre === 'solucionada' ? `Se solucionó "${retirada.motivo}"` : `Se resolvió "${retirada.motivo}"`)
   }
 
   for (const cambio of diff.severidadesCambiadas) {

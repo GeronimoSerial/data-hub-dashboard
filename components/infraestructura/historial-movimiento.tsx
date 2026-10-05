@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import type { RolMovimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 import {
   debeMostrarRigeDesde,
   formatearCargaCorta,
@@ -19,6 +20,7 @@ export interface MovimientoHistorial {
   creadaEn: string
   rigeDesde: string
   cambios: string[]
+  severidad?: Severidad | null
 }
 
 const ROL_TEXTO: Record<RolMovimiento, string> = {

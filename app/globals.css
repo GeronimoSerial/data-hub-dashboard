@@ -180,6 +180,14 @@
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
+.linea-de-tiempo__lista { list-style: none; margin: 0; padding: 0 0 0 var(--s-4); border-left: 2px solid var(--line); }
+.linea-de-tiempo__entrada { position: relative; padding: 0 0 var(--s-3) var(--s-3); }
+.linea-de-tiempo__punto { position: absolute; left: calc(-1 * var(--s-4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: 50%; }
+.linea-de-tiempo__dia { font-size: var(--t-small); text-transform: uppercase; color: var(--ink-soft); margin: var(--s-3) 0 var(--s-2); }
+.linea-de-tiempo__hora { font-weight: 600; }
+.linea-de-tiempo__cambios p { margin: var(--s-1) 0 0; }
+.linea-de-tiempo__mas { min-height: 44px; background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+
 * { box-sizing: border-box; }
 /* The document itself never scrolls: every page scrolls inside the shell's
    `.app-content`/`.app-content--bleed` region instead (T12). This is what
@@ -2146,6 +2154,59 @@ time {
   .radar-resumen.is-open { bottom:160px; height:min(42vh,360px); }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
   .radar-meteo-legend-title small { display:inline; font-size:8px; }
+}
+
+/* Entrada de la pantalla para actualizar el estado del establecimiento. */
+.entrada-actualizar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.entrada-actualizar__principal {
+  border: 2px solid var(--sev-critica, currentColor);
+  border-radius: var(--r-lg);
+  padding: var(--s-4);
+}
+
+.entrada-actualizar__etiqueta {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-small);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.entrada-actualizar__ultima {
+  margin: 0;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+
+.entrada-actualizar__motivo,
+.entrada-actualizar__detalle {
+  margin: 0;
+}
+
+.entrada-actualizar__principal > :last-child {
+  margin-top: var(--s-2);
+}
+
+.entrada-actualizar__otras ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-5);
+}
+
+.entrada-actualizar__detalle {
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.entrada-actualizar .asistente__acciones > * {
+  min-height: 44px;
 }
 .radar-resumen-peek { display:none; }
 @media(max-width:767px) {

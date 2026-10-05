@@ -45,3 +45,5 @@ export const motivos: MotivoRow[] = [
   { id: 'sin-energia-agua', nombre: 'Sin energía o agua', categoria: 'establecimiento', orden: 30, severidadSugerida: 'Media' },
   { id: 'anegamiento', nombre: 'Anegamiento', categoria: 'alumnos', orden: 10 },
 ]
+
+export const MOTIVOS_FIXTURE = motivos
