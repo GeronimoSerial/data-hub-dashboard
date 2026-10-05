@@ -192,6 +192,7 @@ export function FiltrosChips({
     || filtros.clases.length > 0
     || filtros.apoyo.length > 0
     || filtros.sinActualizar
+    || filtros.solucionadasRecientes
 
   return (
     <div className="filtros-barra" aria-label="Filtros de escuelas">
@@ -275,6 +276,15 @@ export function FiltrosChips({
             <Clock aria-hidden="true" />
             Sin actualizar
             {filtros.sinActualizar ? <X aria-hidden="true" /> : null}
+          </button>
+          <button
+            type="button"
+            className={`filtros-chip filtros-chip--interruptor${filtros.solucionadasRecientes ? ' filtros-chip--activo' : ''}`}
+            aria-pressed={filtros.solucionadasRecientes}
+            onClick={() => onChange({ ...filtros, solucionadasRecientes: !filtros.solucionadasRecientes })}
+          >
+            Solucionadas en los últimos 15 días
+            {filtros.solucionadasRecientes ? <X aria-hidden="true" /> : null}
           </button>
           {hayFiltrosActivos ? (
             <button type="button" className="filtros-limpiar" onClick={() => onChange(FILTROS_MAPA_VACIOS)}>

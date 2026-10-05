@@ -83,6 +83,27 @@ describe('PanelSituacionActual', () => {
     expect(onSeleccionar).toHaveBeenCalledWith('100')
   })
 
+  it('muestra KPI y escuelas con soluciones recientes sin situaciones abiertas', () => {
+    const onSeleccionar = vi.fn()
+    const solucionada = { ...escuelas[3], cueAnexo: '600', nombre: 'Escuela Solucionada', solucionadasRecientes: 2, ultimaNovedad: '2026-10-05T13:00:00.000Z' }
+    const otraSolucionada = { ...escuelas[3], cueAnexo: '700', nombre: 'Escuela Otra', solucionadasRecientes: 1, ultimaNovedad: null }
+    const tambienAbierta = { ...escuelas[0], cueAnexo: '800', nombre: 'Escuela Abierta y Solucionada', solucionadasRecientes: 1 }
+    render(<PanelSituacionActual escuelas={[solucionada, otraSolucionada, tambienAbierta]} actualizadoEn={null} onSeleccionar={onSeleccionar} />)
+
+    expect(screen.getByText('Solucionadas en los últimos 15 días', { selector: '.map-sitact__kpi span' }).previousElementSibling).toHaveTextContent('3')
+    const seccion = screen.getByRole('region', { name: 'Solucionadas en los últimos 15 días' })
+    const filas = within(seccion).getAllByRole('button')
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
+      'Escuela Solucionada, Ituzaingó',
+      'Escuela Otra, Ituzaingó',
+    ])
+    expect(filas[0]).toHaveTextContent('Solucionada recientemente')
+    expect(filas[0].querySelector('.map-sitact__franja')).not.toHaveAttribute('style')
+    fireEvent.click(filas[0])
+    expect(onSeleccionar).toHaveBeenCalledWith('600')
+    expect(within(seccion).queryByRole('button', { name: /Abierta y Solucionada/ })).not.toBeInTheDocument()
+  })
+
   it('conserva el nombre completo y lo limita visualmente a dos líneas', () => {
     const nombre = 'ESCUELA Nº 276 "SERAFIN IBAÑEZ" - ANEXO DE PARAJE EL CARMEN'
     const escuela = { ...escuelas[0], cueAnexo: '500', nombre }

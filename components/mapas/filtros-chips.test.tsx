@@ -225,6 +225,25 @@ describe('FiltrosChips', () => {
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ sinActualizar: true }))
   })
 
+  it('Solucionadas en los últimos 15 días alterna su filtro y permite limpiarlo', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { rerender } = renderFiltros(FILTROS_MAPA_VACIOS, onChange)
+    const nombre = 'Solucionadas en los últimos 15 días'
+    const chip = screen.getByRole('button', { name: nombre })
+
+    expect(chip).toHaveClass('filtros-chip--interruptor')
+    expect(chip).toHaveAttribute('aria-pressed', 'false')
+    await user.click(chip)
+    expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true })
+
+    rerender(<FiltrosChips escuelas={padronEjemplo} filtros={{ ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true }} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: /Solucionadas en los últimos 15 días/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Solucionadas en los últimos 15 días/ }))
+    expect(onChange).toHaveBeenLastCalledWith(FILTROS_MAPA_VACIOS)
+  })
+
   it('escribir en la búsqueda llama onChange con q', () => {
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)

@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
-import type { AfectacionFicha } from '@/lib/infraestructura/use-ficha-parte'
+import type { AfectacionFicha, SolucionadaFicha } from '@/lib/infraestructura/use-ficha-parte'
 import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
@@ -22,16 +22,20 @@ const afectaciones: AfectacionFicha[] = [{
   descripcion: 'Dos aulas sin acceso', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', causadaPorId: null, totales: { secciones: 2, alumnos: 30 },
 }]
 
+const solucionadas: SolucionadaFicha[] = [{
+  id: 'solucionada-1', motivo: 'Techo reparado', severidad: 'Alta', retiradaEn: '2026-10-03T15:00:00.000Z',
+}]
+
 const movimientos: MovimientoHistorial[] = [
   { id: 'mov-1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-09-01T12:00:00.000Z', rigeDesde: '2026-09-01T12:00:00.000Z', titulo: 'Se informó Inaccesibilidad', cambios: ['Se informó Inaccesibilidad'], severidad: 'Alta' },
   { id: 'mov-2', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-09-02T12:00:00.000Z', rigeDesde: '2026-09-02T12:00:00.000Z', titulo: 'Cambió el alcance de Inaccesibilidad', cambios: ['Se actualizó el alcance de Inaccesibilidad: 1 sección más'], severidad: 'Alta' },
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, recientes, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; recientes?: SolucionadaFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
-    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones },
+    json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones, ...(recientes === undefined ? {} : { recientes }) },
   })))
 }
 
@@ -117,6 +121,35 @@ describe('FichaEscuelaPanel', () => {
     expect(situaciones).not.toHaveTextContent('Afecta')
     expect(situaciones?.querySelectorAll('strong')).toHaveLength(1)
     expect(situaciones).toHaveTextContent('Última novedad: hace 3 h')
+  })
+
+  it('muestra las situaciones solucionadas recientes con gravedad y fecha absoluta', async () => {
+    instalarFetch({ recientes: solucionadas })
+    renderFicha()
+
+    const recientes = await screen.findByText('Solucionadas recientemente (1)')
+    const desplegable = recientes.closest('details')
+    expect(desplegable).toHaveTextContent('Techo reparado')
+    expect(desplegable).toHaveTextContent('Gravedad que teníaAlta')
+    expect(desplegable).toHaveTextContent('Solucionada3 de octubre, 12:00')
+    expect(desplegable).toHaveProperty('open', false)
+  })
+
+  it.each([[], undefined])('no muestra el desplegable si recientes es %s', async (recientes) => {
+    instalarFetch({ recientes })
+    renderFicha()
+
+    await screen.findByText('Situaciones (1 abierta)')
+    expect(screen.queryByText(/Solucionadas recientemente/)).not.toBeInTheDocument()
+  })
+
+  it('abre el desplegable de soluciones cuando no hay situaciones abiertas', async () => {
+    instalarFetch({ situaciones: [], recientes: solucionadas })
+    renderFicha({ escuela: { ...escuela, gravedad: 0, categoriaPrincipal: null } })
+
+    expect(screen.getByText('Sin situaciones abiertas')).toBeInTheDocument()
+    const recientes = await screen.findByText('Solucionadas recientemente (1)')
+    expect(recientes.closest('details')).toHaveProperty('open', true)
   })
 
   it('muestra el estado del edificio cuando hay una situación abierta de establecimiento', async () => {

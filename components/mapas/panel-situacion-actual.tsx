@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { BookMinus, BookX, Clock, DoorOpen, House } from 'lucide-react'
+import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { etiquetaDepartamento, ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { ordenarReportes, resumir } from '@/lib/infraestructura/mapa/agregar'
@@ -76,6 +76,14 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
   const [ahoraMs] = useState(() => Date.now())
   const resumen = resumir(escuelas)
   const reportes = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0)
+  const solucionadasRecientes = escuelas
+    .filter((escuela) => escuela.solucionadasRecientes > 0 && escuela.gravedad === 0)
+    .sort((a, b) => {
+      if (a.ultimaNovedad === null && b.ultimaNovedad !== null) return 1
+      if (a.ultimaNovedad !== null && b.ultimaNovedad === null) return -1
+      if (a.ultimaNovedad !== b.ultimaNovedad) return (b.ultimaNovedad ?? '').localeCompare(a.ultimaNovedad ?? '')
+      return a.nombre.localeCompare(b.nombre, 'es')
+    })
   const porcentajeApoyo = resumen.sinClases === 0
     ? 0
     : Math.round(resumen.sinClasesConApoyo / resumen.sinClases * 100)
@@ -105,6 +113,10 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.sinActualizar)}</strong>
           <span>Sin actualizar</span>
+        </div>
+        <div className="map-sitact__kpi">
+          <strong>{FORMATO_NUMERO.format(resumen.solucionadasRecientes)}</strong>
+          <span>Solucionadas en los últimos 15 días</span>
         </div>
       </div>
 
@@ -151,10 +163,44 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
               )
             })}
           </div>
-        ) : (
+        ) : solucionadasRecientes.length === 0 ? (
           <p className="map-sitact__vacio">Ninguna escuela con situaciones abiertas para estos filtros.</p>
-        )}
+        ) : null}
       </section>
+
+      {solucionadasRecientes.length > 0 && (
+        <section className="map-sitact__reportes" aria-labelledby="map-sitact-solucionadas-titulo">
+          <h3 id="map-sitact-solucionadas-titulo" className="map-sitact__titulo-seccion">
+            Solucionadas en los últimos 15 días
+          </h3>
+          <div className="map-sitact__lista">
+            {solucionadasRecientes.map((escuela) => {
+              const nivel = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+              const departamento = etiquetaDepartamento(escuela.departamento)
+              return (
+                <button
+                  key={escuela.cueAnexo}
+                  type="button"
+                  className="map-sitact__fila"
+                  onClick={() => onSeleccionar(escuela.cueAnexo)}
+                  aria-label={`${escuela.nombre}, ${departamento}${nivel}`}
+                >
+                  <span className="map-sitact__franja" aria-hidden="true" />
+                  <span className="map-sitact__contenido-fila">
+                    <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
+                    <span className="map-sitact__meta">{departamento}{nivel}</span>
+                    <span className="map-sitact__chips">
+                      <span className="map-sitact__pill map-sitact__pill--ok">
+                        <Check aria-hidden="true" />Solucionada recientemente
+                      </span>
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
     </section>
   )
 }

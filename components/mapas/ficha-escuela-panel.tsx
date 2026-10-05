@@ -94,6 +94,7 @@ export function FichaEscuelaPanel({
   const [ahoraMs] = useState(() => Date.now())
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
+  const recientes = datos?.recientes ?? []
   const severidad = escuela.gravedad === 0 ? null : SEVERIDADES[escuela.gravedad - 1]
   const principal = situacionPrincipal(afectaciones.map((afectacion) => ({
     ...afectacion,
@@ -195,6 +196,23 @@ export function FichaEscuelaPanel({
           {datos?.parte && novedad && <p><strong>Última novedad:</strong> {novedad}</p>}
           <button type="button" className="map-ficha-escuela__link" onClick={onVerHistorialCompleto}>Ver historial</button>
         </Desplegable>
+
+        {recientes.length > 0 && (
+          <Desplegable titulo={`Solucionadas recientemente (${recientes.length})`} abierto={afectaciones.length === 0}>
+            {recientes.map((solucionada) => {
+              const retiradaEn = formatearMomentoHistorial(solucionada.retiradaEn).replace(/^Hoy/, 'hoy')
+              return (
+                <div className="map-ficha-escuela__situacion" key={solucionada.id}>
+                  <h3>{solucionada.motivo}</h3>
+                  <dl className="map-ficha-escuela__kv">
+                    <dt>Gravedad que tenía</dt><dd><EstadoActualSeveridad severidad={solucionada.severidad} prefijo={false} /></dd>
+                    <dt>Solucionada</dt><dd>{retiradaEn}</dd>
+                  </dl>
+                </div>
+              )
+            })}
+          </Desplegable>
+        )}
 
         <Desplegable titulo="Historial">
           {historial.fase === 'cargando' ? (
