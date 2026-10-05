@@ -24,8 +24,8 @@
 - [x] Final blind re-review #1 — NOT APPROVED: H1 send hangs with no timeout, H2 movement title says "normal" for an Alta storm, plus 12 minor; the Actualizar walkthrough was not covered
 - [x] Polish 2 (H1–H14 + full B4 visual coverage) — merged 297131a (11 commits). N1 rejected a "no auto-retry after timeout" change (it broke the auto-resend guarantee); fixed in 866abe3
 - [x] Final blind re-review #2 — full coverage (m+d); NOT APPROVED: 5 important (cause list unfiltered, Retry disabled during hang, Actualizar CTA under the history, admin table clipped, Cambió cascade stacked) + 13 minor
-- [ ] Polish 3 (#1–#18) — running, dispatch ctx_39437fc12de4. N1: keep the 15-day cause window and the automatic retry
-- [ ] Final blind re-review #3
+- [x] Polish 3 (#1–#18) — merged f21c40a (14 commits); 15-day cause window and auto-retry kept
+- [ ] Final blind re-review #3 — running, dispatch ctx_664ecfddf206, isolated env visual4
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
@@ -50,3 +50,4 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - Polish N2 (H2–H23 + flaky test) running: dispatch ctx_f4cac2624413, worktree parte-pulido. Then a final blind re-review.
 - Polish merged 9a0f971: N1 checked the after-screenshots (grouped section list with custom controls; chips in a regular 3-up grid; date and time stacked). Gate on the integration: tsc clean; vitest 2572 passed, 1 failed (pre-existing radar-meteo; the flaky test is fixed); lint 0 errors; build 0.
 - Integrated feat/staging 297131a: tsc clean; vitest 2645 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
+- Integrated feat/staging f21c40a: tsc clean; vitest 2731 passed, 1 failed (pre-existing radar-meteo); lint 0 errors; build 0.
