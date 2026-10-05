@@ -75,7 +75,7 @@ const MENSAJE_ERROR_GUARDADO =
   'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 
 const MENSAJE_GUARDADO =
-  'Parte registrado.'
+  'Ya figura en el panel.'
 
 const MENSAJE_FALTA_QUE_PASO =
   'Elija el tipo de situación, el motivo y la severidad para continuar.'
@@ -556,10 +556,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       return null
     }
     if (actual === 3) {
-      if (servicioEstado === '') return 'Indique si hay clases.'
-      if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
-      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+      const faltantes: string[] = []
+      if (servicioEstado === '') faltantes.push('Indique si hay clases.')
+      if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
+        faltantes.push('Elija al menos una modalidad de asistencia pedagógica.')
+      }
+      const vigenciaInvalida = vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null
+      if (vigenciaInvalida) {
+        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      }
+      if (faltantes.length > 0) return faltantes.join(' ')
+      if (vigenciaInvalida) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
       return null
     }
     return null

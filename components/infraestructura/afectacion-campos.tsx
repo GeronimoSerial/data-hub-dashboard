@@ -328,7 +328,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <Label>¿A quién afecta?</Label>
+          <Label>Alcance</Label>
           <SelectorEstablecimiento
             turnos={turnos}
             valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}

@@ -82,8 +82,19 @@ describe('armarResumen', () => {
       estadoEstablecimiento: 'centro_evacuados',
     })
 
-    expect(lineas).toContainEqual({ etiqueta: 'Clases', valor: 'suspendidas en todo el establecimiento' })
-    expect(lineas).toContainEqual({ etiqueta: 'Edificio', valor: 'usado como centro de evacuados' })
+    expect(lineas).toContainEqual({ etiqueta: 'Clases', valor: 'Suspendidas en todo el establecimiento' })
+    expect(lineas).toContainEqual({ etiqueta: 'Edificio', valor: 'Usado como centro de evacuados' })
+  })
+
+  it('capitaliza las respuestas de clases y edificio como filas consistentes', () => {
+    const lineas = armarResumen({
+      ...base,
+      servicio: { estado: 'normal', alcanceTipo: '', turnos: [], secciones: 0 },
+      estadoEstablecimiento: 'parcial',
+    })
+
+    expect(lineas).toContainEqual({ etiqueta: 'Clases', valor: 'Con normalidad' })
+    expect(lineas).toContainEqual({ etiqueta: 'Edificio', valor: 'Uso parcial' })
   })
 
   it('cierra con el momento desde el que rige', () => {

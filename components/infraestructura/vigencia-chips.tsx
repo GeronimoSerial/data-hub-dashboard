@@ -83,7 +83,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
       )}
 
       {error ? <p id={`${id}-error`} className="vigencia-field__error" role="alert">{error}</p> : null}
-      <p className="vigencia-chips__resumen" aria-live="polite">{resumenVigencia(value)}</p>
+      {!error ? <p className="vigencia-chips__resumen" aria-live="polite">{resumenVigencia(value)}</p> : null}
     </fieldset>
   )
 }

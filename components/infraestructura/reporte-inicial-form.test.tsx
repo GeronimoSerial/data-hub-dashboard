@@ -13,7 +13,7 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
-  'Parte registrado.'
+  'Ya figura en el panel.'
 
 function sembrarBorradorWizard({
   paso = 2,
@@ -59,6 +59,7 @@ function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 const volver = () => fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
 const resumenConfirmacion = () => document.querySelector('.asistente__resumen-lista') as HTMLElement
+const textoAlertas = () => screen.getAllByRole('alert').map((alerta) => alerta.textContent).join(' ')
 const confirmarCategoria = () =>
   screen.queryByRole('dialog') && fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
 
@@ -317,7 +318,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
-  it('no avanza del tercer paso sin indicar cómo está el edificio', () => {
+  it('muestra todos los datos faltantes del tercer paso a la vez', () => {
     renderFormulario()
 
     completarQuePaso()
@@ -328,7 +329,8 @@ describe('ReporteInicialForm', () => {
 
     continuar()
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
     expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
@@ -338,6 +340,43 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+  })
+
+  it('muestra clases, edificio y hora futura juntos, sin la ayuda de hora', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Hoy, más temprano' }))
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '23:59' } })
+    continuar()
+
+    expect(textoAlertas()).toContain('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
+    expect(textoAlertas()).toContain('Esa hora todavía no pasó.')
+    expect(screen.queryByText('Desde hoy a las 23:59')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
+    stubFetch()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+
+    expect(screen.getByText('Alcance')).toBeInTheDocument()
+    expect(screen.queryByText('¿A quién afecta?')).not.toBeInTheDocument()
+
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
   it('un problema de alumnos pasa directamente a confirmar sin preguntar por escuela ni edificio', () => {
