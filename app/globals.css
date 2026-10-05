@@ -180,6 +180,14 @@
 
 /* ── Base ──────────────────────────────────────────────────────────────── */
 
+.linea-de-tiempo__lista { list-style: none; margin: 0; padding: 0 0 0 var(--s-4); border-left: 2px solid var(--line); }
+.linea-de-tiempo__entrada { position: relative; padding: 0 0 var(--s-3) var(--s-3); }
+.linea-de-tiempo__punto { position: absolute; left: calc(-1 * var(--s-4) - 6px); top: 6px; width: 10px; height: 10px; border-radius: 50%; }
+.linea-de-tiempo__dia { font-size: var(--t-small); text-transform: uppercase; color: var(--ink-soft); margin: var(--s-3) 0 var(--s-2); }
+.linea-de-tiempo__hora { font-weight: 600; }
+.linea-de-tiempo__cambios p { margin: var(--s-1) 0 0; }
+.linea-de-tiempo__mas { min-height: 44px; background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+
 * { box-sizing: border-box; }
 /* The document itself never scrolls: every page scrolls inside the shell's
    `.app-content`/`.app-content--bleed` region instead (T12). This is what

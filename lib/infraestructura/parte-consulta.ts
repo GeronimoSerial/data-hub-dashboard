@@ -18,6 +18,7 @@ import {
 } from '@/lib/db/schema'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
 import { describirMovimiento } from './movimiento-descripcion'
+import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
@@ -393,6 +394,7 @@ export interface MovimientoDescrito {
   creadaEn: string
   rigeDesde: string
   cambios: string[]
+  severidad: Severidad | null
 }
 
 // Historial de movimientos de un parte, ya traducidos a prosa castellana
@@ -426,6 +428,7 @@ export async function listarMovimientosDescritos(
       creadaEn: fila.creadaEn,
       rigeDesde: fila.rigeDesde,
       cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo }),
+      severidad: severidadDelMovimiento(fila.resumen as unknown as DiffParte),
     }
   })
 }
