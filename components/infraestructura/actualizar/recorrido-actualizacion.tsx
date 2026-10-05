@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { CircleCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
@@ -82,14 +83,14 @@ function crearLineasResumen(situaciones: SituacionRecorrido[], recorrido: Estado
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
-    if (respuesta.tipo === 'sigue') lineas.push(`Situación ${situacion.motivo}: sin cambios`)
-    else if (respuesta.tipo === 'solucionada') lineas.push(`Situación ${situacion.motivo}: se solucionó (${respuesta.solucionadaEn})`)
+    if (respuesta.tipo === 'sigue') lineas.push(`${situacion.motivo}: sin cambios`)
+    else if (respuesta.tipo === 'solucionada') lineas.push(`${situacion.motivo}: se solucionó (${respuesta.solucionadaEn})`)
     else {
       const datos: string[] = []
       if (respuesta.cambio.severidad) datos.push(`gravedad ${respuesta.cambio.severidad}`)
       if (respuesta.cambio.secciones) datos.push(`alcance actualizado`)
       if (respuesta.cambio.aspectos.includes('clases-edificio')) datos.push('cambiaron las clases o el edificio')
-      lineas.push(`Situación ${situacion.motivo}: ${datos.join(', ')}`)
+      lineas.push(`${situacion.motivo}: ${datos.join(', ')}`)
     }
   }
   if (recorrido.nueva) {
@@ -176,15 +177,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
-    const lineas = crearLineasResumen(situaciones, recorrido)
-    if (asistenciaSeleccionada) {
-      const valor = asistenciaSeleccionada.brinda
-        ? `Sí${asistenciaSeleccionada.modalidades.length ? `, ${asistenciaSeleccionada.modalidades.join(' y ')}` : ''}`
-        : 'No'
-      lineas.push(`Asistencia pedagógica: ${valor}${asistenciaCambiada ? '' : ' (vigente)'}`)
-    }
-    return lineas
-  }, [situaciones, recorrido, asistenciaCambiada, asistenciaSeleccionada])
+    return crearLineasResumen(situaciones, recorrido)
+  }, [situaciones, recorrido])
 
   function moverEtapa(siguiente: EtapaActualizacion): void {
     setEtapa(siguiente)
@@ -518,6 +512,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       {etapa === 'resumen' ? (
         <ResumenEnvio
           lineasResumen={lineasResumen}
+          asistenciaVigente={asistenciaVigente.brinda ? 'Sí' : 'No'}
           asistenciaPedagogica={asistenciaPedagogica}
           enviando={enviando}
           onCambiarAsistencia={(seleccion) => {
@@ -573,7 +568,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () => void }): JSX.Element {
   return (
     <div className="reporte-inicial__confirmacion" role="status">
-      <p>{MENSAJE_GUARDADO}</p>
+      <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
           Volver al panel
@@ -588,6 +583,7 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
 
 function ResumenEnvio({
   lineasResumen,
+  asistenciaVigente,
   asistenciaPedagogica,
   enviando,
   onCambiarAsistencia,
@@ -599,6 +595,7 @@ function ResumenEnvio({
   onEnviar,
 }: {
   lineasResumen: string[]
+  asistenciaVigente: 'Sí' | 'No'
   asistenciaPedagogica: AsistenciaSeleccionada
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
@@ -610,11 +607,11 @@ function ResumenEnvio({
   onEnviar: () => void
 }): JSX.Element {
   return (
-    <section className="reporte-inicial__seccion">
+    <section className="reporte-inicial__seccion actualizacion-resumen">
       <h2>Resumen</h2>
-      <ul className="actualizacion-resumen__lista">
-        {lineasResumen.map((linea, indice) => <li key={indice}>{linea}</li>)}
-      </ul>
+      <div className="actualizacion-resumen__lista">
+        {lineasResumen.map((linea, indice) => <p key={indice}>{linea}</p>)}
+      </div>
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
         <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
         {(['si', 'no'] as const).map((valor) => (
@@ -629,7 +626,7 @@ function ResumenEnvio({
               })}
               label={valor === 'si' ? 'Sí' : 'No'}
               compacta
-            />
+          />
         ))}
         {asistenciaPedagogica.brinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
           <Opcion
@@ -649,6 +646,7 @@ function ResumenEnvio({
               compacta
             />
         ))}
+        <p className="actualizacion-resumen__vigente">Vigente: {asistenciaVigente}</p>
       </fieldset>
       {estadoEnvio ? (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'

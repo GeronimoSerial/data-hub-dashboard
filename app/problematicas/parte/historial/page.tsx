@@ -43,7 +43,7 @@ export default async function HistorialPartePage({
   }
 
   return (
-    <div className="publico-content publico-content--ancho">
+    <div className="publico-content publico-content--parte">
       <div className="historial-contenido">
         <EncabezadoParte pantalla={TITULO} descripcion="Los cambios más recientes aparecen primero." />
         <HistorialParte

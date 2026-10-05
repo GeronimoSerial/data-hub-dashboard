@@ -62,7 +62,7 @@ export default async function ActualizarPartePage({
   const motivos = await listarMotivos()
 
   return (
-    <div className="publico-content publico-content--ancho">
+    <div className="publico-content publico-content--parte">
       <EncabezadoParte
         pantalla={TITULO}
         escuela={escuela}

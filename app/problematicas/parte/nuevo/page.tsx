@@ -63,7 +63,7 @@ export default async function NuevoPartePage({
   const motivos = await listarMotivos()
 
   return (
-    <div className="publico-content">
+    <div className="publico-content publico-content--parte">
       <NuevoParteContenido cue={escuela.cueAnexo} escuela={escuela} turnos={turnos} motivos={motivos} />
     </div>
   )

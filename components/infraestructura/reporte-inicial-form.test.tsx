@@ -549,6 +549,7 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
+    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
 
     const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
     expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)

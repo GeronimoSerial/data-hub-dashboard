@@ -71,6 +71,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('guarda con POST, instante de envío y muestra confirmación', async () => {
     const fetchMock = stub(); montar(); await enviar()
     await screen.findByText(guardado)
+    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
     const [, init] = posteos(fetchMock)[0]
     const cuerpo = JSON.parse(String((init as RequestInit).body))
     expect(cuerpo).toMatchObject({ cue: CUE, afectacionesConfirmadas: ['a', 'b'] })

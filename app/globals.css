@@ -3052,6 +3052,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-2);
 }
+.selector-establecimiento {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
 .selector-establecimiento__opciones > .opcion {
   width: 100%;
   min-height: 48px;
@@ -3202,6 +3207,27 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
        de 1200 una clavada en 1440 se pega a los bordes. El `100% - 4rem`
        reserva el margen lateral antes de que el tope llegue a mandar. */
     --publico-medida: min(1440px, 100% - 4rem);
+  }
+}
+
+/* El parte se lee como una sola columna. El encabezado y los pasos comparten
+   el mismo marco, incluso en pantallas donde antes aparecía el layout ancho. */
+@media (min-width: 768px) {
+  .publico-content.publico-content--parte { max-width: 720px; }
+  .publico-content--parte .reporte-inicial,
+  .publico-content--parte .recorrido-actualizacion,
+  .publico-content--parte .historial-contenido { max-width: none; }
+  .publico-content--parte .reporte-inicial--con-panel {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: none;
+  }
+  .publico-content--parte .reporte-inicial--con-panel > * { grid-column: 1; }
+  .publico-content--parte .reporte-inicial--con-panel > .actualizacion-pendientes {
+    grid-column: 1;
+    grid-row: auto;
+    position: static;
+    max-width: none;
+    justify-self: stretch;
   }
 }
 
@@ -3774,7 +3800,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .reporte-inicial__confirmacion {
   width: 100%;
-  max-width: 640px;
+  max-width: none;
   margin-inline: auto;
   padding: var(--s-5);
   border-radius: var(--r-md);
@@ -3782,6 +3808,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ok);
   font-weight: 500;
 }
+
+.reporte-inicial__confirmacion-mensaje {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-weight: 600;
+}
+.reporte-inicial__confirmacion-mensaje svg { flex: none; }
 
 .reporte-inicial__confirmacion-acciones {
   display: flex;
@@ -3791,23 +3826,20 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-weight: 400;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .reporte-inicial__confirmacion-acciones { flex-direction: column; align-items: stretch; }
+  .reporte-inicial__confirmacion-acciones > * { width: 100%; min-height: 48px; }
 }
 
 @media (max-width: 480px) {
   .reporte-inicial { max-width: none; }
 }
 
-/* ── Formulario con panel al costado (actualización del parte) ───────────── */
-
-/* Una sola columna hasta que entran las dos sin comprimir ninguna:
-   640 de formulario + 2rem + 17rem de panel. Debajo de eso el panel vuelve
-   a su lugar en el flujo, entre el último campo y el botón. */
+/* ── Recorrido de actualización del parte ──────────────────────────────── */
 @media (min-width: 768px) {
   .reporte-inicial--con-panel {
     display: grid;
-    grid-template-columns: minmax(0, 640px);
+    grid-template-columns: minmax(0, 1fr);
     justify-content: center;
     row-gap: 0;
     align-items: start;
@@ -3817,39 +3849,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .reporte-inicial--con-panel > * { grid-column: 1; }
   .reporte-inicial--con-panel > * + * { margin-top: var(--s-5); }
 
-}
-
-@media (min-width: 1060px) {
-  .reporte-inicial--con-panel:has(> .actualizacion-pendientes) {
-    grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
-    column-gap: var(--s-6);
-  }
-
-  /* El tramo de filas abarca el formulario entero para que el pegado tenga
-     por dónde viajar: su razón de ser es acompañar, y el director necesita
-     ver lo que lleva cambiado mientras completa una sección de más abajo. El
-     número es holgado a propósito —las filas se crean solas según cuántas
-     secciones muestre el paso— y las que sobran no ocupan nada, porque están
-     vacías y no hay separación entre filas. */
-  .reporte-inicial--con-panel > .actualizacion-pendientes {
-    grid-column: 2;
-    grid-row: 1 / span 40;
-    margin-top: 0;
-    position: sticky;
-    top: var(--s-5);
-    /* El tope va en el panel y no en la pista: una pista topeada desborda
-       cuando el contenedor se achica, y esta lista son tres renglones de
-       texto — a 700px de ancho deja de leerse como una columna. */
-    /* El `width` acompaña al tope porque `justify-self` deja al panel del
-       ancho de su contenido: sin él, el borde izquierdo se corre cada vez
-       que entra o sale una línea de la lista de cambios. */
-    width: 100%;
-    max-width: 26rem;
-    /* Contra el borde derecho de la tarjeta, donde ya está la referencia que
-       marcan el encabezado y las líneas de sección. Pegado al formulario
-       dejaba una franja muerta a la derecha y el conjunto quedaba corrido. */
-    justify-self: end;
-  }
 }
 
 /* ── Actualización del parte (batch 6) ────────────────────────────────── */
@@ -3868,10 +3867,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex-direction: column;
   gap: var(--s-2);
   margin: 0;
-  padding-left: var(--s-4);
   font-size: var(--t-small);
   color: var(--ink);
 }
+.actualizacion-resumen__lista > p { margin: 0; }
+.actualizacion-resumen__vigente {
+  margin: calc(-1 * var(--s-2)) 0 0;
+  color: var(--ink-faint);
+  font-size: var(--t-micro);
+}
+.actualizacion-resumen { padding-top: 0; border-top: 0; }
 
 .actualizacion-resumen__acciones {
   display: flex;
@@ -3982,7 +3987,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .encabezado-parte__pantalla {
-  margin: var(--s-3) 0 0;
+  margin: var(--s-2) 0 0;
   font-size: clamp(1.125rem, 2vw, 1.375rem);
   letter-spacing: 0;
   color: var(--ink);

@@ -101,10 +101,12 @@ describe('RecorridoActualizacion', () => {
     }
     fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
     expect(screen.getByRole('heading', { name: 'Resumen' })).toBeInTheDocument()
-    expect(screen.getByText('Situación Inundación: sin cambios')).toBeInTheDocument()
-    expect(screen.getByText('Situación Sin energía o agua: sin cambios')).toBeInTheDocument()
-    expect(screen.getByText('Asistencia pedagógica: No (vigente)')).toBeInTheDocument()
+    expect(screen.getByText('Inundación: sin cambios')).toBeInTheDocument()
+    expect(screen.getByText('Sin energía o agua: sin cambios')).toBeInTheDocument()
+    expect(screen.queryByText(/Asistencia pedagógica: No/)).not.toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
+    expect(screen.getByText('Vigente: No')).toBeInTheDocument()
+    expect(document.querySelector('.actualizacion-resumen__lista ul')).not.toBeInTheDocument()
   })
 
   it('un problema nuevo siempre pregunta si es consecuencia de algo anterior', async () => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { CircleCheck } from 'lucide-react'
 import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
@@ -619,7 +620,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   if (guardado) {
     return (
       <div className="reporte-inicial__confirmacion" role="status">
-        <p>{MENSAJE_GUARDADO}</p>
+        <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
         <div className="reporte-inicial__confirmacion-acciones">
           <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
             Volver al panel
