@@ -1890,6 +1890,7 @@ time {
 }
 .ui-tabs-tab:hover { color: var(--ink); }
 .ui-tabs-tab[data-active] { color: var(--ink); border-bottom-color: var(--marker); font-weight: 700; }
+.ui-tabs-tab__contador { margin-left: var(--s-2); vertical-align: middle; }
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 

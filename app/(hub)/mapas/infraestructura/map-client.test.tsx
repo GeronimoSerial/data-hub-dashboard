@@ -8,8 +8,8 @@ import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-ma
 
 const PADRON_PRUEBA: EscuelasMapaPadronResultado = {
   escuelas: [
-    { cueAnexo: '180001-00', nombre: 'Escuela Primaria', departamento: 'Capital', localidad: 'Corrientes', lat: -27.4, lon: -58.8, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 20, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
-    { cueAnexo: '180002-00', nombre: 'Escuela Secundaria', departamento: 'Goya', localidad: 'Goya', lat: -29.1, lon: -59.2, estado: 'sin_afectacion_reportada', niveles: ['Secundario'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
+    { cueAnexo: '180001-00', nombre: 'Escuela Primaria', departamento: 'Capital', localidad: 'Corrientes', lat: -27.4, lon: -58.8, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 20, gravedad: 2, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
+    { cueAnexo: '180002-00', nombre: 'Escuela Secundaria', departamento: 'Goya', localidad: 'Goya', lat: -29.1, lon: -59.2, estado: 'sin_afectacion_reportada', niveles: ['Secundario'], alumnos: 30, gravedad: 1, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
     { cueAnexo: '180003-00', nombre: 'Escuela Rural', departamento: 'Ituzaingó', localidad: 'Ituzaingó', lat: -27.6, lon: -56.7, estado: 'sin_afectacion_reportada', niveles: ['Primario', 'Secundario'], alumnos: 15, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
     { cueAnexo: '1800087-00', nombre: 'Escuela N° 87 Colonia Tatacuá', departamento: 'San Roque', localidad: 'Tatacuá', lat: -28.2, lon: -58.1, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 18, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
   ],
@@ -84,9 +84,32 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.queryByRole('tab', { name: /Radar/ })).toBeNull()
   })
 
+  it('muestra el contador de escuelas con reporte y lo actualiza con los filtros', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    const pestaña = screen.getByRole('tab', { name: 'Situación actual, 2 escuelas con reporte' })
+    expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
+    expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+
+    const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con reporte' })
+    expect(pestañaFiltrada.querySelector('.map-sitact__pill')).toHaveTextContent('1')
+  })
+
+  it('no muestra el contador cuando no hay escuelas con reporte', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin resultados')
+
+    const pestaña = screen.getByRole('tab', { name: 'Situación actual' })
+    expect(pestaña.querySelector('.map-sitact__pill')).toBeNull()
+  })
+
   it('muestra los filtros debajo de las pestañas también en Estadísticas', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
-    const tabs = screen.getByRole('tab', { name: 'Situación actual' })
+    const tabs = screen.getByRole('tab', { name: /^Situación actual/ })
     const filtros = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
     expect(filtros).not.toBeNull()
     expect(tabs.compareDocumentPosition(filtros as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -156,7 +179,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(mapa).toHaveAttribute('data-pestana', 'radar')
     expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
+    await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
     expect(mapa).toHaveAttribute('data-pestana', 'actual')
   })
 
@@ -177,7 +200,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
+    await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
 
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
     expect(montajesMapa.total).toBe(1)
@@ -203,7 +226,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
     expect(window.location.hash).toBe('#estadisticas')
 
-    await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
+    await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
     expect(window.location.hash).toBe('#actual')
   })
 
@@ -211,7 +234,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     window.location.hash = 'operativa'
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
-    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: /^Situación actual/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -242,7 +265,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     window.location.hash = 'radar'
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled={false} />)
 
-    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: /^Situación actual/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
@@ -252,7 +275,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     window.location.hash = 'basura'
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
-    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+    expect(await screen.findByRole('tab', { name: /^Situación actual/ })).toHaveAttribute(
       'aria-selected',
       'true',
     )
