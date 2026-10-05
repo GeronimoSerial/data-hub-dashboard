@@ -107,7 +107,7 @@ describe('describirMovimiento', () => {
     expect(lineas).toContain('12 alumnos incorporados')
   })
 
-  it('reporte inicial narra la primera afectación como "Se inició el reporte por…"', () => {
+  it('reporte inicial narra la primera situación iniciada', () => {
     const despues: ParteSnapshot = {
       estadoEstablecimiento: 'habitual',
       afectaciones: [
@@ -126,7 +126,7 @@ describe('describirMovimiento', () => {
     }
     const diff = diffParte(crearSnapshotVacio(), despues)
     const lineas = describirMovimiento(diff, { tipo: 'reporte_inicial' })
-    expect(lineas).toContain('Se inició el reporte por "Inundación"')
+    expect(lineas).toContain('Se inició la situación "Inundación"')
     expect(lineas).toContain('Severidad Alta · 3 secciones · 74 alumnos')
   })
 

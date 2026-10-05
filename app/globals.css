@@ -3045,6 +3045,18 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .vigencia-chips__campos .ui-label { display: flex; flex-direction: column; gap: var(--s-2); width: 100%; }
 .vigencia-chips__campos input { width: 100%; min-height: 48px; }
 .vigencia-chips__resumen { margin: 0; color: var(--ink-soft); }
+.revisar-situacion .vigencia-chips__resumen { margin-top: var(--s-2); }
+
+.selector-establecimiento__opciones {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-2);
+}
+.selector-establecimiento__opciones > .opcion {
+  width: 100%;
+  min-height: 48px;
+  text-align: left;
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    Zona pública — formulario del director, sin AppShell ni sesión
@@ -3348,6 +3360,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-5);
   margin-top: var(--s-5);
 }
+.publico-content--estado-actual .estado-actual { margin-top: 0; }
 
 /* Aviso de carga, de error y de acceso vencido. Bloque propio para que el
    mensaje no se confunda con un dato del parte. */
@@ -3896,6 +3909,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+}
+
+.recorrido-actualizacion__descripcion {
+  margin: 0 0 var(--s-4);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
 }
 
 .revisar-situacion > h3,

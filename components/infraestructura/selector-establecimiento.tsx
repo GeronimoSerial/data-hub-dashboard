@@ -31,7 +31,7 @@ export function SelectorEstablecimiento({
   const id = useId()
   return (
     <div className="selector-establecimiento">
-      <div className="vigencia-chips__opciones" role="radiogroup">
+      <div className="selector-establecimiento__opciones" role="radiogroup" aria-label="A quién afecta">
         <Opcion
           tipo="radio"
           name={`${id}-alcance`}

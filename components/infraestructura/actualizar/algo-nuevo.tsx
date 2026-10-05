@@ -7,6 +7,7 @@ import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { formatearFechaHistorial } from '@/components/infraestructura/historial-formato'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import {
@@ -147,13 +148,16 @@ export function AlgoNuevo({
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
       {etapa === 'pregunta' ? (
-        <fieldset className="afectacion-campos__grupo">
-          <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
-          <div className="afectacion-campos__opciones">
-            <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, no hay una situación nueva" />
-            <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, hay una situación nueva" />
-          </div>
-        </fieldset>
+        <>
+          <p className="recorrido-actualizacion__descripcion">Agregue una situación nueva si la hay.</p>
+          <fieldset className="afectacion-campos__grupo">
+            <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
+            <div className="afectacion-campos__opciones">
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, no hay una situación nueva" />
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, hay una situación nueva" />
+            </div>
+          </fieldset>
+        </>
       ) : null}
 
       {etapa === 'causa' ? (
@@ -168,7 +172,7 @@ export function AlgoNuevo({
                     name="causa-problema-nuevo"
                     checked={causadaPorId === candidata.id}
                     onChange={() => setCausadaPorId(candidata.id)}
-                    label={`De ${candidata.motivo} (${candidata.fecha})`}
+                    label={`De ${candidata.motivo} (${formatearFechaHistorial(candidata.fecha)})`}
                     compacta
                   />
               ))}

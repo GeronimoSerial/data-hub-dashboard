@@ -16,7 +16,7 @@ import type { EstadoEstablecimiento, SeccionEstablecimiento, ServicioEstado, Tip
 
 export interface DescribirMovimientoOpciones {
   // Cuando el movimiento es el reporte inicial, la primera afectación
-  // agregada se narra como "Se inició el reporte por…" en vez de
+  // agregada se narra como "Se inició la situación…" en vez de
   // "Se agregó…" (spec §15, segundo ejemplo del historial). El resto de las
   // líneas usa el mismo criterio que una actualización.
   tipo?: TipoMovimiento
@@ -117,7 +117,7 @@ export function describirMovimiento(
 
   diff.afectacionesAgregadas.forEach((agregada, indice) => {
     if (esReporteInicial && indice === 0) {
-      lineas.push(`Se inició el reporte por "${agregada.motivo}"`)
+      lineas.push(`Se inició la situación "${agregada.motivo}"`)
       const partes: string[] = [`Severidad ${agregada.severidad}`]
       if (agregada.secciones > 0) {
         partes.push(`${agregada.secciones} ${pluralizar(agregada.secciones, 'sección', 'secciones')}`)

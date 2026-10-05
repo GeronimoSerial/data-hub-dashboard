@@ -76,6 +76,21 @@ describe('RecorridoActualizacion', () => {
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Sigue igual' }))
   })
 
+  it('valida el alcance junto al selector y lo enfoca antes de avanzar', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+    const sheet = screen.getByRole('dialog')
+    fireEvent.click(within(sheet).getByRole('checkbox', { name: 'A quién afecta (secciones / alumnos)' }))
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija a quién afecta esta situación.')
+    expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Toda la escuela' }))
+  })
+
   it('resume las situaciones sin cambios y muestra la asistencia vigente seleccionada', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)

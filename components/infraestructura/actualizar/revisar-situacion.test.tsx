@@ -40,8 +40,8 @@ describe('RevisarSituacion', () => {
     expect(screen.getByText('¿Qué tan grave es?')).toBeInTheDocument()
     expect(screen.queryByText('¿Hay clases?')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
     expect(p.onResponder).toHaveBeenCalledWith({ tipo: 'cambio', cambio: { aspectos: ['gravedad'], severidad: 'Crítica' } })
+    expect(screen.queryByRole('button', { name: 'Listo' })).not.toBeInTheDocument()
   })
 
   it('cancelar “¿Qué cambió?” conserva “Sigue igual” sin aplicar bloques de edición', () => {

@@ -63,15 +63,19 @@ describe('AlgoNuevo', () => {
 
   it('pregunta la causa con situaciones activas primero y exige elegir antes de seguir', () => {
     renderAlgo()
+    expect(screen.getByText('Agregue una situación nueva si la hay.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
+    expect(screen.queryByText('Agregue una situación nueva si la hay.')).not.toBeInTheDocument()
     expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
     const opciones = within(screen.getByRole('group', { name: '¿Es consecuencia de algo anterior?' })).getAllByRole('radio')
     expect(opciones.map((radio) => radio.parentElement?.textContent?.trim())).toEqual([
-      'De Inundación (03/10/2026)',
-      'De Tormenta severa (04/10/2026)',
+      'De Inundación (3 de octubre)',
+      'De Tormenta severa (4 de octubre)',
       'No, es independiente',
     ])
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   })
 
   it('permite distinguir el mismo motivo, actualizarlo o marcar cuándo se solucionó', () => {
@@ -136,7 +140,7 @@ describe('AlgoNuevo', () => {
   it('“Listo” envía la nueva situación completa con la causa elegida', () => {
     const callbacks = renderAlgo()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (03/10/2026)' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'De Inundación (3 de octubre)' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoria('Afecta al establecimiento')
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))

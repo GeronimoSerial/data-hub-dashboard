@@ -66,7 +66,6 @@ export default async function ActualizarPartePage({
       <EncabezadoParte
         pantalla={TITULO}
         escuela={escuela}
-        descripcion="Revise lo informado hasta ahora y agregue o corrija lo que cambió."
       />
       <RecorridoActualizacion cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
     </div>

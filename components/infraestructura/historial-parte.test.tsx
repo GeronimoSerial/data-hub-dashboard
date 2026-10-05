@@ -47,7 +47,7 @@ describe('HistorialParte', () => {
       'fetch',
       responderCon([
         movimiento('mov-3', 18, 10, ['Clases normales → Clases suspendidas en 2.º A']),
-        movimiento('mov-2', 17, 16, ['Se inició el reporte por "Inundación"']),
+        movimiento('mov-2', 17, 16, ['Se inició la situación "Inundación"']),
         movimiento('mov-1', 16, 8, ['12 alumnos incorporados']),
       ]),
     )

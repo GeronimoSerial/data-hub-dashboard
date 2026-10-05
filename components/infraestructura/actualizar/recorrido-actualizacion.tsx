@@ -420,6 +420,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
       {actual && typeof etapa === 'object' ? (
         <section>
+          <p className="recorrido-actualizacion__descripcion">Revise lo informado hasta ahora y agregue o corrija lo que cambió.</p>
           <RevisarSituacion
             key={actual.id}
             situacion={actual}

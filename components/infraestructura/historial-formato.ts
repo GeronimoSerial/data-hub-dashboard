@@ -87,6 +87,17 @@ export function formatearRigeDesde(iso: string): string {
   return `Rige desde el ${dia} de ${MESES_LARGOS[mes]} a las ${hora}:${minuto}`
 }
 
+/** Fecha para referencias breves a una situación: "5 de octubre". */
+export function formatearFechaHistorial(valor: string): string {
+  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(valor)
+  const fecha = local
+    ? new Date(Date.UTC(Number(local[3]), Number(local[2]) - 1, Number(local[1]), 12))
+    : new Date(valor)
+  if (Number.isNaN(fecha.getTime())) return valor
+  const { dia, mes } = partesEnZona(fecha)
+  return `${dia} de ${MESES_LARGOS[mes]}`
+}
+
 /**
  * Carga y vigencia son dos conceptos distintos (spec §12) y sólo hay algo
  * que contar cuando difieren: si coinciden, repetir el mismo instante con

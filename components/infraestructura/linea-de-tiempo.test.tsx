@@ -11,7 +11,7 @@ const mov = (id: string, creadaEn: string, cambios: string[], severidad: Movimie
 const movimientos = [
   mov('3', '2026-10-04T13:42:00.000Z', ['Se agregó "Evacuación preventiva" · Severidad Crítica'], 'Crítica'),
   mov('2', '2026-10-04T12:15:00.000Z', ['Sigue igual: "Inundación"']),
-  mov('1', '2026-10-02T11:00:00.000Z', ['Se inició el reporte por "Inundación"'], 'Crítica'),
+  mov('1', '2026-10-02T11:00:00.000Z', ['Se inició la situación "Inundación"'], 'Crítica'),
 ]
 
 beforeEach(() => vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z')))
@@ -30,9 +30,9 @@ describe('LineaDeTiempo', () => {
   it('oculta confirmaciones sin cambios y el límite cuenta movimientos visibles', () => {
     render(<LineaDeTiempo movimientos={movimientos} limite={1} />)
     expect(screen.queryByText('Sigue igual: "Inundación"')).not.toBeInTheDocument()
-    expect(screen.queryByText('Se inició el reporte por "Inundación"')).not.toBeInTheDocument()
+    expect(screen.queryByText('Se inició la situación "Inundación"')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ver movimientos anteriores (1)' }))
-    expect(screen.getByText('Se inició el reporte por "Inundación"')).toBeInTheDocument()
+    expect(screen.getByText('Se inició la situación "Inundación"')).toBeInTheDocument()
   })
 
   it('agrupa cada movimiento con título destacado y detalles debajo', () => {
