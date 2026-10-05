@@ -81,4 +81,28 @@ describe('GET /api/mapas/infraestructura/evolucion', () => {
     const raw = await res.text()
     expect(raw).not.toMatch(/gePersonId|ge_person_id/i)
   })
+
+  it('aplica filtros de departamento y nivel en las cuatro vistas', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({
+      id: 'u3',
+      role: 'consulta',
+      banned: false,
+      nivelIds: [],
+      accesoRecursos: 'todos',
+      recursoIds: [],
+    })
+    const { GET } = await import('./route')
+
+    const filtrado = await GET(new Request('http://localhost/api/mapas/infraestructura/evolucion?departamento=ER&nivel=PRIMARIA'))
+    expect(filtrado.status).toBe(200)
+    const body = await filtrado.json()
+    expect(Array.isArray(body.serieEscuelasServicioCaido)).toBe(true)
+    expect(Array.isArray(body.rankingDepartamentos)).toBe(true)
+    expect(Array.isArray(body.distribucionMotivo)).toBe(true)
+    expect(Array.isArray(body.alumnosAcumulados)).toBe(true)
+
+    const sinResultados = await GET(new Request('http://localhost/api/mapas/infraestructura/evolucion?departamento=OTRO'))
+    expect(sinResultados.status).toBe(200)
+    expect((await sinResultados.json()).rankingDepartamentos).toEqual([])
+  })
 })
