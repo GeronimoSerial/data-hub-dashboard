@@ -13,7 +13,7 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
-  'Ya figura en el panel.'
+  'Ya figura en el estado actual de su escuela.'
 
 function sembrarBorradorWizard({
   paso = 2,
@@ -102,7 +102,7 @@ function llegarAConfirmar() {
 
 function guardarReporte() {
   llegarAConfirmar()
-  fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+  fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
 }
 
 beforeEach(() => {
@@ -161,7 +161,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
     continuar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
       expect(JSON.parse(String(init.body)).asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Clase virtual'] })
@@ -182,7 +182,7 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     continuar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const cuerpo = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ severidad: 'Crítica', justificacionCritica: 'se_prolonga' })
@@ -218,7 +218,7 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
     llegarAConfirmar()
     vi.setSystemTime(new Date('2026-10-04T18:10:00.000Z'))
-    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).rigeDesde).toBe('2026-10-04T18:10:00.000Z')
@@ -376,7 +376,7 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     continuar()
-    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
@@ -457,16 +457,16 @@ describe('ReporteInicialForm', () => {
   it('el botón de guardar sólo existe en el último paso y llega habilitado', () => {
     renderFormulario()
 
-    expect(screen.queryByRole('button', { name: /guardar parte/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /guardar situación/i })).toBeNull()
 
     llegarAConfirmar()
 
-    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
   })
 
   /*
     Regresión de un bug encontrado en el navegador, no en jsdom: React
-    reconciliaba "Continuar" y "guardar parte" como el MISMO nodo del DOM y
+    reconciliaba "Continuar" y "guardar situación" como el MISMO nodo del DOM y
     sólo le cambiaba el `type`. El click que avanzaba al paso 4 corría el
     handler, React reescribía type="submit" sobre ese mismo botón y recién
     entonces el navegador ejecutaba la acción por defecto del click — que ya
@@ -496,7 +496,7 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     continuar()
 
-    const guardar = screen.getByRole('button', { name: /guardar parte/i })
+    const guardar = screen.getByRole('button', { name: /guardar situación/i })
     expect(guardar).not.toBe(continuarEnPaso3)
     expect(continuarEnPaso3.isConnected).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -579,7 +579,7 @@ describe('ReporteInicialForm', () => {
         MENSAJE_REPORTE_EXITOSO,
       ),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /guardar parte/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /guardar situación/i })).toBeNull()
   })
 
   // El reporte guardado no puede dejar al director en un callejón sin salida:
@@ -594,6 +594,7 @@ describe('ReporteInicialForm', () => {
 
       await screen.findByText(MENSAJE_REPORTE_EXITOSO)
       expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
 
       const volverAlPanel = screen.getByRole('link', { name: 'Volver al panel' })
       expect(volverAlPanel.tagName).toBe('A')
@@ -623,7 +624,7 @@ describe('ReporteInicialForm', () => {
 
     expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
-    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
   })
 
   it('un error de red deja el envío pendiente y conserva lo ingresado', async () => {
@@ -656,7 +657,7 @@ describe('ReporteInicialForm', () => {
 
     renderFormulario()
     llegarAConfirmar()
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar situación' }))
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
     expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Reintentamos solos; su parte queda guardado.')
@@ -668,7 +669,7 @@ describe('ReporteInicialForm', () => {
     const retry = within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })
     expect(retry).toBeEnabled()
     expect(screen.getAllByRole('button', { name: 'Reintentar ahora' })).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Guardar parte' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Guardar situación' })).toBeNull()
     fireEvent.click(retry)
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
     await vi.waitFor(() => expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument())
@@ -754,11 +755,11 @@ describe('ReporteInicialForm', () => {
     ).toBeInTheDocument()
     // No confirmó nada: el asistente sigue en pie con lo cargado.
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
-    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
 
     // Un reintento manual reutiliza la MISMA idempotencyKey: el cuerpo
     // inesperado no hizo que se acuñara una nueva.
-    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await screen.findByText(
       MENSAJE_REPORTE_EXITOSO,
     )
@@ -778,7 +779,7 @@ describe('ReporteInicialForm', () => {
 
     expect(await screen.findByText('No se pudo enviar: dato inválido')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
   })
 
   it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {

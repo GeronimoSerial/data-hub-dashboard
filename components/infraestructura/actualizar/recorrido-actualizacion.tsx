@@ -422,6 +422,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const estadoEstablecimiento = datos.parte?.estadoEstablecimiento ?? 'habitual'
   const estadoServicio = datos.servicio?.estadoGeneral ?? 'normal'
   const clasesEdificio = recorrido.clasesEdificio ?? { servicioEstado: estadoServicio === 'suspendido' ? 'suspendido' as const : 'normal' as const, estadoEstablecimiento, confirmarInterrupcionTotal: false }
+  const pasoProgreso = typeof etapa === 'object' ? etapa.revisar + 1 : etapa === 'nuevo' ? ordenadas.length + 1 : ordenadas.length + 2
+  const totalPasos = ordenadas.length + 2
 
   if (guardado || etapa === 'enviado') {
     return <ConfirmacionEnviado cue={cue} onRecargar={() => {
@@ -464,6 +466,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       ) : null}
 
       {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
+      {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
       {actual && typeof etapa === 'object' ? (
         <section>
           <p className="recorrido-actualizacion__descripcion">Revise lo informado hasta ahora y agregue o corrija lo que cambió.</p>
@@ -510,15 +513,15 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             <Button
               type="button"
               variant="secondary"
-              disabled={etapa.revisar === 0}
+              hidden={etapa.revisar === 0}
               onClick={() => {
                 setError(null)
                 moverEtapa({ revisar: Math.max(0, etapa.revisar - 1) })
               }}
             >
-              Atrás
+              Volver
             </Button>
-            <Button type="button" onClick={siguiente}>Siguiente</Button>
+            <Button type="button" onClick={siguiente}>Continuar</Button>
           </div>
         </section>
       ) : null}
@@ -555,7 +558,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               variant="secondary"
               onClick={() => moverEtapa(ordenadas.length ? { revisar: ordenadas.length - 1 } : 'entrada')}
             >
-              Atrás
+              Volver
             </Button>
           </div>
         </>
@@ -614,6 +617,19 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       >
         <p>Se borrarán las respuestas que había guardado.</p>
       </ConfirmSheet>
+    </div>
+  )
+}
+
+function ProgresoActualizacion({ paso, total }: { paso: number; total: number }): JSX.Element {
+  return (
+    <div className="asistente__progreso" aria-label={`Paso ${paso} de ${total}`}>
+      <p className="asistente__contador">Paso {paso} de {total}</p>
+      <ol className="asistente__pasos" aria-hidden="true">
+        {Array.from({ length: total }, (_, indice) => (
+          <li key={indice} className={`asistente__paso${indice < paso ? ' asistente__paso--hecho' : ''}${indice === paso - 1 ? ' asistente__paso--actual' : ''}`} />
+        ))}
+      </ol>
     </div>
   )
 }
@@ -714,7 +730,9 @@ function ResumenEnvio({
               compacta
             />
         ))}
+      {asistenciaPedagogica.brinda !== (asistenciaVigente === 'Sí' ? 'si' : 'no') ? (
         <p className="actualizacion-resumen__vigente">Actualmente: {asistenciaVigente}</p>
+      ) : null}
       </fieldset>
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
@@ -728,10 +746,10 @@ function ResumenEnvio({
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="actualizacion-resumen__acciones">
         <Button type="button" variant="secondary" onClick={onVolver}>
-          Volver y corregir
+          Volver
         </Button>
         <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-          {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
+          {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar actualización'}
         </Button>
       </div>
     </section>

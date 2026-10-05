@@ -38,7 +38,7 @@ async function irAlResumen() {
   fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   for (let i = 0; i < 2; i++) {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
   }
   fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
@@ -84,7 +84,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('limpia la clave tras guardar con éxito y al cargar otra situación', async () => {
     stub(); montar(); await irAlResumen()
     await waitFor(() => expect(localStorage.getItem(CLAVE)).not.toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado.')
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))

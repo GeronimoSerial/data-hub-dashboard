@@ -4088,6 +4088,11 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   margin: 0;
   font-weight: 600;
 }
+.reporte-inicial__confirmacion-mensaje > div { display: grid; gap: var(--s-1); }
+.reporte-inicial__confirmacion-mensaje h2,
+.reporte-inicial__confirmacion-mensaje p { margin: 0; }
+.reporte-inicial__confirmacion-mensaje h2 { font-size: var(--t-body); }
+.reporte-inicial__confirmacion-mensaje p { font-weight: 400; }
 .reporte-inicial__confirmacion-mensaje svg { flex: none; }
 
 .reporte-inicial__confirmacion-acciones {
@@ -4171,9 +4176,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   width: 100%;
   padding: var(--s-4);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--accent);
+  border-left: 4px solid var(--info);
   border-radius: var(--r-sm);
-  background: var(--fill);
+  background: var(--info-tint);
 }
 
 .actualizacion-borrador > p { margin: 0; }

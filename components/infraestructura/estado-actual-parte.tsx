@@ -127,7 +127,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
       {datos.parte && datos.servicio && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-servicio">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-servicio">
-            Estado del servicio educativo
+            Funcionamiento
           </h2>
           <p className="estado-actual-bloque__valor">{ETIQUETA_SERVICIO[datos.servicio.estadoGeneral]}</p>
           {rigeServicio && (
@@ -139,7 +139,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
       {datos.parte && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-establecimiento">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-establecimiento">
-            Situación del establecimiento
+            Edificio
           </h2>
           <p className="estado-actual-bloque__valor">
             {ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}
@@ -155,7 +155,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         aria-labelledby="estado-actual-situacion"
       >
         <h2 className="estado-actual-bloque__titulo" id="estado-actual-situacion">
-          Situación hidrometeorológica en seguimiento
+          En seguimiento
         </h2>
 
         {sinSituacion ? (

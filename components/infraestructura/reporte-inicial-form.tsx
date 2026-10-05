@@ -75,7 +75,7 @@ const MENSAJE_ERROR_GUARDADO =
   'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 
 const MENSAJE_GUARDADO =
-  'Ya figura en el panel.'
+  'Ya figura en el estado actual de su escuela.'
 
 const MENSAJE_FALTA_QUE_PASO =
   'Elija el tipo de situación, el motivo y la severidad para continuar.'
@@ -630,7 +630,10 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   if (guardado) {
     return (
       <div className="reporte-inicial__confirmacion" role="status">
-        <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-mensaje">
+          <CircleCheck aria-hidden="true" size={20} />
+          <div><h2>Situación guardada</h2><p>{MENSAJE_GUARDADO}</p></div>
+        </div>
         <div className="reporte-inicial__confirmacion-acciones">
           <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
             Volver al panel
@@ -860,7 +863,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
           <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
+            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar situación'}
           </Button>
         )}
       </div>

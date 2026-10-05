@@ -20,13 +20,13 @@ describe('VigenciaChips', () => {
     expect(opciones).toHaveClass('vigencia-chips__opciones')
     expect(within(opciones).getAllByRole('radio')).toHaveLength(3)
     expect(screen.queryByLabelText('Hora')).not.toBeInTheDocument()
-    expect(screen.getByText('Desde ahora')).toBeInTheDocument()
+    expect(screen.queryByText('Desde ahora')).not.toBeInTheDocument()
   })
 
-  it('permite usar el verbo de una situación solucionada y quita el borde inferior', () => {
+  it('no repite el momento actual cuando ya está elegido en el chip', () => {
     render(<Controlado label="¿Cuándo se solucionó?" etiquetaMomento="Se solucionó" />)
-    const resumen = screen.getByText('Se solucionó ahora')
-    expect(resumen).toHaveClass('vigencia-chips__resumen--solucionada')
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(screen.queryByText('Se solucionó ahora')).not.toBeInTheDocument()
   })
 
   it('describe la hora y la fecha con el verbo elegido', () => {
@@ -42,6 +42,7 @@ describe('VigenciaChips', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Hoy, más temprano' }))
     expect(screen.getByLabelText('Hora')).toBeInTheDocument()
     expect(screen.queryByLabelText('Fecha')).not.toBeInTheDocument()
+    expect(screen.queryByText('Elija la fecha y la hora')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '00:01' } })
     expect(screen.getByText('Desde hoy a las 00:01')).toBeInTheDocument()
   })
@@ -51,6 +52,14 @@ describe('VigenciaChips', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
     expect(screen.getByLabelText('Fecha')).toBeInTheDocument()
     expect(screen.getByLabelText('Hora')).toBeInTheDocument()
+    expect(screen.queryByText('Elija la fecha y la hora')).not.toBeInTheDocument()
+  })
+
+  it('no repite la indicación si todavía falta la fecha de "Otro día"', () => {
+    render(<VigenciaChips value={{ modo: 'otro', fecha: '', hora: '08:00' }} onChange={() => {}} label="Vigencia" />)
+    expect(screen.getByLabelText('Fecha')).toBeInTheDocument()
+    expect(screen.getByLabelText('Hora')).toBeInTheDocument()
+    expect(screen.queryByText('Elija la fecha y la hora')).not.toBeInTheDocument()
   })
 
   it('muestra el error recibido', () => {

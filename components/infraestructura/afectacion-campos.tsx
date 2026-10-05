@@ -355,10 +355,12 @@ export function CamposAQuienAfecta({
             onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
             disabled={disabled}
           />
-          <p className="afectacion-borrador__resumen" aria-live="polite">
-            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-            {matriculaDisponible} alumnos
-          </p>
+          {borrador.alcanceEstablecimiento === 'algunas' ? (
+            <p className="afectacion-borrador__resumen" aria-live="polite">
+              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+              {matriculaDisponible} alumnos
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="afectacion-campos__grupo">
@@ -371,10 +373,12 @@ export function CamposAQuienAfecta({
             disabled={disabled}
             permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
           />
-          <p className="afectacion-borrador__resumen" aria-live="polite">
-            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-            {matriculaDisponible} alumnos
-          </p>
+          {borrador.secciones.length > 0 ? (
+            <p className="afectacion-borrador__resumen" aria-live="polite">
+              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+              {matriculaDisponible} alumnos
+            </p>
+          ) : null}
         </div>
       )}
 

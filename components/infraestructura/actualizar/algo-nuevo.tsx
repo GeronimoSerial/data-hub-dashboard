@@ -146,9 +146,9 @@ export function AlgoNuevo({
 
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
+      <h2 className="asistente__titulo">¿Hay algo nuevo?</h2>
       {etapa === 'pregunta' ? (
         <>
-          <p className="asistente__contador">Otra situación</p>
           <fieldset className="afectacion-campos__grupo">
             <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
             <div className="afectacion-campos__opciones">
@@ -200,7 +200,7 @@ export function AlgoNuevo({
           </fieldset>
           <div className="asistente__acciones">
             <Button type="button" disabled={causadaPorId === undefined} onClick={() => setEtapa('datos')}>
-              Siguiente
+              Continuar
             </Button>
           </div>
         </>
@@ -227,7 +227,7 @@ export function AlgoNuevo({
           />
           <div className="asistente__acciones">
             <Button type="button" disabled={!datosCompletos || motivoPendiente !== null} onClick={terminar}>
-              Listo
+              Continuar
             </Button>
           </div>
         </div>

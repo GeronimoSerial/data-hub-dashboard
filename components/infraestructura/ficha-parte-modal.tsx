@@ -113,7 +113,7 @@ function FichaParteModalContenido({
       {servicioGeneral && (
         <section className="estado-actual-bloque" aria-labelledby="ficha-parte-servicio">
           <h3 className="estado-actual-bloque__titulo" id="ficha-parte-servicio">
-            Estado del servicio educativo
+            Funcionamiento
           </h3>
           <p className="estado-actual-bloque__valor">{ETIQUETA_SERVICIO[servicioGeneral]}</p>
           {rigeServicio && <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>}
@@ -123,7 +123,7 @@ function FichaParteModalContenido({
       {estadoEstablecimiento && (
         <section className="estado-actual-bloque" aria-labelledby="ficha-parte-establecimiento">
           <h3 className="estado-actual-bloque__titulo" id="ficha-parte-establecimiento">
-            Situación del establecimiento
+            Edificio
           </h3>
           <p className="estado-actual-bloque__valor">
             {ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]}
@@ -152,7 +152,7 @@ function FichaParteModalContenido({
 
       <section className="estado-actual-bloque estado-actual-bloque--ancho" aria-labelledby="ficha-parte-afectaciones">
         <h3 className="estado-actual-bloque__titulo" id="ficha-parte-afectaciones">
-          Situación hidrometeorológica en seguimiento
+          En seguimiento
         </h3>
 
         {sinAfectaciones ? (
