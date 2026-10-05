@@ -762,6 +762,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(panelLateral).not.toBeEmptyDOMElement()
   })
 
+  it('no dibuja una caja vacía en la columna izquierda del Radar', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const panelRadar = screen.getByTestId('panel-radar')
+    expect(panelRadar).toHaveAttribute('hidden')
+    expect(panelRadar).toBeEmptyDOMElement()
+  })
+
   it('no renderiza el conmutador Situación actual / Radar', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
     expect(document.querySelector('.map-modo-conmutador')).toBeNull()

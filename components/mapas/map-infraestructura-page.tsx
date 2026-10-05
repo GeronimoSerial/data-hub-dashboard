@@ -2437,10 +2437,8 @@ export default function MapInfraestructuraPage(props: {
               : () => setFichaCerradaCue(seleccionCue)}
             actual={panelActual}
             radar={(
-              <div className="map-panel-radar" data-testid="panel-radar">
-                {/* La Task 16 reemplaza este contenido por el panel real. */}
-                <h2>Radar</h2>
-              </div>
+              // La Task 16 reemplaza este contenido por el panel real; hasta entonces no ocupa espacio.
+              <div className="map-panel-radar" data-testid="panel-radar" hidden />
             )}
             planificacion={panelActual}
           />
