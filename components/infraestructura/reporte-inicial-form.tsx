@@ -38,7 +38,7 @@ import {
   VIGENCIA_AHORA,
   type EleccionVigencia,
 } from '@/lib/infraestructura/vigencia-eleccion'
-import { MENSAJE_FUERA_DE_RANGO_VIGENCIA } from '@/lib/infraestructura/vigencia-rango'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
 import {
   colapsarHistorial,
   crearBorradorStore,
@@ -84,9 +84,24 @@ const MENSAJE_FALTA_ALCANCE_AFECTACION =
   'Elija al menos una sección para esta situación.'
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
+const MENSAJE_FECHA_FUTURA = 'La fecha no puede ser posterior a hoy.'
+const MENSAJE_FECHA_ANTIGUA = 'La fecha no puede ser anterior a hace 12 meses.'
 
 export const MENSAJE_BORRADOR_PENDIENTE =
   'Tiene un parte sin enviar. Puede continuar donde lo dejó.'
+
+function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
+  const mensaje = obtenerErrorVigencia(eleccion)
+  if (!mensaje || eleccion.modo !== 'otro' || !eleccion.fecha || !eleccion.hora) return mensaje
+
+  const [año, mes, dia] = eleccion.fecha.split('-').map(Number)
+  const [hora, minuto] = eleccion.hora.split(':').map(Number)
+  const momento = new Date(año, mes - 1, dia, hora, minuto)
+  const { min, max } = rangoVigencia()
+  if (momento.getTime() > max.getTime()) return MENSAJE_FECHA_FUTURA
+  if (momento.getTime() < min.getTime()) return MENSAJE_FECHA_ANTIGUA
+  return mensaje
+}
 
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', 'Confirmar'] as const
 
@@ -365,7 +380,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       enviandoRef.current = false
       setEnviando(false)
       setError(null)
-      setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       return
     }
 
@@ -492,6 +507,21 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   }), [cue])
   useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
   useEffect(() => {
+    if (!errorVigencia && !error) return
+    const cuerpo = document.querySelector<HTMLElement>('.asistente__cuerpo')
+    let campo: HTMLInputElement | null | undefined
+    if (errorVigencia) {
+      campo = cuerpo?.querySelector<HTMLInputElement>(vigencia.modo === 'otro' ? 'input[type="date"]' : 'input[type="time"]')
+    } else {
+      const grupos = cuerpo?.querySelectorAll<HTMLFieldSetElement>('fieldset:not(.vigencia-chips)') ?? []
+      const primerGrupoIncompleto = Array.from(grupos).find((grupo) => !grupo.querySelector('input[type="radio"]:checked'))
+      campo = primerGrupoIncompleto?.querySelector<HTMLInputElement>('input[type="radio"]')
+    }
+    if (!campo) return
+    campo.scrollIntoView?.({ block: 'center' })
+    campo.focus({ preventScroll: true })
+  }, [error, errorVigencia, vigencia.modo])
+  useEffect(() => {
     if (guardado || enviando) return
     if (!esEstadoReintentable(estadoEnvio)) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
@@ -568,7 +598,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       }
       const vigenciaInvalida = vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null
       if (vigenciaInvalida) {
-        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       }
       if (faltantes.length > 0) return faltantes.join(' ')
       if (vigenciaInvalida) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
@@ -582,7 +612,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     if (faltante) {
       if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) {
         setError(null)
-        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       } else setError(faltante)
       return
     }
@@ -785,12 +815,17 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               {(['si', 'no'] as const).map((valor) => (
                 <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
-              {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
-                  const marcada = e.currentTarget.checked
-                  setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
-                }} label={modalidad} compacta />
-              ))}
+              {asistenciaBrinda === 'si' && (
+                <div className="afectacion-campos__anidado" role="group" aria-labelledby="asistencia-modalidad-titulo">
+                  <p id="asistencia-modalidad-titulo" className="afectacion-campos__subtitulo">¿De qué forma?</p>
+                  {(['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
+                    <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
+                      const marcada = e.currentTarget.checked
+                      setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
+                    }} label={modalidad} compacta />
+                  ))}
+                </div>
+              )}
             </fieldset>
 
             <div className="afectacion-campos__grupo">

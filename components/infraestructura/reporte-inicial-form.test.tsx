@@ -363,6 +363,50 @@ describe('ReporteInicialForm', () => {
     vi.useRealTimers()
   })
 
+  it('enfoca y desplaza la fecha futura al mostrar su error', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    const fecha = screen.getByLabelText('Fecha') as HTMLInputElement
+    const scrollIntoView = vi.fn()
+    fecha.scrollIntoView = scrollIntoView
+    fireEvent.change(fecha, { target: { value: '2026-10-06' } })
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '10:00' } })
+
+    continuar()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser posterior a hoy.')
+    expect(fecha).toHaveFocus()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+
+    fireEvent.change(fecha, { target: { value: '2025-10-03' } })
+    continuar()
+    expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
+    vi.useRealTimers()
+  })
+
+  it('muestra las modalidades de asistencia en un subgrupo sólo al elegir Sí', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    expect(screen.queryByRole('group', { name: '¿De qué forma?' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const modalidades = screen.getByRole('group', { name: '¿De qué forma?' })
+    expect(within(modalidades).getByRole('checkbox', { name: 'Clase virtual' })).toBeInTheDocument()
+    expect(within(modalidades).getByRole('checkbox', { name: 'Cuadernillo' })).toBeInTheDocument()
+  })
+
   it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
     stubFetch()
     renderFormulario()

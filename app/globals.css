@@ -4066,6 +4066,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--danger-tint);
   color: var(--danger);
   font-size: var(--t-small);
+  scroll-margin-bottom: var(--reporte-acciones-sticky-alto, 8.5rem);
 }
 
 .estado-envio-aviso {
@@ -4519,6 +4520,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-left: 2px solid var(--line);
 }
 
+.afectacion-campos__subtitulo {
+  margin: 0;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 .afectacion-campos__espera {
   margin: 0;
   font-size: var(--t-small);
@@ -4685,6 +4693,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 @media (max-width: 480px) {
+  .asistente {
+    --reporte-acciones-sticky-alto: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+
   .asistente__acciones {
     flex-direction: column-reverse;
     align-items: stretch;
@@ -4695,6 +4707,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     z-index: 1;
   }
   .asistente__acciones > * { min-height: 44px; }
+
+  .vigencia-chips input[type='date'],
+  .vigencia-chips input[type='time'],
+  .vigencia-field__error {
+    scroll-margin-bottom: var(--reporte-acciones-sticky-alto);
+  }
 
   .recorrido-actualizacion { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
   .recorrido-actualizacion > section > .asistente__acciones {
