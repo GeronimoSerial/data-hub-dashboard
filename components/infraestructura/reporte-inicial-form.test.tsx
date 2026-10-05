@@ -405,9 +405,11 @@ describe('ReporteInicialForm', () => {
 
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
     const resumen = resumenConfirmacion()
-    expect(within(resumen).getByText(/Situación: Inundación/)).toBeInTheDocument()
-    expect(within(resumen).getByText('Alta')).toBeInTheDocument()
-    expect(within(resumen).getByText('Afecta a: 1 sección · 28 alumnos')).toBeInTheDocument()
+    expect(within(resumen).getByText('Situación')).toBeInTheDocument()
+    expect(within(resumen).getAllByRole('definition')[0]).toHaveTextContent(/Inundación.*Alta/)
+    expect(within(resumen).getByText('Afecta a')).toBeInTheDocument()
+    expect(within(resumen).getByText('1 sección · 28 alumnos')).toBeInTheDocument()
+    expect(within(resumen).queryByRole('list')).not.toBeInTheDocument()
   })
 
   // Se acabó el botón gris sin explicación: llegar al paso 4 ya exige los
@@ -573,7 +575,7 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     expect(await screen.findByText('No se pudo enviar: boom')).toBeInTheDocument()
-    expect(resumenConfirmacion()).toHaveTextContent(/Situación: Inundación.*Alta/)
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
     expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
   })
 
@@ -590,7 +592,7 @@ describe('ReporteInicialForm', () => {
     expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
     expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
-    expect(resumenConfirmacion()).toHaveTextContent(/Situación: Inundación.*Alta/)
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
   it('muestra Enviando… mientras se envía', async () => {
@@ -662,7 +664,7 @@ describe('ReporteInicialForm', () => {
       await screen.findByText('No se pudo enviar: respuesta inesperada del servidor'),
     ).toBeInTheDocument()
     // No confirmó nada: el asistente sigue en pie con lo cargado.
-    expect(resumenConfirmacion()).toHaveTextContent(/Situación: Inundación.*Alta/)
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
     expect(screen.getByRole('button', { name: /guardar parte/i })).toBeEnabled()
 
     // Un reintento manual reutiliza la MISMA idempotencyKey: el cuerpo
@@ -697,7 +699,7 @@ describe('ReporteInicialForm', () => {
     guardarReporte()
 
     expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
-    expect(resumenConfirmacion()).toHaveTextContent(/Situación: Inundación.*Alta/)
+    expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 })
 

@@ -652,13 +652,10 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
     rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
-  }).concat(
-    asistenciaBrinda === ''
-      ? []
-      : [asistenciaBrinda === 'si'
-          ? `Se brinda asistencia pedagógica: ${modalidadesAsistencia.join(' y ')}`
-          : 'No se brinda asistencia pedagógica'],
-  )
+    ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
+      ? {}
+      : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
+  })
 
   return (
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
@@ -797,16 +794,17 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
             <p className="asistente__resumen-intro">
               Esto es lo que va a quedar informado. Revíselo antes de guardar.
             </p>
-            <ul className="asistente__resumen-lista">
-              {lineasResumen.map((linea) => {
-                const separador = ' · Severidad '
-                if (linea.startsWith('Situación: ') && linea.includes(separador)) {
-                  const [situacion, severidad] = linea.split(separador)
-                  return <li key={linea}>{situacion} · <EstadoActualSeveridad severidad={severidad as Severidad} prefijo={false} /></li>
-                }
-                return <li key={linea}>{linea}</li>
-              })}
-            </ul>
+            <dl className="asistente__resumen-lista">
+              {lineasResumen.map((fila) => (
+                <div className="asistente__resumen-fila" key={fila.etiqueta}>
+                  <dt>{fila.etiqueta}</dt>
+                  <dd>
+                    {fila.valor}
+                    {fila.severidad ? <> · <EstadoActualSeveridad severidad={fila.severidad as Severidad} prefijo={false} /></> : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </div>
         )}
       </section>

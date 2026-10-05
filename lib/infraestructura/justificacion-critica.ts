@@ -10,7 +10,7 @@ export const ETIQUETA_JUSTIFICACION_CRITICA: Record<JustificacionCritica, string
   mas_personas: 'Afecta a más personas o secciones de lo habitual',
   riesgo_fisico: 'Hay riesgo eléctrico, estructural o sanitario',
   se_prolonga: 'Se prolonga en el tiempo o no tiene fecha de solución',
-  combinado: 'Se combina con otro problema activo',
+  combinado: 'Se combina con otra situación activa',
   otro: 'Otro',
 }
 

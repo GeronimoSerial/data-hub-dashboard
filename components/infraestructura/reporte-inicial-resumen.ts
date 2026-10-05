@@ -34,6 +34,13 @@ export interface EntradaResumen {
   servicio: ServicioResumen | null
   estadoEstablecimiento: EstadoEstablecimiento | ''
   rigeDesde: string
+  asistenciaPedagogica?: { brinda: boolean; modalidades: string[] }
+}
+
+export interface FilaResumen {
+  etiqueta: string
+  valor: string
+  severidad?: string
 }
 
 function contar(cantidad: number, singular: string, plural: string): string {
@@ -69,27 +76,34 @@ export function describirAlcanceServicio(servicio: ServicioResumen): string {
  * La descripción libre se incluye sólo si la escribió: una línea vacía
  * "Descripción: —" es ruido que no ayuda a confirmar nada.
  */
-export function armarResumen(entrada: EntradaResumen): string[] {
-  const { afectacion, servicio, estadoEstablecimiento, rigeDesde } = entrada
+export function armarResumen(entrada: EntradaResumen): FilaResumen[] {
+  const { afectacion, servicio, estadoEstablecimiento, rigeDesde, asistenciaPedagogica } = entrada
 
-  const lineas: string[] = [
-    `Situación: ${afectacion.motivo} · Severidad ${afectacion.severidad}`,
-    `Afecta a: ${resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos })}`,
+  const lineas: FilaResumen[] = [
+    { etiqueta: 'Situación', valor: afectacion.motivo, severidad: afectacion.severidad },
+    { etiqueta: 'Afecta a', valor: resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }) },
   ]
 
   const descripcion = afectacion.descripcion.trim()
-  if (descripcion !== '') lineas.push(descripcion)
+  if (descripcion !== '') lineas.push({ etiqueta: 'Detalle', valor: descripcion })
 
   if (servicio) {
     const valor = describirAlcanceServicio(servicio)
       .replace(/^Funcionamiento escolar normal$/, 'con normalidad')
       .replace(/^Funcionamiento escolar interrumpido/, 'suspendidas')
-    lineas.push(`Clases: ${valor}`)
+    lineas.push({ etiqueta: 'Clases', valor })
   }
-  if (estadoEstablecimiento !== '') lineas.push(`Edificio: ${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento].toLowerCase()}`)
+  if (estadoEstablecimiento !== '') lineas.push({ etiqueta: 'Edificio', valor: ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento].toLowerCase() })
 
   const momento = formatearMomento(rigeDesde)
-  if (momento) lineas.push(`Desde: ${momento}`)
+  if (momento) lineas.push({ etiqueta: 'Desde', valor: momento })
+
+  if (asistenciaPedagogica) {
+    const valor = asistenciaPedagogica.brinda
+      ? `Sí${asistenciaPedagogica.modalidades.length ? ` (${asistenciaPedagogica.modalidades.join(', ')})` : ''}`
+      : 'No'
+    lineas.push({ etiqueta: 'Asistencia pedagógica', valor })
+  }
 
   return lineas
 }

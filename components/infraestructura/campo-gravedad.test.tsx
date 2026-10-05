@@ -41,6 +41,12 @@ describe('CampoGravedad', () => {
     expect(valor()).toEqual({ severidad: 'Crítica', justificacionCritica: 'riesgo_fisico', justificacionCriticaDetalle: '' })
   })
 
+  it('usa situación en la justificación de gravedad crítica', () => {
+    render(<Controlado sugerida="Media" />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
+    expect(screen.getByRole('radio', { name: 'Se combina con otra situación activa' })).toBeInTheDocument()
+  })
+
   it('"Otro" exige detalle', () => {
     render(<Controlado sugerida="Media" />)
     fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
