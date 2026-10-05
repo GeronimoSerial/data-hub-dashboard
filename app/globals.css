@@ -2501,6 +2501,7 @@ time {
 }
 
 .entrada-actualizar .asistente__acciones > :first-child { flex: 1 1 auto; }
+.entrada-actualizar .asistente__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
 
 .entrada-actualizar .asistente__acciones > * {
   min-height: 44px;
@@ -4246,6 +4247,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .actualizacion-borrador__acciones > * { width: auto; min-height: 48px; }
 
 .actualizacion-borrador__acciones > :first-child { flex: 1 1 auto; }
+.actualizacion-borrador__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
 
 /* "Descartar" es una acción secundaria legible, no un control deshabilitado. */
 .actualizacion-borrador__acciones .ui-button--ghost {
@@ -4762,6 +4764,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .aviso-retoma .asistente__acciones { flex-wrap: nowrap; gap: var(--s-2); }
 
 .aviso-retoma .asistente__acciones > :first-child { flex: 1 1 auto; }
+.aviso-retoma .asistente__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
 
 /* Mismo tratamiento que el aviso de Actualizar: "Descartar" se lee como
    acción y no como un control deshabilitado. */
@@ -4774,12 +4777,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 @media (max-width: 480px) {
   .reporte-inicial--asistente {
-    --reporte-acciones-sticky-alto: calc(8.3125rem + var(--s-3) + env(safe-area-inset-bottom));
+    --reporte-acciones-sticky-alto: calc(5rem + var(--s-3) + env(safe-area-inset-bottom));
     padding-bottom: var(--reporte-acciones-sticky-alto);
   }
 
+  /* Barra fija al alcance del pulgar: Volver | Continuar en una sola fila,
+     igual que en Actualizar. La acción principal es la más ancha. */
   .asistente__acciones {
-    flex-direction: column-reverse;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: stretch;
     position: sticky;
     bottom: 0;
@@ -4787,7 +4793,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
     z-index: 1;
   }
-  .asistente__acciones > * { min-height: 44px; }
+  .asistente__acciones > * { min-height: 48px; flex: 1 1 0; width: auto; }
+  .asistente__acciones > :last-child:not(:first-child) { flex: 2 1 0; }
   /* Misma barra que el resto de los pasos: Volver | Continuar en una fila y,
      si falta algo, la nota arriba de los botones. */
   .algo-nuevo__acciones {
