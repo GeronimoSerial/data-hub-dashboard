@@ -27,8 +27,10 @@ describe('SelectorAlumnos', () => {
     const primera = TURNOS_FIXTURE[0].niveles[0].secciones[0]
     const totalTurno = TURNOS_FIXTURE[0].niveles.flatMap((nivel) => nivel.secciones).reduce((total, seccion) => total + seccion.alumnos.length, 0)
     expect(screen.getByRole('heading', { name: `Mañana · 0 de ${totalTurno} alumnos` })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: TURNOS_FIXTURE[0].niveles[0].nivel })).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: new RegExp(`${primera.curso}`) })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: new RegExp(`${primera.curso} "${primera.division}"`) })).toHaveAttribute('aria-expanded', 'false')
+    const encabezado = screen.getByRole('button', { name: new RegExp(`${primera.curso} "${primera.division}" · 0 de ${primera.alumnos.length}.*Elegir alumnos`) })
+    expect(encabezado).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('marcar un alumno actualiza el contador y emite alumnos explícitos', () => {

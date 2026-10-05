@@ -73,10 +73,8 @@ export function SelectorAlumnos({
         <section key={turno.turno} className="secciones-selector__turno">
           <h3>{turno.turno} · {elegidosTurno} de {alumnosTurno.length} alumnos</h3>
           {turno.niveles.map((nivel) => {
-            const alumnosNivel = nivel.secciones.flatMap((seccion) => seccion.alumnos)
-            const elegidosNivel = alumnosNivel.filter((alumno) => marcados.has(alumno.gePersonId)).length
             return <div className="secciones-selector__nivel" key={nivel.nivel}>
-            <h4>{nivel.nivel} · {elegidosNivel} de {alumnosNivel.length} alumnos</h4>
+            <h4>{nivel.nivel}</h4>
             {nivel.secciones.map((seccion) => {
               const elegidos = seccion.alumnos.filter((a) => marcados.has(a.gePersonId)).length
               const completa = seccion.alumnos.length > 0 && elegidos === seccion.alumnos.length
