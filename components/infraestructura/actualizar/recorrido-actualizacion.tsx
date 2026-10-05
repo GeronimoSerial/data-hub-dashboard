@@ -438,18 +438,18 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
       {borradorPendiente ? (
-        <aside className="aviso-retoma actualizacion-borrador" aria-label="Actualización guardada">
-          <p>Tiene una carga sin enviar.</p>
+        <aside className="aviso-retoma actualizacion-borrador" aria-label="Parte sin enviar">
+          <p>Tiene un parte sin enviar.</p>
           <div className="actualizacion-borrador__acciones">
-            <Button type="button" onClick={() => {
+            <Button type="button" variant="secondary" onClick={() => {
               generacionRef.current = borradorPendiente.generacion
               setEtapa(borradorPendiente.etapa)
               setRecorrido(borradorPendiente.recorrido)
               setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
               setInteraccionIniciada(true)
               setBorradorPendiente(null)
-            }}>Continuar</Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
+            }}>Continuar donde lo dejé</Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
           </div>
         </aside>
       ) : null}

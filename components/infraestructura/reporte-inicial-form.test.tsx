@@ -851,6 +851,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   const clave = `parte-nuevo:draft:${props.cue}`
 
   it('guarda el borrador con su paso y ofrece retomarlo al remontar (#32)', async () => {
+    expect(MENSAJE_BORRADOR_PENDIENTE).toBe('Tiene un parte sin enviar.')
     const primero = renderFormulario()
     completarQuePaso()
     continuar()

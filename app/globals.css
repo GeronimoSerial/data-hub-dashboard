@@ -4204,11 +4204,21 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .actualizacion-borrador__acciones {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: var(--s-2);
 }
 
-.actualizacion-borrador__acciones > * { width: 100%; min-height: 48px; }
+.actualizacion-borrador__acciones > * { width: auto; min-height: 48px; }
+
+@media (max-width: 480px) {
+  .actualizacion-borrador__acciones {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .actualizacion-borrador__acciones > * { width: 100%; }
+}
 
 .revisar-situacion,
 .algo-nuevo,

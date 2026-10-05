@@ -88,7 +88,7 @@ const MENSAJE_FECHA_FUTURA = 'La fecha no puede ser posterior a hoy.'
 const MENSAJE_FECHA_ANTIGUA = 'La fecha no puede ser anterior a hace 12 meses.'
 
 export const MENSAJE_BORRADOR_PENDIENTE =
-  'Tiene un parte sin enviar. Puede continuar donde lo dejó.'
+  'Tiene un parte sin enviar.'
 
 function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
   const mensaje = obtenerErrorVigencia(eleccion)
@@ -708,7 +708,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         <div className="aviso-retoma" role="status">
           <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
           <div className="asistente__acciones">
-            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>
+            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>
               Descartar
             </Button>
             <Button

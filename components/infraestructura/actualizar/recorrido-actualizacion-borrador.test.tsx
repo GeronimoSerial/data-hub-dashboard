@@ -49,16 +49,46 @@ describe('RecorridoActualizacion: borrador local', () => {
     stub(); montar(); await empezarYResponderPrimera()
     await waitFor(() => expect(JSON.parse(localStorage.getItem(CLAVE) ?? '{}')).toMatchObject({ etapa: { revisar: 0 }, recorrido: { respuestas: { b: { tipo: 'sigue' } } }, idsSituaciones: ['a', 'b'] }))
     cleanup(); montar()
-    expect(await screen.findByText('Tiene una carga sin enviar.')).toBeInTheDocument()
-    fireEvent.click(await screen.findByRole('button', { name: 'Continuar' }))
+    expect(await screen.findByText('Tiene un parte sin enviar.')).toBeInTheDocument()
+    const banner = screen.getByRole('complementary', { name: 'Parte sin enviar' })
+    expect(within(banner).getByRole('button', { name: 'Continuar donde lo dejé' })).toHaveClass('ui-button--secondary')
+    expect(within(banner).getByRole('button', { name: 'Descartar' })).toHaveClass('ui-button--ghost')
+    fireEvent.click(within(banner).getByRole('button', { name: 'Continuar donde lo dejé' }))
     expect(await screen.findByRole('region', { name: 'Situación 1 de 2' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Sigue igual' })).toBeChecked()
+  })
+
+  it('restaura los aspectos y valores de un cambio al retomar', async () => {
+    localStorage.setItem(CLAVE, JSON.stringify({
+      generacion: 'g1',
+      etapa: { revisar: 0 },
+      recorrido: {
+        respuestas: { b: { tipo: 'cambio', cambio: { aspectos: ['gravedad'], severidad: 'Media' } } },
+        nueva: null,
+        clasesEdificio: null,
+      },
+      asistenciaPedagogica: { brinda: '', modalidades: [] },
+      idsSituaciones: ['a', 'b'],
+    }))
+    stub()
+    montar()
+
+    expect(await screen.findByText('Tiene un parte sin enviar.')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+
+    expect(await screen.findByRole('radio', { name: 'Cambió' })).toBeChecked()
+    expect(screen.getByText('¿Qué tan grave es ahora?')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Media' })).toBeChecked()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Cambió' }))
+    expect(await screen.findByRole('checkbox', { name: 'La gravedad' })).toBeChecked()
   })
 
   it('avisa y empieza limpio si la forma del borrador es inválida', async () => {
     stub(); localStorage.setItem(CLAVE, '{"paso":"resumen"}'); montar()
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo recuperar la actualización guardada. Empezará una nueva.')
-    expect(screen.queryByRole('button', { name: 'Continuar' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continuar donde lo dejé' })).not.toBeInTheDocument()
   })
 
   it('avisa y descarta el borrador si cambiaron las situaciones activas', async () => {
@@ -74,7 +104,7 @@ describe('RecorridoActualizacion: borrador local', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
-    expect(screen.getByRole('button', { name: 'Continuar' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continuar donde lo dejé' })).toBeInTheDocument()
     expect(localStorage.getItem(CLAVE)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Descartar actualización' }))
