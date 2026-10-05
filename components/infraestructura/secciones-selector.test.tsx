@@ -69,8 +69,11 @@ describe('SeccionesSelector', () => {
   it('renderiza cada sección con su curso, división y matrícula', () => {
     renderSelector()
 
-    expect(screen.getByText(textoConComillasNormalizadas('1° "A" · 28 alumnos'))).toBeInTheDocument()
-    expect(screen.getByText(textoConComillasNormalizadas('4° "A" · 30 alumnos'))).toBeInTheDocument()
+    expect(screen.getByText(/1°\s*["“”]A["“”]/)).toBeInTheDocument()
+    expect(screen.getByText('28 alumnos')).toBeInTheDocument()
+    expect(screen.getByText(/4°\s*["“”]A["“”]/)).toBeInTheDocument()
+    expect(screen.getByText('30 alumnos')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /1°\s*["“”]A["“”].*28 alumnos/ })).toBeInTheDocument()
   })
 
   it('agrega una sección a la selección al tildarla', async () => {
@@ -156,7 +159,11 @@ describe('SeccionesSelector', () => {
       renderSelector({ turnos: turnosConAlumnos })
 
       expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /elegir alumnos/i })).toHaveAttribute(
+      const accion = screen.getByRole('button', { name: 'Elegir alumnos (0 de 2)' })
+      expect(accion).toHaveTextContent('Elegir alumnos')
+      expect(accion).not.toHaveTextContent('0 de 2')
+      expect(accion).toHaveAttribute('aria-label', 'Elegir alumnos (0 de 2)')
+      expect(accion).toHaveAttribute(
         'aria-expanded',
         'false',
       )
@@ -166,7 +173,9 @@ describe('SeccionesSelector', () => {
       const { user } = renderSelector({ turnos: turnosConAlumnos, seleccionadas: [10] })
       expect(screen.getByRole('heading', { name: 'Mañana · 1 de 1 secciones' })).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Primario · 1 de 1' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Elegir alumnos (2 de 2)' })).toBeInTheDocument()
+      const accion = screen.getByRole('button', { name: 'Elegir alumnos (2 de 2)' })
+      expect(accion).toHaveTextContent('2 de 2')
+      expect(accion).toHaveAttribute('aria-label', 'Elegir alumnos (2 de 2)')
     })
 
     it('busca alumnos cuando una sección tiene más de diez', async () => {

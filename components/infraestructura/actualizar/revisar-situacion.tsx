@@ -8,6 +8,7 @@ import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/inf
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
 import { SelectorEstablecimiento, type ValorAlcanceEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
+import { Label } from '@/components/ui/label'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { AspectoCambio, CambioSituacion, RespuestaSituacion, SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
@@ -180,12 +181,17 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
             : <div id="revisar-situacion-alcance" tabIndex={-1}>
-              <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
+              <div className="afectacion-campos__grupo">
+                <Label>Alcance</Label>
+                <SelectorEstablecimiento turnos={p.turnos} valor={{ alcance: alcance.alcanceEstablecimiento, secciones: alcance.secciones }} onCambiar={(valor) => { const siguiente = { ...alcance, alcanceEstablecimiento: valor.alcance, secciones: valor.secciones }; setAlcance(siguiente); guardarCambio(aspectos, gravedad, siguiente) }} />
+              </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-alcance' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>)}
           {aspectos.includes('clases-edificio') && (
             <div id="revisar-situacion-clases" tabIndex={-1}>
-              <CamposClasesEdificio valor={clases} onCambiar={(valor) => { setClases(valor); guardarCambio(aspectos, gravedad, alcance, valor) }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} />
+              <div className="revisar-situacion__preguntas-edificio">
+                <CamposClasesEdificio valor={clases} onCambiar={(valor) => { setClases(valor); guardarCambio(aspectos, gravedad, alcance, valor) }} alcanceParcial={alcance.alcanceEstablecimiento !== 'toda'} onInterrumpirTodaLaEscuela={() => { setInterrumpeTodo(true); guardarCambio(aspectos, gravedad, alcance, clases, true) }} />
+              </div>
               {p.faltaRespuesta && bloqueIncompleto?.id === 'revisar-situacion-clases' ? <p className="reporte-inicial__error-campo" role="alert">{bloqueIncompleto.mensaje}</p> : null}
             </div>
           )}

@@ -238,7 +238,8 @@ export function SeccionesSelector({
                     <div className="secciones-selector__fila">
                       <Opcion
                         tipo="checkbox"
-                        label={`${seccion.curso} "${seccion.division}" · ${seccion.matricula} alumnos`}
+                        label={`${seccion.curso} "${seccion.division}"`}
+                        ayuda={`${seccion.matricula} alumnos`}
                         checked={seccionSeleccionada && !esParcial}
                         indeterminate={esParcial}
                         onChange={(event) => alternarSeccion(seccion, event.currentTarget.checked)}
@@ -252,9 +253,10 @@ export function SeccionesSelector({
                           className="secciones-selector__toggle"
                           aria-expanded={expandida}
                           aria-controls={panelId}
+                          aria-label={`Elegir alumnos (${efectivo.size} de ${seccion.alumnos.length})`}
                           onClick={() => alternarExpansion(seccion.geSectionId)}
                         >
-                          {`Elegir alumnos (${efectivo.size} de ${seccion.alumnos.length})`}
+                          {efectivo.size === 0 ? 'Elegir alumnos' : `${efectivo.size} de ${seccion.alumnos.length}`}
                           <ChevronDown size={14} aria-hidden="true" />
                         </button>
                       )}
