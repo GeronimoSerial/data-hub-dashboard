@@ -58,7 +58,7 @@ afterAll(() => {
 
 beforeEach(() => {
   cookiesGetMock.mockReset()
-  // La página resuelve la escuela en el servidor y el formulario de
+  // La página resuelve la escuela en el servidor y el recorrido de
   // actualización pide el estado vigente al montar: con una promesa pendiente
   // se queda en la fase de carga y el test no depende de la API.
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))

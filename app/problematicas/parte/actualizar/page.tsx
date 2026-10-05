@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { ActualizacionForm } from '@/components/infraestructura/actualizacion-form'
+import { RecorridoActualizacion } from '@/components/infraestructura/actualizar/recorrido-actualizacion'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
 import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
@@ -22,9 +22,9 @@ const TITULO = 'Actualizar'
  * cambió en una situación ya en seguimiento. Misma guarda de acceso y
  * resolución de contexto que el resto del recorrido público (spec §6, §7):
  * sin la cookie de acceso, el director ve el formulario de ingreso; con
- * ella, la página resuelve el establecimiento y entrega el formulario de
- * actualización, que a su vez trae el estado vigente del parte por su
- * cuenta (mismo GET que EstadoActualParte).
+ * ella, la página resuelve el establecimiento y entrega el recorrido guiado
+ * de actualización, que trae el estado vigente del parte por su cuenta
+ * (mismo GET que EstadoActualParte).
  */
 export default async function ActualizarPartePage({
   searchParams,
@@ -68,7 +68,7 @@ export default async function ActualizarPartePage({
         escuela={escuela}
         descripcion="Revise lo informado hasta ahora y agregue o corrija lo que cambió."
       />
-      <ActualizacionForm cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
+      <RecorridoActualizacion cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
     </div>
   )
 }
