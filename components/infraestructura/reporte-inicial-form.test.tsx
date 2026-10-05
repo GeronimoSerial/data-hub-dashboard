@@ -17,17 +17,20 @@ const MENSAJE_REPORTE_EXITOSO =
 
 function sembrarBorradorWizard({
   paso = 2,
+  version,
   sinCamposNuevos = false,
   categoria = 'alumnos',
   motivo = 'Anegamiento',
 }: {
-  paso?: 1 | 2 | 3 | 4
+  paso?: 1 | 2 | 3 | 4 | 5
+  version?: number
   sinCamposNuevos?: boolean
   categoria?: 'alumnos' | 'establecimiento'
   motivo?: string
 } = {}) {
   const borrador = {
     generacion: 'generacion-test',
+    ...(version ? { version } : {}),
     paso,
     afectacion: {
       clientId: 'afectacion-test',
@@ -84,19 +87,21 @@ function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'estab
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
-/** Paso 3: cómo está el edificio (obligatorio). */
+/** Paso 3: ¿hay clases? y cómo está el edificio (obligatorio). */
 function completarEstadoEstablecimiento() {
   fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
 }
 
-/** Deja el asistente en el paso 4, listo para guardar. */
+/** Deja el asistente en el último paso (Confirmar), listo para guardar. */
 function llegarAConfirmar() {
   completarQuePaso()
   continuar()
   completarAQuienAfecta()
   continuar()
   completarEstadoEstablecimiento()
+  continuar()
+  // Paso 4: "¿Desde cuándo?" se deja en "Ahora".
   continuar()
 }
 
@@ -136,6 +141,8 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Sí, toda la escuela' }))
     expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeVisible()
     continuar()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeVisible()
+    continuar()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeVisible()
   })
 
@@ -161,6 +168,7 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Clase virtual' }))
     continuar()
+    continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => {
       const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
@@ -181,6 +189,7 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
     completarEstadoEstablecimiento()
+    continuar()
     continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -207,7 +216,7 @@ describe('ReporteInicialForm', () => {
   it('arranca en el primer paso y muestra en qué paso está', () => {
     renderFormulario()
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })
 
@@ -232,6 +241,9 @@ describe('ReporteInicialForm', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
+    completarAQuienAfecta('alumnos')
+    continuar()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
     expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
 
     cleanup()
@@ -240,6 +252,9 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarAQuienAfecta()
     continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
     expect(screen.getByText('¿Desde cuándo ocurre?')).toBeInTheDocument()
   })
 
@@ -316,6 +331,8 @@ describe('ReporteInicialForm', () => {
 
     completarEstadoEstablecimiento()
     continuar()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+    continuar()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
@@ -340,10 +357,44 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     continuar()
 
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+  })
+
+  it('el paso 3 pregunta clases, edificio y asistencia, y ya no pregunta desde cuándo', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+
+    expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
+    expect(screen.getByText('¿Se brinda asistencia pedagógica?')).toBeInTheDocument()
+    expect(screen.queryByText('¿Desde cuándo ocurre?')).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Ahora' })).toBeNull()
+  })
+
+  it('el paso 4 pregunta desde cuándo, con chips, y lleva a confirmar', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+
+    expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+    expect(screen.queryByText('¿Se brinda asistencia pedagógica?')).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'No, se suspendieron' })).toBeNull()
+
+    continuar()
+    expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
-  it('muestra clases, edificio y hora futura juntos, sin la ayuda de hora', () => {
+  it('una hora futura se marca en el paso 4 y el paso 3 sólo valida clases y edificio', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
     renderFormulario()
@@ -352,13 +403,20 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
 
+    continuar()
+    expect(textoAlertas()).toContain('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
+    expect(textoAlertas()).not.toContain('Esa hora todavía no pasó.')
+
+    completarEstadoEstablecimiento()
+    continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Hoy, más temprano' }))
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '23:59' } })
     continuar()
 
-    expect(textoAlertas()).toContain('Indique si hay clases.')
-    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
     expect(textoAlertas()).toContain('Esa hora todavía no pasó.')
+    expect(textoAlertas()).not.toContain('Indique si hay clases.')
     expect(screen.queryByText('Desde hoy a las 23:59')).not.toBeInTheDocument()
     vi.useRealTimers()
   })
@@ -373,6 +431,7 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
     completarEstadoEstablecimiento()
+    continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
     const fecha = screen.getByLabelText('Fecha') as HTMLInputElement
     const elementosDesplazados: Element[] = []
@@ -434,25 +493,35 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarEstadoEstablecimiento()
     continuar()
+    continuar()
     fireEvent.click(screen.getByRole('button', { name: /guardar situación/i }))
     await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
-  it('un problema de alumnos pasa directamente a confirmar sin preguntar por escuela ni edificio', () => {
+  it('un problema de alumnos salta clases y edificio y numera sus pasos de 1 a 4', () => {
     renderFormulario()
 
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
     confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     continuar()
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    // El paso 2 de alumnos ya no incluye "desde cuándo".
+    expect(screen.queryByText('¿Desde cuándo no pueden llegar?')).toBeNull()
     completarAQuienAfecta('alumnos')
     continuar()
 
-    expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+    expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
     expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
     expect(screen.queryByText('No, se suspendieron')).toBeNull()
+    continuar()
+
+    expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
   it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {
@@ -548,15 +617,16 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
 
-    const continuarEnPaso3 = screen.getByRole('button', { name: 'Continuar' })
+    completarEstadoEstablecimiento()
+    continuar()
+    const continuarEnPaso4 = screen.getByRole('button', { name: 'Continuar' })
     expect(container.querySelectorAll('button[type="submit"]')).toHaveLength(0)
 
-    completarEstadoEstablecimiento()
     continuar()
 
     const guardar = screen.getByRole('button', { name: /guardar situación/i })
-    expect(guardar).not.toBe(continuarEnPaso3)
-    expect(continuarEnPaso3.isConnected).toBe(false)
+    expect(guardar).not.toBe(continuarEnPaso4)
+    expect(continuarEnPaso4.isConnected).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -664,7 +734,7 @@ describe('ReporteInicialForm', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
-      expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+      expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
       // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
       expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
@@ -869,7 +939,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     completarQuePaso()
     continuar()
 
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
     await waitFor(() => expect(localStorage.getItem(clave)).not.toBeNull())
 
     // Recarga simulada: el asistente vuelve a montar con el mismo storage.
@@ -885,11 +955,11 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     expect(descartarBorrador).toHaveClass('ui-button--ghost')
     expect(continuarBorrador.compareDocumentPosition(descartarBorrador) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(continuarBorrador)
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
     volver()
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
   })
@@ -909,7 +979,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo de la situación del establecimiento.')
   })
@@ -926,11 +996,88 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   })
 
   it('un borrador viejo sin los campos nuevos se restaura con valores por defecto', async () => {
-    sembrarBorradorWizard({ paso: 2, sinCamposNuevos: true })
+    sembrarBorradorWizard({ paso: 4, version: 2, sinCamposNuevos: true })
     renderFormulario()
     fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
 
     expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
+  })
+
+  it('guarda el borrador con la versión de numeración vigente', async () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+
+    await waitFor(() => expect(localStorage.getItem(clave)).not.toBeNull())
+    expect(JSON.parse(localStorage.getItem(clave) as string).version).toBe(2)
+  })
+
+  describe('migración de borradores con la numeración anterior (paso 3 dividido)', () => {
+    async function restaurar() {
+      renderFormulario()
+      fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+    }
+
+    it('establecimiento: el paso 3 viejo (clases, edificio y desde cuándo) queda en el paso 3 nuevo', async () => {
+      sembrarBorradorWizard({ paso: 3, categoria: 'establecimiento' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
+    })
+
+    it('establecimiento: el paso 4 viejo (Confirmar) pasa al paso 5 nuevo', async () => {
+      sembrarBorradorWizard({ paso: 4, categoria: 'establecimiento' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /guardar situación/i })).toBeInTheDocument()
+    })
+
+    it('alumnos: el paso 4 viejo (Confirmar) pasa al paso 5 nuevo, que es el 4 de 4', async () => {
+      sembrarBorradorWizard({ paso: 4, categoria: 'alumnos' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 4 de 4')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+    })
+
+    it('alumnos: el paso 2 viejo sigue siendo el paso 2, y desde cuándo viene después', async () => {
+      sembrarBorradorWizard({ paso: 2, categoria: 'alumnos' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+      expect(screen.queryByText('¿Desde cuándo no pueden llegar?')).toBeNull()
+    })
+
+    it('un borrador nuevo (versión 2) en el paso 4 es "¿Desde cuándo?", no Confirmar', async () => {
+      sembrarBorradorWizard({ paso: 4, version: 2, categoria: 'establecimiento' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '¿Desde cuándo?' })).toBeInTheDocument()
+    })
+
+    it('un borrador nuevo de alumnos en el paso 4 es el 3 de 4', async () => {
+      sembrarBorradorWizard({ paso: 4, version: 2, categoria: 'alumnos' })
+      await restaurar()
+
+      expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+      expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
+    })
+
+    it('el historial del navegador de una sesión vieja en Confirmar sigue el paso migrado', async () => {
+      window.history.replaceState({ partePaso: 4, parteGeneracion: 'generacion-test' }, '')
+      sembrarBorradorWizard({ paso: 4, categoria: 'establecimiento' })
+      await restaurar()
+      expect(screen.getByText('Paso 5 de 5')).toBeInTheDocument()
+
+      // "Atrás" del navegador camina a un paso real, sin saltarse ninguno.
+      fireEvent(window, new PopStateEvent('popstate'))
+      expect(screen.getByText('Paso 4 de 5')).toBeInTheDocument()
+      window.history.replaceState(null, '')
+    })
   })
 
   it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {
@@ -940,7 +1087,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     primero.unmount()
 
     renderFormulario({ cue: '22222222' })
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
   })
 
@@ -950,20 +1097,20 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     continuar()
     completarAQuienAfecta()
     continuar()
-    expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 3 de 5')).toBeInTheDocument()
 
     fireEvent(window, new PopStateEvent('popstate'))
-    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 2 de 5')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /1° "A"/ })).toBeChecked()
 
     fireEvent(window, new PopStateEvent('popstate'))
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
 
     // Desde el primer paso el asistente no se pierde: el paso se mantiene.
     fireEvent(window, new PopStateEvent('popstate'))
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
   })
 
   it('un guardado exitoso limpia la clave del borrador', async () => {
@@ -985,7 +1132,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     await waitFor(() => expect(localStorage.getItem(clave)).toBeNull())
   })
 })
