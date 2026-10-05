@@ -1,17 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, type JSX } from 'react'
+import { useEffect, useRef, type JSX } from 'react'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { DatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import {
+  useFichaParte,
+  type AfectacionFicha,
+} from '@/lib/infraestructura/use-ficha-parte'
 import type {
-  Categoria,
-  AsistenciaPedagogica,
-  EstadoEstablecimiento,
-  EstadoServicioGeneral,
-  SeccionEstablecimiento,
-  ServicioAlcance,
   Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
@@ -23,73 +20,12 @@ import {
   resumirAlcance,
   rigeDesdeDelServicio,
 } from './estado-actual-textos'
-import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
+import { HistorialMovimiento } from './historial-movimiento'
 import { FichaTerritorial } from './ficha-territorial'
 import {
   FichaAccesoTerritorial,
   type FichaAccesoTerritorialProps,
 } from './ficha-acceso-territorial'
-
-// --- Forma de GET /api/mapas/infraestructura/parte (ver app/api/mapas/infraestructura/parte/route.ts) ---
-//
-// Deliberadamente SIN nombres de alumnos ni `secciones` por afectación: a
-// diferencia de la ruta del director (`/api/problematicas/parte`), acá
-// `totales` es lo único que viaja por afectación. Por eso este archivo NO
-// reusa `AfectacionVigente`/`EstadoActualAfectacion` (esos tipos exigen
-// `secciones: SeccionAfectada[]`, con nombres, que este endpoint nunca envía).
-interface AfectacionFicha {
-  id: string
-  motivo: string
-  categoria: Categoria
-  severidad: Severidad
-  descripcion: string | null
-  rigeDesde: string
-  totales: { secciones: number; alumnos: number }
-}
-
-interface ParteFicha {
-  id: string
-  cueAnexo: string
-  estadoEstablecimiento: EstadoEstablecimiento
-  estadoEstablecimientoRigeDesde: string
-  actualizadaEn: string
-  asistenciaPedagogica?: AsistenciaPedagogica | null
-}
-
-interface RespuestaParteMapa {
-  ok: true
-  periodo: { id: string; nombre: string } | null
-  parte: ParteFicha | null
-  servicio?: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
-  afectaciones?: AfectacionFicha[]
-  // Secciones del establecimiento (turno + id de sección GE) que devuelve la
-  // ruta para CUALQUIER escuela del corte, tenga o no afectación vigente. Es
-  // la fuente cruda; el bloque "Datos de la escuela" ya no la recorre (usa
-  // `datosPadron`, que es el agregado), pero se conserva en la forma de la
-  // respuesta por compatibilidad con la ruta.
-  secciones?: SeccionEstablecimiento[]
-  // Agregado del padrón GE de la escuela (F3.2/V4): nivel(es), matrícula total
-  // del corte vigente, secciones y turnos. `null` = la escuela no tiene
-  // ninguna sección en el corte vigente (se dice explícitamente en la ficha);
-  // `undefined` = una ruta vieja no lo manda. Nunca trae identidad de alumno.
-  datosPadron?: DatosPadronEscuela | null
-  ultimaActualizacion?: string | null
-}
-
-interface RespuestaHistorialMapa {
-  ok?: boolean
-  movimientos?: MovimientoHistorial[]
-}
-
-type EstadoFicha =
-  | { fase: 'cargando' }
-  | { fase: 'listo'; datos: RespuestaParteMapa }
-  | { fase: 'error' }
-
-type EstadoHistorial =
-  | { fase: 'cargando' }
-  | { fase: 'listo'; movimientos: MovimientoHistorial[] }
-  | { fase: 'error' }
 
 // Cantidad de movimientos del historial que se adelantan en la ficha (F3.5):
 // "los primeros 3", el resto queda detrás de "Ver historial completo".
@@ -130,50 +66,7 @@ function FichaParteModalContenido({
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
 }): JSX.Element {
-  const [estado, setEstado] = useState<EstadoFicha>({ fase: 'cargando' })
-  const [historial, setHistorial] = useState<EstadoHistorial>({ fase: 'cargando' })
-
-  useEffect(() => {
-    let vigente = true
-    fetch(`/api/mapas/infraestructura/parte?cue=${encodeURIComponent(cueAnexo)}`)
-      .then(async (respuesta) => {
-        if (!respuesta.ok) throw new Error('fallo de acceso o de red')
-        return (await respuesta.json()) as RespuestaParteMapa
-      })
-      .then((datos) => {
-        if (vigente) setEstado({ fase: 'listo', datos })
-      })
-      .catch(() => {
-        if (vigente) setEstado({ fase: 'error' })
-      })
-    return () => {
-      vigente = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- un fetch por apertura, cueAnexo va en la key del padre
-  }, [])
-
-  // Segundo fetch, mismo trigger (F3.5): un solo request extra, no una
-  // segunda ronda de aperturas. Independiente del de arriba porque un fallo
-  // de uno no tiene por qué tapar al otro (la ficha puede mostrarse sin el
-  // bloque "qué cambió", y viceversa).
-  useEffect(() => {
-    let vigente = true
-    fetch(`/api/mapas/infraestructura/historial?cue=${encodeURIComponent(cueAnexo)}`)
-      .then(async (respuesta) => {
-        if (!respuesta.ok) throw new Error('fallo de acceso o de red')
-        return (await respuesta.json()) as RespuestaHistorialMapa
-      })
-      .then((datos) => {
-        if (vigente) setHistorial({ fase: 'listo', movimientos: datos.movimientos ?? [] })
-      })
-      .catch(() => {
-        if (vigente) setHistorial({ fase: 'error' })
-      })
-    return () => {
-      vigente = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const { estado, historial } = useFichaParte(cueAnexo)
 
   const datos = estado.fase === 'listo' ? estado.datos : null
 

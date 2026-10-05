@@ -114,9 +114,8 @@ export function LegendPanel({
 // crecen con la cantidad agrupada. El símbolo por categoría desapareció (la
 // categoría pasó a filtro y a la ficha), así que esta leyenda ya no lo explica.
 //
-// Esta leyenda ya no recibe `indicadores`: los números consolidados los
-// muestra <Indicadores>, arriba en la misma columna. Tenerlos en los dos
-// lados era duplicar la misma fuente en la misma pantalla.
+// Esta leyenda no recibe números: el resumen de situación actual ya ocupa ese
+// lugar en la columna y repetirlos acá duplicaría la misma fuente.
 export function InfraLegendPanel({
   departamentosSinMatch = [],
   mostrarLeyendaPeligro = false,
@@ -146,8 +145,7 @@ export function InfraLegendPanel({
     // después estorba: abierta ocupa media columna y empuja los filtros y la
     // lista fuera de la vista. `<details>` nativo en vez de estado propio
     // porque el navegador ya resuelve teclado y accesibilidad.
-    // Los números consolidados NO van acá: los muestra <Indicadores> justo
-    // arriba, en esta misma columna, y repetirlos era duplicar una fuente.
+    // Los números del padrón aparecen en el panel de situación actual.
     <details className={`${styles.panel} ${styles.legendPanel}`}>
       <summary className={styles.legendSummary}>Referencias</summary>
       {/*

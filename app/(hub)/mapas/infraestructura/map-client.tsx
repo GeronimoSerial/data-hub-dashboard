@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
+import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { FiltrosChips } from '@/components/mapas/filtros-chips'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
@@ -52,6 +53,7 @@ export function InfraestructuraMapClient(props: {
     () => filtrarEscuelas(padron?.escuelas ?? [], filtros),
     [padron, filtros],
   )
+  const cantidadConReporte = resumir(escuelasFiltradas).conReporte
   const escuelasMapa = React.useMemo(
     () => padron ? { ...padron, escuelas: escuelasFiltradas } : null,
     [padron, escuelasFiltradas],
@@ -110,7 +112,19 @@ export function InfraestructuraMapClient(props: {
       <div className="mapa-pestanas-barra">
         <Tabs value={tab} onValueChange={onTab}>
           <TabsList>
-            <TabsTab value="actual">Situación actual</TabsTab>
+            <TabsTab
+              value="actual"
+              aria-label={cantidadConReporte > 0
+                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con reporte`
+                : undefined}
+            >
+              Situación actual
+              {cantidadConReporte > 0 && (
+                <span className="map-sitact__pill map-sitact__pill--neutro ui-tabs-tab__contador" aria-hidden="true">
+                  {cantidadConReporte}
+                </span>
+              )}
+            </TabsTab>
             {props.riskRadarEnabled && <TabsTab value="radar">Radar</TabsTab>}
             <TabsTab value="planificacion">Planificación</TabsTab>
             <TabsTab value="estadisticas">Estadísticas</TabsTab>

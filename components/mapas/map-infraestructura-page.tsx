@@ -20,14 +20,14 @@ import MapGL, {
 } from 'react-map-gl/maplibre'
 import type {
   CircleLayerSpecification,
-  DataDrivenPropertyValueSpecification,
+  ExpressionSpecification,
   FillLayerSpecification,
   FilterSpecification,
   GeoJSONSource,
   MapGeoJSONFeature,
   SymbolLayerSpecification,
 } from 'maplibre-gl'
-import type { FeatureCollection, MultiPolygon, Point, Polygon } from 'geojson'
+import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
@@ -44,12 +44,12 @@ const LOCALE_MAPLIBRE_ES: Record<string, string> = {
   'Popup.Close': 'Cerrar',
 }
 import {
-  Building2,
-  CircleHelp,
-  CircleSlash,
+  BookMinus,
+  BookX,
+  Clock,
   DoorOpen,
+  House,
   MapPin,
-  Tent,
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
@@ -61,20 +61,19 @@ import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { Indicadores } from '@/components/infraestructura/indicadores'
-import { ListaAlertas } from '@/components/infraestructura/lista-alertas'
-import { FichaParteModal } from '@/components/infraestructura/ficha-parte-modal'
+import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
+import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
+import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
   AccesosLayerControl,
-  InfraLayerControl,
   RadarLayerControl,
   type CapaAccesos,
-  type CapaInfraestructura,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { InfraLegendPanel } from '@/components/mapas/legend-panel'
+import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import {
   CapasAccesosTerritoriales,
   CAPA_AISLAMIENTO_ID,
@@ -93,7 +92,7 @@ import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
-import { calcularTotalesEscuelasFiltradas } from '@/lib/infraestructura/mapa/totales-filtrados'
+import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
@@ -136,15 +135,10 @@ import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestruct
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
-import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
-import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import {
-  iconoEstadoEscuela,
-  rangoSeveridad,
-  type IconoEstadoEscuela,
-} from '@/lib/mapas/severidad-visual'
+import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -153,10 +147,8 @@ import {
   ID_IMAGEN_ESCUELA_BAJA,
   ID_IMAGEN_ESCUELA_CRITICA,
   ID_IMAGEN_ESCUELA_MEDIA,
-  ID_IMAGEN_ESCUELA_NORMAL,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import type { EstadoServicioGeneral } from '@/lib/infraestructura/trayectoria-tipos'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 ensureMapWorker()
@@ -347,41 +339,34 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
   }
 }
 
-// ── Tamaño: fijo en escuelas, por tramos en clusters ───────────────────────
+// ── Tamaño: neutro chico en escuelas sin reporte, mayor en clusters ─────────
 //
 // La antigua codificación escalaba el radio por `alumnosAlcanzados` (área
 // proporcional al dato, interpolando sobre la raíz cuadrada). Ese canal dejó
 // de usarse: la matrícula pasó a la ficha/lista y un punto de tamaño
-// variable terminaba tapando a sus vecinas a zoom bajo. El radio de cada
-// escuela es fijo; el color informa la severidad y el badge de estado
-// informa servicio/evacuación/sin reportar. Los CLUSTERS sí escalan el radio
-// con la cantidad de escuelas agrupadas (`expresionRadioCluster`), y eso es
-// intencional: más escuelas agrupadas = burbuja más grande.
+// variable terminaba tapando a sus vecinas a zoom bajo. Las escuelas afectadas
+// mantienen el radio y el badge actuales; las que no tienen reporte usan un
+// punto neutro menor que crece suavemente con el zoom. Los clusters sin
+// reportes también son menores que los que contienen escuelas afectadas.
 
 // Color NEUTRO compartido por el borde del punto y los íconos del badge (el
 // color de severidad ya está tomado por el relleno; reusarlo para el estado
 // sería una segunda escala). El borde es un trazo mínimo fijo que separa el
 // punto del fondo, ya no codifica el servicio.
 const ANILLO_COLOR = '#1c1c1c'
+const RADIOS_ESCUELA_SIN_REPORTE = [[6, 3], [10, 5], [14, 6]] as const
 
-// El color del cluster es el de la severidad MÁS ALTA entre sus puntos,
-// leída del agregado `severidadRango` que calcula clusterProperties (max). Es
-// una expresión 'case' sobre SEVERIDADES en su orden real — lee el rango de
-// mayor a menor: si algún punto agrupado es Crítica (>=3) pinta Crítica, si
-// no el mayor es Alta (>=2), y así hasta Baja (default).
-//
-// Antes de mirar la severidad se chequea `escuelasAfectadas === 0`: un cluster
-// que agrupa SÓLO escuelas sin afectación reportada (severidadRango = 0, el
-// mismo 0 que 'Baja') se pinta con el gris neutro COLOR_SIN_AFECTACION, nunca
-// con una severidad real. Sólo si hay al menos una afectada se usa la
-// severidad más alta (`severidadRango`, agregado por max).
-export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
-  const expresion: unknown[] = ['case', ['==', ['get', 'escuelasAfectadas'], 0], COLOR_SIN_AFECTACION]
+// Los clusters afectados usan la gravedad más alta presente. Un cluster que
+// contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
+export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
+  const colorFondo = oscuro ? '#000000' : '#ffffff' // `--page` en globals.css; MapLibre no resuelve var().
+  const expresion: ExpressionSpecification = [
+    'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
+  ]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
-    expresion.push(['>=', ['get', 'severidadRango'], i], colorSeveridad(SEVERIDADES[i]))
+    expresion.splice(expresion.length - 1, 0, ['>=', ['get', 'gravedad'], i + 1], colorSeveridad(SEVERIDADES[i]))
   }
-  expresion.push(colorSeveridad(SEVERIDADES[0]))
-  return expresion as unknown as DataDrivenPropertyValueSpecification<string>
+  return expresion
 }
 
 // El radio del cluster sube por tramos con la cantidad de escuelas.
@@ -389,128 +374,108 @@ export const RADIO_CLUSTER_MENOR = 16
 export const RADIO_CLUSTER_MEDIO = 22
 export const RADIO_CLUSTER_MAYOR = 28
 
-export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
-  return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR] as unknown as DataDrivenPropertyValueSpecification<number>
+export function expresionRadioCluster(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR]
 }
 
-export function circlePaintPartes(): CircleLayerSpecification['paint'] {
+export function expresionRadioClusterSinReporte(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], 10, 10, 12, 50, 14]
+}
+
+export function radioEscuelaSinReporte(): ExpressionSpecification {
+  return ['interpolate', ['linear'], ['zoom'], ...RADIOS_ESCUELA_SIN_REPORTE.flat()]
+}
+
+export function colorEscuelaSinReporte(oscuro: boolean): string {
+  // `--page` en globals.css; MapLibre no resuelve var().
+  return oscuro ? '#000000' : '#ffffff'
+}
+
+export function colorBordeSinReporte(oscuro: boolean): string {
+  // `--ink-faint` en globals.css; MapLibre no resuelve var().
+  return oscuro ? '#9b9895' : '#8a8886'
+}
+
+export function circlePaintEscuelasSinReporte(oscuro: boolean): CircleLayerSpecification['paint'] {
   return {
-    // Radio mayor que RADIO_DOT_BASE a propósito: el ícono de escuela (badge
-    // blanco ~22px) se dibuja encima y necesita un anillo de color visible
-    // alrededor para que la severidad siga leyéndose.
-    'circle-radius': 14,
-    'circle-color': ['get', 'color'],
-    'circle-opacity': 0.9,
-    'circle-stroke-color': ANILLO_COLOR,
-    // Borde neutro FIJO: el servicio ya no se codifica acá (lo dice el badge
-    // de estado). El grosor/opacidad variables por `servicio` se eliminaron
-    // junto con los anillos apilados de V2.
-    'circle-stroke-width': 1,
+    'circle-radius': radioEscuelaSinReporte(),
+    'circle-color': colorEscuelaSinReporte(oscuro),
+    'circle-stroke-color': colorBordeSinReporte(oscuro),
+    'circle-stroke-width': 1.5,
+    'circle-opacity': 1,
   }
 }
 
-// Filtro de los puntos individuales (no clusterizados) según el toggle del
-// padrón completo: apagado (default) sólo muestra escuelas con
-// `estado === 'afectada'`; encendido muestra TODAS (afectadas y sin
-// afectación, esta última en gris neutro vía el campo `color` que ya
-// asigna construirEscuelasMapaFeatureCollection).
-export function filtroPuntosPartes(mostrarPadron: boolean): FilterSpecification {
-  const base = ['!', ['has', 'point_count']]
-  if (mostrarPadron) return base as unknown as FilterSpecification
-  return ['all', base, ['==', ['get', 'estado'], 'afectada']] as unknown as FilterSpecification
+export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-radius': [
+      'interpolate', ['linear'], ['zoom'],
+      RADIOS_ESCUELA_SIN_REPORTE[0][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[0][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
+      RADIOS_ESCUELA_SIN_REPORTE[1][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[1][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
+      RADIOS_ESCUELA_SIN_REPORTE[2][0], [
+        'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], RADIOS_ESCUELA_SIN_REPORTE[2][1],
+        ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+      ],
+    ],
+    'circle-color': [
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      colorEscuelaSinReporte(oscuro), ['get', 'color'],
+    ],
+    'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1, 0.9],
+    'circle-stroke-color': [
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      colorBordeSinReporte(oscuro), ANILLO_COLOR,
+    ],
+    'circle-stroke-width': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1],
+  }
 }
 
-// Mismo criterio para los clusters: apagado sólo muestra clusters con al
-// menos una escuela afectada (escuelasAfectadas > 0, agregado ya existente
-// en clusterProperties); encendido muestra todos, incluidos los clusters
-// de puras escuelas sin afectación (pintados en gris por
-// colorPorSeveridadRango, que ya cubre ese caso).
-export function filtroClusterPartes(mostrarPadron: boolean): FilterSpecification {
-  const base = ['has', 'point_count']
-  if (mostrarPadron) return base as unknown as FilterSpecification
-  return ['all', base, ['>', ['get', 'escuelasAfectadas'], 0]] as unknown as FilterSpecification
+export function circlePaintCluster(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': colorPorSeveridadRango(oscuro),
+    'circle-radius': [
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], expresionRadioClusterSinReporte(), expresionRadioCluster(),
+    ],
+    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], colorBordeSinReporte(oscuro), ANILLO_COLOR],
+    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1],
+  }
 }
 
-type PropiedadesParte = {
-  cueAnexo: string
-  color: string
-  servicio: EstadoServicioGeneral
-  alumnosAlcanzados: number
-  // Etiqueta cruda para la ficha y rango numérico para el cluster.
-  severidad: string
-  severidadRango: number
-  // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
-  // según esSinReportar/UMBRAL_SIN_ACTUALIZAR_HORAS). Se une al feature para
-  // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  sinActualizar: boolean
-  // Booleano real por punto ("este establecimiento está evacuado o es centro
-  // de evacuados", según estadoEstablecimiento). Se une al feature para que
-  // clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  esEvacuado: boolean
+export function expresionConteoCluster(): ExpressionSpecification {
+  return ['to-string', ['case', ['==', ['get', 'escuelasAfectadas'], 0], ['get', 'point_count'], ['get', 'escuelasAfectadas']]]
 }
 
-// Función de módulo (no closure del componente) a propósito: así useMemo
-// puede depender sólo de `partes` sin arrastrar warnings de exhaustive-deps
-// por una función recreada en cada render.
-export function construirFeatureCollection(
-  partes: ParteMapa[],
-  ahoraMs: number | null,
-): FeatureCollection<Point, PropiedadesParte> {
-  const features = partes
-    .filter((parte) => parte.lat !== null && parte.lon !== null)
-    .map((parte) => ({
-      type: 'Feature' as const,
-      geometry: {
-        type: 'Point' as const,
-        coordinates: [parte.lon as number, parte.lat as number],
-      },
-      properties: {
-        cueAnexo: parte.cueAnexo,
-        color: colorSeveridad(parte.peorSeveridad),
-        servicio: parte.servicio,
-        alumnosAlcanzados: parte.alumnosAlcanzados,
-        severidad: parte.peorSeveridad,
-        severidadRango: rangoSeveridad(parte.peorSeveridad),
-        sinActualizar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
-        esEvacuado:
-          parte.estadoEstablecimiento === 'evacuado' ||
-          parte.estadoEstablecimiento === 'centro_evacuados',
-      },
-    }))
-  return { type: 'FeatureCollection', features }
+export function colorTextoCluster(oscuro = false): ExpressionSpecification {
+  // `--ink-soft` en globals.css; MapLibre no resuelve var().
+  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], oscuro ? '#c9c6c3' : '#5f5e5c', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
 }
 
-// "Sin reportar" se calcula acá, no en el servidor: el indicador agregado
-// (indicadores.sinActualizar) ya viaja en la respuesta, pero para mostrar el
-// badge hace falta saber CUÁL parte individual cruzó el umbral, y esa
-// información no se serializa aparte. UMBRAL_SIN_ACTUALIZAR_HORAS es la misma
-// constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
-// un solo lugar define "viejo", nunca dos criterios que puedan divergir.
-export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
-  return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
+export function filtroIconoEscuelaAfectada(): FilterSpecification {
+  return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'estado'], 'afectada']]
 }
 
-// Componente Lucide por nombre lógico del badge. El nombre (no el componente)
-// es lo que devuelve la función pura `iconoEstadoEscuela`, para poder testear
-// la prioridad sin montar el mapa.
-const ICONOS_BADGE_ESTADO: Record<IconoEstadoEscuela, LucideIcon> = {
-  Building: Building2,
-  Tent,
-  DoorOpen,
-  CircleSlash,
-  TriangleAlert,
-  CircleHelp,
+// Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
+const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
+  sin: BookX,
+  parcial: BookMinus,
+  evacuado: DoorOpen,
+  centro: House,
+  reloj: Clock,
 }
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
-const ETIQUETA_ICONO_ESTADO: Record<IconoEstadoEscuela, string> = {
-  Building: 'Funcionamiento parcial',
-  Tent: 'Centro de evacuados',
-  DoorOpen: 'Establecimiento evacuado',
-  CircleSlash: 'Servicio suspendido',
-  TriangleAlert: 'Servicio parcial',
-  CircleHelp: 'Sin reportar',
+const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
+  sin: 'Sin clases',
+  parcial: 'Clases parciales',
+  evacuado: 'Evacuado',
+  centro: 'Centro de evacuados',
+  reloj: 'Sin actualizar',
 }
 
 // ── Popup de CLIC del departamento ──────────────────────────────────────────
@@ -594,56 +559,37 @@ function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<
   })
 }
 
-const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
-  escuelas: false,
-  // Capas informativas nuevas: apagadas por defecto para no sumar ruido
-  // visual al encuadre inicial. El director las prende cuando las necesita.
-  evacuacion: false,
-  sinActualizar: false,
-}
-
-// Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
-// inundación son contexto de largo plazo y arrancan apagadas; la ruta de la
-// escuela seleccionada sí está encendida por defecto — se dibuja apenas el
-// usuario elige una escuela y no compite con nada hasta entonces.
+// Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
+// aparece automáticamente al seleccionar una escuela.
 const CAPAS_ACCESOS_VISIBLES_DEFECTO: Record<CapaAccesos, boolean> = {
   aislamiento: false,
   inundacion: false,
-  rutaSeleccion: true,
 }
 
 // ── Encuadre de la ruta de acceso ──────────────────────────────────────────
 //
 // Encajar el bbox de la ruta con un padding de 60 fijo metía la escuela (y
-// parte de la ruta) debajo de la columna izquierda o de la ficha: el
-// director tenía que volver a acercar a mano para ver el acceso. El padding
-// se calcula desde el viewport real y desde si la ficha está tapando el
-// mapa, leyendo los MISMOS números que declara globals.css:
+// parte de la ruta) debajo de la columna izquierda: el director tenía que
+// volver a acercar a mano para ver el acceso. La ficha comparte esa columna,
+// así que el padding reserva únicamente el ancho de la columna izquierda:
 //
 // - `.map-left-stack`: `left: 55px` + `width: min(20rem, …)` ⇒ ocupa hasta
 //   x≈375px, pero sólo por arriba de 720px (debajo es un cajón overlay).
-// - `.map-ficha-panel`: panel lateral de `min(400px, 100vw - 24px)` por
-//   encima de 1080px; hoja inferior de 55vh (60vh hasta 720px) por debajo.
 const PADDING_ENCUADRE_BASE = 60
 const ANCHO_COLUMNA_IZQUIERDA = 340
-const ANCHO_FICHA_LATERAL = 400
 // Fracción de la ventana que el padding puede comerse como máximo. MapLibre
-// lanza si el padding deja sin caja al bbox, y con la columna izquierda (340)
-// más la ficha lateral (424) esa suma pasa fácil el ancho de una tablet.
+// lanza si el padding deja sin caja al bbox; el recorte proporcional evita
+// que el padding horizontal deje sin espacio el mapa en pantallas angostas.
 const MAX_PADDING_ANCHO = 0.8
 const MAX_PADDING_ALTO = 0.8
 
 /**
  * Padding de `fitBounds` para la ruta de la escuela seleccionada.
  *
- * `fichaCubre` es `true` cuando la ficha está abierta Y su panel tapa parte
- * del mapa; el llamador lo decide (el handler de "Ver recorrido" la está
- * cerrando en el mismo gesto, así que ahí encuadra sin ella).
- *
  * Puro salvo por la lectura del viewport: no toca estado ni el mapa, así que
  * se puede testear por viewport sin montar nada.
  */
-export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
+export function paddingEncuadre(): PaddingOptions {
   const ancho = window.innerWidth
   const alto = window.innerHeight
 
@@ -651,20 +597,6 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
   let bottom = PADDING_ENCUADRE_BASE
   let left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
   let right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
-
-  if (fichaCubre) {
-    if (ancho > 1080) {
-      // Ficha lateral, separación, toggle colapsado y margen del mapa.
-      right = PADDING_ENCUADRE_BASE + Math.min(ANCHO_FICHA_LATERAL, ancho - 24) + 24 + 90
-    } else {
-      // Hoja inferior: se reserva su alto real, no el ancho de la pantalla.
-      bottom += Math.round(alto * (ancho <= 720 ? 0.6 : 0.55))
-      if (ancho > 720) {
-        // El toggle de capas colapsado ocupa 90px a la derecha.
-        right = PADDING_ENCUADRE_BASE + 90
-      }
-    }
-  }
 
   // Recorte proporcional: si el padding se come más del 80% de la ventana no
   // queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
@@ -685,7 +617,7 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
   return { top, bottom, left, right }
 }
 
-function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
+function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
   return escuelas
     .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
     .map((escuela) => ({
@@ -733,21 +665,15 @@ export default function MapInfraestructuraPage(props: {
   // cerrada no la reabriría.
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
   const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue
-  // T1.3: panel izquierdo colapsable en pantallas angostas (<= 720px), donde
-  // no hay ancho para la columna y el panel de controles a la vez. Arranca
-  // cerrado; el botón toggle y el CSS de globals.css lo gobiernan.
-  const [leftStackAbierto, setLeftStackAbierto] = useState(false)
   // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
   // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
   // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
   const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
-  // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
-  // sólo tiene que tocar SU propio estado — nunca `capasVisibles` ni el
-  // encuadre del mapa (MapGL no se remonta acá).
+  // estado de encuadre/filtros. Cerrar cualquiera de los tres sólo tiene que
+  // tocar SU propio estado — nunca el encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
-  const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [capasAccesosVisibles, setCapasAccesosVisibles] = useState<Record<CapaAccesos, boolean>>(
     CAPAS_ACCESOS_VISIBLES_DEFECTO,
   )
@@ -756,6 +682,10 @@ export default function MapInfraestructuraPage(props: {
   // información aparece recién con el CLIC (ver `handleClick`), nunca con el
   // mouse quieto encima.
   const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
+  const cerrarFicha = useCallback(() => {
+    setFichaCerradaCue(seleccionCue)
+    setDepartamentoInfoClic(null)
+  }, [seleccionCue])
   const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
   // o sin evidencia). Es un popup informativo propio, no una selección: el
@@ -874,6 +804,10 @@ export default function MapInfraestructuraPage(props: {
   }, [data])
 
   const dataEscuelasMapa = props.escuelasMapa
+  const actualizadoEn = useMemo(
+    () => ultimaActualizacion(dataEscuelasMapa?.escuelas ?? []),
+    [dataEscuelasMapa],
+  )
   const { data: dataTotalesMapa } = useTotalesMapa()
   const totalesPorDepartamento = useMemo(() => {
     const mapa = new Map<string, TotalesDepartamento>()
@@ -889,8 +823,8 @@ export default function MapInfraestructuraPage(props: {
   // capa de puntos. Requisito no negociable: el mapa muestra TODAS las
   // escuelas siempre, no depende de si hay partes cargados.
   const featureCollectionPadron = useMemo(
-    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? [], ahoraMs),
-    [dataEscuelasMapaVisible, ahoraMs],
+    () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? []),
+    [dataEscuelasMapaVisible],
   )
 
   // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
@@ -946,17 +880,9 @@ export default function MapInfraestructuraPage(props: {
     return map
   }, [dataVisible])
 
-  // V2: badge de estado por escuela NO agrupada. Un ícono lucide por punto,
-  // elegido por prioridad con `iconoEstadoEscuela`. Las capas "evacuación" y
-  // "sin reportar" siguen siendo toggles: apagadas, esas condiciones no
-  // participan del badge y se cae a la siguiente prioridad (p. ej. una
-  // escuela evacuada con el toggle apagado pero servicio suspendido muestra
-  // CircleSlash). El servicio siempre participa: reemplaza al anillo de
-  // grosor, que estaba siempre visible.
-  //
-  // `ahoraMs` es null hasta que corre el efecto de arriba (Date.now() es
-  // impuro y no puede llamarse en render): en ese primer render no hay
-  // badge de "sin reportar", igual que antes no había halo.
+  // V2: badge de estado por escuela afectada NO agrupada. Un ícono lucide por punto,
+  // La función pura resume el estado de clases o, si es normal, el reloj de
+  // actualización. Cada escuela muestra como máximo un badge.
   const badgesEstado = useMemo(() => {
     if (cuesNoAgrupados === null) return []
     const badges: Array<{
@@ -964,23 +890,13 @@ export default function MapInfraestructuraPage(props: {
       nombre: string
       lng: number
       lat: number
-      icono: IconoEstadoEscuela
+      icono: IconoPunto
     }> = []
     for (const escuela of dataEscuelasMapaVisible?.escuelas ?? []) {
       if (escuela.lat === null || escuela.lon === null) continue
+      if (escuela.estado !== 'afectada') continue
       if (!cuesNoAgrupados.has(escuela.cueAnexo)) continue
-      const parte = escuela.estado === 'afectada' ? escuela.parte : undefined
-      const icono = iconoEstadoEscuela({
-        estadoEstablecimiento: capasVisibles.evacuacion
-          ? (parte?.estadoEstablecimiento ?? 'habitual')
-          : 'habitual',
-        servicio: parte?.servicio ?? 'normal',
-        sinActualizar:
-          capasVisibles.sinActualizar &&
-          parte !== undefined &&
-          ahoraMs !== null &&
-          esSinReportar(parte, ahoraMs),
-      })
+      const icono = iconoPunto(escuela)
       if (icono === null) continue
       badges.push({
         cueAnexo: escuela.cueAnexo,
@@ -994,9 +910,6 @@ export default function MapInfraestructuraPage(props: {
   }, [
     cuesNoAgrupados,
     dataEscuelasMapaVisible,
-    ahoraMs,
-    capasVisibles.evacuacion,
-    capasVisibles.sinActualizar,
   ])
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
@@ -1307,16 +1220,12 @@ export default function MapInfraestructuraPage(props: {
   // el encabezado de la ficha siempre puede mostrar nombre/CUE/localidad/
   // departamento, exista o no una afectación vigente.
   const escuelasPorCue = useMemo(() => {
-    const index = new Map<string, EscuelaMapa>()
+    const index = new Map<string, EscuelaMapaPadron>()
     for (const escuela of dataEscuelasMapa?.escuelas ?? []) index.set(escuela.cueAnexo, escuela)
     return index
   }, [dataEscuelasMapa])
 
   const escuelaSeleccionada = seleccionCue ? (escuelasPorCue.get(seleccionCue) ?? null) : null
-
-  // F3.2: ya no hace falta la coordenada del punto seleccionado (era sólo
-  // para anclar el Popup de MapLibre); el modal no depende de la posición
-  // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
@@ -1362,12 +1271,11 @@ export default function MapInfraestructuraPage(props: {
     data: geometria,
     loading: geometriaLoading,
     error: geometriaError,
-  } = useGeometriaAcceso(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+  } = useGeometriaAcceso(cueRuta, hazardOn && cueRuta !== null)
   const {
     data: exposicion,
     loading: exposicionLoading,
-    error: exposicionError,
-  } = useExposicionRuta(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+  } = useExposicionRuta(cueRuta, hazardOn && cueRuta !== null)
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
@@ -1375,10 +1283,6 @@ export default function MapInfraestructuraPage(props: {
     () => (exposicion?.cueAnexo === cueRuta ? construirCeldasExposicion(exposicion) : null),
     [exposicion, cueRuta],
   )
-
-  // Nombre de la escuela seleccionada para el título de la leyenda (null si
-  // la selección no está en el padrón cargado).
-  const seleccionRutaNombre = cueRuta ? (escuelasPorCue.get(cueRuta)?.nombre ?? null) : null
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1417,7 +1321,7 @@ export default function MapInfraestructuraPage(props: {
     // que Radar).
     ...(hazardOn && capasAccesosVisibles.aislamiento ? [CAPA_AISLAMIENTO_ID] : []),
     ...(hazardOn && capasAccesosVisibles.inundacion ? [CAPA_INUNDACION_ID] : []),
-    ...(hazardOn && capasAccesosVisibles.rutaSeleccion ? [CAPA_CRUCES_ACCESO_ID] : []),
+    ...(hazardOn && rutaGeojson !== null ? [CAPA_CRUCES_ACCESO_ID] : []),
   ]
 
   // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
@@ -1562,7 +1466,7 @@ export default function MapInfraestructuraPage(props: {
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
   // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
   // ficha, exista o no afectación vigente para ese cueAnexo.
-  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapa) => {
+  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
     // Sin coordenadas no hay punto al que volar ni anillo que resaltar, pero
     // la ficha sigue teniendo sentido (dato propio, aunque no se pueda
     // situar en el mapa). Antes el handler salía acá y el usuario no veía
@@ -1578,7 +1482,6 @@ export default function MapInfraestructuraPage(props: {
       // La ruta OSM se calcula por red vial, no por la coordenada del padrón:
       // si existe, se puede encuadrar igual.
       encuadreRutaPendiente.current = escuela.cueAnexo
-      setLeftStackAbierto(false)
       setControlsStackAbierto(false)
       return
     }
@@ -1592,12 +1495,6 @@ export default function MapInfraestructuraPage(props: {
     // (ver más abajo). Con la capa de ruta apagada no hay nada que encuadrar
     // y el flyTo a la escuela es la respuesta correcta.
     encuadreRutaPendiente.current = escuela.cueAnexo
-    // En <= 720px el buscador vive dentro del cajón `.map-left-stack`, que se
-    // abre como overlay fijo z-index 20 por encima de la ficha (z-index 4).
-    // Sin cerrarlo, elegir una escuela desde el buscador tapaba la ficha recién
-    // abierta y parecía que la selección se había deshecho sola. El mismo
-    // razonamiento para el cajón de base/capas.
-    setLeftStackAbierto(false)
     setControlsStackAbierto(false)
   }, [])
 
@@ -1610,8 +1507,7 @@ export default function MapInfraestructuraPage(props: {
   // escuela vuela a zoom 14 sobre ella, así que sin esto una ruta de 30 km
   // queda como un trazo vertical de un píxel. El ref se limpia siempre que
   // la geometría corresponde a la escuela pendiente: si viene
-  // `{ disponible: false }` no hay bbox que encuadrar y el encuadre queda
-  // para el botón explícito de la leyenda, no para el próximo render.
+  // `{ disponible: false }` no hay bbox que encuadrar.
   useEffect(() => {
     if (encuadreRutaPendiente.current !== cueRuta) return
     if (geometria === null || geometria.cueAnexo !== cueRuta) return
@@ -1619,10 +1515,10 @@ export default function MapInfraestructuraPage(props: {
     const bbox = bboxRuta(rutaGeojson)
     if (bbox === null) return
     mapRef.current?.getMap()?.fitBounds(bbox, {
-      padding: paddingEncuadre(fichaAbierta),
+      padding: paddingEncuadre(),
       duration: 700,
     })
-  }, [geometria, rutaGeojson, cueRuta, fichaAbierta])
+  }, [geometria, rutaGeojson, cueRuta])
 
   // T1.1c: lee del mapa (querySourceFeatures) qué features de
   // `infra-partes-src` están actualmente DESAGRUPADAS y guarda sus cueAnexo.
@@ -1674,10 +1570,6 @@ export default function MapInfraestructuraPage(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
 
-  function alternarCapa(capa: CapaInfraestructura, value: boolean) {
-    setCapasVisibles((prev) => ({ ...prev, [capa]: value }))
-  }
-
   function alternarCapaRadar(capa: CapaRadar, value: boolean) {
     setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
   }
@@ -1688,50 +1580,7 @@ export default function MapInfraestructuraPage(props: {
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
-  // descuenta la columna izquierda y la ficha para que la escuela quede
-  // visible, no tapada.
-  function encuadrarRuta() {
-    const bbox = bboxRuta(rutaGeojson)
-    if (bbox === null) return
-    mapRef.current?.getMap()?.fitBounds(bbox, {
-      padding: paddingEncuadre(fichaAbierta),
-      duration: 600,
-    })
-  }
-
-  // "Ver recorrido" de la ficha territorial: deja la ruta a la vista. En
-  // pantallas angostas la ficha es una hoja inferior que la tapa entera, así
-  // que se cierra conservando la selección (el grupo flotante de
-  // `.map-seleccion-acciones` queda para volver a abrirla).
-  function handleVerRutaEnMapa() {
-    if (seleccionCue === null) return
-    // `matchMedia` es la forma de saber si la ficha es panel lateral o hoja
-    // inferior (mismo breakpoint que globals.css); si el entorno no lo expone
-    // (o no lo soporta) se cae al ancho, que decide lo mismo.
-    const angosto =
-      typeof window.matchMedia === 'function'
-        ? window.matchMedia('(max-width: 1080px)').matches
-        : window.innerWidth <= 1080
-
-    if (!capasAccesosVisibles.rutaSeleccion) {
-      // Con la capa apagada no hay ruta dibujada ni geometría pedida: se
-      // enciende y se deja anotado el cue, y el encuadre ocurre solo cuando
-      // la geometría llegue (con la ficha ya cerrada, para no taparla).
-      setCapasAccesosVisibles((prev) => ({ ...prev, rutaSeleccion: true }))
-      encuadreRutaPendiente.current = seleccionCue
-    } else {
-      const bbox = bboxRuta(rutaGeojson)
-      if (bbox !== null) {
-        mapRef.current?.getMap()?.fitBounds(bbox, {
-          padding: paddingEncuadre(window.innerWidth > 1080),
-          duration: 600,
-        })
-      }
-    }
-
-    if (angosto) setFichaCerradaCue(seleccionCue)
-  }
-
+  // descuenta la columna izquierda, donde también vive la ficha.
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -1740,67 +1589,8 @@ export default function MapInfraestructuraPage(props: {
 
   const panelActual = dataVisible ? (
     <>
-      {/*
-        Aviso del buscador (no error): una escuela del padrón sin
-        coordenadas se puede consultar igual, pero no se puede señalar en
-        el mapa. Va pegado al buscador, que es donde se la eligió, para que
-        el "no pasó nada" del vuelo al punto tenga una explicación a la
-        vista. `role="status"` (no alert): es informativo y no interrumpe.
-      */}
-      {avisoBusqueda && (
-        <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
-          {avisoBusqueda}
-        </p>
-      )}
-
-      {/*
-        Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
-        su propio dominio. Aparece sólo con el flag territorial prendido y
-        siempre que corresponda; sin bloques visibles el componente no renderiza
-        nada.
-
-        Va inmediatamente debajo del buscador, y no al final del panel como
-        estaba: ahí quedaba empujada debajo de "Indicadores consolidados" y
-        el usuario nunca la veía sin scrollear. Explica las capas
-        territoriales (aislamiento, inundación, cruces) justo donde se
-        elige la escuela a la que se aplican, y es también el bloque que
-        cambia con la selección — tiene que estar a la vista cuando eso
-        pasa.
-      */}
-      {hazardOn && (
-        <LeyendaAccesos
-          visibles={capasAccesosVisibles}
-          territorio={territorio}
-          territorioLoading={territorioLoading}
-          territorioError={territorioError}
-          resumen={resumenCobertura}
-          seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
-          geometria={geometria}
-          celdasExposicion={celdasExposicion}
-          geometriaLoading={geometriaLoading}
-          geometriaError={geometriaError}
-          onEncuadrarRuta={encuadrarRuta}
-        />
-      )}
-
       {!modoRadar && (
         <>
-          {(() => {
-            if (!dataEscuelasMapaVisible) return null
-            const totales = calcularTotalesEscuelasFiltradas(dataEscuelasMapaVisible.escuelas)
-            return (
-              <p
-                className={styles.hint}
-                data-testid="infra-totales-indicador"
-                title="Afectadas sobre las escuelas del padrón con ubicación en el mapa. Puede diferir de los indicadores consolidados, que cuentan también los partes sin coordenadas."
-              >
-                <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                <strong>{totales.escuelasAfectadas}</strong> afectadas ·{' '}
-                {totales.porcentajeAfectadas}%
-              </p>
-            )
-          })()}
-          <Indicadores indicadores={dataVisible.indicadores} loading={loading} />
           {departamentoSeleccionado && (
             <div className={`${styles.panel} map-departamento-seleccionado`}>
               <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
@@ -1812,17 +1602,24 @@ export default function MapInfraestructuraPage(props: {
               }}>Quitar filtro</button>
             </div>
           )}
-          <ListaAlertas
-            partes={dataVisible.partes}
+          <PanelSituacionActual
+            escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
+            actualizadoEn={actualizadoEn}
+            onSeleccionar={(cueAnexo) => {
+              const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
+              if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+            }}
           />
         </>
       )}
-      <InfraLegendPanel
-        departamentosSinMatch={departamentosSinMatch}
-        mostrarLeyendaPeligro={false}
-        mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
-        hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
-      />
+      {(props.pestana !== 'actual' || radarActivo) && (
+        <InfraLegendPanel
+          departamentosSinMatch={departamentosSinMatch}
+          mostrarLeyendaPeligro={false}
+          mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
+          hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
+        />
+      )}
     </>
   ) : null
 
@@ -1878,12 +1675,7 @@ export default function MapInfraestructuraPage(props: {
           }}
         >
           <NavigationControl position="top-left" showCompass={!radarActivo} />
-          {/* UX móvil (390px): el default de MapLibre ancla la atribución abajo
-              como franja de ancho variable y tapaba los controles flotantes
-              (`.map-left-stack-toggle` y `.map-fullscreen-btn`, ambos a
-              `bottom: 25px`). En modo `compact` colapsa a un ícono chico en la
-              esquina inferior derecha; el refuerzo CSS del media query de
-              720px sube los botones para que el ícono no los pise. */}
+          {/* La atribución compacta deja libre la esquina inferior derecha del mapa. */}
           <AttributionControl key={radarActivo ? 'radar-attribution' : 'map-attribution'} position={radarActivo ? 'top-right' : 'bottom-right'} compact />
 
           <Source id="infra-mascara-src" type="geojson" data={MASCARA_URL}>
@@ -2008,6 +1800,7 @@ export default function MapInfraestructuraPage(props: {
                 // está sin reportar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
                 sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
+                gravedad: ['max', ['get', 'gravedad']],
                 // En el cluster `esEvacuado` se agrega como 0/1 con max() —
                 // el cluster vale 1 si AL MENOS UNO de sus puntos es un
                 // establecimiento evacuado/centro de evacuados (semántica
@@ -2031,28 +1824,22 @@ export default function MapInfraestructuraPage(props: {
                 altas: ['+', ['case', ['==', ['get', 'severidad'], 'Alta'], 1, 0]],
               }}
             >
-              {/*
-                V2: el estado ya no se codifica con anillos/halos apilados. A
-                nivel escuela individual lo dice el badge DOM (icono Lucide,
-                ver `badgesEstado`); a nivel cluster, un símbolo en la esquina
-                (ver las capas symbol de abajo). Por eso acá ya no hay capas
-                `circle` de "sin reportar" ni de "evacuado".
-              */}
+              {/* Las escuelas sin reporte usan un punto neutro menor. */}
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
-                filter={filtroPuntosPartes(capasVisibles.escuelas)}
+                filter={['!', ['has', 'point_count']]}
                 paint={{
-                  ...circlePaintPartes(),
-                  'circle-opacity': (['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 0, puntosVisibles ? 0.9 : 0]) as unknown as number,
+                  ...circlePaintPartes(mode === 'dark'),
+                  'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], puntosVisibles ? 1 : 0, puntosVisibles ? 0.9 : 0],
                   'circle-opacity-transition': { duration: 180, delay: 0 },
                 }}
               />
               {/*
                 Q13a: ícono de escuela individual sobre el círculo de
-                severidad (que se conserva debajo). Mismo filtro que
-                CAPA_PARTES_ID para que acompañe el toggle del padrón, y el
+                severidad (que se conserva debajo). El filtro de esta capa
+                limita los íconos a las escuelas afectadas, y el
                 mismo gate de imágenes registradas que las capas symbol de
                 cluster. `icon-allow-overlap` para que no desaparezcan al
                 estar juntas. Q13b: esta capa también es interactiva (ver
@@ -2061,22 +1848,17 @@ export default function MapInfraestructuraPage(props: {
 
                 Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
                 SÓLO en esta capa; el SVG base compartido queda igual para no
-                agrandar de rebote los íconos Tent/DoorOpen de cluster. La
-                variante normal es la misma en ambos temas (R2: se sacó el
-                filtro CSS de modo oscuro, ya no hace falta compensar colores
-                de entrada; ver comentario en globals.css). Las de severidad
-                también son las mismas en ambos temas.
+                agrandar de rebote los íconos Tent/DoorOpen de cluster. Las
+                variantes de severidad son las mismas en ambos temas.
               */}
               {iconosClusterListos && (
                 <Layer
                   id={CAPA_PARTES_ESCUELA_ICONO_ID}
                   type="symbol"
-                  filter={filtroPuntosPartes(capasVisibles.escuelas)}
+                  filter={filtroIconoEscuelaAfectada()}
                   layout={{
                     'icon-image': [
                       'case',
-                      ['!=', ['get', 'estado'], 'afectada'],
-                      ID_IMAGEN_ESCUELA_NORMAL,
                       ['==', ['get', 'severidad'], 'Crítica'], ID_IMAGEN_ESCUELA_CRITICA,
                       ['==', ['get', 'severidad'], 'Alta'], ID_IMAGEN_ESCUELA_ALTA,
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
@@ -2093,49 +1875,32 @@ export default function MapInfraestructuraPage(props: {
                   }}
                 />
               )}
-              {/*
-                Clusters (T1.1b): el color ya no es un gris neutro fijo — los
-                clusters pintan del color de la severidad MÁS ALTA presente
-                entre las escuelas agrupadas, leída del agregado
-                `severidadRango` de clusterProperties (max). Promediar las
-                severidades inventaría un color que no está en la escala y
-                ocultaría el peor caso, que es lo que importa en una
-                emergencia. El tamaño del círculo sube por tramos con el
-                conteo (más escuelas agrupadas = círculo más grande).
-              */}
+              {/* Los clusters afectados usan la severidad más alta; los que
+                  sólo tienen escuelas sin reporte son neutros y más chicos. */}
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
-                filter={filtroClusterPartes(capasVisibles.escuelas)}
+                filter={['has', 'point_count']}
                 paint={{
-                  'circle-color': colorPorSeveridadRango(),
-                  'circle-radius': expresionRadioCluster(),
+                  ...circlePaintCluster(mode === 'dark'),
                   'circle-opacity': puntosVisibles ? 1 : 0,
                   'circle-opacity-transition': { duration: 180, delay: 0 },
-                  'circle-stroke-color': '#1c1c1c',
-                  'circle-stroke-width': 1,
                 }}
               />
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
                 layout={{
-                  'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']],
+                  'text-field': expresionConteoCluster(),
                   'text-size': 12,
                   'text-font': ['Noto Sans Regular'],
                   'text-allow-overlap': false,
                   visibility: radarActivo ? 'none' : 'visible',
                 }}
-                filter={filtroClusterPartes(capasVisibles.escuelas)}
+                filter={['has', 'point_count']}
                 paint={{
-                  // Contraste del conteo: sobre los fondos claros de la escala
-                  // tonal (Baja#fecaca/Media#f87171) un trazo blanco se pierde,
-                  // así que se usa texto oscuro; sobre Alta/Crítica el fondo es
-                  // oscuro y se conserva el blanco. El umbral sale del orden
-                  // real de SEVERIDADES (Baja 0, Media 1, Alta 2, Crítica 3):
-                  // rango <= 1 => fondo claro => texto oscuro.
-                  'text-color': ['case', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff'],
+                  'text-color': colorTextoCluster(mode === 'dark'),
                   'text-opacity': puntosVisibles ? 1 : 0,
                   'text-opacity-transition': { duration: 180, delay: 0 },
                 }}
@@ -2149,7 +1914,7 @@ export default function MapInfraestructuraPage(props: {
                 tapar el número del conteo. Sólo se montan cuando las imágenes
                 SVG ya quedaron registradas (ver `registrarIconosCluster`).
               */}
-              {iconosClusterListos && capasVisibles.evacuacion && (
+              {iconosClusterListos && (
                 <Layer
                   id={CAPA_CLUSTER_CENTRO_EVACUADOS_ID}
                   type="symbol"
@@ -2157,7 +1922,7 @@ export default function MapInfraestructuraPage(props: {
                   layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS)}
                 />
               )}
-              {iconosClusterListos && capasVisibles.evacuacion && (
+              {iconosClusterListos && (
                 <Layer
                   id={CAPA_CLUSTER_EVACUADO_ID}
                   type="symbol"
@@ -2348,55 +2113,7 @@ export default function MapInfraestructuraPage(props: {
         </MapGL>
       </div>
 
-      {/*
-        F3.2: la ficha pasó de Popup de MapLibre (flotante, atado al punto,
-        se cerraba solo con closeOnClick) a un modal de verdad. `open` deriva
-        de la selección Y de si el usuario la cerró (ver `fichaCerradaCue`),
-        así que seguir clickeando otro punto mientras el modal está abierto lo
-        mantiene abierto con el nuevo cue (la `key` adentro de
-        FichaParteModal fuerza el remontaje del contenido).
-
-        Cerrar la ficha ya NO borra la selección: la ruta, el resaltado del
-        punto y la leyenda de acceso sobreviven, y el grupo
-        `.map-seleccion-acciones` ofrece "Ver ficha" / "Quitar selección".
-      */}
-      <FichaParteModal
-        cueAnexo={seleccionCue ?? ''}
-        open={fichaAbierta && !modoRadar}
-        onOpenChange={(next) => {
-          if (!next) {
-            setFichaCerradaCue(seleccionCue)
-            // El popup de departamento vive en el mapa, no en la ficha: al
-            // cerrar la ficha se limpia para no quedar descolgado.
-            setDepartamentoInfoClic(null)
-          }
-        }}
-        parteResumen={parteSeleccionado}
-        escuela={escuelaSeleccionada}
-        mostrarEnlaceNominal={props.mostrarEnlaceNominal}
-        onVerAlumnosAlcanzados={setNominalAfectacionId}
-        onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
-        habilitado={props.hazardContextEnabled ?? false}
-        // Sección territorial de la ficha: sólo con el flag prendido. Sin `accesoTerritorial` la ficha queda exactamente como
-        // estaba.
-        accesoTerritorial={
-          hazardOn
-            ? {
-                territorio,
-                territorioLoading,
-                territorioError,
-                cueAnexo: seleccionCue ?? '',
-                geometria,
-                geometriaLoading,
-                geometriaError,
-                exposicion,
-                exposicionLoading,
-                exposicionError,
-                onVerRutaEnMapa: handleVerRutaEnMapa,
-              }
-            : undefined
-        }
-      />
+      {!radarActivo && props.pestana === 'actual' && <LeyendaMapa pestana="actual" />}
 
       <AlcanceNominalModal
         afectacionId={nominalAfectacionId}
@@ -2408,26 +2125,49 @@ export default function MapInfraestructuraPage(props: {
         onOpenChange={(open) => !open && setHistorialCue(null)}
       />
 
-      {/*
-        Los tres paneles de la izquierda van en un contenedor propio y no
-        sueltos. Cada uno traía su propio `position: absolute` con el mismo
-        offset heredado del mapa de matrícula, que muestra un panel por
-        esquina; acá son tres y terminaban apilados uno encima del otro,
-        tapándose entre sí y tapando el control de zoom. El anclaje ahora vive
-        en .map-left-stack y los paneles vuelven al flujo normal.
-      */}
       {dataVisible && (
         <div
           className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
           id="infra-left-stack"
-          data-open={leftStackAbierto ? 'true' : 'false'}
         >
+          {!modoRadar && avisoBusqueda && (
+            <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
+              {avisoBusqueda}
+            </p>
+          )}
+          {hazardOn && (
+            <LeyendaAccesos
+              visibles={capasAccesosVisibles}
+              territorio={territorio}
+              territorioLoading={territorioLoading}
+              territorioError={territorioError}
+              resumen={resumenCobertura}
+            />
+          )}
           <PanelLateral
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
-            seleccion={modoRadar ? cueRadarSeleccionado : seleccionCue}
+            seleccion={modoRadar ? cueRadarSeleccionado : fichaAbierta ? seleccionCue : null}
             onCerrarFicha={modoRadar
               ? () => setCueRadarSeleccionado(null)
-              : () => setFichaCerradaCue(seleccionCue)}
+              : cerrarFicha}
+            ficha={!modoRadar && fichaAbierta && escuelaSeleccionada ? (
+              <FichaEscuelaPanel
+                key={seleccionCue}
+                escuela={escuelaSeleccionada}
+                acceso={(
+                  <BloqueAcceso
+                    geometria={hazardOn ? geometria : null}
+                    exposicion={hazardOn ? exposicion : null}
+                    cargando={hazardOn && (geometriaLoading || exposicionLoading)}
+                    error={Boolean(geometriaError)}
+                  />
+                )}
+                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+                onVerAlumnosAlcanzados={setNominalAfectacionId}
+                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+                onCerrar={cerrarFicha}
+              />
+            ) : undefined}
             actual={panelActual}
             radar={(
               // La Task 16 reemplaza este contenido por el panel real; hasta entonces no ocupa espacio.
@@ -2437,24 +2177,6 @@ export default function MapInfraestructuraPage(props: {
           />
         </div>
       )}
-
-      <Button
-        variant="secondary"
-        size="sm"
-        className={styles.leftStackToggle}
-        style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() =>
-          setLeftStackAbierto((abierto) => {
-            const proximo = !abierto
-            if (proximo) setControlsStackAbierto(false)
-            return proximo
-          })
-        }
-        aria-expanded={leftStackAbierto}
-        aria-controls="infra-left-stack"
-      >
-        {leftStackAbierto ? 'Cerrar' : departamentoSeleccionado ?? 'Buscar escuelas'}
-      </Button>
 
       <div
         className={styles.controlsStack}
@@ -2472,7 +2194,6 @@ export default function MapInfraestructuraPage(props: {
             setIconosClusterListos(false)
           }}
         />
-        <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
         {hazardOn && (
           <AccesosLayerControl capas={capasAccesosVisibles} onChange={alternarCapaAccesos} />
         )}
@@ -2486,13 +2207,7 @@ export default function MapInfraestructuraPage(props: {
         size="sm"
         className={styles.controlsStackToggle}
         style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() =>
-          setControlsStackAbierto((abierto) => {
-            const proximo = !abierto
-            if (proximo) setLeftStackAbierto(false)
-            return proximo
-          })
-        }
+        onClick={() => setControlsStackAbierto((abierto) => !abierto)}
         aria-expanded={controlsStackAbierto}
         aria-controls="infra-controls-stack"
       >

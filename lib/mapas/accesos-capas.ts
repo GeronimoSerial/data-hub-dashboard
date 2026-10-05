@@ -256,15 +256,22 @@ const PATH_CRUCE_PUENTE =
   '<path d="M5 15v5" />' +
   '<path d="M19 15v5" />'
 
+// Olas (Waves): trazos copiados de `waves-horizontal.mjs` de lucide-react v1.34.0.
 const PATH_CRUCE_VADO =
   '<path d="M2 12q2.5 2 5 0t5 0 5 0 5 0" />' +
   '<path d="M2 19q2.5 2 5 0t5 0 5 0 5 0" />' +
   '<path d="M2 5q2.5 2 5 0t5 0 5 0 5 0" />'
 
+// Ayuda (CircleHelp): trazos copiados de `circle-question-mark.mjs` de lucide-react v1.34.0.
+// Se omite el círculo de Lucide para evitar un anillo doble; el badge ya aporta el contorno.
 const PATH_CRUCE_SIN_EVIDENCIA =
-  '<circle cx="12" cy="12" r="10" />' +
   '<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />' +
   '<path d="M12 17h.01" />'
+
+// Colores de los tokens semánticos de `app/globals.css` para el tema claro.
+const COLOR_CRUCE_PUENTE = '#356f23' // --ok
+const COLOR_CRUCE_VADO = '#b45f04' // --warn
+const COLOR_CRUCE_SIN_EVIDENCIA = '#5f5e5c' // --ink-soft
 
 export const SVG_ICONO_AISLAMIENTO_0 = construirSvgIcono(
   PATH_AISLAMIENTO,
@@ -309,13 +316,23 @@ export const SVG_ICONO_INUNDACION_ALTA = construirSvgIcono(
   '#ffffff',
 )
 
-export const SVG_ICONO_CRUCE_PUENTE = construirSvgIcono(PATH_CRUCE_PUENTE, '#ffffff', '#1c1c1c')
-export const SVG_ICONO_CRUCE_VADO = construirSvgIcono(PATH_CRUCE_VADO, '#fde68a', '#1c1c1c')
+export const SVG_ICONO_CRUCE_PUENTE = construirSvgIcono(
+  PATH_CRUCE_PUENTE,
+  '#ffffff',
+  COLOR_CRUCE_PUENTE,
+  COLOR_CRUCE_PUENTE,
+)
+export const SVG_ICONO_CRUCE_VADO = construirSvgIcono(
+  PATH_CRUCE_VADO,
+  '#ffffff',
+  COLOR_CRUCE_VADO,
+  COLOR_CRUCE_VADO,
+)
 export const SVG_ICONO_CRUCE_SIN_EVIDENCIA = construirSvgIcono(
   PATH_CRUCE_SIN_EVIDENCIA,
   '#ffffff',
-  '#6b7280',
-  '#9ca3af',
+  COLOR_CRUCE_SIN_EVIDENCIA,
+  COLOR_CRUCE_SIN_EVIDENCIA,
 )
 
 export const ICONOS_ACCESOS_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
