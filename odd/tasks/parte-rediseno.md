@@ -19,8 +19,9 @@
 - [x] B2 — Tasks 3–10 (modelo de datos) — T3 235e597 … T10 ec2c112; merged into feat/staging 41ee369; worktree removed
 - [x] B3 — Tasks 11–19 (wizard iniciar reporte) — T11 69bbde1 … T19 5690f13; merged a699cb7 (import conflict in reporte-inicial-form.test.tsx resolved by union); worktree removed
 - [x] B4 — Tasks 20–26 (recorrido actualizar) — T20 b016c47 … T26 73516de, d97f31c, 9a22d2d, f895110; merged 523e136; worktree removed
-- [ ] Visual review of B1–B5 (Claude in Chrome MCP; aesthetics, copy, behavior) — running, dispatch ctx_ddbdd0d90f05
-- [ ] Fix flaky test `recorrido-actualizacion-envio.test.tsx` ("el aviso del service worker…": asserts the SW callback before the effect registers it; wrap in waitFor) + visual findings
+- [x] Visual review of B1–B5 — done (report: 2 blockers, 9 important, 12 minor)
+- [x] Polish H2–H23 + flaky test — merged 9a0f971 (12 commits)
+- [ ] Final blind re-review — running
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
@@ -43,3 +44,4 @@ Run: run_479eb18644a4. B2 dispatch ctx_ec96e6ff1294.
 - HOTFIX (found by the visual review): the parte send never reached the server in real browsers. `opciones.fetchImpl(...)` called fetch with this=opciones, which throws Illegal invocation, and the error was treated as offline. Present since 8353c19 (2026-09-27) and in origin/main. Fix 7d37476 with a this-checking regression test (RED, then GREEN); merged cba6e1b; tsc clean, parte+components vitest 436 passed, lint 0 errors. A hotfix to main is pending the user.
 - Visual review B1–B5 done (Playwright headless + Read of every screenshot, because Claude in Chrome and chrome-devtools MCP fail when the Chrome window is covered). 2 blockers (fetch, already fixed; internal section ids in the history), 9 important, 12 minor. The user's known findings (student list, chips) were reported as H5/H6, but the reviewer had read the private file, so the blind test is inconclusive. Criteria reinforced (lists/options/chips) and sent to the other session's terminal as agreed.
 - Polish N2 (H2–H23 + flaky test) running: dispatch ctx_f4cac2624413, worktree parte-pulido. Then a final blind re-review.
+- Polish merged 9a0f971: N1 checked the after-screenshots (grouped section list with custom controls; chips in a regular 3-up grid; date and time stacked). Gate on the integration: tsc clean; vitest 2572 passed, 1 failed (pre-existing radar-meteo; the flaky test is fixed); lint 0 errors; build 0.
