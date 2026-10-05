@@ -241,10 +241,17 @@ describe('RecorridoActualizacion: envío', () => {
     expect(screen.getByRole('button', { name: 'Volver' })).toBeEnabled()
   })
 
-  it('un 401 conserva el recorrido e indica que la sesión venció', async () => {
-    const fetchMock = stub(async () => respuesta({ error: 'unauthorized' }, 401)); montar(); await enviar()
-    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+  it('un 401 muestra el aviso de sesión vencida y permite reintentar manualmente', async () => {
+    let n = 0
+    const fetchMock = stub(async () => ++n === 1 ? respuesta({ error: 'unauthorized' }, 401) : respuesta())
+    montar(); await enviar()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(screen.getByText(/Inundación/)).toBeInTheDocument(); expect(posteos(fetchMock)).toHaveLength(1)
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    await screen.findByText(guardado)
+    expect(posteos(fetchMock)).toHaveLength(2)
   })
 
   it('un 5xx muestra error de servidor y reintenta con la misma clave', async () => {

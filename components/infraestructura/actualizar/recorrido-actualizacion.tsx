@@ -213,7 +213,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [guardado, setGuardado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
-  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
@@ -298,7 +298,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor' || borrador.estado === 'sesion-vencida') setEstadoAvisoEnvio(borrador.estado)
+        else if (borrador.estado !== 'enviando') setEstadoAvisoEnvio(null)
         if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
@@ -321,7 +322,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       const cola = await leerColaEnvio<PayloadActualizacion>(await almacen(), 'actualizacion', cue)
       if (!cancelado && cola) {
         setEstadoEnvio(cola.estado)
-        if (cola.estado === 'pendiente-envio' || cola.estado === 'error-servidor') setEstadoAvisoEnvio(cola.estado)
+        if (cola.estado === 'pendiente-envio' || cola.estado === 'error-servidor' || cola.estado === 'sesion-vencida') setEstadoAvisoEnvio(cola.estado)
         setMotivoEnvio(cola.motivoError ?? null)
         setIntentosEnvio(cola.intentos)
         if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
@@ -338,7 +339,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => {
     reintentarRef.current = (deliberado = false) => {
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
-      if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && errorEnReintento))) return
+      const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
+      if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
       void (async () => {
         const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
         if (resultado?.ok) alEnviarConExito()
@@ -670,7 +672,7 @@ function ResumenEnvio({
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
   estadoEnvio: EstadoEnvio | null
-  estadoAvisoEnvio: 'pendiente-envio' | 'error-servidor' | null
+  estadoAvisoEnvio: 'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null
   motivoEnvio: string | null
   onRetry: () => void
   error: string | null
@@ -735,7 +737,7 @@ function ResumenEnvio({
       ) : null}
       </fieldset>
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando'
           ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio

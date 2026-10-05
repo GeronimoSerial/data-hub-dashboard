@@ -222,7 +222,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
-  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
@@ -309,7 +309,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       const colaPendiente = await leerColaEnvio(await almacen(), 'nuevo', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
-      if (colaPendiente.estado === 'pendiente-envio' || colaPendiente.estado === 'error-servidor') setEstadoAvisoEnvio(colaPendiente.estado)
+      if (colaPendiente.estado === 'pendiente-envio' || colaPendiente.estado === 'error-servidor' || colaPendiente.estado === 'sesion-vencida') setEstadoAvisoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
       setIntentosEnvio(colaPendiente.intentos)
     })()
@@ -442,7 +442,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor' || borrador.estado === 'sesion-vencida') setEstadoAvisoEnvio(borrador.estado)
+        else if (borrador.estado !== 'enviando') setEstadoAvisoEnvio(null)
         if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
@@ -472,7 +473,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     reintentarRef.current = (deliberado = false) => {
       if (guardado) return
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
-      if (!esEstadoReintentable(estadoEnvio) && !(deliberado && errorEnReintento)) return
+      const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
+      if (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento))) return
       void (async () => {
         const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
         if (resultado?.ok) {
@@ -830,7 +832,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       )}
 
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando'
           ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current(true)} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio

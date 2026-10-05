@@ -11,7 +11,7 @@ export function EstadoEnvioAviso({
   mensaje,
   disabled = false,
 }: {
-  estado: 'pendiente-envio' | 'error-servidor'
+  estado: 'pendiente-envio' | 'error-servidor' | 'sesion-vencida'
   onRetry?: () => void
   mensaje?: string
   disabled?: boolean

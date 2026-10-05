@@ -783,14 +783,23 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
   })
 
-  it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
-    stubFetch({}, 401)
+  it('una sesión vencida (401) muestra una alerta y permite reintentar manualmente', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({}, 401))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
     guardarReporte()
 
-    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    expect(await screen.findByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 
