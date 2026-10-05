@@ -34,7 +34,7 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - [ ] B3 — Tasks 10–15 (situación actual)
 - [ ] B4 — Tasks 16–19 (radar y planificación)
 - [ ] B5 — Tasks 20–22 (estadísticas)
-- [ ] B6 — Tasks 23–26 (ruta de acceso, geo-static)
+- [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
 - [ ] T27 — vía principal en la UI
 - [ ] Visual review per batch (N1)
 
@@ -46,7 +46,8 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - B6 T23 data source (N1 decision, reversible): municipal population from Censo 2022 (Prov. Corrientes open data, CC BY 4.0) as proxy for the 2,000-inhabitant urban threshold; coordinates from Georef; 7 explicit name equivalences, 4 small municipios without a Georef locality excluded and listed in the README.
 - B1: T1 be0a61d, T2 b8386d3. B6: T23 e802c71, T24 23bef81.
 - Loop: cron a1b8266c every 10 min.
+- B6 review (N1): full diff read (cost weighting, multi-source Dijkstra over the whole province, via_principal by metres, VERSION_JOB 3); `uv run pytest -q` 143 passed on the branch and after merge. No visual review needed (backend only). Pending outside B6: the full job was not run (remote/heavy, needs user authorization); when the v3 output exists, update GEOMETRIA_DEFAULT in calcular_exposicion_ruta.py.
 
 ## Next step
 
-Wave 1 running (B1 on T3, B6 on T25). On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
+Wave 1: B6 merged; B1 running. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
