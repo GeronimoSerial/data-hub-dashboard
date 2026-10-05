@@ -130,6 +130,7 @@ docs/ejecucion-enos/G1/registro.md.
 from __future__ import annotations
 
 import math
+import re
 from typing import Optional
 
 UMBRAL_SNAP_SIN_CONEXION_M = 5000.0
@@ -183,6 +184,70 @@ def _longitud_ruta(grafo, ruta) -> float:
         elegida = min(datos, key=lambda d: d.get("costo", d.get("length", math.inf)))
         longitud += float(elegida.get("length", 0.0))
     return longitud
+
+
+def _arista_de_menor_costo(grafo, u, v):
+    """Devuelve la paralela que representa el tramo elegido por el ruteo."""
+    aristas = (grafo.get_edge_data(u, v) or {}).values()
+    datos = list(aristas)
+    if not datos:
+        return None
+    return min(datos, key=lambda d: d.get("costo", d.get("length", math.inf)))
+
+
+def _nombre_via(datos_arista: dict):
+    """Resuelve el nombre vial a partir de ref y después name."""
+    ref = _primer_valor(datos_arista.get("ref"))
+    if ref is not None:
+        ref = str(ref).split(";", 1)[0].strip()
+        if not ref:
+            return _primer_valor(datos_arista.get("name"))
+        coincidencia = re.fullmatch(r"(RP|RN)[\s.-]*(\d+)", ref, flags=re.IGNORECASE)
+        if coincidencia:
+            prefijo, numero = coincidencia.groups()
+            clase = "Provincial" if prefijo.upper() == "RP" else "Nacional"
+            return f"Ruta {clase} {numero}"
+        return ref
+    return _primer_valor(datos_arista.get("name"))
+
+
+def calcular_via_principal(grafo, ruta_nodos) -> Optional[dict]:
+    """Devuelve la vía con más metros entre los tramos reales de una ruta.
+
+    Cuenta la arista paralela de menor costo (o menor length en grafos sin
+    costo), igual que `_longitud_ruta` y Dijkstra. En rutas snapeadas a una
+    arista se omite el tramo parcial desde el punto de snap hasta el extremo:
+    la métrica considera solamente los tramos completos representados por
+    `ruta_nodos`.
+    """
+    if len(ruta_nodos) < 2:
+        return None
+
+    metros_por_via = {}
+    for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
+        datos = _arista_de_menor_costo(grafo, u, v)
+        if datos is None:
+            continue
+        nombre = _nombre_via(datos)
+        tipo = _primer_valor(datos.get("highway"))
+        clave = (nombre, tipo)
+        agregado = metros_por_via.setdefault(clave, {"metros": 0.0, "pavimentada": True})
+        agregado["metros"] += float(datos.get("length", 0.0))
+        agregado["pavimentada"] = agregado["pavimentada"] and not _es_tramo_sin_pavimentar(datos)
+
+    if not metros_por_via:
+        return None
+    (nombre, tipo), agregado = min(
+        metros_por_via.items(),
+        key=lambda item: (
+            -item[1]["metros"],
+            item[0][0] is None,
+            item[0][0] or "",
+            item[0][1] is None,
+            str(item[0][1] or ""),
+        ),
+    )
+    return {"nombre": nombre, "tipo": tipo, "pavimentada": agregado["pavimentada"]}
 
 
 def buscar_destinos_mas_cercanos(
@@ -309,7 +374,7 @@ def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
     """Coordenadas [lon, lat] de la geometria REALMENTE usada por la ruta.
 
     Para cada par consecutivo (u, v) elige, entre las aristas paralelas
-    `grafo.get_edge_data(u, v)`, la de menor `length` (la que uso Dijkstra) y
+    `grafo.get_edge_data(u, v)`, la de menor `costo` (la que usa Dijkstra) y
     toma su geometria real via `_geometria_arista` (atributo `geometry` si
     existe; si no, las coordenadas de los dos nodos OSM, que son nodos reales
     de la via, no una recta inventada). Orienta cada tramo para que empiece en
@@ -321,11 +386,10 @@ def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
 
     coords: list[list[float]] = []
     for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
-        datos_aristas = grafo.get_edge_data(u, v) or {}
-        if not datos_aristas:
+        datos = _arista_de_menor_costo(grafo, u, v)
+        if datos is None:
             continue
-        k_min = min(datos_aristas, key=lambda k: datos_aristas[k].get("length", math.inf))
-        geometria = _geometria_arista(datos_aristas[k_min], grafo, u, v)
+        geometria = _geometria_arista(datos, grafo, u, v)
         puntos = [(p[0], p[1]) for p in geometria.coords]
 
         ux, uy = grafo.nodes[u]["x"], grafo.nodes[u]["y"]
@@ -1141,7 +1205,7 @@ def _evaluar_escuela_arista(
     resultado = _resultado_vacio()
     geometria = {
         "ruta": None, "cruces": [], "motivo_sin_geometria": None,
-        "destino": None, "distancia_destino_m": None,
+        "destino": None, "distancia_destino_m": None, "via_principal": None,
     }
     resultado["snap_distancia_m"] = snap["distancia_m"]
 
@@ -1304,6 +1368,7 @@ def _evaluar_escuela_arista(
         geometria["motivo_sin_geometria"] = "ruta_degenerada"
     else:
         geometria["ruta"] = {"type": "LineString", "coordinates": coordenadas}
+    geometria["via_principal"] = calcular_via_principal(grafo, ruta_desde_exit)
     geometria["cruces"] = cruces_export
     return resultado, geometria
 
@@ -1627,6 +1692,7 @@ def calcular_metricas_departamento(
                         "ruta": None, "cruces": [],
                         "motivo_sin_geometria": "sin_conexion_red",
                         "destino": None, "distancia_destino_m": None,
+                        "via_principal": None,
                     }
                 )
             continue
@@ -1640,6 +1706,7 @@ def calcular_metricas_departamento(
                         "ruta": None, "cruces": [],
                         "motivo_sin_geometria": "sin_conexion_red",
                         "destino": None, "distancia_destino_m": None,
+                        "via_principal": None,
                     }
                 )
             continue
@@ -1716,6 +1783,7 @@ def calcular_metricas_departamento(
                     "motivo_sin_geometria": motivo_geom,
                     "destino": resultado["destino"],
                     "distancia_destino_m": resultado["distancia_destino_m"],
+                    "via_principal": calcular_via_principal(grafo, ruta_cabecera),
                 }
             )
 
@@ -1779,7 +1847,7 @@ def _calcular_metricas_departamento_por_arista(
             if geometrias_out is not None:
                 geometrias_out.append(
                     {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red",
-                     "destino": None, "distancia_destino_m": None}
+                     "destino": None, "distancia_destino_m": None, "via_principal": None}
                 )
             continue
 

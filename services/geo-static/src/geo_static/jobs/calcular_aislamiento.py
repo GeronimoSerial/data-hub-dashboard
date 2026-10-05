@@ -54,7 +54,8 @@ from geo_static.localidades import cargar_localidades_urbanas
 # v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
 # departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
 # coordenada, snap a arista, motivos verificables de sin-ruta, nodos ford.
-VERSION_JOB = "2"
+# v3 = via principal por metros en ruta y geometria alineada con el costo.
+VERSION_JOB = "3"
 LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 
 # bbox aproximado de la provincia de Corrientes, Argentina (norte, sur, este, oeste).
@@ -184,7 +185,10 @@ def _fila_sin_datos(
     return fila
 
 
-def _registro_geometria(cue_anexo, fecha_extracto, ruta, cruces, motivo):
+def _registro_geometria(
+    cue_anexo, fecha_extracto, ruta, cruces, motivo,
+    via_principal=None, destino=None, distancia_destino_m=None,
+):
     return {
         "cue_anexo": cue_anexo,
         "version_job": VERSION_JOB,
@@ -193,6 +197,9 @@ def _registro_geometria(cue_anexo, fecha_extracto, ruta, cruces, motivo):
         "ruta": ruta,
         "cruces": cruces,
         "motivo_sin_geometria": motivo,
+        "via_principal": via_principal,
+        "destino": destino,
+        "distancia_destino_m": distancia_destino_m,
     }
 
 
@@ -530,6 +537,9 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                         _registro_geometria(
                             escuela["cueAnexo"], fecha_extracto, geometria["ruta"],
                             geometria["cruces"], geometria["motivo_sin_geometria"],
+                            via_principal=geometria["via_principal"],
+                            destino=geometria["destino"],
+                            distancia_destino_m=geometria["distancia_destino_m"],
                         )
                     )
             except Exception as exc:
