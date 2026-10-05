@@ -22,7 +22,7 @@ import {
 import { LeyendaRadar } from './leyenda'
 import { LineaTiempoRadar } from './linea-tiempo'
 import { PopupRadar } from './popup'
-import { SelectorRadar, type VariableRadarUI } from './selector'
+import type { VariableRadarUI } from './selector'
 import { AlertasStrip, type AlertaRadar } from './alertas-strip'
 import { EscuelaForecastCard } from './escuela-card'
 import { antesDelRaster } from './capas'
@@ -256,8 +256,7 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuelas?: EscuelaMapa[] }) {
-  const [variable, setVariable] = useState<VariableRadarUI>('lluvia')
+export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolean; variable: VariableRadarUI; escuelas?: EscuelaMapa[] }) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<1 | 2 | 4>(1)
@@ -683,11 +682,11 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
         </Source>
       )}
 
-      <SelectorRadar value={variable} onChange={setVariable}>
+      {(loading || error) && <div className="radar-meteo-estado">
         {loading && <div className="radar-meteo-loading" role="status">Cargando pronóstico…</div>}
         {loading && <div className="radar-meteo-skeleton" aria-hidden="true" />}
         {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}
-      </SelectorRadar>
+      </div>}
 
       {debug && (
         <output className="radar-meteo-debug-readout" data-frame-matches={debugFrameMatches}>

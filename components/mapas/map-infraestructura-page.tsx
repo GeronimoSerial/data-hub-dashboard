@@ -81,6 +81,7 @@ import {
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
+import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
@@ -693,6 +694,7 @@ export default function MapInfraestructuraPage(props: {
   // El horizonte de la pestaña se guarda como valor del motor; 72 h es la
   // opción inicial cuando todavía no hay evidencia disponible.
   const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteMotor>(72)
+  const [variableRadar, setVariableRadar] = useState<VariableRadarUI>('lluvia')
   const [capasRadarVisibles, setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
 
   // El hook SIEMPRE se llama (regla de hooks), pero sólo dispara request con
@@ -1746,7 +1748,7 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          <RadarMeteo activo={radarActivo} escuelas={dataEscuelasMapa?.escuelas ?? []} />
+          <RadarMeteo activo={radarActivo} variable={variableRadar} escuelas={dataEscuelasMapa?.escuelas ?? []} />
 
           {/*
             Popup del departamento clickeado: mismo contenido y estilo que el
@@ -1906,6 +1908,8 @@ export default function MapInfraestructuraPage(props: {
                 horizonte={horizonteEfectivo}
                 disponibles={horizontesDisponibles}
                 onHorizonte={setHorizonteSeleccionado}
+                variable={variableRadar}
+                onVariable={setVariableRadar}
                 puntos={radarData?.puntos ?? null}
                 escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
                 cargando={radarLoading && radarData === null}

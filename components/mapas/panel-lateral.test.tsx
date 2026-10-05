@@ -28,6 +28,8 @@ describe('PanelLateral', () => {
       horizonte={72}
       disponibles={[]}
       onHorizonte={() => {}}
+      variable="lluvia"
+      onVariable={() => {}}
       puntos={null}
       escuelas={[]}
       cargando={false}

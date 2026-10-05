@@ -2,6 +2,7 @@
 
 import type { JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
+import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
   colorRiesgo,
@@ -17,6 +18,8 @@ export interface PanelRadarProps {
   horizonte: HorizonteMotor
   disponibles: HorizonteMotor[]
   onHorizonte: (horizonte: HorizonteMotor) => void
+  variable: VariableRadarUI
+  onVariable: (variable: VariableRadarUI) => void
   /** Puntos del radar (todo el universo). null mientras no llegaron. */
   puntos: ReadonlyArray<{ cueAnexo: string; horizonteHoras: number; nivelRiesgo: string | null }> | null
   /** Escuelas del padrón con los filtros compartidos ya aplicados. */
@@ -30,7 +33,7 @@ const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
-  const { horizonte, disponibles, onHorizonte, puntos, escuelas, cargando, error, onSeleccionar } = props
+  const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar } = props
   const opciones = HORIZONTES.map((valor) => ({
     valor,
     etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor],
@@ -54,6 +57,13 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         opciones={opciones}
         valor={horizonte}
         onChange={onHorizonte}
+      />
+
+      <Segmentado
+        etiqueta="Variable meteorológica"
+        opciones={VARIABLES_RADAR_UI.map((valor) => ({ valor, etiqueta: ETIQUETAS_VARIABLE_RADAR[valor] }))}
+        valor={variable}
+        onChange={onVariable}
       />
 
       {cargando ? (
