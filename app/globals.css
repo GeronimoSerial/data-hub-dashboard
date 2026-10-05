@@ -2004,15 +2004,8 @@ time {
   gap: var(--s-2);
 }
 .map-panel-radar {
-  display: grid;
-  gap: var(--s-2);
-  padding: var(--s-3);
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
+  display: none;
 }
-.map-panel-radar h2 { margin: 0; }
 .radar-meteo-controls { top:16px; left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
 .radar-meteo-segments { display:flex; gap:3px; }
 .radar-meteo-mobile-variable { display:none; }
