@@ -13,6 +13,11 @@ export interface ConfirmSheetProps {
   confirmarDeshabilitado?: boolean
   onConfirmar: () => void
   onCancelar: () => void
+  /**
+   * Cierre por Escape, fondo o la X. Por defecto equivale a cancelar; se
+   * separa cuando el botón de cancelar es una acción propia (p. ej. Descartar).
+   */
+  onCerrar?: () => void
 }
 
 // Confirmación pensada para el celular (spec rediseño §3.1): sale desde abajo,
@@ -27,12 +32,13 @@ export function ConfirmSheet({
   confirmarDeshabilitado = false,
   onConfirmar,
   onCancelar,
+  onCerrar = onCancelar,
 }: ConfirmSheetProps): JSX.Element {
   return (
     <SheetRoot
       open={open}
       onOpenChange={(abierto) => {
-        if (!abierto) onCancelar()
+        if (!abierto) onCerrar()
       }}
     >
       <SheetContent side="bottom" className="confirm-sheet">

@@ -364,6 +364,16 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     return programarReintento(intentosEnvio, () => reintentarRef.current())
   }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
+  function retomarBorrador(): void {
+    if (!borradorPendiente) return
+    generacionRef.current = borradorPendiente.generacion
+    setEtapa(borradorPendiente.etapa)
+    setRecorrido(borradorPendiente.recorrido)
+    setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
+    setInteraccionIniciada(true)
+    setBorradorPendiente(null)
+  }
+
   async function enviar(): Promise<void> {
     if (enviando || enviandoRef.current) return
     if (asistenciaPedagogica.brinda === '') {
@@ -451,22 +461,17 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
       <p className="asistente__titulo asistente__titulo--paso" aria-hidden="true">Actualizar</p>
-      {borradorPendiente ? (
-        <aside className="aviso-retoma actualizacion-borrador" aria-label="Parte sin enviar">
-          <p>Tiene un parte sin enviar.</p>
-          <div className="actualizacion-borrador__acciones">
-            <Button type="button" variant="secondary" onClick={() => {
-              generacionRef.current = borradorPendiente.generacion
-              setEtapa(borradorPendiente.etapa)
-              setRecorrido(borradorPendiente.recorrido)
-              setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
-              setInteraccionIniciada(true)
-              setBorradorPendiente(null)
-            }}>Continuar donde lo dejé</Button>
-            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
-          </div>
-        </aside>
-      ) : null}
+      <ConfirmSheet
+        open={borradorPendiente !== null && !confirmarDescarte}
+        titulo="Tiene un parte sin enviar."
+        confirmarLabel="Continuar donde lo dejé"
+        cancelarLabel="Descartar"
+        onConfirmar={retomarBorrador}
+        onCancelar={() => setConfirmarDescarte(true)}
+        onCerrar={retomarBorrador}
+      >
+        <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
+      </ConfirmSheet>
       {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
