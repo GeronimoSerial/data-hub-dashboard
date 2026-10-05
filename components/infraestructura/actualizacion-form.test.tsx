@@ -423,9 +423,9 @@ describe('ActualizacionForm — lo vigente se afirma, no se vuelve a preguntar',
     // Antes se leía "Estado actual: X" y debajo radios TODOS vacíos, que se
     // ve como un formulario sin completar.
     expect(screen.getByText('Funcionamiento escolar normal')).toBeInTheDocument()
-    expect(screen.getByText('Funcionamiento habitual')).toBeInTheDocument()
+    expect(screen.getByText('Sin daños / en uso normal')).toBeInTheDocument()
     expect(screen.queryByRole('radio', { name: 'Funcionamiento escolar interrumpido' })).toBeNull()
-    expect(screen.queryByRole('radio', { name: 'Establecimiento evacuado' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: 'Evacuado' })).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Cambiar' }).length).toBeGreaterThanOrEqual(2)
   })
 

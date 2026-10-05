@@ -12,10 +12,8 @@ import {
 } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
-import {
-  ETIQUETA_ESTABLECIMIENTO,
-  ETIQUETA_SERVICIO,
-} from '@/components/infraestructura/estado-actual-textos'
+import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
+import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
@@ -74,7 +72,7 @@ const MENSAJE_FALTA_ALCANCE_AFECTACION =
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
 
-const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', '¿Cómo sigue el servicio?', 'Confirmar'] as const
+const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', 'Confirmar'] as const
 
 type Paso = 1 | 2 | 3 | 4
 
@@ -302,10 +300,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const indicePaso = pasos.indexOf(paso)
 
   // Evacuating while only some sections are marked needs an explicit
-  // confirmation; marking every section already means the whole school.
+  // confirmation; the sheet updates the declared scope before continuing.
   const evacuaEstablecimiento = estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados'
-  const marcaTodasLasSecciones = afectacion.alcanceEstablecimiento === 'toda'
-  const requiereConfirmarInterrupcion = evacuaEstablecimiento && !marcaTodasLasSecciones
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
@@ -356,7 +352,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
           ? undefined
           : { estado: estadoEstablecimiento },
-      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && marcaTodasLasSecciones),
+      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && afectacion.alcanceEstablecimiento === 'toda'),
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
@@ -508,11 +504,9 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return null
     }
     if (actual === 3) {
+      if (servicioEstado === '') return 'Indique si hay clases.'
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
       if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if (requiereConfirmarInterrupcion && !confirmarInterrupcionTotal) {
-        return 'Confirme que se interrumpe todo el establecimiento para continuar.'
-      }
       if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
       return null
     }
@@ -674,55 +668,23 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
 
         {paso === 3 && (
           <>
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo funciona la escuela?</legend>
-              <div className="afectacion-campos__opciones">
-                {(['normal', 'suspendido'] as const).map((estado) => (
-                  <label key={estado} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="servicio-educativo"
-                      value={estado}
-                      checked={servicioEstado === estado}
-                      onChange={() => setServicioEstado(estado)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{ETIQUETA_SERVICIO[estado]}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
-              <div className="afectacion-campos__opciones">
-                {Object.entries(ETIQUETA_ESTABLECIMIENTO).map(([valor, etiqueta]) => (
-                  <label key={valor} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="estado-establecimiento"
-                      value={valor}
-                      checked={estadoEstablecimiento === valor}
-                      onChange={() => setEstadoEstablecimiento(valor as EstadoEstablecimiento)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{etiqueta}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {requiereConfirmarInterrupcion && (
-              <div className="afectacion-campos__grupo" role="note">
-                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
-                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
-              </div>
-            )}
+            <CamposClasesEdificio
+              valor={{ servicioEstado, estadoEstablecimiento }}
+              onCambiar={(x) => {
+                setServicioEstado(x.servicioEstado)
+                setEstadoEstablecimiento(x.estadoEstablecimiento)
+              }}
+              alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
+              onInterrumpirTodaLaEscuela={() => {
+                setAfectacion((a) => ({
+                  ...a,
+                  alcanceEstablecimiento: 'toda',
+                  secciones: aplanarSecciones(turnos).map((s) => s.geSectionId),
+                }))
+                setConfirmarInterrupcionTotal(true)
+              }}
+              disabled={enviando}
+            />
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>

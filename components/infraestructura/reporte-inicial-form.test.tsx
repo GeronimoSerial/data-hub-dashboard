@@ -50,7 +50,8 @@ function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'estab
 
 /** Paso 3: cómo está el edificio (obligatorio). */
 function completarEstadoEstablecimiento() {
-  fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento habitual' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sí, con normalidad' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Sin daños / en uso normal' }))
 }
 
 /** Deja el asistente en el paso 4, listo para guardar. */
@@ -85,17 +86,17 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
-  it('advierte y exige confirmar la interrupción total al declarar secciones y evacuación', () => {
+  it('confirma pasar a toda la escuela al declarar secciones y evacuación', () => {
     renderFormulario()
     completarQuePaso()
     continuar()
     completarAQuienAfecta()
     continuar()
-    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
-    expect(screen.getByText(/solo algunas secciones.*interrupción de toda la escuela/i)).toBeVisible()
-    continuar()
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeVisible()
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Confirmo que se interrumpe todo el establecimiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    const dialogo = screen.getByRole('dialog')
+    expect(within(dialogo).getByText(/interrumpe toda la escuela/)).toBeVisible()
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Sí, toda la escuela' }))
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeVisible()
     continuar()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeVisible()
   })
@@ -107,8 +108,8 @@ describe('ReporteInicialForm', () => {
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     continuar()
-    fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
-    expect(screen.queryByText(/solo algunas secciones/i)).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'Evacuado' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
   it('incluye asistencia pedagógica y modalidad en el cuerpo del reporte', async () => {
@@ -260,7 +261,7 @@ describe('ReporteInicialForm', () => {
     completarAQuienAfecta()
     continuar()
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Funcionamiento escolar interrumpido' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
     expect(screen.queryByText('¿Dónde se interrumpió el funcionamiento?')).toBeNull()
     continuar()
     expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
@@ -277,13 +278,16 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarAQuienAfecta()
     continuar()
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
     continuar()
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
-    expect(screen.getByRole('heading', { name: '¿Cómo sigue el servicio?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique si hay clases.')
+    expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
+    continuar()
+    expect(screen.getByRole('alert')).toHaveTextContent('Indique cómo está el edificio.')
     completarEstadoEstablecimiento()
     continuar()
 
@@ -304,7 +308,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByText('Paso 3 de 3')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
     expect(screen.queryByText('¿Cómo está el edificio?')).toBeNull()
-    expect(screen.queryByText('Funcionamiento escolar interrumpido')).toBeNull()
+    expect(screen.queryByText('No, se suspendieron')).toBeNull()
   })
 
   it('al recomendar cambiar a establecimiento vuelve al paso 1 para elegir el motivo', () => {

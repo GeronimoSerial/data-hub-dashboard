@@ -176,7 +176,7 @@ describe('FichaParteModal', () => {
     renderFicha()
 
     expect(await screen.findByText(/clases suspendidas/i)).toBeInTheDocument()
-    expect(screen.getByText(/establecimiento evacuado/i)).toBeInTheDocument()
+    expect(screen.getByText(/^evacuado$/i)).toBeInTheDocument()
     expect(screen.getByText('Inundación')).toBeInTheDocument()
     expect(await screen.findByText(/3 secciones · 74 alumnos/)).toBeInTheDocument()
   })

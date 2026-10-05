@@ -128,9 +128,9 @@ describe('vocabulary', () => {
   })
 
   it('names the establishment states as spec §3.5 does', () => {
-    expect(ETIQUETA_ESTABLECIMIENTO.habitual).toBe('Funcionamiento habitual')
-    expect(ETIQUETA_ESTABLECIMIENTO.parcial).toBe('Funcionamiento parcial')
-    expect(ETIQUETA_ESTABLECIMIENTO.evacuado).toBe('Establecimiento evacuado')
-    expect(ETIQUETA_ESTABLECIMIENTO.centro_evacuados).toBe('Utilizado como centro de evacuados')
+    expect(ETIQUETA_ESTABLECIMIENTO.habitual).toBe('Sin daños / en uso normal')
+    expect(ETIQUETA_ESTABLECIMIENTO.parcial).toBe('Uso parcial')
+    expect(ETIQUETA_ESTABLECIMIENTO.evacuado).toBe('Evacuado')
+    expect(ETIQUETA_ESTABLECIMIENTO.centro_evacuados).toBe('Usado como centro de evacuados')
   })
 })
