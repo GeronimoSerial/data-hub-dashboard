@@ -193,21 +193,22 @@
 .map-sitact__titulo-seccion { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: 0; color: var(--ink-soft); font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
 .map-sitact__atenuado { color: var(--ink-faint); font-family: var(--font-body); font-size: var(--t-micro); font-weight: 400; letter-spacing: normal; text-transform: none; }
 .map-sitact__lista { display: grid; border-top: 1px solid var(--line); }
-.map-sitact__fila { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1) var(--s-3) 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; }
+.map-sitact__fila { display: grid; grid-template-columns: 4px minmax(0, 1fr); align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1) var(--s-3) 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; }
 .map-sitact__fila:hover { background: var(--fill); }
 .map-sitact__franja { align-self: stretch; border-radius: var(--r-xs); }
 .map-sitact__contenido-fila { display: grid; min-width: 0; gap: var(--s-1); }
 .map-sitact__nombre { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; font-size: var(--t-small); font-weight: 600; }
-.map-sitact__meta { color: var(--ink-faint); font-size: var(--t-micro); }
-.map-sitact__chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
-.map-sitact__pill { display: inline-flex; align-items: center; gap: var(--s-1); padding: 1px var(--s-2); border-radius: var(--r-pill); font-size: var(--t-micro); font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
-.map-sitact__pill svg { width: 12px; height: 12px; }
+.map-sitact__meta-fila { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.map-sitact__meta { min-width: 0; color: var(--ink-faint); font-size: var(--t-micro); overflow-wrap: anywhere; }
+.map-sitact__chips { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-start; gap: var(--s-1); }
+.map-sitact__pill { display: inline-flex; max-width: 100%; min-width: 0; align-items: center; gap: var(--s-1); padding: 2px var(--s-2); border-radius: var(--r-md); font-size: var(--t-micro); font-weight: 600; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
+.map-sitact__pill svg { flex: 0 0 auto; width: 12px; height: 12px; }
 .map-sitact__pill--clases { color: var(--danger-ink); background: var(--danger-tint); }
 .map-sitact__pill--apoyo { color: var(--ok); background: var(--ok-tint); }
 .map-sitact__pill--aviso { color: var(--warn); background: var(--warn-tint); }
 .map-sitact__pill--neutro { color: var(--ink-soft); background: var(--band); }
 .map-sitact__pill--ok { color: var(--ok); background: var(--ok-tint); }
-.map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: normal; overflow-wrap: anywhere; }
+.map-sitact__cuando { flex-shrink: 0; align-self: flex-start; color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
 .map-est { display: grid; width: 100%; min-width: 0; margin: 0; gap: var(--s-5); align-content: start; }

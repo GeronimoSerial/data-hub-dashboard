@@ -117,6 +117,38 @@ describe('PanelSituacionActual', () => {
     expect(reglaNombre).toContain('line-clamp: 2')
   })
 
+  it('ubica la fecha junto a la meta y envuelve los chips largos con el nombre más extenso', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(ahora)
+    const nombre = 'ESCUELA Nº 276 "SERAFIN IBAÑEZ" - ANEXO DE PARAJE EL CARMEN'
+    const escuela = {
+      ...escuelas[0], nombre, cueAnexo: '18000276-00', departamento: 'Goya', niveles: ['Primario'],
+      clases: 'parcial' as const, apoyo: 'sin_dato' as const, sinActualizar: true,
+      ultimaNovedad: '2026-10-04T15:00:00.000Z',
+    }
+    const { container } = render(<PanelSituacionActual escuelas={[escuela]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
+    const fila = screen.getByRole('button', { name: `${nombre}, Goya · Primario` })
+    const contenido = fila.querySelector('.map-sitact__contenido-fila')
+    const metaFila = fila.querySelector('.map-sitact__meta-fila')
+    const chips = fila.querySelector('.map-sitact__chips')
+    const cuando = fila.querySelector('.map-sitact__cuando')
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaPill = css.match(/\.map-sitact__pill\s*\{[^}]*\}/)?.[0]
+    const reglaCuando = css.match(/\.map-sitact__cuando\s*\{[^}]*\}/)?.[0]
+
+    expect(fila).toHaveAttribute('aria-label', `${nombre}, Goya · Primario`)
+    expect(metaFila?.parentElement).toBe(contenido)
+    expect(metaFila?.nextElementSibling).toBe(chips)
+    expect(metaFila?.querySelector('.map-sitact__meta')).toHaveTextContent('Goya · Primario')
+    expect(metaFila?.querySelector('.map-sitact__cuando')).toHaveTextContent('hace 1 d')
+    expect(cuando?.closest('.map-sitact__contenido-fila')).toBe(contenido)
+    expect(container.querySelector('.map-sitact__pill--clases')).toHaveTextContent('Funcionamiento parcialmente interrumpido')
+    expect(container.querySelector('.map-sitact__pill--neutro')).toHaveTextContent('Asistencia pedagógica sin dato')
+    expect(container.querySelectorAll('.map-sitact__pill--neutro')[1]).toHaveTextContent('Sin actualizar')
+    expect(reglaPill).toContain('white-space: normal')
+    expect(reglaPill).not.toContain('white-space: nowrap')
+    expect(reglaCuando).toMatch(/flex-shrink:\s*0/)
+  })
+
   it('muestra el vacío y omite la proporción cuando no hay escuelas sin clases', () => {
     render(<PanelSituacionActual escuelas={[escuelas[3]]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
 

@@ -148,10 +148,12 @@ export function PanelSituacionActual({ escuelas, onSeleccionar }: PanelSituacion
                   />
                   <span className="map-sitact__contenido-fila">
                     <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
-                    <span className="map-sitact__meta">{departamento}{nivel}</span>
+                    <span className="map-sitact__meta-fila">
+                      <span className="map-sitact__meta">{departamento}{nivel}</span>
+                      {novedad && <span className="map-sitact__cuando">{novedad}</span>}
+                    </span>
                     {chipsEscuela(escuela)}
                   </span>
-                  {novedad && <span className="map-sitact__cuando">{novedad}</span>}
                 </button>
               )
             })}

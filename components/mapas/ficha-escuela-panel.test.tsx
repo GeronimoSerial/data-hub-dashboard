@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
@@ -252,6 +253,14 @@ describe('FichaEscuelaPanel', () => {
     expect(chip).toBeDefined()
     expect(chip).toHaveClass('map-sitact__pill--neutro')
     expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('Asistencia pedagógica sin dato')
+  })
+
+  it('usa chips compartidos que permiten envolver el texto en dos líneas', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaPill = css.match(/\.map-sitact__pill\s*\{[^}]*\}/)?.[0]
+
+    expect(reglaPill).toContain('white-space: normal')
+    expect(reglaPill).not.toContain('white-space: nowrap')
   })
 
   it('muestra Sin situaciones abiertas y el CTA de carga cuando la gravedad es cero', () => {
