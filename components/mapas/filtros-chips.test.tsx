@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FiltrosChips } from './filtros-chips'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -179,7 +179,8 @@ describe('FiltrosChips', () => {
     const user = userEvent.setup()
     render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={vi.fn()} />)
     await user.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin coincidencias')
-    expect(screen.getByText('Ninguna escuela coincide')).toBeInTheDocument()
+    const sugerencias = screen.getByRole('listbox', { name: 'Escuelas coincidentes' })
+    expect(within(sugerencias).getByRole('status')).toHaveTextContent('Ninguna escuela coincide')
     expect(screen.queryByRole('option')).not.toBeInTheDocument()
   })
 

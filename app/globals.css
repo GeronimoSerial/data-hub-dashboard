@@ -4297,7 +4297,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .filtros-barra {
   position: relative;
-  z-index: 1;
+  /* Abre sugerencias sobre el mapa, pero queda bajo el header. */
+  z-index: calc(var(--z-header) - 1);
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -4345,8 +4346,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   padding: var(--s-1);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  background: var(--card);
-  box-shadow: var(--e-modal);
+  background: var(--page);
+  box-shadow: var(--e-float);
 }
 .filtros-sugerencias__opcion {
   display: flex;
