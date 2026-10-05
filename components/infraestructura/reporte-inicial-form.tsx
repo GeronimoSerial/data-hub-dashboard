@@ -10,7 +10,7 @@ import {
   totalAlumnosDe,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
-import { VigenciaField } from '@/components/infraestructura/vigencia-field'
+import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import {
   ETIQUETA_ESTABLECIMIENTO,
   ETIQUETA_SERVICIO,
@@ -22,6 +22,14 @@ import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import {
+  etiquetaVigencia,
+  esEleccionVigencia,
+  resolverVigencia,
+  VIGENCIA_AHORA,
+  type EleccionVigencia,
+} from '@/lib/infraestructura/vigencia-eleccion'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA } from '@/lib/infraestructura/vigencia-rango'
 import {
   colapsarHistorial,
   crearBorradorStore,
@@ -88,6 +96,7 @@ interface BorradorParteNuevo {
   asistenciaBrinda: '' | 'si' | 'no'
   modalidadesAsistencia: string[]
   rigeDesde: string
+  vigencia?: EleccionVigencia
   // Vestigial (ver esBorradorParteNuevo): sólo se lee por compatibilidad con
   // borradores viejos, ya no se escribe.
   idempotencyKey?: string
@@ -99,6 +108,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   if (typeof b.generacion !== 'string' || typeof b.rigeDesde !== 'string') {
     return false
   }
+  if (b.vigencia !== undefined && !esEleccionVigencia(b.vigencia)) return false
   // `idempotencyKey` fue un campo vestigial del borrador de este asistente
   // (nunca lo usaba el POST: la idempotencyKey real la decide el motor de
   // envío por tipo+cue, ver lib/infraestructura/parte/envio-offline.ts). Ya
@@ -182,7 +192,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [confirmarInterrupcionTotal, setConfirmarInterrupcionTotal] = useState(false)
   const [asistenciaBrinda, setAsistenciaBrinda] = useState<'' | 'si' | 'no'>('')
   const [modalidadesAsistencia, setModalidadesAsistencia] = useState<string[]>([])
-  const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
+  const [vigencia, setVigencia] = useState<EleccionVigencia>(VIGENCIA_AHORA)
+  const [errorVigencia, setErrorVigencia] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
@@ -230,7 +241,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       setEstadoEstablecimiento(borrador.estadoEstablecimiento)
       setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
       setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
-      setRigeDesde(borrador.rigeDesde)
+      setVigencia(borrador.vigencia ?? VIGENCIA_AHORA)
       sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
     })()
     return () => {
@@ -299,6 +310,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setEnviando(true)
     setError(null)
     setMotivoEnvio(null)
+
+    const rigeDesde = resolverVigencia(vigencia)
+    if (rigeDesde === null) {
+      enviandoRef.current = false
+      setEnviando(false)
+      setError(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      return
+    }
 
     const datosEnvio = {
       cue,
@@ -429,7 +449,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       estadoEstablecimiento,
       asistenciaBrinda,
       modalidadesAsistencia,
-      rigeDesde,
+      rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
+      vigencia,
     })
   }, [
     claveBorrador,
@@ -439,7 +460,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     estadoEstablecimiento,
     asistenciaBrinda,
     modalidadesAsistencia,
-    rigeDesde,
+    vigencia,
   ])
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
@@ -453,7 +474,11 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
-      return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.categoria === 'alumnos' && vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) {
+        return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+      }
+      return null
     }
     if (actual === 3) {
       if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
@@ -461,6 +486,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       if (requiereConfirmarInterrupcion && !confirmarInterrupcionTotal) {
         return 'Confirme que se interrumpe todo el establecimiento para continuar.'
       }
+      if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
       return null
     }
     return null
@@ -470,6 +496,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
       setError(faltante)
+      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) setErrorVigencia(MENSAJE_FUERA_DE_RANGO_VIGENCIA)
       return
     }
     setError(null)
@@ -507,7 +534,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
     setServicioEstado('')
     setEstadoEstablecimiento('')
-    setRigeDesde(new Date().toISOString())
+    setVigencia(VIGENCIA_AHORA)
+    setErrorVigencia(null)
     setEnviando(false)
     setError(null)
     setGuardado(null)
@@ -547,7 +575,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             secciones: afectacion.secciones.length,
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
-    rigeDesde,
+    rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
   }).concat(
     asistenciaBrinda === ''
       ? []
@@ -604,7 +632,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             />
             {afectacion.categoria === 'alumnos' && (
               <div className="afectacion-campos__grupo">
-                <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
+                <VigenciaChips
+                  value={vigencia}
+                  onChange={(valor) => { setVigencia(valor); setErrorVigencia(null) }}
+                  label={etiquetaVigencia(afectacion.categoria)}
+                  disabled={enviando}
+                  error={errorVigencia}
+                />
               </div>
             )}
           </>
@@ -679,7 +713,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             </fieldset>
 
             <div className="afectacion-campos__grupo">
-              <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
+              <VigenciaChips
+                value={vigencia}
+                onChange={(valor) => { setVigencia(valor); setErrorVigencia(null) }}
+                label={etiquetaVigencia(afectacion.categoria)}
+                disabled={enviando}
+                error={errorVigencia}
+              />
             </div>
           </>
         )}

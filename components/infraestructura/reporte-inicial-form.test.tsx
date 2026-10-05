@@ -141,6 +141,37 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })
 
+  it('envía rigeDesde resuelto al momento de enviar cuando se deja "Ahora"', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    const fetchMock = stubFetch()
+    renderFormulario()
+    llegarAConfirmar()
+    vi.setSystemTime(new Date('2026-10-04T18:10:00.000Z'))
+    fireEvent.click(screen.getByRole('button', { name: /guardar reporte/i }))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled())
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).rigeDesde).toBe('2026-10-04T18:10:00.000Z')
+    vi.useRealTimers()
+  })
+
+  it('adapta la pregunta de vigencia a la categoría', () => {
+    renderFormulario()
+    fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    continuar()
+    expect(screen.getByText('¿Desde cuándo no pueden llegar?')).toBeInTheDocument()
+
+    cleanup()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    expect(screen.getByText('¿Desde cuándo ocurre?')).toBeInTheDocument()
+  })
+
   // Motivo y severidad ya no son <select>: con 3 a 5 opciones el desplegable
   // cuesta tres gestos y tapa la pantalla.
   it('ofrece motivo y severidad como opciones a la vista, no como desplegables', () => {
