@@ -57,7 +57,7 @@ describe('PanelSituacionActual', () => {
     expect(filas[1]).toHaveTextContent('Sin clases')
     expect(filas[1]).toHaveTextContent('Apoyo virtual')
     expect(filas[1]).toHaveTextContent('Sin actualizar')
-    expect(filas[1]).toHaveTextContent('hace 3 h')
+    expect(filas[1].textContent).toContain('hace 3\u00A0h')
     expect(within(reportes).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
   })
 

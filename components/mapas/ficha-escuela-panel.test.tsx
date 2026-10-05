@@ -69,7 +69,9 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getAllByText('Apoyo virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
-    expect(await screen.findByText('Inaccesibilidad de alumnos · desde hace 3 d')).toBeInTheDocument()
+    expect(await screen.findByText((_, element) =>
+      element?.textContent === 'Inaccesibilidad de alumnos · desde hace 3 d'
+    )).toBeInTheDocument()
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
     expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
     expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
@@ -128,7 +130,9 @@ describe('FichaEscuelaPanel', () => {
     ] })
     renderFicha()
 
-    expect(await screen.findByText('Inaccesibilidad de alumnos · desde hace 3 d')).toBeInTheDocument()
+    expect(await screen.findByText((_, element) =>
+      element?.textContent === 'Inaccesibilidad de alumnos · desde hace 3 d'
+    )).toBeInTheDocument()
   })
 
   it('vuelve a la lista y abre el historial completo', () => {
