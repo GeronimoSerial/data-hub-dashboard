@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EstadoActualParte } from './estado-actual-parte'
 import type { EstadoActualRespuesta } from './estado-actual-textos'
@@ -168,7 +168,7 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     render(<EstadoActualParte cue={CUE} />)
     await screen.findByText('Inundación del establecimiento')
     expect(screen.getAllByRole('link', { name: 'Actualizar el parte' })).toHaveLength(1)
-    expect(screen.getAllByRole('link', { name: 'Ver historial' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Ver historial' })).toHaveLength(1)
     expect(screen.queryByRole('link', { name: /Informar un cambio/ })).toBeNull()
   })
 
@@ -186,10 +186,8 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
       'href',
       `/problematicas/parte/actualizar?cue=${CUE}`,
     )
-    expect(screen.getByRole('link', { name: 'Ver historial' })).toHaveAttribute(
-      'href',
-      `/problematicas/parte/historial?cue=${CUE}`,
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
+    expect(screen.getByRole('dialog', { name: 'Historial' })).toBeInTheDocument()
   })
 
   it('never offers the director a way to close or resolve the situation (spec §18.9)', async () => {

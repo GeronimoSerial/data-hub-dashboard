@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type JSX } from 'react'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
@@ -47,18 +48,16 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
         <Button
           type="button"
           variant="secondary"
-          aria-expanded={historialAbierto}
-          onClick={() => setHistorialAbierto((abierto) => !abierto)}
+          aria-haspopup="dialog"
+          onClick={() => setHistorialAbierto(true)}
         >
-          {historialAbierto ? 'Ocultar historial' : 'Ver historial'}
+          Ver historial
         </Button>
       </div>
 
-      {historialAbierto ? (
-        <section aria-label="Historial" className="entrada-actualizar__historial">
-          <LineaDeTiempo movimientos={historial} limite={2} />
-        </section>
-      ) : null}
+      <BottomSheet open={historialAbierto} titulo="Historial" onCerrar={() => setHistorialAbierto(false)}>
+        <LineaDeTiempo movimientos={historial} />
+      </BottomSheet>
 
       {otras.length > 0 ? (
         <section aria-label="También activas" className="entrada-actualizar__otras">

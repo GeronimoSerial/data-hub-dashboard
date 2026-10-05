@@ -4,6 +4,7 @@ import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
@@ -121,7 +122,7 @@ export function AlgoNuevo({
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
   const [cuandoSolucionada, setCuandoSolucionada] = useState<EleccionVigencia>(VIGENCIA_AHORA)
-  const [cantidadCerradasVisibles, setCantidadCerradasVisibles] = useState(0)
+  const [anterioresAbiertas, setAnterioresAbiertas] = useState(false)
 
   useEffect(() => { onEtapaChange?.(etapa) }, [etapa, onEtapaChange])
 
@@ -129,8 +130,10 @@ export function AlgoNuevo({
   const candidatasActivas = candidatasOrdenadas.filter((candidata) => candidata.activa)
   const candidatasCerradas = candidatasOrdenadas.filter((candidata) => !candidata.activa)
   const cantidadSeccionesEscuela = turnos.reduce((total, turno) => total + turno.niveles.reduce((subtotal, nivel) => subtotal + nivel.secciones.length, 0), 0)
-  const candidatasVisibles = [...candidatasActivas, ...candidatasCerradas.slice(0, cantidadCerradasVisibles)]
-  const causasCerradasRestantes = candidatasCerradas.length - cantidadCerradasVisibles
+  // Las anteriores se eligen en un panel aparte; la elegida queda a la vista
+  // junto a las activas para que la selección no quede escondida.
+  const anteriorElegida = candidatasCerradas.find((candidata) => candidata.id === causadaPorId)
+  const candidatasVisibles = anteriorElegida ? [...candidatasActivas, anteriorElegida] : candidatasActivas
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
   const completaLaGravedad = gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = borrador.secciones.length > 0 &&
@@ -261,29 +264,41 @@ export function AlgoNuevo({
                 )
               })}
             </div>
-            {candidatasCerradas.length > 0 && cantidadCerradasVisibles === 0 ? (
+            {candidatasCerradas.length > 0 ? (
               <Button
                 type="button"
                 variant="ghost"
                 className="algo-nuevo__ver-causas"
-                aria-expanded={false}
-                onClick={() => setCantidadCerradasVisibles(Math.min(5, candidatasCerradas.length))}
+                aria-haspopup="dialog"
+                onClick={() => setAnterioresAbiertas(true)}
               >
                 Ver anteriores ({candidatasCerradas.length})
               </Button>
             ) : null}
-            {cantidadCerradasVisibles > 0 && causasCerradasRestantes > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="algo-nuevo__ver-causas"
-                aria-expanded={true}
-                onClick={() => setCantidadCerradasVisibles((cantidad) => Math.min(cantidad + 5, candidatasCerradas.length))}
-              >
-                Ver más ({causasCerradasRestantes})
-              </Button>
-            ) : null}
           </fieldset>
+          <BottomSheet open={anterioresAbiertas} titulo="Situaciones anteriores" onCerrar={() => setAnterioresAbiertas(false)}>
+            <div className="afectacion-campos__opciones">
+              {candidatasCerradas.map((candidata) => {
+                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela)
+                return (
+                  <Opcion
+                    key={candidata.id}
+                    tipo="radio"
+                    name="causa-anterior"
+                    aria-label={`${candidata.motivo} · ${detalle}`}
+                    checked={causadaPorId === candidata.id}
+                    onChange={() => {
+                      setCausadaPorId(candidata.id)
+                      setAnterioresAbiertas(false)
+                    }}
+                    label={candidata.motivo}
+                    ayuda={<span className="algo-nuevo__causa-estado">{detalle}</span>}
+                    compacta
+                  />
+                )
+              })}
+            </div>
+          </BottomSheet>
           <div className="asistente__acciones">
             <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>Volver</Button>
             <Button type="button" onClick={terminar}>

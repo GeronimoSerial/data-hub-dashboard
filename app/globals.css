@@ -5768,3 +5768,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-size: clamp(1.5rem, 6vw, 1.875rem);
   text-align: center;
 }
+
+/* Panel inferior de consulta: el contenido puede crecer, el botón queda fijo. */
+.bottom-sheet__cuerpo { max-height: 60vh; overflow-y: auto; }
+.bottom-sheet__acciones { grid-template-columns: 1fr; }
+.bottom-sheet__acciones > * { width: 100%; }
+
+/* Motivo y gravedad en una misma fila: el nombre a la izquierda, la pastilla
+   alineada a la derecha y un filete sutil que cierra la fila. */
+.revisar-situacion > h3,
+.entrada-actualizar__motivo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.revisar-situacion > h3 .estado-actual-severidad,
+.entrada-actualizar__motivo .estado-actual-severidad { flex: none; }

@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, type JSX } from 'react'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
+import { HistorialParte } from './historial-parte'
 import { EstadoActualAfectacion } from './estado-actual-afectacion'
 import {
   ETIQUETA_ESTABLECIMIENTO,
@@ -69,6 +71,7 @@ async function obtenerEstado(cue: string): Promise<Estado> {
 export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
+  const [historialAbierto, setHistorialAbierto] = useState(false)
 
   useEffect(() => {
     let vigente = true
@@ -190,16 +193,18 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
               >
                 Actualizar el parte
               </a>
-              <a
-                className="ui-button ui-button--secondary"
-                href={enlaceCon('/problematicas/parte/historial', cue)}
-              >
+              <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setHistorialAbierto(true)}>
                 Ver historial
-              </a>
+              </Button>
             </div>
           )}
         </footer>
       )}
+      <BottomSheet open={historialAbierto} titulo="Historial" onCerrar={() => setHistorialAbierto(false)}>
+        {historialAbierto ? (
+          <HistorialParte cue={cue} endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`} />
+        ) : null}
+      </BottomSheet>
     </div>
   )
 }

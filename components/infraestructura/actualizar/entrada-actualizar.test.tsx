@@ -29,9 +29,15 @@ describe('EntradaActualizar', () => {
     const historial = screen.getByRole('button', { name: 'Ver historial' })
     expect(principal.compareDocumentPosition(actualizar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(actualizar.compareDocumentPosition(historial) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(historial).toHaveAttribute('aria-expanded', 'false')
+    expect(historial).toHaveAttribute('aria-haspopup', 'dialog')
     expect(document.querySelector('.linea-de-tiempo')).not.toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'También activas' })).getByText('Sin energía o agua')).toBeInTheDocument()
+  })
+
+  it('abre el historial en un panel inferior', () => {
+    render(<EntradaActualizar situaciones={situaciones} estadoEstablecimiento="habitual" estadoServicio="normal" ultimaCarga={null} historial={[]} onActualizar={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
+    expect(screen.getByRole('dialog', { name: 'Historial' })).toBeInTheDocument()
   })
 
   it('el botón principal inicia el recorrido', () => {

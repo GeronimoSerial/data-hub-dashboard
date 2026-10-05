@@ -183,13 +183,15 @@ describe('AlgoNuevo', () => {
 
     const grupo = screen.getByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })
     expect(within(grupo).getAllByRole('radio')).toHaveLength(3)
-    expect(screen.getByRole('button', { name: 'Ver anteriores (20)' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Ver anteriores (20)' })).toHaveAttribute('aria-haspopup', 'dialog')
     fireEvent.click(screen.getByRole('button', { name: 'Ver anteriores (20)' }))
-    expect(within(grupo).getAllByRole('radio')).toHaveLength(8)
-    expect(screen.getByRole('button', { name: 'Ver más (15)' })).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Ver más (15)' }))
-    expect(within(grupo).getAllByRole('radio')).toHaveLength(13)
-    expect(screen.getByRole('button', { name: 'Ver más (10)' })).toBeInTheDocument()
+    const panel = screen.getByRole('dialog', { name: 'Situaciones anteriores' })
+    const anteriores = within(panel).getAllByRole('radio')
+    expect(anteriores).toHaveLength(20)
+    fireEvent.click(anteriores[0])
+    expect(screen.queryByRole('dialog', { name: 'Situaciones anteriores' })).not.toBeInTheDocument()
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(4)
+    expect(within(grupo).getAllByRole('radio')[3]).toBeChecked()
   })
 
   it('termina los datos directamente cuando no hay candidatas de causa', () => {
@@ -207,10 +209,10 @@ describe('AlgoNuevo', () => {
 
     const grupo = screen.getByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })
     expect(within(grupo).getAllByRole('radio')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Ver anteriores (1)' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Ver anteriores (1)' })).toHaveAttribute('aria-haspopup', 'dialog')
     fireEvent.click(screen.getByRole('button', { name: 'Ver anteriores (1)' }))
-    expect(within(grupo).getAllByRole('radio')).toHaveLength(2)
-    expect(screen.getByRole('radio', { name: /Tormenta severa · Alta · desde (ayer|4 de octubre) 05:10 · Solucionada/ })).toBeInTheDocument()
+    const panel = screen.getByRole('dialog', { name: 'Situaciones anteriores' })
+    expect(within(panel).getByRole('radio', { name: /Tormenta severa · Alta · desde (ayer|4 de octubre) 05:10 · Solucionada/ })).toBeInTheDocument()
   })
 
   it('permite distinguir el mismo motivo, actualizarlo o marcar cuándo se solucionó', () => {
