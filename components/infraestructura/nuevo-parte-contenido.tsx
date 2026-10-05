@@ -24,7 +24,7 @@ export function NuevoParteContenido({ cue, escuela, turnos, motivos }: {
       <EncabezadoParte
         pantalla={pantalla}
         escuela={escuela}
-        descripcion={guardado ? undefined : 'Informe una situación. Le haremos unas pocas preguntas, de a una por vez.'}
+        pantallaOculta={!guardado}
       />
       <ReporteInicialForm cue={cue} turnos={turnos} motivos={motivos} onGuardadoChange={setGuardado} />
     </>
