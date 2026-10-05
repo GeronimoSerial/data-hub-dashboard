@@ -132,13 +132,12 @@ import {
 } from '@/lib/mapas/departamentos'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
-import { filtrarDepartamentoMapa } from '@/lib/infraestructura/filtrar-departamento-mapa'
-import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
+import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestructura/filtrar-departamento-mapa'
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
-import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import {
@@ -705,6 +704,7 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
 // efecto one-shot viejo no hacía.
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
+  escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
@@ -872,7 +872,7 @@ export default function MapInfraestructuraPage(props: {
     return () => clearTimeout(id)
   }, [data])
 
-  const { data: dataEscuelasMapa } = useEscuelasMapa()
+  const dataEscuelasMapa = props.escuelasMapa
   const { data: dataTotalesMapa } = useTotalesMapa()
   const totalesPorDepartamento = useMemo(() => {
     const mapa = new Map<string, TotalesDepartamento>()
@@ -923,9 +923,17 @@ export default function MapInfraestructuraPage(props: {
     return () => window.removeEventListener('keydown', alPresionarTecla)
   }, [departamentoInfoClic, clusterInfoClic, cruceInfoClic])
 
+  const datosAlertasFiltrados = useMemo(() => {
+    if (!data || !props.escuelasMapa) return data
+    const cuesVisibles = new Set(props.escuelasMapa.escuelas.map((escuela) => escuela.cueAnexo))
+    const partes = data.partes.filter((parte) => cuesVisibles.has(parte.cueAnexo))
+    return { partes, indicadores: indicadoresDePartes(partes, ahoraMs ?? 0) }
+  }, [data, props.escuelasMapa, ahoraMs])
   const dataVisible = useMemo(
-    () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
-    [data, departamentoSeleccionado, ahoraMs],
+    () => datosAlertasFiltrados
+      ? filtrarDepartamentoMapa(datosAlertasFiltrados, departamentoSeleccionado, ahoraMs)
+      : null,
+    [datosAlertasFiltrados, departamentoSeleccionado, ahoraMs],
   )
 
   // Un punto por escuela: la ficha y la lista seleccionan por cueAnexo, no

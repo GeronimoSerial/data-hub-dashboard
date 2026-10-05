@@ -17,7 +17,7 @@ function coincideApoyo(escuela: EscuelaMapaEnriquecida, opcion: FiltrosMapa['apo
   }
 }
 
-export function filtrarEscuelas(escuelas: EscuelaMapaEnriquecida[], f: FiltrosMapa): EscuelaMapaEnriquecida[] {
+export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[], f: FiltrosMapa): T[] {
   const q = normalizar(f.q)
   const qCue = q.replace(/-/g, '')
 

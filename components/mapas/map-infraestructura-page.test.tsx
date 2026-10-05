@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
-import type { EscuelaMapa, EscuelasMapaResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
@@ -107,6 +107,12 @@ vi.mock('@/components/infraestructura/historial-parte-modal', () => ({
     ) : null,
 }))
 
+vi.mock('@/components/infraestructura/lista-alertas', () => ({
+  ListaAlertas: (props: { partes: ParteMapa[] }): JSX.Element => (
+    <div data-testid="mock-lista-alertas" data-cues={props.partes.map((parte) => parte.cueAnexo).join(',')} />
+  ),
+}))
+
 vi.mock('@/lib/map-worker', () => ({ ensureMapWorker: () => {} }))
 
 // Objeto ESTABLE (misma identidad en cada llamada al hook): el componente
@@ -143,7 +149,7 @@ vi.mock('@/lib/infraestructura/use-alertas', () => ({
 // TIPO real del contrato, no con el que se deduce del literal: `lat`/`lon`
 // admiten `null` (escuela del padrón sin geolocalizar) y eso es justo lo que
 // necesita el test del aviso del buscador.
-const FIXTURE_ESCUELAS_MAPA: EscuelasMapaResultado = {
+const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
   escuelas: [
     {
       cueAnexo: CUE,
@@ -154,6 +160,15 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaResultado = {
       lon: -58.83,
       estado: 'afectada' as const,
       parte: PARTE,
+      niveles: ['Primario'],
+      alumnos: 74,
+      gravedad: 3,
+      categoriaPrincipal: 'establecimiento',
+      clases: 'evacuado',
+      apoyo: null,
+      sinActualizar: false,
+      ultimaNovedad: PARTE.actualizadaEn,
+      alumnosSinClases: 74,
     },
     {
       cueAnexo: CUE_SIN_AFECTACION,
@@ -163,6 +178,15 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaResultado = {
       lat: -27.5,
       lon: -58.8,
       estado: 'sin_afectacion_reportada' as const,
+      niveles: ['Secundario'],
+      alumnos: 20,
+      gravedad: 0,
+      categoriaPrincipal: null,
+      clases: 'normal',
+      apoyo: null,
+      sinActualizar: false,
+      ultimaNovedad: null,
+      alumnosSinClases: 0,
     },
   ],
   sinUbicacion: [],
@@ -502,16 +526,20 @@ let desmontarMapa: (() => void) | null = null
 
 type PropsRenderMapa = {
   mostrarEnlaceNominal: boolean
+  escuelasMapa: EscuelasMapaPadronResultado | null
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   pestana: 'actual' | 'radar' | 'planificacion'
 }
 
-type OpcionesRenderMapa = Omit<PropsRenderMapa, 'pestana'> & { pestana?: PropsRenderMapa['pestana'] }
+type OpcionesRenderMapa = Omit<PropsRenderMapa, 'pestana' | 'escuelasMapa'> & {
+  pestana?: PropsRenderMapa['pestana']
+  escuelasMapa?: PropsRenderMapa['escuelasMapa']
+}
 
 async function renderMapa(props: OpcionesRenderMapa) {
   const MapInfraestructuraPage = await cargar()
-  let propsActuales: PropsRenderMapa = { pestana: 'actual', ...props }
+  let propsActuales: PropsRenderMapa = { pestana: 'actual', escuelasMapa: FIXTURE_ESCUELAS_MAPA, ...props }
   const vista = render(<MapInfraestructuraPage {...propsActuales} />)
   const { unmount } = vista
   desmontarMapa = unmount
@@ -522,6 +550,20 @@ async function renderMapa(props: OpcionesRenderMapa) {
     },
   }
 }
+
+describe('MapInfraestructuraPage — filtros de padrón', () => {
+  it('omite de la lista las alertas de escuelas fuera del padrón filtrado', async () => {
+    await renderMapa({
+      mostrarEnlaceNominal: true,
+      escuelasMapa: {
+        ...FIXTURE_ESCUELAS_MAPA,
+        escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.filter((escuela) => escuela.cueAnexo === CUE_SIN_AFECTACION),
+      },
+    })
+    expect(screen.getByTestId('mock-lista-alertas')).toHaveAttribute('data-cues', '')
+    desmontarMapa?.()
+  })
+})
 
 // Elige una escuela por el buscador (la ruta que usa el usuario: escribir el
 // nombre y pickear el resultado) y devuelve la ficha ya abierta. Compartido
@@ -832,6 +874,15 @@ describe('MapInfraestructuraPage — modo Radar', () => {
         lat: -27.5,
         lon: -58.8,
         estado: 'sin_afectacion_reportada' as const,
+        niveles: ['Primario'],
+        alumnos: 12,
+        gravedad: 0,
+        categoriaPrincipal: null,
+        clases: 'normal',
+        apoyo: null,
+        sinActualizar: false,
+        ultimaNovedad: null,
+        alumnosSinClases: 0,
       })
       CUES_DESAGRUPADOS_MOCK.cues.push(cueAnexo)
     }
@@ -1316,7 +1367,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
   })
 
   it('"Quitar selección" limpia el aviso de la escuela sin ubicación', async () => {
-    const ESCUELA_SIN_UBICACION: EscuelaMapa = {
+    const ESCUELA_SIN_UBICACION: EscuelaMapaPadron = {
       cueAnexo: '1801605-77',
       nombre: 'Escuela del interior',
       departamento: 'Empedrado',
@@ -1324,6 +1375,15 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       lat: null,
       lon: null,
       estado: 'sin_afectacion_reportada',
+      niveles: ['Primario'],
+      alumnos: 0,
+      gravedad: 0,
+      categoriaPrincipal: null,
+      clases: 'normal',
+      apoyo: null,
+      sinActualizar: false,
+      ultimaNovedad: null,
+      alumnosSinClases: 0,
     }
     // Array NUEVO en vez de `push` sobre el padrón compartido: `buscarEscuelas`
     // indexa el padrón en un WeakMap POR IDENTIDAD de array (para no

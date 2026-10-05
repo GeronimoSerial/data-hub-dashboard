@@ -4,7 +4,10 @@ import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
-import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
+import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { FiltrosChips } from '@/components/mapas/filtros-chips'
+import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 
 const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
 
@@ -38,6 +41,16 @@ export function InfraestructuraMapClient(props: {
   seasonalEnabled?: boolean
 }) {
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
+  const [filtros, setFiltros] = React.useState<FiltrosMapa>(FILTROS_MAPA_VACIOS)
+  const { data: padron } = useEscuelasMapa()
+  const escuelasFiltradas = React.useMemo(
+    () => filtrarEscuelas(padron?.escuelas ?? [], filtros),
+    [padron, filtros],
+  )
+  const escuelasMapa = React.useMemo(
+    () => padron ? { ...padron, escuelas: escuelasFiltradas } : null,
+    [padron, escuelasFiltradas],
+  )
   const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
     Exclude<PestanaMapa, 'estadisticas'>
   >('actual')
@@ -91,6 +104,12 @@ export function InfraestructuraMapClient(props: {
         </Tabs>
       </div>
 
+      <FiltrosChips
+        escuelas={padron?.escuelas ?? []}
+        filtros={filtros}
+        onChange={setFiltros}
+      />
+
       <div className="mapa-pestanas-cuerpo">
         {/*
           REGLA F5.1: el mapa NO se desmonta al cambiar de pestaña, se oculta
@@ -111,6 +130,7 @@ export function InfraestructuraMapClient(props: {
             seasonalEnabled={props.seasonalEnabled ?? false}
             pestana={ultimaPestanaMapa}
             visible={mapaVisible}
+            escuelasMapa={escuelasMapa}
           />
         </div>
 

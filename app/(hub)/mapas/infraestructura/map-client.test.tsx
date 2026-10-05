@@ -4,6 +4,17 @@ import * as React from 'react'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InfraestructuraMapClient } from './map-client'
+import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
+
+const PADRON_PRUEBA: EscuelasMapaPadronResultado = {
+  escuelas: [
+    { cueAnexo: '180001-00', nombre: 'Escuela Primaria', departamento: 'Capital', localidad: 'Corrientes', lat: -27.4, lon: -58.8, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 20, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
+    { cueAnexo: '180002-00', nombre: 'Escuela Secundaria', departamento: 'Goya', localidad: 'Goya', lat: -29.1, lon: -59.2, estado: 'sin_afectacion_reportada', niveles: ['Secundario'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
+    { cueAnexo: '180003-00', nombre: 'Escuela Rural', departamento: 'Ituzaingó', localidad: 'Ituzaingó', lat: -27.6, lon: -56.7, estado: 'sin_afectacion_reportada', niveles: ['Primario', 'Secundario'], alumnos: 15, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0 },
+  ],
+  sinUbicacion: [{ cueAnexo: '180004-00', nombre: 'Escuela sin ubicación', departamento: 'Goya', localidad: 'Goya' }],
+  totalPadron: 4,
+}
 
 // Contador de MONTAJES del mapa (no de renders: el cuerpo de un componente
 // se ejecuta en cada render, y cambiar de pestaña re-renderiza el árbol aunque
@@ -15,12 +26,16 @@ import { InfraestructuraMapClient } from './map-client'
 const montajesMapa = vi.hoisted(() => ({ total: 0 }))
 
 vi.mock('@/components/mapas/map-infraestructura-page', () => ({
-  default: function MapaDePrueba(props: { pestana: string }): React.JSX.Element {
+  default: function MapaDePrueba(props: { pestana: string; escuelasMapa: EscuelasMapaPadronResultado | null }): React.JSX.Element {
     React.useEffect(() => {
       montajesMapa.total += 1
     }, [])
-    return <div data-testid="mock-mapa" data-pestana={props.pestana} />
+    return <div data-testid="mock-mapa" data-pestana={props.pestana} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''} />
   },
+}))
+
+vi.mock('@/lib/infraestructura/use-escuelas-mapa', () => ({
+  useEscuelasMapa: () => ({ data: PADRON_PRUEBA, loading: false, error: null }),
 }))
 
 vi.mock('@/components/infraestructura/evolucion-panel', () => ({
@@ -49,6 +64,42 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
   it('sin el flag del radar no muestra la pestaña Radar', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled={false} />)
     expect(screen.queryByRole('tab', { name: /Radar/ })).toBeNull()
+  })
+
+  it('muestra los filtros debajo de las pestañas también en Estadísticas', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const tabs = screen.getByRole('tab', { name: 'Situación actual' })
+    const filtros = screen.getByRole('searchbox', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
+    expect(filtros).not.toBeNull()
+    expect(tabs.compareDocumentPosition(filtros as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    expect(screen.getByRole('searchbox', { name: 'Buscar escuela o CUE' })).toBeVisible()
+  })
+
+  it('filtra las escuelas del mapa por nivel, conserva el mapa montado y permite limpiar', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const mapa = await screen.findByTestId('mock-mapa')
+    expect(mapa).toHaveAttribute('data-escuelas', '3')
+    expect(montajesMapa.total).toBe(1)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    expect(mapa).toHaveAttribute('data-escuelas', '2')
+    expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00')
+    expect(montajesMapa.total).toBe(1)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
+    expect(mapa).toHaveAttribute('data-escuelas', '3')
+    expect(montajesMapa.total).toBe(1)
+  })
+
+  it('filtra las escuelas del mapa por texto de búsqueda', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const mapa = await screen.findByTestId('mock-mapa')
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Buscar escuela o CUE' }), 'secundaria')
+    expect(mapa).toHaveAttribute('data-escuelas', '1')
+    expect(mapa).toHaveAttribute('data-cues', '180002-00')
   })
 
   it('Estadísticas oculta el mapa sin desmontarlo', async () => {
