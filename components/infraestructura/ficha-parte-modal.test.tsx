@@ -26,6 +26,7 @@ const parteResumen = crearParteMapa({
       severidad: 'Alta',
       descripcion: 'El acceso principal quedó bajo agua.',
       rigeDesde: '2026-08-01T00:00:00Z',
+      creadaEn: '2026-08-01T00:00:00Z',
     },
   ],
   seccionesAlcanzadas: 3,

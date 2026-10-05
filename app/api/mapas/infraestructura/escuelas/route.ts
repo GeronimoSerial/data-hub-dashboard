@@ -1,7 +1,7 @@
-import { listarEscuelasMapa } from '@/lib/infraestructura/parte-mapa'
+import { listarEscuelasMapaEnriquecidas } from '@/lib/infraestructura/parte-mapa'
 import { crearGetMapaInfraestructura } from '@/lib/infraestructura/mapa-ruta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export const GET = crearGetMapaInfraestructura(listarEscuelasMapa)
+export const GET = crearGetMapaInfraestructura(() => listarEscuelasMapaEnriquecidas())

@@ -6,7 +6,7 @@ import { TREND_COLORS, type Summary, type Trend } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { PeligroLegend } from '@/components/mapas/peligro-legend'
 import { CircleSlash, Clock, DoorOpen, Tent, TriangleAlert } from 'lucide-react'
@@ -205,7 +205,7 @@ export function InfraLegendPanel({
           </div>
           <div className={styles.legendItem}>
             <Clock size={16} color={COLOR_NEUTRO_ESTADO} aria-hidden />
-            Sin reportar (+{UMBRAL_SIN_REPORTAR_HORAS} h sin actualizar)
+            Sin reportar (+{UMBRAL_SIN_ACTUALIZAR_HORAS} h sin actualizar)
           </div>
 
           <div className={styles.hint}>

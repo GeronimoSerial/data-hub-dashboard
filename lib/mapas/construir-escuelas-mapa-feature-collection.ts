@@ -7,7 +7,7 @@
 // CONTRATO DE COMPATIBILIDAD: los nombres de campo de PropiedadesEscuelaMapa
 // son los mismos que consume `circlePaintPartes` en map-infraestructura-page.tsx
 // (`['get','color']`, `['match', ['get','servicio'], 'suspendido', ..., 'parcial', ...]`)
-// y los agregados `clusterProperties` (`severidadRango`, `sinReportar`,
+// y los agregados `clusterProperties` (`severidadRango`, `sinActualizar`,
 // `esEvacuado`). Por eso la capa existente sigue funcionando sin cambios cuando
 // se le pasa el padrón completo en vez de sólo las escuelas afectadas.
 
@@ -15,7 +15,7 @@ import type { FeatureCollection, Point } from 'geojson'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { rangoSeveridad } from '@/lib/mapas/severidad-visual'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 
 // Mismo gris "sin dato" que COLOR_NIVEL_PELIGRO.sin_dato de peligro-capas.ts
 // (token --ink-faint, globals.css). Se repite el literal EN VEZ de importarlo
@@ -45,7 +45,7 @@ export interface PropiedadesEscuelaMapa {
   severidadRango: number
   // false siempre para 'sin_afectacion_reportada': no aplica el umbral de
   // "sin reportar" si no hay parte que reportar.
-  sinReportar: boolean
+  sinActualizar: boolean
   // false siempre para 'sin_afectacion_reportada'.
   esEvacuado: boolean
   // true sólo para estadoEstablecimiento === 'centro_evacuados'. Permite que
@@ -63,7 +63,7 @@ export interface PropiedadesEscuelaMapa {
 // pide explícitamente importar rangoSeveridad/colorSeveridad de sus módulos
 // reales, pero no marca ese helper como importable.
 function esSinReportar(actualizadaEn: string, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(actualizadaEn).getTime() > umbralMs
 }
 
@@ -91,7 +91,7 @@ export function construirEscuelasMapaFeatureCollection(
             alumnosAlcanzados: parte.alumnosAlcanzados,
             severidad: parte.peorSeveridad,
             severidadRango: rangoSeveridad(parte.peorSeveridad),
-            sinReportar: ahoraMs !== null && esSinReportar(parte.actualizadaEn, ahoraMs),
+            sinActualizar: ahoraMs !== null && esSinReportar(parte.actualizadaEn, ahoraMs),
             esEvacuado:
               parte.estadoEstablecimiento === 'evacuado' ||
               parte.estadoEstablecimiento === 'centro_evacuados',
@@ -106,7 +106,7 @@ export function construirEscuelasMapaFeatureCollection(
             alumnosAlcanzados: 0,
             severidad: ETIQUETA_SIN_AFECTACION,
             severidadRango: 0,
-            sinReportar: false,
+            sinActualizar: false,
             esEvacuado: false,
             esCentroEvacuados: false,
             estado: 'sin_afectacion_reportada',

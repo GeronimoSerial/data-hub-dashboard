@@ -36,7 +36,7 @@ describe('filtrarDepartamentoMapa', () => {
     partes,
     indicadores: {
       escuelas: 3, conServicioSuspendido: 1, conServicioParcial: 1,
-      evacuadas: 0, establecimientosParciales: 0, centrosDeEvacuados: 0, sinReportar: 0,
+      evacuadas: 0, establecimientosParciales: 0, centrosDeEvacuados: 0, sinActualizar: 0,
       alumnosAlcanzados: 30, seccionesAlcanzadas: 6,
     },
   }

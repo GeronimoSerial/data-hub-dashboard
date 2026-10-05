@@ -4431,6 +4431,182 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   padding: var(--s-5) var(--gutter) var(--s-8);
 }
 
+.filtros-barra {
+  position: relative;
+  /* Abre sugerencias sobre el mapa, pero queda bajo el header. */
+  z-index: calc(var(--z-header) - 1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: var(--page);
+}
+.filtros-busqueda {
+  display: flex;
+  flex: 0 1 15rem;
+  min-width: 0;
+  align-items: center;
+  gap: var(--s-1);
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--fill);
+}
+.filtros-busqueda svg { width: 1rem; height: 1rem; flex: 0 0 auto; color: var(--ink-faint); }
+.filtros-busqueda input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+.filtros-busqueda:focus-within { outline: 2px solid var(--info); outline-offset: 2px; }
+.filtros-busqueda-contenedor {
+  position: relative;
+  flex: 0 1 15rem;
+  min-width: 0;
+}
+.filtros-busqueda-contenedor .filtros-busqueda { width: 100%; }
+.filtros-controles {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.filtros-chip-final {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--s-2);
+  white-space: nowrap;
+}
+.filtros-sugerencias {
+  position: absolute;
+  z-index: var(--z-popup);
+  top: calc(100% + var(--s-1));
+  left: 0;
+  width: 100%;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: var(--s-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--page);
+  box-shadow: var(--e-float);
+}
+.filtros-sugerencias__opcion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.filtros-sugerencias__opcion[aria-selected='true'] { background: var(--fill); }
+.filtros-sugerencias__nombre { font-weight: 700; }
+.filtros-sugerencias__detalle,
+.filtros-sugerencias__vacio { color: var(--ink-soft); font-size: var(--t-small); }
+.filtros-sugerencias__vacio { padding: var(--s-2); }
+.filtros-chip-grupo { display: inline-flex; align-items: center; }
+.filtros-chip-grupo--activo { border-radius: var(--r-pill); background: var(--ink); }
+.filtros-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: 2rem;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--page);
+  color: var(--ink);
+  font-size: var(--t-small);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.filtros-chip:hover { border-color: var(--ink-faint); }
+.filtros-chip:focus-visible,
+.filtros-chip__quitar:focus-visible,
+.filtros-limpiar:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.filtros-chip--activo {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--page);
+}
+.filtros-chip--activo:hover { border-color: var(--ink); }
+.filtros-chip svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.filtros-chip-grupo--activo .filtros-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.filtros-chip__quitar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: var(--s-1) var(--s-2) var(--s-1) 0;
+  border: 1px solid var(--ink);
+  border-left: 0;
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+  background: var(--ink);
+  color: var(--page);
+  cursor: pointer;
+}
+.filtros-chip__quitar svg { width: 1rem; height: 1rem; }
+.filtros-popover-posicionador { z-index: 30; }
+.filtros-popover {
+  display: grid;
+  gap: 0;
+  min-width: 14rem;
+  max-height: min(420px, calc(var(--available-height, 100vh) - 16px));
+  overflow-y: auto;
+  padding: var(--s-1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--page);
+  color: var(--ink);
+  box-shadow: var(--e-float);
+}
+.filtros-opcion {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.filtros-opcion .ui-checkbox__label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  min-height: 36px;
+  cursor: pointer;
+}
+.filtros-opcion-vacio {
+  padding: var(--s-1) var(--s-2);
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+.filtros-opcion:hover { background: var(--fill); }
+.filtros-opcion__conteo { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.filtros-limpiar {
+  padding: var(--s-1) var(--s-2);
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--t-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* ── Pestaña de evolución (F5.3) ──────────────────────────────────────────
    Una sola columna centrada: los gráficos necesitan ancho estable y la tabla
    de ranking scrollea dentro de su propia superficie (.ui-table-wrap). */
@@ -4644,16 +4820,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--danger);
 }
 
-/* M1: buscador de escuelas (mapa de infraestructura) — inicio */
-/* Buscador genérico de escuelas: mismo slot que el control de métrica, con su
-   propio separador arriba. */
-.mapa-buscador-escuela {
-  margin-top: var(--s-2);
-  padding-top: var(--s-2);
-  border-top: 1px solid var(--line-soft);
-  max-width: 20rem;
-}
-
 /* ── Estadísticas de natalidad (T8) ───────────────────────────────────────
    Reusa .evolucion-panel/.evolucion-vista/.evolucion-subtitulo/
    .evolucion-descripcion/.grafico-contenedor (son genéricos, no específicos
@@ -4717,22 +4883,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 1px solid var(--line-soft);
   max-width: 20rem;
 }
-.mapa-buscador-escuela > .ui-input { width: 100%; }
-
-/* Resultados en un popover flotante anclado al input. Mismo lenguaje visual
-   que .ui-select-popup/.ui-select-item: superficie, borde, radio y sombra
-   por tokens de tema (ya resueltos en claro/oscuro vía [data-theme]). */
-.mapa-buscador-escuela-positioner { z-index: var(--z-popup); outline: none; }
-.mapa-buscador-escuela-popup {
-  width: var(--anchor-width);
-  max-width: var(--available-width);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--e-modal);
-  overflow: hidden;
-}
-
 .natalidad-buscador > .ui-input { width: 100%; }
 
 /* Resultados en un popover flotante anclado al input (feedback "se ven
@@ -4750,15 +4900,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   box-shadow: var(--e-modal);
   overflow: hidden;
 }
-/* Único contenedor con scroll — el popup en sí no scrollea, sólo esta lista,
-   acotada a ~6 filas visibles. */
-.mapa-buscador-escuela-lista {
-  max-height: 24rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: var(--s-1);
-}
-
 /* Único contenedor con scroll (requisito: "single scroll container") — el
    popup en sí no scrollea, sólo esta lista, acotada a ~6 filas visibles. */
 .natalidad-buscador-lista {
@@ -4767,19 +4908,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   overscroll-behavior: contain;
   padding: var(--s-1);
 }
-.mapa-buscador-escuela-item {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--r-sm);
-  cursor: default;
-  outline: none;
-  text-align: left;
-}
-
 .natalidad-buscador-item {
   display: flex;
   flex-direction: column;
@@ -4792,19 +4920,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   outline: none;
   text-align: left;
 }
-.mapa-buscador-escuela-item[data-highlighted] {
-  background: var(--ink);
-  color: var(--page);
-}
-.mapa-buscador-escuela-item[data-highlighted] .mapa-buscador-escuela-meta { color: inherit; opacity: 0.75; }
-.mapa-buscador-escuela-nombre {
-  font-weight: 700;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
 .natalidad-buscador-item[data-highlighted] {
   background: var(--ink);
   color: var(--page);
@@ -4817,32 +4932,17 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.mapa-buscador-escuela-meta { color: var(--ink-soft); font-size: var(--t-micro); }
-.mapa-buscador-escuela-match {
-  background: color-mix(in srgb, var(--action) 30%, transparent);
-  color: inherit;
-  border-radius: 2px;
-}
-
 .natalidad-buscador-meta { color: var(--ink-soft); font-size: var(--t-micro); }
 .natalidad-buscador-match {
   background: color-mix(in srgb, var(--action) 30%, transparent);
   color: inherit;
   border-radius: 2px;
 }
-.mapa-buscador-escuela-vacio {
-  padding: 0.6rem;
-  color: var(--ink-soft);
-  font-size: var(--t-small);
-}
-
 .natalidad-buscador-vacio {
   padding: 0.6rem;
   color: var(--ink-soft);
   font-size: var(--t-small);
 }
-/* M1: buscador de escuelas (mapa de infraestructura) — fin */
-
 .natalidad-kpis {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));

@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useAlertas, type RespuestaPartesMapa } from './use-alertas'
-import type { FiltrosMapa } from './parte-mapa'
 import { jsonResponse } from './test-utils/http'
 
 function resultado(n: number): RespuestaPartesMapa {
@@ -15,7 +14,7 @@ function resultado(n: number): RespuestaPartesMapa {
       evacuadas: n,
       establecimientosParciales: n,
       centrosDeEvacuados: n,
-      sinReportar: n,
+      sinActualizar: n,
       alumnosAlcanzados: n,
       seccionesAlcanzadas: n,
     },
@@ -25,8 +24,8 @@ function resultado(n: number): RespuestaPartesMapa {
 let calls: string[]
 let fetchMock: ReturnType<typeof vi.fn>
 
-function Probe({ filtros }: { filtros: FiltrosMapa }) {
-  const { data, loading, error } = useAlertas(filtros)
+function Probe() {
+  const { data, loading, error } = useAlertas()
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
@@ -66,7 +65,7 @@ afterEach(() => {
 
 describe('useAlertas', () => {
   it('hace la carga inicial y luego un polling cada 15s', async () => {
-    render(<Probe filtros={{}} />)
+    render(<Probe />)
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -82,7 +81,7 @@ describe('useAlertas', () => {
   })
 
   it('pausa el polling con la pestaña oculta y refresca al recuperar visibilidad', async () => {
-    render(<Probe filtros={{}} />)
+    render(<Probe />)
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -111,7 +110,7 @@ describe('useAlertas', () => {
   })
 
   it('refresca al recuperar el foco de la ventana', async () => {
-    render(<Probe filtros={{}} />)
+    render(<Probe />)
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -123,7 +122,7 @@ describe('useAlertas', () => {
   })
 
   it('cancela el polling y no actualiza estado tras desmontar', async () => {
-    const { unmount } = render(<Probe filtros={{}} />)
+    const { unmount } = render(<Probe />)
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -135,18 +134,15 @@ describe('useAlertas', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('renueva el pedido con nuevos filtros y arma la query string con "establecimiento"', async () => {
-    const { rerender } = render(<Probe filtros={{}} />)
+  it('consulta la ruta sin filtros de texto libre', async () => {
+    const { rerender } = render(<Probe />)
     await flush()
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    rerender(<Probe filtros={{ cueAnexo: '1801605-04', severidad: 'Alta' }} />)
+    rerender(<Probe />)
     await flush()
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
 
-    const url = calls[calls.length - 1]
-    expect(url).toContain('establecimiento=1801605-04')
-    expect(url).toContain('severidad=Alta')
-    expect(url).not.toContain('cueAnexo')
+    expect(calls).toEqual(['/api/mapas/infraestructura'])
   })
 })

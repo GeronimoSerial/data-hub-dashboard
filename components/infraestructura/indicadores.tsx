@@ -20,7 +20,7 @@ export function Indicadores(props: {
     { label: 'Evacuadas', valor: indicadores.evacuadas },
     { label: 'Funcionamiento parcial', valor: indicadores.establecimientosParciales },
     { label: 'Centros de evacuados', valor: indicadores.centrosDeEvacuados },
-    { label: 'Sin reportar', valor: indicadores.sinReportar },
+    { label: 'Sin actualizar', valor: indicadores.sinActualizar },
     { label: 'Alumnos alcanzados', valor: indicadores.alumnosAlcanzados },
     { label: 'Secciones alcanzadas', valor: indicadores.seccionesAlcanzadas },
   ]

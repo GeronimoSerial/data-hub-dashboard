@@ -57,7 +57,6 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
-import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
@@ -94,6 +93,7 @@ import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
+import { calcularTotalesEscuelasFiltradas } from '@/lib/infraestructura/mapa/totales-filtrados'
 import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
 import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
@@ -132,16 +132,14 @@ import {
 } from '@/lib/mapas/departamentos'
 import { ensureMapWorker } from '@/lib/map-worker'
 import { useAlertas } from '@/lib/infraestructura/use-alertas'
-import { filtrarDepartamentoMapa } from '@/lib/infraestructura/filtrar-departamento-mapa'
-import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
+import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestructura/filtrar-departamento-mapa'
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
-import type { EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { UMBRAL_SIN_REPORTAR_HORAS } from '@/lib/infraestructura/umbrales'
+import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { esCategoria, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import {
   iconoEstadoEscuela,
   rangoSeveridad,
@@ -349,26 +347,6 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
   }
 }
 
-type FiltrosForm = {
-  territorio: string
-  nivel: string
-  establecimiento: string
-  motivo: string
-  severidad: string
-  categoria: string
-  servicio: string
-}
-
-const FILTROS_VACIOS: FiltrosForm = {
-  territorio: '',
-  nivel: '',
-  establecimiento: '',
-  motivo: '',
-  severidad: '',
-  categoria: '',
-  servicio: '',
-}
-
 // ── Tamaño: fijo en escuelas, por tramos en clusters ───────────────────────
 //
 // La antigua codificación escalaba el radio por `alumnosAlcanzados` (área
@@ -462,9 +440,9 @@ type PropiedadesParte = {
   severidad: string
   severidadRango: number
   // T1.1c: booleano real por punto ("este establecimiento está sin reportar"
-  // según esSinReportar/UMBRAL_SIN_REPORTAR_HORAS). Se une al feature para
+  // según esSinReportar/UMBRAL_SIN_ACTUALIZAR_HORAS). Se une al feature para
   // que clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
-  sinReportar: boolean
+  sinActualizar: boolean
   // Booleano real por punto ("este establecimiento está evacuado o es centro
   // de evacuados", según estadoEstablecimiento). Se une al feature para que
   // clusterProperties pueda agregarlo como 0/1 con max() en el cluster.
@@ -493,7 +471,7 @@ export function construirFeatureCollection(
         alumnosAlcanzados: parte.alumnosAlcanzados,
         severidad: parte.peorSeveridad,
         severidadRango: rangoSeveridad(parte.peorSeveridad),
-        sinReportar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
+        sinActualizar: ahoraMs !== null && esSinReportar(parte, ahoraMs),
         esEvacuado:
           parte.estadoEstablecimiento === 'evacuado' ||
           parte.estadoEstablecimiento === 'centro_evacuados',
@@ -503,13 +481,13 @@ export function construirFeatureCollection(
 }
 
 // "Sin reportar" se calcula acá, no en el servidor: el indicador agregado
-// (indicadores.sinReportar) ya viaja en la respuesta, pero para mostrar el
+// (indicadores.sinActualizar) ya viaja en la respuesta, pero para mostrar el
 // badge hace falta saber CUÁL parte individual cruzó el umbral, y esa
-// información no se serializa aparte. UMBRAL_SIN_REPORTAR_HORAS es la misma
+// información no se serializa aparte. UMBRAL_SIN_ACTUALIZAR_HORAS es la misma
 // constante que usa el servidor (parte-mapa.ts) para el indicador agregado:
 // un solo lugar define "viejo", nunca dos criterios que puedan divergir.
 export function esSinReportar(parte: ParteMapa, ahoraMs: number): boolean {
-  const umbralMs = UMBRAL_SIN_REPORTAR_HORAS * 60 * 60 * 1000
+  const umbralMs = UMBRAL_SIN_ACTUALIZAR_HORAS * 60 * 60 * 1000
   return ahoraMs - new Date(parte.actualizadaEn).getTime() > umbralMs
 }
 
@@ -621,7 +599,7 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   // Capas informativas nuevas: apagadas por defecto para no sumar ruido
   // visual al encuadre inicial. El director las prende cuando las necesita.
   evacuacion: false,
-  sinReportar: false,
+  sinActualizar: false,
 }
 
 // Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
@@ -726,11 +704,13 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
 // efecto one-shot viejo no hacía.
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
+  escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
+  onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }) {
   const styles = useOverlayStyles()
   const { mode } = useThemeMode()
@@ -738,11 +718,6 @@ export default function MapInfraestructuraPage(props: {
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
-  const [filtrosForm, setFiltrosForm] = useState<FiltrosForm>(FILTROS_VACIOS)
-  // Apertura de "Filtros del mapa" (ListaAlertas): vive acá y no dentro del
-  // <details> para que sobreviva al remontaje de la lista cada vez que se
-  // cambia de modo (Situación actual / Radar).
-  const [filtrosAvanzadosAbiertos, setFiltrosAvanzadosAbiertos] = useState(false)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
   // la ficha (X o Esc) borraba `seleccionCue` y con él la ruta, el resaltado y
@@ -768,8 +743,8 @@ export default function MapInfraestructuraPage(props: {
   const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
-  // sólo tiene que tocar SU propio estado — nunca `filtrosForm`,
-  // `capasVisibles` ni el encuadre del mapa (MapGL no se remonta acá).
+  // sólo tiene que tocar SU propio estado — nunca `capasVisibles` ni el
+  // encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
@@ -890,23 +865,7 @@ export default function MapInfraestructuraPage(props: {
     seasonalActivo,
   )
 
-  const filtros = useMemo(
-    () => ({
-      territorio: filtrosForm.territorio || undefined,
-      nivel: filtrosForm.nivel || undefined,
-      cueAnexo: filtrosForm.establecimiento || undefined,
-      motivo: filtrosForm.motivo || undefined,
-      severidad: filtrosForm.severidad || undefined,
-      categoria:
-        filtrosForm.categoria && esCategoria(filtrosForm.categoria)
-          ? (filtrosForm.categoria as CategoriaAfectacion)
-          : undefined,
-      servicio: (filtrosForm.servicio || undefined) as EstadoServicioGeneral | undefined,
-    }),
-    [filtrosForm],
-  )
-
-  const { data, loading, error } = useAlertas(filtros)
+  const { data, loading, error } = useAlertas()
 
   const [ahoraMs, setAhoraMs] = useState<number | null>(null)
   useEffect(() => {
@@ -914,8 +873,8 @@ export default function MapInfraestructuraPage(props: {
     return () => clearTimeout(id)
   }, [data])
 
-  const { data: dataEscuelasMapa } = useEscuelasMapa(filtros)
-  const { data: dataTotalesMapa } = useTotalesMapa(filtros)
+  const dataEscuelasMapa = props.escuelasMapa
+  const { data: dataTotalesMapa } = useTotalesMapa()
   const totalesPorDepartamento = useMemo(() => {
     const mapa = new Map<string, TotalesDepartamento>()
     for (const d of dataTotalesMapa?.departamentos ?? []) mapa.set(d.departamento, d)
@@ -965,9 +924,17 @@ export default function MapInfraestructuraPage(props: {
     return () => window.removeEventListener('keydown', alPresionarTecla)
   }, [departamentoInfoClic, clusterInfoClic, cruceInfoClic])
 
+  const datosAlertasFiltrados = useMemo(() => {
+    if (!data || !props.escuelasMapa) return data
+    const cuesVisibles = new Set(props.escuelasMapa.escuelas.map((escuela) => escuela.cueAnexo))
+    const partes = data.partes.filter((parte) => cuesVisibles.has(parte.cueAnexo))
+    return { partes, indicadores: indicadoresDePartes(partes, ahoraMs ?? 0) }
+  }, [data, props.escuelasMapa, ahoraMs])
   const dataVisible = useMemo(
-    () => data ? filtrarDepartamentoMapa(data, departamentoSeleccionado, ahoraMs) : null,
-    [data, departamentoSeleccionado, ahoraMs],
+    () => datosAlertasFiltrados
+      ? filtrarDepartamentoMapa(datosAlertasFiltrados, departamentoSeleccionado, ahoraMs)
+      : null,
+    [datosAlertasFiltrados, departamentoSeleccionado, ahoraMs],
   )
 
   // Un punto por escuela: la ficha y la lista seleccionan por cueAnexo, no
@@ -1008,8 +975,8 @@ export default function MapInfraestructuraPage(props: {
           ? (parte?.estadoEstablecimiento ?? 'habitual')
           : 'habitual',
         servicio: parte?.servicio ?? 'normal',
-        sinReportar:
-          capasVisibles.sinReportar &&
+        sinActualizar:
+          capasVisibles.sinActualizar &&
           parte !== undefined &&
           ahoraMs !== null &&
           esSinReportar(parte, ahoraMs),
@@ -1029,7 +996,7 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     ahoraMs,
     capasVisibles.evacuacion,
-    capasVisibles.sinReportar,
+    capasVisibles.sinActualizar,
   ])
 
   // F2.4: el GeoJSON de departamentos se pide una vez más, aparte del que ya
@@ -1595,7 +1562,7 @@ export default function MapInfraestructuraPage(props: {
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
   // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
   // ficha, exista o no afectación vigente para ese cueAnexo.
-  function handleSeleccionarEscuelaBuscada(escuela: EscuelaMapa) {
+  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapa) => {
     // Sin coordenadas no hay punto al que volar ni anillo que resaltar, pero
     // la ficha sigue teniendo sentido (dato propio, aunque no se pueda
     // situar en el mapa). Antes el handler salía acá y el usuario no veía
@@ -1632,7 +1599,12 @@ export default function MapInfraestructuraPage(props: {
     // razonamiento para el cajón de base/capas.
     setLeftStackAbierto(false)
     setControlsStackAbierto(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    props.onRegistrarSeleccion?.(handleSeleccionarEscuelaBuscada)
+    return () => props.onRegistrarSeleccion?.(null)
+  }, [props.onRegistrarSeleccion, handleSeleccionarEscuelaBuscada])
 
   // Encuadre de la ruta, una sola vez, cuando su geometría llega. Elegir una
   // escuela vuela a zoom 14 sobre ella, así que sin esto una ruta de 30 km
@@ -1760,11 +1732,6 @@ export default function MapInfraestructuraPage(props: {
     if (angosto) setFichaCerradaCue(seleccionCue)
   }
 
-  function setFiltro<K extends keyof FiltrosForm>(campo: K, valor: FiltrosForm[K]) {
-    if (campo === 'territorio') setDepartamentoSeleccionado(null)
-    setFiltrosForm((prev) => ({ ...prev, [campo]: valor }))
-  }
-
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -1773,17 +1740,6 @@ export default function MapInfraestructuraPage(props: {
 
   const panelActual = dataVisible ? (
     <>
-      {/*
-        Buscador de escuelas (hallazgos 8 y 19): montado SIEMPRE, no sólo
-        en la rama de "Situación actual", para que esté disponible también
-        en Radar. Selecciona con el mismo criterio en todos los
-        modos: vuela al punto y abre la ficha si corresponde.
-      */}
-      {!radarActivo && <EscuelaSearchBox
-        escuelas={dataEscuelasMapa?.escuelas ?? []}
-        onSeleccionar={handleSeleccionarEscuelaBuscada}
-      />}
-
       {/*
         Aviso del buscador (no error): una escuela del padrón sin
         coordenadas se puede consultar igual, pero no se puede señalar en
@@ -1830,10 +1786,8 @@ export default function MapInfraestructuraPage(props: {
       {!modoRadar && (
         <>
           {(() => {
-            const totales = departamentoSeleccionado
-              ? totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado))
-              : dataTotalesMapa?.provincia
-            if (!totales) return null
+            if (!dataEscuelasMapaVisible) return null
+            const totales = calcularTotalesEscuelasFiltradas(dataEscuelasMapaVisible.escuelas)
             return (
               <p
                 className={styles.hint}
@@ -1860,10 +1814,6 @@ export default function MapInfraestructuraPage(props: {
           )}
           <ListaAlertas
             partes={dataVisible.partes}
-            filtros={filtrosForm}
-            onFiltroChange={setFiltro}
-            filtrosAbiertos={filtrosAvanzadosAbiertos}
-            onFiltrosAbiertosChange={setFiltrosAvanzadosAbiertos}
           />
         </>
       )}
@@ -2053,15 +2003,15 @@ export default function MapInfraestructuraPage(props: {
                 // T1.1b: agregados por max() entre los puntos agrupados — el
                 // El cluster hereda la severidad más alta, no un promedio.
                 severidadRango: ['max', ['get', 'severidadRango']],
-                // T1.1c: en el cluster `sinReportar` se agrega como 0/1 con
+                // T1.1c: en el cluster `sinActualizar` se agrega como 0/1 con
                 // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
                 // está sin reportar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
-                sinReportar: ['max', ['case', ['get', 'sinReportar'], 1, 0]],
+                sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
                 // En el cluster `esEvacuado` se agrega como 0/1 con max() —
                 // el cluster vale 1 si AL MENOS UNO de sus puntos es un
                 // establecimiento evacuado/centro de evacuados (semántica
-                // OR), igual que `sinReportar`.
+                // OR), igual que `sinActualizar`.
                 esEvacuado: ['max', ['case', ['get', 'esEvacuado'], 1, 0]],
                 // V2: mismo OR pero sólo para centro_evacuados. Es lo que
                 // permite elegir el ícono del cluster por prioridad (Tent si

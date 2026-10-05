@@ -15,7 +15,7 @@ describe('iconoEstadoEscuela', () => {
   const base = {
     estadoEstablecimiento: 'habitual',
     servicio: 'normal',
-    sinReportar: false,
+    sinActualizar: false,
   }
 
   it('mapea cada condición a su ícono lucide', () => {
@@ -24,7 +24,7 @@ describe('iconoEstadoEscuela', () => {
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'parcial' })).toBe('Building')
     expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido' })).toBe('CircleSlash')
     expect(iconoEstadoEscuela({ ...base, servicio: 'parcial' })).toBe('TriangleAlert')
-    expect(iconoEstadoEscuela({ ...base, sinReportar: true })).toBe('CircleHelp')
+    expect(iconoEstadoEscuela({ ...base, sinActualizar: true })).toBe('CircleHelp')
   })
 
   it('no devuelve badge para una escuela normal que reporta', () => {
@@ -37,21 +37,21 @@ describe('iconoEstadoEscuela', () => {
       iconoEstadoEscuela({
         estadoEstablecimiento: 'centro_evacuados',
         servicio: 'suspendido',
-        sinReportar: true,
+        sinActualizar: true,
       }),
     ).toBe('Tent')
     // evacuado gana sobre servicio y sin reportar.
     expect(
-      iconoEstadoEscuela({ estadoEstablecimiento: 'evacuado', servicio: 'suspendido', sinReportar: true }),
+      iconoEstadoEscuela({ estadoEstablecimiento: 'evacuado', servicio: 'suspendido', sinActualizar: true }),
     ).toBe('DoorOpen')
     // suspendido gana sobre parcial y sin reportar.
-    expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido', sinReportar: true })).toBe('CircleSlash')
+    expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido', sinActualizar: true })).toBe('CircleSlash')
     // parcial gana sobre sin reportar.
-    expect(iconoEstadoEscuela({ ...base, servicio: 'parcial', sinReportar: true })).toBe('TriangleAlert')
+    expect(iconoEstadoEscuela({ ...base, servicio: 'parcial', sinActualizar: true })).toBe('TriangleAlert')
   })
 
   it('trata un valor desconocido como "sin condición" salvo el flag de sin reportar', () => {
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro' })).toBeNull()
-    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro', sinReportar: true })).toBe('CircleHelp')
+    expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro', sinActualizar: true })).toBe('CircleHelp')
   })
 })
