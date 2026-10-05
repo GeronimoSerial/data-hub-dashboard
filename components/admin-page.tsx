@@ -1375,10 +1375,12 @@ function MotivosAdmin() {
             {motivos.map((m) => (
               <tr key={m.id}>
                 <td className="admin-motivos__nombre">
-                  <span className="admin-motivos__nombre-texto">{m.nombre}</span>
-                  <span className="admin-motivos__categoria">
-                    {CATEGORIA_META[m.categoria]?.label ?? m.categoria}
-                  </span>
+                  <div className="admin-motivos__nombre-contenido">
+                    <span className="admin-motivos__nombre-texto">{m.nombre}</span>
+                    <span className="admin-motivos__categoria">
+                      {CATEGORIA_META[m.categoria]?.label ?? m.categoria}
+                    </span>
+                  </div>
                 </td>
                 <td data-label="Gravedad sugerida">{m.severidadSugerida ?? '—'}</td>
                 <td data-label="Orden">{m.orden}</td>

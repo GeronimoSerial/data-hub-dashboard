@@ -1896,6 +1896,7 @@ time {
 }
 .admin-layout .admin-motivos .ui-table th,
 .admin-layout .admin-motivos .ui-table td {
+  display: table-cell;
   padding: 0.75rem 0.8rem;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -1914,7 +1915,7 @@ time {
 .admin-motivos__col-gravedad { width: 25%; }
 .admin-motivos__col-orden { width: 12%; }
 .admin-motivos__col-acciones { width: 19%; }
-.admin-motivos__nombre { display: grid; gap: var(--s-1); }
+.admin-motivos__nombre-contenido { display: grid; gap: var(--s-1); min-width: 0; }
 .admin-motivos__nombre-texto { font-weight: 600; }
 .admin-motivos__categoria { color: var(--ink-soft); font-size: var(--t-micro); }
 .admin-motivos__acciones { flex-wrap: nowrap; gap: var(--s-1); }
@@ -1936,7 +1937,7 @@ time {
   .admin-layout .admin-motivos .ui-table tbody { display: grid; gap: var(--s-3); }
   .admin-layout .admin-motivos .ui-table tr {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas: "nombre nombre" "gravedad orden" "acciones acciones";
     gap: var(--s-3) var(--s-4);
     padding: var(--s-3);
@@ -1951,7 +1952,10 @@ time {
     padding: 0;
     border: 0;
   }
-  .admin-layout .admin-motivos .ui-table td:first-child { grid-area: nombre; }
+  .admin-layout .admin-motivos .ui-table td:first-child {
+    grid-area: nombre;
+    width: auto;
+  }
   .admin-layout .admin-motivos .ui-table td:nth-child(2) {
     grid-area: gravedad;
     display: grid;
@@ -1971,10 +1975,13 @@ time {
   }
   .admin-layout .admin-motivos .ui-table td:last-child {
     grid-area: acciones;
+    width: auto;
     border-top: 1px solid var(--line-soft);
-    padding-top: var(--s-2);
+    margin-inline: calc(-1 * var(--s-3));
+    padding: var(--s-2) var(--s-3) 0;
+    box-sizing: border-box;
   }
-  .admin-motivos__acciones { justify-content: flex-end; }
+  .admin-motivos__acciones { width: 100%; justify-content: flex-end; }
 }
 
 .ui-actions { display: flex; gap: var(--s-1); align-items: center; flex-wrap: wrap; }

@@ -33,6 +33,7 @@ describe('AdminPage', () => {
     expect(screen.getByRole('columnheader', { name: 'Gravedad sugerida' })).toBeInTheDocument()
     expect(screen.queryByRole('columnheader', { name: 'Categoría' })).not.toBeInTheDocument()
     expect(screen.getByTestId('admin-motivos-table-wrap')).toHaveClass('admin-motivos__table-wrap')
+    expect(screen.getByText('Anegamiento').parentElement).toHaveClass('admin-motivos__nombre-contenido')
     expect(screen.getByText('Inaccesibilidad de alumnos')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Editar' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Eliminar motivo' })).toBeInTheDocument()
