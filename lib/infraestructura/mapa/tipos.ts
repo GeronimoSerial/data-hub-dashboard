@@ -22,6 +22,8 @@ export interface EscuelaMapaEnriquecida {
   sinActualizar: boolean
   ultimaNovedad: string | null
   alumnosSinClases: number
+  // Cantidad de filas de infra_afectacion de la escuela, en todos los períodos y estados; cada fila cuenta una vez.
+  situacionesHistoricas: number
   parte?: ParteMapa
 }
 

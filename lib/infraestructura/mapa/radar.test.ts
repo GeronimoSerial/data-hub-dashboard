@@ -8,7 +8,8 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
     cueAnexo: 'cue-1', nombre: 'Escuela', departamento: 'Goya', localidad: 'Goya',
     lat: null, lon: null, niveles: ['Primario'], alumnos: 0, gravedad: 0,
     categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false,
-    ultimaNovedad: null, alumnosSinClases: 0, ...parcial,
+    ultimaNovedad: null, alumnosSinClases: 0,
+    situacionesHistoricas: 0, ...parcial,
   }
 }
 

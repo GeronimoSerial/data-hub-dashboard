@@ -19,6 +19,7 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
     sinActualizar: false,
     ultimaNovedad: null,
     alumnosSinClases: 0,
+    situacionesHistoricas: 0,
     ...parcial,
   }
 }

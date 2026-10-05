@@ -128,6 +128,7 @@ describe('enriquecerEscuela', () => {
       niveles: ['Primario', 'Inicial', 'Primario'],
       alumnos: 42,
       asistencia: { brinda: true, modalidades: ['Cuadernillo'] },
+      situacionesHistoricas: 7,
     }, ahora)).toMatchObject({
       niveles: ['Inicial', 'Primario'],
       alumnos: 42,
@@ -138,6 +139,7 @@ describe('enriquecerEscuela', () => {
       categoriaPrincipal: 'establecimiento',
       ultimaNovedad: iso(ahora - 73 * H),
       alumnosSinClases: 42,
+      situacionesHistoricas: 7,
       parte: original.parte,
     })
   })

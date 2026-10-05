@@ -12,21 +12,25 @@ const escuelas: EscuelaMapaEnriquecida[] = [
     cueAnexo: '100', nombre: 'Escuela Alta', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 3, categoriaPrincipal: 'Anegamiento',
     clases: 'sin', apoyo: 'virtual', sinActualizar: true, ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 50,
+    situacionesHistoricas: 0,
   },
   {
     cueAnexo: '200', nombre: 'Escuela Parcial', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Secundario'], alumnos: 60, gravedad: 3, categoriaPrincipal: 'Camino',
     clases: 'parcial', apoyo: 'cuadernillo', sinActualizar: false, ultimaNovedad: '2026-10-05T14:00:00.000Z', alumnosSinClases: 10,
+    situacionesHistoricas: 0,
   },
   {
     cueAnexo: '300', nombre: 'Escuela Baja', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Inicial'], alumnos: 30, gravedad: 1, categoriaPrincipal: 'Otro',
     clases: 'evacuado', apoyo: 'no', sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 30,
+    situacionesHistoricas: 0,
   },
   {
     cueAnexo: '400', nombre: 'Escuela sin reporte', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null,
     niveles: [], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
+    situacionesHistoricas: 0,
   },
 ]
 
