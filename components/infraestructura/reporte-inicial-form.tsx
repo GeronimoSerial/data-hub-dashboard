@@ -19,6 +19,7 @@ import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -824,19 +825,21 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         ) : (
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
-          <Button key="guardar" type="submit" disabled={enviando}>
-            {enviando ? 'Guardando…' : 'Guardar reporte'}
+          <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Guardar reporte'}
           </Button>
         )}
       </div>
         </>
       )}
       {estadoEnvio && (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
+          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={() => void reintentarRef.current()} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
       )}
       <ConfirmSheet
         open={confirmarDescarte}

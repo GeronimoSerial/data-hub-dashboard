@@ -573,9 +573,9 @@ describe('ReporteInicialForm', () => {
 
     guardarReporte()
 
-    expect(
-      await screen.findByText(MENSAJES_ESTADO['pendiente-envio']),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJES_ESTADO['pendiente-envio'])).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
+    expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
     expect(screen.getByText('Inundación · Severidad Alta')).toBeInTheDocument()
   })
 
@@ -600,7 +600,9 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
     guardarReporte()
 
-    expect(await screen.findByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
     // Sin evento 'online': el temporizador dispara el reintento con backoff.
@@ -611,6 +613,23 @@ describe('ReporteInicialForm', () => {
     const cuerpoA = JSON.parse(initA.body as string) as { idempotencyKey: string }
     const cuerpoB = JSON.parse(initB.body as string) as { idempotencyKey: string }
     expect(cuerpoA.idempotencyKey).toBe(cuerpoB.idempotencyKey)
+  })
+
+  it('el aviso de error permite reintentar de inmediato', async () => {
+    const fetchMock = vi.fn()
+    fetchMock
+      .mockImplementationOnce(async () => jsonResponse({ error: 'boom' }, 503))
+      .mockImplementationOnce(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    guardarReporte()
+
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    expect(await screen.findByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el

@@ -59,8 +59,8 @@ export type ResultadoEnvio =
 
 export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
   'guardado-local': 'Guardado en este dispositivo',
-  'pendiente-envio': 'Sin conexión: se enviará solo cuando vuelva la conexión',
-  'error-servidor': 'El servidor no respondió. Reintentamos en unos segundos.',
+  'pendiente-envio': 'Sin conexión. Su parte queda guardado y se envía solo cuando vuelva.',
+  'error-servidor': 'No pudimos enviar. Reintentamos en unos segundos.',
   enviando: 'Enviando…',
   enviado: 'Enviado',
   error: 'No se pudo enviar',

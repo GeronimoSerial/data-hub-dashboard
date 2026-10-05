@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
@@ -525,6 +526,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           }}
           estadoEnvio={estadoEnvio}
           motivoEnvio={motivoEnvio}
+          onRetry={() => reintentarRef.current()}
           error={error}
           onVolver={() => moverEtapa('nuevo')}
           onEnviar={() => void enviar()}
@@ -590,6 +592,7 @@ function ResumenEnvio({
   onCambiarAsistencia,
   estadoEnvio,
   motivoEnvio,
+  onRetry,
   error,
   onVolver,
   onEnviar,
@@ -600,6 +603,7 @@ function ResumenEnvio({
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
   estadoEnvio: EstadoEnvio | null
   motivoEnvio: string | null
+  onRetry: () => void
   error: string | null
   onVolver: () => void
   onEnviar: () => void
@@ -646,19 +650,21 @@ function ResumenEnvio({
         ))}
       </fieldset>
       {estadoEnvio ? (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
+          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={onRetry} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="actualizacion-resumen__acciones">
         <Button type="button" variant="secondary" onClick={onVolver} disabled={enviando}>
           Volver y corregir
         </Button>
-        <Button type="button" onClick={onEnviar} disabled={enviando}>
-          {enviando ? 'Enviando…' : 'Enviar'}
+        <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+          {enviando || estadoEnvio === 'enviando' ? 'Enviando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Enviar'}
         </Button>
       </div>
     </section>
