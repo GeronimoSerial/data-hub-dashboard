@@ -19,6 +19,11 @@ export interface EntradaActualizarProps {
   onActualizar: () => void
 }
 
+// "desde hoy, 10:27" / "desde 5 de octubre, 10:27": la frase corre en minúscula.
+function desde(iso: string): string {
+  return formatearMomentoHistorial(iso).replace(/^Hoy/, 'hoy')
+}
+
 // Layout A del spec rediseño §6.1: prioriza el estado activo y su acción.
 export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoServicio, historial, onActualizar }: EntradaActualizarProps): JSX.Element {
   const [historialAbierto, setHistorialAbierto] = useState(false)
@@ -33,26 +38,28 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
             <strong>{principal.motivo}</strong> <EstadoActualSeveridad severidad={principal.severidad} prefijo={false} />
           </p>
           <p className="entrada-actualizar__detalle">
-            {`${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]} · ${ETIQUETA_SERVICIO[estadoServicio]} · desde ${formatearMomentoHistorial(principal.rigeDesde)}`}
+            {`${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]} · ${ETIQUETA_SERVICIO[estadoServicio]} · desde ${desde(principal.rigeDesde)}`}
           </p>
         </section>
       ) : null}
 
       <div className="asistente__acciones">
         <Button type="button" onClick={onActualizar}>Actualizar el parte</Button>
-      </div>
-
-      <section aria-label="Historial" className="entrada-actualizar__historial">
-        <button
+        <Button
           type="button"
-          className="entrada-actualizar__historial-control"
+          variant="secondary"
           aria-expanded={historialAbierto}
           onClick={() => setHistorialAbierto((abierto) => !abierto)}
         >
           {historialAbierto ? 'Ocultar historial' : 'Ver historial'}
-        </button>
-        {historialAbierto ? <LineaDeTiempo movimientos={historial} limite={2} /> : null}
-      </section>
+        </Button>
+      </div>
+
+      {historialAbierto ? (
+        <section aria-label="Historial" className="entrada-actualizar__historial">
+          <LineaDeTiempo movimientos={historial} limite={2} />
+        </section>
+      ) : null}
 
       {otras.length > 0 ? (
         <section aria-label="También activas" className="entrada-actualizar__otras">
@@ -60,8 +67,9 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
           <ul>
             {otras.map((situacion) => (
               <li key={situacion.id}>
-                <span>{situacion.motivo}</span> <EstadoActualSeveridad severidad={situacion.severidad} prefijo={false} />
-                <span className="entrada-actualizar__detalle">{` · desde ${formatearMomentoHistorial(situacion.rigeDesde)}`}</span>
+                <span className="entrada-actualizar__otra-motivo">{situacion.motivo}</span>
+                <EstadoActualSeveridad severidad={situacion.severidad} prefijo={false} />
+                <span className="entrada-actualizar__detalle">{`desde ${desde(situacion.rigeDesde)}`}</span>
               </li>
             ))}
           </ul>
