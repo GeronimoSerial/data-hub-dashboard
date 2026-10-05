@@ -699,6 +699,7 @@ export async function listarEscuelasMapaEnriquecidas(
     sql: `SELECT p.cue_anexo, COUNT(a.id) AS situaciones
       FROM infra_afectacion a
       INNER JOIN infra_parte p ON p.id = a.parte_id
+      WHERE a.cierre IS NULL OR a.cierre <> 'retirada'
       GROUP BY p.cue_anexo`,
     args: [],
   })

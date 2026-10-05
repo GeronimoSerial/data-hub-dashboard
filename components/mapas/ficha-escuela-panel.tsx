@@ -9,7 +9,7 @@ import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
-import { HistorialMovimiento } from '@/components/infraestructura/historial-movimiento'
+import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
 import type { AfectacionFicha } from '@/lib/infraestructura/use-ficha-parte'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 
@@ -23,7 +23,6 @@ interface FichaEscuelaPanelProps {
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
-const DOS_ANIOS_MS = 730 * 24 * 60 * 60 * 1000
 
 function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
   if (estado === 'sin') return <BookX aria-hidden="true" />
@@ -111,13 +110,6 @@ export function FichaEscuelaPanel({
   const novedad = datos?.parte?.actualizadaEn
     ? tiempoRelativo(datos.parte.actualizadaEn, ahoraMs)
     : ''
-  const movimientosRecientes = historial.fase === 'listo'
-    ? historial.movimientos.filter((movimiento) => {
-      const creadaEn = Date.parse(movimiento.creadaEn)
-      return movimiento.tipo === 'reporte_inicial' && creadaEn >= ahoraMs - DOS_ANIOS_MS && creadaEn <= ahoraMs
-    })
-    : []
-
   useEffect(() => {
     volverRef.current?.focus()
     const alPresionarTecla = (event: KeyboardEvent) => {
@@ -204,13 +196,10 @@ export function FichaEscuelaPanel({
             <p role="alert">No se pudo cargar la información de la escuela.</p>
           ) : (
             <>
-              {/* La cantidad de reportes iniciales dentro de 730 días es la aproximación disponible en el payload del historial. */}
-              <p>{movimientosRecientes.length} {movimientosRecientes.length === 1 ? 'situación' : 'situaciones'} en los últimos 2 años</p>
-              {movimientosRecientes.length > 0 && (
-                <ol className="map-ficha-escuela__historial">
-                  {movimientosRecientes.map((movimiento) => <HistorialMovimiento key={movimiento.id} movimiento={movimiento} />)}
-                </ol>
-              )}
+              <p>{escuela.situacionesHistoricas === 0
+                ? 'Sin situaciones registradas'
+                : `${escuela.situacionesHistoricas} ${escuela.situacionesHistoricas === 1 ? 'situación registrada' : 'situaciones registradas'}`}</p>
+              {historial.movimientos.length > 0 && <LineaDeTiempo movimientos={historial.movimientos} limite={5} />}
             </>
           )}
         </Desplegable>

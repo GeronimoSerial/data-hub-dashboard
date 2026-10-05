@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { FichaEscuelaPanel } from './ficha-escuela-panel'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 
 const escuela: EscuelaMapaEnriquecida = {
   cueAnexo: '180000123-00', nombre: 'Escuela N.º 123', departamento: 'CAPITAL', localidad: 'Corrientes',
@@ -17,10 +18,10 @@ const afectaciones = [{
   descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-02T15:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
 }]
 
-const movimientos = [
-  { id: 'mov-1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-09-01T12:00:00.000Z', rigeDesde: '2026-09-01T12:00:00.000Z', cambios: [] },
-  { id: 'mov-2', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2025-09-01T12:00:00.000Z', rigeDesde: '2025-09-01T12:00:00.000Z', cambios: [] },
-  { id: 'mov-3', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-09-02T12:00:00.000Z', rigeDesde: '2026-09-02T12:00:00.000Z', cambios: [] },
+const movimientos: MovimientoHistorial[] = [
+  { id: 'mov-1', tipo: 'reporte_inicial', rol: 'director', creadaEn: '2026-09-01T12:00:00.000Z', rigeDesde: '2026-09-01T12:00:00.000Z', titulo: 'Se informó Inaccesibilidad', cambios: ['Se informó Inaccesibilidad'], severidad: 'Alta' },
+  { id: 'mov-2', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-09-02T12:00:00.000Z', rigeDesde: '2026-09-02T12:00:00.000Z', titulo: 'Cambió el alcance de Inaccesibilidad', cambios: ['Se actualizó el alcance de Inaccesibilidad: 1 sección más'], severidad: 'Alta' },
+  { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
 function instalarFetch({ error = false, situaciones = afectaciones }: { error?: boolean; situaciones?: typeof afectaciones } = {}) {
@@ -76,7 +77,29 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
     expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
     expect(await screen.findByText('Afecta dos aulas')).toBeInTheDocument()
-    expect(screen.getByText('2 situaciones en los últimos 2 años')).toBeInTheDocument()
+  })
+
+  it('muestra el total de situaciones y el movimiento en la línea de tiempo', async () => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, situacionesHistoricas: 1 } })
+
+    expect(await screen.findByText('Se informó Inaccesibilidad')).toBeInTheDocument()
+    expect(screen.getByText('1 situación registrada')).toBeInTheDocument()
+    expect(screen.queryByText('Sigue igual: "Inaccesibilidad"')).not.toBeInTheDocument()
+  })
+
+  it('muestra el total de situaciones en plural', async () => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, situacionesHistoricas: 3 } })
+
+    expect(await screen.findByText('3 situaciones registradas')).toBeInTheDocument()
+  })
+
+  it('indica cuando no hay situaciones registradas', async () => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, situacionesHistoricas: 0 } })
+
+    expect(await screen.findByText('Sin situaciones registradas')).toBeInTheDocument()
   })
 
   it('actualiza el título de situaciones cuando llegan las afectaciones aunque el bloque esté cerrado', async () => {

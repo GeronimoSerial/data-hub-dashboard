@@ -472,8 +472,9 @@ describe('listarEscuelasMapaEnriquecidas', () => {
 
     const parteActual = await crearParte(cueConHistorial)
     const solucionadaId = await crearAfectacion({ parteId: parteActual, secciones: [] })
-    await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
+    const retiradaId = await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
     await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, solucionadaId))
+    await getDb().update(infraAfectacion).set({ cierre: 'retirada' }).where(eq(infraAfectacion.id, retiradaId))
 
     const periodoHistoricoId = 'MAPA-ENRIQ-PERIODO-HISTORICO'
     const ahora = new Date().toISOString()
@@ -500,7 +501,7 @@ describe('listarEscuelasMapaEnriquecidas', () => {
 
     const resultado = await listarEscuelasMapaEnriquecidas({ territorio: 'MAPA-ENRIQ' })
 
-    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(3)
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(2)
     expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueSinHistorial)?.situacionesHistoricas).toBe(0)
   })
 

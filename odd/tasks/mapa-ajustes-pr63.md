@@ -17,7 +17,7 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 
 ## Tasks
 - [x] A1 ODD + verificación de los 17 hallazgos
-- [ ] A2 Hallazgos 1, 3, 13: historial de la ficha (`situacionesHistoricas` sin retiradas, `LineaDeTiempo`)
+- [x] A2 Hallazgos 1, 3, 13: historial de la ficha (`situacionesHistoricas` sin retiradas, `LineaDeTiempo`)
 - [ ] A3 Hallazgos 2, 12: "desde" con `situacionPrincipal` + `creadaEn`, formato absoluto
 - [ ] A4 Hallazgo 4: tinta por gravedad + test de contraste ≥ 4,5:1
 - [ ] A5 Hallazgos 5, 16: sección Situaciones completa + edificio en la ficha
@@ -28,6 +28,8 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - [ ] A10 D4 recién solucionadas + hallazgo 15
 - [ ] A11 D5 sidebar único + sin movimiento en hover
 - [ ] A12 D6 Capas como pestaña
+- [ ] A13 Header compacto en /mapas/* (sin franja de logos, pestañas + filtros en una fila, búsqueda como lupa); resto de la app sin cambios
+- [ ] A14 Bug: cruces de agua del sidebar vs marcadores de la ruta (causa raíz en el ODD)
 
 ## A1 — Verificación de los hallazgos (lectura de código, 2026-10-05)
 | # | Veredicto | Evidencia |
@@ -53,3 +55,5 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 
 ## Evidencia por task
 (se completa a medida que se cierran)
+
+- **A2** — `situacionesHistoricas` excluye `cierre='retirada'` (conserva NULL); ficha: encabezado "N situación(es) registrada(s)" desde `situacionesHistoricas` + `LineaDeTiempo limite=5`; fixtures reales de `MovimientoHistorial`. Evidencia: vitest ficha + parte-mapa 43/43 verde, tsc limpio. Ruta: delegada (N3 + un N3 de corrección por tests síncronos sobre un encabezado que espera la carga).
