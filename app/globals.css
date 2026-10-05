@@ -2164,8 +2164,22 @@ time {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-float);
+  padding: var(--s-4);
 }
-.radar-meteo-controls { top:16px; left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
+.radar-meteo-controls {
+  --radar-meteo-controls-left: calc(55px + min(20rem, calc(100vw - 80px)) + var(--s-3));
+  top:25px;
+  left:var(--radar-meteo-controls-left);
+  padding:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
 .radar-meteo-segments { display:flex; gap:3px; }
 .radar-meteo-mobile-variable { display:none; }
 .radar-meteo-segments button,.radar-meteo-timeline button,.radar-meteo-popup button { color:inherit; background:transparent; border:0; border-radius:7px; padding:7px 9px; cursor:pointer; }
@@ -2284,8 +2298,6 @@ time {
     width:min(230px,calc(100vw - 100px)) !important;
     max-height:none !important;
     overflow:visible !important;
-    padding:0 !important;
-    background:transparent !important;
     z-index:13;
   }
   .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
@@ -2382,7 +2394,7 @@ time {
 .radar-alertas {
   position:absolute;
   z-index:14;
-  top:12px;
+  top:calc(25px + 44px + var(--s-3));
   left:430px;
   right:444px;
   display:flex;
@@ -2474,6 +2486,13 @@ time {
   .radar-resumen ~ .radar-meteo-legend { right:auto; bottom:118px; left:14px; }
   .radar-escuela-card { top:calc(12px + 55px); left:8px; width:min(310px,82vw); max-height:42vh; }
   .radar-mapa-sin-pronostico { top:48%; max-width:74vw; }
+}
+@media(min-width:701px) and (max-width:1100px) {
+  .radar-meteo-controls {
+    max-width:calc(100vw - var(--radar-meteo-controls-left) - 270px - 16px - var(--s-3));
+  }
+  .radar-meteo-segments { flex-wrap:wrap; }
+  .radar-alertas { top:calc(25px + 88px + var(--s-3)); }
 }
 /* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
    habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
@@ -5323,8 +5342,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     width:min(230px,calc(100vw - 100px)) !important;
     max-height:none !important;
     overflow:visible !important;
-    padding:0 !important;
-    background:transparent !important;
     z-index:13;
   }
   .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
