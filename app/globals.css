@@ -1388,7 +1388,8 @@ time {
   padding: clamp(1.5rem, 4vw, 2rem);
 }
 .ui-dialog-popup h2 { font-size: 1.4rem; }
-.motivo-form__title { margin-bottom: var(--s-2); }
+.ui-dialog-popup > .admin-form__title { margin: 0; }
+.admin-form__title + .ui-form-grid { margin-top: var(--s-4); }
 .ui-dialog-close {
   position: absolute;
   top: var(--s-3);
@@ -1887,7 +1888,94 @@ time {
 
 .admin-layout .ui-table td:last-child .ui-actions { flex-wrap: nowrap; }
 .admin-motivos { min-width: 0; width: 100%; }
-.admin-motivos__table-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
+.admin-motivos__table-wrap { min-width: 0; max-width: 100%; overflow-x: hidden; }
+.admin-layout .admin-motivos .ui-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.admin-layout .admin-motivos .ui-table th,
+.admin-layout .admin-motivos .ui-table td {
+  padding: 0.75rem 0.8rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.admin-layout .admin-motivos .ui-table th:first-child,
+.admin-layout .admin-motivos .ui-table td:first-child {
+  width: 44%;
+  min-width: 0;
+}
+.admin-layout .admin-motivos .ui-table th:last-child,
+.admin-layout .admin-motivos .ui-table td:last-child {
+  width: 19%;
+  min-width: 0;
+}
+.admin-motivos__col-nombre { width: 44%; }
+.admin-motivos__col-gravedad { width: 25%; }
+.admin-motivos__col-orden { width: 12%; }
+.admin-motivos__col-acciones { width: 19%; }
+.admin-motivos__nombre { display: grid; gap: var(--s-1); }
+.admin-motivos__nombre-texto { font-weight: 600; }
+.admin-motivos__categoria { color: var(--ink-soft); font-size: var(--t-micro); }
+.admin-motivos__acciones { flex-wrap: nowrap; gap: var(--s-1); }
+.admin-motivos__acciones .ui-button--icon { min-width: 44px; min-height: 44px; }
+
+@media (max-width: 767px) {
+  .admin-motivos__table-wrap { border: 0; background: transparent; overflow: visible; }
+  .admin-layout .admin-motivos .ui-table,
+  .admin-layout .admin-motivos .ui-table tbody { display: block; }
+  .admin-layout .admin-motivos .ui-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .admin-layout .admin-motivos .ui-table tbody { display: grid; gap: var(--s-3); }
+  .admin-layout .admin-motivos .ui-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "nombre nombre" "gravedad orden" "acciones acciones";
+    gap: var(--s-3) var(--s-4);
+    padding: var(--s-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--card);
+  }
+  .admin-layout .admin-motivos .ui-table td {
+    display: block;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+  .admin-layout .admin-motivos .ui-table td:first-child { grid-area: nombre; }
+  .admin-layout .admin-motivos .ui-table td:nth-child(2) {
+    grid-area: gravedad;
+    display: grid;
+    gap: var(--s-1);
+  }
+  .admin-layout .admin-motivos .ui-table td:nth-child(3) {
+    grid-area: orden;
+    display: grid;
+    gap: var(--s-1);
+    text-align: right;
+  }
+  .admin-layout .admin-motivos .ui-table td:nth-child(2)::before,
+  .admin-layout .admin-motivos .ui-table td:nth-child(3)::before {
+    content: attr(data-label);
+    color: var(--ink-soft);
+    font-size: var(--t-micro);
+  }
+  .admin-layout .admin-motivos .ui-table td:last-child {
+    grid-area: acciones;
+    border-top: 1px solid var(--line-soft);
+    padding-top: var(--s-2);
+  }
+  .admin-motivos__acciones { justify-content: flex-end; }
+}
 
 .ui-actions { display: flex; gap: var(--s-1); align-items: center; flex-wrap: wrap; }
 .ui-form-grid { display: grid; gap: var(--s-4); min-width: min(20rem, 100%); }
