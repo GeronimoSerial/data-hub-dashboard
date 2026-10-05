@@ -7,6 +7,8 @@ import {
   CamposQuePaso,
   aplanarSecciones,
   crearAfectacionVacia,
+  esAfectacionLista,
+  esAfectacionParcial,
   totalAlumnosDe,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
@@ -17,6 +19,7 @@ import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
@@ -71,6 +74,9 @@ const MENSAJE_FALTA_ALCANCE_AFECTACION =
   'Elija al menos una sección afectada para continuar.'
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
+
+export const MENSAJE_BORRADOR_PENDIENTE =
+  'Tiene un parte sin enviar. Puede continuar donde lo dejó.'
 
 const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', 'Confirmar'] as const
 
@@ -204,6 +210,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
+  const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<() => void>(() => {})
   // Identidad de las entradas de historial de ESTE asistente: un popstate de
@@ -224,7 +232,31 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       setServicioEstado('')
       setEstadoEstablecimiento('')
     }
+    if (paso === 2 && siguiente.categoria === 'establecimiento' && siguiente.motivo === '') {
+      setPaso(1)
+      setError('Elija el motivo del problema del establecimiento.')
+    }
     setAfectacion(siguiente)
+  }
+
+  function aplicarBorrador(borrador: BorradorParteNuevo): void {
+    generacionRef.current = borrador.generacion
+    const pasosBorrador = pasosDe(borrador.afectacion.categoria)
+    const pasoSolicitado = pasosBorrador.includes(borrador.paso) ? borrador.paso : 4
+    const faltaMotivoEstablecimiento =
+      pasoSolicitado === 2 &&
+      borrador.afectacion.categoria === 'establecimiento' &&
+      borrador.afectacion.motivo === ''
+    const pasoRestaurado = faltaMotivoEstablecimiento ? 1 : pasoSolicitado
+    setPaso(pasoRestaurado)
+    setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
+    setError(faltaMotivoEstablecimiento ? 'Elija el motivo del problema del establecimiento.' : null)
+    setServicioEstado(borrador.servicioEstado)
+    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+    setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
+    setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
+    setVigencia(borrador.vigencia ?? VIGENCIA_AHORA)
+    sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasosBorrador)
   }
 
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
@@ -236,17 +268,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     ;(async () => {
       const borrador = await leerBorrador(claveBorrador)
       if (cancelado || !borrador) return
-      generacionRef.current = borrador.generacion
-      const pasos = pasosDe(borrador.afectacion.categoria)
-      const pasoRestaurado = pasos.includes(borrador.paso) ? borrador.paso : 4
-      setPaso(pasoRestaurado)
-      setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
-      setServicioEstado(borrador.servicioEstado)
-      setEstadoEstablecimiento(borrador.estadoEstablecimiento)
-      setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
-      setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
-      setVigencia(borrador.vigencia ?? VIGENCIA_AHORA)
-      sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
+      if (
+        borrador.paso === 1 &&
+        !esAfectacionParcial(borrador.afectacion) &&
+        !esAfectacionLista(borrador.afectacion)
+      ) {
+        aplicarBorrador(borrador)
+      } else {
+        setBorradorPendiente(borrador)
+      }
     })()
     return () => {
       cancelado = true
@@ -441,6 +471,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // run (montaje o "registrar otra") se salta para no reescribir la clave
   // recién limpia con el estado por defecto.
   useEffect(() => {
+    if (borradorPendiente) return
     if (omitirEscrituraRef.current) {
       omitirEscrituraRef.current = false
       return
@@ -465,14 +496,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     asistenciaBrinda,
     modalidadesAsistencia,
     vigencia,
+    borradorPendiente,
   ])
-
-  useEffect(() => {
-    if (paso === 2 && afectacion.categoria === 'establecimiento' && afectacion.motivo === '') {
-      setPaso(1)
-      setError('Elija el motivo del problema del establecimiento.')
-    }
-  }, [paso, afectacion.categoria, afectacion.motivo])
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
   // paso está completo. Se evalúa en el momento de avanzar, no mientras
@@ -607,6 +632,26 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
 
   return (
     <form className="reporte-inicial" onSubmit={manejarEnvio}>
+      {borradorPendiente ? (
+        <div className="aviso-retoma" role="status">
+          <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
+          <div className="asistente__acciones">
+            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>
+              Descartar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                aplicarBorrador(borradorPendiente)
+                setBorradorPendiente(null)
+              }}
+            >
+              Continuar donde lo dejé
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="asistente__progreso">
         <p className="asistente__contador">
           Paso {indicePaso + 1} de {pasos.length}
@@ -728,14 +773,6 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         )}
       </section>
 
-      {estadoEnvio && (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
-      )}
-
       {error && (
         <p className="reporte-inicial__error" role="alert">
           {error}
@@ -771,6 +808,29 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           </Button>
         )}
       </div>
+        </>
+      )}
+      {estadoEnvio && (
+        <p role="status" aria-live="polite">
+          {estadoEnvio === 'error' && motivoEnvio
+            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+            : MENSAJES_ESTADO[estadoEnvio]}
+        </p>
+      )}
+      <ConfirmSheet
+        open={confirmarDescarte}
+        titulo="¿Descartar el parte sin enviar?"
+        confirmarLabel="Sí, descartar"
+        onCancelar={() => setConfirmarDescarte(false)}
+        onConfirmar={() => {
+          omitirEscrituraRef.current = true
+          void limpiarBorrador(claveBorrador)
+          setBorradorPendiente(null)
+          setConfirmarDescarte(false)
+        }}
+      >
+        <p>Se pierde lo que cargó y no se envía nada.</p>
+      </ConfirmSheet>
     </form>
   )
 }

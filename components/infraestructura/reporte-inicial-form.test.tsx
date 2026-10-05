@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ReporteInicialForm } from './reporte-inicial-form'
+import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
 import { motivos, turnos } from '@/components/test-utils/parte-formulario'
 import { CLAVE_VINCULO_VERIFICACION } from './verificacion-vinculo'
@@ -11,6 +11,37 @@ const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
   'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+
+function sembrarBorradorWizard({
+  paso = 2,
+  sinCamposNuevos = false,
+  categoria = 'alumnos',
+  motivo = 'Anegamiento',
+}: {
+  paso?: 1 | 2 | 3 | 4
+  sinCamposNuevos?: boolean
+  categoria?: 'alumnos' | 'establecimiento'
+  motivo?: string
+} = {}) {
+  const borrador = {
+    generacion: 'generacion-test',
+    paso,
+    afectacion: {
+      clientId: 'afectacion-test',
+      categoria,
+      motivo,
+      severidad: 'Alta',
+      descripcion: '',
+      secciones: [],
+      alumnos: [],
+    },
+    servicioEstado: '',
+    estadoEstablecimiento: '',
+    rigeDesde: '2026-10-04T10:00:00.000Z',
+    ...(sinCamposNuevos ? {} : { asistenciaBrinda: 'no', modalidadesAsistencia: [], vigencia: { modo: 'ahora' } }),
+  }
+  localStorage.setItem(`parte-nuevo:draft:${props.cue}`, JSON.stringify(borrador))
+}
 
 function renderFormulario(overrides: Partial<typeof props> = {}) {
   return render(<ReporteInicialForm {...props} {...overrides} />)
@@ -636,7 +667,7 @@ describe('ReporteInicialForm', () => {
 describe('ReporteInicialForm — borrador persistente (#32) e historial del navegador (#31)', () => {
   const clave = `parte-nuevo:draft:${props.cue}`
 
-  it('guarda el borrador con su paso y lo restaura al remontar (#32)', async () => {
+  it('guarda el borrador con su paso y ofrece retomarlo al remontar (#32)', async () => {
     const primero = renderFormulario()
     completarQuePaso()
     continuar()
@@ -648,13 +679,55 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
     primero.unmount()
     renderFormulario()
 
-    expect(await screen.findByText('Paso 2 de 4')).toBeInTheDocument()
+    expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '¿Qué pasó?' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.
     volver()
     expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+  })
+
+  it('al volver con un borrador sin enviar ofrece continuar o descartar', async () => {
+    sembrarBorradorWizard({ paso: 2 })
+    renderFormulario()
+
+    expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+  })
+
+  it('restaura un borrador de establecimiento sin motivo en el paso 1 y muestra el error', async () => {
+    sembrarBorradorWizard({ paso: 2, categoria: 'establecimiento', motivo: '' })
+    renderFormulario()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+
+    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Elija el motivo del problema del establecimiento.')
+  })
+
+  it('descartar pide confirmación y arranca de cero', async () => {
+    sembrarBorradorWizard({ paso: 2 })
+    renderFormulario()
+    fireEvent.click(await screen.findByRole('button', { name: 'Descartar' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Sí, descartar' }))
+
+    await waitFor(() => expect(screen.queryByText(MENSAJE_BORRADOR_PENDIENTE)).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+    expect(localStorage.getItem(`parte-nuevo:draft:${props.cue}`)).toBeNull()
+  })
+
+  it('un borrador viejo sin los campos nuevos se restaura con valores por defecto', async () => {
+    sembrarBorradorWizard({ paso: 2, sinCamposNuevos: true })
+    renderFormulario()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continuar donde lo dejé' }))
+
+    expect(screen.getByRole('radio', { name: 'Ahora' })).toBeChecked()
   })
 
   it('el borrador queda claveado por CUE: otro establecimiento no lo hereda', () => {

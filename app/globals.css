@@ -4048,6 +4048,27 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 1px solid var(--line);
 }
 
+.aviso-retoma {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+}
+
+.aviso-retoma > p {
+  margin: 0;
+  color: var(--ink);
+}
+
+.aviso-retoma .asistente__acciones {
+  padding-top: 0;
+  border-top: 0;
+}
+
 @media (max-width: 480px) {
   .asistente__acciones {
     flex-direction: column-reverse;
