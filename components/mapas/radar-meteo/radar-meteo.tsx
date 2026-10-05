@@ -273,14 +273,17 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [zoom, setZoom] = useState(0)
   const [cueEscuela, setCueEscuela] = useState<string | null>(null)
+  const [activoPrevio, setActivoPrevio] = useState(activo)
 
-  useEffect(() => {
-    if (activo) return
-    setPoint(null)
-    setAlertaActiva(null)
-    setCueEscuela(null)
-    setPlaying(false)
-  }, [activo])
+  if (activo !== activoPrevio) {
+    setActivoPrevio(activo)
+    if (!activo) {
+      setPoint(null)
+      setAlertaActiva(null)
+      setCueEscuela(null)
+      setPlaying(false)
+    }
+  }
   const animationFrame = useRef<number | null>(null)
   const { data, loading, error } = useRadarMeteo({
     activo,
