@@ -2173,6 +2173,59 @@ time {
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
   .radar-meteo-legend-title small { display:inline; font-size:8px; }
 }
+
+/* Entrada de la pantalla para actualizar el estado del establecimiento. */
+.entrada-actualizar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.entrada-actualizar__principal {
+  border: 2px solid var(--sev-critica, currentColor);
+  border-radius: var(--r-lg);
+  padding: var(--s-4);
+}
+
+.entrada-actualizar__etiqueta {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-small);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.entrada-actualizar__ultima {
+  margin: 0;
+  background: var(--fill);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+
+.entrada-actualizar__motivo,
+.entrada-actualizar__detalle {
+  margin: 0;
+}
+
+.entrada-actualizar__principal > :last-child {
+  margin-top: var(--s-2);
+}
+
+.entrada-actualizar__otras ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding-left: var(--s-5);
+}
+
+.entrada-actualizar__detalle {
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+
+.entrada-actualizar .asistente__acciones > * {
+  min-height: 44px;
+}
 .radar-resumen-peek { display:none; }
 @media(max-width:767px) {
   .radar-resumen:not(.is-open) { height:122px; bottom:160px; }
