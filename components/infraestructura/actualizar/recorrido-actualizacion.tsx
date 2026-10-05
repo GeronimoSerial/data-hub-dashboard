@@ -760,7 +760,7 @@ function ResumenEnvio({
             </p>
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
-      <div className="actualizacion-resumen__acciones">
+      <div className="asistente__acciones">
         <Button type="button" variant="secondary" onClick={onVolver}>
           Volver
         </Button>
