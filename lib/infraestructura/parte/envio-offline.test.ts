@@ -128,6 +128,20 @@ describe('intentarEnviar', () => {
     expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
   })
 
+  it('invoca fetchImpl desligado del objeto de opciones (como el fetch real del navegador)', async () => {
+    const almacen = crearAlmacenMemoria()
+    await guardarBorrador(almacen, crearBorrador())
+    const fetchImpl = vi.fn(function (this: unknown, _input: string, _init?: RequestInit) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation')
+      return Promise.resolve(respuesta(true, 200, { id: 'parte-9' }))
+    })
+
+    const resultado = await intentarEnviar({ observacion: 'Texto' }, opciones(almacen, fetchImpl))
+
+    expect(resultado.ok).toBe(true)
+    expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+  })
+
   it('deja el borrador pendiente cuando falla la red', async () => {
     const almacen = crearAlmacenMemoria()
     await guardarBorrador(almacen, crearBorrador())

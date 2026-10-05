@@ -420,7 +420,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     return {
       tipo: 'nuevo',
       cue,
-      fetchImpl: fetch,
+      fetchImpl: (input, init) => fetch(input, init),
       url: '/api/problematicas/parte',
       construirCuerpo: (datos, idempotencyKey) => {
         const vinculo = leerVinculoVerificacion()
