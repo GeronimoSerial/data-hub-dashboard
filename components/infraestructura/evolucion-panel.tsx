@@ -6,6 +6,8 @@ import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
 // Sólo TYPES cruzan hacia acá; ningún valor de evolucion.ts se ejecuta en el
 // navegador.
 import type { EvolucionMapa, PuntoEscuelasServicioCaido } from '@/lib/infraestructura/evolucion'
+import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import type { FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 import {
   GraficoAlumnosAcumulados,
   GraficoMotivos,
@@ -18,6 +20,15 @@ import {
 type Vista = 'serie' | 'ranking' | 'motivos' | 'acumulado'
 
 const VISTAS: readonly Vista[] = ['serie', 'ranking', 'motivos', 'acumulado']
+const URL_EVOLUCION = '/api/mapas/infraestructura/evolucion'
+const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
+
+function claveConsulta(filtros: FiltrosMapa): string {
+  const parametros = new URLSearchParams()
+  filtros.departamentos.forEach((departamento) => parametros.append('departamento', departamento))
+  filtros.niveles.forEach((nivel) => parametros.append('nivel', nivel))
+  return parametros.toString()
+}
 
 function esVista(valor: string): valor is Vista {
   return (VISTAS as readonly string[]).includes(valor)
@@ -40,17 +51,18 @@ export function recortarSerieAlRangoConDatos(
   return puntos.slice(Math.max(0, primerConDatos - margen))
 }
 
-export function EvolucionPanel(): JSX.Element {
+export function EvolucionPanel({ filtros }: { filtros: FiltrosMapa }): JSX.Element {
   const [vista, setVista] = useState<Vista>('serie')
   const [datos, setDatos] = useState<EvolucionMapa | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const consulta = claveConsulta(filtros)
 
-  // El panel sólo se monta cuando el usuario abre la pestaña (ver
-  // map-client.tsx), así que este efecto es el primer y único pedido del
-  // período: sin dependencias, una sola vez por apertura.
+  // El endpoint admite solamente departamento y nivel. La query serializada
+  // mantiene estable el efecto aunque el padre cree un objeto de filtros nuevo.
   useEffect(() => {
     let cancelado = false
-    fetch('/api/mapas/infraestructura/evolucion')
+    const url = consulta === '' ? URL_EVOLUCION : `${URL_EVOLUCION}?${consulta}`
+    fetch(url)
       .then(async (respuesta) => {
         if (!respuesta.ok) {
           throw new Error(`No se pudo leer la evolución (HTTP ${respuesta.status})`)
@@ -72,7 +84,7 @@ export function EvolucionPanel(): JSX.Element {
     return () => {
       cancelado = true
     }
-  }, [])
+  }, [consulta])
 
   if (error) {
     return (
@@ -87,7 +99,7 @@ export function EvolucionPanel(): JSX.Element {
   if (!datos) {
     return (
       <div className="evolucion-panel">
-        <p className="map-hint">Cargando evolución del período…</p>
+        <p className="map-hint">Cargando…</p>
       </div>
     )
   }
@@ -102,15 +114,6 @@ export function EvolucionPanel(): JSX.Element {
 
   return (
     <div className="evolucion-panel">
-      <div>
-        <span className="eyebrow">Parte operativo</span>
-        <h2 className="page-title page-title--sm">Evolución</h2>
-        <p className="page-intro">
-          Cómo evolucionó el período vigente: escuelas con servicio caído, concentración
-          territorial, motivos declarados y alcance acumulado de alumnos.
-        </p>
-      </div>
-
       <Tabs value={vista} onValueChange={(valor: string) => esVista(valor) && setVista(valor)}>
         <TabsList>
           <TabsTab value="serie">Servicio caído</TabsTab>
@@ -122,13 +125,8 @@ export function EvolucionPanel(): JSX.Element {
 
       {vista === 'serie' && (
         <section className="evolucion-vista">
-          <h3 className="evolucion-subtitulo">Escuelas con servicio caído</h3>
-          <p className="evolucion-descripcion">
-            Escuelas con funcionamiento <strong>interrumpido</strong> o <strong>parcialmente interrumpido</strong> cada día del
-            período. El último punto es hoy y responde lo mismo que los indicadores del mapa.
-          </p>
           {datos.serieEscuelasServicioCaido.length === 0 ? (
-            <p className="map-hint">No hay escuelas con servicio caído en el período vigente.</p>
+            <p className="map-hint">No hay escuelas con servicio caído.</p>
           ) : (
             <GraficoSerieServicioCaido
               puntos={recortarSerieAlRangoConDatos(datos.serieEscuelasServicioCaido)}
@@ -139,13 +137,8 @@ export function EvolucionPanel(): JSX.Element {
 
       {vista === 'ranking' && (
         <section className="evolucion-vista">
-          <h3 className="evolucion-subtitulo">Ranking de departamentos</h3>
-          <p className="evolucion-descripcion">
-            Departamentos ordenados por cantidad de escuelas con afectaciones vigentes. Son las
-            mismas escuelas y los mismos alumnos que muestran los indicadores del mapa.
-          </p>
           {datos.rankingDepartamentos.length === 0 ? (
-            <p className="map-hint">No hay escuelas con afectaciones vigentes en el período.</p>
+            <p className="map-hint">No hay escuelas afectadas.</p>
           ) : (
             <div className="ui-table-wrap">
               <table className="ui-table evolucion-tabla">
@@ -160,9 +153,9 @@ export function EvolucionPanel(): JSX.Element {
                 <tbody>
                   {datos.rankingDepartamentos.map((fila) => (
                     <tr key={fila.departamento}>
-                      <th scope="row">{fila.departamento}</th>
-                      <td>{fila.escuelasAfectadas}</td>
-                      <td>{fila.alumnosAlcanzados}</td>
+                      <th scope="row">{etiquetaDepartamento(fila.departamento)}</th>
+                      <td>{FORMATO_NUMERO.format(fila.escuelasAfectadas)}</td>
+                      <td>{FORMATO_NUMERO.format(fila.alumnosAlcanzados)}</td>
                       <td className="evolucion-barra-celda">
                         {/* Decorativa: el número ya está en la columna anterior. */}
                         <span className="evolucion-barra" aria-hidden="true">
@@ -188,13 +181,8 @@ export function EvolucionPanel(): JSX.Element {
 
       {vista === 'motivos' && (
         <section className="evolucion-vista">
-          <h3 className="evolucion-subtitulo">Distribución por motivo</h3>
-          <p className="evolucion-descripcion">
-            Afectaciones vigentes declaradas por cada motivo. Una escuela puede aportar más de
-            una afectación (y más de un motivo) si el parte lo registró así.
-          </p>
           {datos.distribucionMotivo.length === 0 ? (
-            <p className="map-hint">No hay afectaciones vigentes en el período.</p>
+            <p className="map-hint">No hay afectaciones vigentes.</p>
           ) : (
             <GraficoMotivos motivos={datos.distribucionMotivo} />
           )}
@@ -203,30 +191,9 @@ export function EvolucionPanel(): JSX.Element {
 
       {vista === 'acumulado' && (
         <section className="evolucion-vista">
-          <h3 className="evolucion-subtitulo">Alumnos alcanzados acumulados</h3>
-          {/*
-            La vista que más se confunde con un bug: el acumulado deduplica por
-            persona a lo LARGO DE TODO EL PERÍODO y por eso NO coincide con el
-            indicador "Alumnos alcanzados" del mapa, que es un snapshot de HOY.
-            Son dos preguntas distintas y el texto las separa a propósito.
-          */}
-          <div className="ui-messagebar ui-messagebar--info">
-            <span>
-              <strong className="ui-messagebar__title">
-                No es el indicador del mapa
-              </strong>
-              Este acumulado cuenta a cada alumno UNA sola vez desde que fue alcanzado, a lo
-              largo de todo el período, aunque hoy ya haya vuelto a clase. El indicador
-              &quot;Alumnos alcanzados&quot; del mapa responde otra pregunta: cuántos alumnos
-              están afectados <strong>hoy</strong>. Los dos números pueden no coincidir sin que
-              haya un error de datos.
-            </span>
-          </div>
-          <p className="evolucion-descripcion">
-            Alumnos distintos alcanzados desde el inicio del período. La serie nunca decrece.
-          </p>
+          <p className="map-sitact__atenuado">Cuenta a cada alumno una sola vez en todo el período.</p>
           {datos.alumnosAcumulados.length === 0 ? (
-            <p className="map-hint">No hay alumnos alcanzados en el período.</p>
+            <p className="map-hint">No hay alumnos alcanzados.</p>
           ) : (
             <GraficoAlumnosAcumulados puntos={datos.alumnosAcumulados} />
           )}

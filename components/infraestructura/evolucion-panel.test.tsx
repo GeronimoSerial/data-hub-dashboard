@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { EvolucionMapa } from '@/lib/infraestructura/evolucion'
+import { FILTROS_MAPA_VACIOS, type FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 import { EvolucionPanel, recortarSerieAlRangoConDatos } from './evolucion-panel'
 
 // Respuesta de ejemplo con forma EXACTA de EvolucionMapa: si el panel
@@ -39,21 +40,70 @@ afterEach(() => {
 
 describe('EvolucionPanel — consumo del endpoint de evolución', () => {
   it('pide la evolución una sola vez al montar', async () => {
-    render(<EvolucionPanel />)
+    render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
 
     await screen.findByRole('tab', { name: 'Servicio caído' })
     expect(fetchEvolucion).toHaveBeenCalledTimes(1)
     expect(fetchEvolucion).toHaveBeenCalledWith('/api/mapas/infraestructura/evolucion')
   })
 
+  it('envía departamentos y niveles como parámetros repetidos en el orden recibido', async () => {
+    const filtros: FiltrosMapa = {
+      ...FILTROS_MAPA_VACIOS,
+      departamentos: ['GOYA', 'ESQUINA'],
+      niveles: ['PRIMARIA'],
+    }
+    render(<EvolucionPanel filtros={filtros} />)
+
+    await screen.findByRole('tab', { name: 'Servicio caído' })
+    expect(fetchEvolucion).toHaveBeenCalledWith(
+      '/api/mapas/infraestructura/evolucion?departamento=GOYA&departamento=ESQUINA&nivel=PRIMARIA',
+    )
+  })
+
+  it('vuelve a pedir cuando cambia la query y no por un objeto equivalente', async () => {
+    const primera: FiltrosMapa = { ...FILTROS_MAPA_VACIOS, departamentos: ['GOYA'] }
+    const { rerender } = render(<EvolucionPanel filtros={primera} />)
+    await screen.findByRole('tab', { name: 'Servicio caído' })
+
+    rerender(<EvolucionPanel filtros={{ ...primera, departamentos: ['ESQUINA'] }} />)
+    await vi.waitFor(() => expect(fetchEvolucion).toHaveBeenCalledTimes(2))
+    expect(fetchEvolucion).toHaveBeenLastCalledWith(
+      '/api/mapas/infraestructura/evolucion?departamento=ESQUINA',
+    )
+
+    rerender(<EvolucionPanel filtros={{ ...primera, departamentos: ['ESQUINA'] }} />)
+    expect(fetchEvolucion).toHaveBeenCalledTimes(2)
+  })
+
+  it('conserva los datos anteriores mientras recarga los filtros', async () => {
+    let resolver: ((value: { ok: boolean; json: () => Promise<EvolucionMapa> }) => void) | undefined
+    fetchEvolucion.mockResolvedValueOnce({ ok: true, json: async () => DATOS })
+    fetchEvolucion.mockImplementationOnce(
+      () => new Promise((resolve) => { resolver = resolve }),
+    )
+    const { rerender } = render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
+    await screen.findByRole('tab', { name: 'Servicio caído' })
+    await userEvent.click(screen.getByRole('tab', { name: 'Departamentos' }))
+    expect(await screen.findByRole('rowheader', { name: 'Capital' })).toBeInTheDocument()
+
+    rerender(<EvolucionPanel filtros={{ ...FILTROS_MAPA_VACIOS, departamentos: ['Goya'] }} />)
+
+    expect(screen.getByRole('rowheader', { name: 'Capital' })).toBeInTheDocument()
+    expect(screen.queryByText('Cargando…')).not.toBeInTheDocument()
+    expect(resolver).toBeDefined()
+  })
+
   it('muestra el ranking de departamentos como tabla con los datos del endpoint', async () => {
-    render(<EvolucionPanel />)
+    render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
 
     await userEvent.click(await screen.findByRole('tab', { name: 'Departamentos' }))
 
     const tabla = await screen.findByRole('table')
     expect(within(tabla).getByRole('columnheader', { name: 'Escuelas afectadas' })).toBeInTheDocument()
     // La primera columna son th[scope=row] (encabezado de fila), no td.
+    expect(within(tabla).getByRole('columnheader', { name: 'Departamento' })).toBeInTheDocument()
+    expect(within(tabla).getByRole('columnheader', { name: 'Proporción' })).toBeInTheDocument()
     expect(within(tabla).getByRole('rowheader', { name: 'Capital' })).toBeInTheDocument()
     expect(within(tabla).getByRole('cell', { name: '4' })).toBeInTheDocument()
     expect(within(tabla).getByRole('cell', { name: '120' })).toBeInTheDocument()
@@ -61,19 +111,16 @@ describe('EvolucionPanel — consumo del endpoint de evolución', () => {
     expect(within(tabla).getByRole('cell', { name: '60' })).toBeInTheDocument()
   })
 
-  it('la vista de alumnos acumulados explica que NO es el indicador del mapa', async () => {
-    render(<EvolucionPanel />)
+  it('la vista de alumnos acumulados explica que deduplica en todo el período', async () => {
+    render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
 
     await userEvent.click(await screen.findByRole('tab', { name: 'Alumnos acumulados' }))
 
-    expect(await screen.findByText('No es el indicador del mapa')).toBeInTheDocument()
-    expect(
-      screen.getByText(/cuántos alumnos están afectados/i),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Cuenta a cada alumno una sola vez en todo el período.')).toBeInTheDocument()
   })
 
   it('las cuatro vistas son navegables por sus pestañas', async () => {
-    render(<EvolucionPanel />)
+    render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
 
     expect(await screen.findByRole('tab', { name: 'Servicio caído' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Departamentos' })).toBeInTheDocument()
@@ -81,13 +128,13 @@ describe('EvolucionPanel — consumo del endpoint de evolución', () => {
     expect(screen.getByRole('tab', { name: 'Alumnos acumulados' })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: 'Motivos' }))
-    expect(await screen.findByText('Distribución por motivo')).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'Distribución de afectaciones vigentes por motivo' })).toBeInTheDocument()
   })
 
   it('ante un error del endpoint muestra el mensaje y no una grilla vacía', async () => {
     fetchEvolucion.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) })
 
-    render(<EvolucionPanel />)
+    render(<EvolucionPanel filtros={FILTROS_MAPA_VACIOS} />)
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/HTTP 500/)
     expect(screen.queryByRole('table')).not.toBeInTheDocument()

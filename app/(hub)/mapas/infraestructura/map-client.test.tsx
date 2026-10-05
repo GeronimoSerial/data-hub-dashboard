@@ -55,7 +55,9 @@ vi.mock('@/lib/infraestructura/use-escuelas-mapa', () => ({
 }))
 
 vi.mock('@/components/infraestructura/evolucion-panel', () => ({
-  EvolucionPanel: () => <div data-testid="mock-evolucion" />,
+  EvolucionPanel: (props: { filtros: object }) => (
+    <div data-testid="mock-evolucion" data-filtros={JSON.stringify(props.filtros)} />
+  ),
 }))
 
 beforeEach(() => {
@@ -116,6 +118,18 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
     expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toBeVisible()
+  })
+
+  it('pasa los filtros activos a la sección de evolución', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+
+    expect(screen.getByTestId('mock-evolucion')).toHaveAttribute(
+      'data-filtros',
+      expect.stringContaining('"niveles":["Primario"]'),
+    )
   })
 
   it('filtra las escuelas del mapa por nivel, conserva el mapa montado y permite limpiar', async () => {
@@ -198,6 +212,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     // Oculto, no borrado.
     expect(mapa).not.toBeVisible()
 
+    expect(screen.getByRole('heading', { name: 'Estadísticas' })).toBeInTheDocument()
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))

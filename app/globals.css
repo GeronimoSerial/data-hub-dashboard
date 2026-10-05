@@ -212,6 +212,21 @@
 .map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
+.map-est { display: grid; width: min(100%, 64rem); margin: 0 auto; gap: var(--s-5); align-content: start; }
+.map-est .map-sitact__kpis { grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); }
+.map-est__agrupacion { display: grid; gap: var(--s-2); }
+.map-est__agrupacion .map-seg { max-width: 28rem; }
+.map-est__tabla-wrap { max-width: 100%; }
+.ui-table.map-est__tabla th, .ui-table.map-est__tabla td { text-align: right; font-variant-numeric: tabular-nums; }
+.ui-table.map-est__tabla th:first-child, .ui-table.map-est__tabla td:first-child { text-align: left; }
+.map-est__tabla tbody th { background: transparent; color: var(--ink); font-size: var(--t-small); letter-spacing: normal; text-transform: none; white-space: nowrap; }
+.map-est__numero { white-space: nowrap; }
+.map-est__porcentaje { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--s-2); }
+.map-est__porcentaje-numero { display: inline-block; width: 4ch; text-align: right; }
+.map-est__barra { display: inline-block; flex: 0 0 4rem; width: 4rem; height: 0.375rem; overflow: hidden; border-radius: var(--r-pill); background: var(--band); vertical-align: middle; }
+.map-est__barra span { display: block; height: 100%; border-radius: var(--r-pill); background: var(--warn); }
+.map-est__evolucion { display: grid; gap: var(--s-3); }
+
 /* Control segmentado compartido por Radar y Planificación. */
 .map-seg { display: flex; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
 .map-seg__opcion { flex: 1 1 0; min-width: 0; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; }
@@ -5017,25 +5032,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   cursor: pointer;
 }
 
-/* ── Pestaña de evolución (F5.3) ──────────────────────────────────────────
-   Una sola columna centrada: los gráficos necesitan ancho estable y la tabla
-   de ranking scrollea dentro de su propia superficie (.ui-table-wrap). */
+/* ── Evolución dentro de Estadísticas (F5.3) ───────────────────────────────
+   Los gráficos ocupan el ancho de la sección y el ranking scrollea dentro de
+   su propia superficie (.ui-table-wrap). */
 .evolucion-panel {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  max-width: 64rem;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 .evolucion-vista {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  /* Hallazgo 23: las cuatro vistas no comparten altura (gráfico de 17rem vs.
-     tabla vs. mensaje) y al cambiar de subpestaña el layout saltaba. Se reserva
-     la altura típica de un gráfico más el texto de encabezado para que el salto
-     entre vistas sea mínimo. La vista de acumulado puede superarlo y crecer. */
-  min-height: 21rem;
+  /* Reserva la altura del gráfico de 17rem y un poco de aire para evitar saltos
+     al cambiar de subpestaña. La vista de acumulado puede crecer. */
+  min-height: 18rem;
 }
 .evolucion-subtitulo {
   margin: 0;

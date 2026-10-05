@@ -56,6 +56,70 @@ beforeAll(async () => {
 })
 
 describe('obtenerEvolucionMapa', () => {
+  it('filtra por departamento normalizado y agrega sólo las escuelas coincidentes', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    for (const [cue, departamento, seccion] of [
+      ['CUE-EV-FILTRO-CONCORDIA', 'Concordia', 91001],
+      ['CUE-EV-FILTRO-PARANA', 'Paraná', 91002],
+    ] as const) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+        args: [cue, `Escuela ${cue}`, departamento, departamento, -31.7, -60.5],
+      })
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+        args: [seccion, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+      })
+    }
+    const concordia = await crearParte('CUE-EV-FILTRO-CONCORDIA')
+    const parana = await crearParte('CUE-EV-FILTRO-PARANA')
+    await crearAfectacion({ parteId: concordia, motivo: 'Filtro Concordia', secciones: [91001] })
+    await crearAfectacion({ parteId: parana, motivo: 'Filtro Paraná', secciones: [91002] })
+
+    const resultado = await obtenerEvolucionMapa({ departamentos: ['CONCORDIA'] })
+
+    expect(resultado.rankingDepartamentos).toEqual([{ departamento: 'Concordia', escuelasAfectadas: 1, alumnosAlcanzados: 0 }])
+    expect(resultado.distribucionMotivo).toEqual([{ motivo: 'Filtro Concordia', afectacionesVigentes: 1 }])
+    expect(resultado.serieEscuelasServicioCaido.every((punto) => punto.escuelas === 0)).toBe(true)
+    expect(await obtenerEvolucionMapa({ departamentos: ['Concordia'] })).toEqual(resultado)
+    expect(await obtenerEvolucionMapa({ departamentos: ['Concordía'] })).toEqual(resultado)
+  })
+
+  it('filtra niveles exactos con trim y cuenta una escuela con varios niveles una sola vez', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    const cue = 'CUE-EV-FILTRO-NIVELES'
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+      args: [cue, 'Escuela niveles', 'Nivel Test', 'Nivel Test', -31.7, -60.5],
+    })
+    for (const [seccion, nivel] of [[92001, 'PRIMARIA'], [92002, 'SECUNDARIA']] as const) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+        args: [seccion, cue, '1', 'A', nivel, 'MAÑANA'],
+      })
+    }
+    const parteId = await crearParte(cue)
+    await crearAfectacion({ parteId, motivo: 'Filtro niveles', secciones: [92001, 92002] })
+
+    const primaria = await obtenerEvolucionMapa({ departamentos: ['nivel test'], niveles: ['PRIMARIA'] })
+    const secundaria = await obtenerEvolucionMapa({ departamentos: ['NIVEL TEST'], niveles: ['SECUNDARIA'] })
+
+    expect(primaria.rankingDepartamentos).toEqual([{ departamento: 'Nivel Test', escuelasAfectadas: 1, alumnosAlcanzados: 0 }])
+    expect(secundaria.rankingDepartamentos).toEqual(primaria.rankingDepartamentos)
+    expect(primaria.distribucionMotivo).toEqual([{ motivo: 'Filtro niveles', afectacionesVigentes: 1 }])
+    expect(secundaria.serieEscuelasServicioCaido).toEqual(primaria.serieEscuelasServicioCaido)
+    expect(primaria.alumnosAcumulados).toEqual(primaria.alumnosAcumulados.map((p) => ({ ...p, alumnosAcumulados: 0 })))
+  })
+
+  it('mantiene el resultado actual al llamar sin filtros y devuelve vacío si el nivel no coincide', async () => {
+    const actual = await obtenerEvolucionMapa()
+    expect(await obtenerEvolucionMapa({})).toEqual(actual)
+    expect(await obtenerEvolucionMapa({ departamentos: [], niveles: [] })).toEqual(actual)
+    expect(await obtenerEvolucionMapa({ departamentos: ['Goya'], niveles: ['NIVEL INEXISTENTE'] })).toEqual({
+      serieEscuelasServicioCaido: [], rankingDepartamentos: [], distribucionMotivo: [], alumnosAcumulados: [],
+    })
+  })
+
   it('reconstruye la serie de servicio caído por intervalos, no por snapshot', async () => {
     const parteId = await crearParte('CUE-EV-1')
     // Afectación vigente hoy: sin esto el parte no entra en la población del
@@ -246,6 +310,16 @@ describe('obtenerEvolucionMapa', () => {
       raw.query = original
 
       expect(contador2).toBe(queriesConUnParte)
+
+      let contadorFiltrado = 0
+      raw.query = async (...args: unknown[]) => {
+        contadorFiltrado++
+        return original(...args)
+      }
+      await obtenerEvolucionMapa({ niveles: ['PRIMARIA'] })
+      const queriesFiltradasConDiezPartes = contadorFiltrado
+      raw.query = original
+      expect(queriesFiltradasConDiezPartes).toBe(queriesConUnParte)
     })
   })
 })

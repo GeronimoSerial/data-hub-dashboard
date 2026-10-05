@@ -185,6 +185,7 @@ export function GraficoSerieServicioCaido(props: {
         <YAxis
           allowDecimals={false}
           width={36}
+          tickFormatter={formatearMiles}
           tick={{ ...CLASE_EJE, fill: paleta.texto }}
           tickLine={false}
           axisLine={{ stroke: paleta.eje, strokeWidth: 1 }}
@@ -203,7 +204,9 @@ export function GraficoSerieServicioCaido(props: {
           name="Escuelas con servicio caído"
           stroke={paleta.serieServicio}
           strokeWidth={1}
-          dot={false}
+          dot={(punto) => punto.index === punto.points.length - 1 ? (
+            <circle cx={punto.cx} cy={punto.cy} r={4} fill={paleta.serieServicio} stroke={paleta.serieServicio} />
+          ) : null}
           activeDot={{ r: 3, strokeWidth: 1, fill: paleta.serieServicio, stroke: paleta.serieServicio }}
           isAnimationActive={false}
         />
@@ -300,7 +303,9 @@ export function GraficoAlumnosAcumulados(props: {
           strokeWidth={1}
           fill={paleta.serieAcumulados}
           fillOpacity={0.18}
-          dot={false}
+          dot={(punto) => punto.index === punto.points.length - 1 ? (
+            <circle cx={punto.cx} cy={punto.cy} r={4} fill={paleta.serieAcumulados} stroke={paleta.serieAcumulados} />
+          ) : null}
           activeDot={{ r: 3, strokeWidth: 1, fill: paleta.serieAcumulados, stroke: paleta.serieAcumulados }}
           isAnimationActive={false}
         />
