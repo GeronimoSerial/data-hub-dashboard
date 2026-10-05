@@ -77,10 +77,10 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
-  it('muestra una sola fila con Situación actual, Radar, Planificación y Estadísticas', () => {
+  it('muestra una sola fila con Situación actual, Radar, Planificación, Estadísticas y Capas', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
-    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas'])
+    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas', 'Capas'])
   })
 
   it('sin el flag del radar no muestra la pestaña Radar', () => {
@@ -200,6 +200,23 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
     expect(mapa).toHaveAttribute('data-pestana', 'actual')
+  })
+
+  it('en Capas deja el mapa en Situación actual y conserva el mapa montado', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    const mapa = await screen.findByTestId('mock-mapa')
+    await userEvent.click(screen.getByRole('tab', { name: 'Capas' }))
+    expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+    expect(mapa).toHaveAttribute('data-pestana', 'actual')
+    expect(mapa).toHaveAttribute('data-panel', 'capas')
+    expect(montajesMapa.total).toBe(1)
+  })
+
+  it('#capas selecciona la pestaña Capas', async () => {
+    window.location.hash = 'capas'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    expect(await screen.findByRole('tab', { name: 'Capas' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
   })
 
   it('cambiar de pestaña conserva el mapa montado y visible', async () => {

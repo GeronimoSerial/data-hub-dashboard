@@ -7,6 +7,7 @@ describe('resolverPestana', () => {
     ['#radar', '', 'radar'],
     ['#planificacion', '', 'planificacion'],
     ['#estadisticas', '', 'estadisticas'],
+    ['#capas', '', 'capas'],
     ['#operativa', '', 'actual'],
     ['#evolucion', '', 'estadisticas'],
     ['', '?modo=radar', 'radar'],
@@ -39,6 +40,7 @@ describe('pestanaDeMapa', () => {
     ['radar', 'radar'],
     ['planificacion', 'planificacion'],
     ['estadisticas', 'actual'],
+    ['capas', 'actual'],
   ] as const)('%s usa las capas de %s', (panel, mapa) => {
     expect(pestanaDeMapa(panel)).toBe(mapa)
   })

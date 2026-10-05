@@ -57,8 +57,8 @@ import {
 } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
-import { BasemapControl } from '@/components/mapas/basemap-control'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
+import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
@@ -72,7 +72,6 @@ import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
-  RadarLayerControl,
   type CapaAccesos,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
@@ -592,7 +591,7 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
-  pestana: Exclude<PestanaMapa, 'estadisticas'>
+  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas'>
   panel?: PestanaMapa
   estadisticas?: ReactNode
   hazardContextEnabled?: boolean
@@ -623,10 +622,6 @@ export default function MapInfraestructuraPage(props: {
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
   const [fichaPestana, setFichaPestana] = useState<PestanaMapa | null>(null)
   const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === panelLateral
-  // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
-  // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
-  // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
-  const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros. Cerrar cualquiera de los tres sólo tiene que
   // tocar SU propio estado — nunca el encuadre del mapa (MapGL no se remonta acá).
@@ -1066,7 +1061,6 @@ export default function MapInfraestructuraPage(props: {
       setFichaCerradaCue(null)
       setFichaPestana(panelLateral)
       encuadreRutaPendiente.current = escuela.cueAnexo
-      setControlsStackAbierto(false)
       return
     }
     setAvisoBusqueda(null)
@@ -1076,7 +1070,6 @@ export default function MapInfraestructuraPage(props: {
     setFichaCerradaCue(null)
     setFichaPestana(panelLateral)
     encuadreRutaPendiente.current = escuela.cueAnexo
-    setControlsStackAbierto(false)
   }, [panelLateral])
 
   // El cluster también es clickeable para hacer zoom de expansión.
@@ -1286,10 +1279,6 @@ export default function MapInfraestructuraPage(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
 
-  function alternarCapaRadar(capa: CapaRadar, value: boolean) {
-    setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
-  }
-
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
   // descuenta la columna izquierda, donde también vive la ficha.
@@ -1423,11 +1412,9 @@ export default function MapInfraestructuraPage(props: {
           {/*
             Radar (E4): fuente y layers PROPIOS, montados ENCIMA de las capas
             actuales (decisión 2: SUMAR, no reemplazar). Así el modo Radar no
-            desmonta nada de lo existente ni toca sus ids — el riesgo de
-            regresión del layout actual queda en cero — y las capas de radar
-            se pueden apagar con su propio control (RadarLayerControl) sin
-            afectar las de partes. `peligroGeojson` reutiliza el mismo
-            departamentosRaw; no hay fetch extra para la coropleta.
+            desmonta nada de lo existente ni toca sus ids. `peligroGeojson`
+            reutiliza el mismo departamentosRaw; no hay fetch extra para la
+            coropleta.
           */}
           {radarActivo && peligroGeojson && (
             <Source id="infra-peligro-src" type="geojson" data={peligroGeojson}>
@@ -1875,42 +1862,19 @@ export default function MapInfraestructuraPage(props: {
               />
             )}
             estadisticas={props.estadisticas}
+            capas={(
+              <PanelCapas
+                value={basemap}
+                onChange={(id) => {
+                  setBasemap(id)
+                  // Cambiar de base recarga el estilo y descarta las imágenes registradas.
+                  setIconosClusterListos(false)
+                }}
+              />
+            )}
           />
         </div>
       )}
-
-      <div
-        className={styles.controlsStack}
-        id="infra-controls-stack"
-        data-open={controlsStackAbierto ? 'true' : 'false'}
-        style={radarActivo ? { display: 'none' } : undefined}
-      >
-        <BasemapControl
-          value={basemap}
-          onChange={(id) => {
-            setBasemap(id)
-            // Al cambiar de base MapLibre recarga el estilo y descarta las
-            // imágenes registradas: se desmontan las capas symbol hasta que
-            // `onStyleData` vuelva a registrarlas.
-            setIconosClusterListos(false)
-          }}
-        />
-        {radarActivo && false && (
-          <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
-        )}
-      </div>
-
-      <Button
-        variant="secondary"
-        size="sm"
-        className={styles.controlsStackToggle}
-        style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() => setControlsStackAbierto((abierto) => !abierto)}
-        aria-expanded={controlsStackAbierto}
-        aria-controls="infra-controls-stack"
-      >
-        {controlsStackAbierto ? 'Cerrar' : 'Capas'}
-      </Button>
 
       {!radarActivo && <FullscreenButton targetRef={shellRef} />}
 

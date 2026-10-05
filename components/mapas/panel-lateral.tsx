@@ -14,6 +14,7 @@ export interface PanelLateralProps {
   radar: ReactNode
   planificacion: ReactNode
   estadisticas: ReactNode
+  capas: ReactNode
 }
 
 export function PanelLateral(props: PanelLateralProps) {
@@ -27,6 +28,8 @@ export function PanelLateral(props: PanelLateralProps) {
     contenido = props.planificacion
   } else if (props.pestana === 'estadisticas') {
     contenido = props.estadisticas
+  } else if (props.pestana === 'capas') {
+    contenido = props.capas
   }
 
   // Lo invocan las fichas que se montan acá desde la Task 13.

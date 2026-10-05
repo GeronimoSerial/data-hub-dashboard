@@ -107,6 +107,7 @@ export function InfraestructuraMapClient(props: {
             {props.riskRadarEnabled && <TabsTab value="radar">Radar</TabsTab>}
             <TabsTab value="planificacion">Planificación</TabsTab>
             <TabsTab value="estadisticas">Estadísticas</TabsTab>
+            <TabsTab value="capas">Capas</TabsTab>
           </TabsList>
         </Tabs>
       </div>

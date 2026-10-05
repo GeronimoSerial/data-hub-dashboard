@@ -40,6 +40,7 @@ const MAPA_ESTILO_MOCK = vi.hoisted(() => ({
   onStyleData: null as (() => void) | null,
   montajesFuente: 0,
 }))
+const HAS_IMAGE_MOCK = vi.hoisted(() => vi.fn(() => true))
 
 const PARTE: ParteMapa = crearParteMapa({
   cueAnexo: CUE,
@@ -447,6 +448,8 @@ vi.mock('react-map-gl/maplibre', () => {
           stop: vi.fn(),
           getContainer: MAP_CONTAINER_MOCK.getContainer,
           isStyleLoaded: () => true,
+          hasImage: HAS_IMAGE_MOCK,
+          addImage: vi.fn(),
           // `infra-partes-src` tiene que existir para que
           // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
           // los cues de `CUES_DESAGRUPADOS_MOCK` (por defecto, las dos
@@ -669,6 +672,7 @@ beforeEach(() => {
   MAPA_ESTILO_MOCK.mapStyle = ''
   MAPA_ESTILO_MOCK.onStyleData = null
   MAPA_ESTILO_MOCK.montajesFuente = 0
+  HAS_IMAGE_MOCK.mockClear()
   vi.restoreAllMocks()
   MAP_CONTAINER_MOCK.container = document.createElement('div')
   MAP_CONTAINER_MOCK.container.innerHTML = '<details class="maplibregl-ctrl maplibregl-ctrl-attrib maplibregl-compact maplibregl-compact-show" open></details>'
@@ -1154,12 +1158,34 @@ describe('MapInfraestructuraPage — Planificación', () => {
     expect(screen.getByText('Veces con situaciones')).toBeInTheDocument()
   })
 
-  it('mantiene sólo el mapa base como control de capas en Situación actual', async () => {
+  it('quita los controles de mapa base flotantes en Situación actual', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true, pestana: 'actual' })
 
     expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
     expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
-    expect(screen.getByText('Mapa base')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Capas' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Mapa base' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Mapa base' })).not.toBeInTheDocument()
+  })
+
+  it('muestra el mapa base en el sidebar de Capas y vuelve a registrar los íconos al cambiarlo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual', panel: 'capas' })
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByRole('heading', { name: 'Mapa base' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Capas' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('infra-controls-stack')).not.toBeInTheDocument()
+    const iconoEscuela = 'mock-layer-infra-partes-escuela-icono'
+    expect(await screen.findByTestId(iconoEscuela)).toBeInTheDocument()
+    const consultasAntesDelCambio = HAS_IMAGE_MOCK.mock.calls.length
+
+    await userEvent.click(within(within(panel).getByRole('group', { name: 'Mapa base' })).getByRole('radio', { name: 'Mapa claro' }))
+    expect(screen.getByTestId('mock-maplibre')).toHaveAttribute('data-map-style', 'https://tiles.openfreemap.org/styles/positron')
+    expect(screen.queryByTestId(iconoEscuela)).not.toBeInTheDocument()
+
+    await act(async () => MAPA_ESTILO_MOCK.onStyleData?.())
+    expect(await screen.findByTestId(iconoEscuela)).toBeInTheDocument()
+    expect(HAS_IMAGE_MOCK.mock.calls.length).toBeGreaterThan(consultasAntesDelCambio)
   })
 
   it('colorea los puntos por vista y cambia los colores al elegir Historial', async () => {
@@ -1409,7 +1435,7 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
 
     expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
     expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
-    expect(screen.getByText('Mapa base')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Mapa base' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/agua estimada por crecida de río/i)).not.toBeInTheDocument()
     expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
   })
