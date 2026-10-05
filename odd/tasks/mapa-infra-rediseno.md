@@ -30,7 +30,7 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 ## Checklist
 
 - [x] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b, visual fix ed05c46; merged b8bc99a
-- [ ] B2 — Tasks 5–9 (datos enriquecidos y filtros)
+- [ ] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T7 abea36f, T6 cdef3c2, T8 bbac423+475fd7b+f38b245, merge b1 dc12925, T9 e2fd673; N1 gate green; visual fixes in progress (ctx_373b53fb532c)
 - [ ] B3 — Tasks 10–15 (situación actual)
 - [ ] B4 — Tasks 16–19 (radar y planificación)
 - [ ] B5 — Tasks 20–22 (estadísticas)
@@ -56,3 +56,8 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - Isolation job v3 (user-authorized, local): success in 1126 s; 1989/2001 schools with route (99.4%, was 1985); 51 destinations used; median 4.7 km, p90 36.6 km; crossings puente 943, sin_evidencia 765, vado 0. Output committed with GEOMETRIA_DEFAULT → v3 (86d2135). Not done: route-exposure recompute (exposicion_ruta v1 still computed on v2 routes) and import into staging (needs authorization).
 - B1 visual review (N1, dev server :3210 from mapa-b1, demo DB copy): tab row OK; Estadísticas hides the map OK. FINDING: in Radar the placeholder `panel-radar` in the left stack renders as an empty white box behind `.radar-meteo-controls` → fix dispatched (ctx_070bc14bbf17) → ed05c46, re-checked visually OK.
 - B1 gate (N1): build exit 0; full vitest 2455 passed / 1 failed (known radar-meteo/resumen) / 23 skipped. Merged b8bc99a; post-merge tsc clean, map tests 221 passed. B2 N2 told to merge feat/mapa-b1. Notes for B3: access hint copy still says 'hasta la ciudad cabecera del departamento' (Task 14 must change it); demo DB has 0 partes, so seed demo partes before B3 visual review. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
+
+- 2026-10-04 23:57: global OOM killed Orca and Chrome (orca-daemon scope peaked 18.8 GB + 5.4 GB swap across several orchestrations). The B2 N2 died after committing T9 (dispatch now `missing`, left as is). Protections added: memory-capped wrappers ~/.cache/mapa-n2/heavy.sh and n3.sh (systemd scopes), watchdog unit mapa-memwatch (<3000 MB → stop mapa-heavy-* and mapa-review), dev server capped at 3 GB and stopped after each review; one N2 at a time overnight.
+- B2 gate (N1, capped): build exit 0; lint 0 errors; full vitest 2497 passed / 1 known failure.
+- B2 visual review (N1, Claude in Chrome, 80 demo partes): chips, popovers with counts and filtering work. Findings sent to fix N2: (1) 'N escuelas · M afectadas · P%' ignores filters; (2) department names in UPPERCASE; (3) empty Nivel popover (demo DB has no GE niveles; needs an empty state); (4) empty white box between indicators and Referencias; (5) search 'Ninguna escuela coincide' renders without a panel over the help card; (6) 'Limpiar filtros' wraps alone on a second line. Demo DB note: no GE sections, so niveles and alumnos are empty in review.
+- Visual review rule (user): Claude in Chrome, aesthetics + no AI-slop copy + behavior.
