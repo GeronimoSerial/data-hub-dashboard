@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
@@ -50,6 +51,28 @@ function FiltrosControlados({ escuelas, onSeleccionar }: {
 afterEach(cleanup)
 
 describe('FiltrosChips', () => {
+  it('abre el popover de Departamento hacia abajo', async () => {
+    const user = userEvent.setup()
+    renderFiltros()
+
+    await user.click(screen.getByRole('button', { name: 'Departamento' }))
+    const popup = screen.getByRole('dialog', { name: 'Departamento' })
+    const posicionador = popup.closest('.filtros-popover-posicionador')
+
+    expect(popup).toHaveAttribute('data-apertura', 'abajo')
+    expect(posicionador).not.toBeNull()
+    expect(posicionador).toHaveAttribute('data-side', 'bottom')
+  })
+
+  it('limita la altura del popover y permite desplazarse por sus opciones', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaPopover = css.match(/\.filtros-popover\s*\{[^}]*\}/)?.[0]
+
+    expect(reglaPopover).toBeDefined()
+    expect(reglaPopover).toMatch(/overflow-y:\s*auto/)
+    expect(reglaPopover).toMatch(/max-height:/)
+  })
+
   it('elegir Primario en Nivel filtra y muestra el chip activo con su ×', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

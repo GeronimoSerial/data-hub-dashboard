@@ -117,8 +117,8 @@ function FiltroDesplegable({
           <ChevronDown aria-hidden="true" />
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4}>
-            <Popover.Popup className="filtros-popover" aria-label={etiqueta}>
+          <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4} collisionAvoidance={{ side: 'none', align: 'shift' }}>
+            <Popover.Popup className="filtros-popover" aria-label={etiqueta} data-apertura="abajo">
               {opciones.length === 0 ? (
                 <div className="filtros-opcion-vacio" role="status">
                   {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
