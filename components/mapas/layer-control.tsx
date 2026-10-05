@@ -144,18 +144,16 @@ export function RadarLayerControl({
 // la ruta OSM de la escuela seleccionada. Son contexto derivado offline, nunca
 // un pronóstico ni el estado confirmado del edificio. Tercer union type y
 // componente hermano para no acoplar el acotamiento de los dominios previos.
-export type CapaAccesos = 'aislamiento' | 'inundacion' | 'rutaSeleccion'
+export type CapaAccesos = 'aislamiento' | 'inundacion'
 
 export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
   aislamiento: `${TEXTOS_ACCESOS.tituloAcceso} (0 a 3)`,
   inundacion: TEXTOS_ACCESOS.tituloInundacion,
-  rutaSeleccion: 'Camino y cruces de agua de la escuela elegida',
 }
 
 const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = [
   'aislamiento',
   ...(MOSTRAR_AGUA_ESTIMADA ? ['inundacion' as const] : []),
-  'rutaSeleccion',
 ]
 
 export function AccesosLayerControl({

@@ -2578,6 +2578,39 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   text-align: center;
 }
 .map-status-error { color: var(--danger); }
+
+.map-bloque-acceso {
+  display: grid;
+  gap: var(--s-2);
+  font-size: var(--t-small);
+}
+
+.map-bloque-acceso__fila {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.map-bloque-acceso__fila > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+
+.map-bloque-acceso__fila > span {
+  min-width: 0;
+}
+
+.map-bloque-acceso__estado {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-soft);
+}
+
+.map-bloque-acceso__riesgo--alto { color: var(--danger-mark); }
+.map-bloque-acceso__riesgo--medio { color: var(--warn); }
+.map-bloque-acceso__riesgo--bajo { color: var(--ok); }
 .map-filtros-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -63,8 +63,7 @@ import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
-import { FichaTerritorial } from '@/components/infraestructura/ficha-territorial'
-import { FichaAccesoTerritorial } from '@/components/infraestructura/ficha-acceso-territorial'
+import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
@@ -520,14 +519,11 @@ const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
   escuelas: false,
 }
 
-// Capas territoriales de accesos (T5c2). Mismo criterio: aislamiento e
-// inundación son contexto de largo plazo y arrancan apagadas; la ruta de la
-// escuela seleccionada sí está encendida por defecto — se dibuja apenas el
-// usuario elige una escuela y no compite con nada hasta entonces.
+// Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
+// aparece automáticamente al seleccionar una escuela.
 const CAPAS_ACCESOS_VISIBLES_DEFECTO: Record<CapaAccesos, boolean> = {
   aislamiento: false,
   inundacion: false,
-  rutaSeleccion: true,
 }
 
 // ── Encuadre de la ruta de acceso ──────────────────────────────────────────
@@ -1236,12 +1232,11 @@ export default function MapInfraestructuraPage(props: {
     data: geometria,
     loading: geometriaLoading,
     error: geometriaError,
-  } = useGeometriaAcceso(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+  } = useGeometriaAcceso(cueRuta, hazardOn && cueRuta !== null)
   const {
     data: exposicion,
     loading: exposicionLoading,
-    error: exposicionError,
-  } = useExposicionRuta(cueRuta, hazardOn && capasAccesosVisibles.rutaSeleccion)
+  } = useExposicionRuta(cueRuta, hazardOn && cueRuta !== null)
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
@@ -1249,10 +1244,6 @@ export default function MapInfraestructuraPage(props: {
     () => (exposicion?.cueAnexo === cueRuta ? construirCeldasExposicion(exposicion) : null),
     [exposicion, cueRuta],
   )
-
-  // Nombre de la escuela seleccionada para el título de la leyenda (null si
-  // la selección no está en el padrón cargado).
-  const seleccionRutaNombre = cueRuta ? (escuelasPorCue.get(cueRuta)?.nombre ?? null) : null
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1291,7 +1282,7 @@ export default function MapInfraestructuraPage(props: {
     // que Radar).
     ...(hazardOn && capasAccesosVisibles.aislamiento ? [CAPA_AISLAMIENTO_ID] : []),
     ...(hazardOn && capasAccesosVisibles.inundacion ? [CAPA_INUNDACION_ID] : []),
-    ...(hazardOn && capasAccesosVisibles.rutaSeleccion ? [CAPA_CRUCES_ACCESO_ID] : []),
+    ...(hazardOn && rutaGeojson !== null ? [CAPA_CRUCES_ACCESO_ID] : []),
   ]
 
   // Click en un cluster (T1.1): no hay cueAnexo — un cluster es un agregado
@@ -1477,8 +1468,7 @@ export default function MapInfraestructuraPage(props: {
   // escuela vuela a zoom 14 sobre ella, así que sin esto una ruta de 30 km
   // queda como un trazo vertical de un píxel. El ref se limpia siempre que
   // la geometría corresponde a la escuela pendiente: si viene
-  // `{ disponible: false }` no hay bbox que encuadrar y el encuadre queda
-  // para el botón explícito de la leyenda, no para el próximo render.
+  // `{ disponible: false }` no hay bbox que encuadrar.
   useEffect(() => {
     if (encuadreRutaPendiente.current !== cueRuta) return
     if (geometria === null || geometria.cueAnexo !== cueRuta) return
@@ -1556,48 +1546,6 @@ export default function MapInfraestructuraPage(props: {
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
   // descuenta la columna izquierda, donde también vive la ficha.
-  function encuadrarRuta() {
-    const bbox = bboxRuta(rutaGeojson)
-    if (bbox === null) return
-    mapRef.current?.getMap()?.fitBounds(bbox, {
-      padding: paddingEncuadre(),
-      duration: 600,
-    })
-  }
-
-  // "Ver recorrido" de la ficha territorial: deja la ruta a la vista. En
-  // pantallas angostas la ficha es una hoja inferior que la tapa entera, así
-  // que se cierra conservando la selección (el grupo flotante de
-  // `.map-seleccion-acciones` queda para volver a abrirla).
-  function handleVerRutaEnMapa() {
-    if (seleccionCue === null) return
-    // `matchMedia` es la forma de saber si la ficha es panel lateral o hoja
-    // inferior (mismo breakpoint que globals.css); si el entorno no lo expone
-    // (o no lo soporta) se cae al ancho, que decide lo mismo.
-    const angosto =
-      typeof window.matchMedia === 'function'
-        ? window.matchMedia('(max-width: 1080px)').matches
-        : window.innerWidth <= 1080
-
-    if (!capasAccesosVisibles.rutaSeleccion) {
-      // Con la capa apagada no hay ruta dibujada ni geometría pedida: se
-      // enciende y se deja anotado el cue, y el encuadre ocurre solo cuando
-      // la geometría llegue (con la ficha ya cerrada, para no taparla).
-      setCapasAccesosVisibles((prev) => ({ ...prev, rutaSeleccion: true }))
-      encuadreRutaPendiente.current = seleccionCue
-    } else {
-      const bbox = bboxRuta(rutaGeojson)
-      if (bbox !== null) {
-        mapRef.current?.getMap()?.fitBounds(bbox, {
-          padding: paddingEncuadre(),
-          duration: 600,
-        })
-      }
-    }
-
-    if (angosto) setFichaCerradaCue(seleccionCue)
-  }
-
   if (error && !data) {
     return (
       <div className={`${styles.status} ${styles.statusError}`}>{error}</div>
@@ -2183,12 +2131,6 @@ export default function MapInfraestructuraPage(props: {
               territorioLoading={territorioLoading}
               territorioError={territorioError}
               resumen={resumenCobertura}
-              seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
-              geometria={geometria}
-              celdasExposicion={celdasExposicion}
-              geometriaLoading={geometriaLoading}
-              geometriaError={geometriaError}
-              onEncuadrarRuta={encuadrarRuta}
             />
           )}
           <PanelLateral
@@ -2202,25 +2144,12 @@ export default function MapInfraestructuraPage(props: {
                 key={seleccionCue}
                 escuela={escuelaSeleccionada}
                 acceso={(
-                  <>
-                    {hazardOn && (
-                      <FichaAccesoTerritorial
-                        territorio={territorio}
-                        territorioLoading={territorioLoading}
-                        territorioError={territorioError}
-                        cueAnexo={seleccionCue ?? ''}
-                        geometria={geometria}
-                        geometriaLoading={geometriaLoading}
-                        geometriaError={geometriaError}
-                        exposicion={exposicion}
-                        exposicionLoading={exposicionLoading}
-                        exposicionError={exposicionError}
-                        onVerRutaEnMapa={handleVerRutaEnMapa}
-                      />
-                    )}
-                    {props.hazardContextEnabled && <FichaTerritorial cueAnexo={seleccionCue ?? ''} />}
-                    {!hazardOn && !props.hazardContextEnabled && <p>Sin acceso calculado</p>}
-                  </>
+                  <BloqueAcceso
+                    geometria={hazardOn ? geometria : null}
+                    exposicion={hazardOn ? exposicion : null}
+                    cargando={hazardOn && (geometriaLoading || exposicionLoading)}
+                    error={Boolean(geometriaError)}
+                  />
                 )}
                 mostrarEnlaceNominal={props.mostrarEnlaceNominal}
                 onVerAlumnosAlcanzados={setNominalAfectacionId}

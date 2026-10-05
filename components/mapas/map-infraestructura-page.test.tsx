@@ -57,9 +57,8 @@ const PARTE: ParteMapa = crearParteMapa({
 // eso ya lo cubren sus propios *.test.tsx. Por eso los tres se mockean acá:
 // dobles de prueba que sólo exponen los props que importan para esta
 // orquestación (open/id, onOpenChange, y los dos callbacks de encadenado).
-// Q3: el bloque territorial llega como un objeto (`accesoTerritorial`) con el
-// botón "Ver recorrido"; el doble lo expone sólo cuando la página se lo pasa,
-// que es justo cuando hay dominio territorial prendido.
+// Los componentes antiguos de acceso se dejan mockeados para comprobar que la
+// página ya no los monta en la ficha del mapa.
 vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
   FichaEscuelaPanel: (props: {
     escuela: { cueAnexo: string }
@@ -1101,42 +1100,32 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
   })
 
-  it('al seleccionar una escuela pide su geometría y la leyenda muestra la ruta disponible', async () => {
+  it('al seleccionar una escuela pide su geometría y muestra el bloque de acceso en la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    await userEvent.click(screen.getByTestId('mock-click-parte'))
+    const ficha = await seleccionarPorBuscador('Escuela 1')
 
     // Geometría SÓLO de la escuela seleccionada, con el flag prendido.
     expect(llamadasGeometria.cues).toContain(CUE)
     expect(llamadasGeometria.habilitados.at(-1)).toBe(true)
-
-    const bloque = await screen.findByTestId('leyenda-ruta-disponible')
-    expect(bloque).toHaveTextContent('Camino calculado · Escuela 1')
+    expect(await within(ficha).findByTestId('bloque-acceso-via')).toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-ver-ruta')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-territorial')).not.toBeInTheDocument()
   })
 
 
 })
 
 // Q1: la ficha abierta/cerrada pasó a ser un estado DISTINTO del de selección.
-// Antes, cerrarla (X o Esc) borraba `seleccionCue` y con él el resaltado, la
-// ruta de acceso y su leyenda, sin ninguna forma de volver atrás salvo elegir
-// otra escuela. Estos tests fijan el contrato nuevo: cerrar la ficha conserva
-// la selección y deja un grupo de acciones para reabrirla o quitarla.
 describe('Q1: cerrar la ficha conserva la selección', () => {
-  it('cerrar la ficha no borra la selección: la ruta sigue y aparece "Ver ficha"', async () => {
+  it('cerrar la ficha no borra la selección: aparece "Ver ficha"', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
     const ficha = await seleccionarPorBuscador('Escuela 1')
     expect(ficha).toHaveAttribute('data-cue', CUE)
 
-    // Con la escuela elegida, la leyenda muestra la ruta disponible.
-    expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
-
     await cerrarFicha()
 
-    // La selección NO se fue con la ficha: la ruta de la escuela sigue dibujada
-    // y la leyenda la sigue describiendo.
-    expect(screen.getByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
     expect(within(screen.getByTestId('panel-lateral')).getByText('Situación actual')).toBeInTheDocument()
     // Y hay una forma explícita de volver a la ficha.
     expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
@@ -1156,20 +1145,15 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
   })
 
-  it('"Quitar selección" borra la selección completa (sin ruta y sin grupo)', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
+  it('"Quitar selección" borra la selección completa y no deja el grupo flotando', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true })
 
     await seleccionarPorBuscador('Escuela 1')
-    expect(await screen.findByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
-
     await cerrarFicha()
 
     await userEvent.click(screen.getByTestId('quitar-seleccion'))
 
-    // Sin selección no hay ruta disponible, no hay ficha y no queda el grupo
-    // flotando sobre el mapa.
-    expect(screen.queryByTestId('leyenda-ruta-disponible')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('leyenda-ruta-sin-seleccion')).toBeInTheDocument()
+    // Sin selección no hay ficha ni queda el grupo flotando sobre el mapa.
     expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
@@ -1253,13 +1237,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
   })
 })
 
-// Q3: encuadre de la ruta de acceso. Elegir una escuela vuela a zoom 14 sobre
-// ella, así que una ruta de decenas de kilómetros quedaba como un trazo
-// vertical de un píxel: el mapa nunca encuadraba el recorrido que la ficha
-// acaba de describir. Estos tests fijan las tres respuestas que el
-// componente tiene que dar: encuadrar cuando la geometría llega, encuadrar
-// cuando el usuario lo pide explícitamente, y NO encuadrar cuando no hay
-// nada que encuadrar.
+// Q3: encuadre automático de la ruta disponible al seleccionar una escuela.
 describe('Q3: encuadre de la ruta de acceso', () => {
   it('al elegir una escuela encuadra la ruta una sola vez, con el padding del viewport', async () => {
     viewport(1440, 900)
@@ -1310,79 +1288,12 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     expect(FLY_TO_MOCK).toHaveBeenCalled()
   })
 
-  it('con la capa de ruta apagada no se pide geometría ni se encuadra', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-
-    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
-    await userEvent.click(casilla)
-    await seleccionarPorBuscador('Escuela 1')
-
-    // La capa apagada significa "no me muestres la ruta": ni geometría ni
-    // encuadre. El vuelo a la escuela es lo que corresponde.
-    expect(casilla).not.toBeChecked()
-    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
-    expect(FIT_BOUNDS_MOCK).not.toHaveBeenCalled()
-  })
-
-  it('"Ver recorrido" encuadra al instante con la ruta ya encendida', async () => {
-    viewport(1440, 900)
-    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-    await seleccionarPorBuscador('Escuela 1')
-    // Se descarta el encuadre automático de la selección para verificar sólo
-    // el del botón.
-    FIT_BOUNDS_MOCK.mockClear()
-
-    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
-
-    expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1)
-    expect(FIT_BOUNDS_MOCK).toHaveBeenCalledWith(
-      [
-        [-58.83, -27.5],
-        [-58.8, -27.47],
-      ],
-      {
-        padding: { top: 60, bottom: 60, left: 400, right: 356 },
-        duration: 600,
-      },
-    )
-    // En pantalla ancha la ficha es un panel lateral que no tapa la ruta: se
-    // queda abierta.
-    expect(screen.getByTestId('mock-ficha-escuela')).toBeInTheDocument()
-  })
-
-  it('"Ver recorrido" con la ruta apagada enciende la capa y encuadra cuando llega', async () => {
-    viewport(1440, 900)
+  it('no expone un control manual para encuadrar el recorrido', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
     await seleccionarPorBuscador('Escuela 1')
 
-    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
-    await userEvent.click(casilla)
-    expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
-    FIT_BOUNDS_MOCK.mockClear()
-
-    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
-
-    expect(casilla).toBeChecked()
-    await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
-  })
-
-  it('"Ver recorrido" en pantalla angosta cierra la ficha y conserva la selección', async () => {
-    viewport(500, 900)
-    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-    await seleccionarPorBuscador('Escuela 1')
-
-    const casilla = screen.getByRole('checkbox', { name: /camino y cruces de agua/i })
-    await userEvent.click(casilla)
-    FIT_BOUNDS_MOCK.mockClear()
-
-    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
-
-    // La hoja inferior tapaba la ruta entera, así que se cierra… pero la
-    // selección vive: el grupo flotante devuelve la ficha.
-    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
-    expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
-    expect(casilla).toBeChecked()
-    await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
+    expect(screen.queryByTestId('ficha-acceso-ver-ruta')).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /camino y cruces de agua/i })).not.toBeInTheDocument()
   })
 
   it('"Quitar selección" limpia el aviso de la escuela sin ubicación', async () => {

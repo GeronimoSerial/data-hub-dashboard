@@ -1,0 +1,78 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
+import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
+import { BloqueAcceso } from './bloque-acceso'
+
+afterEach(cleanup)
+
+const geometria: GeometriaAccesoRespuesta = {
+  cueAnexo: '1801605-04',
+  disponible: true,
+  ruta: { type: 'LineString', coordinates: [[0, 0], [0.01, 0]] },
+  resumen: { puente: 0, vado: 1, sinEvidencia: 1 },
+}
+
+function exposicion(
+  estado: ExposicionRutaRespuesta['estado'],
+  profundidadMaxM: number | null,
+): ExposicionRutaRespuesta {
+  return {
+    cueAnexo: '1801605-04',
+    disponible: true,
+    estado,
+    versionJob: null,
+    resumen: { celdasTotal: 0, celdasConDato: 0, celdasConProfundidad: 0, profundidadMaxM, cobertura: 0 },
+    celdasAfectadas: [],
+    resolucionArcsec: null,
+    periodoRetornoAnios: null,
+    escenario: null,
+    fuente: null,
+    licencia: null,
+    fechaCorrida: null,
+    aviso: '',
+  }
+}
+
+describe('BloqueAcceso', () => {
+  it('muestra las tres líneas con el copy exacto y sus íconos', () => {
+    render(<BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.5)} />)
+
+    expect(screen.getByText('Camino de acceso · 1,1 km')).toBeInTheDocument()
+    expect(screen.getByText('2 cruces de agua en el camino')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo de corte por inundación: Alto')).toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-via').querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-cruces').querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-riesgo').querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('muestra el mensaje de ausencia de cruces sin advertencia', () => {
+    render(
+      <BloqueAcceso
+        geometria={{ ...geometria, resumen: { puente: 3, vado: 0, sinEvidencia: 0 } }}
+        exposicion={null}
+      />,
+    )
+
+    expect(screen.getByText('Sin cruces de agua')).toBeInTheDocument()
+  })
+
+  it('muestra el mensaje de ausencia de acceso', () => {
+    render(<BloqueAcceso geometria={null} exposicion={null} />)
+    expect(screen.getByText('Sin acceso calculado')).toBeInTheDocument()
+  })
+
+  it('omite la línea de riesgo cuando no hay riesgo calculable', () => {
+    render(<BloqueAcceso geometria={geometria} exposicion={null} />)
+    expect(screen.queryByTestId('bloque-acceso-riesgo')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['cargando', { cargando: true }, 'Calculando el acceso…'],
+    ['error', { error: true }, 'No se pudo calcular el acceso.'],
+  ] as const)('muestra el estado de %s', (_estado, props, texto) => {
+    render(<BloqueAcceso geometria={null} exposicion={null} {...props} />)
+    expect(screen.getByText(texto)).toBeInTheDocument()
+  })
+})
