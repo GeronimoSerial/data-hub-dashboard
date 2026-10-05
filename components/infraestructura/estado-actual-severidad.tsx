@@ -17,7 +17,7 @@ const FORMA_POR_SEVERIDAD: Record<Severidad, string> = {
 export interface EstadoActualSeveridadProps {
   severidad: Severidad
   /**
-   * Antepone la palabra "Severidad". Va en false cuando el contexto ya la
+   * Antepone la palabra "Gravedad". Va en false cuando el contexto ya la
    * dice — por ejemplo dentro del grupo "¿Qué tan grave es?", donde
    * "Severidad Alta" repite la pregunta y alarga el nombre accesible de la
    * opción sin agregar nada.
@@ -53,7 +53,7 @@ export function EstadoActualSeveridad({
         />
       )}
       <span className="estado-actual-severidad__texto">
-        {prefijo ? `Severidad ${severidad}` : severidad}
+        {prefijo ? `Gravedad ${severidad}` : severidad}
       </span>
       {sugerida ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Sugerido</span> : actual ? <span className="badge badge--neutral badge-sugerido" aria-hidden="true">Actual</span> : null}
     </span>

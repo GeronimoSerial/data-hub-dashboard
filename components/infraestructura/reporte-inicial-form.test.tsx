@@ -273,7 +273,7 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Elija el tipo de situación, el motivo y la severidad para continuar.',
+      'Elija el tipo de situación, el motivo y la gravedad para continuar.',
     )
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })

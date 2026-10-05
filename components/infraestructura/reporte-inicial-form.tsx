@@ -78,7 +78,7 @@ const MENSAJE_GUARDADO =
   'Ya figura en el estado actual de su escuela.'
 
 const MENSAJE_FALTA_QUE_PASO =
-  'Elija el tipo de situación, el motivo y la severidad para continuar.'
+  'Elija el tipo de situación, el motivo y la gravedad para continuar.'
 
 const MENSAJE_FALTA_ALCANCE_AFECTACION =
   'Elija al menos una sección para esta situación.'
