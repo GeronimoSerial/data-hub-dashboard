@@ -367,6 +367,7 @@ describe('ReporteInicialForm', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
     renderFormulario()
+    expect(document.querySelector('.reporte-inicial')).toHaveClass('reporte-inicial--asistente')
     completarQuePaso()
     continuar()
     completarAQuienAfecta()
@@ -374,21 +375,33 @@ describe('ReporteInicialForm', () => {
     completarEstadoEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
     const fecha = screen.getByLabelText('Fecha') as HTMLInputElement
-    const scrollIntoView = vi.fn()
-    fecha.scrollIntoView = scrollIntoView
+    const elementosDesplazados: Element[] = []
+    const descriptorScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      elementosDesplazados.push(this)
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
     fireEvent.change(fecha, { target: { value: '2026-10-06' } })
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '10:00' } })
 
-    continuar()
+    try {
+      continuar()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser posterior a hoy.')
-    expect(fecha).toHaveFocus()
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+      const mensaje = await screen.findByRole('alert')
+      expect(mensaje).toHaveTextContent('La fecha no puede ser posterior a hoy.')
+      expect(fecha).toHaveFocus()
+      expect(elementosDesplazados).toContain(mensaje)
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' })
 
-    fireEvent.change(fecha, { target: { value: '2025-10-03' } })
-    continuar()
-    expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
-    vi.useRealTimers()
+      fireEvent.change(fecha, { target: { value: '2025-10-03' } })
+      continuar()
+      expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
+    } finally {
+      if (descriptorScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', descriptorScroll)
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+      vi.useRealTimers()
+    }
   })
 
   it('muestra las modalidades de asistencia en un subgrupo sólo al elegir Sí', () => {

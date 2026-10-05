@@ -4716,8 +4716,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 @media (max-width: 480px) {
-  .asistente {
-    --reporte-acciones-sticky-alto: calc(8.5rem + env(safe-area-inset-bottom));
+  .reporte-inicial--asistente {
+    --reporte-acciones-sticky-alto: calc(8.3125rem + var(--s-3) + env(safe-area-inset-bottom));
+    padding-bottom: var(--reporte-acciones-sticky-alto);
   }
 
   .asistente__acciones {
@@ -4735,7 +4736,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
   .vigencia-chips input[type='date'],
   .vigencia-chips input[type='time'],
-  .vigencia-field__error {
+  .vigencia-field__error,
+  .reporte-inicial__error {
     scroll-margin-bottom: var(--reporte-acciones-sticky-alto);
   }
 

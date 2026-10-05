@@ -509,6 +509,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   useEffect(() => {
     if (!errorVigencia && !error) return
     const cuerpo = document.querySelector<HTMLElement>('.asistente__cuerpo')
+    const formulario = cuerpo?.closest('form')
     let campo: HTMLInputElement | null | undefined
     if (errorVigencia) {
       campo = cuerpo?.querySelector<HTMLInputElement>(vigencia.modo === 'otro' ? 'input[type="date"]' : 'input[type="time"]')
@@ -517,9 +518,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       const primerGrupoIncompleto = Array.from(grupos).find((grupo) => !grupo.querySelector('input[type="radio"]:checked'))
       campo = primerGrupoIncompleto?.querySelector<HTMLInputElement>('input[type="radio"]')
     }
-    if (!campo) return
-    campo.scrollIntoView?.({ block: 'center' })
-    campo.focus({ preventScroll: true })
+    const mensaje = formulario?.querySelector<HTMLElement>(errorVigencia ? '.vigencia-field__error' : '.reporte-inicial__error')
+    campo?.focus({ preventScroll: true })
+    mensaje?.scrollIntoView?.({ block: window.matchMedia?.('(max-width: 480px)').matches ? 'end' : 'nearest' })
   }, [error, errorVigencia, vigencia.modo])
   useEffect(() => {
     if (guardado || enviando) return
@@ -703,7 +704,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   })
 
   return (
-    <form className="reporte-inicial" onSubmit={manejarEnvio}>
+    <form className="reporte-inicial reporte-inicial--asistente" onSubmit={manejarEnvio}>
       {borradorPendiente ? (
         <div className="aviso-retoma" role="status">
           <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
