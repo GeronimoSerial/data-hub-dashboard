@@ -1,7 +1,6 @@
 'use client'
 
 import { archivoSrc, HTML_IFRAME_SANDBOX, viewerKind } from '@/lib/recurso-viewer'
-import { Button } from '@/components/ui/button'
 
 export function RecursoViewer({ recurso }: { recurso: { id: string; titulo: string; mime?: string | null } }) {
   const kind = viewerKind(recurso.mime)
@@ -19,7 +18,7 @@ export function RecursoViewer({ recurso }: { recurso: { id: string; titulo: stri
   return (
     <div className="empty-state resource-download">
       <p>Este archivo no se puede previsualizar en el navegador.</p>
-      <Button render={<a href={archivoSrc(recurso.id, true)} />}>Descargar</Button>
+      <a className="ui-button ui-button--default" href={archivoSrc(recurso.id, true)}>Descargar</a>
     </div>
   )
 }

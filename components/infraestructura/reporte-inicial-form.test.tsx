@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
@@ -118,6 +118,7 @@ afterEach(() => {
   sessionStorage.clear()
   localStorage.clear()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
   globalThis.indexedDB = new IDBFactory()
   document.body.innerHTML = ''
 })
@@ -584,27 +585,34 @@ describe('ReporteInicialForm', () => {
   // El reporte guardado no puede dejar al director en un callejón sin salida:
   // necesita una forma de volver y una de declarar un hecho distinto.
   it('la confirmación ofrece volver al panel o cargar otra situación', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     stubFetch()
 
-    renderFormulario()
-    guardarReporte()
+    try {
+      renderFormulario()
+      guardarReporte()
 
-    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
-    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
+      await screen.findByText(MENSAJE_REPORTE_EXITOSO)
+      expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
 
-    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
-    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+      const volverAlPanel = screen.getByRole('link', { name: 'Volver al panel' })
+      expect(volverAlPanel.tagName).toBe('A')
+      expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+      expect(consoleError).not.toHaveBeenCalled()
 
-    // No hay redirección automática: el mensaje y las acciones siguen ahí.
-    expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+      // No hay redirección automática: el mensaje y las acciones siguen ahí.
+      expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
-    expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
-    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+      expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+      // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
+      expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
+      expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
@@ -632,6 +640,34 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent(MENSAJES_ESTADO['pendiente-envio'])
     expect(screen.getByRole('button', { name: 'Envío pendiente' })).toBeDisabled()
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
+  })
+
+  it('un timeout no se reintenta solo y el aviso reaparece si también falla el reintento manual', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    const claves = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
+    expect(claves[1]).toBe(claves[0])
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
   })
 
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {

@@ -55,6 +55,7 @@ import {
   programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  MENSAJE_TIEMPO_AGOTADO,
   type AlmacenClaveValor,
   type EnviarOpciones,
   type EstadoEnvio,
@@ -485,14 +486,17 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     if (clave === claveBorradorCola('nuevo', cue)) alEnviarConExitoRef.current('')
   }), [cue])
   useEffect(() => {
-    return registrarAutoReintento(() => reintentarRef.current())
-  }, [])
+    return registrarAutoReintento(() => {
+      if (motivoEnvio !== MENSAJE_TIEMPO_AGOTADO) reintentarRef.current()
+    })
+  }, [motivoEnvio])
   useEffect(() => {
     if (guardado || enviando) return
     if (!esEstadoReintentable(estadoEnvio)) return
+    if (motivoEnvio === MENSAJE_TIEMPO_AGOTADO) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
     return programarReintento(intentosEnvio, () => reintentarRef.current())
-  }, [estadoEnvio, intentosEnvio, guardado, enviando])
+  }, [estadoEnvio, motivoEnvio, intentosEnvio, guardado, enviando])
 
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
@@ -630,9 +634,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       <div className="reporte-inicial__confirmacion" role="status">
         <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
         <div className="reporte-inicial__confirmacion-acciones">
-          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+          <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
             Volver al panel
-          </Button>
+          </a>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
             Cargar otra situación
           </Button>

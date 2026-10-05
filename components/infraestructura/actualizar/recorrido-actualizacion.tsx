@@ -15,7 +15,7 @@ import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/component
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { crearBorradorStore } from '@/lib/infraestructura/parte/borrador-historial'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, MENSAJE_TIEMPO_AGOTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -273,7 +273,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         setEstadoEnvio(cola.estado)
         setMotivoEnvio(cola.motivoError ?? null)
         setIntentosEnvio(cola.intentos)
-        if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+        if (esEstadoReintentable(cola.estado) && cola.motivoError !== MENSAJE_TIEMPO_AGOTADO && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
           const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
           if (!cancelado && resultado?.ok) alEnviarConExito()
         }
@@ -294,12 +294,14 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }
   })
   useEffect(() => { return alEnviarEnSegundoPlano((clave) => { if (clave === claveBorradorCola('actualizacion', cue)) exitoRef.current() }) }, [cue])
-  useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
+  useEffect(() => registrarAutoReintento(() => {
+    if (motivoEnvio !== MENSAJE_TIEMPO_AGOTADO) reintentarRef.current()
+  }), [motivoEnvio])
   useEffect(() => {
-    if (guardado || enviando || !esEstadoReintentable(estadoEnvio)) return
+    if (guardado || enviando || !esEstadoReintentable(estadoEnvio) || motivoEnvio === MENSAJE_TIEMPO_AGOTADO) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
     return programarReintento(intentosEnvio, () => reintentarRef.current())
-  }, [estadoEnvio, intentosEnvio, guardado, enviando])
+  }, [estadoEnvio, motivoEnvio, intentosEnvio, guardado, enviando])
 
   async function enviar(): Promise<void> {
     if (enviando || enviandoRef.current) return

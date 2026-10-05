@@ -68,7 +68,7 @@ export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
 }
 
 export const TIEMPO_MAXIMO_ENVIO_MS = 15000
-const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Su parte queda guardado; puede reintentar.'
+export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Su parte queda guardado; puede reintentar.'
 
 const MENSAJE_SESION_VENCIDA =
   'La sesión venció. Iniciá sesión nuevamente para reintentar; el borrador se conserva.'
