@@ -2494,9 +2494,12 @@ time {
 }
 
 .entrada-actualizar .asistente__acciones {
+  flex-direction: row;
   padding-top: 0;
   border-top: 0;
 }
+
+.entrada-actualizar .asistente__acciones > :first-child { flex: 1 1 auto; }
 
 .entrada-actualizar .asistente__acciones > * {
   min-height: 44px;
@@ -4212,13 +4215,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .actualizacion-borrador__acciones > * { width: auto; min-height: 48px; }
 
-@media (max-width: 767px) {
-  .actualizacion-borrador__acciones {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.actualizacion-borrador__acciones > :first-child { flex: 1 1 auto; }
 
-  .actualizacion-borrador__acciones > * { width: 100%; }
+/* "Descartar" es una acción secundaria legible, no un control deshabilitado. */
+.actualizacion-borrador__acciones .ui-button--ghost {
+  border-color: transparent;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .revisar-situacion,
