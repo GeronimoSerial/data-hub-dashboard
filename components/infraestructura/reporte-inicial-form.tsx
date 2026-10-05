@@ -815,9 +815,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         </p>
       )}
 
+      {estadoEnvio && estadoEnvio !== 'enviando' && (
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
+          ? <EstadoEnvioAviso estado={estadoEnvio} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current()} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
+      )}
+
       <div className="asistente__acciones">
         {indicePaso > 0 && (
-          <Button type="button" variant="secondary" onClick={retroceder} disabled={enviando}>
+          <Button type="button" variant="secondary" onClick={retroceder}>
             Volver
           </Button>
         )}
@@ -840,20 +850,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
           <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Guardar parte'}
+            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
           </Button>
         )}
       </div>
         </>
-      )}
-      {estadoEnvio && (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
-          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={() => void reintentarRef.current()} />
-          : <p role="status" aria-live="polite">
-              {estadoEnvio === 'error' && motivoEnvio
-                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-                : MENSAJES_ESTADO[estadoEnvio]}
-            </p>
       )}
       <ConfirmSheet
         open={confirmarDescarte}

@@ -648,9 +648,9 @@ function ResumenEnvio({
         ))}
         <p className="actualizacion-resumen__vigente">Vigente: {asistenciaVigente}</p>
       </fieldset>
-      {estadoEnvio ? (
+      {estadoEnvio && estadoEnvio !== 'enviando' ? (
         estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
-          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={onRetry} />
+          ? <EstadoEnvioAviso estado={estadoEnvio} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
                 ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
@@ -659,11 +659,11 @@ function ResumenEnvio({
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
       <div className="actualizacion-resumen__acciones">
-        <Button type="button" variant="secondary" onClick={onVolver} disabled={enviando}>
+        <Button type="button" variant="secondary" onClick={onVolver}>
           Volver y corregir
         </Button>
         <Button type="button" onClick={onEnviar} disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-          {enviando || estadoEnvio === 'enviando' ? 'Enviando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Enviar'}
+          {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
         </Button>
       </div>
     </section>

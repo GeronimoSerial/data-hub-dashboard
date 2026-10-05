@@ -595,15 +595,20 @@ describe('ReporteInicialForm', () => {
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
-  it('muestra Enviando… mientras se envía', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+  it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
+    let resolver!: (respuesta: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
 
     renderFormulario()
 
     guardarReporte()
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Enviando…')
-    expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(screen.queryByText('Enviando…')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeEnabled()
+    await waitFor(() => expect(resolver).toEqual(expect.any(Function)))
+    resolver(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
   it('un 5xx muestra error del servidor (no de conexión) y se reintenta solo, con un único parte', async () => {
@@ -619,6 +624,8 @@ describe('ReporteInicialForm', () => {
     const aviso = await screen.findByRole('alert')
     expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
     expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
+    const botonGuardar = document.querySelector('.asistente__acciones button:last-child') as HTMLElement
+    expect(aviso.compareDocumentPosition(botonGuardar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
     // Sin evento 'online': el temporizador dispara el reintento con backoff.

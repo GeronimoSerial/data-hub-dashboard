@@ -51,6 +51,7 @@ export interface EnviarOpciones<T> {
   // omite, cualquier 2xx se considera válido (comportamiento previo a este
   // hallazgo, el que siguen usando los tests genéricos del motor).
   validarExito?: (respuesta: unknown) => boolean
+  timeoutMs?: number
 }
 
 export type ResultadoEnvio =
@@ -65,6 +66,9 @@ export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
   enviado: 'Enviado',
   error: 'No se pudo enviar',
 }
+
+export const TIEMPO_MAXIMO_ENVIO_MS = 15000
+const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Su parte queda guardado; puede reintentar.'
 
 const MENSAJE_SESION_VENCIDA =
   'La sesión venció. Iniciá sesión nuevamente para reintentar; el borrador se conserva.'
@@ -387,6 +391,12 @@ async function completarEnvio<T>(
 ): Promise<ResultadoEnvio> {
   const cuerpo = opciones.construirCuerpo(datos, idempotencyKey)
   let respuesta: Response
+  const controlador = new AbortController()
+  let tiempoAgotado = false
+  const temporizador = setTimeout(() => {
+    tiempoAgotado = true
+    controlador.abort()
+  }, opciones.timeoutMs ?? TIEMPO_MAXIMO_ENVIO_MS)
   try {
     const fetchImpl = opciones.fetchImpl
     // Browser fetch requires `this` to be undefined or window.
@@ -394,10 +404,17 @@ async function completarEnvio<T>(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(cuerpo),
+      signal: controlador.signal,
     })
   } catch {
+    if (tiempoAgotado) {
+      const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo, MENSAJE_TIEMPO_AGOTADO)
+      return { ok: false, estado: pendiente.estado, motivo: MENSAJE_TIEMPO_AGOTADO }
+    }
     const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'pendiente-envio', cuerpo)
     return { ok: false, estado: pendiente.estado }
+  } finally {
+    clearTimeout(temporizador)
   }
 
   if (respuesta.ok) {
@@ -463,12 +480,14 @@ async function registrarPendiente<T>(
   intentos: number,
   estado: 'pendiente-envio' | 'error-servidor',
   cuerpo: unknown,
+  motivoError?: string,
 ): Promise<BorradorParte<T>> {
   const pendiente: BorradorParte<T> = {
     ...borrador,
     url: opciones.url,
     cuerpo,
     estado,
+    ...(motivoError ? { motivoError } : {}),
     intentos: intentos + 1,
     actualizadoEn: new Date().toISOString(),
   }
