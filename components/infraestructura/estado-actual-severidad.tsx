@@ -32,6 +32,7 @@ export interface EstadoActualSeveridadProps {
    */
   marca?: boolean
   sugerida?: boolean
+  actual?: boolean
 }
 
 export function EstadoActualSeveridad({
@@ -39,6 +40,7 @@ export function EstadoActualSeveridad({
   prefijo = true,
   marca = true,
   sugerida = false,
+  actual = false,
 }: EstadoActualSeveridadProps): JSX.Element {
   const forma = FORMA_POR_SEVERIDAD[severidad] ?? 'circulo'
   return (
@@ -53,7 +55,7 @@ export function EstadoActualSeveridad({
       <span className="estado-actual-severidad__texto">
         {prefijo ? `Severidad ${severidad}` : severidad}
       </span>
-      {sugerida ? <span className="badge-sugerido" aria-hidden="true">Sugerido</span> : null}
+      {sugerida ? <span className="badge-sugerido" aria-hidden="true">Sugerido</span> : actual ? <span className="badge-sugerido" aria-hidden="true">Actual</span> : null}
     </span>
   )
 }

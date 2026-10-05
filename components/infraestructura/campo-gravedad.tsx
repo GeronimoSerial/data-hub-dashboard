@@ -32,6 +32,8 @@ export interface CampoGravedadProps {
   idPrefijo: string
   categoria: CategoriaAfectacion | ''
   sugerida: Severidad | null
+  severidadActual?: Severidad
+  pregunta?: string
   valor: ValorGravedad
   onCambiar: (valor: ValorGravedad) => void
   disabled?: boolean
@@ -43,6 +45,8 @@ export function CampoGravedad({
   idPrefijo,
   categoria,
   sugerida,
+  severidadActual,
+  pregunta = '¿Qué tan grave es?',
   valor,
   onCambiar,
   disabled = false,
@@ -66,7 +70,7 @@ export function CampoGravedad({
 
   return (
     <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-      <legend className="afectacion-campos__legend">¿Qué tan grave es?</legend>
+      <legend className="afectacion-campos__legend">{pregunta}</legend>
       <div className="afectacion-campos__opciones">
         {SEVERIDADES.map((severidad) => (
           <Opcion
@@ -80,7 +84,7 @@ export function CampoGravedad({
               aria-describedby={`${idPrefijo}-severidad-${severidad}-criterio`}
               label={<>
                 <span id={`${idPrefijo}-severidad-${severidad}-nombre`}>
-                  <EstadoActualSeveridad severidad={severidad} prefijo={false} sugerida={sugerida === severidad} />
+                  <EstadoActualSeveridad severidad={severidad} prefijo={false} sugerida={sugerida === severidad && severidad !== severidadActual} actual={severidadActual === severidad} />
                 </span>
               </>}
               ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>

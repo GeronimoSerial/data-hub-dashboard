@@ -84,7 +84,7 @@ describe('RecorridoActualizacion', () => {
     const sheet = screen.getByRole('dialog')
     fireEvent.click(within(sheet).getByRole('checkbox', { name: 'A quién afecta (secciones / alumnos)' }))
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
-    expect(screen.getByText('Alcance')).toBeInTheDocument()
+    expect(screen.getByText('¿A quiénes afecta?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 
