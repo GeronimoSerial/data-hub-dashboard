@@ -50,4 +50,4 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 
 ## Next step
 
-Wave 1: B6 merged; B1 running. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
+Wave 1: B6 merged; B1 running (T1–T4 committed, N2 on its gate). Full isolation job v3 authorized by the user and running locally as systemd unit `mapa-job-aislamiento` (log ~/.cache/mapa-n2/job-aislamiento.log, serialized by heavy.lock). Importing its output into staging is NOT yet authorized. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
