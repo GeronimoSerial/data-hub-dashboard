@@ -48,6 +48,7 @@ describe('tarjeta de pronóstico puntual', () => {
     render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" onClose={() => undefined} />)
     expect(await screen.findByText('Sin lluvia prevista en 48 h')).toBeInTheDocument()
     expect(screen.queryByLabelText('Lluvia por hora, próximas 48 horas')).toBeNull()
+    expect(screen.queryByText(/Actualizado hace|hace — min/)).not.toBeInTheDocument()
   })
 
   it('oculta la probabilidad departamental menor a cinco por ciento', async () => {

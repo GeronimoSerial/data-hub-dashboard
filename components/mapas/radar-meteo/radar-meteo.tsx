@@ -529,7 +529,6 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
     return escuelas.filter((escuela) => escuela.lat !== null && escuela.lon !== null && bounds.contains([escuela.lon, escuela.lat]))
   }, [map, zoom, escuelas])
   const escuelaSeleccionada = escuelas.find((escuela) => escuela.cueAnexo === cueEscuela)
-  const sinPronostico = Boolean(error || data?.sinDatos || (resumen && resumen.departamentos.length === 0))
   const departamentosAlerta = useMemo(() => {
     if (!boundary || !alertaActiva) return null
     const ids = new Set(alertaActiva.departamentos.filter((depto) => typeof depto !== 'string').map((depto) => (depto as { id: string }).id))
@@ -614,12 +613,6 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
           >•</button>
         </Marker>
       ))}
-      {sinPronostico && (
-        <div className="radar-mapa-sin-pronostico" role="status">
-          {error ?? data?.razon ?? 'Todavía no hay un pronóstico disponible para mostrar en el mapa.'}
-          {error && <button type="button" onClick={() => setRetry((value) => value + 1)}>Reintentar</button>}
-        </div>
-      )}
       {variable === 'granizo' && rainUnderlay && imageCoordinates && (
         <Source id="radar-meteo-rain-underlay" type="image" url={rainUnderlay} coordinates={imageCoordinates}>
           <Layer

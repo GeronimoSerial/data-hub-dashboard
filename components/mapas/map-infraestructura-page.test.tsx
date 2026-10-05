@@ -313,6 +313,15 @@ vi.mock('@/lib/infraestructura/use-exposicion-ruta', () => ({
 // (devolver null/vacío sin datos).
 const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
 const estadoRadar = vi.hoisted(() => ({ sinPronostico: false }))
+const estadoRadarMeteo = vi.hoisted(() => ({ sinDatos: false }))
+
+vi.mock('@/lib/infraestructura/radar-meteo/use-radar-meteo', () => ({
+  useRadarMeteo: () => ({
+    data: estadoRadarMeteo.sinDatos ? { sinDatos: true, razon: 'Todavía no se cargó ningún pronóstico.' } : null,
+    loading: false,
+    error: null,
+  }),
+}))
 
 const RADAR_DATA = {
   corte: {
@@ -659,6 +668,7 @@ beforeEach(() => {
   llamadasRadar.activos.length = 0
   llamadasRadar.filtros.length = 0
   estadoRadar.sinPronostico = false
+  estadoRadarMeteo.sinDatos = false
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
   llamadasGeometria.habilitados.length = 0
@@ -941,6 +951,16 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     for (const nombre of ['24 h', '72 h', '10 días']) {
       expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'true')
     }
+  })
+
+  it('sin datos de meteorología deja un solo mensaje vacío en el panel lateral', async () => {
+    estadoRadar.sinPronostico = true
+    estadoRadarMeteo.sinDatos = true
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    expect(screen.getAllByText(/pronóstico disponible/i)).toHaveLength(1)
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {

@@ -89,7 +89,9 @@ export function EscuelaForecastCard({
           </div>
           <p>
             Ráfaga máxima: {formatearVientoKmh(rafagaMaxima)}
-            {' '}· Actualizado hace {pronostico.frescura?.edadMinutos ?? '—'} min
+            {pronostico.frescura?.edadMinutos != null && (
+              <> · Actualizado hace {pronostico.frescura.edadMinutos} min</>
+            )}
           </p>
           {(pronostico.contextoEnsamble?.probabilidad25 == null || pronostico.contextoEnsamble.probabilidad25 >= 0.05) && (
             <p>

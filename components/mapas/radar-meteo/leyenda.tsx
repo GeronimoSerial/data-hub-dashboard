@@ -61,9 +61,11 @@ export function LeyendaRadar({
         <div className="radar-meteo-legend-labels">
           {etiquetas[variable].map((label) => <span key={label}>{label}</span>)}
         </div>
-        <span className={desactualizado ? 'is-stale' : undefined}>
-          Actualizado {formatearAntiguedad(minutos)}
-        </span>
+        {minutos != null && (
+          <span className={desactualizado ? 'is-stale' : undefined}>
+            Actualizado {formatearAntiguedad(minutos)}
+          </span>
+        )}
       </div>
     </div>
   )

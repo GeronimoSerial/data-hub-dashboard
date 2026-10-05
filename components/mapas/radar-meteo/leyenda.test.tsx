@@ -11,4 +11,9 @@ describe('leyenda del radar meteorológico', () => {
     expect(container.textContent).toContain('Actualizado')
     expect(container.textContent).not.toMatch(/no radar observado|fuente|metodología/i)
   })
+
+  it('oculta la actualización cuando no hay antigüedad disponible', () => {
+    const { container } = render(<LeyendaRadar variable="lluvia" paso={1} />)
+    expect(container.textContent).not.toContain('Actualizado')
+  })
 })

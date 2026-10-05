@@ -17,6 +17,12 @@ describe('franja de alertas oficiales', () => {
     expect(screen.getByText(/Actualizado/)).toBeInTheDocument()
   })
 
+  it('oculta la actualización cuando no hay fecha', () => {
+    const { container } = render(<AlertasStrip alertas={[]} actualizado={null} />)
+    expect(container.textContent).toContain('Sin alertas oficiales vigentes para Corrientes · SMN')
+    expect(container.querySelector('small')).not.toBeInTheDocument()
+  })
+
   it('expande el texto oficial y mantiene severidad sin color SAT', () => {
     render(<AlertasStrip alertas={[alerta]} actualizado={null} />)
     const chip = screen.getByRole('button', { name: /Tormentas · moderada/ })
