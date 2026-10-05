@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { PanelSituacionActual } from './panel-situacion-actual'
+import { ETIQUETA_SERVICIO } from '@/components/infraestructura/estado-actual-textos'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 
 const ahora = Date.parse('2026-10-05T15:00:00.000Z')
@@ -46,11 +47,11 @@ describe('PanelSituacionActual', () => {
     vi.restoreAllMocks()
   })
 
-  it('muestra los totales, asistencia pedagógica y reportes ordenados por gravedad', () => {
+  it('muestra los totales, asistencia pedagógica y situaciones ordenadas por gravedad', () => {
     vi.spyOn(Date, 'now').mockReturnValue(ahora)
     const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn="2026-10-05T14:30:00.000Z" onSeleccionar={vi.fn()} />)
 
-    expect(screen.getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('3')
     expect(screen.getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('4')
     expect(screen.getByText('Alumnos sin clases').previousElementSibling).toHaveTextContent('110')
     expect(screen.getByText('Sin actualizar', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
@@ -58,19 +59,19 @@ describe('PanelSituacionActual', () => {
     expect(container.querySelector('.map-sitact__apoyo')).toHaveTextContent('1 sin dato')
     expect(screen.getByRole('progressbar', { name: 'Escuelas sin clases que brindan asistencia pedagógica' })).toBeInTheDocument()
 
-    const reportes = screen.getByRole('region', { name: /Reportes/ })
-    const filas = within(reportes).getAllByRole('button')
+    const situaciones = screen.getByRole('region', { name: /Situaciones/ })
+    const filas = within(situaciones).getAllByRole('button')
     expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
       'Escuela Parcial, Bella Vista · Secundario',
       'Escuela Alta, General Alvear · Primario, Inicial',
       'Escuela Baja, Goya · Inicial',
     ])
     expect(filas[1]).toHaveTextContent('General Alvear · Primario, Inicial')
-    expect(filas[1]).toHaveTextContent('Sin clases')
+    expect(filas[1]).toHaveTextContent(ETIQUETA_SERVICIO.suspendido)
     expect(filas[1]).toHaveTextContent('Asistencia pedagógica: clase virtual')
     expect(filas[1]).toHaveTextContent('Sin actualizar')
     expect(filas[1].textContent).toContain('hace 3\u00A0h')
-    expect(within(reportes).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
+    expect(within(situaciones).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
   })
 
   it('selecciona la escuela al activar su renglón', () => {
@@ -98,7 +99,7 @@ describe('PanelSituacionActual', () => {
   it('muestra el vacío y omite la proporción cuando no hay escuelas sin clases', () => {
     render(<PanelSituacionActual escuelas={[escuelas[3]]} actualizadoEn={null} onSeleccionar={vi.fn()} />)
 
-    expect(screen.getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
+    expect(screen.getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     expect(screen.queryByText(/escuelas sin clases brindan asistencia pedagógica/)).not.toBeInTheDocument()
     expect(screen.getByText('Situación actual')).toBeInTheDocument()
   })

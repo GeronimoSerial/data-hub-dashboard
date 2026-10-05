@@ -51,7 +51,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
       <div className="map-sitact__kpis map-est__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>
-          <span>Escuelas con reporte</span>
+          <span>Escuelas con situaciones abiertas</span>
         </div>
         <div className="map-sitact__kpi map-sitact__kpi--resaltado">
           <strong>{FORMATO_NUMERO.format(resumen.sinClases)}</strong>
@@ -97,7 +97,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                 <tr>
                   <th scope="col">{ETIQUETAS_AGRUPACION[por]}</th>
                   <th scope="col">Escuelas</th>
-                  <th scope="col">Con reporte</th>
+                  <th scope="col">Con situaciones abiertas</th>
                   <th scope="col">%</th>
                   <th scope="col">Alumnos sin clases</th>
                 </tr>

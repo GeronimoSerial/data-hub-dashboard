@@ -11,7 +11,7 @@
 // una sola importación de servidor, para que esa frontera no se pueda cruzar
 // por accidente.
 
-// Umbral (en horas) a partir del cual un parte se considera "sin reportar"
+// Umbral (en horas) a partir del cual un parte se considera "sin actualizar"
 // (actualizadaEn más viejo que esto). HIPÓTESIS AJUSTABLE: 72 h ≈ 3 días,
 // pensado para que un director que no vuelve a tocar el parte en un fin de
 // semana largo no aparezca marcado en falso, pero sí lo haga si pasó una

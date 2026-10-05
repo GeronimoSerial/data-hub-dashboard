@@ -30,6 +30,7 @@ import type {
 } from 'maplibre-gl'
 import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
+import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
 // `maplibre-gl` y sólo pisa las claves presentes en el objeto, así que acá se
@@ -182,7 +183,7 @@ const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
 
 // V2: badge de estado por escuela individual. Un único ícono Lucide
 // superpuesto al punto de color reemplaza a los anillos/halos apilados que
-// codificaban servicio (grosor/opacidad) y "sin reportar" (halo gris), y a
+// codificaban servicio (grosor/opacidad) y "sin actualizar" (halo gris), y a
 // las formas CSS de evacuación. Se resuelve con <Marker> DOM (no capa
 // MapLibre) y sólo se dibuja sobre escuelas NO agrupadas (`cuesNoAgrupados`),
 // igual que antes hacían los marcadores de evacuación. El ícono comunica QUÉ
@@ -198,7 +199,7 @@ const ICONO_BADGE_ESTADO_TAMANO = 12
 // clusterProperties elige UN ícono de evacuación para la burbuja, en su
 // esquina superior derecha (nunca encima del número). Se pintan con capas
 // `symbol` + `icon-image`, registrando los SVG como imágenes del mapa (ver
-// `registrarIconosCluster`). El resto de los estados (servicio/sin reportar)
+// `registrarIconosCluster`). El resto de los estados (servicio/sin actualizar)
 // queda sólo a nivel escuela individual.
 const CAPA_CLUSTER_CENTRO_EVACUADOS_ID = 'infra-cluster-centro-evacuados'
 const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
@@ -444,10 +445,10 @@ const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
 const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
-  sin: 'Sin clases',
-  parcial: 'Clases parciales',
-  evacuado: 'Evacuado',
-  centro: 'Centro de evacuados',
+  sin: ETIQUETA_ESTADO_CLASES.sin,
+  parcial: ETIQUETA_ESTADO_CLASES.parcial,
+  evacuado: ETIQUETA_ESTADO_CLASES.evacuado,
+  centro: ETIQUETA_ESTADO_CLASES.centro,
   reloj: 'Sin actualizar',
 }
 
@@ -661,7 +662,7 @@ export default function MapInfraestructuraPage(props: {
   const encuadreRutaPendiente = useRef<string | null>(null)
   // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
   // agrupados) en `infra-partes-src`, recomputado cada vez que el mapa
-  // termina de moverse o hacer zoom (onMoveEnd). El halo "sin reportar" y
+  // termina de moverse o hacer zoom (onMoveEnd). El halo "sin actualizar" y
   // los marcadores de evacuación sólo se pintan sobre puntos que el
   // clustering de supercluster dejó sueltos de verdad, sin adivinar por
   // umbral de zoom (que peca de off-by-one y no mostraba nada a zoom
@@ -1536,7 +1537,7 @@ export default function MapInfraestructuraPage(props: {
                 severidadRango: ['max', ['get', 'severidadRango']],
                 // T1.1c: en el cluster `sinActualizar` se agrega como 0/1 con
                 // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
-                // está sin reportar (semántica OR), a diferencia de los
+                // está sin actualizar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
                 sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
                 gravedad: ['max', ['get', 'gravedad']],
@@ -1682,7 +1683,7 @@ export default function MapInfraestructuraPage(props: {
             V2: badge de estado por escuela NO agrupada. Mismo criterio de
             visibilidad que tenían los marcadores de evacuación
             (`cuesNoAgrupados`), pero un solo badge que resume la condición de
-            mayor prioridad (servicio, evacuación o sin reportar) en vez de
+            mayor prioridad (servicio, evacuación o sin actualizar) en vez de
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
@@ -1743,7 +1744,7 @@ export default function MapInfraestructuraPage(props: {
               >
                 <p>
                   En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                  <strong>{totales.escuelasAfectadas}</strong> con reporte · representa <strong>{totales.porcentajeAfectadas}%</strong>
+                  <strong>{totales.escuelasAfectadas}</strong> con situaciones abiertas · representa <strong>{totales.porcentajeAfectadas}%</strong>
                 </p>
               </Popup>
             )
@@ -1785,7 +1786,7 @@ export default function MapInfraestructuraPage(props: {
                 className='mapa-tooltip mapa-tooltip-cluster'
               >
                 <p>
-                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con reporte ({criticas} críticas, {altas} altas)
+                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con situaciones abiertas ({criticas} críticas, {altas} altas)
                 </p>
                 <button
                   type='button'

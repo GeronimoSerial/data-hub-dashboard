@@ -43,7 +43,7 @@ export interface PropiedadesEscuelaMapa {
   // trate como "más grave" que nada).
   severidadRango: number
   // false siempre para 'sin_afectacion_reportada': no aplica el umbral de
-  // "sin reportar" si no hay parte que reportar.
+  // "sin actualizar" si no hay parte que actualizar.
   sinActualizar: boolean
   // false siempre para 'sin_afectacion_reportada'.
   esEvacuado: boolean

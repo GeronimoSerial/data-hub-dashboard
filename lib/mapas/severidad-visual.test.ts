@@ -32,7 +32,7 @@ describe('iconoEstadoEscuela', () => {
   })
 
   it('respeta el orden de prioridad cuando se cumple más de una condición', () => {
-    // centro_evacuados gana sobre evacuado, servicio y sin reportar.
+    // centro_evacuados gana sobre evacuado, servicio y sin actualizar.
     expect(
       iconoEstadoEscuela({
         estadoEstablecimiento: 'centro_evacuados',
@@ -40,17 +40,17 @@ describe('iconoEstadoEscuela', () => {
         sinActualizar: true,
       }),
     ).toBe('Tent')
-    // evacuado gana sobre servicio y sin reportar.
+    // evacuado gana sobre servicio y sin actualizar.
     expect(
       iconoEstadoEscuela({ estadoEstablecimiento: 'evacuado', servicio: 'suspendido', sinActualizar: true }),
     ).toBe('DoorOpen')
-    // suspendido gana sobre parcial y sin reportar.
+    // suspendido gana sobre parcial y sin actualizar.
     expect(iconoEstadoEscuela({ ...base, servicio: 'suspendido', sinActualizar: true })).toBe('CircleSlash')
-    // parcial gana sobre sin reportar.
+    // parcial gana sobre sin actualizar.
     expect(iconoEstadoEscuela({ ...base, servicio: 'parcial', sinActualizar: true })).toBe('TriangleAlert')
   })
 
-  it('trata un valor desconocido como "sin condición" salvo el flag de sin reportar', () => {
+  it('trata un valor desconocido como "sin condición" salvo el flag de sin actualizar', () => {
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro' })).toBeNull()
     expect(iconoEstadoEscuela({ ...base, estadoEstablecimiento: 'raro', servicio: 'raro', sinActualizar: true })).toBe('CircleHelp')
   })

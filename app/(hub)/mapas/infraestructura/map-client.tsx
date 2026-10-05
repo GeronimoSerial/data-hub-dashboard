@@ -105,7 +105,7 @@ export function InfraestructuraMapClient(props: {
             <TabsTab
               value="actual"
               aria-label={cantidadConReporte > 0
-                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con reporte`
+                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
                 : undefined}
             >
               Situación actual

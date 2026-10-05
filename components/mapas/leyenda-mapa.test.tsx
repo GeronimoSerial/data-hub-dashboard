@@ -18,13 +18,13 @@ describe('LeyendaMapa', () => {
 
     expect(filas).toHaveLength(2)
     expect(Array.from(filas[0].querySelectorAll('li')).map((item) => item.textContent)).toEqual([
-      'Crítica', 'Alta', 'Media', 'Baja', 'Sin reporte',
+      'Crítica', 'Alta', 'Media', 'Baja', 'Sin situaciones',
     ])
     const sinReporte = filas[0].querySelector('li:last-child .map-leyenda__muestra')
     expect(sinReporte).toHaveClass('map-leyenda__muestra--neutra')
     expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
     expect(Array.from(filas[1].querySelectorAll('li')).map((item) => item.textContent)).toEqual([
-      'Sin clases', 'Clases parciales', 'Evacuado', 'Centro de evacuados', 'Sin actualizar',
+      'Funcionamiento interrumpido', 'Funcionamiento parcialmente interrumpido', 'Evacuado', 'Usado como centro de evacuados', 'Sin actualizar',
     ])
     expect(container.querySelector('p')).toBeNull()
   })

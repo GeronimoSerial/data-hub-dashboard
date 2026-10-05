@@ -622,7 +622,7 @@ describe('MapInfraestructuraPage — filtros de padrón', () => {
         escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.filter((escuela) => escuela.cueAnexo === CUE_SIN_AFECTACION),
       },
     })
-    expect(screen.getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
+    expect(screen.getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
 })
@@ -1242,7 +1242,7 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
   const esperarSinPopupHover = () =>
     waitFor(() => expect(popupHover()).not.toBeInTheDocument())
 
-  it('clic de departamento muestra total, con reporte y porcentaje, y se cierra con Esc', async () => {
+  it('clic de departamento muestra el total, las situaciones abiertas y el porcentaje, y se cierra con Esc', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     expect(popupHover()).not.toBeInTheDocument()
@@ -1251,21 +1251,21 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
 
     const popup = await screen.findByText((_contenido, element) => esParrafoHover(element))
     expect(popup).toHaveTextContent('En Capital hay 10 escuelas')
-    expect(popup).toHaveTextContent('3 con reporte')
+    expect(popup).toHaveTextContent('3 con situaciones abiertas')
     expect(popup).toHaveTextContent('30%')
 
     await userEvent.keyboard('{Escape}')
     await esperarSinPopupHover()
   })
 
-  it('clic de cluster muestra escuelas con reporte', async () => {
+  it('clic de cluster muestra escuelas con situaciones abiertas', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-cluster'))
 
     expect(await screen.findByText((_contenido, element) =>
       element?.tagName === 'P' && /8 escuelas/.test(element.textContent ?? ''),
-    )).toHaveTextContent('3 con reporte (1 críticas, 2 altas)')
+    )).toHaveTextContent('3 con situaciones abiertas (1 críticas, 2 altas)')
   })
 
   it('clickear el mismo departamento de nuevo cierra el popup', async () => {
@@ -1324,7 +1324,7 @@ describe('M2: panel de situación actual con padrón', () => {
 
     const panel = screen.getByTestId('panel-lateral')
     expect(within(panel).getByText('Situación actual')).toBeInTheDocument()
-    expect(within(panel).getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('1')
+    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('1')
     expect(within(panel).getByText('Sin clases', { selector: '.map-sitact__kpi span' }).parentElement).toHaveTextContent('1')
     expect(within(panel).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
   })
@@ -1339,8 +1339,8 @@ describe('M2: panel de situación actual con padrón', () => {
     rerender({ escuelasMapa: escuelasFiltradas })
 
     const panel = screen.getByTestId('panel-lateral')
-    expect(within(panel).getByText('Escuelas con reporte').previousElementSibling).toHaveTextContent('0')
-    expect(within(panel).getByText('Ninguna escuela con reporte para estos filtros.')).toBeInTheDocument()
+    expect(within(panel).getByText('Escuelas con situaciones abiertas').previousElementSibling).toHaveTextContent('0')
+    expect(within(panel).getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     desmontarMapa?.()
   })
 

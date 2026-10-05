@@ -169,7 +169,7 @@ describe('agrupar', () => {
     expect(agrupar([
       escuela({ gravedad: 4, categoriaPrincipal: 'establecimiento' }),
       escuela({ cueAnexo: 'sin-reporte', gravedad: 0, categoriaPrincipal: null }),
-    ], 'gravedad').map(({ clave }) => clave)).toEqual(['Crítica', 'Sin reporte'])
+    ], 'gravedad').map(({ clave }) => clave)).toEqual(['Crítica', 'Sin situaciones'])
     expect(agrupar([escuela({ categoriaPrincipal: null })], 'categoria').map(({ clave }) => clave)).toEqual(['Sin categoría'])
     expect(agrupar([
       escuela({ categoriaPrincipal: 'establecimiento' }),

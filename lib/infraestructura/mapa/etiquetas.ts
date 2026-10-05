@@ -1,3 +1,4 @@
+import { ETIQUETA_ESTABLECIMIENTO, ETIQUETA_SERVICIO } from '@/components/infraestructura/estado-actual-textos'
 import type { EstadoClases, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 import { severidadDeGravedad } from './gravedad'
 
@@ -44,19 +45,19 @@ export function etiquetaDepartamento(valor: string): string {
 }
 
 export const ETIQUETA_GRAVEDAD: Record<GravedadMapa, string> = {
-  0: 'Sin reporte',
+  0: 'Sin situaciones',
   1: severidadDeGravedad(1) ?? '',
   2: severidadDeGravedad(2) ?? '',
   3: severidadDeGravedad(3) ?? '',
   4: severidadDeGravedad(4) ?? '',
 }
 
-export const ETIQUETA_CLASES: Record<EstadoClases, string> = {
-  normal: 'Con clases',
-  parcial: 'Clases parciales',
-  sin: 'Sin clases',
-  evacuado: 'Evacuado',
-  centro: 'Centro de evacuados',
+export const ETIQUETA_ESTADO_CLASES: Record<EstadoClases, string> = {
+  normal: ETIQUETA_SERVICIO.normal,
+  parcial: ETIQUETA_SERVICIO.parcial,
+  sin: ETIQUETA_SERVICIO.suspendido,
+  evacuado: ETIQUETA_ESTABLECIMIENTO.evacuado,
+  centro: ETIQUETA_ESTABLECIMIENTO.centro_evacuados,
 }
 
 export const ETIQUETA_APOYO: Record<'brinda' | 'no' | 'sin_dato', string> = {

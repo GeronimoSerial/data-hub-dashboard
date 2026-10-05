@@ -7,7 +7,7 @@ import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestr
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { ETIQUETA_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -46,10 +46,10 @@ function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
   return (
     <div className="map-sitact__chips map-ficha-escuela__chips" aria-label="Estado de la escuela">
       {escuela.clases === 'normal' ? (
-        <span className="map-sitact__pill map-sitact__pill--ok">Con clases</span>
+        <span className="map-sitact__pill map-sitact__pill--ok">{ETIQUETA_ESTADO_CLASES.normal}</span>
       ) : (
         <span className="map-sitact__pill map-sitact__pill--clases">
-          <IconoClases estado={escuela.clases} />{ETIQUETA_CLASES[escuela.clases]}
+          <IconoClases estado={escuela.clases} />{ETIQUETA_ESTADO_CLASES[escuela.clases]}
         </span>
       )}
       {etiquetaApoyo && (
@@ -138,7 +138,7 @@ export function FichaEscuelaPanel({
           <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>
         </div>
       ) : (
-        <p className="map-ficha-escuela__sin-reportes">Sin reportes abiertos</p>
+        <p className="map-ficha-escuela__sin-reportes">Sin situaciones abiertas</p>
       )}
 
       <FilaEstado escuela={escuela} />
@@ -150,7 +150,7 @@ export function FichaEscuelaPanel({
 
         <Desplegable titulo="Clases y asistencia pedagógica" abierto={escuela.clases !== 'normal'}>
           <dl className="map-ficha-escuela__kv">
-            <dt>Clases</dt><dd>{ETIQUETA_CLASES[escuela.clases]}</dd>
+            <dt>Clases</dt><dd>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</dd>
             <dt>Asistencia pedagógica</dt><dd>{escuela.clases === 'normal' ? 'No corresponde' : etiquetaApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
             <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
             {datos?.parte && afectaciones.some((afectacion) => afectacion.categoria === 'establecimiento') && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
@@ -213,7 +213,7 @@ export function FichaEscuelaPanel({
       </div>
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
-        Cargar o actualizar el parte
+        {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
     </section>
   )

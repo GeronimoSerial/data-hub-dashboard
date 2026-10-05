@@ -86,21 +86,21 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.queryByRole('tab', { name: /Radar/ })).toBeNull()
   })
 
-  it('muestra el contador de escuelas con reporte y lo actualiza con los filtros', async () => {
+  it('muestra el contador de escuelas con situaciones abiertas y lo actualiza con los filtros', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
-    const pestaña = screen.getByRole('tab', { name: 'Situación actual, 2 escuelas con reporte' })
+    const pestaña = screen.getByRole('tab', { name: 'Situación actual, 2 escuelas con situaciones abiertas' })
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
 
     await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
 
-    const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con reporte' })
+    const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con situaciones abiertas' })
     expect(pestañaFiltrada.querySelector('.map-sitact__pill')).toHaveTextContent('1')
   })
 
-  it('no muestra el contador cuando no hay escuelas con reporte', async () => {
+  it('no muestra el contador cuando no hay escuelas con situaciones abiertas', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin resultados')

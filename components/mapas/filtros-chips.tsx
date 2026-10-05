@@ -5,7 +5,7 @@ import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
-import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 
 type ClaveFiltro = 'departamentos' | 'niveles' | 'gravedades' | 'clases' | 'apoyo'
@@ -18,7 +18,7 @@ const OPCIONES_GRAVEDAD: Opcion[] = [4, 3, 2, 1, 0].map((valor) => ({
 
 const OPCIONES_CLASES: Opcion[] = (['normal', 'parcial', 'sin', 'evacuado', 'centro'] as EstadoClases[]).map((valor) => ({
   valor,
-  etiqueta: ETIQUETA_CLASES[valor],
+  etiqueta: ETIQUETA_ESTADO_CLASES[valor],
 }))
 
 const OPCIONES_APOYO: Opcion[] = (['brinda', 'no', 'sin_dato'] as const).map((valor) => ({

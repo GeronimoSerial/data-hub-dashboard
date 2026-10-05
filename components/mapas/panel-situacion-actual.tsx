@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { BookMinus, BookX, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { etiquetaDepartamento, ETIQUETA_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { etiquetaDepartamento, ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { ordenarReportes, resumir } from '@/lib/infraestructura/mapa/agregar'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
@@ -54,7 +54,7 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
       {escuela.clases !== 'normal' && (
         <span className="map-sitact__pill map-sitact__pill--clases">
           <IconoClases estado={escuela.clases} />
-          {ETIQUETA_CLASES[escuela.clases]}
+          {ETIQUETA_ESTADO_CLASES[escuela.clases]}
         </span>
       )}
       {apoyo && (
@@ -92,7 +92,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
       <div className="map-sitact__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>
-          <span>Escuelas con reporte</span>
+          <span>Escuelas con situaciones abiertas</span>
         </div>
         <div className="map-sitact__kpi map-sitact__kpi--resaltado">
           <strong>{FORMATO_NUMERO.format(resumen.sinClases)}</strong>
@@ -120,7 +120,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
 
       <section className="map-sitact__reportes" aria-labelledby="map-sitact-reportes-titulo">
         <h3 id="map-sitact-reportes-titulo" className="map-sitact__titulo-seccion">
-          <span>Reportes</span><span className="map-sitact__atenuado">por gravedad</span>
+          <span>Situaciones</span><span className="map-sitact__atenuado">por gravedad</span>
         </h3>
         {reportes.length > 0 ? (
           <div className="map-sitact__lista">
@@ -152,7 +152,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
             })}
           </div>
         ) : (
-          <p className="map-sitact__vacio">Ninguna escuela con reporte para estos filtros.</p>
+          <p className="map-sitact__vacio">Ninguna escuela con situaciones abiertas para estos filtros.</p>
         )}
       </section>
     </section>

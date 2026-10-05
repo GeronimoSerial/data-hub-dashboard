@@ -4,7 +4,7 @@ import { BookMinus, BookX, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
-import { ETIQUETA_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 
 type PropsLeyendaMapa =
@@ -14,10 +14,10 @@ type PropsLeyendaMapa =
   | { pestana: 'estadisticas' }
 
 const ESTADOS_LEYENDA = [
-  { Icono: BookX, etiqueta: ETIQUETA_CLASES.sin },
-  { Icono: BookMinus, etiqueta: ETIQUETA_CLASES.parcial },
-  { Icono: DoorOpen, etiqueta: ETIQUETA_CLASES.evacuado },
-  { Icono: House, etiqueta: ETIQUETA_CLASES.centro },
+  { Icono: BookX, etiqueta: ETIQUETA_ESTADO_CLASES.sin },
+  { Icono: BookMinus, etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
+  { Icono: DoorOpen, etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
+  { Icono: House, etiqueta: ETIQUETA_ESTADO_CLASES.centro },
   { Icono: Clock, etiqueta: 'Sin actualizar' },
 ] as const
 
@@ -93,7 +93,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
             aria-hidden="true"
             className="map-leyenda__muestra map-leyenda__muestra--neutra"
           />
-          <span>Sin reporte</span>
+          <span>Sin situaciones</span>
         </li>
       </ul>
       <ul className="map-leyenda__fila">

@@ -122,6 +122,19 @@ describe('FiltrosChips', () => {
     expect(primario).toHaveAccessibleName(/Primario.*2/)
   })
 
+  it('muestra las etiquetas canónicas de gravedad y estado de clases', async () => {
+    const user = userEvent.setup()
+    renderFiltros()
+
+    await user.click(screen.getByRole('button', { name: 'Gravedad' }))
+    expect(screen.getByRole('checkbox', { name: /Sin situaciones/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clases' }))
+    expect(screen.getByRole('checkbox', { name: /Funcionamiento habitual/ })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Funcionamiento parcialmente interrumpido/ })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Funcionamiento interrumpido/ })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Usado como centro de evacuados/ })).toBeInTheDocument()
+  })
+
   it('ofrece las tres opciones de asistencia pedagógica y filtra con sus valores canónicos', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

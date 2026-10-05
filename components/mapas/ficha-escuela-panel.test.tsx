@@ -87,7 +87,7 @@ describe('FichaEscuelaPanel', () => {
 
     expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
     expect(screen.getByText('CUE 180000123-00 · Capital · Inicial, Primario · 1.234 alumnos')).toBeInTheDocument()
-    expect(screen.getAllByText('Sin clases').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Funcionamiento interrumpido').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Asistencia pedagógica: clase virtual').length).toBeGreaterThan(0)
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
@@ -202,12 +202,12 @@ describe('FichaEscuelaPanel', () => {
     )).toBeInTheDocument()
   })
 
-  it('muestra clases normales cerradas y la etiqueta Con clases', () => {
+  it('muestra clases normales cerradas con la etiqueta de servicio compartida', () => {
     instalarFetch()
     const normal = { ...escuela, clases: 'normal' as const, apoyo: null }
     renderFicha({ escuela: normal })
 
-    expect(screen.getAllByText('Con clases').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Funcionamiento habitual').length).toBeGreaterThan(0)
     expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', false)
   })
 
@@ -221,10 +221,17 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('Asistencia pedagógica sin dato')
   })
 
-  it('muestra Sin reportes abiertos cuando la gravedad es cero', () => {
+  it('muestra Sin situaciones abiertas y el CTA de carga cuando la gravedad es cero', () => {
     instalarFetch()
     renderFicha({ escuela: { ...escuela, gravedad: 0, categoriaPrincipal: null } })
-    expect(screen.getByText('Sin reportes abiertos')).toBeInTheDocument()
+    expect(screen.getByText('Sin situaciones abiertas')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Cargar una situación' })).toHaveAttribute('href', '/infraestructura/cargar?cue=180000123-00')
+  })
+
+  it('ofrece actualizar el parte cuando hay situaciones abiertas', () => {
+    instalarFetch()
+    renderFicha()
+    expect(screen.getByRole('link', { name: 'Actualizar el parte' })).toHaveAttribute('href', '/infraestructura/cargar?cue=180000123-00')
   })
 
   it('usa la situación de igual gravedad con rigeDesde más reciente', async () => {
