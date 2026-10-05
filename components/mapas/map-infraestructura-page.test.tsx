@@ -783,6 +783,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
+    expect(screen.getByText('Riesgo de afectación · 72 h')).toBeInTheDocument()
   })
 
   it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
@@ -1040,6 +1041,10 @@ describe('MapInfraestructuraPage — Planificación', () => {
     expect(within(panel).getByRole('button', { name: 'Inundación' })).toBeInTheDocument()
     expect(within(panel).getByRole('button', { name: 'Historial' })).toBeInTheDocument()
     expect(within(panel).queryByRole('heading', { name: 'Situación actual' })).not.toBeInTheDocument()
+    expect(screen.getByText('Aislamiento')).toBeInTheDocument()
+
+    await userEvent.click(within(panel).getByRole('button', { name: 'Historial' }))
+    expect(screen.getByText('Veces con situaciones')).toBeInTheDocument()
   })
 
   it('mantiene sólo el mapa base como control de capas en Situación actual', async () => {

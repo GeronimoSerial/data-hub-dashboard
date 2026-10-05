@@ -1827,7 +1827,13 @@ export default function MapInfraestructuraPage(props: {
         </MapGL>
       </div>
 
-      {!radarActivo && props.pestana === 'actual' && <LeyendaMapa pestana="actual" />}
+      {radarActivo ? (
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} />
+      ) : props.pestana === 'planificacion' ? (
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} />
+      ) : props.pestana === 'actual' ? (
+        <LeyendaMapa pestana="actual" />
+      ) : null}
 
       <AlcanceNominalModal
         afectacionId={nominalAfectacionId}
