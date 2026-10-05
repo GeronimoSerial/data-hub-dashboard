@@ -1392,11 +1392,6 @@ export default function MapInfraestructuraPage(props: {
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
-          onMouseMove={(event) => {
-            if (radarActivo && event.lngLat) {
-              window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
-            }
-          }}
           cursor="pointer"
           onLoad={handleMapLoad}
           // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.

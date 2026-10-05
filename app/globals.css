@@ -2170,12 +2170,6 @@ time {
   min-width: 0;
   overscroll-behavior: contain;
   padding: 1rem 1.1rem;
-  transition: transform 160ms ease, opacity 160ms ease;
-  animation: map-ficha-panel-entrada 160ms ease;
-}
-@keyframes map-ficha-panel-entrada {
-  from { transform: translateX(12px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
 }
 .map-ficha-panel__encabezado {
   display: flex;

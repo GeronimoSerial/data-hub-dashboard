@@ -428,6 +428,7 @@ vi.mock('react-map-gl/maplibre', () => {
     {
       children?: React.ReactNode
       onClick?: (event: MouseEventMock) => void
+      onMouseMove?: (event: MouseEventMock) => void
       onLoad?: () => void
       mapStyle?: string
       onStyleData?: () => void
@@ -517,6 +518,10 @@ vi.mock('react-map-gl/maplibre', () => {
             }
           />
         ))}
+        <button
+          data-testid="mock-move-vacio-radar"
+          onMouseMove={() => props.onMouseMove?.({ features: [], lngLat: { lng: -58.82, lat: -27.48 } })}
+        />
         {props.children}
       </div>
     )
@@ -960,6 +965,9 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-punto-nivel'))
     expect(screen.getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    expect(clicksMeteorologicos).toEqual([])
+
+    await userEvent.hover(screen.getByTestId('mock-move-vacio-radar'))
     expect(clicksMeteorologicos).toEqual([])
 
     await userEvent.click(screen.getByTestId('mock-click-vacio-radar'))
