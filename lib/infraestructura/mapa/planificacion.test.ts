@@ -78,11 +78,11 @@ describe('planificacion', () => {
     expect(textoPrioridad(varios, 'aisladas')).toBe('Alto')
   })
 
-  it('asigna colores por nivel y devuelve un color para todas las escuelas', () => {
+  it('asigna colores sólo a niveles con dato', () => {
     const colores = coloresPlanificacion(escuelas, 'historial', { territorio: null })
     const niveles: NivelPlanificacion[] = [0, 1, 2, 3]
-    expect([...colores.keys()]).toEqual(['a', 'b', 'c'])
+    expect([...colores.keys()]).toEqual(['a', 'b'])
     expect(new Set(niveles.map(colorNivelPlan)).size).toBe(4)
-    expect(colores.get('c')).toBe(colorNivelPlan(0))
+    expect(colores.has('c')).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EscuelaMapaEnriquecida } from './tipos'
-import { colorRiesgo, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
+import { colorRiesgo, coloresRadar, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
 import type { NivelRiesgo } from './radar'
 
 function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquecida {
@@ -62,6 +62,14 @@ describe('resumirRiesgo', () => {
   it('cuenta y suma alumnos sólo para riesgos alto y muy alto', () => {
     const resultado = escuelasPorRiesgo(puntos, padrón, 24)
     expect(resumirRiesgo(resultado)).toEqual({ escuelasAltas: 3, alumnosAltos: 180 })
+  })
+})
+
+describe('coloresRadar', () => {
+  it('omite riesgo bajo para que el mapa dibuje el punto neutro', () => {
+    const colores = coloresRadar(puntos, padrón, 24)
+    expect([...colores.keys()]).toEqual(['muy-alto-muchos', 'alto-muchos', 'alto-pocos', 'moderado'])
+    expect(colores.has('bajo')).toBe(false)
   })
 })
 

@@ -6,7 +6,6 @@ import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, type VistaPl
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { ETIQUETA_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -43,8 +42,8 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
             <li className="map-leyenda__elemento" key={nivel}>
               <span
                 aria-hidden="true"
-                className="map-leyenda__muestra"
-                style={{ backgroundColor: colorRiesgo(nivel) }}
+                className={`map-leyenda__muestra${nivel === 'bajo' ? ' map-leyenda__muestra--neutra' : ''}`}
+                style={nivel === 'bajo' ? undefined : { backgroundColor: colorRiesgo(nivel) }}
               />
               <span>{etiqueta}</span>
             </li>
@@ -65,8 +64,8 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
             <li className="map-leyenda__elemento" key={nivel}>
               <span
                 aria-hidden="true"
-                className="map-leyenda__muestra"
-                style={{ backgroundColor: colorNivelPlan(nivel) }}
+                className={`map-leyenda__muestra${nivel === 0 ? ' map-leyenda__muestra--neutra' : ''}`}
+                style={nivel === 0 ? undefined : { backgroundColor: colorNivelPlan(nivel) }}
               />
               <span>{ETIQUETA_NIVEL_PLAN[nivel]}</span>
             </li>
@@ -92,8 +91,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
         <li className="map-leyenda__elemento" key="sin-reporte">
           <span
             aria-hidden="true"
-            className="map-leyenda__muestra"
-            style={{ backgroundColor: COLOR_SIN_AFECTACION }}
+            className="map-leyenda__muestra map-leyenda__muestra--neutra"
           />
           <span>Sin reporte</span>
         </li>

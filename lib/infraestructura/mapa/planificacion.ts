@@ -97,8 +97,8 @@ export function coloresPlanificacion(
   vista: VistaPlanificacion,
   datos: { territorio: TerritorioMapa | null },
 ): Map<string, string> {
-  return new Map(escuelas.map((escuela) => [
-    escuela.cueAnexo,
-    colorNivelPlan(nivelPlanificacion(escuela, vista, datos)),
-  ]))
+  return new Map(escuelas.flatMap((escuela) => {
+    const nivel = nivelPlanificacion(escuela, vista, datos)
+    return nivel === 0 ? [] : [[escuela.cueAnexo, colorNivelPlan(nivel)] as const]
+  }))
 }

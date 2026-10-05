@@ -20,6 +20,9 @@ describe('LeyendaMapa', () => {
     expect(Array.from(filas[0].querySelectorAll('li')).map((item) => item.textContent)).toEqual([
       'Crítica', 'Alta', 'Media', 'Baja', 'Sin reporte',
     ])
+    const sinReporte = filas[0].querySelector('li:last-child .map-leyenda__muestra')
+    expect(sinReporte).toHaveClass('map-leyenda__muestra--neutra')
+    expect((sinReporte as HTMLElement).style.backgroundColor).toBe('')
     expect(Array.from(filas[1].querySelectorAll('li')).map((item) => item.textContent)).toEqual([
       'Sin clases', 'Clases parciales', 'Evacuado', 'Centro de evacuados', 'Sin actualizar',
     ])
@@ -40,8 +43,9 @@ describe('LeyendaMapa', () => {
     expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo de afectación · 10 días')
     expect(Array.from(container.querySelectorAll('.map-leyenda__muestra')).map((muestra) => (muestra as HTMLElement).style.backgroundColor)).toEqual([
       colorCss(colorRiesgo('muy_alto')), colorCss(colorRiesgo('alto')),
-      colorCss(colorRiesgo('moderado')), colorCss(colorRiesgo('bajo')),
+      colorCss(colorRiesgo('moderado')), '',
     ])
+    expect(container.querySelectorAll('.map-leyenda__muestra--neutra')).toHaveLength(1)
   })
 
   it('muestra título y escala de cada vista de Planificación', () => {
@@ -55,9 +59,9 @@ describe('LeyendaMapa', () => {
       ])
       expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual([
         colorCss(colorNivelPlan(3)), colorCss(colorNivelPlan(2)),
-        colorCss(colorNivelPlan(1)), colorCss(colorNivelPlan(0)),
+        colorCss(colorNivelPlan(1)), '',
       ])
-      expect(new Set(muestras.map((muestra) => muestra.style.backgroundColor)).size).toBe(4)
+      expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
       expect(container.querySelector('p')).toBeNull()
       unmount()
     }

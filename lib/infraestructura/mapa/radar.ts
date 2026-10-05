@@ -78,3 +78,13 @@ export function colorRiesgo(nivel: NivelRiesgo): string {
     case 'bajo': return COLOR_SIN_AFECTACION
   }
 }
+
+export function coloresRadar(
+  puntos: ReadonlyArray<{ cueAnexo: string; horizonteHoras: number; nivelRiesgo: string | null }>,
+  escuelas: EscuelaMapaEnriquecida[],
+  horizonte: HorizonteMotor,
+): Map<string, string> {
+  return new Map(escuelasPorRiesgo(puntos, escuelas, horizonte)
+    .filter(({ nivel }) => nivel !== 'bajo')
+    .map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]))
+}

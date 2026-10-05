@@ -6,7 +6,6 @@ import { forwardRef, useEffect, useImperativeHandle, useState, type JSX, type Re
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -894,7 +893,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
       [feature.properties.color, feature.properties.conDato],
     ]))
     expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true])
-    expect(colores.get(CUE_SIN_AFECTACION)).toEqual([COLOR_SIN_AFECTACION, false])
+    expect(colores.get(CUE_SIN_AFECTACION)).toEqual([undefined, false])
     expect(screen.getByTestId('mock-layer-infra-puntos-nivel')).toBeInTheDocument()
 
     vista.rerender({ pestana: 'actual' })
@@ -1125,19 +1124,19 @@ describe('MapInfraestructuraPage — Planificación', () => {
 
     const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
     const coloresAisladas = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
-      .features.map((feature: { properties: { cueAnexo: string; color: string } }) => [feature.properties.cueAnexo, feature.properties.color])
+      .features.map((feature: { properties: { cueAnexo: string; color?: string; conDato: boolean } }) => [feature.properties.cueAnexo, feature.properties.color, feature.properties.conDato])
     expect(coloresAisladas).toEqual([
-      [CUE, colorNivelPlan(0)],
-      [CUE_SIN_AFECTACION, colorNivelPlan(0)],
+      [CUE, undefined, false],
+      [CUE_SIN_AFECTACION, undefined, false],
     ])
 
     await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
 
     const coloresHistorial = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
-      .features.map((feature: { properties: { cueAnexo: string; color: string } }) => [feature.properties.cueAnexo, feature.properties.color])
+      .features.map((feature: { properties: { cueAnexo: string; color?: string; conDato: boolean } }) => [feature.properties.cueAnexo, feature.properties.color, feature.properties.conDato])
     expect(coloresHistorial).toEqual([
-      [CUE, colorSeveridad('Crítica')],
-      [CUE_SIN_AFECTACION, colorNivelPlan(0)],
+      [CUE, colorSeveridad('Crítica'), true],
+      [CUE_SIN_AFECTACION, undefined, false],
     ])
   })
 

@@ -1,9 +1,8 @@
 import type { FeatureCollection, Point } from 'geojson'
-import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 
 export interface PropiedadesPuntoNivel {
   cueAnexo: string
-  color: string
+  color?: string
   conDato: boolean
 }
 
@@ -21,7 +20,7 @@ export function construirPuntosNivel(
         geometry: { type: 'Point' as const, coordinates: [escuela.lon, escuela.lat] },
         properties: {
           cueAnexo: escuela.cueAnexo,
-          color: color ?? COLOR_SIN_AFECTACION,
+          ...(color !== undefined ? { color } : {}),
           conDato: color !== undefined,
         },
       }]

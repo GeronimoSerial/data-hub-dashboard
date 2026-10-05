@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { construirPuntosNivel } from './puntos-nivel'
 
 describe('construirPuntosNivel', () => {
@@ -20,7 +19,7 @@ describe('construirPuntosNivel', () => {
     ])
     expect(puntos.features.map(({ properties }) => [properties.color, properties.conDato])).toEqual([
       ['#f00', true],
-      [COLOR_SIN_AFECTACION, false],
+      [undefined, false],
       ['#f00', true],
     ])
     expect(puntos.features.map(({ geometry }) => geometry.coordinates)).toEqual([

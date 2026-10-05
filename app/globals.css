@@ -2020,6 +2020,10 @@ time {
   flex: 0 0 auto;
   border-radius: 50%;
 }
+.map-leyenda__muestra--neutra {
+  background: var(--page);
+  border: 1.5px solid var(--ink-faint);
+}
 .map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
 .map-shell[data-radar-activo='true'] .map-leyenda {
   z-index: 13;

@@ -125,9 +125,24 @@ import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-d
 import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
+import {
+  circlePaintEscuelasSinReporte,
+  colorBordeSinReporte,
+  colorEscuelaSinReporte,
+  iconoPunto,
+  radioEscuelaSinReporte,
+  radioPunto,
+  RADIOS_ESCUELA_SIN_REPORTE,
+  type IconoPunto,
+} from '@/lib/infraestructura/mapa/punto'
+export {
+  circlePaintEscuelasSinReporte,
+  colorBordeSinReporte,
+  colorEscuelaSinReporte,
+  radioEscuelaSinReporte,
+} from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
-import { colorRiesgo, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel } from '@/components/mapas/capa-puntos-nivel'
@@ -336,7 +351,6 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // sería una segunda escala). El borde es un trazo mínimo fijo que separa el
 // punto del fondo, ya no codifica el servicio.
 const ANILLO_COLOR = '#1c1c1c'
-const RADIOS_ESCUELA_SIN_REPORTE = [[6, 3], [10, 5], [14, 6]] as const
 
 // Los clusters afectados usan la gravedad más alta presente. Un cluster que
 // contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
@@ -362,30 +376,6 @@ export function expresionRadioCluster(): ExpressionSpecification {
 
 export function expresionRadioClusterSinReporte(): ExpressionSpecification {
   return ['step', ['get', 'point_count'], 10, 10, 12, 50, 14]
-}
-
-export function radioEscuelaSinReporte(): ExpressionSpecification {
-  return ['interpolate', ['linear'], ['zoom'], ...RADIOS_ESCUELA_SIN_REPORTE.flat()]
-}
-
-export function colorEscuelaSinReporte(oscuro: boolean): string {
-  // `--page` en globals.css; MapLibre no resuelve var().
-  return oscuro ? '#000000' : '#ffffff'
-}
-
-export function colorBordeSinReporte(oscuro: boolean): string {
-  // `--ink-faint` en globals.css; MapLibre no resuelve var().
-  return oscuro ? '#9b9895' : '#8a8886'
-}
-
-export function circlePaintEscuelasSinReporte(oscuro: boolean): CircleLayerSpecification['paint'] {
-  return {
-    'circle-radius': radioEscuelaSinReporte(),
-    'circle-color': colorEscuelaSinReporte(oscuro),
-    'circle-stroke-color': colorBordeSinReporte(oscuro),
-    'circle-stroke-width': 1.5,
-    'circle-opacity': 1,
-  }
 }
 
 export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
@@ -793,13 +783,7 @@ export default function MapInfraestructuraPage(props: {
   const colorPorCue = useMemo(() => {
     const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
     if (radarActivo) {
-      return new Map(
-        escuelasPorRiesgo(
-          radarData?.puntos ?? [],
-          escuelasVisibles,
-          horizonteEfectivo,
-        ).map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]),
-      )
+      return coloresRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
     }
     if (esPlanificacion) return coloresPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
     return new Map<string, string>()
