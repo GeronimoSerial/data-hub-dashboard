@@ -152,6 +152,16 @@ describe('PanelEstadisticas', () => {
     expect(reglaPrimeraColumna).toMatch(/text-align:\s*left/)
   })
 
+  it('limita su ancho al sidebar y contiene el scroll horizontal de la tabla', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaPanel = css.match(/\.map-est\s*\{([^}]*)\}/)?.[1]
+    const reglaTabla = css.match(/\.map-est__tabla-wrap\s*\{([^}]*)\}/)?.[1]
+
+    expect(reglaPanel).toMatch(/min-width:\s*0/)
+    expect(reglaPanel).toMatch(/width:\s*100%/)
+    expect(reglaTabla).toMatch(/overflow-x:\s*auto/)
+  })
+
   it('mantiene el número antes de la barra dentro de la celda de porcentaje', () => {
     const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const celdaPorcentaje = container.querySelector('.map-est__tabla tbody tr td:nth-child(4)')

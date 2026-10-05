@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from 'react'
 import MapGL, {
   AttributionControl,
@@ -592,12 +593,15 @@ export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas'>
+  panel?: PestanaMapa
+  estadisticas?: ReactNode
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
-  visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }) {
+  const panel = props.panel ?? props.pestana
+  const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
   const styles = useOverlayStyles()
   const { mode } = useThemeMode()
   const shellRef = useRef<HTMLDivElement>(null)
@@ -617,8 +621,8 @@ export default function MapInfraestructuraPage(props: {
   // selección nueva o repetida limpia `fichaCerradaCue` y fija `fichaPestana`
   // para que la ficha se abra en la pestaña desde donde se eligió.
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
-  const [fichaPestana, setFichaPestana] = useState<Exclude<PestanaMapa, 'estadisticas'> | null>(null)
-  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === props.pestana
+  const [fichaPestana, setFichaPestana] = useState<PestanaMapa | null>(null)
+  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === panelLateral
   // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
   // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
   // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
@@ -799,22 +803,6 @@ export default function MapInfraestructuraPage(props: {
     () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
     [dataEscuelasMapaVisible, colorPorCue],
   )
-
-  // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
-  // con `hidden`), cortar cualquier flyTo en curso con `.stop()` para no
-  // gastar rAF sobre un contenedor sin layout. Al volver a mostrarse,
-  // `.resize()` + `.fitBounds()` corrigen el encuadre si MapLibre calculó
-  // mal el tamaño mientras estaba oculto (mismo patrón que
-  // map-natalidad-page.tsx en la rama main).
-  useEffect(() => {
-    const mapa = mapRef.current?.getMap()
-    if (!mapa) return
-    if (props.visible ?? true) {
-      mapa.resize()
-    } else {
-      mapa.stop()
-    }
-  }, [props.visible])
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
   // listener vive mientras alguno está abierto (mismo patrón que `FichaParteModal`).
@@ -1076,7 +1064,7 @@ export default function MapInfraestructuraPage(props: {
       setEscuelaResaltada(null)
       setSeleccionCue(escuela.cueAnexo)
       setFichaCerradaCue(null)
-      setFichaPestana(props.pestana)
+      setFichaPestana(panelLateral)
       encuadreRutaPendiente.current = escuela.cueAnexo
       setControlsStackAbierto(false)
       return
@@ -1086,10 +1074,10 @@ export default function MapInfraestructuraPage(props: {
     mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
     setSeleccionCue(escuela.cueAnexo)
     setFichaCerradaCue(null)
-    setFichaPestana(props.pestana)
+    setFichaPestana(panelLateral)
     encuadreRutaPendiente.current = escuela.cueAnexo
     setControlsStackAbierto(false)
-  }, [props.pestana])
+  }, [panelLateral])
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
@@ -1191,7 +1179,7 @@ export default function MapInfraestructuraPage(props: {
       // Clickear (incluso sobre la escuela ya seleccionada con la ficha
       // cerrada) reabre la ficha: es la misma intención que "Ver ficha".
       setFichaCerradaCue(null)
-      setFichaPestana(props.pestana)
+      setFichaPestana(panelLateral)
       // Igual que al elegir desde el buscador: la ruta de esta escuela se
       // encuadra sola cuando su geometría llegue.
       encuadreRutaPendiente.current = cue
@@ -1223,7 +1211,7 @@ export default function MapInfraestructuraPage(props: {
     setDepartamentoSeleccionado,
     setFichaCerradaCue,
     setFichaPestana,
-    props.pestana,
+    panelLateral,
   ])
 
   useEffect(() => {
@@ -1812,7 +1800,7 @@ export default function MapInfraestructuraPage(props: {
 
       {dataVisible && (
         <div
-          className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
+          className={styles.leftStack}
           id="infra-left-stack"
         >
           {!modoRadar && avisoBusqueda && (
@@ -1821,7 +1809,7 @@ export default function MapInfraestructuraPage(props: {
             </p>
           )}
           <PanelLateral
-            pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
+            pestana={panelLateral}
             seleccion={fichaAbierta ? seleccionCue : null}
             onCerrarFicha={cerrarFicha}
             cabecera={departamentoSeleccionado ? (
@@ -1886,6 +1874,7 @@ export default function MapInfraestructuraPage(props: {
                 }}
               />
             )}
+            estadisticas={props.estadisticas}
           />
         </div>
       )}
@@ -1948,7 +1937,7 @@ export default function MapInfraestructuraPage(props: {
               data-testid="reabrir-ficha"
               aria-label={`Reabrir la ficha de ${escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}`}
               onClick={() => {
-                setFichaPestana(props.pestana)
+                setFichaPestana(panelLateral)
                 setFichaCerradaCue(null)
               }}
             >

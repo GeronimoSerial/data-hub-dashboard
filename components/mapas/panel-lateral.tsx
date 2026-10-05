@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 export interface PanelLateralProps {
-  pestana: Exclude<PestanaMapa, 'estadisticas'>
+  pestana: PestanaMapa
   /** Selección vigente PARA la pestaña activa (cue de la escuela), o null. */
   seleccion: string | null
   onCerrarFicha: () => void
@@ -13,6 +13,7 @@ export interface PanelLateralProps {
   actual: ReactNode
   radar: ReactNode
   planificacion: ReactNode
+  estadisticas: ReactNode
 }
 
 export function PanelLateral(props: PanelLateralProps) {
@@ -24,6 +25,8 @@ export function PanelLateral(props: PanelLateralProps) {
     contenido = props.radar
   } else if (props.pestana === 'planificacion') {
     contenido = props.planificacion
+  } else if (props.pestana === 'estadisticas') {
+    contenido = props.estadisticas
   }
 
   // Lo invocan las fichas que se montan acá desde la Task 13.

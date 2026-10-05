@@ -212,11 +212,11 @@
 .map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
-.map-est { display: grid; width: min(100%, 64rem); margin: 0 auto; gap: var(--s-5); align-content: start; }
-.map-est .map-sitact__kpis { grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); }
+.map-est { display: grid; width: 100%; min-width: 0; margin: 0; gap: var(--s-5); align-content: start; }
+.map-est .map-sitact__kpis { grid-template-columns: repeat(auto-fit, minmax(min(10.5rem, 100%), 1fr)); }
 .map-est__agrupacion { display: grid; gap: var(--s-2); }
 .map-est__agrupacion .map-seg { max-width: 28rem; }
-.map-est__tabla-wrap { max-width: 100%; }
+.map-est__tabla-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
 .ui-table.map-est__tabla th, .ui-table.map-est__tabla td { text-align: right; font-variant-numeric: tabular-nums; }
 .ui-table.map-est__tabla th:first-child, .ui-table.map-est__tabla td:first-child { text-align: left; }
 .map-est__tabla tbody th { background: transparent; color: var(--ink); font-size: var(--t-small); letter-spacing: normal; text-transform: none; white-space: nowrap; }
@@ -2398,20 +2398,6 @@ time {
  .radar-escuela-card { left:8px; bottom:165px; width:min(275px,76vw); max-height:30vh; }
 }
 @media(max-width:600px) {
-  .map-left-stack.radar-meteo-left-stack {
-    display:flex !important;
-    position:absolute !important;
-    inset:auto !important;
-    top:55px !important;
-    left:8px !important;
-    right:auto !important;
-    bottom:auto !important;
-    width:min(230px,calc(100vw - 100px)) !important;
-    max-height:none !important;
-    overflow:visible !important;
-    z-index:13;
-  }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
   .radar-resumen { bottom:160px; }
   .radar-resumen.is-open { bottom:160px; height:min(42vh,360px); }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
@@ -5662,20 +5648,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 @media(max-width:600px) {
-  .map-left-stack.radar-meteo-left-stack {
-    display:flex !important;
-    position:absolute !important;
-    inset:auto !important;
-    top:55px !important;
-    left:8px !important;
-    right:auto !important;
-    bottom:auto !important;
-    width:min(230px,calc(100vw - 100px)) !important;
-    max-height:none !important;
-    overflow:visible !important;
-    z-index:13;
-  }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
   .radar-resumen { bottom:160px; }
   .radar-resumen.is-open { bottom:160px; height:min(36vh,310px); }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }

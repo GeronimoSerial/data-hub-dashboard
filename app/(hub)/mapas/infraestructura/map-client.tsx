@@ -3,7 +3,7 @@
 import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
-import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
+import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
 import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -48,9 +48,6 @@ export function InfraestructuraMapClient(props: {
     () => padron ? { ...padron, escuelas: escuelasFiltradas } : null,
     [padron, escuelasFiltradas],
   )
-  const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
-    Exclude<PestanaMapa, 'estadisticas'>
-  >('actual')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
   // local con useState espejado contra window.location.hash, para que la
@@ -73,9 +70,6 @@ export function InfraestructuraMapClient(props: {
   function seleccionarEscuela(cueAnexo: string) {
     const escuela = padron?.escuelas.find((item) => item.cueAnexo === cueAnexo)
     if (!escuela) return
-    if (tab === 'estadisticas') {
-      onTab('actual')
-    }
     seleccionarEscuelaRef.current?.(escuela)
   }
 
@@ -91,11 +85,6 @@ export function InfraestructuraMapClient(props: {
     window.addEventListener('hashchange', syncHash)
     return () => window.removeEventListener('hashchange', syncHash)
   }, [props.riskRadarEnabled])
-
-  const mapaVisible = tab !== 'estadisticas'
-  if (tab !== 'estadisticas' && tab !== ultimaPestanaMapa) {
-    setUltimaPestanaMapa(tab)
-  }
 
   return (
     <div className="mapa-pestanas">
@@ -141,31 +130,20 @@ export function InfraestructuraMapClient(props: {
           que al volver a mostrarse se redimensiona solo y la cámara no se
           toca.
         */}
-        <div className="mapa-pestana-panel" hidden={!mapaVisible} data-testid="pestana-mapa">
+        <div className="mapa-pestana-panel" data-testid="pestana-mapa">
           <MapInfraestructuraPage
             mostrarEnlaceNominal={props.mostrarEnlaceNominal}
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
             seasonalEnabled={props.seasonalEnabled ?? false}
-            pestana={ultimaPestanaMapa}
-            visible={mapaVisible}
+            pestana={pestanaDeMapa(tab)}
+            panel={tab}
+            estadisticas={<PanelEstadisticas escuelas={escuelasFiltradas} filtros={filtros} />}
             escuelasMapa={escuelasMapa}
             onRegistrarSeleccion={registrarSeleccion}
           />
         </div>
 
-        {/*
-          La pestaña de Estadísticas se monta al abrirla y se desmonta al salir.
-          Así, la evolución y su consulta sólo se cargan cuando hacen falta.
-        */}
-        {tab === 'estadisticas' && (
-          <div
-            className="mapa-pestana-panel mapa-pestana-panel--scroll"
-            data-testid="pestana-estadisticas"
-          >
-            <PanelEstadisticas escuelas={escuelasFiltradas} filtros={filtros} />
-          </div>
-        )}
       </div>
     </div>
   )

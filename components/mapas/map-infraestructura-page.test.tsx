@@ -7,6 +7,7 @@ import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
@@ -576,6 +577,8 @@ type PropsRenderMapa = {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   pestana: 'actual' | 'radar' | 'planificacion'
+  panel?: PestanaMapa
+  estadisticas?: ReactNode
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }
 
@@ -1477,6 +1480,39 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(ficha).toHaveAttribute('data-cue', CUE)
     expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
+  })
+
+  it('abre la ficha desde Estadísticas y Volver regresa a ese panel', async () => {
+    await renderMapa({
+      mostrarEnlaceNominal: true,
+      pestana: 'actual',
+      panel: 'estadisticas',
+      estadisticas: <h2>Estadísticas de prueba</h2>,
+    })
+
+    await seleccionarPorBuscador('Escuela 1')
+    const panel = within(screen.getByTestId('panel-lateral'))
+    expect(await panel.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    await userEvent.click(panel.getByRole('button', { name: 'Volver a la lista' }))
+
+    expect(within(screen.getByTestId('panel-lateral')).getByRole('heading', { name: 'Estadísticas de prueba' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).queryByRole('heading', { name: 'Situación actual' })).not.toBeInTheDocument()
+  })
+
+  it('cierra la ficha de Estadísticas al cambiar el panel', async () => {
+    const vista = await renderMapa({
+      mostrarEnlaceNominal: true,
+      pestana: 'actual',
+      panel: 'estadisticas',
+      estadisticas: <h2>Estadísticas de prueba</h2>,
+    })
+
+    await seleccionarPorBuscador('Escuela 1')
+    expect(await screen.findByTestId('mock-ficha-escuela')).toBeInTheDocument()
+    vista.rerender({ panel: 'actual' })
+
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByRole('heading', { name: 'Situación actual' })).toBeInTheDocument()
   })
 
   it('"Quitar selección" borra la selección completa y no deja el grupo flotando', async () => {

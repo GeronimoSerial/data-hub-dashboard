@@ -16,6 +16,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
 
@@ -44,6 +45,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={radar}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
 
@@ -65,6 +67,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
 
@@ -82,6 +85,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
 
@@ -101,6 +105,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
     const panel = screen.getByTestId('panel-lateral')
@@ -117,6 +122,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
     expect(screen.queryByText('Resumen del departamento')).not.toBeInTheDocument()
@@ -132,6 +138,7 @@ describe('PanelLateral', () => {
         actual={<p>Contenido actual</p>}
         radar={<p>Contenido radar</p>}
         planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
       />,
     )
 
@@ -150,10 +157,49 @@ describe('PanelLateral', () => {
           actual={<p>Contenido actual</p>}
           radar={<p>Contenido radar</p>}
           planificacion={<p>Contenido de planificación</p>}
+          estadisticas={<p>Contenido estadísticas</p>}
         />,
       )
 
       expect(screen.getByTestId('panel-lateral')).not.toBeEmptyDOMElement()
     },
   )
+
+  it('muestra Estadísticas dentro del panel y conserva la cabecera', () => {
+    render(
+      <PanelLateral
+        pestana="estadisticas"
+        seleccion={null}
+        onCerrarFicha={() => {}}
+        cabecera={<p>Resumen del departamento</p>}
+        actual={<p>Contenido actual</p>}
+        radar={<p>Contenido radar</p>}
+        planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
+      />,
+    )
+
+    const panel = screen.getByTestId('panel-lateral')
+    expect(panel.firstElementChild).toHaveTextContent('Resumen del departamento')
+    expect(screen.getByText('Contenido estadísticas')).toBeInTheDocument()
+    expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()
+  })
+
+  it('prioriza la ficha sobre Estadísticas', () => {
+    render(
+      <PanelLateral
+        pestana="estadisticas"
+        seleccion="1801605-04"
+        onCerrarFicha={() => {}}
+        ficha={<p>Ficha seleccionada</p>}
+        actual={<p>Contenido actual</p>}
+        radar={<p>Contenido radar</p>}
+        planificacion={<p>Contenido de planificación</p>}
+        estadisticas={<p>Contenido estadísticas</p>}
+      />,
+    )
+
+    expect(screen.getByText('Ficha seleccionada')).toBeInTheDocument()
+    expect(screen.queryByText('Contenido estadísticas')).not.toBeInTheDocument()
+  })
 })

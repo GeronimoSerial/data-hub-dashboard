@@ -33,6 +33,8 @@ const registroSeleccion = vi.hoisted(() => ({
 vi.mock('@/components/mapas/map-infraestructura-page', () => ({
   default: function MapaDePrueba(props: {
     pestana: string
+    panel: string
+    estadisticas?: React.ReactNode
     escuelasMapa: EscuelasMapaPadronResultado | null
     onRegistrarSeleccion?: (fn: ((escuela: EscuelasMapaPadronResultado['escuelas'][number]) => void) | null) => void
   }): React.JSX.Element {
@@ -46,7 +48,7 @@ vi.mock('@/components/mapas/map-infraestructura-page', () => ({
       })
       return () => props.onRegistrarSeleccion?.(null)
     }, [props.onRegistrarSeleccion])
-    return <div data-testid="mock-mapa" data-pestana={props.pestana} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''} />
+    return <div data-testid="mock-mapa" data-pestana={props.pestana} data-panel={props.panel} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''}><div data-testid="panel-lateral">{props.panel === 'estadisticas' && props.estadisticas}</div></div>
   },
 }))
 
@@ -158,14 +160,14 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(registroSeleccion.escuelasSeleccionadas).toEqual([PADRON_PRUEBA.escuelas[3]])
   })
 
-  it('vuelve de Estadísticas a Situación actual antes de seleccionar una escuela', async () => {
+  it('selecciona una escuela desde Estadísticas sin cambiar el hash', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'tatacua')
     await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
 
     expect(registroSeleccion.escuelasSeleccionadas).toEqual([PADRON_PRUEBA.escuelas[3]])
-    expect(registroSeleccion.hashesAlSeleccionar).toEqual(['#actual'])
+    expect(registroSeleccion.hashesAlSeleccionar).toEqual(['#estadisticas'])
   })
 
   it('filtra las escuelas del mapa por texto de búsqueda', async () => {
@@ -176,28 +178,31 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(mapa).toHaveAttribute('data-cues', '180002-00')
   })
 
-  it('Estadísticas oculta el mapa sin desmontarlo', async () => {
+  it('Estadísticas conserva visible el mapa de Situación actual', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
-    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
-    expect(screen.getByTestId('pestana-estadisticas')).toBeVisible()
+    expect(screen.getByTestId('pestana-mapa')).not.toHaveAttribute('hidden')
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-panel', 'estadisticas')
+    expect(screen.getByTestId('panel-lateral')).toContainElement(screen.getByRole('heading', { name: 'Estadísticas' }))
   })
 
-  it('mantiene la última pestaña del mapa mientras se muestran Estadísticas', async () => {
+  it('muestra las capas de Situación actual mientras el panel cambia a Estadísticas', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     await userEvent.click(screen.getByRole('tab', { name: 'Radar' }))
     const mapa = screen.getByTestId('mock-mapa')
     expect(mapa).toHaveAttribute('data-pestana', 'radar')
 
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
-    expect(mapa).toHaveAttribute('data-pestana', 'radar')
-    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+    expect(mapa).toHaveAttribute('data-pestana', 'actual')
+    expect(mapa).toHaveAttribute('data-panel', 'estadisticas')
+    expect(screen.getByTestId('pestana-mapa')).not.toHaveAttribute('hidden')
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
     expect(mapa).toHaveAttribute('data-pestana', 'actual')
   })
 
-  it('cambiar de pestaña oculta el mapa con CSS sin desmontarlo', async () => {
+  it('cambiar de pestaña conserva el mapa montado y visible', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
     const mapa = await screen.findByTestId('mock-mapa')
@@ -209,8 +214,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     // Mismo nodo del DOM y un solo montaje: MapLibre no se remontó.
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
     expect(montajesMapa.total).toBe(1)
-    // Oculto, no borrado.
-    expect(mapa).not.toBeVisible()
+    expect(mapa).toBeVisible()
 
     expect(screen.getByRole('heading', { name: 'Estadísticas' })).toBeInTheDocument()
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
@@ -229,8 +233,9 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
-    // El mapa sigue montado (y oculto) detrás de la pestaña de evolución.
-    expect(await screen.findByTestId('mock-mapa')).not.toBeVisible()
+    // El mapa sigue visible con las capas de Situación actual.
+    expect(await screen.findByTestId('mock-mapa')).toBeVisible()
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
     expect(montajesMapa.total).toBe(1)
   })
 
