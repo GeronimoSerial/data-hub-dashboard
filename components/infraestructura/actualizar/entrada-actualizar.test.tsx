@@ -11,21 +11,26 @@ const situaciones = [
 ]
 
 describe('EntradaActualizar', () => {
-  it('muestra la última carga con hora, la principal destacada y las demás en orden', () => {
+  it('muestra la situación principal antes de la acción y deja el historial plegado', () => {
     render(
       <EntradaActualizar
         situaciones={situaciones}
         estadoEstablecimiento="evacuado"
         estadoServicio="suspendido"
         ultimaCarga={{ creadaEn: '2026-10-04T13:42:00.000Z', titulo: 'Evacuación preventiva · Crítica · desde 10:42', cambios: ['Se agregó "Evacuación preventiva" · Severidad Crítica'] }}
-        historial={[]}
+        historial={[{ id: 'mov-1', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-10-04T13:42:00.000Z', rigeDesde: '2026-10-04T13:42:00.000Z', titulo: 'Evacuación preventiva · Crítica · desde 10:42', cambios: ['Se agregó "Evacuación preventiva" · Severidad Crítica'] }]}
         onActualizar={() => {}}
       />,
     )
-    expect(screen.getByText(/Su última carga/)).toHaveTextContent('4 de octubre, 10:42')
-    expect(screen.getByText(/Su última carga/)).toHaveTextContent('Evacuación preventiva · Crítica · desde 10:42')
+    expect(screen.queryByText(/Su última carga/)).not.toBeInTheDocument()
     const principal = screen.getByRole('region', { name: 'Situación principal' })
     expect(within(principal).getByText('Evacuación preventiva')).toBeInTheDocument()
+    const actualizar = screen.getByRole('button', { name: 'Actualizar el parte' })
+    const historial = screen.getByRole('button', { name: 'Ver historial' })
+    expect(principal.compareDocumentPosition(actualizar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actualizar.compareDocumentPosition(historial) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(historial).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.linea-de-tiempo')).not.toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'También activas' })).getByText('Sin energía o agua')).toBeInTheDocument()
   })
 

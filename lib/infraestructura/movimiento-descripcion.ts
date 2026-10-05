@@ -107,11 +107,24 @@ const HORA_ZONA = new Intl.DateTimeFormat('en-GB', {
   minute: '2-digit',
   hourCycle: 'h23',
 })
+const FECHA_ZONA = new Intl.DateTimeFormat('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  day: 'numeric',
+  month: 'long',
+})
+const DIA_ZONA = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
 
-function horaDesde(iso: string): string {
+function momentoDesde(iso: string): string {
   const fecha = new Date(iso)
-  if (Number.isNaN(fecha.getTime())) return 'hora no indicada'
-  return HORA_ZONA.format(fecha)
+  if (Number.isNaN(fecha.getTime())) return 'desde hora no indicada'
+  const hora = HORA_ZONA.format(fecha)
+  if (DIA_ZONA.format(fecha) === DIA_ZONA.format(new Date())) return `desde ${hora}`
+  return `desde el ${FECHA_ZONA.format(fecha)}, ${hora}`
 }
 
 /** Título compartido por el resumen de carga, la línea de tiempo y el historial. */
@@ -151,7 +164,7 @@ export function tituloMovimiento(diff: DiffParte, tipo: TipoMovimiento, rigeDesd
     gravedad = 'Actualizado'
   }
 
-  return `${situacion} · ${gravedad} · desde ${horaDesde(rigeDesde)}`
+  return `${situacion} · ${gravedad} · ${momentoDesde(rigeDesde)}`
 }
 
 export function describirMovimiento(

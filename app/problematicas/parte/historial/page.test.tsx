@@ -102,6 +102,10 @@ function esperaHistorial() {
   expect(screen.getByText('Buscando los movimientos del parte…')).toBeInTheDocument()
   const volver = screen.getByRole('link', { name: /volver al parte/i })
   expect(volver).toBeInTheDocument()
+  expect(volver).toHaveAttribute('href', '/problematicas/parte?cue=1801605-04')
+  const estado = screen.getByText('Buscando los movimientos del parte…')
+  expect(volver.compareDocumentPosition(estado) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.getAllByRole('link', { name: /volver al parte/i })).toHaveLength(1)
   expect(volver.parentElement).toHaveClass('historial-contenido')
   expect(screen.getByRole('heading', { level: 1 }).parentElement?.parentElement).toHaveClass('historial-contenido')
 }

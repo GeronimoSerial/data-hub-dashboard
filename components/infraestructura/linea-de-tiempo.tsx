@@ -13,11 +13,24 @@ function esConfirmacionSinCambios(cambio: string): boolean {
   return /^sigue igual\s*:/i.test(cambio.trim())
 }
 
+function detalleYaIncluido(titulo: string, detalle: string): boolean {
+  const severidad = /^Severidad de "(.+)": (.+) → (.+)$/.exec(detalle)
+  if (severidad) return titulo.startsWith(`${severidad[1]} · ${severidad[2]} → ${severidad[3]} ·`)
+
+  const agregado = /^Se agregó "(.+)" · Severidad (.+)$/.exec(detalle)
+  if (agregado) return titulo.startsWith(`${agregado[1]} · ${agregado[2]} ·`)
+
+  return false
+}
+
 // Presenta lo más reciente primero, con la fecha local en cada movimiento.
 export function LineaDeTiempo({ movimientos, limite }: { movimientos: MovimientoHistorial[]; limite?: number }): JSX.Element {
   const [expandida, setExpandida] = useState(false)
   const ordenados = [...movimientos]
-    .map((movimiento) => ({ ...movimiento, cambios: movimiento.cambios.filter((cambio) => !esConfirmacionSinCambios(cambio)) }))
+    .map((movimiento) => ({
+      ...movimiento,
+      cambios: movimiento.cambios.filter((cambio) => !esConfirmacionSinCambios(cambio)),
+    }))
     .filter((movimiento) => movimiento.cambios.length > 0)
     .sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))
   const visibles = limite !== undefined && !expandida ? ordenados.slice(0, limite) : ordenados
@@ -27,6 +40,7 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
     <div className="linea-de-tiempo">
       <ol className="linea-de-tiempo__lista">
         {visibles.map((movimiento) => {
+          const detalles = movimiento.cambios.filter((cambio) => !detalleYaIncluido(movimiento.titulo, cambio))
           return (
             <li key={movimiento.id} className="linea-de-tiempo__entrada">
               <span
@@ -39,9 +53,9 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
               </time>
               <div className="linea-de-tiempo__cambios">
                 <p className="linea-de-tiempo__titulo">{movimiento.titulo}</p>
-                {movimiento.cambios.length > 0 ? (
+                {detalles.length > 0 ? (
                   <ul className="linea-de-tiempo__detalles">
-                    {movimiento.cambios.map((detalle, indice) => <li key={`${movimiento.id}-${indice}`}>{detalle}</li>)}
+                    {detalles.map((detalle, indice) => <li key={`${movimiento.id}-${indice}`}>{detalle}</li>)}
                   </ul>
                 ) : null}
               </div>

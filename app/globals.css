@@ -2345,6 +2345,26 @@ time {
   padding: var(--s-3);
 }
 
+.entrada-actualizar__historial-control {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--fill);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.entrada-actualizar__historial-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .entrada-actualizar__motivo,
 .entrada-actualizar__detalle {
   margin: 0;
