@@ -34,6 +34,10 @@ function stub(respuestaPost: Record<string, unknown> = { ok: true, movimientoId:
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear() })
 
+function elegirAsistencia(valor: 'Sí' | 'No') {
+  fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
+}
+
 describe('RecorridoActualizacion', () => {
   it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
     stub()
@@ -76,7 +80,7 @@ describe('RecorridoActualizacion', () => {
     expect(screen.getByRole('heading', { level: 2, name: '¿Hay algo nuevo?' })).toBeInTheDocument()
     expect(screen.getByText('Paso 3 de 4')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'No' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await waitFor(() => expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1))
     const [, init] = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!
     const cuerpo = JSON.parse(init!.body as string)
@@ -122,7 +126,7 @@ describe('RecorridoActualizacion', () => {
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Toda la escuela' }))
   })
 
-  it('resume las situaciones sin cambios y muestra la asistencia vigente seleccionada', async () => {
+  it('resume las situaciones sin cambios y deja la asistencia sin marcar', async () => {
     stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
@@ -136,8 +140,8 @@ describe('RecorridoActualizacion', () => {
     expect(screen.getByRole('heading', { name: 'Sin cambios' })).toBeInTheDocument()
     expect(screen.getByText('Inundación, Sin energía o agua')).toBeInTheDocument()
     expect(screen.queryByText(/Asistencia pedagógica: No/)).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'No' })).toBeChecked()
-    expect(screen.queryByText('Actualmente: No')).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'No' })).not.toBeChecked()
+    expect(screen.getByText('Actualmente:', { exact: false })).toHaveTextContent('Actualmente: No')
     expect(document.querySelector('.actualizacion-resumen__lista dl')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Volver' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Guardar actualización' })).toBeInTheDocument()
@@ -178,7 +182,7 @@ describe('RecorridoActualizacion', () => {
     expect(screen.getByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /^Inundación/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     const cuerpo = await cuerpoDelPost(fetchMock)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ motivo: 'Tormenta severa', severidad: 'Alta', causadaPorId: 'a' })
     expect(cuerpo.afectacionesConfirmadas.sort()).toEqual(['a', 'b'])
@@ -230,7 +234,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     const cuerpo = await cuerpoDelPost(fetchMock)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ motivo: 'Sin energía o agua' })
     expect(cuerpo.afectacionesNuevas[0].causadaPorId).toBeUndefined()

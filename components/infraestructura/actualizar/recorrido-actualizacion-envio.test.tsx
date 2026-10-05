@@ -63,7 +63,10 @@ async function prepararResumen() {
   }
   fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
-async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
+function elegirAsistencia(valor: 'Sí' | 'No') {
+  fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
+}
+async function enviar() { await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllMocks(); syncMocks.callback = null })
 
@@ -106,7 +109,17 @@ describe('RecorridoActualizacion: envío', () => {
     expect(cuerpo.asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Cuadernillo'] })
   })
 
-  it('no incluye asistencia pedagógica en el envío si no se tocó', async () => {
+  it('exige responder la asistencia pedagógica, que llega sin nada marcado', async () => {
+    const fetchMock = stub(); montar(); await prepararResumen()
+    const grupo = screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })
+    expect(within(grupo).getByRole('radio', { name: 'Sí' })).not.toBeChecked()
+    expect(within(grupo).getByRole('radio', { name: 'No' })).not.toBeChecked()
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Indique si se brinda asistencia pedagógica.')
+    expect(posteos(fetchMock)).toHaveLength(0)
+  })
+
+  it('no incluye asistencia pedagógica en el envío si coincide con la vigente', async () => {
     const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).not.toHaveProperty('asistenciaPedagogica')
   })
@@ -177,7 +190,7 @@ describe('RecorridoActualizacion: envío', () => {
     montar()
     await prepararResumen()
     vi.useFakeTimers()
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await act(async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve() })
     expect(posteos(fetchMock)).toHaveLength(1)
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
@@ -227,7 +240,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('un 2xx inesperado no confirma y un reintento conserva idempotencyKey', async () => {
     let n = 0; const fetchMock = stub(async () => ++n === 1 ? respuesta({ raro: true }, 200) : respuesta())
     montar(); await enviar(); expect(await screen.findByText(/respuesta inesperada del servidor/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })); await screen.findByText(guardado)
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' })); await screen.findByText(guardado)
     const claves = posteos(fetchMock).map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
     expect(claves).toHaveLength(2); expect(claves[0]).toBe(claves[1])
   })
@@ -257,7 +270,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('un 5xx muestra error de servidor y reintenta con la misma clave', async () => {
     let n = 0
     const fetchMock = stub(async () => ++n === 1 ? respuesta({ error: 'sin servicio' }, 503) : respuesta())
-    montar(); await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    montar(); await prepararResumen(); elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await waitFor(() => expect(screen.getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument())
     const primera = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body)).idempotencyKey
     await screen.findByText(guardado, undefined, { timeout: 5000 })

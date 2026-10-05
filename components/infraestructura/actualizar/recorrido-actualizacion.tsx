@@ -199,10 +199,9 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
   const [etapaAlgoNuevo, setEtapaAlgoNuevo] = useState<'pregunta' | 'datos' | 'causa'>('pregunta')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
-  const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>(() => ({
-    brinda: asistenciaVigente.brinda ? 'si' : 'no',
-    modalidades: asistenciaVigente.modalidades,
-  }))
+  // Llega sin nada marcado: el director responde siempre, aunque ya haya un
+  // valor vigente. Si coincide con el vigente, no se envía.
+  const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>({ brinda: '', modalidades: [] })
   const [borradorPendiente, setBorradorPendiente] = useState<BorradorRecorridoActualizacion | null>(null)
   const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const [avisoBorrador, setAvisoBorrador] = useState<string | null>(null)
@@ -367,6 +366,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
 
   async function enviar(): Promise<void> {
     if (enviando || enviandoRef.current) return
+    if (asistenciaPedagogica.brinda === '') {
+      setError('Indique si se brinda asistencia pedagógica.')
+      return
+    }
     if (asistenciaPedagogica.brinda === 'si' && asistenciaPedagogica.modalidades.length === 0) {
       setError('Elija al menos una modalidad de asistencia pedagógica.')
       return

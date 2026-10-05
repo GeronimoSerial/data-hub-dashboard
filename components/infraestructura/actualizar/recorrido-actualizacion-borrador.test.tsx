@@ -44,6 +44,10 @@ async function irAlResumen() {
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks() })
 
+function elegirAsistencia(valor: 'Sí' | 'No') {
+  fireEvent.click(within(screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })).getByRole('radio', { name: valor }))
+}
+
 describe('RecorridoActualizacion: borrador local', () => {
   it('guarda etapa y respuestas, y ofrece continuar al remontar', async () => {
     stub(); montar(); await empezarYResponderPrimera()
@@ -117,7 +121,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('limpia la clave tras guardar con éxito y al cargar otra situación', async () => {
     stub(); montar(); await irAlResumen()
     await waitFor(() => expect(localStorage.getItem(CLAVE)).not.toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
+    elegirAsistencia('No'); fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     await screen.findByText('Parte actualizado')
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Actualizar de nuevo' }))
