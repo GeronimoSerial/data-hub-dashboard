@@ -37,6 +37,29 @@ function etiquetaKm(distancia: number): string {
   return `${formato.format(kilometros)} km`
 }
 
+function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta): string | null {
+  const via = geometria.viaPrincipal
+  if (!via || !geometria.ruta) return null
+
+  const nombre = typeof via.nombre === 'string' && via.nombre.trim() !== ''
+    ? via.nombre
+    : via.tipo === 'residential' ? 'Calle urbana' : 'Camino rural'
+  const superficie = via.pavimentada
+    ? 'pavimentada'
+    : via.tipo === 'track' ? 'de tierra' : 'de ripio'
+  const destino = geometria.destino ? ` → ${geometria.destino.nombre}` : ''
+  const distanciaInformada = typeof geometria.distanciaKm === 'number'
+    && Number.isFinite(geometria.distanciaKm)
+    ? geometria.distanciaKm
+    : null
+  const distancia = distanciaInformada ?? distanciaKm(geometria.ruta)
+  const etiquetaDistancia = distancia !== null && Number.isFinite(distancia)
+    ? ` · ${etiquetaKm(distancia)}`
+    : ''
+
+  return `${nombre} (${superficie})${destino}${etiquetaDistancia}`
+}
+
 function contarCruces(geometria: GeometriaAccesoRespuesta): number {
   if (geometria.resumen) return geometria.resumen.vado + geometria.resumen.sinEvidencia
   return (geometria.cruces ?? []).filter((cruce: CruceAccesoOsm) => cruce.clasificacion !== 'puente').length
@@ -57,14 +80,19 @@ export function lineasAcceso(
 ): LineasAcceso | null {
   if (!geometria?.disponible || !geometria.ruta) return null
 
-  const distancia = distanciaKm(geometria.ruta)
+  const distancia = typeof geometria.distanciaKm === 'number' && Number.isFinite(geometria.distanciaKm)
+    ? geometria.distanciaKm
+    : distanciaKm(geometria.ruta)
+  const viaPrincipal = etiquetaViaPrincipal(geometria)
   const cantidadCruces = contarCruces(geometria)
   const cruces = cantidadCruces === 0
     ? 'Sin cruces de agua'
     : `${cantidadCruces} ${cantidadCruces === 1 ? 'cruce' : 'cruces'} de agua en el camino`
 
   return {
-    via: distancia === null ? null : `Camino de acceso · ${etiquetaKm(distancia)}`,
+    via: viaPrincipal ?? (distancia === null || !Number.isFinite(distancia)
+      ? null
+      : `Camino de acceso · ${etiquetaKm(distancia)}`),
     cruces,
     riesgo: nivelRiesgo(exposicion),
   }

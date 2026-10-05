@@ -47,6 +47,23 @@ describe('BloqueAcceso', () => {
     expect(screen.getByTestId('bloque-acceso-riesgo').querySelector('svg')).toBeInTheDocument()
   })
 
+  it('muestra la vía principal, el destino y la distancia informada', () => {
+    render(
+      <BloqueAcceso
+        geometria={{
+          ...geometria,
+          viaPrincipal: { nombre: 'Ruta Provincial 13', tipo: 'primary', pavimentada: true },
+          destino: { nombre: 'Saladas' },
+          distanciaKm: 14,
+        }}
+        exposicion={null}
+      />,
+    )
+
+    expect(screen.getByTestId('bloque-acceso-via'))
+      .toHaveTextContent('Ruta Provincial 13 (pavimentada) → Saladas · 14 km')
+  })
+
   it('muestra el mensaje de ausencia de cruces sin advertencia', () => {
     render(
       <BloqueAcceso
