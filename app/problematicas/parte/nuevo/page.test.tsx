@@ -136,7 +136,7 @@ describe('NuevoPartePage', () => {
     expect(screen.queryByRole('heading', { name: 'Escuela 4' })).toBeNull()
     expect(screen.getByText('Escuela 4')).toBeInTheDocument()
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /agregar afectación/i })).toBeNull()
   })
 
@@ -172,7 +172,7 @@ describe('NuevoPartePage — acceso por sesión de verificación', () => {
     render(jsx)
 
     expect(screen.queryByLabelText(/contraseña/i)).toBeNull()
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
     expect(screen.getByText('Escuela 4')).toBeInTheDocument()
   })
 
@@ -226,6 +226,6 @@ describe('NuevoPartePage — acceso por sesión de verificación', () => {
     render(jsx)
 
     expect(screen.queryByLabelText(/contraseña/i)).toBeNull()
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+    expect(screen.getByText('Paso 1 de 5')).toBeInTheDocument()
   })
 })
