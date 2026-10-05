@@ -40,6 +40,7 @@ export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHist
   const carga = formatearMomentoHistorial(movimiento.creadaEn)
   const rol = ROL_TEXTO[movimiento.rol] ?? movimiento.rol
   const mostrarVigencia = debeMostrarRigeDesde(movimiento.creadaEn, movimiento.rigeDesde)
+  const cambios = movimiento.cambios.filter((cambio) => cambio !== movimiento.titulo)
 
   return (
     <li className="historial-movimiento">
@@ -56,9 +57,9 @@ export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHist
 
       <p className="historial-movimiento__titulo">{movimiento.titulo}</p>
 
-      {movimiento.cambios.length > 0 ? (
+      {cambios.length > 0 ? (
         <ul className="historial-movimiento__cambios">
-          {movimiento.cambios.map((cambio, indice) => (
+          {cambios.map((cambio, indice) => (
             // Las líneas son texto ya redactado y pueden repetirse entre sí
             // dentro de un mismo movimiento (por ejemplo dos secciones con
             // el mismo cambio de servicio), así que la posición es la única

@@ -16,7 +16,7 @@ function estadoActual() {
       { id: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', descripcion: null, rigeDesde: '2026-10-03T10:00:00.000Z', creadaEn: '2026-10-03T10:00:00.000Z', causadaPorId: 'a', secciones: [], totales: { secciones: 0, alumnos: 0 } },
     ],
     recientes: [],
-    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', titulo: 'Sin energía o agua · Media · desde 07:00', cambios: ['Se agregó "Sin energía o agua" · Severidad Media'] },
+    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', titulo: 'Se informó Sin energía o agua', cambios: ['Se informó Sin energía o agua', 'Gravedad Media'] },
   }
 }
 

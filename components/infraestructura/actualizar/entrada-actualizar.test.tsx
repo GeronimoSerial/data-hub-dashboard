@@ -17,8 +17,8 @@ describe('EntradaActualizar', () => {
         situaciones={situaciones}
         estadoEstablecimiento="evacuado"
         estadoServicio="suspendido"
-        ultimaCarga={{ creadaEn: '2026-10-04T13:42:00.000Z', titulo: 'Evacuación preventiva · Crítica · desde 10:42', cambios: ['Se agregó "Evacuación preventiva" · Severidad Crítica'] }}
-        historial={[{ id: 'mov-1', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-10-04T13:42:00.000Z', rigeDesde: '2026-10-04T13:42:00.000Z', titulo: 'Evacuación preventiva · Crítica · desde 10:42', cambios: ['Se agregó "Evacuación preventiva" · Severidad Crítica'] }]}
+        ultimaCarga={{ creadaEn: '2026-10-04T13:42:00.000Z', titulo: 'Se informó Evacuación preventiva', cambios: ['Se informó Evacuación preventiva', 'Gravedad Crítica'] }}
+        historial={[{ id: 'mov-1', tipo: 'actualizacion', rol: 'director', creadaEn: '2026-10-04T13:42:00.000Z', rigeDesde: '2026-10-04T13:42:00.000Z', titulo: 'Se informó Evacuación preventiva', cambios: ['Se informó Evacuación preventiva', 'Gravedad Crítica'] }]}
         onActualizar={() => {}}
       />,
     )

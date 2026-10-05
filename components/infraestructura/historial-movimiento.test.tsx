@@ -20,7 +20,7 @@ function movimiento(parcial: Partial<MovimientoHistorial> = {}): MovimientoHisto
     rol: 'director',
     creadaEn: carga,
     rigeDesde: carga,
-    titulo: 'Inundación · Alta · desde 10:35',
+    titulo: 'Cambió el funcionamiento de las clases',
     cambios: ['Funcionamiento: habitual → interrumpido en 2.º A'],
     ...parcial,
   }
@@ -47,8 +47,8 @@ describe('HistorialMovimiento', () => {
       movimiento({
         cambios: [
           'Funcionamiento: habitual → interrumpido en 2.º A',
-          'Se agregó "Inaccesibilidad de alumnos" · Severidad Media',
-          '12 alumnos incorporados',
+          'Se informó Inaccesibilidad de alumnos',
+          'Alcanza a 1 sección (12 alumnos)',
         ],
       }),
     )
@@ -56,15 +56,25 @@ describe('HistorialMovimiento', () => {
     const lineas = screen.getAllByRole('listitem').filter((el) => el.className.includes('__cambio'))
     expect(lineas.map((el) => el.textContent)).toEqual([
       'Funcionamiento: habitual → interrumpido en 2.º A',
-      'Se agregó "Inaccesibilidad de alumnos" · Severidad Media',
-      '12 alumnos incorporados',
+      'Se informó Inaccesibilidad de alumnos',
+      'Alcanza a 1 sección (12 alumnos)',
     ])
   })
 
   it('muestra el título de situación aparte de los detalles', () => {
-    renderEnLista(movimiento({ titulo: 'Tormenta severa · Alta · desde 03:50', cambios: ['Funcionamiento: habitual → parcial'] }))
-    expect(screen.getByText('Tormenta severa · Alta · desde 03:50')).toBeInTheDocument()
+    renderEnLista(movimiento({ titulo: 'Se informó Tormenta severa', cambios: ['Funcionamiento: habitual → parcial'] }))
+    expect(screen.getByText('Se informó Tormenta severa')).toBeInTheDocument()
     expect(screen.getByText('Funcionamiento: habitual → parcial')).toBeInTheDocument()
+  })
+
+  it('no repite en el detalle la línea que ya aparece como título', () => {
+    renderEnLista(movimiento({
+      titulo: 'Se informó Tormenta severa',
+      cambios: ['Se informó Tormenta severa', 'Gravedad Alta'],
+    }))
+    expect(screen.getByText('Se informó Tormenta severa')).toBeInTheDocument()
+    expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
+    expect(screen.getAllByText('Se informó Tormenta severa')).toHaveLength(1)
   })
 
   it('no muestra "Rige desde" cuando coincide con la carga', () => {

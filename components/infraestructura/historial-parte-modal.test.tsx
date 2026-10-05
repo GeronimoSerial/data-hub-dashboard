@@ -60,7 +60,7 @@ describe('HistorialParteModal', () => {
               rol: 'director',
               creadaEn: '2026-08-01T12:00:00Z',
               rigeDesde: '2026-08-01T12:00:00Z',
-              titulo: 'Inundación · Alta · desde 09:00',
+              titulo: 'Cambió el funcionamiento de las clases',
               cambios: ['Funcionamiento: habitual → interrumpido'],
             },
           ],

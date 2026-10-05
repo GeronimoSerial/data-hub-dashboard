@@ -13,7 +13,7 @@ function iso(anio: number, mes: number, dia: number, hora: number, minuto: numbe
 
 function movimiento(id: string, dia: number, hora: number, cambios: string[]): MovimientoHistorial {
   const carga = iso(2026, 9, dia, hora, 0)
-  return { id, tipo: 'actualizacion', rol: 'director', creadaEn: carga, rigeDesde: carga, titulo: 'Inundación · Alta · desde 10:00', cambios }
+  return { id, tipo: 'actualizacion', rol: 'director', creadaEn: carga, rigeDesde: carga, titulo: 'Se informó Inundación', cambios }
 }
 
 function responderCon(movimientos: MovimientoHistorial[]) {
@@ -47,14 +47,14 @@ describe('HistorialParte', () => {
       'fetch',
       responderCon([
         movimiento('mov-3', 18, 10, ['Funcionamiento: habitual → interrumpido en 2.º A']),
-        movimiento('mov-2', 17, 16, ['Se inició la situación "Inundación"']),
-        movimiento('mov-1', 16, 8, ['12 alumnos incorporados']),
+        movimiento('mov-2', 17, 16, ['Se informó Inundación']),
+        movimiento('mov-1', 16, 8, ['Alcanza a 1 sección (12 alumnos)']),
       ]),
     )
 
     const { container } = render(<HistorialParte cue={CUE} endpoint={`/api/problematicas/parte/historial?cue=${CUE}`} />)
 
-    await screen.findByText('12 alumnos incorporados')
+    await screen.findByText('Alcanza a 1 sección (12 alumnos)')
     const cargas = Array.from(container.querySelectorAll('.linea-de-tiempo__hora')).map(
       (el) => el.textContent,
     )
@@ -105,7 +105,7 @@ describe('HistorialParte', () => {
       .mockRejectedValueOnce(new Error('sin red'))
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ ok: true, movimientos: [movimiento('mov-1', 18, 10, ['12 alumnos incorporados'])] }),
+        json: async () => ({ ok: true, movimientos: [movimiento('mov-1', 18, 10, ['Alcanza a 1 sección (12 alumnos)'])] }),
       })
     vi.stubGlobal('fetch', fetchMock)
 
@@ -116,7 +116,7 @@ describe('HistorialParte', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }))
 
-    expect(await screen.findByText('12 alumnos incorporados')).toBeInTheDocument()
+    expect(await screen.findByText('Alcanza a 1 sección (12 alumnos)')).toBeInTheDocument()
   })
 
   it('trata una respuesta HTTP fallida como error de lectura, no como historial vacío', async () => {

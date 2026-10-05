@@ -9,9 +9,9 @@ const mov = (id: string, creadaEn: string, cambios: string[], severidad: Movimie
   id, tipo: 'actualizacion', rol: 'director', creadaEn, rigeDesde: creadaEn, titulo: 'Título de situación', cambios, severidad,
 })
 const movimientos = [
-  mov('3', '2026-10-04T13:42:00.000Z', ['Se agregó "Evacuación preventiva" · Severidad Crítica'], 'Crítica'),
+  mov('3', '2026-10-04T13:42:00.000Z', ['Se informó Evacuación preventiva', 'Gravedad Crítica'], 'Crítica'),
   mov('2', '2026-10-04T12:15:00.000Z', ['Sigue igual: "Inundación"']),
-  mov('1', '2026-10-02T11:00:00.000Z', ['Se inició la situación "Inundación"'], 'Crítica'),
+  mov('1', '2026-10-02T11:00:00.000Z', ['Se informó Inundación'], 'Crítica'),
 ]
 
 beforeEach(() => vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z')))
@@ -30,28 +30,28 @@ describe('LineaDeTiempo', () => {
   it('oculta confirmaciones sin cambios y el límite cuenta movimientos visibles', () => {
     render(<LineaDeTiempo movimientos={movimientos} limite={1} />)
     expect(screen.queryByText('Sigue igual: "Inundación"')).not.toBeInTheDocument()
-    expect(screen.queryByText('Se inició la situación "Inundación"')).not.toBeInTheDocument()
+    expect(screen.queryByText('Se informó Inundación')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Ver movimientos anteriores (1)' }))
-    expect(screen.getByText('Se inició la situación "Inundación"')).toBeInTheDocument()
+    expect(screen.getByText('Se informó Inundación')).toBeInTheDocument()
   })
 
   it('agrupa cada movimiento con título destacado y detalles debajo', () => {
-    render(<LineaDeTiempo movimientos={[mov('detallado', '2026-10-04T13:42:00.000Z', ['Funcionamiento: habitual', '3 secciones incorporadas', '88 alumnos incorporados'])]} />)
+    render(<LineaDeTiempo movimientos={[mov('detallado', '2026-10-04T13:42:00.000Z', ['Funcionamiento: habitual', 'Alcanza a 3 secciones (88 alumnos)'])]} />)
     const entrada = document.querySelector('.linea-de-tiempo__entrada') as HTMLLIElement
     expect(entrada.querySelector('time')).toHaveTextContent('Hoy, 10:42')
     expect(entrada.querySelector('.linea-de-tiempo__titulo')?.tagName).toBe('P')
     expect(entrada.querySelector('.linea-de-tiempo__titulo')).toHaveTextContent('Título de situación')
-    expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(3)
+    expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(2)
   })
 
-  it('no repite en el detalle el cambio que ya resume el título', () => {
+  it('mantiene el nombre del motivo en el detalle cuando el título resume el cambio', () => {
     render(<LineaDeTiempo movimientos={[mov(
       'severidad',
       '2026-10-04T13:42:00.000Z',
-      ['Severidad de "Tormenta severa": Media → Baja', '3 secciones incorporadas'],
-    )].map((movimiento) => ({ ...movimiento, titulo: 'Tormenta severa · Media → Baja · desde 07:00' }))} />)
+      ['Tormenta severa: Alta → Baja', 'Alcanza a 3 secciones (88 alumnos)'],
+    )].map((movimiento) => ({ ...movimiento, titulo: 'Cambió la gravedad: Alta → Baja' }))} />)
     const entrada = document.querySelector('.linea-de-tiempo__entrada') as HTMLLIElement
-    expect(entrada.querySelector('.linea-de-tiempo__detalles')?.textContent).toBe('3 secciones incorporadas')
+    expect(entrada.querySelector('.linea-de-tiempo__detalles')?.textContent).toBe('Tormenta severa: Alta → BajaAlcanza a 3 secciones (88 alumnos)')
   })
 
   it('muestra una fecha y hora unificadas por movimiento', () => {
