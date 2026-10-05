@@ -35,8 +35,8 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - [x] B4 — Tasks 16–19 (radar y planificación) — T16 17a0e7b, ad3086a, T17 7391e6d, T18 56df91f, T19 23319a8; visual fixes be02a61..e76281e; merged 18cf4bc
 - [x] B5 — Tasks 20–22 (estadísticas) — T20 f36b49b, T21 5f614f3, T22 3a19c5b+5bcf262; fixes 19152b7, 5b5e995; merged 35ed90e
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
-- [ ] T27 — vía principal en la UI — running: worktree mapa-t27 from 35ed90e, dispatch ctx_5cfd7af71b39
-- [ ] Visual review per batch (N1) — B1, B2, B3, B4, B5 done
+- [x] T27 — vía principal en la UI — 06207ff, e2dc4bf, 26e4d71, 927ad53 (popups 'con reporte'); merged 9506742
+- [x] Visual review per batch (N1) — B1–B5 and T27 done in Claude in Chrome
 
 ## Progress / evidence
 
@@ -48,7 +48,7 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - Loop: cron a1b8266c every 10 min.
 - B6 review (N1): full diff read (cost weighting, multi-source Dijkstra over the whole province, via_principal by metres, VERSION_JOB 3); `uv run pytest -q` 143 passed on the branch and after merge. No visual review needed (backend only). Pending outside B6: the full job was not run (remote/heavy, needs user authorization); when the v3 output exists, update GEOMETRIA_DEFAULT in calcular_exposicion_ruta.py.
 
-## Next step
+## Next step (superseded)
 
 Wave 1: B6 merged; B1 running (T1–T4 committed, N2 on its gate). Full isolation job v3 authorized by the user and running locally as systemd unit `mapa-job-aislamiento` (log ~/.cache/mapa-n2/job-aislamiento.log, serialized by heavy.lock). Importing its output into staging is NOT yet authorized.
 B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (worktree mapa-b2, dispatch ctx_355231408d95); if B1 changes after review, the B2 N2 merges feat/mapa-b1 into its branch. B2 merges into feat/staging only after B1.
@@ -73,3 +73,15 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - B4 fixes (be02a61, dbe341e, 6a438f0, 9a8234a, c33fc7b, e76281e) verified in Chrome: radar card, single empty state, neutral points, Radar→Planificación restores the light basemap and points (≈10 s basemap reload). Aislamiento distribution is real (demo: Alto 38 %, Medio 3 %, Bajo 30 %, Nulo 28 %; inundación 96.7 % Nulo), thresholds unchanged. B4 gate (N1): build 0, lint 0 errors, vitest 2650 passed / 2 failed: known radar-meteo + reporte-inicial-form 'reintentar de inmediato', which passes alone in mapa-b4 and staging (flaky under full-suite load, not touched by B4). Merged 18cf4bc; post-merge tsc clean, 1980 tests in touched areas passed. mapa-b4 removed; B5 launched.
 - B5 done by N2 (T20 f36b49b, T21 5f614f3, T22 3a19c5b + 5bcf262); N2 gate: full vitest with only the known failure, lint 0, build OK. Note: the evolution endpoint filters only by department and level (as the plan says); other chips do not affect the charts. Chrome review: stats tab clean, numbers match Situación actual, Nivel empty state OK. Findings → fix N2 ctx_1934089a163f: 'Escuelas afectadas' vs 'Escuelas con reporte' terminology, numeric columns left-aligned. T27 spec prepared (~/.cache/mapa-n2/t27/spec.md); launch after B5 merges.
 - B5 fixes verified in Chrome ('Escuelas con reporte', numeric columns right-aligned). B5 gate (N1): build 0, vitest 2700 passed / 1 known, lint 0 errors. Merged 35ed90e; post-merge tsc clean, 2006 tests in touched areas passed. mapa-b5 removed. T27 launched (also unifies 'afectadas' in map popups).
+- T27 verified in Chrome after importing the v3 outputs into the LOCAL review DB copy only (/home/gero/orca/demo-data/mapa-review): access block reads 'Ruta Nacional 12 (pavimentada) → Goya · 63 km' and the route now follows RN12. T27 gate: build 0, vitest 2716 passed / 1 known, lint 0. Merged 9506742; final full suite on feat/staging: 2716 passed / 1 known failure; tsc clean. All worktrees removed, watchdog and review server stopped, cron deleted.
+
+## Status: complete (2026-10-05)
+
+All batches B1–B6 and T27 merged into `feat/staging`. Not pushed; no PR opened.
+
+### Pending user decisions
+- Push `feat/staging` and/or open a PR.
+- Import the v3 isolation/geometry outputs into staging (remote; needs authorization) and recompute `exposicion_ruta` on v3 routes.
+- Delete code left unused by the redesign (not deleted without permission): `components/infraestructura/ficha-parte-modal.tsx` + `ficha-territorial.tsx` + `ficha-acceso-territorial.tsx` (and tests), `components/mapas/selector-horizonte.tsx`, `components/mapas/radar-meteo/resumen-panel.tsx`, old layer controls, riesgo/estacional hooks.
+- Validate product rules chosen during the night: flood-cut risk 'Alto' at ≥ 0.5 m depth; municipal population as proxy for the 2,000-inhabitant urban threshold; road labels 'de tierra' (track) vs 'de ripio' (other unpaved); evolution charts filter only by department and level.
+- Known failing test on the base: `app/api/infraestructura/radar-meteo/resumen/route.test.ts`; flaky under load: `reporte-inicial-form` 'reintentar de inmediato'.
