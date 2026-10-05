@@ -8,10 +8,10 @@ import { useThemeMode } from '@/app/providers'
 import { authClient } from '@/lib/auth-client'
 import { isStaff, type Role } from '@/lib/acl'
 import type { ShellUser } from '@/lib/session'
-import { decideScrollAction, isBleedViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
+import { decideScrollAction, isBleedViewerPath, isMapViewerPath, isRestoreSettled, scrollRestorationKey } from '@/lib/nav'
 import { Button } from '@/components/ui/button'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/menu'
-import { MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
+import { MarcaBanda, MarcaCompacta, MarcaHorizontal, MarcaHorizontalInversa } from '@/components/marca'
 
 const NAV = [
   { href: '/', label: 'Inicio' },
@@ -263,6 +263,7 @@ export function AppShell({
   // server-provided user so the header markup matches on hydration.
   const sessionUser = session.isPending ? initialUser : session.data?.user ?? null
   const role = (sessionUser as { role?: Role } | null)?.role
+  const compactoMapa = isMapViewerPath(pathname)
   const mapViewer = isBleedViewerPath(pathname)
   const resourceViewer = pathname.startsWith('/recursos/')
   const [resourceDetailsExpanded, setResourceDetailsExpanded] = React.useState(false)
@@ -284,7 +285,7 @@ export function AppShell({
         Ir al contenido
       </a>
 
-      <header className="app-header">
+      <header className={`app-header${compactoMapa ? ' app-header--mapa' : ''}`} data-compacto={compactoMapa ? 'true' : undefined}>
         {/* Institutional strip: five solid segments, one colour each. It sits
             inside the sticky header so it stays on screen while scrolling. */}
         <div className="app-ribbon" aria-hidden>
@@ -297,26 +298,29 @@ export function AppShell({
 
         {/* Upper band: the official signature, used as supplied. It is never
             recoloured, rebuilt or scaled below its minimum (Manual §2.1–2.3). */}
-        <div className="app-signature">
-          <div className="app-signature__inner">
-            <MarcaHorizontal />
-            <MarcaHorizontalInversa />
-            <MarcaCompacta />
-            <span className="app-signature__reparticiones">
-              <span>Dirección de Sistemas de Información</span>
-              <span>Dirección de Gestión Escolar</span>
-            </span>
-            <span className="app-signature__aside">
-              Provincia de Corrientes
-              <br />
-              República Argentina
-            </span>
+        {compactoMapa ? null : (
+          <div className="app-signature">
+            <div className="app-signature__inner">
+              <MarcaHorizontal />
+              <MarcaHorizontalInversa />
+              <MarcaCompacta />
+              <span className="app-signature__reparticiones">
+                <span>Dirección de Sistemas de Información</span>
+                <span>Dirección de Gestión Escolar</span>
+              </span>
+              <span className="app-signature__aside">
+                Provincia de Corrientes
+                <br />
+                República Argentina
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Lower band: the product and its navigation. */}
         <div className="app-header__band">
           <div className="app-header__inner">
+            {compactoMapa ? <span className="app-header--mapa__marca"><MarcaBanda /></span> : null}
             <Link href="/" className="app-brand" aria-label="Hub de Datos, inicio">
               <span className="app-brand__text">Hub de Datos</span>
             </Link>
