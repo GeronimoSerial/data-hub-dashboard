@@ -3,6 +3,7 @@ import type { RutaGeoJson } from '@/lib/db/schema'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import { lineasAcceso } from './acceso'
+import { construirCrucesAcceso } from '@/lib/mapas/accesos-capas'
 
 const rutaConocida: RutaGeoJson = {
   type: 'LineString',
@@ -53,6 +54,8 @@ describe('lineasAcceso', () => {
     expect(lineasAcceso(geometria(), null)).toEqual({
       via: 'Camino de acceso · 1,1 km',
       cruces: 'Sin cruces de agua',
+      crucesDetalle: null,
+      crucesConRiesgo: false,
       riesgo: null,
     })
   })
@@ -123,20 +126,52 @@ describe('lineasAcceso', () => {
   })
 
   it.each([
-    [0, [], 'Sin cruces de agua'],
-    [1, [{ lon: 0, lat: 0, clasificacion: 'vado' }], '1 cruce de agua en el camino'],
-    [2, [
+    ['sin cruces', [], undefined, 'Sin cruces de agua', null, false],
+    ['solo puentes', [{ lon: 0, lat: 0, clasificacion: 'puente' }], { puente: 1, vado: 0, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 con puente', false],
+    ['solo vados', [{ lon: 0, lat: 0, clasificacion: 'vado' }], { puente: 0, vado: 1, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 vado', true],
+    ['mixto sin resumen', [
       { lon: 0, lat: 0, clasificacion: 'vado' },
       { lon: 0, lat: 0, clasificacion: 'sin_evidencia' },
       { lon: 0, lat: 0, clasificacion: 'puente' },
-    ], '2 cruces de agua en el camino'],
-  ] as const)('cuenta cruces clasificados como puntos débiles (%i)', (_cantidad, cruces, texto) => {
-    expect(lineasAcceso(geometria({ cruces: [...cruces] }), null)?.cruces).toBe(texto)
+    ], undefined, '3 cruces de agua en el camino', '1 con puente · 1 vado · 1 sin puente registrado', true],
+  ] as const)('cuenta y desglosa todos los cruces: %s', (_caso, cruces, resumen, texto, detalle, conRiesgo) => {
+    expect(lineasAcceso(geometria({ cruces: [...cruces], resumen }), null)).toMatchObject({
+      cruces: texto,
+      crucesDetalle: detalle,
+      crucesConRiesgo: conRiesgo,
+    })
   })
 
-  it('usa el resumen de vados y cruces sin evidencia, aunque haya puentes', () => {
-    expect(lineasAcceso(geometria({ resumen: { puente: 4, vado: 1, sinEvidencia: 1 } }), null)?.cruces)
-      .toBe('2 cruces de agua en el camino')
+  it('iguala el total de la ficha con los marcadores para tres puentes y un vado', () => {
+    const cruces = [
+      { lon: 0.001, lat: 0.001, clasificacion: 'puente' as const },
+      { lon: 0.002, lat: 0.002, clasificacion: 'puente' as const },
+      { lon: 0.003, lat: 0.003, clasificacion: 'puente' as const },
+      { lon: 0.004, lat: 0.004, clasificacion: 'vado' as const },
+    ]
+    const dato = geometria({ cruces, resumen: { puente: 3, vado: 1, sinEvidencia: 0 } })
+
+    expect(Number(lineasAcceso(dato, null)?.cruces.match(/^\d+/)?.[0]))
+      .toBe(construirCrucesAcceso(dato).features.length)
+    expect(lineasAcceso(dato, null)?.cruces).toBe('4 cruces de agua en el camino')
+  })
+
+  it.each([
+    ['puentes', [{ lon: 0, lat: 0, clasificacion: 'puente' as const }], { puente: 1, vado: 0, sinEvidencia: 0 }],
+    ['vados', [{ lon: 0, lat: 0, clasificacion: 'vado' as const }], { puente: 0, vado: 1, sinEvidencia: 0 }],
+    ['mixto', [
+      { lon: 0, lat: 0, clasificacion: 'puente' as const },
+      { lon: 0, lat: 0, clasificacion: 'sin_evidencia' as const },
+    ], { puente: 1, vado: 0, sinEvidencia: 1 }],
+    ['vacío', [], { puente: 0, vado: 0, sinEvidencia: 0 }],
+  ] as const)('mantiene el total igual a los marcadores en combinación %s', (_caso, cruces, resumen) => {
+    for (const incluirResumen of [true, false]) {
+      const dato = geometria({ cruces: [...cruces], ...(incluirResumen ? { resumen } : {}) })
+      const total = lineasAcceso(dato, null)?.cruces === 'Sin cruces de agua'
+        ? 0
+        : Number(lineasAcceso(dato, null)?.cruces.match(/^\d+/)?.[0])
+      expect(total).toBe(construirCrucesAcceso(dato).features.length)
+    }
   })
 
   it.each([

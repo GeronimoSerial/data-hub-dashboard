@@ -29,7 +29,7 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - [ ] A11 D5 sidebar único + sin movimiento en hover
 - [ ] A12 D6 Capas como pestaña
 - [ ] A13 Header compacto en /mapas/* (sin franja de logos, pestañas + filtros en una fila, búsqueda como lupa); resto de la app sin cambios
-- [ ] A14 Bug: cruces de agua del sidebar vs marcadores de la ruta (causa raíz en el ODD)
+- [x] A14 Bug: cruces de agua del sidebar vs marcadores de la ruta (causa raíz en el ODD)
 
 ## A1 — Verificación de los hallazgos (lectura de código, 2026-10-05)
 | # | Veredicto | Evidencia |
@@ -68,3 +68,4 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - **A10a (datos D4)** — `solucionadasRecientes` por escuela (una consulta, `cierre='solucionada'` y `retirada_en` ≤ 15 días; `retirada` excluida), filtro `solucionadasRecientes`, KPI en `resumir` (cantidad de escuelas), y `recientes` (sólo solucionadas) en el endpoint de la ficha del mapa. Evidencia: vitest 66 archivos/632 verdes, tsc limpio. El primer N3 se cortó por timeout (143) con la capa completa salvo un `toEqual`; un N3 nuevo lo cerró. Pendiente A10b: UI (ficha, Situación actual, filtro, ícono y leyenda).
 - **A10b (UI D4)** — Ficha: desplegable "Solucionadas recientemente (N)" con motivo, "Gravedad que tenía" y "Solucionada" (fecha absoluta); Situación actual: KPI y sección "Solucionadas en los últimos 15 días" (escuelas cuya única novedad es la solución; el número cuenta escuelas); chip de filtro "Solucionadas en los últimos 15 días". Evidencia: vitest components/mapas 241/241, tsc limpio. Pendiente A10c: ícono check en el mapa y la leyenda.
 - **A10c (mapa D4)** — Propiedad `solucionadaReciente`, ícono lucide `check` sobre el punto neutro (capa `symbol` con filtro propio, clickeable) y ítem "Solucionada recientemente" en la leyenda. Hallazgo 15 cerrado (excluye `retirada` de `situacionesHistoricas` en A2 y de todo conteo/lista de recientes). Evidencia: vitest components/mapas + lib/mapas 418/418, tsc limpio.
+- **A14 (cruces de agua)** — Causa raíz: el bloque Acceso contaba sólo vados y cruces sin evidencia (`contarCruces` excluía `puente`), mientras la capa del mapa (`construirCrucesAcceso`) dibuja un marcador por CADA cruce, puentes incluidos; una ruta con 3 puentes + 1 vado mostraba 4 marcadores y "1 cruce". Ahora el sidebar cuenta el total y lo desglosa ("3 con puente · 1 vado"); ícono de alerta sólo si hay cruces sin puente. Test de coherencia: total mostrado == marcadores. Planificación mantiene su criterio de aislamiento (cruces sin puente registrado), que es otro concepto. Evidencia: vitest 53 archivos/548 verdes, tsc limpio.
