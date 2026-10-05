@@ -75,7 +75,7 @@ const MENSAJE_ERROR_GUARDADO =
   'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 
 const MENSAJE_GUARDADO =
-  'Parte registrado.'
+  'Ya figura en el panel.'
 
 const MENSAJE_FALTA_QUE_PASO =
   'Elija el tipo de situación, el motivo y la severidad para continuar.'
@@ -222,6 +222,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
@@ -308,6 +309,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       const colaPendiente = await leerColaEnvio(await almacen(), 'nuevo', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
+      if (colaPendiente.estado === 'pendiente-envio' || colaPendiente.estado === 'error-servidor') setEstadoAvisoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
       setIntentosEnvio(colaPendiente.intentos)
     })()
@@ -440,7 +442,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        setMotivoEnvio(borrador.motivoError ?? null)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
@@ -484,9 +487,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   useEffect(() => alEnviarEnSegundoPlano((clave) => {
     if (clave === claveBorradorCola('nuevo', cue)) alEnviarConExitoRef.current('')
   }), [cue])
-  useEffect(() => {
-    return registrarAutoReintento(() => reintentarRef.current())
-  }, [])
+  useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
   useEffect(() => {
     if (guardado || enviando) return
     if (!esEstadoReintentable(estadoEnvio)) return
@@ -556,10 +557,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       return null
     }
     if (actual === 3) {
-      if (servicioEstado === '') return 'Indique si hay clases.'
-      if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
-      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+      const faltantes: string[] = []
+      if (servicioEstado === '') faltantes.push('Indique si hay clases.')
+      if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
+        faltantes.push('Elija al menos una modalidad de asistencia pedagógica.')
+      }
+      const vigenciaInvalida = vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null
+      if (vigenciaInvalida) {
+        setErrorVigencia(obtenerErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      }
+      if (faltantes.length > 0) return faltantes.join(' ')
+      if (vigenciaInvalida) return MENSAJE_FUERA_DE_RANGO_VIGENCIA
       return null
     }
     return null
@@ -622,9 +631,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       <div className="reporte-inicial__confirmacion" role="status">
         <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
         <div className="reporte-inicial__confirmacion-acciones">
-          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
+          <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
             Volver al panel
-          </Button>
+          </a>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
             Cargar otra situación
           </Button>
@@ -815,9 +824,19 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         </p>
       )}
 
+      {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current()} disabled={estadoEnvio === 'enviando'} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
+      )}
+
       <div className="asistente__acciones">
         {indicePaso > 0 && (
-          <Button type="button" variant="secondary" onClick={retroceder} disabled={enviando}>
+          <Button type="button" variant="secondary" onClick={retroceder}>
             Volver
           </Button>
         )}
@@ -840,20 +859,11 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
           // Habilitado siempre: llegar al paso 4 ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
           <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
-            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' ? 'Envío pendiente' : 'Guardar parte'}
+            {enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar parte'}
           </Button>
         )}
       </div>
         </>
-      )}
-      {estadoEnvio && (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
-          ? <EstadoEnvioAviso estado={estadoEnvio} onRetry={() => void reintentarRef.current()} />
-          : <p role="status" aria-live="polite">
-              {estadoEnvio === 'error' && motivoEnvio
-                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-                : MENSAJES_ESTADO[estadoEnvio]}
-            </p>
       )}
       <ConfirmSheet
         open={confirmarDescarte}

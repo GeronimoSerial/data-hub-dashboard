@@ -24,7 +24,7 @@ export interface DescribirMovimientoOpciones {
 }
 
 function textoServicioEstado(estado: ServicioEstado): string {
-  return estado === 'suspendido' ? 'Funcionamiento escolar interrumpido' : 'Funcionamiento escolar normal'
+  return estado === 'suspendido' ? 'interrumpido' : 'habitual'
 }
 
 export function resolverNombreSeccion(
@@ -56,9 +56,9 @@ function lineaServicio(cambio: DiffServicioCambio, secciones: SeccionEstablecimi
   const sufijo = textoAlcanceServicio(cambio.alcance, secciones)
   if (cambio.de === null || cambio.a === null) {
     const estado = cambio.a ?? cambio.de
-    return estado ? `${textoServicioEstado(estado)}${sufijo}` : ''
+    return estado ? `Funcionamiento: ${textoServicioEstado(estado)}${sufijo}` : ''
   }
-  return `${textoServicioEstado(cambio.de)} → ${textoServicioEstado(cambio.a)}${sufijo}`
+  return `Funcionamiento: ${textoServicioEstado(cambio.de)} → ${textoServicioEstado(cambio.a)}${sufijo}`
 }
 
 function lineasServicio(cambios: DiffServicioCambio[], secciones: SeccionEstablecimiento[]): string[] {
@@ -95,10 +95,63 @@ function pluralizar(cantidad: number, singular: string, plural: string): string 
 }
 
 const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
-  habitual: 'Funcionamiento habitual',
-  parcial: 'Funcionamiento parcial',
-  evacuado: 'Establecimiento evacuado',
-  centro_evacuados: 'Utilizado como centro de evacuados',
+  habitual: 'habitual',
+  parcial: 'parcial',
+  evacuado: 'evacuado',
+  centro_evacuados: 'centro de evacuados',
+}
+
+const HORA_ZONA = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+function horaDesde(iso: string): string {
+  const fecha = new Date(iso)
+  if (Number.isNaN(fecha.getTime())) return 'hora no indicada'
+  return HORA_ZONA.format(fecha)
+}
+
+/** Título compartido por el resumen de carga, la línea de tiempo y el historial. */
+export function tituloMovimiento(diff: DiffParte, tipo: TipoMovimiento, rigeDesde: string): string {
+  const agregado = diff.afectacionesAgregadas[0]
+  const severidad = diff.severidadesCambiadas[0]
+  const retirada = diff.afectacionesRetiradas[0]
+  const alcance = diff.alcancesCambiados[0]
+  let situacion: string
+  let gravedad: string
+
+  if (agregado) {
+    situacion = agregado.motivo
+    gravedad = agregado.severidad
+  } else if (severidad) {
+    situacion = severidad.motivo
+    gravedad = `${severidad.de} → ${severidad.a}`
+  } else if (retirada) {
+    situacion = retirada.motivo
+    gravedad = retirada.cierre === 'solucionada' ? 'Solucionada' : 'Resuelta'
+  } else if (alcance) {
+    situacion = alcance.motivo
+    gravedad = 'Alcance actualizado'
+  } else if (diff.datosCambiados?.[0]) {
+    situacion = diff.datosCambiados[0].motivo
+    gravedad = 'Datos actualizados'
+  } else if (diff.establecimientoCambiado || diff.serviciosCambiados.length > 0) {
+    situacion = 'Funcionamiento'
+    gravedad = diff.establecimientoCambiado
+      ? ESTADO_ESTABLECIMIENTO_TEXTO[diff.establecimientoCambiado.a]
+      : textoServicioEstado(diff.serviciosCambiados[0].a ?? diff.serviciosCambiados[0].de ?? 'normal')
+  } else if (diff.asistenciaPedagogicaCambiada) {
+    situacion = 'Asistencia pedagógica'
+    gravedad = 'Actualizada'
+  } else {
+    situacion = tipo === 'confirmacion' ? 'Situación confirmada' : 'Movimiento del parte'
+    gravedad = 'Actualizado'
+  }
+
+  return `${situacion} · ${gravedad} · desde ${horaDesde(rigeDesde)}`
 }
 
 export function describirMovimiento(
@@ -202,7 +255,7 @@ export function describirMovimiento(
 
   if (diff.establecimientoCambiado) {
     const { de, a } = diff.establecimientoCambiado
-    lineas.push(`${ESTADO_ESTABLECIMIENTO_TEXTO[de]} → ${ESTADO_ESTABLECIMIENTO_TEXTO[a]}`)
+    lineas.push(`Funcionamiento: ${ESTADO_ESTABLECIMIENTO_TEXTO[de]} → ${ESTADO_ESTABLECIMIENTO_TEXTO[a]}`)
   }
 
   if (diff.asistenciaPedagogicaCambiada) {

@@ -74,7 +74,7 @@ export interface EstadoActualRespuesta {
   secciones?: SeccionEstablecimiento[]
   ultimaActualizacion?: string | null
   recientes?: SituacionReciente[]
-  ultimaCarga?: { creadaEn: string; cambios: string[] } | null
+  ultimaCarga?: { creadaEn: string; titulo: string; cambios: string[] } | null
 }
 
 // --- Cadenas textuales de la especificación ---
@@ -98,9 +98,9 @@ export const MENSAJE_SIN_CORTE =
 // spec §3.4 y §10. El funcionamiento parcialmente interrumpido es un resultado
 // informativo: se muestra, nunca se ofrece como opción de carga.
 export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
-  normal: 'Funcionamiento escolar normal',
-  parcial: 'Funcionamiento escolar parcialmente interrumpido',
-  suspendido: 'Funcionamiento escolar interrumpido',
+  normal: 'Funcionamiento habitual',
+  parcial: 'Funcionamiento parcialmente interrumpido',
+  suspendido: 'Funcionamiento interrumpido',
 }
 
 // Respuestas de la pregunta de carga "¿Hay clases?" (spec rediseño §5.6).

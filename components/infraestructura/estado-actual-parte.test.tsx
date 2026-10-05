@@ -138,7 +138,7 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
 
     expect(await screen.findByRole('link', { name: 'Cargar una situación' })).toBeVisible()
     // El servicio y el establecimiento sí existen: se siguen mostrando.
-    expect(screen.getByText('Funcionamiento escolar normal')).toBeVisible()
+    expect(screen.getByText('Funcionamiento habitual')).toBeVisible()
     expect(screen.getByText('Sin daños / en uso normal')).toBeVisible()
     // Y la última actualización sigue siendo el ancla temporal del parte.
     expect(screen.getByText('Última actualización: 18 de septiembre, 10:35')).toBeVisible()
@@ -172,7 +172,7 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
   it('shows the derived "parcial" service state with the spec §3.4 wording', async () => {
     render(<EstadoActualParte cue={CUE} />)
 
-    expect(await screen.findByText('Funcionamiento escolar parcialmente interrumpido')).toBeVisible()
+    expect(await screen.findByText('Funcionamiento parcialmente interrumpido')).toBeVisible()
   })
 
   it('shows the last update and both available actions', async () => {

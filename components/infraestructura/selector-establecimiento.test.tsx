@@ -46,11 +46,11 @@ describe('SelectorEstablecimiento', () => {
     expect(v()).toEqual({ alcance: 'algunas', secciones: [s.geSectionId] })
     expect(screen.getByRole('heading', { name: /Mañana · \d+ de \d+ secciones/ })).toBeInTheDocument()
   })
-  it('no expone controles separados para cada turno', () => {
+  it('expone un control por turno dentro de la selección por secciones', () => {
     render(<Controlado />)
     fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
     const turno = TURNOS_FIXTURE[0]
-    expect(screen.queryByRole('checkbox', { name: `Todo el turno ${turno.turno}` })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: `Todo el turno ${turno.turno}` })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: new RegExp(turno.turno) })).toBeInTheDocument()
   })
 })

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MOTIVOS_FIXTURE, TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
 import { RecorridoActualizacion } from './recorrido-actualizacion'
@@ -40,7 +40,7 @@ async function irAlResumen() {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.clearAllMocks() })
 
@@ -84,7 +84,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('limpia la clave tras guardar con éxito y al cargar otra situación', async () => {
     stub(); montar(); await irAlResumen()
     await waitFor(() => expect(localStorage.getItem(CLAVE)).not.toBeNull())
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await screen.findByText('Parte actualizado.')
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
     fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
@@ -95,6 +95,7 @@ describe('RecorridoActualizacion: borrador local', () => {
   it('al volver con el historial del navegador desde resumen conserva las respuestas', async () => {
     stub(); montar(); await irAlResumen()
     window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
-    expect(await screen.findByRole('radio', { name: 'No, no hay una situación nueva' })).toBeInTheDocument()
+    const preguntaNueva = await screen.findByRole('group', { name: '¿Hay una situación nueva?' })
+    expect(within(preguntaNueva).getByRole('radio', { name: 'No' })).toBeInTheDocument()
   })
 })

@@ -328,13 +328,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <Label>¿A quién afecta?</Label>
-          <SelectorEstablecimiento
-            turnos={turnos}
-            valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}
-            onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
-            disabled={disabled}
-          />
+          <Label>Alcance</Label>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'establecimiento',
@@ -354,6 +348,12 @@ export function CamposAQuienAfecta({
                 })
               }
             }}
+          />
+          <SelectorEstablecimiento
+            turnos={turnos}
+            valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}
+            onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
+            disabled={disabled}
           />
           <p className="afectacion-borrador__resumen" aria-live="polite">
             Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}

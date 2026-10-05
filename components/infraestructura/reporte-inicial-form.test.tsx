@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MENSAJE_BORRADOR_PENDIENTE, ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
@@ -13,7 +13,7 @@ import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb
 const props = { cue: '12345678', turnos, motivos }
 
 const MENSAJE_REPORTE_EXITOSO =
-  'Parte registrado.'
+  'Ya figura en el panel.'
 
 function sembrarBorradorWizard({
   paso = 2,
@@ -59,6 +59,7 @@ function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 const volver = () => fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
 const resumenConfirmacion = () => document.querySelector('.asistente__resumen-lista') as HTMLElement
+const textoAlertas = () => screen.getAllByRole('alert').map((alerta) => alerta.textContent).join(' ')
 const confirmarCategoria = () =>
   screen.queryByRole('dialog') && fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
 
@@ -117,6 +118,7 @@ afterEach(() => {
   sessionStorage.clear()
   localStorage.clear()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
   globalThis.indexedDB = new IDBFactory()
   document.body.innerHTML = ''
 })
@@ -317,7 +319,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
   })
 
-  it('no avanza del tercer paso sin indicar cómo está el edificio', () => {
+  it('muestra todos los datos faltantes del tercer paso a la vez', () => {
     renderFormulario()
 
     completarQuePaso()
@@ -328,7 +330,8 @@ describe('ReporteInicialForm', () => {
 
     continuar()
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
     expect(screen.getByRole('heading', { name: 'Clases y edificio' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('radio', { name: 'No, se suspendieron' }))
@@ -338,6 +341,43 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     expect(screen.getByRole('heading', { name: 'Confirmar' })).toBeInTheDocument()
+  })
+
+  it('muestra clases, edificio y hora futura juntos, sin la ayuda de hora', () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Hoy, más temprano' }))
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '23:59' } })
+    continuar()
+
+    expect(textoAlertas()).toContain('Indique si hay clases.')
+    expect(textoAlertas()).toContain('Indique cómo está el edificio.')
+    expect(textoAlertas()).toContain('Esa hora todavía no pasó.')
+    expect(screen.queryByText('Desde hoy a las 23:59')).not.toBeInTheDocument()
+    vi.useRealTimers()
+  })
+
+  it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
+    stubFetch()
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+
+    expect(screen.getByText('Alcance')).toBeInTheDocument()
+    expect(screen.queryByText('¿A quién afecta?')).not.toBeInTheDocument()
+
+    continuar()
+    completarEstadoEstablecimiento()
+    continuar()
+    fireEvent.click(screen.getByRole('button', { name: /guardar parte/i }))
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
   it('un problema de alumnos pasa directamente a confirmar sin preguntar por escuela ni edificio', () => {
@@ -545,27 +585,34 @@ describe('ReporteInicialForm', () => {
   // El reporte guardado no puede dejar al director en un callejón sin salida:
   // necesita una forma de volver y una de declarar un hecho distinto.
   it('la confirmación ofrece volver al panel o cargar otra situación', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     stubFetch()
 
-    renderFormulario()
-    guardarReporte()
+    try {
+      renderFormulario()
+      guardarReporte()
 
-    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
-    expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
+      await screen.findByText(MENSAJE_REPORTE_EXITOSO)
+      expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
 
-    const volverAlPanel = screen.getByRole('link', { name: /volver al panel/i })
-    expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+      const volverAlPanel = screen.getByRole('link', { name: 'Volver al panel' })
+      expect(volverAlPanel.tagName).toBe('A')
+      expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
+      expect(consoleError).not.toHaveBeenCalled()
 
-    // No hay redirección automática: el mensaje y las acciones siguen ahí.
-    expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+      // No hay redirección automática: el mensaje y las acciones siguen ahí.
+      expect(screen.getByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
 
-    expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
-    // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
-    expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
-    expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+      expect(screen.getByText('Paso 1 de 4')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
+      // La categoría ya no está elegida, así que ni siquiera se ofrecen motivos.
+      expect(screen.getByRole('radio', { name: /Afecta al establecimiento/ })).not.toBeChecked()
+      expect(screen.queryByRole('radio', { name: 'Inundación' })).toBeNull()
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('una respuesta fallida muestra el error del servidor y conserva lo ingresado', async () => {
@@ -595,15 +642,43 @@ describe('ReporteInicialForm', () => {
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
-  it('muestra Enviando… mientras se envía', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+  it('un timeout se reintenta solo con la misma clave y conserva el aviso durante el reintento', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+    llegarAConfirmar()
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
+    const claves = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
+    expect(claves[1]).toBe(claves[0])
+  })
+
+  it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
+    let resolver!: (respuesta: Response) => void
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => { resolver = resolve })))
 
     renderFormulario()
 
     guardarReporte()
 
-    expect(await screen.findByRole('status')).toHaveTextContent('Enviando…')
-    expect(screen.getByRole('button', { name: /guardando/i })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(screen.queryByText('Enviando…')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Volver' })).toBeEnabled()
+    await waitFor(() => expect(resolver).toEqual(expect.any(Function)))
+    resolver(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    await screen.findByText(MENSAJE_REPORTE_EXITOSO)
   })
 
   it('un 5xx muestra error del servidor (no de conexión) y se reintenta solo, con un único parte', async () => {
@@ -619,6 +694,8 @@ describe('ReporteInicialForm', () => {
     const aviso = await screen.findByRole('alert')
     expect(within(aviso).getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument()
     expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
+    const botonGuardar = document.querySelector('.asistente__acciones button:last-child') as HTMLElement
+    expect(aviso.compareDocumentPosition(botonGuardar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument()
 
     // Sin evento 'online': el temporizador dispara el reintento con backoff.
@@ -851,5 +928,27 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-vieja')
     await waitFor(() => expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument())
+  })
+
+  it('al reabrir con una cola de timeout, la reintenta sin intervención', async () => {
+    const almacen = await crearAlmacenParte()
+    await guardarBorradorEnvio(almacen, {
+      tipo: 'nuevo',
+      cue: props.cue,
+      idempotencyKey: 'k-timeout',
+      datos: { cue: props.cue, rigeDesde: '2026-10-04T10:00:00.000Z', afectacionesNuevas: [] },
+      estado: 'error-servidor',
+      motivoError: 'El servidor no respondió. Su parte queda guardado; puede reintentar.',
+      intentos: 1,
+      actualizadoEn: '2026-10-04T10:00:00.000Z',
+    })
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-timeout')
   })
 })

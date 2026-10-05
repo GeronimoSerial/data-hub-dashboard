@@ -19,6 +19,7 @@ export interface MovimientoHistorial {
   rol: RolMovimiento
   creadaEn: string
   rigeDesde: string
+  titulo: string
   cambios: string[]
   severidad?: Severidad | null
 }
@@ -52,6 +53,8 @@ export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHist
       {mostrarVigencia ? (
         <p className="historial-movimiento__vigencia">{formatearRigeDesde(movimiento.rigeDesde)}</p>
       ) : null}
+
+      <p className="historial-movimiento__titulo">{movimiento.titulo}</p>
 
       {movimiento.cambios.length > 0 ? (
         <ul className="historial-movimiento__cambios">

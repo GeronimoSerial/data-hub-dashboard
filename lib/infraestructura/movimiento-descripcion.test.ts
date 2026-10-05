@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { describirMovimiento } from './movimiento-descripcion'
+import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { diffParte } from './movimiento-diff'
 import type { DiffParte } from './movimiento-diff'
 import { crearSnapshotVacio } from './trayectoria-tipos'
@@ -49,7 +49,7 @@ describe('describirMovimiento', () => {
       ],
     }
     const lineas = describirMovimiento(diff)
-    expect(lineas).toContain('Funcionamiento escolar normal → Funcionamiento escolar interrumpido en 2.º A')
+    expect(lineas).toContain('Funcionamiento: habitual → interrumpido en 2.º A')
   })
 
   it('cambio de servicio sin estado anterior (primer alcance) no usa flecha', () => {
@@ -57,7 +57,7 @@ describe('describirMovimiento', () => {
       ...diffVacio,
       serviciosCambiados: [{ alcance: { tipo: 'establecimiento', referenciaId: null }, de: null, a: 'suspendido' }],
     }
-    expect(describirMovimiento(diff)).toEqual(['Funcionamiento escolar interrumpido'])
+    expect(describirMovimiento(diff)).toEqual(['Funcionamiento: interrumpido'])
   })
 
   it('resuelve nombres de sección y agrupa secciones desconocidas sin exponer sus ids', () => {
@@ -70,7 +70,7 @@ describe('describirMovimiento', () => {
       ],
     }
     const textos = describirMovimiento(diff)
-    expect(textos).toEqual(['Funcionamiento escolar normal en 3 secciones'])
+    expect(textos).toEqual(['Funcionamiento: habitual en 3 secciones'])
     expect(textos.join(' ')).not.toMatch(/1099916|1099920|1099918/)
   })
 
@@ -83,7 +83,7 @@ describe('describirMovimiento', () => {
     }
     expect(describirMovimiento(diff, {
       secciones: [{ geSectionId: 1099916, curso: 'Sala 3', division: 'B', turno: 'Mañana' }],
-    })).toEqual(['Funcionamiento escolar normal en Sala 3 "B" (Mañana)'])
+    })).toEqual(['Funcionamiento: habitual en Sala 3 "B" (Mañana)'])
   })
 
   it('afectación agregada produce el texto del ejemplo de §15', () => {
@@ -150,7 +150,26 @@ describe('describirMovimiento', () => {
 
   it('cambio de situación del establecimiento', () => {
     const diff: DiffParte = { ...diffVacio, establecimientoCambiado: { de: 'habitual', a: 'evacuado' } }
-    expect(describirMovimiento(diff)).toContain('Funcionamiento habitual → Establecimiento evacuado')
+    expect(describirMovimiento(diff)).toContain('Funcionamiento: habitual → evacuado')
+    expect(describirMovimiento({ ...diffVacio, establecimientoCambiado: { de: 'habitual', a: 'parcial' } }))
+      .toContain('Funcionamiento: habitual → parcial')
+  })
+
+  it('arma un título de situación con motivo, gravedad y hora local', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      afectacionesAgregadas: [
+        { afectacionId: 'a', motivo: 'Tormenta severa', categoria: 'establecimiento', severidad: 'Alta', secciones: 0, alumnos: 0 },
+      ],
+    }
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-04T06:50:00.000Z')).toBe('Tormenta severa · Alta · desde 03:50')
+  })
+
+  it('titula una solución y un cambio de gravedad según el cambio principal', () => {
+    expect(tituloMovimiento({ ...diffVacio, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación', cierre: 'solucionada' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
+      .toBe('Inundación · Solucionada · desde 03:50')
+    expect(tituloMovimiento({ ...diffVacio, severidadesCambiadas: [{ afectacionId: 'a', motivo: 'Inundación', de: 'Media', a: 'Alta' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
+      .toBe('Inundación · Media → Alta · desde 03:50')
   })
 
   it('cambio de motivo en una afectación existente se traduce a español llano', () => {

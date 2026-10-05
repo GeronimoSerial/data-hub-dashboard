@@ -61,9 +61,9 @@ async function prepararResumen() {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No' }))
 }
-async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Enviar' })) }
+async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear(); vi.useRealTimers(); vi.clearAllMocks(); syncMocks.callback = null })
 
@@ -84,7 +84,7 @@ describe('RecorridoActualizacion: envío', () => {
     const grupo = screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })
     fireEvent.click(within(grupo).getByRole('radio', { name: 'Sí' }))
     fireEvent.click(within(grupo).getByRole('checkbox', { name: 'Clase virtual' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await screen.findByText(guardado)
     expect(JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))).toMatchObject({
       afectacionesConfirmadas: ['a', 'b'],
@@ -96,11 +96,11 @@ describe('RecorridoActualizacion: envío', () => {
     const fetchMock = stub(); montar(); await prepararResumen()
     const grupo = screen.getByRole('group', { name: '¿Se brinda asistencia pedagógica?' })
     fireEvent.click(within(grupo).getByRole('radio', { name: 'Sí' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Elija al menos una modalidad de asistencia pedagógica.')
     expect(posteos(fetchMock)).toHaveLength(0)
     fireEvent.click(within(grupo).getByRole('checkbox', { name: 'Cuadernillo' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await screen.findByText(guardado)
     const cuerpo = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body))
     expect(cuerpo.asistenciaPedagogica).toEqual({ brinda: true, modalidades: ['Cuadernillo'] })
@@ -165,6 +165,35 @@ describe('RecorridoActualizacion: envío', () => {
     expect(syncMocks.pedir).toHaveBeenCalled()
   })
 
+  it('un timeout se reintenta automáticamente y mantiene el aviso mientras se envía', async () => {
+    let intentos = 0
+    const fetchMock = stub((_url, init) => {
+      intentos += 1
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+      })
+    })
+    montar()
+    await prepararResumen()
+    vi.useFakeTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
+    await act(async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve() })
+    expect(posteos(fetchMock)).toHaveLength(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+    const volver = screen.getByRole('button', { name: 'Volver y corregir' })
+    expect(volver).toBeEnabled()
+    const aviso = screen.getByRole('alert')
+    expect(within(aviso).getByText('El servidor no respondió. Su parte queda guardado; puede reintentar.')).toBeInTheDocument()
+    expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Guardar parte' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    expect(posteos(fetchMock)).toHaveLength(2)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
+    const claves = posteos(fetchMock).map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
+    expect(claves[0]).toBe(claves[1])
+  })
+
   it('el reintento automático al volver la conexión actúa sobre una cola reintentable', async () => {
     let intentos = 0
     const fetchMock = stub(async () => {
@@ -190,7 +219,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('un 2xx inesperado no confirma y un reintento conserva idempotencyKey', async () => {
     let n = 0; const fetchMock = stub(async () => ++n === 1 ? respuesta({ raro: true }, 200) : respuesta())
     montar(); await enviar(); expect(await screen.findByText(/respuesta inesperada del servidor/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' })); await screen.findByText(guardado)
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' })); await screen.findByText(guardado)
     const claves = posteos(fetchMock).map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
     expect(claves).toHaveLength(2); expect(claves[0]).toBe(claves[1])
   })
@@ -213,7 +242,7 @@ describe('RecorridoActualizacion: envío', () => {
   it('un 5xx muestra error de servidor y reintenta con la misma clave', async () => {
     let n = 0
     const fetchMock = stub(async () => ++n === 1 ? respuesta({ error: 'sin servicio' }, 503) : respuesta())
-    montar(); await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    montar(); await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await waitFor(() => expect(screen.getByText(MENSAJES_ESTADO['error-servidor'])).toBeInTheDocument())
     const primera = JSON.parse(String((posteos(fetchMock)[0][1] as RequestInit).body)).idempotencyKey
     await screen.findByText(guardado, undefined, { timeout: 5000 })

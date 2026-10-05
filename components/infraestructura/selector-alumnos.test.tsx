@@ -37,7 +37,7 @@ describe('SelectorAlumnos', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
     const alumno = seccion.alumnos[0]
     fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
-    expect(screen.getByRole('button', { name: new RegExp(`Elegir alumnos \\(1 de ${seccion.alumnos.length}\\)`) })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}" · 1 de ${seccion.alumnos.length}.*Elegir alumnos`) })).toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('estado').textContent!)).toEqual({ secciones: [seccion.geSectionId], alumnos: [alumno.gePersonId] })
   })
 
@@ -47,6 +47,51 @@ describe('SelectorAlumnos', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(`${seccion.curso} "${seccion.division}"`) }))
     for (const a of seccion.alumnos) fireEvent.click(screen.getByRole('checkbox', { name: `${a.apellido}, ${a.nombre}` }))
     expect(JSON.parse(screen.getByTestId('estado').textContent!).alumnos).toHaveLength(seccion.alumnos.length)
+  })
+
+  it('ordena alumnos por apellido y luego nombre con colación es-AR', () => {
+    const base = TURNOS_FIXTURE[0]
+    const seccion = base.niveles[0].secciones[0]
+    const alumnos = [
+      { gePersonId: 1, apellido: 'Pérez', nombre: 'Zoe' },
+      { gePersonId: 2, apellido: 'Álvarez', nombre: 'Luis' },
+      { gePersonId: 3, apellido: 'Pérez', nombre: 'Ana' },
+    ]
+    render(<SelectorAlumnos turnos={[{
+      ...base,
+      niveles: [{ ...base.niveles[0], secciones: [{ ...seccion, alumnos }] }],
+    }]} alumnosSeleccionados={[]} onCambiar={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: /Sala|Elegir alumnos/i }))
+
+    const labels = [...document.querySelectorAll('.selector-alumnos__lista .opcion__label')].slice(1).map((label) => label.textContent)
+    expect(labels).toEqual(['Álvarez, Luis', 'Pérez, Ana', 'Pérez, Zoe'])
+  })
+
+  it('muestra la sección primero y permite marcar y quitar toda la sección', () => {
+    const base = TURNOS_FIXTURE[0]
+    const seccion = base.niveles[0].secciones[0]
+    const alumnos = [
+      { gePersonId: 701, apellido: 'Gómez', nombre: 'Ana' },
+      { gePersonId: 702, apellido: 'López', nombre: 'Luis' },
+    ]
+    const turnos = [{ ...base, niveles: [{ ...base.niveles[0], secciones: [{ ...seccion, curso: 'Sala 3', division: 'B', alumnos }] }] }]
+    function ControladoSeccion() {
+      const [alumnos, setAlumnos] = useState<number[]>([])
+      return <>
+        <SelectorAlumnos turnos={turnos} alumnosSeleccionados={alumnos} onCambiar={(_, siguiente) => setAlumnos(siguiente)} />
+        <output data-testid="alumnos">{JSON.stringify(alumnos)}</output>
+      </>
+    }
+    render(<ControladoSeccion />)
+
+    const encabezado = screen.getByRole('button', { name: /Sala 3 "B" · 0 de/ })
+    expect(encabezado).toBeInTheDocument()
+    fireEvent.click(encabezado)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Marcar toda la sección' }))
+    expect(screen.getByRole('checkbox', { name: 'Quitar toda la sección' })).toBeChecked()
+    expect(JSON.parse(screen.getByTestId('alumnos').textContent!)).toHaveLength(alumnos.length)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Quitar toda la sección' }))
+    expect(JSON.parse(screen.getByTestId('alumnos').textContent!)).toEqual([])
   })
 
   it('resume alumnos y secciones', () => {

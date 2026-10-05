@@ -27,7 +27,6 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
     <div className="linea-de-tiempo">
       <ol className="linea-de-tiempo__lista">
         {visibles.map((movimiento) => {
-          const [titulo, ...detalles] = movimiento.cambios
           return (
             <li key={movimiento.id} className="linea-de-tiempo__entrada">
               <span
@@ -39,10 +38,10 @@ export function LineaDeTiempo({ movimientos, limite }: { movimientos: Movimiento
                 {formatearMomentoHistorial(movimiento.creadaEn)}
               </time>
               <div className="linea-de-tiempo__cambios">
-                <p className="linea-de-tiempo__titulo">{titulo}</p>
-                {detalles.length > 0 ? (
+                <p className="linea-de-tiempo__titulo">{movimiento.titulo}</p>
+                {movimiento.cambios.length > 0 ? (
                   <ul className="linea-de-tiempo__detalles">
-                    {detalles.map((detalle, indice) => <li key={`${movimiento.id}-${indice}`}>{detalle}</li>)}
+                    {movimiento.cambios.map((detalle, indice) => <li key={`${movimiento.id}-${indice}`}>{detalle}</li>)}
                   </ul>
                 ) : null}
               </div>

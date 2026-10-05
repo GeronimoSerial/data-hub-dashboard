@@ -1274,7 +1274,7 @@ function MotivoForm({
 
   return (
     <DialogContent>
-      <DialogTitle>{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
+      <DialogTitle className="motivo-form__title">{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
       <div className="ui-form-grid">
         {error ? (
           <div className="ui-messagebar ui-messagebar--error" role="alert">
@@ -1339,7 +1339,7 @@ function MotivosAdmin() {
   }
 
   return (
-    <div>
+    <div className="admin-motivos">
       <div className="ui-toolbar">
         <span className="ui-hint">
           {motivos.length} {motivos.length === 1 ? 'motivo' : 'motivos'}
@@ -1355,13 +1355,13 @@ function MotivosAdmin() {
         </div>
       ) : null}
 
-      <div className="ui-table-wrap">
+      <div className="ui-table-wrap admin-motivos__table-wrap" data-testid="admin-motivos-table-wrap">
         <table className="ui-table" aria-label="Administración de motivos">
           <thead>
             <tr>
               <th>Motivo</th>
               <th>Categoría</th>
-              <th>Sugerido</th>
+              <th>Gravedad sugerida</th>
               <th>Orden</th>
               <th>Acciones</th>
             </tr>
@@ -1457,14 +1457,16 @@ export function AdminPage({ role }: { role: Role }) {
           </p>
         </div>
 
-        <div className="ui-messagebar ui-messagebar--info">
-          <span>
-            <strong className="ui-messagebar__title">Modelo único</strong>
-            Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
-            referencia una sola vez cada taxonomía. Las taxonomías en uso no
-            pueden eliminarse para preservar la integridad.
-          </span>
-        </div>
+        {['recursos', 'categorias', 'tags', 'niveles', 'tipos'].includes(tab) ? (
+          <div className="ui-messagebar ui-messagebar--info">
+            <span>
+              <strong className="ui-messagebar__title">Modelo único</strong>
+              Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
+              referencia una sola vez cada taxonomía. Las taxonomías en uso no
+              pueden eliminarse para preservar la integridad.
+            </span>
+          </div>
+        ) : null}
 
         {writeError ? (
           <div className="ui-messagebar ui-messagebar--error" role="alert">

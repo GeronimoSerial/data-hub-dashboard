@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { formatearFechaHistorial } from '@/components/infraestructura/historial-formato'
+import { formatearMomento } from '@/components/infraestructura/estado-actual-textos'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import {
@@ -149,12 +150,12 @@ export function AlgoNuevo({
     <section className="algo-nuevo" aria-label="Situación nueva">
       {etapa === 'pregunta' ? (
         <>
-          <p className="recorrido-actualizacion__descripcion">Agregue una situación nueva si la hay.</p>
+          <p className="asistente__contador">Otra situación</p>
           <fieldset className="afectacion-campos__grupo">
             <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
             <div className="afectacion-campos__opciones">
-              <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, no hay una situación nueva" />
-              <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, hay una situación nueva" />
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No" />
+              <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, agregar una situación nueva" />
             </div>
           </fieldset>
         </>
@@ -172,7 +173,7 @@ export function AlgoNuevo({
                     name="causa-problema-nuevo"
                     checked={causadaPorId === candidata.id}
                     onChange={() => setCausadaPorId(candidata.id)}
-                    label={`De ${candidata.motivo} (${formatearFechaHistorial(candidata.fecha)})`}
+                    label={`De ${candidata.motivo} (${formatearMomento(candidata.fecha) ?? formatearFechaHistorial(candidata.fecha)})`}
                     compacta
                   />
               ))}
