@@ -29,12 +29,14 @@ vi.mock('@/components/infraestructura/evolucion-panel', () => ({
 
 beforeEach(() => {
   montajesMapa.total = 0
+  window.history.pushState({}, '', '/')
   window.location.hash = ''
 })
 
 afterEach(() => {
   cleanup()
   document.body.innerHTML = ''
+  window.history.pushState({}, '', '/')
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
@@ -101,5 +103,56 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Situación actual' }))
     expect(window.location.hash).toBe('#actual')
+  })
+
+  it('mapea el hash viejo #operativa a Situación actual', async () => {
+    window.location.hash = 'operativa'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('mapea el hash viejo #evolucion a Estadísticas y monta evolución', async () => {
+    window.location.hash = 'evolucion'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    expect(await screen.findByRole('tab', { name: 'Estadísticas' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
+  })
+
+  it('mapea ?modo=radar a Radar cuando está habilitado', async () => {
+    window.history.pushState({}, '', '/?modo=radar')
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+
+    expect(await screen.findByRole('tab', { name: 'Radar' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('#radar cae en Situación actual cuando Radar está apagado', async () => {
+    window.location.hash = 'radar'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled={false} />)
+
+    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+  })
+
+  it('un hash desconocido deja Situación actual seleccionada', async () => {
+    window.location.hash = 'basura'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+
+    expect(await screen.findByRole('tab', { name: 'Situación actual' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
   })
 })

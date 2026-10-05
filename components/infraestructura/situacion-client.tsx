@@ -155,11 +155,7 @@ function PanelFuentesSalud(props: { fuentes: FuenteSaludCliente[] }): JSX.Elemen
   )
 }
 
-// El modo Radar de /mapas/infraestructura no expone todavía un querystring de
-// preselección por departamento/escuela (ver registro.md, pendiente
-// documentado): el enlace lleva a la vista correcta, el operador ubica el
-// departamento/escuela ahí mismo.
-const ENLACE_RADAR = '/mapas/infraestructura'
+const ENLACE_RADAR = '/mapas/infraestructura#radar'
 
 function PanelPrioridades(props: { prioridades: PrioridadCliente[] }): JSX.Element {
   if (props.prioridades.length === 0) {

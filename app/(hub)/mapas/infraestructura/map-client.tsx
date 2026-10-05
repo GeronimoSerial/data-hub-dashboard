@@ -3,6 +3,7 @@
 import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
+import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 
 const cargarMapa = () => import('@/components/mapas/map-infraestructura-page')
@@ -30,14 +31,6 @@ const EvolucionPanel = dynamic(
   { ssr: false, loading: () => <p>Cargando evolución…</p> },
 )
 
-// F5.1: el mapa permanece montado en Situación actual, Radar y Planificación;
-// Estadísticas se abre directo con la URL #estadisticas.
-const PESTANAS: readonly string[] = ['actual', 'radar', 'planificacion', 'estadisticas']
-
-function esPestana(valor: string): valor is PestanaMapa {
-  return PESTANAS.includes(valor)
-}
-
 export function InfraestructuraMapClient(props: {
   mostrarEnlaceNominal: boolean
   hazardContextEnabled?: boolean
@@ -53,23 +46,29 @@ export function InfraestructuraMapClient(props: {
   // para quien llega con un #evolucion ya armado, y no habría forma de copiar
   // una URL que lleve a la evolución desde la interfaz. El `hashchange` que
   // dispara esa escritura vuelve a llamar a setTab con el mismo valor, así que
-  // no re-renderiza de más. Un hash desconocido (URL vieja o copy-paste a
-  // medias) se ignora: no puede dejar la página sin ninguna pestaña activa.
+  // no re-renderiza de más. Los enlaces viejos y los hashes desconocidos
+  // siempre resuelven a una pestaña activa.
   const onTab = (valor: string) => {
-    if (!esPestana(valor)) return
-    setTab(valor)
+    const pestana = resolverPestana(`#${valor}`, '', {
+      radarHabilitado: !!props.riskRadarEnabled,
+    })
+    if (pestana !== valor) return
+    setTab(pestana)
     if (window.location.hash.slice(1) !== valor) window.location.hash = valor
   }
 
   React.useEffect(() => {
     const syncHash = () => {
-      const hash = window.location.hash.slice(1)
-      if (esPestana(hash)) setTab(hash)
+      setTab(
+        resolverPestana(window.location.hash, window.location.search, {
+          radarHabilitado: !!props.riskRadarEnabled,
+        }),
+      )
     }
     syncHash()
     window.addEventListener('hashchange', syncHash)
     return () => window.removeEventListener('hashchange', syncHash)
-  }, [])
+  }, [props.riskRadarEnabled])
 
   const mapaVisible = tab !== 'estadisticas'
   // La prop `pestana` se cablea en la Task 3.
