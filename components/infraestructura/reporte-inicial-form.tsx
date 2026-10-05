@@ -19,6 +19,7 @@ import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
@@ -754,16 +755,13 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
               {(['si', 'no'] as const).map((valor) => (
-                <label key={valor} className="opcion-radio opcion-radio--compacta">
-                  <input type="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} />
-                  <span>{valor === 'si' ? 'Sí' : 'No'}</span>
-                </label>
+                <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
               {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                <label key={modalidad} className="opcion-radio opcion-radio--compacta">
-                  <input type="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => setModalidadesAsistencia((actuales) => e.target.checked ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))} />
-                  <span>{modalidad}</span>
-                </label>
+                <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
+                  const marcada = e.currentTarget.checked
+                  setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
+                }} label={modalidad} compacta />
               ))}
             </fieldset>
 

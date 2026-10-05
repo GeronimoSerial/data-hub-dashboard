@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { EntradaActualizar } from '@/components/infraestructura/actualizar/entrada-actualizar'
 import { RevisarSituacion } from '@/components/infraestructura/actualizar/revisar-situacion'
@@ -600,33 +601,36 @@ function ResumenEnvio({
       <fieldset className="afectacion-campos__grupo" disabled={enviando}>
         <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
         {(['si', 'no'] as const).map((valor) => (
-          <label key={valor} className="opcion-radio opcion-radio--compacta" style={{ minHeight: 44 }}>
-            <input
-              type="radio"
+          <Opcion
+              key={valor}
+              tipo="radio"
               name="actualizacion-asistencia-pedagogica"
               checked={asistenciaPedagogica.brinda === valor}
               onChange={() => onCambiarAsistencia({
                 brinda: valor,
                 modalidades: valor === 'si' ? asistenciaPedagogica.modalidades : [],
               })}
+              label={valor === 'si' ? 'Sí' : 'No'}
+              compacta
             />
-            <span>{valor === 'si' ? 'Sí' : 'No'}</span>
-          </label>
         ))}
         {asistenciaPedagogica.brinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-          <label key={modalidad} className="opcion-radio opcion-radio--compacta" style={{ minHeight: 44 }}>
-            <input
-              type="checkbox"
+          <Opcion
+              key={modalidad}
+              tipo="checkbox"
               checked={asistenciaPedagogica.modalidades.includes(modalidad)}
-              onChange={(evento) => onCambiarAsistencia({
+              onChange={(evento) => {
+                const marcada = evento.currentTarget.checked
+                onCambiarAsistencia({
                 brinda: 'si',
-                modalidades: evento.target.checked
+                modalidades: marcada
                   ? [...asistenciaPedagogica.modalidades, modalidad]
                   : asistenciaPedagogica.modalidades.filter((actual) => actual !== modalidad),
-              })}
+                })
+              }}
+              label={modalidad}
+              compacta
             />
-            <span>{modalidad}</span>
-          </label>
         ))}
       </fieldset>
       {estadoEnvio ? (

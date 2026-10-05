@@ -68,7 +68,7 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     expect(screen.getByText('¿Es consecuencia de algo anterior?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: /De Inundación/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
@@ -92,7 +92,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoriaEstablecimiento()
@@ -118,7 +118,7 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
       fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     }
-    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay un problema nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, hay una situación nueva' }))
     fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     elegirCategoriaEstablecimiento()
@@ -126,8 +126,8 @@ describe('RecorridoActualizacion', () => {
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByText(/Ya tiene activa "Sin energía o agua" desde el/)).toBeInTheDocument()
     expect(within(sheet).getByRole('radio', { name: 'Sigue igual: es la misma, quiero actualizarla' })).toBeInTheDocument()
-    expect(within(sheet).getByRole('radio', { name: 'Se solucionó y esto es un problema nuevo' })).toBeInTheDocument()
-    fireEvent.click(within(sheet).getByRole('radio', { name: 'Son dos problemas distintos a la vez' }))
+    expect(within(sheet).getByRole('radio', { name: 'Se solucionó y esto es una situación nueva' })).toBeInTheDocument()
+    fireEvent.click(within(sheet).getByRole('radio', { name: 'Son dos situaciones distintas a la vez' }))
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Media' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))

@@ -1401,8 +1401,8 @@ time {
   border: 0;
   background: transparent;
   color: var(--ink-soft);
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -2826,13 +2826,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 /* Master toggle: it governs everything below, so it sits above the list on
    its own tinted row rather than inline with the sections it controls. */
-.secciones-selector > .ui-checkbox {
+.secciones-selector > .opcion {
   min-height: 48px;
   padding: var(--s-3) var(--s-4);
   background: var(--fill);
   border-bottom: 1px solid var(--line);
 }
-.secciones-selector > .ui-checkbox .ui-checkbox__label { font-weight: 600; }
+.secciones-selector > .opcion .opcion__label { font-weight: 600; }
 
 .secciones-selector__turno { display: flex; flex-direction: column; }
 
@@ -2868,13 +2868,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  min-height: 44px;
-  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  min-height: 48px;
+  padding: var(--s-1) var(--s-2) var(--s-1) var(--s-3);
   transition: background-color 140ms ease;
 }
 .secciones-selector__fila:hover { background: var(--fill); }
-.secciones-selector__fila > .ui-checkbox { flex: 1; min-width: 0; gap: var(--s-3); }
-.secciones-selector__fila .ui-checkbox__label { font-weight: 600; }
+.secciones-selector__fila > .opcion { flex: 1; min-width: 0; gap: var(--s-3); border: 0; background: transparent; }
+.secciones-selector__fila > .opcion:has(.opcion__input:checked),
+.secciones-selector__fila > .opcion[data-indeterminate='true'] { background: var(--accent-tint); }
+.secciones-selector__fila .opcion__label { font-weight: 600; }
 
 /* Disclosure for the nominal list. The section checkbox keeps showing its
    indeterminate state while collapsed, so a partial pick is never hidden by
@@ -2884,8 +2886,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  min-height: 32px;
-  padding: 0 0.6rem;
+  min-height: 44px;
+  padding: 0 var(--s-3);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
@@ -2914,14 +2916,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .secciones-selector__alumnos[hidden] { display: none; }
 
-.secciones-selector__alumnos .ui-checkbox {
-  min-height: 34px;
-  padding: 2px 0;
-}
-
-.secciones-selector__alumnos .ui-checkbox__label {
-  font-size: var(--t-small);
+.secciones-selector__alumnos .opcion { min-height: 48px; border: 0; border-radius: var(--r-xs); }
+.secciones-selector__busqueda {
+  min-height: 44px;
+  margin: var(--s-2) 0;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
   color: var(--ink);
+  font: inherit;
 }
 
 .selector-alumnos__cabecera {
@@ -2929,13 +2933,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   align-items: center;
   gap: var(--s-2);
   width: 100%;
-  min-height: 44px;
+  min-height: 48px;
   justify-content: space-between;
   background: none;
   border: 0;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
+.selector-alumnos__lista { display: flex; flex-direction: column; padding: 0 0 0 var(--s-4); border-left: 1px solid var(--line); margin: 0 var(--s-4) var(--s-3); }
+.selector-alumnos__lista[hidden] { display: none; }
+.selector-alumnos__lista .opcion { min-height: 48px; border: 0; }
 
 .badge-seleccion {
   font-size: var(--t-small);
@@ -3936,6 +3943,72 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .opcion-radio--compacta input {
   margin-top: 0;
 }
+
+/* Opción reutilizable para los flujos del parte. El input sigue siendo nativo
+   y enfocable; el indicador visible mantiene el sistema visual de las tarjetas. */
+.opcion {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition-property: border-color, background-color;
+  transition-duration: 120ms;
+}
+.opcion:hover { border-color: var(--accent); }
+.opcion:has(.opcion__input:checked), .opcion[data-indeterminate='true'] {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+.opcion:has(.opcion__input:disabled) { opacity: 0.55; cursor: not-allowed; }
+.opcion__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  clip-path: inset(50%);
+}
+.opcion__indicador {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: var(--r-xs);
+  background: var(--card);
+  color: var(--white);
+}
+.opcion:has([type='radio']) .opcion__indicador { border-radius: 50%; }
+.opcion__indicador::after { content: ''; display: none; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.opcion:has(.opcion__input:checked) .opcion__indicador,
+.opcion[data-indeterminate='true'] .opcion__indicador { background: var(--accent); border-color: var(--accent); }
+.opcion:has([type='radio']:checked) .opcion__indicador::after { display: block; }
+.opcion:has([type='checkbox']:checked) .opcion__indicador::after,
+.opcion[data-indeterminate='true'] .opcion__indicador::after {
+  display: block;
+  width: 9px;
+  height: 5px;
+  border: 2px solid currentColor;
+  border-top: 0;
+  border-right: 0;
+  border-radius: 0;
+  background: transparent;
+  rotate: -45deg;
+  translate: 0 -1px;
+}
+.opcion[data-indeterminate='true'] .opcion__indicador::after { width: 9px; height: 2px; border: 0; background: currentColor; rotate: 0deg; translate: 0 0; }
+.opcion:has(.opcion__input:focus-visible) { outline: 3px solid var(--focus, var(--accent)); outline-offset: 2px; }
+.opcion__contenido { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.opcion__label { font-size: var(--t-small); font-weight: 500; line-height: 1.3; }
+.opcion__ayuda { font-size: var(--t-micro); color: var(--ink-soft); line-height: 1.35; }
+.opcion--compacta { padding: var(--s-2) var(--s-3); }
 
 /* ── Campos de afectación ─────────────────────────────────────────────── */
 

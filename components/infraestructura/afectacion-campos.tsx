@@ -11,6 +11,7 @@ import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-c
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
 import { Label } from '@/components/ui/label'
+import { Opcion } from '@/components/ui/opcion'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
@@ -185,12 +186,12 @@ export function CamposQuePaso({
   return (
     <>
       <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Qué tipo de problema es?</legend>
+        <legend className="afectacion-campos__legend">¿Qué tipo de situación es?</legend>
         <div className="afectacion-campos__opciones">
           {CATEGORIAS.map((c) => (
-            <label key={c} className="opcion-radio">
-              <input
-                type="radio"
+            <Opcion
+                key={c}
+                tipo="radio"
                 name={`${idPrefijo}-categoria`}
                 value={c}
                 checked={borrador.categoria === c}
@@ -198,15 +199,9 @@ export function CamposQuePaso({
                   if (c !== borrador.categoria) setCategoriaPendiente(c)
                 }}
                 disabled={disabled}
+                label={CATEGORIA_META[c].label}
+                ayuda={CATEGORIA_META[c].descripcion}
               />
-              <span className="opcion-radio__texto">
-                <span className="opcion-radio__titulo">{CATEGORIA_META[c].label}</span>
-                {/* La glosa ya existía en CATEGORIA_META y no se mostraba en
-                    ninguna pantalla. Es la que traduce el rótulo
-                    administrativo a algo que un director lee sin interpretar. */}
-                <span className="opcion-radio__ayuda">{CATEGORIA_META[c].descripcion}</span>
-              </span>
-            </label>
           ))}
         </div>
       </fieldset>
@@ -228,13 +223,13 @@ export function CamposQuePaso({
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
         <legend className="afectacion-campos__legend">¿Cuál es el motivo?</legend>
         {borrador.categoria === '' ? (
-          <p className="afectacion-campos__espera">Elija primero el tipo de problema.</p>
+          <p className="afectacion-campos__espera">Elija primero el tipo de situación.</p>
         ) : (
           <div className="afectacion-campos__opciones">
             {motivosDeLaCategoria.map((m) => (
-              <label key={m.id} className="opcion-radio opcion-radio--compacta">
-                <input
-                  type="radio"
+              <Opcion
+                  key={m.id}
+                  tipo="radio"
                   name={`${idPrefijo}-motivo`}
                   value={m.nombre}
                   checked={borrador.motivo === m.nombre}
@@ -246,11 +241,9 @@ export function CamposQuePaso({
                     justificacionCriticaDetalle: '',
                   })}
                   disabled={disabled}
+                  label={m.nombre}
+                  compacta
                 />
-                <span className="opcion-radio__texto">
-                  <span className="opcion-radio__titulo">{m.nombre}</span>
-                </span>
-              </label>
             ))}
           </div>
         )}

@@ -2,7 +2,7 @@
 
 import { useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import { CampoGravedad, gravedadCompleta, type ValorGravedad } from '@/components/infraestructura/campo-gravedad'
 import { CamposClasesEdificio, type ValorClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
@@ -110,15 +110,15 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
       <fieldset className="afectacion-campos__grupo">
         <legend className="afectacion-campos__legend">¿Cómo sigue?</legend>
         {(['sigue', 'cambio', 'solucionada'] as const).map((tipo) => (
-          <label key={tipo} className="opcion-radio opcion-radio--compacta">
-            <input
-              type="radio"
+          <Opcion
+              key={tipo}
+              tipo="radio"
               name={`revisar-${p.situacion.id}`}
               checked={tipoRespondido === tipo || (modo === 'solucion' && tipo === 'solucionada') || (modo === 'cambio' && tipo === 'cambio')}
               onChange={() => elegir(tipo)}
+              label={tipo === 'sigue' ? 'Sigue igual' : tipo === 'cambio' ? 'Cambió' : 'Se solucionó'}
+              compacta
             />
-            <span className="opcion-radio__titulo">{tipo === 'sigue' ? 'Sigue igual' : tipo === 'cambio' ? 'Cambió' : 'Se solucionó'}</span>
-          </label>
         ))}
       </fieldset>
 
@@ -157,7 +157,10 @@ export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
         onConfirmar={() => { setPreguntandoAspectos(false); setModo('cambio') }}
       >
         {ASPECTOS.map((aspecto) => (
-          <Checkbox key={aspecto.id} label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onCheckedChange={(checked: boolean) => setAspectos((actuales) => checked ? [...actuales, aspecto.id] : actuales.filter((id) => id !== aspecto.id))} />
+          <Opcion key={aspecto.id} tipo="checkbox" label={aspecto.etiqueta} checked={aspectos.includes(aspecto.id)} onChange={(event) => {
+            const marcado = event.currentTarget.checked
+            setAspectos((actuales) => marcado ? [...actuales, aspecto.id] : actuales.filter((id) => id !== aspecto.id))
+          }} />
         ))}
       </ConfirmSheet>
 
