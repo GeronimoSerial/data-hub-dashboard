@@ -491,7 +491,13 @@ vi.mock('react-map-gl/maplibre', () => {
   return {
     __esModule: true,
     default: MapGL,
-    Layer: () => null,
+    Layer: (props: { id?: string; filter?: unknown; paint?: unknown }) => (
+      <div
+        data-testid={`mock-layer-${props.id ?? 'sin-id'}`}
+        data-filter={JSON.stringify(props.filter)}
+        data-paint={JSON.stringify(props.paint)}
+      />
+    ),
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
     NavigationControl: () => null,
     AttributionControl: () => null,
@@ -740,13 +746,10 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     expect(await screen.findByTestId('mock-historial-modal')).toBeInTheDocument()
   })
 
-  it('cerrar cualquiera de los tres modales no toca los filtros ni las capas visibles', async () => {
+  it('cerrar cualquiera de los tres modales no modifica los filtros del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
-
-    // Estado previo: se activa el padrón completo, apagado por defecto.
-    const capaPadron = screen.getByRole('checkbox', { name: 'Todas las escuelas' })
-    await userEvent.click(capaPadron)
-    expect(capaPadron).toBeChecked()
+    const filtroPuntos = screen.getByTestId('mock-layer-infra-partes').getAttribute('data-filter')
+    const filtroClusters = screen.getByTestId('mock-layer-infra-partes-cluster').getAttribute('data-filter')
 
     await userEvent.click(screen.getByTestId('mock-click-parte'))
     await userEvent.click(await screen.findByText('abrir-nominal-desde-ficha'))
@@ -760,8 +763,8 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
     await cerrarFicha()
 
-    // La capa que se activó antes de abrir los modales sigue activa.
-    expect(screen.getByRole('checkbox', { name: 'Todas las escuelas' })).toBeChecked()
+    expect(screen.getByTestId('mock-layer-infra-partes')).toHaveAttribute('data-filter', filtroPuntos)
+    expect(screen.getByTestId('mock-layer-infra-partes-cluster')).toHaveAttribute('data-filter', filtroClusters)
   })
 })
 
@@ -1054,20 +1057,31 @@ describe('M2: panel de situación actual con padrón', () => {
     desmontarMapa?.()
   })
 
-  it('la casilla de "Todas las escuelas" arranca destildada', async () => {
+  it('no ofrece el toggle del padrón y deja visibles los puntos afectados y sin reporte', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    const checkbox = screen.getByRole('checkbox', { name: /todas las escuelas/i })
-    expect(checkbox).not.toBeChecked()
-  })
-
-  it('tildar la casilla mantiene visible el panel de situación actual', async () => {
-    await renderMapa({ mostrarEnlaceNominal: true })
-
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: /todas las escuelas/i }),
+    expect(screen.queryByRole('checkbox', { name: /todas las escuelas/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Capas' })).not.toBeInTheDocument()
+    const fuente = JSON.parse(
+      screen.getByTestId('mock-source-infra-partes-src').getAttribute('data-geojson') ?? '{}',
+    ) as { features: Array<{ properties: { cueAnexo: string; estado: string } }> }
+    expect(fuente.features.map(({ properties }) => [properties.cueAnexo, properties.estado])).toEqual([
+      [CUE, 'afectada'],
+      [CUE_SIN_AFECTACION, 'sin_afectacion_reportada'],
+    ])
+    expect(screen.getByTestId('mock-layer-infra-partes')).toHaveAttribute(
+      'data-filter',
+      JSON.stringify(['!', ['has', 'point_count']]),
     )
-
+    const pinturaPartes = JSON.parse(
+      screen.getByTestId('mock-layer-infra-partes').getAttribute('data-paint') ?? '{}',
+    ) as { 'circle-opacity'?: unknown }
+    expect(JSON.stringify(pinturaPartes['circle-opacity'])).toContain('sin_afectacion_reportada')
+    expect(JSON.stringify(pinturaPartes['circle-opacity'])).toContain('0')
+    expect(screen.getByTestId('mock-layer-infra-partes-cluster')).toHaveAttribute(
+      'data-filter',
+      JSON.stringify(['has', 'point_count']),
+    )
     expect(screen.getByText('Situación actual')).toBeInTheDocument()
   })
 })

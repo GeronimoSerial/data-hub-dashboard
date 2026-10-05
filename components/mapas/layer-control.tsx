@@ -44,55 +44,12 @@ export function LayerControl({ overlays, onChange }: Props) {
   )
 }
 
-// ── Capas del mapa de infraestructura ───────────────────────────────────────
-//
-// El único control de infraestructura que queda es el padrón completo.
-export type CapaInfraestructura = 'escuelas'
-
-export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Todas las escuelas',
-}
-
-const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = ['escuelas']
-
-export function InfraLayerControl({
-  capas,
-  onChange,
-}: {
-  capas: Record<CapaInfraestructura, boolean>
-  onChange: (capa: CapaInfraestructura, value: boolean) => void
-}) {
-  const styles = useOverlayStyles()
-
-  return (
-    <div
-      className={styles.controlCard}
-      role="group"
-      aria-labelledby="infra-layer-control-heading"
-    >
-      <h2 className={styles.controlHeading} id="infra-layer-control-heading">
-        Capas
-      </h2>
-      {ORDEN_CAPAS_INFRAESTRUCTURA.map((capa) => (
-        <Checkbox
-          key={capa}
-          label={CAPAS_INFRAESTRUCTURA_LABELS[capa]}
-          checked={capas[capa]}
-          onCheckedChange={(checked) => onChange(capa, checked)}
-        />
-      ))}
-    </div>
-  )
-}
-
 // ── Capas del modo Radar ────────────────────────────────────────────────────
 //
 // Dominio DISTINTO del de arriba: peligro meteorológico estimado y riesgo
 // pronosticado, no estado de servicio observado. Por eso es un union type y un
-// componente HERMANO en vez de ampliar `CapaInfraestructura`: el comentario de
-// ese tipo dice que es a propósito acotado a un dominio, y meter acá 'peligro'
-// y 'riesgo' haría que ambos controles tuvieran que ignorarse mutuamente las
-// claves que no les corresponden. Los dos controles conviven en el mismo
+// componente independiente para que los controles territoriales mantengan su
+// propio dominio. Los dos controles conviven en el mismo
 // `controlsStack` y el radar sólo se monta si el flag está prendido.
 export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 

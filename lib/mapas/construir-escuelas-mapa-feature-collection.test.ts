@@ -172,4 +172,20 @@ describe('construirEscuelasMapaFeatureCollection', () => {
       [entrada[3].lon, entrada[3].lat],
     ])
   })
+
+  it('mantiene en el padrón los puntos afectados y sin reporte con color neutro', () => {
+    const afectada = escuelaAfectada({ cueAnexo: 'A' })
+    const sinReporte = escuelaSinAfectacion({ cueAnexo: 'B' })
+
+    const fc = construirEscuelasMapaFeatureCollection([afectada, sinReporte])
+
+    expect(fc.features).toHaveLength(2)
+    expect(fc.features.map((feature) => feature.properties.cueAnexo)).toEqual(['A', 'B'])
+    expect(fc.features[1].geometry.coordinates).toEqual([sinReporte.lon, sinReporte.lat])
+    expect(fc.features[1].properties).toMatchObject({
+      estado: 'sin_afectacion_reportada',
+      gravedad: 0,
+      color: COLOR_SIN_AFECTACION,
+    })
+  })
 })

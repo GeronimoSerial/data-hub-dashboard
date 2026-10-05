@@ -68,10 +68,8 @@ import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nomina
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
   AccesosLayerControl,
-  InfraLayerControl,
   RadarLayerControl,
   type CapaAccesos,
-  type CapaInfraestructura,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { InfraLegendPanel } from '@/components/mapas/legend-panel'
@@ -395,28 +393,6 @@ export function circlePaintPartes(): CircleLayerSpecification['paint'] {
   }
 }
 
-// Filtro de los puntos individuales (no clusterizados) según el toggle del
-// padrón completo: apagado (default) sólo muestra escuelas con
-// `estado === 'afectada'`; encendido muestra TODAS (afectadas y sin
-// afectación, esta última en gris neutro vía el campo `color` que ya
-// asigna construirEscuelasMapaFeatureCollection).
-export function filtroPuntosPartes(mostrarPadron: boolean): FilterSpecification {
-  const base = ['!', ['has', 'point_count']]
-  if (mostrarPadron) return base as unknown as FilterSpecification
-  return ['all', base, ['==', ['get', 'estado'], 'afectada']] as unknown as FilterSpecification
-}
-
-// Mismo criterio para los clusters: apagado sólo muestra clusters con al
-// menos una escuela afectada (escuelasAfectadas > 0, agregado ya existente
-// en clusterProperties); encendido muestra todos, incluidos los clusters
-// de puras escuelas sin afectación (pintados en gris por
-// colorPorSeveridadRango, que ya cubre ese caso).
-export function filtroClusterPartes(mostrarPadron: boolean): FilterSpecification {
-  const base = ['has', 'point_count']
-  if (mostrarPadron) return base as unknown as FilterSpecification
-  return ['all', base, ['>', ['get', 'escuelasAfectadas'], 0]] as unknown as FilterSpecification
-}
-
 // Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
 const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
   sin: BookX,
@@ -514,10 +490,6 @@ function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<
     imagen.onerror = () => resolve()
     imagen.src = `data:image/svg+xml;base64,${btoa(svg)}`
   })
-}
-
-const CAPAS_VISIBLES_DEFECTO: Record<CapaInfraestructura, boolean> = {
-  escuelas: false,
 }
 
 // Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
@@ -631,12 +603,10 @@ export default function MapInfraestructuraPage(props: {
   // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
   const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
-  // estado de encuadre/filtros/capas de arriba. Cerrar cualquiera de los tres
-  // sólo tiene que tocar SU propio estado — nunca `capasVisibles` ni el
-  // encuadre del mapa (MapGL no se remonta acá).
+  // estado de encuadre/filtros. Cerrar cualquiera de los tres sólo tiene que
+  // tocar SU propio estado — nunca el encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
-  const [capasVisibles, setCapasVisibles] = useState(CAPAS_VISIBLES_DEFECTO)
   const [capasAccesosVisibles, setCapasAccesosVisibles] = useState<Record<CapaAccesos, boolean>>(
     CAPAS_ACCESOS_VISIBLES_DEFECTO,
   )
@@ -1532,10 +1502,6 @@ export default function MapInfraestructuraPage(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
 
-  function alternarCapa(capa: CapaInfraestructura, value: boolean) {
-    setCapasVisibles((prev) => ({ ...prev, [capa]: value }))
-  }
-
   function alternarCapaRadar(capa: CapaRadar, value: boolean) {
     setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
   }
@@ -1801,7 +1767,7 @@ export default function MapInfraestructuraPage(props: {
                 id={CAPA_PARTES_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
-                filter={filtroPuntosPartes(capasVisibles.escuelas)}
+                filter={['!', ['has', 'point_count']]}
                 paint={{
                   ...circlePaintPartes(),
                   'circle-opacity': (['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 0, puntosVisibles ? 0.9 : 0]) as unknown as number,
@@ -1811,7 +1777,7 @@ export default function MapInfraestructuraPage(props: {
               {/*
                 Q13a: ícono de escuela individual sobre el círculo de
                 severidad (que se conserva debajo). Mismo filtro que
-                CAPA_PARTES_ID para que acompañe el toggle del padrón, y el
+                CAPA_PARTES_ID para que coincida con el padrón, y el
                 mismo gate de imágenes registradas que las capas symbol de
                 cluster. `icon-allow-overlap` para que no desaparezcan al
                 estar juntas. Q13b: esta capa también es interactiva (ver
@@ -1830,7 +1796,7 @@ export default function MapInfraestructuraPage(props: {
                 <Layer
                   id={CAPA_PARTES_ESCUELA_ICONO_ID}
                   type="symbol"
-                  filter={filtroPuntosPartes(capasVisibles.escuelas)}
+                  filter={['!', ['has', 'point_count']]}
                   layout={{
                     'icon-image': [
                       'case',
@@ -1866,7 +1832,7 @@ export default function MapInfraestructuraPage(props: {
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
-                filter={filtroClusterPartes(capasVisibles.escuelas)}
+                filter={['has', 'point_count']}
                 paint={{
                   'circle-color': colorPorSeveridadRango(),
                   'circle-radius': expresionRadioCluster(),
@@ -1886,7 +1852,7 @@ export default function MapInfraestructuraPage(props: {
                   'text-allow-overlap': false,
                   visibility: radarActivo ? 'none' : 'visible',
                 }}
-                filter={filtroClusterPartes(capasVisibles.escuelas)}
+                filter={['has', 'point_count']}
                 paint={{
                   // Contraste del conteo: sobre los fondos claros de la escala
                   // tonal (Baja#fecaca/Media#f87171) un trazo blanco se pierde,
@@ -2188,7 +2154,6 @@ export default function MapInfraestructuraPage(props: {
             setIconosClusterListos(false)
           }}
         />
-        <InfraLayerControl capas={capasVisibles} onChange={alternarCapa} />
         {hazardOn && (
           <AccesosLayerControl capas={capasAccesosVisibles} onChange={alternarCapaAccesos} />
         )}
