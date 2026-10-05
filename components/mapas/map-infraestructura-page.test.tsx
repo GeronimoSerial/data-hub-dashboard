@@ -560,6 +560,17 @@ async function renderMapa(props: OpcionesRenderMapa) {
 }
 
 describe('MapInfraestructuraPage — filtros de padrón', () => {
+  it('muestra la leyenda nueva en Situación actual y quita Referencias', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'actual' })
+
+    const leyenda = screen.getByRole('complementary', { name: 'Referencias del mapa' })
+    expect(leyenda).toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).queryByRole('complementary', { name: 'Referencias del mapa' })).toBeNull()
+    expect(within(leyenda).getByText('Crítica')).toBeInTheDocument()
+    expect(within(leyenda).getByText('Sin actualizar')).toBeInTheDocument()
+    expect(screen.queryByText('Referencias')).not.toBeInTheDocument()
+  })
+
   it('muestra el vacío cuando el padrón filtrado no tiene reportes', async () => {
     await renderMapa({
       mostrarEnlaceNominal: true,

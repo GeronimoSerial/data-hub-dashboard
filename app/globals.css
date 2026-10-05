@@ -1944,6 +1944,51 @@ time {
   flex: 0 0 auto;
 }
 
+/* La leyenda va abajo al centro para dejar libre la columna izquierda y el zoom. */
+.map-leyenda {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: var(--s-3);
+  transform: translateX(-50%);
+  display: grid;
+  gap: var(--s-2);
+  max-width: calc(100% - var(--s-4));
+  padding: var(--s-2) var(--s-3);
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--e-float);
+  font-size: var(--t-small);
+}
+.map-leyenda__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.map-leyenda__fila + .map-leyenda__fila {
+  border-top: 1px solid var(--line);
+  padding-top: var(--s-2);
+}
+.map-leyenda__elemento {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  white-space: nowrap;
+}
+.map-leyenda__muestra {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
+
 /* Panel propio del mapa para la ficha del parte (hallazgo estético): NO es el
    Sheet genérico — vive dentro de .map-shell, sin backdrop ni foco atrapado,
    así no tapa ni bloquea el resto del mapa. Reusa los mismos tokens que el
@@ -2034,14 +2079,13 @@ time {
 .ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
 
 /* Acciones de una selección viva con la ficha cerrada ("Ver ficha" /
-   "Quitar selección"). Flotan centradas en el borde inferior, fuera del camino
-   de los toggles: en desktop no chocan con nada porque la ficha abierta
-   (cuando existe) es la que ocupa la derecha. */
+   "Quitar selección"). Quedan por encima de la leyenda centrada en el borde
+   inferior. */
 .map-seleccion-acciones {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 24px;
+  bottom: calc(var(--s-3) + var(--s-8) + var(--s-5));
   z-index: 5;
   display: flex;
   gap: var(--s-2);

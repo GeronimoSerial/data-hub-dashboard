@@ -75,6 +75,7 @@ import {
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { InfraLegendPanel } from '@/components/mapas/legend-panel'
+import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import {
   CapasAccesosTerritoriales,
   CAPA_AISLAMIENTO_ID,
@@ -1577,12 +1578,14 @@ export default function MapInfraestructuraPage(props: {
           />
         </>
       )}
-      <InfraLegendPanel
-        departamentosSinMatch={departamentosSinMatch}
-        mostrarLeyendaPeligro={false}
-        mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
-        hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
-      />
+      {(props.pestana !== 'actual' || radarActivo) && (
+        <InfraLegendPanel
+          departamentosSinMatch={departamentosSinMatch}
+          mostrarLeyendaPeligro={false}
+          mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
+          hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
+        />
+      )}
     </>
   ) : null
 
@@ -2103,6 +2106,8 @@ export default function MapInfraestructuraPage(props: {
 
         </MapGL>
       </div>
+
+      {!radarActivo && props.pestana === 'actual' && <LeyendaMapa pestana="actual" />}
 
       <AlcanceNominalModal
         afectacionId={nominalAfectacionId}
