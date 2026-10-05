@@ -24,27 +24,14 @@ import { LineaTiempoRadar } from './linea-tiempo'
 import { PopupRadar } from './popup'
 import { SelectorRadar, type VariableRadarUI } from './selector'
 import { AlertasStrip, type AlertaRadar } from './alertas-strip'
-import { ResumenPanel, type DepartamentoResumen } from './resumen-panel'
 import { EscuelaForecastCard } from './escuela-card'
 import { antesDelRaster } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 
 interface ResumenRadar {
   runAt: string | null
-  frescura: { edadMinutos: number } | null
-  dias: string[]
-  departamentos: DepartamentoResumen[]
+  departamentos: unknown[]
   alertasSmn: AlertaRadar[]
-  verificacion?: {
-    estado: 'ok' | 'muestra_insuficiente' | 'sin_datos'
-    sesgoMm: number | null
-    pod: number | null
-    far: number | null
-    nPares: number
-    nEventos: number
-    desde: string
-    hasta: string
-  }
 }
 
 const variablesSolicitadas = [
@@ -567,14 +554,6 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
   if (!activo) {
     return null
   }
-  const volarDepartamento = (id: string) => {
-    const feature = boundary?.features.find((item) =>
-      String(item.properties?.id) === id
-      || String(item.properties?.nombre).toLocaleLowerCase('es') === id.toLocaleLowerCase('es'))
-    const centroide = feature?.properties?.centroide as { lon?: number; lat?: number } | undefined
-    if (centroide?.lon && centroide.lat) map?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 7.5, duration: 800 })
-  }
-
   return (
     <>
       {resumen && <AlertasStrip alertas={resumen.alertasSmn ?? []} actualizado={resumen.runAt} onSelect={setAlertaActiva} />}
@@ -604,17 +583,8 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
           />
         </Source>
       )}
-      {!resumen && !resumenError && <div className="radar-alertas radar-alertas-empty" role="status">Consultando alertas oficiales del SMN…</div>}
-      {resumenError && <div className="radar-alertas radar-alertas-empty" role="status">No se pudo actualizar el resumen oficial del SMN.</div>}
-      {resumen && (
-        <ResumenPanel
-          departamentos={resumen.departamentos}
-          dias={resumen.dias}
-          actualizadoHace={resumen.frescura?.edadMinutos ?? null}
-          verificacion={resumen.verificacion}
-          onDepartamento={volarDepartamento}
-        />
-      )}
+      {!resumen && !resumenError && <div className="radar-alertas radar-alertas-empty" role="status">Consultando alertas…</div>}
+      {resumenError && <div className="radar-alertas radar-alertas-empty" role="status">No se pudieron cargar las alertas.</div>}
       {cueEscuela && escuelaSeleccionada && (
         <EscuelaForecastCard
           cueAnexo={cueEscuela}
@@ -638,7 +608,7 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
       ))}
       {sinPronostico && (
         <div className="radar-mapa-sin-pronostico" role="status">
-          {error ?? data?.razon ?? 'No hay una corrida de pronóstico disponible para mostrar en el mapa.'}
+          {error ?? data?.razon ?? 'Todavía no hay un pronóstico disponible para mostrar en el mapa.'}
           {error && <button type="button" onClick={() => setRetry((value) => value + 1)}>Reintentar</button>}
         </div>
       )}
@@ -710,11 +680,6 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
       )}
 
       <SelectorRadar value={variable} onChange={setVariable}>
-        {variable === 'granizo' && (
-          <small title="Estimación no calibrada basada en variables de pronóstico y códigos meteorológicos.">
-            ⓘ Estimación no calibrada
-          </small>
-        )}
         {loading && <div className="radar-meteo-loading" role="status">Cargando pronóstico…</div>}
         {loading && <div className="radar-meteo-skeleton" aria-hidden="true" />}
         {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}

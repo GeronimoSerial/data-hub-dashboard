@@ -32,7 +32,8 @@ describe('tarjeta de pronóstico puntual', () => {
     expect(screen.getByText('2,3 mm')).toBeInTheDocument()
     expect(screen.getByText('—')).toBeInTheDocument()
     expect(container.querySelectorAll('.radar-escuela-dias > span')).toHaveLength(7)
-    expect(screen.getByText(/P≥25 mm en el departamento: 38 %/)).toBeInTheDocument()
+    expect(screen.getByText(/Probabilidad de más de 25 mm: 38 %/)).toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/P≥25|ensamble/i)
   })
 
   it('muestra un estado explícito cuando el pronóstico puntual está seco en 48 h', async () => {

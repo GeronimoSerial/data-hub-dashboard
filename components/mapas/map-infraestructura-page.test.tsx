@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX, type ReactNode } from 'react'
+import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -300,7 +302,8 @@ vi.mock('@/lib/infraestructura/use-exposicion-ruta', () => ({
 // pero con activo=false el hook real no hace fetch — acá se verifica el
 // contrato del lado del componente (el activo que recibe) y del hook
 // (devolver null/vacío sin datos).
-const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[] }))
+const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
+const estadoRadar = vi.hoisted(() => ({ sinPronostico: false }))
 
 const RADAR_DATA = {
   corte: {
@@ -321,6 +324,13 @@ const RADAR_DATA = {
     {
       cueAnexo: CUE,
       horizonteHoras: 24,
+      nivelRiesgo: 'moderado',
+      confianza: 'media',
+      nivelRiesgoAcceso: 'alto',
+    },
+    {
+      cueAnexo: CUE,
+      horizonteHoras: 72,
       nivelRiesgo: 'alto',
       confianza: 'media',
       nivelRiesgoAcceso: 'alto',
@@ -355,41 +365,24 @@ const RADAR_DATA = {
 }
 
 vi.mock('@/lib/infraestructura/use-radar', () => ({
-  useRadar: (_filtros: unknown, activo: boolean) => {
+  useRadar: (filtros: unknown, activo: boolean) => {
     llamadasRadar.activos.push(activo)
+    llamadasRadar.filtros.push(filtros)
     return activo
-      ? { data: RADAR_DATA, loading: false, error: null }
+      ? {
+          data: estadoRadar.sinPronostico
+            ? {
+                ...RADAR_DATA,
+                corte: null,
+                departamentos: [24, 72, 240].map((horizonteHoras) => ({ departamento: 'CAPITAL', peorNivel: 'sin_dato', horizonteHoras, celdas: 0 })),
+                puntos: [],
+                escuelas: { ...RADAR_DATA.escuelas, items: [], total: 0, totalPages: 0 },
+              }
+            : RADAR_DATA,
+          loading: false,
+          error: null,
+        }
       : { data: null, loading: false, error: null }
-  },
-}))
-
-// Mock del hook de detalle por snapshot (follow-up 4 del Gate de E4): el
-// hook real haría un fetch real que este archivo no necesita ejercitar (ya
-// está cubierto por `use-riesgo-snapshot.test.tsx`); acá sólo se verifica que
-// el componente pase los 3 estados (factores/cargando/error) al panel.
-const llamadasSnapshot = vi.hoisted(() => ({ snapshotIds: [] as (string | null)[] }))
-const SNAPSHOT_DETALLE = vi.hoisted(() => ({
-  factores: [
-    {
-      tipo: 'amenaza',
-      fuente: 'ensemble ECMWF',
-      variable: 'precipitacion_72h',
-      valor: 45,
-      unidad: 'mm',
-      contribucion: 0.3,
-      peso: 0.5,
-      explicacion: 'Precipitación sobre P95',
-      observadoEn: '2026-09-26T06:00:00Z',
-    },
-  ],
-}))
-
-vi.mock('@/lib/infraestructura/use-riesgo-snapshot', () => ({
-  useRiesgoSnapshot: (snapshotId: string | null) => {
-    llamadasSnapshot.snapshotIds.push(snapshotId)
-    return snapshotId === null
-      ? { data: null, loading: false, error: null }
-      : { data: SNAPSHOT_DETALLE, loading: false, error: null }
   },
 }))
 
@@ -458,6 +451,8 @@ vi.mock('react-map-gl/maplibre', () => {
       // no el círculo chico de abajo: la feature que MapLibre entrega
       // pertenece a `infra-partes-escuela-icono`.
       ['mock-click-escuela-icono', feature('infra-partes-escuela-icono', { cueAnexo: CUE_SIN_AFECTACION })],
+      ['mock-click-punto-nivel', feature('infra-puntos-nivel', { cueAnexo: CUE })],
+      ['mock-click-vacio-radar', [], { lng: -58.82, lat: -27.48 }],
       ['mock-click-departamento', feature('infra-departamentos-relleno', { nombre: 'Capital' }), { lng: -58.8, lat: -27.5 }],
       ['mock-click-departamento-empedrado', feature('infra-departamentos-relleno', { nombre: 'Empedrado' }), { lng: -58.8, lat: -27.5 }],
       ['mock-click-peligro', feature('infra-peligro-fill', { nombre: 'CAPITAL' })],
@@ -641,7 +636,8 @@ beforeEach(() => {
   estadoGeometria.disponible = true
   estadoGeometria.cueForzado = null
   llamadasRadar.activos.length = 0
-    llamadasSnapshot.snapshotIds.length = 0
+  llamadasRadar.filtros.length = 0
+  estadoRadar.sinPronostico = false
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
   llamadasGeometria.habilitados.length = 0
@@ -784,12 +780,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(panelLateral).not.toBeEmptyDOMElement()
   })
 
-  it('no dibuja una caja vacía en la columna izquierda del Radar', async () => {
+  it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    const panelRadar = screen.getByTestId('panel-radar')
-    expect(panelRadar).toHaveAttribute('hidden')
-    expect(panelRadar).toBeEmptyDOMElement()
+    const panelLateral = await screen.findByTestId('panel-lateral')
+    expect(within(panelLateral).getByRole('heading', { name: 'Radar' })).toBeInTheDocument()
+    expect(within(panelLateral).getByRole('group', { name: 'Horizonte' })).toBeInTheDocument()
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
+    expect(llamadasRadar.filtros.at(-1)).toEqual({ horizonte: 72 })
   })
 
   it('no renderiza el conmutador Situación actual / Radar', async () => {
@@ -840,18 +838,92 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(llamadasRadar.activos.at(-1)).toBe(false)
   })
 
-  it('con Radar activo no consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
+  it('con Radar activo consulta el radar de riesgo y muestra los controles meteorológicos', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Lluvia (mm)' })).toBeInTheDocument()
+    expect(screen.getByText('Consultando alertas…')).toBeInTheDocument()
+    expect(screen.queryByText(/Estimación no calibrada/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/lluvia observada|fuente:|ECMWF|IMERG|ensamble|metodología/i)).not.toBeInTheDocument()
     expect(screen.queryByTestId('radar-kpi-riesgo-alto')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Pronóstico por departamento' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
+  })
+
+  it('dibuja el padrón completo con el color del riesgo y sólo monta la capa en Radar', async () => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+    const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+    const colores = new Map(geojson.features.map((feature: { properties: { cueAnexo: string; color: string; conDato: boolean } }) => [
+      feature.properties.cueAnexo,
+      [feature.properties.color, feature.properties.conDato],
+    ]))
+    expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true])
+    expect(colores.get(CUE_SIN_AFECTACION)).toEqual([COLOR_SIN_AFECTACION, false])
+    expect(screen.getByTestId('mock-layer-infra-puntos-nivel')).toBeInTheDocument()
+
+    vista.rerender({ pestana: 'actual' })
+    expect(screen.queryByTestId('mock-source-infra-puntos-nivel-src')).not.toBeInTheDocument()
+  })
+
+  it('cambia el color del punto al cambiar el horizonte y el click abre la ficha', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+    const clicksMeteorologicos: Array<{ lat: number; lng: number }> = []
+    const escucharClickMeteorologico = (event: Event) => {
+      clicksMeteorologicos.push((event as CustomEvent<{ lat: number; lng: number }>).detail)
+    }
+    window.addEventListener('radar-meteo-map-click', escucharClickMeteorologico)
+    const leerColor = () => {
+      const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+      const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      return geojson.features.find((feature: { properties: { cueAnexo: string } }) => feature.properties.cueAnexo === CUE)?.properties.color
+    }
+    expect(leerColor()).toBe(colorRiesgo('alto'))
+    await userEvent.click(screen.getByRole('button', { name: '24 h' }))
+    await waitFor(() => expect(leerColor()).toBe(colorRiesgo('moderado')))
+
+    await userEvent.click(screen.getByTestId('mock-click-punto-nivel'))
+    expect(screen.getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    expect(clicksMeteorologicos).toEqual([])
+
+    await userEvent.click(screen.getByTestId('mock-click-vacio-radar'))
+    expect(clicksMeteorologicos).toEqual([{ lat: -27.48, lng: -58.82 }])
+    window.removeEventListener('radar-meteo-map-click', escucharClickMeteorologico)
+  })
+
+  it('al cambiar el horizonte vuelve a consultar el radar con el valor elegido', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    await userEvent.click(screen.getByRole('button', { name: '24 h' }))
+    await waitFor(() => expect(llamadasRadar.filtros.at(-1)).toEqual({ horizonte: 24 }))
+  })
+
+  it('al elegir una escuela en riesgo abre su ficha en el mismo panel lateral', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    await userEvent.click(screen.getByRole('button', { name: /Escuela 1, Capital/i }))
+    const panel = screen.getByTestId('panel-lateral')
+    expect(within(panel).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    expect(within(panel).getByTestId('mock-ficha-escuela')).toBeInTheDocument()
+  })
+
+  it('sin horizontes con datos muestra el aviso y deshabilita las tres opciones', async () => {
+    estadoRadar.sinPronostico = true
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    const grupo = screen.getByRole('group', { name: 'Horizonte' })
+    for (const nombre of ['24 h', '72 h', '10 días']) {
+      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'true')
+    }
   })
 
   it('al volver a Situación actual deja el hook inactivo otra vez', async () => {
     const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
-    expect(llamadasRadar.activos.at(-1)).toBe(false)
+    expect(llamadasRadar.activos.at(-1)).toBe(true)
 
     rerender({ pestana: 'actual' })
     expect(llamadasRadar.activos.at(-1)).toBe(false)
@@ -935,14 +1007,12 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     }
   })
 
-  it('no pide detalles del riesgo escolar desde el radar meteorológico', async () => {
+  it('muestra la lista simple de riesgo sin paneles de explicación técnica', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    // Sin escuela seleccionada el hook se llama con null (no dispara fetch).
-    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
-
-    expect(llamadasSnapshot.snapshotIds.at(-1)).toBeNull()
+    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
     expect(screen.queryByTestId('risk-explanation-factores')).not.toBeInTheDocument()
+    expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
 
   it('Radar sustituye las capas de riesgo por el radar meteorológico', async () => {
@@ -1376,7 +1446,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
 })
 
 describe('Task 4: cambiar de pestaña a Radar', () => {
-  it('con una ficha abierta, pasar a Radar muestra su panel y oculta la ficha de Situación actual', async () => {
+  it('con una ficha abierta, pasar a Radar muestra el panel Radar y la restaura al volver', async () => {
     const { rerender } = await renderMapa({
       mostrarEnlaceNominal: true,
       riskRadarEnabled: true,
@@ -1389,7 +1459,11 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     const panel = screen.getByTestId('panel-lateral')
     expect(panel).not.toBeEmptyDOMElement()
     expect(within(panel).getByTestId('panel-radar')).toBeInTheDocument()
-    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(panel).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+
+    rerender({ pestana: 'actual' })
+
+    expect(within(screen.getByTestId('panel-lateral')).getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
   })
 
   it('mantiene el mismo mapa montado al cambiar a Radar', async () => {

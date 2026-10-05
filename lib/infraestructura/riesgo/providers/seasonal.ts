@@ -3,7 +3,7 @@
 // `ecmwf_seasonal_seamless`). Capa REGIONAL opcional (plan-implementacion
 // §9.3 / plan-ejecucion §E5): se consulta por CENTROIDE de departamento,
 // nunca por escuela, y su resultado siempre se etiqueta explícitamente como
-// pronóstico probabilístico regional (ver components/mapas/risk-explanation-panel.tsx).
+// pronóstico probabilístico regional.
 //
 // Fuentes verificadas (2026-09-27):
 // - Endpoint y modelos: https://open-meteo.com/en/docs/seasonal-forecast-api

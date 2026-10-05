@@ -8,7 +8,7 @@ const titulos: Record<VariableRadarUI, string> = {
   lluvia: 'Lluvia (mm)',
   probabilidad: 'Probabilidad',
   viento: 'Viento',
-  granizo: 'Granizo (estimado)',
+  granizo: 'Granizo',
 }
 
 const unidades: Record<VariableRadarUI, string> = {
@@ -64,7 +64,6 @@ export function LeyendaRadar({
         <span className={desactualizado ? 'is-stale' : undefined}>
           Actualizado {formatearAntiguedad(minutos)}
         </span>
-        <small>Pronóstico de modelo, no radar observado</small>
       </div>
     </div>
   )

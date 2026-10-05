@@ -57,7 +57,7 @@ export function EscuelaForecastCard({
       {!pronostico && !error && <p role="status">Cargando pronóstico puntual…</p>}
       {pronostico && (
         <div className="radar-escuela-result">
-          <p>{pronostico.departamento.nombre} · interpolación puntual</p>
+          <p>{pronostico.departamento.nombre}</p>
           {lluviaMaxima48h < 0.1 ? (
             <p className="radar-escuela-sin-lluvia48h" role="status">Sin lluvia prevista en 48 h</p>
           ) : (
@@ -93,11 +93,10 @@ export function EscuelaForecastCard({
           </p>
           {(pronostico.contextoEnsamble?.probabilidad25 == null || pronostico.contextoEnsamble.probabilidad25 >= 0.05) && (
             <p>
-              P≥25 mm en el departamento: {' '}
+              Probabilidad de más de 25 mm: {' '}
               {pronostico.contextoEnsamble?.probabilidad25 == null
                 ? 'sin dato'
                 : `${Math.round(pronostico.contextoEnsamble.probabilidad25 * 100)} %`}
-              {' '}· contexto departamental
             </p>
           )}
         </div>

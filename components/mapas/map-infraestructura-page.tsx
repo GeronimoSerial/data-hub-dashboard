@@ -50,7 +50,6 @@ import {
   DoorOpen,
   House,
   MapPin,
-  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -62,6 +61,7 @@ import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
+import { PanelRadar } from '@/components/mapas/panel-radar'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
@@ -82,29 +82,21 @@ import {
   LeyendaAccesos,
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
-import { SelectorHorizonte, type HorizonteRadar } from '@/components/mapas/selector-horizonte'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
-import { RiskExplanationPanel } from '@/components/mapas/risk-explanation-panel'
 import { useRadar } from '@/lib/infraestructura/use-radar'
-import { useRiesgoSnapshot } from '@/lib/infraestructura/use-riesgo-snapshot'
-import { useTendenciaEstacional } from '@/lib/infraestructura/use-tendencia-estacional'
+import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
 import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
-import { generarBriefing } from '@/lib/infraestructura/riesgo/briefing'
-import { ETIQUETA_TIPO_FACTOR, etiqueta } from '@/lib/infraestructura/riesgo/etiquetas'
 import {
-  colorPuntoRiesgo,
   construirCoropletaPeligro,
-  construirPuntosRiesgo,
   construirPuntosRiesgoAcceso,
   paintCoropletaPeligro,
   paintPuntosRiesgoAcceso,
   type NivelPorDepartamento,
   type RiesgoAccesoEscuela,
-  type RiesgoEscuela,
 } from '@/lib/mapas/peligro-capas'
 import {
   construirCrucesAcceso,
@@ -139,6 +131,9 @@ import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-es
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
+import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { colorRiesgo, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { CapaPuntosNivel } from '@/components/mapas/capa-puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -224,19 +219,9 @@ const CAPA_DEPARTAMENTOS_BORDE_ID = 'infra-departamentos-borde'
 // react-map-gl no permitiría dos `data` distintos para el mismo id.
 const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
 
-// Puntos de riesgo (Radar): un ÍCONO Lucide por escuela, ya no capas `circle`.
-// El par círculo+halo anterior dibujaba dos formas apiladas por punto (justo
-// el patrón "círculos sobre círculos" ilegible que ya se retiró del resto del
-// mapa). Ahora la señal de riesgo es un <Marker> DOM con un TriangleAlert
-// coloreado por nivel: un canal visual propio que no compite con el relleno de
-// severidad ni con el badge de estado.
-
-// id lógico del contenedor del ícono de riesgo: mismo patrón `data-capa` que
-// el badge de estado, para tests y estilos sin depender del texto accesible.
-const CAPA_RIESGO_ICONO_ID = 'infra-riesgo-icono'
-const TAMANO_ICONO_RIESGO = 18
-
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
+const CAPA_PUNTOS_NIVEL_ID = 'infra-puntos-nivel'
+const FUENTE_PUNTOS_NIVEL_ID = 'infra-puntos-nivel-src'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
@@ -521,24 +506,6 @@ function estiloBadgeEstado(): CSSProperties {
   }
 }
 
-// Ícono de riesgo: SIN fondo ni anillo (justo lo que se retiró), sólo un
-// drop-shadow claro/oscuro que lo separa del mapa y del punto de severidad
-// que puede estar debajo. El color lo pone Lucide vía `color` con la paleta de
-// peligro. Es clickeable (abre el panel de riesgo de la escuela), así que el
-// `pointerEvents` queda por defecto.
-function estiloIconoRiesgo(): CSSProperties {
-  return {
-    background: 'transparent',
-    border: 'none',
-    padding: 0,
-    margin: 0,
-    lineHeight: 0,
-    cursor: 'pointer',
-    filter:
-      'drop-shadow(0 0 1.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 1px rgba(28, 28, 28, 0.4))',
-  }
-}
-
 // Carga un SVG standalone como imagen de MapLibre. `map.addImage` necesita un
 // HTMLImageElement ya decodificado, así que se espera a `onload` antes de
 // registrarlo. Silencioso ante error: el peor caso es que no aparezca el
@@ -658,13 +625,13 @@ export default function MapInfraestructuraPage(props: {
   // sólo recuerda el cue cuya ficha el usuario cerró, para que el grupo
   // `.map-seleccion-acciones` ofrezca "Ver ficha" de nuevo.
   //
-  // `fichaAbierta` se DERIVA (no se sincroniza con un useEffect, que el lint
-  // prohíbe): abierta = hay selección y el cue cerrado no es el seleccionado.
-  // Por eso toda selección nueva o repetida tiene que limpiar
-  // `fichaCerradaCue`: si no, volver a clickear la misma escuela con la ficha
-  // cerrada no la reabriría.
+  // `fichaAbierta` se DERIVA (sin sincronizarla con un useEffect): hay una
+  // selección no cerrada y la pestaña donde se eligió es la actual. Toda
+  // selección nueva o repetida limpia `fichaCerradaCue` y fija `fichaPestana`
+  // para que la ficha se abra en la pestaña desde donde se eligió.
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
-  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue
+  const [fichaPestana, setFichaPestana] = useState<Exclude<PestanaMapa, 'estadisticas'> | null>(null)
+  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === props.pestana
   // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
   // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
   // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
@@ -729,27 +696,15 @@ export default function MapInfraestructuraPage(props: {
   // El Radar es una pestaña del contenedor. Sin su flag, conserva el
   // comportamiento de Situación actual aunque la prop recibida sea "radar".
   const modoRadar = props.pestana === 'radar' && (props.riskRadarEnabled ?? false)
-  // `horizonteSeleccionado` incluye 'ahora' (cualitativo) además de 24|72|240.
-  // Sólo los numéricos viajan a la API; 'ahora' no tiene evidencia y el hook
-  // no manda query (ver use-radar.ts). Default 'ahora' = lo más inmediato.
-  const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteRadar>('ahora')
+  // El horizonte de la pestaña se guarda como valor del motor; 72 h es la
+  // opción inicial cuando todavía no hay evidencia disponible.
+  const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteMotor>(72)
   const [capasRadarVisibles, setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
-  // Selección del radar: estados propios, nunca reutilizan seleccionCue ni
-  // departamentoSeleccionado (uno es por CUE de parte; estos son por CUE de
-  // snapshot y por nombre de departamento del radar).
-  const [cueRadarSeleccionado, setCueRadarSeleccionado] = useState<string | null>(null)
-  const [departamentoRadarSeleccionado, setDepartamentoRadarSeleccionado] = useState<string | null>(null)
 
   // El hook SIEMPRE se llama (regla de hooks), pero sólo dispara request con
   // `activo` true — es decir, flag prendido Y modo Radar. En "Situación actual"
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
-  const filtrosRadar = useMemo(
-    () => ({
-      horizonte:
-        typeof horizonteSeleccionado === 'number' ? horizonteSeleccionado : undefined,
-    }),
-    [horizonteSeleccionado],
-  )
+  const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
   const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {
@@ -774,26 +729,30 @@ export default function MapInfraestructuraPage(props: {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
-    setCueRadarSeleccionado(null)
-    setDepartamentoRadarSeleccionado(null)
     setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
-    false,
+    radarActivo,
   )
 
-  // Capa opcional SEASONAL (E5+, Off por defecto): sólo consulta cuando el
-  // flag está prendido, estamos en modo Radar Y hay un departamento
-  // seleccionado — nunca dispara sola con sólo el flag encendido.
-  const seasonalActivo =
-    (props.seasonalEnabled ?? false) && radarActivo && !modoRadar && departamentoRadarSeleccionado !== null
-  const { data: tendenciaEstacionalData } = useTendenciaEstacional(
-    departamentoRadarSeleccionado,
-    seasonalActivo,
-  )
+  // La API devuelve los tres horizontes; la lista lateral y la coropleta
+  // comparten el primer horizonte con evidencia si la opción guardada dejó
+  // de estar disponible. No se sincroniza estado desde un efecto.
+  const horizontesDisponibles = useMemo<HorizonteMotor[]>(() => {
+    if (!radarData) return []
+    const horas = new Set<number>()
+    for (const fila of radarData.departamentos) {
+      if (fila.peorNivel !== 'sin_dato') horas.add(fila.horizonteHoras)
+    }
+    for (const escuela of radarData.escuelas.items) horas.add(escuela.horizonteHoras)
+    return ([24, 72, 240] as HorizonteMotor[]).filter((horizonte) => horas.has(horizonte))
+  }, [radarData])
+  const horizonteEfectivo = horizontesDisponibles.includes(horizonteSeleccionado)
+    ? horizonteSeleccionado
+    : (horizontesDisponibles[0] ?? horizonteSeleccionado)
 
   const { data, loading, error } = useAlertas()
 
@@ -825,6 +784,20 @@ export default function MapInfraestructuraPage(props: {
   const featureCollectionPadron = useMemo(
     () => construirEscuelasMapaFeatureCollection(dataEscuelasMapaVisible?.escuelas ?? []),
     [dataEscuelasMapaVisible],
+  )
+  const colorPorCue = useMemo(() => {
+    if (!modoRadar) return new Map<string, string>()
+    return new Map(
+      escuelasPorRiesgo(
+        radarData?.puntos ?? [],
+        dataEscuelasMapaVisible?.escuelas ?? [],
+        horizonteEfectivo,
+      ).map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]),
+    )
+  }, [modoRadar, radarData, dataEscuelasMapaVisible, horizonteEfectivo])
+  const puntosNivel = useMemo(
+    () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
+    [dataEscuelasMapaVisible, colorPorCue],
   )
 
   // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
@@ -980,65 +953,17 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [departamentosRaw, data])
 
-  // ── Datos derivados del radar (E4) ───────────────────────────
-  //
-  // Horizontes con evidencia REAL: los que aparecen en las filas de
-  // `data.departamentos` (peorNivel concreto) o en las escuelas del radar. Se
-  // pasan a <SelectorHorizonte> para deshabilitar los que no tienen datos; el
-  // selector siempre ofrece los 4 y el resto queda visible pero inactivo.
-  const horizontesDisponibles = useMemo<HorizonteRadar[]>(() => {
-    // 'ahora' es cualitativo y no depende de ninguna corrida del radar (no
-    // manda query, ver use-radar.ts): siempre está disponible, aunque
-    // `radarData` todavía no haya llegado o el resto de los horizontes no
-    // tengan evidencia. Sin esto, el botón "Ahora" queda permanentemente
-    // deshabilitado y no hay forma de volver a la situación actual.
-    if (!radarData) return ['ahora']
-    const horas = new Set<number>()
-    for (const fila of radarData.departamentos) {
-      if (fila.peorNivel !== 'sin_dato') horas.add(fila.horizonteHoras)
-    }
-    for (const escuela of radarData.escuelas.items) horas.add(escuela.horizonteHoras)
-    return [
-      'ahora',
-      ...([24, 72, 240] as HorizonteRadar[]).filter(
-        (h) => typeof h === 'number' && horas.has(h),
-      ),
-    ]
-  }, [radarData])
-
   // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
   // duplica el fetch de DEPARTAMENTOS_URL). El radar entrega una fila por
-  // (departamento, horizonte); el módulo puro documenta que hay que filtrar al
-  // horizonte activo antes de cruzar. En 'ahora' no hay horizonte numérico:
-  // todas las features quedan en 'sin_dato' y la capa pinta el gris neutro.
+  // (departamento, horizonte); se filtra al horizonte que está en uso en el
+  // panel.
   const peligroGeojson = useMemo(() => {
     if (!departamentosRaw) return null
-    const niveles: NivelPorDepartamento[] =
-      typeof horizonteSeleccionado === 'number'
-        ? (radarData?.departamentos ?? [])
-            .filter((fila) => fila.horizonteHoras === horizonteSeleccionado)
-            .map((fila) => ({
-              departamento: fila.departamento,
-              peorNivel: fila.peorNivel,
-            }))
-        : []
+    const niveles: NivelPorDepartamento[] = (radarData?.departamentos ?? [])
+      .filter((fila) => fila.horizonteHoras === horizonteEfectivo)
+      .map((fila) => ({ departamento: fila.departamento, peorNivel: fila.peorNivel }))
     return construirCoropletaPeligro(departamentosRaw, niveles)
-  }, [departamentosRaw, radarData, horizonteSeleccionado])
-
-  // Índice cueAnexo → riesgo de TODO el universo filtrado del radar
-  // (`puntos`), no sólo la página del ranking (`escuelas.items`): los puntos de
-  // riesgo deben cubrir el padrón completo, no los 50 de la página 1. El cruce
-  // es contra las coordenadas del padrón que arma `escuelasConCoordenadas`.
-  const riesgoPorCue = useMemo(() => {
-    const map = new Map<string, RiesgoEscuela>()
-    for (const punto of radarData?.puntos ?? []) {
-      map.set(punto.cueAnexo, {
-        nivelRiesgo: punto.nivelRiesgo,
-        confianza: punto.confianza,
-      })
-    }
-    return map
-  }, [radarData])
+  }, [departamentosRaw, radarData, horizonteEfectivo])
 
   // Coordenadas de riesgo: el padrón completo de M1 (`useEscuelasMapa`), no
   // `dataVisible.partes`. El padrón es la fuente de coordenadas de todas las
@@ -1047,11 +972,6 @@ export default function MapInfraestructuraPage(props: {
   const escuelasConCoordenadas = useMemo(
     () => extraerEscuelasConCoordenadas(dataEscuelasMapaVisible?.escuelas ?? []),
     [dataEscuelasMapaVisible],
-  )
-
-  const puntosRiesgoGeojson = useMemo(
-    () => construirPuntosRiesgo(escuelasConCoordenadas, riesgoPorCue),
-    [escuelasConCoordenadas, riesgoPorCue],
   )
 
   // Hallazgo 18: el riesgo de ACCESO se dibuja junto a los clusters de
@@ -1069,24 +989,6 @@ export default function MapInfraestructuraPage(props: {
       ['literal', cuesNoAgrupados ? [...cuesNoAgrupados] : []],
     ]
   }, [cuesNoAgrupados])
-
-  // Reemplazo del par circle+halo de riesgo por íconos Lucide (<Marker> DOM):
-  // se itera el MISMO GeoJSON de puntos de riesgo. Se filtran los `sin_dato`
-  // —fallback explícito de `construirPuntosRiesgo` para escuelas sin cobertura
-  // de riesgo— porque la ausencia de dato no es una señal que deba dibujarse.
-  // Se aplica el gate de desagrupado (`cuesNoAgrupados`) igual que antes.
-  const marcadoresRiesgo = useMemo(() => {
-    if (cuesNoAgrupados === null) return []
-    return puntosRiesgoGeojson.features
-      .filter((feature) => feature.properties.nivelRiesgo !== 'sin_dato')
-      .filter((feature) => cuesNoAgrupados.has(feature.properties.cueAnexo))
-      .map((feature) => ({
-        cueAnexo: feature.properties.cueAnexo,
-        nivelRiesgo: feature.properties.nivelRiesgo,
-        lng: feature.geometry.coordinates[0],
-        lat: feature.geometry.coordinates[1],
-      }))
-  }, [puntosRiesgoGeojson, cuesNoAgrupados])
 
   // Riesgo de acceso (E6): mismo patrón que riesgoPorCue/puntosRiesgoGeojson
   // de arriba, pero leyendo `nivelRiesgoAcceso` del punto del radar en vez de
@@ -1108,109 +1010,6 @@ export default function MapInfraestructuraPage(props: {
     [escuelasConCoordenadas, riesgoAccesoPorCue],
   )
 
-  // Briefing: `generarBriefing` necesita el run ANTERIOR y los conteos por
-  // nivel, y la API sólo entrega el corte VIGENTE (no el anterior). GAP
-  // documentado en el resumen: sin runAnterior se pasa null y el briefing
-  // devuelve su línea de "primer corte disponible", que es un resultado
-  // honesto, nunca una comparación inventada.
-  const briefingLineas = useMemo(() => {
-    if (!radarData?.corte) return []
-    const conteosPorNivel = { actual: {} as Record<string, number>, anterior: null }
-    for (const escuela of radarData.escuelas.items) {
-      const nivel = escuela.nivelRiesgo ?? 'sin_dato'
-      conteosPorNivel.actual[nivel] = (conteosPorNivel.actual[nivel] ?? 0) + 1
-    }
-    return generarBriefing(
-      {
-        id: radarData.corte.runId,
-        cobertura: radarData.cobertura,
-        publicadoEn: radarData.corte.publicadoEn,
-      },
-      null,
-      conteosPorNivel,
-    )
-  }, [radarData])
-
-  // Escuela de radar seleccionada (para el panel de explicación): se resuelve
-  // del snapshot del radar, no de `partesPorCue` (el radar no siempre tiene un
-  // parte vigente para el mismo CUE).
-  const escuelaRadarSeleccionada = useMemo(
-    () =>
-      radarData?.escuelas.items.find((e) => e.cueAnexo === cueRadarSeleccionado) ?? null,
-    [radarData, cueRadarSeleccionado],
-  )
-
-  // Follow-up 4 del Gate de E4: el detalle por factor (tipo, fuente, valor,
-  // contribución, observado en) vive en `infra_risk_factor` y no lo trae
-  // `/api/infraestructura/radar` — se pide aparte, por `snapshotId`, contra
-  // `/api/infraestructura/riesgo/[snapshotId]` (mismo endpoint que ya usa
-  // `/admin/riesgo`). Se llama siempre (regla de hooks) con `null` cuando no
-  // hay escuela seleccionada; el hook no dispara ningún request en ese caso.
-  const {
-    data: snapshotDetalle,
-    loading: snapshotLoading,
-    error: snapshotError,
-  } = useRiesgoSnapshot(escuelaRadarSeleccionada?.snapshotId ?? null)
-
-  // Factores ya resueltos a la forma que espera el panel: la etiqueta legible
-  // (`ETIQUETA_TIPO_FACTOR`, la misma que usa `/admin/riesgo`) se aplica acá
-  // porque el panel no conoce el enum crudo (mismo criterio que el resto de
-  // sus props). `undefined` mientras no llegó respuesta (el panel no inventa
-  // "Sin dato" hasta que el fetch resolvió, aunque sea con 0 factores).
-  const factoresPanel = useMemo(
-    () =>
-      snapshotDetalle?.factores.map((factor) => ({
-        tipo: etiqueta(ETIQUETA_TIPO_FACTOR, factor.tipo),
-        fuente: factor.fuente,
-        valor: factor.valor,
-        unidad: factor.unidad,
-        contribucion: factor.contribucion,
-        observadoEn: factor.observadoEn,
-      })),
-    [snapshotDetalle],
-  )
-
-  // Dimensión SEPARADA "riesgo de acceso" para el panel de la escuela
-  // seleccionada. El nivel/confianza vienen del item del radar (tarea 1); la
-  // explicación se toma del factor 'acceso' del detalle del snapshot cuando
-  // está disponible. `undefined` (sin escuela seleccionada) = no se renderiza.
-  const riesgoAccesoPanel = useMemo(() => {
-    if (!escuelaRadarSeleccionada) return undefined
-    const factorAcceso = snapshotDetalle?.factores.find((factor) => factor.tipo === 'acceso')
-    return {
-      nivel: (escuelaRadarSeleccionada.nivelRiesgoAcceso ?? null) as
-        | 'bajo'
-        | 'moderado'
-        | 'alto'
-        | null,
-      confianza: (escuelaRadarSeleccionada.confianzaAcceso ?? 'baja') as
-        | 'baja'
-        | 'media'
-        | 'alta',
-      explicacion: factorAcceso?.explicacion ?? 'Sin detalle de acceso disponible.',
-    }
-  }, [escuelaRadarSeleccionada, snapshotDetalle])
-
-  // Niveles por horizonte del departamento elegido en el radar, para el panel
-  // de explicación. La API entrega el peor nivel por (departamento, horizonte),
-  // pero NO el detalle de caudal/precipitación/base ensemble por departamento:
-  // esos campos van a null y el panel los muestra como "No disponible" (gap
-  // documentado, no bloquea la integración).
-  const nivelesDepartamentoRadar = useMemo(() => {
-    if (!radarData || departamentoRadarSeleccionado === null) return []
-    return radarData.departamentos
-      .filter((fila) => fila.departamento === departamentoRadarSeleccionado)
-      .map((fila) => ({
-        horizonteHoras: fila.horizonteHoras as 24 | 72 | 240,
-        nivel: fila.peorNivel as 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato',
-        base: 'sin_dato' as const,
-        precipitacionMm: null,
-        percentilReferencia: null,
-        emitidoEn: radarData.corte?.publicadoEn ?? '',
-        validoHasta: radarData.corte?.publicadoEn ?? '',
-      }))
-  }, [radarData, departamentoRadarSeleccionado])
-
   // R2: en tema oscuro se usa el estilo oscuro real del proveedor en vez del
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
   const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
@@ -1230,11 +1029,10 @@ export default function MapInfraestructuraPage(props: {
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
   //
-  // Gate único: el flag de contexto territorial fuera del modo Radar. Con el
-  // flag apagado esta sección no fetchea, no monta control, leyenda ni capas
-  // — el mapa se comporta exactamente como antes. `hazardOn` ya incluye
-  // modoRadar, así queda disponible sólo en situación actual.
-  const hazardOn = (props.hazardContextEnabled ?? false) && !modoRadar
+  // La ficha puede consultar acceso territorial en cualquier pestaña. Las
+  // capas y controles del mapa siguen apagados en Radar.
+  const contextoTerritorial = props.hazardContextEnabled ?? false
+  const hazardOn = contextoTerritorial && !modoRadar
 
   // Capas estáticas (aislamiento OSM + susceptibilidad physrisk): un solo
   // fetch de largo plazo, sin polling.
@@ -1242,7 +1040,7 @@ export default function MapInfraestructuraPage(props: {
     data: territorio,
     loading: territorioLoading,
     error: territorioError,
-  } = useTerritorioMapa(hazardOn)
+  } = useTerritorioMapa(contextoTerritorial)
 
   // Los puntos territoriales siguen el padrón VISIBLE (mismo criterio que los
   // puntos de riesgo): todas las escuelas del departamento en foco, tengan o
@@ -1261,9 +1059,8 @@ export default function MapInfraestructuraPage(props: {
     [dataEscuelasMapa, territorio],
   )
 
-  // Escuela de la ruta: en Radar la selección es la del snapshot; en
-  // "Situación actual" (y es la de la ficha.
-  const cueRuta = modoRadar ? cueRadarSeleccionado : seleccionCue
+  // La ficha y la ruta usan la misma selección en las tres pestañas.
+  const cueRuta = seleccionCue
 
   // La geometría se pide SÓLO para la escuela seleccionada, nunca para todas
   // las rutas. Se deshabilita cuando el contexto territorial no está activo.
@@ -1271,11 +1068,11 @@ export default function MapInfraestructuraPage(props: {
     data: geometria,
     loading: geometriaLoading,
     error: geometriaError,
-  } = useGeometriaAcceso(cueRuta, hazardOn && cueRuta !== null)
+  } = useGeometriaAcceso(cueRuta, contextoTerritorial && cueRuta !== null)
   const {
     data: exposicion,
     loading: exposicionLoading,
-  } = useExposicionRuta(cueRuta, hazardOn && cueRuta !== null)
+  } = useExposicionRuta(cueRuta, contextoTerritorial && cueRuta !== null)
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
@@ -1300,6 +1097,30 @@ export default function MapInfraestructuraPage(props: {
     return puntos
   }, [escuelaResaltada, parteSeleccionado])
 
+  // Seleccionar desde un punto o el buscador abre la misma ficha y encuadre.
+  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
+    if (escuela.lat === null || escuela.lon === null) {
+      setAvisoBusqueda(
+        `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
+      )
+      setEscuelaResaltada(null)
+      setSeleccionCue(escuela.cueAnexo)
+      setFichaCerradaCue(null)
+      setFichaPestana(props.pestana)
+      encuadreRutaPendiente.current = escuela.cueAnexo
+      setControlsStackAbierto(false)
+      return
+    }
+    setAvisoBusqueda(null)
+    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
+    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
+    setSeleccionCue(escuela.cueAnexo)
+    setFichaCerradaCue(null)
+    setFichaPestana(props.pestana)
+    encuadreRutaPendiente.current = escuela.cueAnexo
+    setControlsStackAbierto(false)
+  }, [props.pestana])
+
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
     CAPA_PARTES_ID,
@@ -1313,6 +1134,7 @@ export default function MapInfraestructuraPage(props: {
     // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
     // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
     ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
+    ...(radarActivo ? [CAPA_PUNTOS_NIVEL_ID] : []),
     // Accesos territoriales: sus íconos se dibujan ENCIMA del departamento y
     // no estaban en la lista interactiva, así que el click pasaba de largo y
     // la feature que llegaba al handler era el polígono del departamento —
@@ -1355,21 +1177,15 @@ export default function MapInfraestructuraPage(props: {
     setCruceInfoClic(null)
 
     if (radarActivo) {
-      if (event.lngLat) window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
-      return
-    }
-
-    // Radar primero: la coropleta es una capa interactiva; el punto de riesgo
-    // ya no llega por acá (es un <Marker> DOM con su propio `onClick`, ver
-    // `marcadoresRiesgo`). En modo Radar las capas de partes pueden seguir
-    // montadas detrás (decisión 2: SUMAR), así que el orden importa.
-    if (radarActivo) {
-      const peligro = features.find((item) => item.layer?.id === CAPA_PELIGRO_FILL_ID)
-      const nombrePeligro = peligro?.properties?.nombre
-      if (typeof nombrePeligro === 'string') {
-        setDepartamentoRadarSeleccionado(nombrePeligro)
+      const puntoNivel = features.find((item) => item.layer?.id === CAPA_PUNTOS_NIVEL_ID)
+      const cue = puntoNivel?.properties?.cueAnexo
+      if (typeof cue === 'string') {
+        const escuela = dataEscuelasMapaVisible?.escuelas.find((item) => item.cueAnexo === cue)
+        if (escuela) handleSeleccionarEscuelaBuscada(escuela)
         return
       }
+      if (event.lngLat) window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
+      return
     }
 
     // Accesos territoriales, antes que partes/clusters y con `return`: sus
@@ -1385,6 +1201,7 @@ export default function MapInfraestructuraPage(props: {
     if (typeof cueTerritorial === 'string') {
       setSeleccionCue(cueTerritorial)
       setFichaCerradaCue(null)
+      setFichaPestana(props.pestana)
       encuadreRutaPendiente.current = cueTerritorial
       return
     }
@@ -1427,6 +1244,7 @@ export default function MapInfraestructuraPage(props: {
       // Clickear (incluso sobre la escuela ya seleccionada con la ficha
       // cerrada) reabre la ficha: es la misma intención que "Ver ficha".
       setFichaCerradaCue(null)
+      setFichaPestana(props.pestana)
       // Igual que al elegir desde el buscador: la ruta de esta escuela se
       // encuadra sola cuando su geometría llegue.
       encuadreRutaPendiente.current = cue
@@ -1452,51 +1270,19 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [
     radarActivo,
+    dataEscuelasMapaVisible,
+    handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
     setDepartamentoInfoClic,
     setClusterInfoClic,
     setCruceInfoClic,
-    setDepartamentoRadarSeleccionado,
     setSeleccionCue,
     setPuntosVisibles,
     setDepartamentoSeleccionado,
     setFichaCerradaCue,
+    setFichaPestana,
+    props.pestana,
   ])
-
-  // Seleccionar una escuela desde el buscador: mismo criterio que el click
-  // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
-  // ficha, exista o no afectación vigente para ese cueAnexo.
-  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
-    // Sin coordenadas no hay punto al que volar ni anillo que resaltar, pero
-    // la ficha sigue teniendo sentido (dato propio, aunque no se pueda
-    // situar en el mapa). Antes el handler salía acá y el usuario no veía
-    // NADA pasar: se entendía como "el buscador anda mal" cuando en realidad
-    // faltaba la geolocalización del padrón.
-    if (escuela.lat === null || escuela.lon === null) {
-      setAvisoBusqueda(
-        `La escuela "${escuela.nombre}" no tiene ubicación cargada: se muestra la ficha, pero no se puede señalar en el mapa.`,
-      )
-      setEscuelaResaltada(null)
-      setSeleccionCue(escuela.cueAnexo)
-      setFichaCerradaCue(null)
-      // La ruta OSM se calcula por red vial, no por la coordenada del padrón:
-      // si existe, se puede encuadrar igual.
-      encuadreRutaPendiente.current = escuela.cueAnexo
-      setControlsStackAbierto(false)
-      return
-    }
-    setAvisoBusqueda(null)
-    setEscuelaResaltada({ cueAnexo: escuela.cueAnexo, lng: escuela.lon, lat: escuela.lat })
-    mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
-    setSeleccionCue(escuela.cueAnexo)
-    setFichaCerradaCue(null)
-    // La geometría de la ruta se pide después de este render: se deja
-    // anotado el cue y el efecto de encuadre la encuadra cuando llegue
-    // (ver más abajo). Con la capa de ruta apagada no hay nada que encuadrar
-    // y el flyTo a la escuela es la respuesta correcta.
-    encuadreRutaPendiente.current = escuela.cueAnexo
-    setControlsStackAbierto(false)
-  }, [])
 
   useEffect(() => {
     props.onRegistrarSeleccion?.(handleSeleccionarEscuelaBuscada)
@@ -1974,40 +1760,14 @@ export default function MapInfraestructuraPage(props: {
             )
           })}
 
-          {/*
-            Riesgo climático por escuela: un TriangleAlert Lucide coloreado por
-            nivel (paleta de peligro vía `colorPuntoRiesgo`), en un <Marker>
-            DOM. Reemplaza el par circle+halo de MapLibre — dos formas apiladas
-            por punto. Se posiciona arriba-izquierda para no chocar con el
-            badge de estado (arriba-derecha). Clickeable: abre el panel de
-            explicación por escuela. Los `sin_dato` ya vienen filtrados en
-            `marcadoresRiesgo`.
-          */}
-          {false && radarActivo && capasRadarVisibles.riesgo && marcadoresRiesgo.map((marcador) => (
-            <Marker
-              key={marcador.cueAnexo}
-              longitude={marcador.lng}
-              latitude={marcador.lat}
-              anchor="center"
-              offset={[-11, -11]}
-            >
-              <button
-                type="button"
-                data-capa={CAPA_RIESGO_ICONO_ID}
-                style={estiloIconoRiesgo()}
-                aria-label={`Riesgo ${marcador.nivelRiesgo}: ${marcador.cueAnexo}`}
-                title={`Riesgo ${marcador.nivelRiesgo}`}
-                onClick={() => setCueRadarSeleccionado(marcador.cueAnexo)}
-              >
-                <TriangleAlert
-                  size={TAMANO_ICONO_RIESGO}
-                  strokeWidth={2.4}
-                  color={colorPuntoRiesgo(marcador.nivelRiesgo)}
-                  aria-hidden="true"
-                />
-              </button>
-            </Marker>
-          ))}
+          {radarActivo && (
+            <CapaPuntosNivel
+              idCapa={CAPA_PUNTOS_NIVEL_ID}
+              idFuente={FUENTE_PUNTOS_NIVEL_ID}
+              puntos={puntosNivel}
+              oscuro={mode === 'dark'}
+            />
+          )}
 
           <RadarMeteo activo={radarActivo} escuelas={dataEscuelasMapa?.escuelas ?? []} />
 
@@ -2146,19 +1906,17 @@ export default function MapInfraestructuraPage(props: {
           )}
           <PanelLateral
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
-            seleccion={modoRadar ? cueRadarSeleccionado : fichaAbierta ? seleccionCue : null}
-            onCerrarFicha={modoRadar
-              ? () => setCueRadarSeleccionado(null)
-              : cerrarFicha}
-            ficha={!modoRadar && fichaAbierta && escuelaSeleccionada ? (
+            seleccion={fichaAbierta ? seleccionCue : null}
+            onCerrarFicha={cerrarFicha}
+            ficha={fichaAbierta && escuelaSeleccionada ? (
               <FichaEscuelaPanel
                 key={seleccionCue}
                 escuela={escuelaSeleccionada}
                 acceso={(
                   <BloqueAcceso
-                    geometria={hazardOn ? geometria : null}
-                    exposicion={hazardOn ? exposicion : null}
-                    cargando={hazardOn && (geometriaLoading || exposicionLoading)}
+                    geometria={geometria}
+                    exposicion={exposicion}
+                    cargando={geometriaLoading || exposicionLoading}
                     error={Boolean(geometriaError)}
                   />
                 )}
@@ -2170,8 +1928,19 @@ export default function MapInfraestructuraPage(props: {
             ) : undefined}
             actual={panelActual}
             radar={(
-              // La Task 16 reemplaza este contenido por el panel real; hasta entonces no ocupa espacio.
-              <div className="map-panel-radar" data-testid="panel-radar" hidden />
+              <PanelRadar
+                horizonte={horizonteEfectivo}
+                disponibles={horizontesDisponibles}
+                onHorizonte={setHorizonteSeleccionado}
+                puntos={radarData?.puntos ?? null}
+                escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
+                cargando={radarLoading && radarData === null}
+                error={radarError}
+                onSeleccionar={(cue) => {
+                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+                }}
+              />
             )}
             planificacion={panelActual}
           />
@@ -2238,7 +2007,10 @@ export default function MapInfraestructuraPage(props: {
               variant="secondary"
               data-testid="reabrir-ficha"
               aria-label={`Reabrir la ficha de ${escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}`}
-              onClick={() => setFichaCerradaCue(null)}
+              onClick={() => {
+                setFichaPestana(props.pestana)
+                setFichaCerradaCue(null)
+              }}
             >
               Ver ficha
             </Button>
@@ -2251,6 +2023,7 @@ export default function MapInfraestructuraPage(props: {
                 setSeleccionCue(null)
                 setEscuelaResaltada(null)
                 setFichaCerradaCue(null)
+                setFichaPestana(null)
                 setAvisoBusqueda(null)
                 setCruceInfoClic(null)
               }}

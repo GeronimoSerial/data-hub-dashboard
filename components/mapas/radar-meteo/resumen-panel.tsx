@@ -16,12 +16,6 @@ export type DiaDepartamento = {
     lluvia: 'atencion' | 'importante' | null
     rafaga: 'atencion' | 'importante' | null
   }
-  ensamble?: {
-    pMayor25?: number | null
-    p10?: number | null
-    p90?: number | null
-    miembrosValidos?: number | null
-  } | null
 }
 
 export type DepartamentoResumen = {
@@ -72,10 +66,6 @@ function etiquetaDia(dia: string) {
   }).format(new Date(`${dia}T12:00:00-03:00`))
 }
 
-function porcentaje(probabilidad: number) {
-  return `${Math.round(probabilidad * 100)} %`
-}
-
 function maxLluvia48h(departamento: DepartamentoResumen) {
   return Math.max(0, ...departamento.proximas48h.map((hora) => hora.lluviaMm ?? 0))
 }
@@ -95,13 +85,11 @@ export function ResumenPanel({
   departamentos,
   dias,
   actualizadoHace,
-  verificacion,
   onDepartamento,
 }: {
   departamentos: DepartamentoResumen[]
   dias: string[]
   actualizadoHace: number | null
-  verificacion?: { estado: 'ok' | 'muestra_insuficiente' | 'sin_datos'; sesgoMm: number | null; pod: number | null; far: number | null; nPares: number; nEventos: number; desde: string; hasta: string }
   onDepartamento?: (id: string) => void
 }) {
   const [vista, setVista] = useState<'dias' | 'horas'>('dias')
@@ -125,9 +113,8 @@ export function ResumenPanel({
     <section className={`radar-resumen${abierto ? ' is-open' : ''}`} aria-label="Pronóstico por departamento">
       <header className="radar-resumen-header">
         <div>
-          <span className="radar-kicker">PRONÓSTICO DE MODELO</span>
           <h2>Pronóstico por departamento</h2>
-          <small>{actualizadoHace === null ? 'Sin corrida de pronóstico' : `Actualizado hace ${actualizadoHace} min`}</small>
+          <small>{actualizadoHace === null ? 'Sin actualización reciente' : `Actualizado hace ${actualizadoHace} min`}</small>
         </div>
         <div className="radar-resumen-tabs" role="group" aria-label="Período del pronóstico">
           <button type="button" aria-pressed={vista === 'horas'} onClick={() => setVista('horas')}>
@@ -158,7 +145,7 @@ export function ResumenPanel({
       <div className="radar-resumen-table-wrap">
         {departamentos.length === 0 && (
           <p className="radar-resumen-empty" role="status">
-            El pronóstico por departamento aparecerá cuando haya una corrida disponible.
+            Todavía no hay un pronóstico disponible.
           </p>
         )}
         <table className="radar-resumen-table">
@@ -170,7 +157,7 @@ export function ResumenPanel({
                   const parcial = departamentos.some((depto) => (depto.dias.find((item) => item.fecha === dia)?.cobertura ?? 100) < 100)
                   return <th scope="col" key={dia}>{etiquetaDia(dia)}{parcial && <small className="radar-dia-parcial"> parcial</small>}</th>
                 })
-                : <th scope="col">48 h · lluvia media por hora</th>}
+                : <th scope="col">Lluvia por hora en las próximas 48 h</th>}
             </tr>
           </thead>
           <tbody>
@@ -184,11 +171,8 @@ export function ResumenPanel({
                 </th>
                 {vista === 'dias' ? depto.dias.map((dia) => {
                   const threshold = dia.resaltado.lluvia !== null || (dia.rafagaMaxKmh ?? 0) >= 60
-                  const p25 = dia.ensamble?.pMayor25 ?? null
                   const detalle = `${depto.nombre}: ${formatearLluviaMm(dia.lluvia24h)}/día; máximo local `
-                    + `${formatearLluviaMm(dia.lluviaLocalMax)}; pico ${horaCorta(dia.picoHora)}; `
-                    + `cobertura ${dia.cobertura}%; ${p25 !== null && p25 >= 0.05 ? `P≥25 ${porcentaje(p25)}; ` : ''}`
-                    + `ensamble ${dia.ensamble?.miembrosValidos ?? '—'} miembros`
+                    + `${formatearLluviaMm(dia.lluviaLocalMax)}; hora de mayor lluvia ${horaCorta(dia.picoHora)}`
                   return (
                     <td key={dia.fecha}>
                       <button
@@ -201,7 +185,6 @@ export function ResumenPanel({
                         <strong className={threshold ? 'threshold' : ''}>
                           {formatearLluviaMm(dia.lluvia24h)}
                         </strong>
-                        {p25 !== null && p25 >= 0.05 && <small>P≥25 {porcentaje(p25)}</small>}
                         <small>
                           {dia.rafagaMaxKmh === null ? '—' : `↗ ${dia.rafagaMaxKmh}`}
                           {dia.tormenta ? ' ⛈' : ''}{dia.granizoMax ? ' ◈' : ''}
@@ -247,9 +230,7 @@ export function ResumenPanel({
           {vista === 'dias' ? seleccionado.dias.map((dia) => (
             <p key={dia.fecha}>
               {dia.fecha}: área {dia.lluvia24h ?? '—'} mm · máximo local {dia.lluviaLocalMax ?? '—'} mm ·
-              pico {horaCorta(dia.picoHora)} · cobertura {dia.cobertura}% · ensamble p10–p90
-              {' '}{dia.ensamble?.p10 ?? '—'}–{dia.ensamble?.p90 ?? '—'} mm,
-              {' '}{dia.ensamble?.miembrosValidos ?? '—'} miembros
+              hora de mayor lluvia {horaCorta(dia.picoHora)}
             </p>
           )) : (
             maxLluvia48h(seleccionado) < 0.1
@@ -261,20 +242,6 @@ export function ResumenPanel({
           )}
         </div>
       )}
-      <p className="radar-resumen-note">
-        P≥25 mm proviene de un piloto de ensamble ECMWF (50 escenarios), a nivel de departamento.
-        Los umbrales resaltan valores; no son alertas oficiales.
-      </p>
-      <footer className="radar-verificacion">
-        <strong>Precisión reciente (verificación con IMERG)</strong>
-        <span title="IMERG es una estimación de precipitación por satélite, no una medición de pluviómetro.">
-          {verificacion?.estado === 'ok' ? (
-            <>El pronóstico {verificacion.sesgoMm === 0 ? 'coincide' : verificacion.sesgoMm! > 0 ? `sobreestima ${Math.abs(verificacion.sesgoMm!)} mm/día` : `subestima ${Math.abs(verificacion.sesgoMm!)} mm/día`} en promedio; detecta {Math.round((verificacion.pod ?? 0) * 100)}% de los días ≥10 mm (POD) y {Math.round((verificacion.far ?? 0) * 100)}% de falsas alarmas (FAR). n={verificacion.nPares}; {verificacion.desde}–{verificacion.hasta}.</>
-          ) : verificacion?.estado === 'muestra_insuficiente' ? (
-            <>Aún sin muestra suficiente ({verificacion.nPares} de 14 días, {verificacion.nEventos} de 5 eventos).</>
-          ) : 'Aún no hay datos para verificar el pronóstico.'}
-        </span>
-      </footer>
     </section>
   )
 }

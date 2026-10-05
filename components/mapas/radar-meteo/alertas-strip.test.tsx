@@ -23,6 +23,6 @@ describe('franja de alertas oficiales', () => {
     expect(chip).not.toHaveClass('nivel-yellow')
     fireEvent.click(chip)
     expect(screen.getByText('Tormentas fuertes')).toBeInTheDocument()
-    expect(screen.getByText(/Fuente: SMN/)).toBeInTheDocument()
+    expect(screen.queryByText(/Fuente:/i)).not.toBeInTheDocument()
   })
 })

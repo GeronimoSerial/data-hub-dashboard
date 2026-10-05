@@ -8,6 +8,7 @@ import {
   expresionConteoCluster,
   filtroIconoEscuelaAfectada,
 } from './map-infraestructura-page'
+import { paintPuntosNivel } from './capa-puntos-nivel'
 
 describe('estilo del mapa de infraestructura', () => {
   it('valida las expresiones de las capas de infraestructura con MapLibre', () => {
@@ -46,6 +47,18 @@ describe('estilo del mapa de infraestructura', () => {
           type: 'circle',
           source: 'infra',
           paint: circlePaintEscuelasSinReporte(false),
+        },
+        {
+          id: 'infra-puntos-nivel-claro',
+          type: 'circle',
+          source: 'infra',
+          paint: paintPuntosNivel(false),
+        },
+        {
+          id: 'infra-puntos-nivel-oscuro',
+          type: 'circle',
+          source: 'infra',
+          paint: paintPuntosNivel(true),
         },
         {
           id: 'infra-icono-escuela-afectada',

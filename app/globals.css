@@ -212,6 +212,14 @@
 .map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
+/* Control segmentado compartido por Radar y Planificación. */
+.map-seg { display: flex; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.map-seg__opcion { flex: 1 1 0; min-width: 0; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; }
+.map-seg__opcion[aria-pressed='true'] { background: var(--page); color: var(--ink); box-shadow: 0 1px 2px var(--line); }
+.map-seg__opcion[aria-disabled='true'] { color: var(--ink-faint); cursor: not-allowed; }
+.map-seg__opcion:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+[data-theme='dark'] .map-seg__opcion:focus-visible { outline-color: var(--marker); }
+
 /* Ficha de escuela dentro del panel lateral del mapa. */
 .map-ficha-escuela { display: grid; align-content: start; gap: var(--s-4); }
 .map-ficha-escuela__back { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; justify-self: start; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--t-small); font-weight: 600; cursor: pointer; }
@@ -2147,9 +2155,6 @@ time {
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-}
-.map-panel-radar {
-  display: none;
 }
 .radar-meteo-controls { top:16px; left:58px; padding:8px; display:flex; align-items:center; gap:8px; }
 .radar-meteo-segments { display:flex; gap:3px; }
