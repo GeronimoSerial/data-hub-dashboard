@@ -1321,6 +1321,29 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
 
 })
 
+describe('MapInfraestructuraPage — textos visibles con contexto completo', () => {
+  it.each(['actual', 'radar', 'planificacion'] as const)(
+    'no muestra textos técnicos con la ficha abierta en la pestaña %s',
+    async (pestana) => {
+      await renderMapa({
+        mostrarEnlaceNominal: true,
+        hazardContextEnabled: true,
+        riskRadarEnabled: true,
+        pestana,
+      })
+
+      await seleccionarPorBuscador('Escuela 1')
+      await userEvent.click(screen.getByTestId('mock-click-cruce'))
+
+      const mapa = document.querySelector('.map-shell')
+      expect(mapa).not.toBeNull()
+      expect(mapa?.textContent).not.toMatch(
+        /vencid|fuente|extracto|corrida|ODbL|arcsec|Aqueduct|OpenStreetMap|\bOSM\b|physrisk|per[ií]odo de retorno|metodolog/i,
+      )
+    },
+  )
+})
+
 // Q1: la ficha abierta/cerrada pasó a ser un estado DISTINTO del de selección.
 describe('Q1: cerrar la ficha conserva la selección', () => {
   it('cerrar la ficha no borra la selección: aparece "Ver ficha"', async () => {

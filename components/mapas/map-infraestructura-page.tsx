@@ -76,7 +76,6 @@ import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
-  LeyendaAccesos,
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
@@ -1854,15 +1853,6 @@ export default function MapInfraestructuraPage(props: {
             <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
               {avisoBusqueda}
             </p>
-          )}
-          {hazardOn && (
-            <LeyendaAccesos
-              visibles={CAPAS_ACCESOS_OCULTAS}
-              territorio={territorio}
-              territorioLoading={territorioLoading}
-              territorioError={territorioError}
-              resumen={null}
-            />
           )}
           <PanelLateral
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
