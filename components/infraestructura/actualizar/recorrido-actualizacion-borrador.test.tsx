@@ -110,7 +110,7 @@ describe('RecorridoActualizacion: borrador local', () => {
     expect(screen.getByRole('button', { name: 'Continuar donde lo dejé' })).toBeInTheDocument()
     expect(localStorage.getItem(CLAVE)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Descartar actualización' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Sí, descartar' }))
     await waitFor(() => expect(localStorage.getItem(CLAVE)).toBeNull())
   })
 

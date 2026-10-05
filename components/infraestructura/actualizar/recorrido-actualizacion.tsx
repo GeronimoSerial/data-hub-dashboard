@@ -612,8 +612,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       />
       <ConfirmSheet
         open={confirmarDescarte}
-        titulo="¿Descartar la actualización guardada?"
-        confirmarLabel="Descartar actualización"
+        titulo="¿Descartar el parte sin enviar?"
+        confirmarLabel="Sí, descartar"
         cancelarLabel="Cancelar"
         onCancelar={() => setConfirmarDescarte(false)}
         onConfirmar={() => {
@@ -627,7 +627,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           setConfirmarDescarte(false)
         }}
       >
-        <p>Se borrarán las respuestas que había guardado.</p>
+        <p>Se pierde lo que cargó y no se envía nada.</p>
       </ConfirmSheet>
     </div>
   )
