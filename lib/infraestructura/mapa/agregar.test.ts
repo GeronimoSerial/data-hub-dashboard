@@ -162,10 +162,18 @@ describe('agrupar', () => {
 
   it('usa etiquetas de gravedad y la categoría predeterminada, y devuelve vacío para padrón vacío', () => {
     expect(agrupar([
-      escuela({ gravedad: 4, categoriaPrincipal: 'Infraestructura' }),
+      escuela({ gravedad: 4, categoriaPrincipal: 'establecimiento' }),
       escuela({ cueAnexo: 'sin-reporte', gravedad: 0, categoriaPrincipal: null }),
     ], 'gravedad').map(({ clave }) => clave)).toEqual(['Crítica', 'Sin reporte'])
     expect(agrupar([escuela({ categoriaPrincipal: null })], 'categoria').map(({ clave }) => clave)).toEqual(['Sin categoría'])
+    expect(agrupar([
+      escuela({ categoriaPrincipal: 'establecimiento' }),
+      escuela({ cueAnexo: 'alumnos', categoriaPrincipal: 'alumnos' }),
+      escuela({ cueAnexo: 'establecimiento-2', categoriaPrincipal: 'establecimiento' }),
+    ], 'categoria').map(({ clave, escuelas }) => ({ clave, escuelas }))).toEqual([
+      { clave: 'establecimiento', escuelas: 2 },
+      { clave: 'alumnos', escuelas: 1 },
+    ])
     expect(agrupar([], 'departamento')).toEqual([])
   })
 })

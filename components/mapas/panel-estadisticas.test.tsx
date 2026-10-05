@@ -17,19 +17,19 @@ vi.mock('@/components/infraestructura/evolucion-panel', () => ({
 const escuelas: EscuelaMapaEnriquecida[] = [
   {
     cueAnexo: '100', nombre: 'Escuela Alta', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
-    niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 3, categoriaPrincipal: 'Anegamiento',
+    niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 3, categoriaPrincipal: 'establecimiento',
     clases: 'sin', apoyo: 'virtual', sinActualizar: true, ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 50,
     situacionesHistoricas: 0,
   },
   {
     cueAnexo: '200', nombre: 'Escuela Parcial', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
-    niveles: ['Secundario'], alumnos: 60, gravedad: 3, categoriaPrincipal: 'Camino',
+    niveles: ['Secundario'], alumnos: 60, gravedad: 3, categoriaPrincipal: 'alumnos',
     clases: 'parcial', apoyo: 'cuadernillo', sinActualizar: false, ultimaNovedad: '2026-10-05T14:00:00.000Z', alumnosSinClases: 10,
     situacionesHistoricas: 0,
   },
   {
     cueAnexo: '300', nombre: 'Escuela Baja', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null,
-    niveles: ['Inicial'], alumnos: 30, gravedad: 1, categoriaPrincipal: 'Otro',
+    niveles: ['Inicial'], alumnos: 30, gravedad: 1, categoriaPrincipal: 'establecimiento',
     clases: 'evacuado', apoyo: 'no', sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 30,
     situacionesHistoricas: 0,
   },
@@ -98,6 +98,18 @@ describe('PanelEstadisticas', () => {
     expect(within(tabla).getByRole('row', { name: /Primario/ })).toBeInTheDocument()
     expect(within(tabla).getByRole('row', { name: /Inicial/ })).toBeInTheDocument()
     expect(screen.getByText('Una escuela puede tener más de un nivel.')).toBeInTheDocument()
+  })
+
+  it('traduce las categorías al agrupar sin exponer sus claves internas', () => {
+    render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Categoría' }))
+
+    const tabla = screen.getByRole('table')
+    expect(within(tabla).getByRole('row', { name: /Afecta al establecimiento/ })).toBeInTheDocument()
+    expect(within(tabla).getByRole('row', { name: /Inaccesibilidad de alumnos/ })).toBeInTheDocument()
+    expect(within(tabla).queryByText('establecimiento', { selector: 'th[scope="row"]' })).not.toBeInTheDocument()
+    expect(within(tabla).queryByText('alumnos', { selector: 'th[scope="row"]' })).not.toBeInTheDocument()
+    expect(within(tabla).getByRole('row', { name: /Sin categoría/ })).toBeInTheDocument()
   })
 
   it('muestra estados vacíos sin tabla', () => {

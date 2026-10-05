@@ -1,4 +1,5 @@
 import type { EstadoClases, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
+import { severidadDeGravedad } from './gravedad'
 
 const ETIQUETAS_DEPARTAMENTO: Record<string, string> = {
   'BELLA VISTA': 'Bella Vista',
@@ -43,11 +44,11 @@ export function etiquetaDepartamento(valor: string): string {
 }
 
 export const ETIQUETA_GRAVEDAD: Record<GravedadMapa, string> = {
-  4: 'Crítica',
-  3: 'Alta',
-  2: 'Media',
-  1: 'Baja',
   0: 'Sin reporte',
+  1: severidadDeGravedad(1) ?? '',
+  2: severidadDeGravedad(2) ?? '',
+  3: severidadDeGravedad(3) ?? '',
+  4: severidadDeGravedad(4) ?? '',
 }
 
 export const ETIQUETA_CLASES: Record<EstadoClases, string> = {

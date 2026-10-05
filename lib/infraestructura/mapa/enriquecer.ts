@@ -4,7 +4,6 @@ import type {
   AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
-  Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import type {
@@ -13,13 +12,7 @@ import type {
   EscuelaMapaEnriquecida,
   GravedadMapa,
 } from './tipos'
-
-const GRAVEDAD_POR_SEVERIDAD: Record<Severidad, GravedadMapa> = {
-  Baja: 1,
-  Media: 2,
-  Alta: 3,
-  Crítica: 4,
-}
+import { gravedadDeSeveridad } from './gravedad'
 
 export function derivarClases(
   estado: EstadoEstablecimiento,
@@ -67,7 +60,7 @@ function situacionPrincipalDe(parte: ParteMapa | undefined) {
 
 export function gravedadDe(parte: ParteMapa | undefined): GravedadMapa {
   const principal = situacionPrincipalDe(parte)
-  return principal ? GRAVEDAD_POR_SEVERIDAD[principal.severidad] : 0
+  return principal ? gravedadDeSeveridad(principal.severidad) : 0
 }
 
 export function enriquecerEscuela(
@@ -90,7 +83,7 @@ export function enriquecerEscuela(
     lon: e.lon,
     niveles,
     alumnos: extra.alumnos,
-    gravedad: principal ? GRAVEDAD_POR_SEVERIDAD[principal.severidad] : 0,
+    gravedad: principal ? gravedadDeSeveridad(principal.severidad) : 0,
     categoriaPrincipal: principal?.categoria ?? null,
     clases,
     apoyo: derivarApoyo(clases, extra.asistencia),

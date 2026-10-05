@@ -21,7 +21,7 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - [x] A3 Hallazgos 2, 12: "desde" con `situacionPrincipal` + `creadaEn`, formato absoluto
 - [x] A4 Hallazgo 4: tinta por gravedad + test de contraste ≥ 4,5:1
 - [x] A5 Hallazgos 5, 16: sección Situaciones completa + edificio en la ficha
-- [ ] A6 Hallazgos 8, 14: Estadísticas con etiquetas traducidas; gravedad desde `SEVERIDADES`
+- [x] A6 Hallazgos 8, 14: Estadísticas con etiquetas traducidas; gravedad desde `SEVERIDADES`
 - [ ] A7 D1 Sin dato + hallazgos 6 y 9
 - [ ] A8 D2 clases/edificio + hallazgo 7
 - [ ] A9 D3 vocabulario + hallazgos 10, 11 + comentarios viejos
@@ -61,3 +61,4 @@ D1 Sin dato de asistencia pedagógica · D2 verificar clases/edificio desactuali
 - **A3** — La ficha usa `situacionPrincipal` (criterio único) y `desde()` del parte (export de una palabra en `entrada-actualizar.tsx`); `creadaEn` se expone en el endpoint del mapa `parte/route.ts` y en `AfectacionFicha`. Hallazgo 2 confirmado (la API de la ficha no mandaba `creadaEn`). Evidencia: vitest ficha + endpoint parte 26/26, tsc limpio.
 - **A4** — La banda usa `TINTA_POR_SEVERIDAD` (export de una palabra); test de contraste calculado WCAG ≥ 4,5:1 en los 4 niveles (6,93 / 5,84 / 4,83 / 10,02). Evidencia: vitest 25/25, tsc limpio.
 - **A5** — Ficha: por situación motivo, `EstadoActualSeveridad`, alcance (`resumirAlcance`), desde absoluto, causada por, descripción (antes "Afecta"), categoría; "Última novedad" una sola vez; fila "Edificio" con `ETIQUETA_ESTABLECIMIENTO`. El endpoint del mapa expone `causadaPorId`. Evidencia: vitest 24/24 + endpoint, tsc limpio.
+- **A6** — Estadísticas traduce la categoría con `CATEGORIA_META`; la gravedad se deriva de `SEVERIDADES` (`lib/infraestructura/mapa/gravedad.ts`) y reemplaza las tres tablas duplicadas; fixtures con valores reales. Evidencia: vitest components/mapas + lib/infraestructura/mapa 342/342, tsc limpio.

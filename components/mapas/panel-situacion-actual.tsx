@@ -7,7 +7,8 @@ import { etiquetaDepartamento, ETIQUETA_CLASES } from '@/lib/infraestructura/map
 import { ordenarReportes, resumir } from '@/lib/infraestructura/mapa/agregar'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
-import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
+import { severidadDeGravedad } from '@/lib/infraestructura/mapa/gravedad'
+import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 
 interface PanelSituacionActualProps {
   escuelas: EscuelaMapaEnriquecida[]
@@ -29,14 +30,6 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
 })
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
-const NOMBRE_SEVERIDAD: Record<GravedadMapa, string> = {
-  0: '',
-  1: 'Baja',
-  2: 'Media',
-  3: 'Alta',
-  4: 'Crítica',
-}
-
 function horaActualizacion(iso: string, ahoraMs: number): string {
   const fecha = new Date(iso)
   if (!Number.isFinite(fecha.getTime())) return ''
@@ -131,6 +124,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
         {reportes.length > 0 ? (
           <div className="map-sitact__lista">
             {reportes.map((escuela) => {
+              const severidad = severidadDeGravedad(escuela.gravedad)
               const nivel = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
               const novedad = escuela.ultimaNovedad ? tiempoRelativo(escuela.ultimaNovedad, ahoraMs) : ''
               const departamento = etiquetaDepartamento(escuela.departamento)
@@ -142,7 +136,10 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
                   onClick={() => onSeleccionar(escuela.cueAnexo)}
                   aria-label={`${escuela.nombre}, ${departamento}${nivel}`}
                 >
-                  <span className="map-sitact__franja" style={{ backgroundColor: colorSeveridad(NOMBRE_SEVERIDAD[escuela.gravedad]) }} />
+                  <span
+                    className="map-sitact__franja"
+                    style={severidad ? { backgroundColor: colorSeveridad(severidad) } : undefined}
+                  />
                   <span className="map-sitact__contenido-fila">
                     <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                     <span className="map-sitact__meta">{departamento}{nivel}</span>

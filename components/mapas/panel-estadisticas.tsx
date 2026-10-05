@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { agrupar, resumir, type AgruparPor } from '@/lib/infraestructura/mapa/agregar'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import type { EscuelaMapaEnriquecida, FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 
 // Los gráficos se cargan al abrir Estadísticas para no sumar su peso al mapa inicial.
@@ -30,7 +31,9 @@ const ETIQUETAS_AGRUPACION: Record<AgruparPor, string> = {
 }
 
 function etiquetaFila(clave: string, por: AgruparPor): string {
-  return por === 'departamento' ? etiquetaDepartamento(clave) : clave
+  if (por === 'departamento') return etiquetaDepartamento(clave)
+  if (por === 'categoria' && esCategoria(clave)) return CATEGORIA_META[clave].label
+  return clave
 }
 
 export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapaEnriquecida[]; filtros: FiltrosMapa }) {
