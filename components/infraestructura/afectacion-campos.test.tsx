@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CamposQuePaso, crearAfectacionVacia, TEXTO_CONFIRMAR_CATEGORIA, type AfectacionBorrador } from './afectacion-campos'
+import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, TEXTO_CONFIRMAR_CATEGORIA, type AfectacionBorrador } from './afectacion-campos'
 import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 
@@ -30,6 +30,45 @@ function renderCamposQuePaso({
 
 afterEach(() => {
   document.body.innerHTML = ''
+})
+
+describe('CamposAQuienAfecta — selector legado', () => {
+  it('no ofrece desplegar alumnos para categoría establecimiento', () => {
+    const borrador = { ...crearAfectacionVacia('a1'), categoria: 'establecimiento' as const }
+    const turnos = [
+      {
+        turno: 'Mañana',
+        niveles: [
+          {
+            nivel: 'Primaria',
+            secciones: [
+              {
+                geSectionId: 10,
+                curso: '1°',
+                division: 'A',
+                nivel: 'Primaria',
+                turno: 'Mañana',
+                matricula: 1,
+                alumnos: [{ gePersonId: 1, nombre: 'Ana', apellido: 'Gómez' }],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    render(
+      <CamposAQuienAfecta
+        borrador={borrador}
+        idPrefijo="reporte"
+        turnos={turnos}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /elegir alumnos/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Gómez, Ana/ })).not.toBeInTheDocument()
+  })
 })
 
 /*

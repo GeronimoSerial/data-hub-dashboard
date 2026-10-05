@@ -44,6 +44,7 @@ function completarAQuienAfecta(categoria: 'alumnos' | 'establecimiento' = 'estab
     fireEvent.click(screen.getByRole('checkbox', { name: `${alumno.apellido}, ${alumno.nombre}` }))
     return
   }
+  fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
   fireEvent.click(screen.getByRole('checkbox', { name: /1° "A"/ }))
 }
 
@@ -104,7 +105,7 @@ describe('ReporteInicialForm', () => {
     renderFormulario({ turnos: unaSeccion })
     completarQuePaso()
     continuar()
-    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     continuar()
     fireEvent.click(screen.getByRole('radio', { name: 'Establecimiento evacuado' }))
     expect(screen.queryByText(/solo algunas secciones/i)).toBeNull()

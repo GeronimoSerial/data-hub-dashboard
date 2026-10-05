@@ -9,6 +9,7 @@ import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
 import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
 import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
+import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
@@ -278,12 +279,14 @@ export function CamposQuePaso({
 
 export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
+  usaSelectorEstablecimiento?: boolean
 }
 
 export function CamposAQuienAfecta({
   borrador,
   idPrefijo,
   turnos,
+  usaSelectorEstablecimiento = false,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
@@ -327,6 +330,40 @@ export function CamposAQuienAfecta({
               }
             }}
           />
+        </div>
+      ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
+        <div className="afectacion-campos__grupo">
+          <Label>¿A quién afecta?</Label>
+          <SelectorEstablecimiento
+            turnos={turnos}
+            valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}
+            onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
+            disabled={disabled}
+          />
+          <AvisosRedSeguridad
+            avisos={evaluarRedesSeguridad({
+              categoria: 'establecimiento',
+              alumnosMarcados: 0,
+              matricula: matriculaDisponible,
+              seccionesMarcadas: borrador.secciones.length,
+              seccionesTotales: seccionesDisponibles.length,
+              alcanceEstablecimiento: borrador.alcanceEstablecimiento,
+            })}
+            onAccion={(tipo) => {
+              if (tipo === 'marcar-toda-la-escuela') {
+                onChange({
+                  ...borrador,
+                  alcanceEstablecimiento: 'toda',
+                  secciones: seccionesDisponibles.map((s) => s.geSectionId),
+                  alumnos: [],
+                })
+              }
+            }}
+          />
+          <p className="afectacion-borrador__resumen" aria-live="polite">
+            Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+            {matriculaDisponible} alumnos
+          </p>
         </div>
       ) : (
         <div className="afectacion-campos__grupo">

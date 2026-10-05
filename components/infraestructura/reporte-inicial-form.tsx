@@ -304,7 +304,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // Evacuating while only some sections are marked needs an explicit
   // confirmation; marking every section already means the whole school.
   const evacuaEstablecimiento = estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados'
-  const marcaTodasLasSecciones = afectacion.secciones.length >= aplanarSecciones(turnos).length
+  const marcaTodasLasSecciones = afectacion.alcanceEstablecimiento === 'toda'
   const requiereConfirmarInterrupcion = evacuaEstablecimiento && !marcaTodasLasSecciones
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
@@ -498,6 +498,9 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
+      if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
+        return MENSAJE_FALTA_ALCANCE_AFECTACION
+      }
       if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
       if (afectacion.categoria === 'alumnos' && vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) {
         return MENSAJE_FUERA_DE_RANGO_VIGENCIA
@@ -651,6 +654,7 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
               borrador={afectacion}
               idPrefijo="reporte"
               turnos={turnos}
+              usaSelectorEstablecimiento
               onChange={cambiarAfectacion}
               disabled={enviando}
             />
