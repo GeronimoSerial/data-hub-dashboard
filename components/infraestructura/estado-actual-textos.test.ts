@@ -123,7 +123,7 @@ describe('sinSituacionEnSeguimiento', () => {
 })
 
 describe('vocabulary', () => {
-  it('shows "Funcionamiento escolar parcialmente interrumpido" as a derived label (spec §3.4)', () => {
+  it('shows "Funcionamiento parcialmente interrumpido" as a derived label (spec §3.4)', () => {
     expect(ETIQUETA_SERVICIO.parcial).toBe('Funcionamiento parcialmente interrumpido')
     expect(ETIQUETA_SERVICIO.normal).toBe('Funcionamiento habitual')
     expect(ETIQUETA_SERVICIO.suspendido).toBe('Funcionamiento interrumpido')
