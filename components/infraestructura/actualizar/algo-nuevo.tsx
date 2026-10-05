@@ -286,7 +286,7 @@ export function AlgoNuevo({
             ) : null}
           </fieldset>
           <div className="asistente__acciones">
-            <Button type="button" variant="ghost" onClick={() => setEtapa('datos')}>Volver</Button>
+            <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>Volver</Button>
             <Button type="button" onClick={terminar}>
               Continuar
             </Button>
@@ -338,7 +338,7 @@ export function AlgoNuevo({
             >
               Continuar
             </Button>
-            <Button type="button" variant="ghost" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>Volver</Button>
+            <Button type="button" variant="secondary" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>Volver</Button>
             {textoFaltantes ? <p id="algo-nuevo-faltantes" className="algo-nuevo__faltantes" role="status">{textoFaltantes}</p> : null}
           </div>
         </div>
