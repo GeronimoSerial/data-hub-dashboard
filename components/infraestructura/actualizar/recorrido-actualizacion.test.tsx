@@ -16,7 +16,7 @@ function estadoActual() {
       { id: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', descripcion: null, rigeDesde: '2026-10-03T10:00:00.000Z', creadaEn: '2026-10-03T10:00:00.000Z', causadaPorId: 'a', secciones: [], totales: { secciones: 0, alumnos: 0 } },
     ],
     recientes: [],
-    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', cambios: ['Se agregó "Sin energía o agua" · Severidad Media'] },
+    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', titulo: 'Sin energía o agua · Media · desde 07:00', cambios: ['Se agregó "Sin energía o agua" · Severidad Media'] },
   }
 }
 
@@ -46,7 +46,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
     expect(screen.getByText('¿Hay una situación nueva?')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     await waitFor(() => expect(fetchMock.mock.calls.filter(([, i]) => i?.method === 'POST')).toHaveLength(1))
     const [, init] = fetchMock.mock.calls.find(([, i]) => i?.method === 'POST')!
     const cuerpo = JSON.parse(init!.body as string)
@@ -127,7 +127,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     const cuerpo = await cuerpoDelPost(fetchMock)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ motivo: 'Tormenta severa', severidad: 'Alta', causadaPorId: 'a' })
     expect(cuerpo.afectacionesConfirmadas.sort()).toEqual(['a', 'b'])
@@ -182,7 +182,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Media' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
     fireEvent.click(screen.getByRole('button', { name: 'Listo' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar parte' }))
     const cuerpo = await cuerpoDelPost(fetchMock)
     expect(cuerpo.afectacionesNuevas[0]).toMatchObject({ motivo: 'Sin energía o agua' })
     expect(cuerpo.afectacionesNuevas[0].causadaPorId).toBeUndefined()

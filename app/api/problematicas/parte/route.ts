@@ -251,7 +251,7 @@ export async function GET(request: Request) {
     listarMovimientosDescritos(cue.value, corte.id),
   ])
   const ultimaCarga = movimientos[0]
-    ? { creadaEn: movimientos[0].creadaEn, cambios: movimientos[0].cambios }
+    ? { creadaEn: movimientos[0].creadaEn, titulo: movimientos[0].titulo, cambios: movimientos[0].cambios }
     : null
 
   return jsonNoStore(

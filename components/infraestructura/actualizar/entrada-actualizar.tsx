@@ -14,7 +14,7 @@ export interface EntradaActualizarProps {
   situaciones: SituacionRecorrido[]
   estadoEstablecimiento: EstadoEstablecimiento
   estadoServicio: EstadoServicioGeneral
-  ultimaCarga: { creadaEn: string; cambios: string[] } | null
+  ultimaCarga: { creadaEn: string; titulo: string; cambios: string[] } | null
   historial: MovimientoHistorial[]
   onActualizar: () => void
 }
@@ -28,7 +28,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
       {ultimaCarga ? (
         <p className="entrada-actualizar__ultima">
           Su última carga: <strong>{formatearMomentoHistorial(ultimaCarga.creadaEn)}</strong>
-          {ultimaCarga.cambios[0] ? ` · ${ultimaCarga.cambios[0]}` : null}
+          {ultimaCarga.titulo ? ` · ${ultimaCarga.titulo}` : null}
         </p>
       ) : null}
 

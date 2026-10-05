@@ -6,7 +6,7 @@ import type { DiffParte } from '@/lib/infraestructura/movimiento-diff'
 import type { MovimientoHistorial } from './historial-movimiento'
 
 const mov = (id: string, creadaEn: string, cambios: string[], severidad: MovimientoHistorial['severidad'] = null): MovimientoHistorial => ({
-  id, tipo: 'actualizacion', rol: 'director', creadaEn, rigeDesde: creadaEn, cambios, severidad,
+  id, tipo: 'actualizacion', rol: 'director', creadaEn, rigeDesde: creadaEn, titulo: 'Título de situación', cambios, severidad,
 })
 const movimientos = [
   mov('3', '2026-10-04T13:42:00.000Z', ['Se agregó "Evacuación preventiva" · Severidad Crítica'], 'Crítica'),
@@ -36,12 +36,12 @@ describe('LineaDeTiempo', () => {
   })
 
   it('agrupa cada movimiento con título destacado y detalles debajo', () => {
-    render(<LineaDeTiempo movimientos={[mov('detallado', '2026-10-04T13:42:00.000Z', ['Funcionamiento escolar normal', '3 secciones incorporadas', '88 alumnos incorporados'])]} />)
+    render(<LineaDeTiempo movimientos={[mov('detallado', '2026-10-04T13:42:00.000Z', ['Funcionamiento: habitual', '3 secciones incorporadas', '88 alumnos incorporados'])]} />)
     const entrada = document.querySelector('.linea-de-tiempo__entrada') as HTMLLIElement
     expect(entrada.querySelector('time')).toHaveTextContent('Hoy, 10:42')
     expect(entrada.querySelector('.linea-de-tiempo__titulo')?.tagName).toBe('P')
-    expect(entrada.querySelector('.linea-de-tiempo__titulo')).toHaveTextContent('Funcionamiento escolar normal')
-    expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(2)
+    expect(entrada.querySelector('.linea-de-tiempo__titulo')).toHaveTextContent('Título de situación')
+    expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(3)
   })
 
   it('muestra una fecha y hora unificadas por movimiento', () => {

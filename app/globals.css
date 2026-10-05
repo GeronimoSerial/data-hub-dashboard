@@ -3296,6 +3296,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--ink-soft);
 }
 
+.historial-movimiento__titulo {
+  margin: 0;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
 .historial-movimiento__cambios {
   list-style: none;
   margin: 0;

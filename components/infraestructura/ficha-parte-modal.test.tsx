@@ -82,7 +82,8 @@ function respuestaHistorial() {
         rol: 'director',
         creadaEn: '2026-08-01T12:00:00Z',
         rigeDesde: '2026-08-01T12:00:00Z',
-        cambios: ['Clases normales → Clases suspendidas'],
+        titulo: 'Inundación · Alta · desde 09:00',
+        cambios: ['Funcionamiento: habitual → interrumpido'],
       },
     ],
   }
@@ -176,7 +177,7 @@ describe('FichaParteModal', () => {
     stubFetch()
     renderFicha()
 
-    expect(await screen.findByText(/clases suspendidas/i)).toBeInTheDocument()
+    expect(await screen.findByText('Funcionamiento escolar interrumpido')).toBeInTheDocument()
     expect(screen.getByText(/^evacuado$/i)).toBeInTheDocument()
     expect(screen.getByText('Inundación')).toBeInTheDocument()
     expect(await screen.findByText(/3 secciones · 74 alumnos/)).toBeInTheDocument()
@@ -275,7 +276,7 @@ describe('FichaParteModal', () => {
     const onVerHistorial = vi.fn()
     renderFicha({ onVerHistorialCompleto: onVerHistorial })
 
-    expect(await screen.findByText('Clases normales → Clases suspendidas')).toBeInTheDocument()
+    expect(await screen.findByText('Funcionamiento: habitual → interrumpido')).toBeInTheDocument()
     await userEvent.click(await screen.findByRole('button', { name: 'Ver historial completo' }))
     expect(onVerHistorial).toHaveBeenCalledTimes(1)
   })

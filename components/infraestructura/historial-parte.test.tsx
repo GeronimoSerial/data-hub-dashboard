@@ -13,7 +13,7 @@ function iso(anio: number, mes: number, dia: number, hora: number, minuto: numbe
 
 function movimiento(id: string, dia: number, hora: number, cambios: string[]): MovimientoHistorial {
   const carga = iso(2026, 9, dia, hora, 0)
-  return { id, tipo: 'actualizacion', rol: 'director', creadaEn: carga, rigeDesde: carga, cambios }
+  return { id, tipo: 'actualizacion', rol: 'director', creadaEn: carga, rigeDesde: carga, titulo: 'Inundación · Alta · desde 10:00', cambios }
 }
 
 function responderCon(movimientos: MovimientoHistorial[]) {
@@ -46,7 +46,7 @@ describe('HistorialParte', () => {
     vi.stubGlobal(
       'fetch',
       responderCon([
-        movimiento('mov-3', 18, 10, ['Clases normales → Clases suspendidas en 2.º A']),
+        movimiento('mov-3', 18, 10, ['Funcionamiento: habitual → interrumpido en 2.º A']),
         movimiento('mov-2', 17, 16, ['Se inició la situación "Inundación"']),
         movimiento('mov-1', 16, 8, ['12 alumnos incorporados']),
       ]),

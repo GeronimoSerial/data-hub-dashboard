@@ -20,7 +20,8 @@ function movimiento(parcial: Partial<MovimientoHistorial> = {}): MovimientoHisto
     rol: 'director',
     creadaEn: carga,
     rigeDesde: carga,
-    cambios: ['Clases normales → Clases suspendidas en 2.º A'],
+    titulo: 'Inundación · Alta · desde 10:35',
+    cambios: ['Funcionamiento: habitual → interrumpido en 2.º A'],
     ...parcial,
   }
 }
@@ -45,7 +46,7 @@ describe('HistorialMovimiento', () => {
     renderEnLista(
       movimiento({
         cambios: [
-          'Clases normales → Clases suspendidas en 2.º A',
+          'Funcionamiento: habitual → interrumpido en 2.º A',
           'Se agregó "Inaccesibilidad de alumnos" · Severidad Media',
           '12 alumnos incorporados',
         ],
@@ -54,10 +55,16 @@ describe('HistorialMovimiento', () => {
 
     const lineas = screen.getAllByRole('listitem').filter((el) => el.className.includes('__cambio'))
     expect(lineas.map((el) => el.textContent)).toEqual([
-      'Clases normales → Clases suspendidas en 2.º A',
+      'Funcionamiento: habitual → interrumpido en 2.º A',
       'Se agregó "Inaccesibilidad de alumnos" · Severidad Media',
       '12 alumnos incorporados',
     ])
+  })
+
+  it('muestra el título de situación aparte de los detalles', () => {
+    renderEnLista(movimiento({ titulo: 'Tormenta severa · Alta · desde 03:50', cambios: ['Funcionamiento: habitual → parcial'] }))
+    expect(screen.getByText('Tormenta severa · Alta · desde 03:50')).toBeInTheDocument()
+    expect(screen.getByText('Funcionamiento: habitual → parcial')).toBeInTheDocument()
   })
 
   it('no muestra "Rige desde" cuando coincide con la carga', () => {

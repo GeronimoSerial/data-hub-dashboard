@@ -74,7 +74,7 @@ export interface EstadoActualRespuesta {
   secciones?: SeccionEstablecimiento[]
   ultimaActualizacion?: string | null
   recientes?: SituacionReciente[]
-  ultimaCarga?: { creadaEn: string; cambios: string[] } | null
+  ultimaCarga?: { creadaEn: string; titulo: string; cambios: string[] } | null
 }
 
 // --- Cadenas textuales de la especificación ---

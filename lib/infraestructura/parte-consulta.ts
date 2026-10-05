@@ -17,7 +17,7 @@ import {
   infraServicioAlcance,
 } from '@/lib/db/schema'
 import { asegurarGeAdjuntada, obtenerMembresiaSecciones } from './impacto'
-import { describirMovimiento } from './movimiento-descripcion'
+import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { severidadDelMovimiento } from './severidad-movimiento'
 import type { DiffParte } from './movimiento-diff'
 import { listarSeccionesDelCue } from './secciones-cue'
@@ -393,6 +393,7 @@ export interface MovimientoDescrito {
   rol: RolMovimiento
   creadaEn: string
   rigeDesde: string
+  titulo: string
   cambios: string[]
   severidad: Severidad | null
 }
@@ -427,6 +428,7 @@ export async function listarMovimientosDescritos(
       rol: fila.rol as RolMovimiento,
       creadaEn: fila.creadaEn,
       rigeDesde: fila.rigeDesde,
+      titulo: tituloMovimiento(fila.resumen as unknown as DiffParte, tipo, fila.rigeDesde),
       cambios: describirMovimiento(fila.resumen as unknown as DiffParte, { tipo, secciones: actual.secciones }),
       severidad: severidadDelMovimiento(fila.resumen as unknown as DiffParte),
     }
