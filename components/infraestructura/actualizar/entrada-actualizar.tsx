@@ -64,7 +64,7 @@ export function EntradaActualizar({ situaciones, estadoEstablecimiento, estadoSe
       </section>
 
       <div className="asistente__acciones">
-        <Button type="button" onClick={onActualizar}>Actualizar situación</Button>
+        <Button type="button" onClick={onActualizar}>Actualizar el parte</Button>
       </div>
     </div>
   )

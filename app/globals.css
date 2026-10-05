@@ -3997,7 +3997,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .badge-sugerido {
-  margin-left: var(--s-2);
+  margin-left: 0;
   font-size: var(--t-small);
   padding: 0 var(--s-2);
   border-radius: 999px;

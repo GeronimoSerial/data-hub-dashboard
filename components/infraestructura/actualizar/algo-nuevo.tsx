@@ -148,9 +148,9 @@ export function AlgoNuevo({
     <section className="algo-nuevo" aria-label="Situación nueva">
       {etapa === 'pregunta' ? (
         <fieldset className="afectacion-campos__grupo">
-          <legend className="afectacion-campos__legend">¿Pasó algo nuevo?</legend>
+          <legend className="afectacion-campos__legend">¿Hay una situación nueva?</legend>
           <div className="afectacion-campos__opciones">
-            <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, nada nuevo" />
+            <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No, no hay una situación nueva" />
             <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, hay una situación nueva" />
           </div>
         </fieldset>

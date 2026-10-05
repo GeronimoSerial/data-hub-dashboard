@@ -73,18 +73,23 @@ export function armarResumen(entrada: EntradaResumen): string[] {
   const { afectacion, servicio, estadoEstablecimiento, rigeDesde } = entrada
 
   const lineas: string[] = [
-    `${afectacion.motivo} · Severidad ${afectacion.severidad}`,
-    resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos }),
+    `Situación: ${afectacion.motivo} · Severidad ${afectacion.severidad}`,
+    `Afecta a: ${resumirAlcance({ secciones: afectacion.secciones, alumnos: afectacion.alumnos })}`,
   ]
 
   const descripcion = afectacion.descripcion.trim()
   if (descripcion !== '') lineas.push(descripcion)
 
-  if (servicio) lineas.push(describirAlcanceServicio(servicio))
-  if (estadoEstablecimiento !== '') lineas.push(ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento])
+  if (servicio) {
+    const valor = describirAlcanceServicio(servicio)
+      .replace(/^Funcionamiento escolar normal$/, 'con normalidad')
+      .replace(/^Funcionamiento escolar interrumpido/, 'suspendidas')
+    lineas.push(`Clases: ${valor}`)
+  }
+  if (estadoEstablecimiento !== '') lineas.push(`Edificio: ${ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento].toLowerCase()}`)
 
   const momento = formatearMomento(rigeDesde)
-  if (momento) lineas.push(`Rige desde el ${momento}`)
+  if (momento) lineas.push(`Desde: ${momento}`)
 
   return lineas
 }

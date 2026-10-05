@@ -31,7 +31,7 @@ describe('EntradaActualizar', () => {
   it('el botón principal inicia el recorrido', () => {
     const onActualizar = vi.fn()
     render(<EntradaActualizar situaciones={situaciones} estadoEstablecimiento="habitual" estadoServicio="normal" ultimaCarga={null} historial={[]} onActualizar={onActualizar} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Actualizar situación' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actualizar el parte' }))
     expect(onActualizar).toHaveBeenCalled()
   })
 })

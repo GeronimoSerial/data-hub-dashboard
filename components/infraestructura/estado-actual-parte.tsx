@@ -165,7 +165,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
               className="ui-button ui-button--default estado-actual-acciones__principal"
               href={enlaceCon('/problematicas/parte/nuevo', cue)}
             >
-              Iniciar un reporte
+              Cargar una situación
             </a>
           </>
         ) : (

@@ -35,7 +35,7 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
 })
 
 const CUE = '1801605-41'
-const guardado = 'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.'
+const guardado = 'Parte actualizado.'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
   parte: { id: 'parte', cueAnexo: CUE, estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: '2026-10-02T10:00:00.000Z', actualizadaEn: '2026-10-03T10:00:00.000Z' },
@@ -56,12 +56,12 @@ function stub(fetcher?: (url: string, init?: RequestInit) => Promise<Response>) 
 }
 function montar() { return render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />) }
 async function prepararResumen() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar situación' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
   for (let i = 0; i < 2; i++) {
     fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
     fireEvent.click(screen.getByRole('button', { name: 'Siguiente' }))
   }
-  fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
 }
 async function enviar() { await prepararResumen(); fireEvent.click(screen.getByRole('button', { name: 'Enviar' })) }
 function posteos(fetchMock: ReturnType<typeof vi.fn>) { return fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST') }
@@ -112,7 +112,7 @@ describe('RecorridoActualizacion: envío', () => {
 
   it('registra el service worker al montar', async () => {
     stub(); montar()
-    await screen.findByRole('button', { name: 'Actualizar situación' })
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(syncMocks.registrar).toHaveBeenCalledOnce()
   })
 
@@ -133,12 +133,12 @@ describe('RecorridoActualizacion: envío', () => {
     expect(fallo).toHaveBeenCalled()
   })
 
-  it('la confirmación permite volver al panel o registrar otra novedad recargando el estado', async () => {
+  it('la confirmación permite volver al panel o cargar otra situación recargando el estado', async () => {
     const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
     expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
     const getsAntes = fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length
-    fireEvent.click(screen.getByRole('button', { name: 'Registrar otra novedad' }))
-    await screen.findByRole('button', { name: 'Actualizar situación' })
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
     expect(fetchMock.mock.calls.filter(([, init]) => !init || (init as RequestInit).method !== 'POST').length).toBeGreaterThan(getsAntes)
   })
 
@@ -169,7 +169,7 @@ describe('RecorridoActualizacion: envío', () => {
 
   it('el aviso del service worker confirma el envío de la cola de este CUE', async () => {
     stub(); montar()
-    await screen.findByRole('button', { name: 'Actualizar situación' })
+    await screen.findByRole('button', { name: 'Actualizar el parte' })
     await waitFor(() => expect(syncMocks.callback).toEqual(expect.any(Function)))
     act(() => syncMocks.callback?.(claveBorrador('actualizacion', CUE)))
     expect(await screen.findByText(guardado)).toBeInTheDocument()

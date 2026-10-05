@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, type JSX } from 'react'
-import { CircleAlert, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { DatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type {
   Categoria,
   AsistenciaPedagogica,
@@ -16,6 +15,7 @@ import type {
   Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import {
   ETIQUETA_ESTABLECIMIENTO,
   ETIQUETA_SERVICIO,
@@ -96,24 +96,11 @@ type EstadoHistorial =
 const MOVIMIENTOS_ADELANTADOS = 3
 
 /**
- * Severidad dentro de la ficha del mapa (hallazgo 21). La ficha NO reusa
- * `EstadoActualSeveridad` a propósito: ese componente es compartido con las
- * pantallas del director y codifica el nivel con una forma propia (círculo,
- * cuadrado, triángulo, rombo). Acá, y sólo acá, se usa un ícono fijo para
- * todos los niveles + el color oficial + el texto: la forma no varía por
- * nivel y el nivel sigue siendo legible sin depender del color.
+ * Severidad en la ficha del mapa, con la misma marca que el resto de las
+ * pantallas.
  */
 function IndicadorSeveridadFicha({ severidad }: { severidad: Severidad }): JSX.Element {
-  return (
-    <span className="estado-actual-severidad">
-      <CircleAlert
-        size={16}
-        aria-hidden
-        style={{ color: colorSeveridad(severidad), flexShrink: 0 }}
-      />
-      <span className="estado-actual-severidad__texto">Severidad {severidad}</span>
-    </span>
-  )
+  return <EstadoActualSeveridad severidad={severidad} />
 }
 
 /**

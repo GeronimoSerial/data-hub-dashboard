@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { EncabezadoParte, TITULO_PROGRAMA_COMPLETO } from '@/components/infraestructura/encabezado-parte'
-import { ReporteInicialForm } from '@/components/infraestructura/reporte-inicial-form'
+import { NuevoParteContenido } from '@/components/infraestructura/nuevo-parte-contenido'
 import { bloqueoDeAcceso, cargarContextoParte, ErrorContexto } from '../compartido'
 import { destinoParaParte, enlaceDestino } from '@/lib/infraestructura/destino-carga'
 import { obtenerParteActual } from '@/lib/infraestructura/parte-consulta'
@@ -12,13 +12,13 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: `Iniciar un reporte · ${TITULO_PROGRAMA_COMPLETO}`,
+  title: `Cargar una situación · ${TITULO_PROGRAMA_COMPLETO}`,
 }
 
-const TITULO = 'Iniciar un reporte'
+const TITULO = 'Cargar una situación'
 
 /**
- * Pantalla "Iniciar un reporte" (spec §7): primer paso del parte, donde el
+ * Pantalla para cargar una situación (spec §7): primer paso del parte, donde el
  * director informa la actualización del estado de su establecimiento.
  *
  * Misma guarda de acceso y resolución de contexto que la pantalla del estado
@@ -64,12 +64,7 @@ export default async function NuevoPartePage({
 
   return (
     <div className="publico-content">
-      <EncabezadoParte
-        pantalla={TITULO}
-        escuela={escuela}
-        descripcion="Informe un hecho. Le vamos a hacer unas pocas preguntas, de a una por vez."
-      />
-      <ReporteInicialForm cue={escuela.cueAnexo} turnos={turnos} motivos={motivos} />
+      <NuevoParteContenido cue={escuela.cueAnexo} escuela={escuela} turnos={turnos} motivos={motivos} />
     </div>
   )
 }

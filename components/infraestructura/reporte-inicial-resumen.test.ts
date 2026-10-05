@@ -54,11 +54,11 @@ describe('describirAlcanceServicio', () => {
 })
 
 describe('armarResumen', () => {
-  it('abre con el motivo, la severidad y el alcance de la afectación', () => {
+  it('muestra el motivo, la severidad y el alcance en pares de etiqueta y valor', () => {
     const lineas = armarResumen(base)
 
-    expect(lineas[0]).toBe('Inundación · Severidad Alta')
-    expect(lineas[1]).toBe('2 secciones · 53 alumnos')
+    expect(lineas[0]).toBe('Situación: Inundación · Severidad Alta')
+    expect(lineas[1]).toBe('Afecta a: 2 secciones · 53 alumnos')
   })
 
   it('omite la descripción cuando está vacía o en blanco', () => {
@@ -82,14 +82,14 @@ describe('armarResumen', () => {
       estadoEstablecimiento: 'centro_evacuados',
     })
 
-    expect(lineas).toContain('Funcionamiento escolar interrumpido en todo el establecimiento')
-    expect(lineas).toContain('Usado como centro de evacuados')
+    expect(lineas).toContain('Clases: suspendidas en todo el establecimiento')
+    expect(lineas).toContain('Edificio: usado como centro de evacuados')
   })
 
   it('cierra con el momento desde el que rige', () => {
     const lineas = armarResumen(base)
 
-    expect(lineas[lineas.length - 1]).toMatch(/^Rige desde el /)
+    expect(lineas[lineas.length - 1]).toMatch(/^Desde: /)
   })
 
   // Vocabulario prohibido por spec §5.4.

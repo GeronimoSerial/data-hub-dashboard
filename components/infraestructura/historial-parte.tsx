@@ -133,7 +133,7 @@ export function HistorialParte({
           No hay una situación hidrometeorológica en seguimiento para este establecimiento.
         </p>
         <a className="ui-button ui-button--default historial-estado__accion" href={`/problematicas/parte/nuevo?cue=${encodeURIComponent(cue)}`}>
-          Iniciar un reporte
+          Cargar una situación
         </a>
       </div>
     )

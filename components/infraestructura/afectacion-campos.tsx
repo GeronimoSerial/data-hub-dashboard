@@ -20,9 +20,9 @@ import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
 
 export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
   establecimiento:
-    'Va a marcar las secciones que no pueden funcionar por un problema de la escuela. Si son alumnos puntuales que no pueden llegar, elija "Inaccesibilidad de alumnos".',
+    'Va a marcar las secciones donde la escuela no puede funcionar con normalidad. Si son alumnos puntuales que no pueden llegar, elija "Inaccesibilidad de alumnos".',
   alumnos:
-    'Va a marcar sólo a los alumnos que no pueden llegar a la escuela. Si el problema es del edificio o afecta a la escuela, elija "Afecta al establecimiento".',
+    'Va a marcar sólo a los alumnos que no pueden llegar a la escuela. Si la situación afecta al edificio o a la escuela, elija "Afecta al establecimiento".',
 }
 
 export interface AfectacionBorrador {
@@ -196,7 +196,9 @@ export function CamposQuePaso({
                 value={c}
                 checked={borrador.categoria === c}
                 onChange={() => {
-                  if (c !== borrador.categoria) setCategoriaPendiente(c)
+                  if (c === borrador.categoria) return
+                  if (borrador.categoria === '') cambiarCategoria(c)
+                  else setCategoriaPendiente(c)
                 }}
                 disabled={disabled}
                 label={CATEGORIA_META[c].label}

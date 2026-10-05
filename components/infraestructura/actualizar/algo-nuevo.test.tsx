@@ -50,14 +50,14 @@ function entrarDatosIndependiente() {
 
 function elegirCategoria(nombre: string) {
   fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${nombre}`) }))
-  const sheet = screen.getByRole('dialog')
-  fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
+  const sheet = screen.queryByRole('dialog')
+  if (sheet) fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
 }
 
 describe('AlgoNuevo', () => {
-  it('“No, nada nuevo” termina sin agregar una situación', () => {
+  it('“No, no hay una situación nueva” termina sin agregar una situación', () => {
     const callbacks = renderAlgo()
-    fireEvent.click(screen.getByRole('radio', { name: 'No, nada nuevo' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'No, no hay una situación nueva' }))
     expect(callbacks.onTerminar).toHaveBeenCalledWith(null)
   })
 

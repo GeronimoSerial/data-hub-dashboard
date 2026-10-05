@@ -26,8 +26,8 @@ export interface RecorridoActualizacionProps {
   motivos: MotivoRow[]
 }
 
-const MENSAJE_GUARDADO = 'La actualización fue registrada. El estado actual y el historial ya reflejan los cambios informados.'
-const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar la actualización. La información ingresada se mantiene para que pueda volver a intentar.'
+const MENSAJE_GUARDADO = 'Parte actualizado.'
+const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
 type Etapa = EtapaActualizacion | 'enviado'
@@ -82,19 +82,19 @@ function crearLineasResumen(situaciones: SituacionRecorrido[], recorrido: Estado
   for (const situacion of situaciones) {
     const respuesta = recorrido.respuestas[situacion.id]
     if (!respuesta) continue
-    if (respuesta.tipo === 'sigue') lineas.push(`${situacion.motivo}: sin cambios`)
-    else if (respuesta.tipo === 'solucionada') lineas.push(`Se solucionó ${situacion.motivo} (${respuesta.solucionadaEn})`)
+    if (respuesta.tipo === 'sigue') lineas.push(`Situación ${situacion.motivo}: sin cambios`)
+    else if (respuesta.tipo === 'solucionada') lineas.push(`Situación ${situacion.motivo}: se solucionó (${respuesta.solucionadaEn})`)
     else {
       const datos: string[] = []
       if (respuesta.cambio.severidad) datos.push(`gravedad ${respuesta.cambio.severidad}`)
       if (respuesta.cambio.secciones) datos.push(`alcance actualizado`)
       if (respuesta.cambio.aspectos.includes('clases-edificio')) datos.push('cambiaron las clases o el edificio')
-      lineas.push(`Cambió ${situacion.motivo}: ${datos.join(', ')}`)
+      lineas.push(`Situación ${situacion.motivo}: ${datos.join(', ')}`)
     }
   }
   if (recorrido.nueva) {
     const causa = recorrido.nueva.causadaPorId ? situaciones.find((s) => s.id === recorrido.nueva?.causadaPorId)?.motivo : null
-    lineas.push(`Nuevo: ${recorrido.nueva.motivo}${causa ? ` (causado por ${causa})` : ''}`)
+    lineas.push(`Situación nueva: ${recorrido.nueva.motivo}${causa ? ` (causada por ${causa})` : ''}`)
   }
   return lineas
 }
@@ -578,7 +578,7 @@ function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () 
           Volver al panel
         </Button>
         <Button type="button" variant="secondary" onClick={onRecargar}>
-          Registrar otra novedad
+          Cargar otra situación
         </Button>
       </div>
     </div>

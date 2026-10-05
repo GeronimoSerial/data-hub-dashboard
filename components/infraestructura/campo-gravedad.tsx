@@ -80,9 +80,8 @@ export function CampoGravedad({
               aria-describedby={`${idPrefijo}-severidad-${severidad}-criterio`}
               label={<>
                 <span id={`${idPrefijo}-severidad-${severidad}-nombre`}>
-                  <EstadoActualSeveridad severidad={severidad} prefijo={false} marca={false} />
+                  <EstadoActualSeveridad severidad={severidad} prefijo={false} sugerida={sugerida === severidad} />
                 </span>
-                {sugerida === severidad ? <span className="badge-sugerido">Sugerido</span> : null}
               </>}
               ayuda={<span id={`${idPrefijo}-severidad-${severidad}-criterio`}>
                 {criterioSeveridad(severidad, categoriaCriterio)}

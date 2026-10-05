@@ -76,7 +76,7 @@ describe('HistorialParte', () => {
       ),
     ).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Iniciar un reporte' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Cargar una situación' })).toHaveAttribute(
       'href',
       `/problematicas/parte/nuevo?cue=${CUE}`,
     )
