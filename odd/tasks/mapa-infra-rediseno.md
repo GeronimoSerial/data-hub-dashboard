@@ -32,11 +32,11 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 - [x] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b, visual fix ed05c46; merged b8bc99a
 - [x] B2 — Tasks 5–9 (datos enriquecidos y filtros) — T5 e0c96a2, T6 cdef3c2, T7 abea36f, T8 bbac423+475fd7b+f38b245, T9 e2fd673; visual fixes b5b7d5d..316f81b, 1167160, bdeab3c; merged 9f81edd
 - [x] B3 — Tasks 10–15 (situación actual) — 8 task commits + 3 visual fix rounds + staging merge b10f183; merged 6761d1d
-- [ ] B4 — Tasks 16–19 (radar y planificación) — running: worktree mapa-b4 from 6761d1d
-- [ ] B5 — Tasks 20–22 (estadísticas)
+- [x] B4 — Tasks 16–19 (radar y planificación) — T16 17a0e7b, ad3086a, T17 7391e6d, T18 56df91f, T19 23319a8; visual fixes be02a61..e76281e; merged 18cf4bc
+- [ ] B5 — Tasks 20–22 (estadísticas) — running: worktree mapa-b5 from 18cf4bc
 - [x] B6 — Tasks 23–26 (ruta de acceso, geo-static) — T23 e802c71, T24 23bef81, T25 7e3e832, T26 5d49e81; merged c2e4fb0; worktree removed
 - [ ] T27 — vía principal en la UI
-- [ ] Visual review per batch (N1) — B1, B2, B3 done
+- [ ] Visual review per batch (N1) — B1, B2, B3, B4 done
 
 ## Progress / evidence
 
@@ -70,3 +70,4 @@ B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (work
 - B3 round 3 (035a156 valid zoom expression + style-spec validator test, adds devDependency @maplibre/maplibre-gl-style-spec 26.2.1; 49b51df nbsp) verified in Chrome with no console errors. B3 gate (N1): build 0, vitest 2600 passed / 1 known, lint 0 errors. Merge into feat/staging conflicted in ficha-parte-modal.tsx with the parte session's 7626a0c (shared severity) vs B3's useFichaParte extraction → merge aborted, resolution delegated to N2 ctx_bdc965bfc694 (merge feat/staging into feat/mapa-b3 keeping both intents).
 - B3 merged 6761d1d after the N2 resolved the ficha-parte-modal conflict (b10f183); post-merge on feat/staging: tsc clean, full vitest 2622 passed / 1 known failure. mapa-b3 removed. B4 launched.
 - B4 done by N2 (T16 17a0e7b, data ad3086a, T17 7391e6d, T18 56df91f, T19 23319a8); N2 gate: vitest 2639 passed / 1 known, lint 0, build + tsc OK. N2 deleted risk-explanation-panel (plan-authorized). Not deleted, pending user decision: selector-horizonte, resumen-panel, old layer controls, riesgo/estacional hooks. Chrome review findings → fix N2 ctx_056e147d0cd7: Radar→Planificación leaves dark basemap/unreadable panel/no points; radar panel without card and layer selector overlapping; duplicate empty states and 'Actualizado —'; grey discs in Radar and 'Nulo'; expanded attribution in Radar; aislamiento almost all 'Alto' (verify thresholds with real data).
+- B4 fixes (be02a61, dbe341e, 6a438f0, 9a8234a, c33fc7b, e76281e) verified in Chrome: radar card, single empty state, neutral points, Radar→Planificación restores the light basemap and points (≈10 s basemap reload). Aislamiento distribution is real (demo: Alto 38 %, Medio 3 %, Bajo 30 %, Nulo 28 %; inundación 96.7 % Nulo), thresholds unchanged. B4 gate (N1): build 0, lint 0 errors, vitest 2650 passed / 2 failed: known radar-meteo + reporte-inicial-form 'reintentar de inmediato', which passes alone in mapa-b4 and staging (flaky under full-suite load, not touched by B4). Merged 18cf4bc; post-merge tsc clean, 1980 tests in touched areas passed. mapa-b4 removed; B5 launched.
