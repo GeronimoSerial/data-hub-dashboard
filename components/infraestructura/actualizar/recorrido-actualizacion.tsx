@@ -16,7 +16,7 @@ import { limpiarVinculoVerificacion, leerVinculoVerificacion } from '@/component
 import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
 import { crearBorradorStore } from '@/lib/infraestructura/parte/borrador-historial'
 import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
-import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, MENSAJE_TIEMPO_AGOTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenLocalStorage, claveBorrador as claveBorradorCola, esEstadoReintentable, intentarEnviar, leerBorrador as leerColaEnvio, MENSAJES_ESTADO, programarReintento, reenviarCola, registrarAutoReintento, type AlmacenClaveValor, type EnviarOpciones, type EstadoEnvio } from '@/lib/infraestructura/parte/envio-offline'
 import { construirEnvio, consecuenciasActivas, ordenarSituaciones, RECORRIDO_INICIAL, responder, situacionesSinRespuesta, type EstadoRecorrido, type SituacionRecorrido } from '@/lib/infraestructura/parte/recorrido-actualizacion'
 import { asistenciaCoincide, coincidenIdsSituaciones, crearAsistenciaSeleccionada, esBorradorRecorridoActualizacion, type AsistenciaSeleccionada, type BorradorRecorridoActualizacion, type EtapaActualizacion } from '@/lib/infraestructura/parte/recorrido-actualizacion-borrador'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
@@ -213,6 +213,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [guardado, setGuardado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
@@ -297,7 +298,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        setMotivoEnvio(borrador.motivoError ?? null)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
@@ -319,9 +321,10 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       const cola = await leerColaEnvio<PayloadActualizacion>(await almacen(), 'actualizacion', cue)
       if (!cancelado && cola) {
         setEstadoEnvio(cola.estado)
+        if (cola.estado === 'pendiente-envio' || cola.estado === 'error-servidor') setEstadoAvisoEnvio(cola.estado)
         setMotivoEnvio(cola.motivoError ?? null)
         setIntentosEnvio(cola.intentos)
-        if (esEstadoReintentable(cola.estado) && cola.motivoError !== MENSAJE_TIEMPO_AGOTADO && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+        if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
           const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() })
           if (!cancelado && resultado?.ok) alEnviarConExito()
         }
@@ -342,14 +345,12 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
     }
   })
   useEffect(() => { return alEnviarEnSegundoPlano((clave) => { if (clave === claveBorradorCola('actualizacion', cue)) exitoRef.current() }) }, [cue])
-  useEffect(() => registrarAutoReintento(() => {
-    if (motivoEnvio !== MENSAJE_TIEMPO_AGOTADO) reintentarRef.current()
-  }), [motivoEnvio])
+  useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
   useEffect(() => {
-    if (guardado || enviando || !esEstadoReintentable(estadoEnvio) || motivoEnvio === MENSAJE_TIEMPO_AGOTADO) return
+    if (guardado || enviando || !esEstadoReintentable(estadoEnvio)) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
     return programarReintento(intentosEnvio, () => reintentarRef.current())
-  }, [estadoEnvio, motivoEnvio, intentosEnvio, guardado, enviando])
+  }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   async function enviar(): Promise<void> {
     if (enviando || enviandoRef.current) return
@@ -571,6 +572,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             setError(null)
           }}
           estadoEnvio={estadoEnvio}
+          estadoAvisoEnvio={estadoAvisoEnvio}
           motivoEnvio={motivoEnvio}
           onRetry={() => reintentarRef.current()}
           error={error}
@@ -638,6 +640,7 @@ function ResumenEnvio({
   enviando,
   onCambiarAsistencia,
   estadoEnvio,
+  estadoAvisoEnvio,
   motivoEnvio,
   onRetry,
   error,
@@ -650,6 +653,7 @@ function ResumenEnvio({
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
   estadoEnvio: EstadoEnvio | null
+  estadoAvisoEnvio: 'pendiente-envio' | 'error-servidor' | null
   motivoEnvio: string | null
   onRetry: () => void
   error: string | null
@@ -711,9 +715,9 @@ function ResumenEnvio({
         ))}
         <p className="actualizacion-resumen__vigente">Actualmente: {asistenciaVigente}</p>
       </fieldset>
-      {estadoEnvio && estadoEnvio !== 'enviando' ? (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
-          ? <EstadoEnvioAviso estado={estadoEnvio} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} />
+      {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
                 ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`

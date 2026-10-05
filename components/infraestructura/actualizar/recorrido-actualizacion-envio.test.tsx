@@ -165,11 +165,10 @@ describe('RecorridoActualizacion: envío', () => {
     expect(syncMocks.pedir).toHaveBeenCalled()
   })
 
-  it('un envío colgado termina con aviso recuperable y permite volver o reintentar', async () => {
+  it('un timeout se reintenta automáticamente y mantiene el aviso mientras se envía', async () => {
     let intentos = 0
     const fetchMock = stub((_url, init) => {
       intentos += 1
-      if (intentos > 1) return Promise.resolve(respuesta())
       return new Promise<Response>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
       })
@@ -186,13 +185,11 @@ describe('RecorridoActualizacion: envío', () => {
     const aviso = screen.getByRole('alert')
     expect(within(aviso).getByText('El servidor no respondió. Su parte queda guardado; puede reintentar.')).toBeInTheDocument()
     expect(aviso.compareDocumentPosition(screen.getByRole('button', { name: 'Guardar parte' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
-    expect(posteos(fetchMock)).toHaveLength(1)
-    expect(screen.getByRole('alert')).toBeInTheDocument()
-    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
-    await act(async () => { for (let i = 0; i < 10; i += 1) await Promise.resolve() })
-    expect(screen.getByText(guardado)).toBeInTheDocument()
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(posteos(fetchMock)).toHaveLength(2)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
     const claves = posteos(fetchMock).map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
     expect(claves[0]).toBe(claves[1])
   })

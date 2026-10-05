@@ -642,7 +642,7 @@ describe('ReporteInicialForm', () => {
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
   })
 
-  it('un timeout no se reintenta solo y el aviso reaparece si también falla el reintento manual', async () => {
+  it('un timeout se reintenta solo con la misma clave y conserva el aviso durante el reintento', async () => {
     vi.useFakeTimers()
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
@@ -656,18 +656,13 @@ describe('ReporteInicialForm', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
     expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
 
-    await act(async () => { await vi.advanceTimersByTimeAsync(30000) })
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('alert')).toBeInTheDocument()
-
-    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Guardando…' })).toBeInTheDocument()
+    expect(within(screen.getByRole('alert')).getByRole('button', { name: 'Reintentar ahora' })).toBeDisabled()
     const claves = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)).idempotencyKey)
     expect(claves[1]).toBe(claves[0])
-
-    await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole('alert')).toHaveTextContent('El servidor no respondió. Su parte queda guardado; puede reintentar.')
   })
 
   it('muestra Guardando… sin texto duplicado y permite volver mientras se envía', async () => {
@@ -933,5 +928,27 @@ describe('ReporteInicialForm — envío pendiente restaurado de la cola offline'
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
     expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-vieja')
     await waitFor(() => expect(screen.queryByText(/sin conexión/i)).not.toBeInTheDocument())
+  })
+
+  it('al reabrir con una cola de timeout, la reintenta sin intervención', async () => {
+    const almacen = await crearAlmacenParte()
+    await guardarBorradorEnvio(almacen, {
+      tipo: 'nuevo',
+      cue: props.cue,
+      idempotencyKey: 'k-timeout',
+      datos: { cue: props.cue, rigeDesde: '2026-10-04T10:00:00.000Z', afectacionesNuevas: [] },
+      estado: 'error-servidor',
+      motivoError: 'El servidor no respondió. Su parte queda guardado; puede reintentar.',
+      intentos: 1,
+      actualizadoEn: '2026-10-04T10:00:00.000Z',
+    })
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderFormulario()
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), { timeout: 5000 })
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(init.body as string).idempotencyKey).toBe('k-timeout')
   })
 })

@@ -157,7 +157,12 @@ function conBloqueo<T>(almacen: AlmacenClaveValor, nombre: string, tarea: () => 
 // disparado por `registrarAutoReintento` bastante después) TIENE que volver
 // a golpear la red, no reutilizar ciegamente el resultado de un intento
 // anterior con la misma clave.
-const enviosEnCursoPorAlmacen = new WeakMap<AlmacenClaveValor, Map<string, Promise<ResultadoEnvio>>>()
+interface EnvioEnCurso {
+  controlador: AbortController
+  promesa: Promise<ResultadoEnvio>
+}
+
+const enviosEnCursoPorAlmacen = new WeakMap<AlmacenClaveValor, Map<string, EnvioEnCurso>>()
 
 export function crearAlmacenMemoria(): AlmacenClaveValor {
   const valores = new Map<string, string>()
@@ -367,19 +372,25 @@ export async function intentarEnviar<T>(
   // concurrentes con la misma idempotencyKey producen un único movimiento).
   const claveResultado = `${clave}:${idempotencyKey}`
   const enCurso = mapaDelAlmacen(enviosEnCursoPorAlmacen, opciones.almacen)
-  const promesaExistente = enCurso.get(claveResultado)
-  if (promesaExistente) return promesaExistente
+  const envioExistente = enCurso.get(claveResultado)
+  if (envioExistente && !envioExistente.controlador.signal.aborted) return envioExistente.promesa
+  envioExistente?.controlador.abort()
 
-  const promesaEnvio = completarEnvio(datos, opciones, borradorEnviando, idempotencyKey, intentos).finally(
-    () => {
-      // Sólo se borra a sí misma: si para cuando termina ya hay una entrada
-      // NUEVA (un reintento posterior que arrancó después de que ésta se
-      // hubiera borrado y volvió a registrar), no la pisa.
-      if (enCurso.get(claveResultado) === promesaEnvio) enCurso.delete(claveResultado)
-    },
-  )
-  enCurso.set(claveResultado, promesaEnvio)
-  return promesaEnvio
+  const controlador = new AbortController()
+  const envio: EnvioEnCurso = { controlador, promesa: Promise.resolve({ ok: false, estado: 'enviando' }) }
+  enCurso.set(claveResultado, envio)
+  envio.promesa = completarEnvio(
+    datos,
+    opciones,
+    borradorEnviando,
+    idempotencyKey,
+    intentos,
+    controlador,
+    () => enCurso.get(claveResultado) === envio,
+  ).finally(() => {
+    if (enCurso.get(claveResultado) === envio) enCurso.delete(claveResultado)
+  })
+  return envio.promesa
 }
 
 async function completarEnvio<T>(
@@ -388,10 +399,11 @@ async function completarEnvio<T>(
   borradorEnviando: BorradorParte<T>,
   idempotencyKey: string,
   intentos: number,
+  controlador: AbortController,
+  sigueVigente: () => boolean,
 ): Promise<ResultadoEnvio> {
   const cuerpo = opciones.construirCuerpo(datos, idempotencyKey)
   let respuesta: Response
-  const controlador = new AbortController()
   let tiempoAgotado = false
   const temporizador = setTimeout(() => {
     tiempoAgotado = true
@@ -400,13 +412,20 @@ async function completarEnvio<T>(
   try {
     const fetchImpl = opciones.fetchImpl
     // Browser fetch requires `this` to be undefined or window.
-    respuesta = await fetchImpl(opciones.url, {
+    const fetchPendiente = fetchImpl(opciones.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(cuerpo),
       signal: controlador.signal,
     })
+    respuesta = await Promise.race([
+      fetchPendiente,
+      new Promise<never>((_resolver, rechazar) => {
+        controlador.signal.addEventListener('abort', () => rechazar(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    ])
   } catch {
+    if (!sigueVigente()) return { ok: false, estado: 'enviando' }
     if (tiempoAgotado) {
       const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo, MENSAJE_TIEMPO_AGOTADO)
       return { ok: false, estado: pendiente.estado, motivo: MENSAJE_TIEMPO_AGOTADO }
@@ -417,6 +436,8 @@ async function completarEnvio<T>(
     clearTimeout(temporizador)
   }
 
+  if (!sigueVigente()) return { ok: false, estado: 'enviando' }
+
   if (respuesta.ok) {
     let json: unknown = {}
     try {
@@ -424,6 +445,7 @@ async function completarEnvio<T>(
     } catch {
       json = {}
     }
+    if (!sigueVigente()) return { ok: false, estado: 'enviando' }
     const esValida = opciones.validarExito ? opciones.validarExito(json) : true
     if (esValida) {
       await borrarBorrador(opciones.almacen, opciones.tipo, opciones.cue)
@@ -444,6 +466,7 @@ async function completarEnvio<T>(
   } catch {
     errorCuerpo = null
   }
+  if (!sigueVigente()) return { ok: false, estado: 'enviando' }
   const motivo = (errorCuerpo as { error?: string } | null)?.error
   const clasificacion = clasificarRespuesta(respuesta.status)
 

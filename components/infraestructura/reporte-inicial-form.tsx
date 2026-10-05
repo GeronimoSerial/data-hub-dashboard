@@ -55,7 +55,6 @@ import {
   programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
-  MENSAJE_TIEMPO_AGOTADO,
   type AlmacenClaveValor,
   type EnviarOpciones,
   type EstadoEnvio,
@@ -223,6 +222,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
@@ -309,6 +309,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       const colaPendiente = await leerColaEnvio(await almacen(), 'nuevo', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
+      if (colaPendiente.estado === 'pendiente-envio' || colaPendiente.estado === 'error-servidor') setEstadoAvisoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
       setIntentosEnvio(colaPendiente.intentos)
     })()
@@ -441,7 +442,8 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        setMotivoEnvio(borrador.motivoError ?? null)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
       },
@@ -485,18 +487,13 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
   useEffect(() => alEnviarEnSegundoPlano((clave) => {
     if (clave === claveBorradorCola('nuevo', cue)) alEnviarConExitoRef.current('')
   }), [cue])
-  useEffect(() => {
-    return registrarAutoReintento(() => {
-      if (motivoEnvio !== MENSAJE_TIEMPO_AGOTADO) reintentarRef.current()
-    })
-  }, [motivoEnvio])
+  useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
   useEffect(() => {
     if (guardado || enviando) return
     if (!esEstadoReintentable(estadoEnvio)) return
-    if (motivoEnvio === MENSAJE_TIEMPO_AGOTADO) return
     if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
     return programarReintento(intentosEnvio, () => reintentarRef.current())
-  }, [estadoEnvio, motivoEnvio, intentosEnvio, guardado, enviando])
+  }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
@@ -827,9 +824,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         </p>
       )}
 
-      {estadoEnvio && estadoEnvio !== 'enviando' && (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'
-          ? <EstadoEnvioAviso estado={estadoEnvio} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current()} />
+      {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current()} disabled={estadoEnvio === 'enviando'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
                 ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
