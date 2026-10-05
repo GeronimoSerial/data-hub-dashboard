@@ -1172,8 +1172,14 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
-// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → cabecera
-// departamental y cruces de agua clasificados). Es contexto territorial
+export type ViaPrincipalAcceso = {
+  nombre: string | null
+  tipo: string
+  pavimentada: boolean
+}
+
+// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
+// urbana cercana y cruces de agua clasificados). Es contexto territorial
 // derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
 // edificio. `ruta` null + `motivoSinGeometria` explica la ausencia.
 export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
@@ -1181,6 +1187,9 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
   cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  viaPrincipal: text('via_principal'),
+  destinoNombre: text('destino_nombre'),
+  distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),

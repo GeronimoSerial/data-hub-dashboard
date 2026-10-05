@@ -64,6 +64,13 @@
       "when": 1791155468692,
       "tag": "0008_parte-rediseno-modelo",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791198768905,
+      "tag": "0009_acceso-via-principal",
+      "breakpoints": true
     }
   ]
 }
