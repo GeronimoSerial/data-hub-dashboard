@@ -57,7 +57,6 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
 import { BasemapControl } from '@/components/mapas/basemap-control'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
-import { EscuelaSearchBox } from '@/components/mapas/escuela-search-box'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
@@ -137,7 +136,7 @@ import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
-import type { EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import {
@@ -710,6 +709,7 @@ export default function MapInfraestructuraPage(props: {
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
+  onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }) {
   const styles = useOverlayStyles()
   const { mode } = useThemeMode()
@@ -1561,7 +1561,7 @@ export default function MapInfraestructuraPage(props: {
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
   // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
   // ficha, exista o no afectación vigente para ese cueAnexo.
-  function handleSeleccionarEscuelaBuscada(escuela: EscuelaMapa) {
+  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapa) => {
     // Sin coordenadas no hay punto al que volar ni anillo que resaltar, pero
     // la ficha sigue teniendo sentido (dato propio, aunque no se pueda
     // situar en el mapa). Antes el handler salía acá y el usuario no veía
@@ -1598,7 +1598,12 @@ export default function MapInfraestructuraPage(props: {
     // razonamiento para el cajón de base/capas.
     setLeftStackAbierto(false)
     setControlsStackAbierto(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    props.onRegistrarSeleccion?.(handleSeleccionarEscuelaBuscada)
+    return () => props.onRegistrarSeleccion?.(null)
+  }, [props.onRegistrarSeleccion, handleSeleccionarEscuelaBuscada])
 
   // Encuadre de la ruta, una sola vez, cuando su geometría llega. Elegir una
   // escuela vuela a zoom 14 sobre ella, así que sin esto una ruta de 30 km
@@ -1734,17 +1739,6 @@ export default function MapInfraestructuraPage(props: {
 
   const panelActual = dataVisible ? (
     <>
-      {/*
-        Buscador de escuelas (hallazgos 8 y 19): montado SIEMPRE, no sólo
-        en la rama de "Situación actual", para que esté disponible también
-        en Radar. Selecciona con el mismo criterio en todos los
-        modos: vuela al punto y abre la ficha si corresponde.
-      */}
-      {!radarActivo && <EscuelaSearchBox
-        escuelas={dataEscuelasMapa?.escuelas ?? []}
-        onSeleccionar={handleSeleccionarEscuelaBuscada}
-      />}
-
       {/*
         Aviso del buscador (no error): una escuela del padrón sin
         coordenadas se puede consultar igual, pero no se puede señalar en

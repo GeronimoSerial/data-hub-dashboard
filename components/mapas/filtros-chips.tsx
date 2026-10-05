@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, X } from 'lucide-react'
-import { contarOpciones, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
+import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
 import { ETIQUETA_APOYO, ETIQUETA_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 
@@ -153,12 +153,30 @@ export function FiltrosChips({
   escuelas,
   filtros,
   onChange,
+  onSeleccionar,
 }: {
   escuelas: EscuelaMapaEnriquecida[]
   filtros: FiltrosMapa
   onChange: (filtros: FiltrosMapa) => void
+  onSeleccionar?: (cueAnexo: string) => void
 }) {
   const [popoverAbierto, setPopoverAbierto] = useState<ClaveFiltro | null>(null)
+  const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
+  const [opcionActiva, setOpcionActiva] = useState(0)
+  const idLista = useId()
+  const idOpcionActiva = `${idLista}-opcion-${opcionActiva}`
+  const queryRecortada = filtros.q.trim()
+  const sugerenciasAbiertas = queryRecortada.length >= 2 && !sugerenciasCerradas
+  const sugerencias = sugerenciasAbiertas
+    ? filtrarEscuelas(escuelas, filtros).slice(0, 8)
+    : []
+  const indiceActivo = sugerencias.length > 0 ? Math.min(opcionActiva, sugerencias.length - 1) : -1
+
+  function seleccionar(cueAnexo: string) {
+    onSeleccionar?.(cueAnexo)
+    onChange({ ...filtros, q: '' })
+    setSugerenciasCerradas(true)
+  }
   const hayFiltrosActivos = Boolean(filtros.q.trim())
     || filtros.departamentos.length > 0
     || filtros.niveles.length > 0
@@ -169,16 +187,64 @@ export function FiltrosChips({
 
   return (
     <div className="filtros-barra" aria-label="Filtros de escuelas">
-      <label className="filtros-busqueda">
-        <Search aria-hidden="true" />
-        <input
-          type="search"
-          aria-label="Buscar escuela o CUE"
-          placeholder="Buscar escuela o CUE"
-          value={filtros.q}
-          onChange={(evento) => onChange({ ...filtros, q: evento.currentTarget.value })}
-        />
-      </label>
+      <div className="filtros-busqueda-contenedor">
+        <label className="filtros-busqueda">
+          <Search aria-hidden="true" />
+          <input
+            type="search"
+            role="combobox"
+            aria-label="Buscar escuela o CUE"
+            aria-expanded={sugerenciasAbiertas}
+            aria-controls={idLista}
+            aria-activedescendant={indiceActivo >= 0 ? idOpcionActiva : undefined}
+            aria-autocomplete="list"
+            placeholder="Buscar escuela o CUE"
+            value={filtros.q}
+            onChange={(evento) => {
+              onChange({ ...filtros, q: evento.currentTarget.value })
+              setOpcionActiva(0)
+              setSugerenciasCerradas(false)
+            }}
+            onKeyDown={(evento) => {
+              if (!sugerenciasAbiertas) return
+              if (evento.key === 'ArrowDown' && sugerencias.length > 0) {
+                evento.preventDefault()
+                setOpcionActiva((actual) => (actual + 1) % sugerencias.length)
+              } else if (evento.key === 'ArrowUp' && sugerencias.length > 0) {
+                evento.preventDefault()
+                setOpcionActiva((actual) => (actual - 1 + sugerencias.length) % sugerencias.length)
+              } else if (evento.key === 'Enter' && indiceActivo >= 0) {
+                evento.preventDefault()
+                seleccionar(sugerencias[indiceActivo].cueAnexo)
+              } else if (evento.key === 'Escape') {
+                evento.preventDefault()
+                setSugerenciasCerradas(true)
+              }
+            }}
+          />
+        </label>
+        {sugerenciasAbiertas && (
+          <div className="filtros-sugerencias" id={idLista} role="listbox" aria-label="Escuelas coincidentes">
+            {sugerencias.length === 0 ? (
+              <div className="filtros-sugerencias__vacio" role="status">Ninguna escuela coincide</div>
+            ) : sugerencias.map((escuela, indice) => (
+              <div
+                key={escuela.cueAnexo}
+                id={`${idLista}-opcion-${indice}`}
+                role="option"
+                aria-selected={indice === indiceActivo}
+                className="filtros-sugerencias__opcion"
+                onMouseDown={(evento) => evento.preventDefault()}
+                onMouseEnter={() => setOpcionActiva(indice)}
+                onClick={() => seleccionar(escuela.cueAnexo)}
+              >
+                <span className="filtros-sugerencias__nombre">{escuela.nombre}</span>
+                <span className="filtros-sugerencias__detalle">{escuela.cueAnexo} · {escuela.departamento}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {(['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo'] as ClaveFiltro[]).map((clave) => (
         <FiltroDesplegable
           key={clave}

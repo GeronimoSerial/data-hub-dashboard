@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import * as React from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FiltrosChips } from './filtros-chips'
@@ -34,6 +35,16 @@ const padronEjemplo = [
 
 function renderFiltros(filtros: FiltrosMapa = FILTROS_MAPA_VACIOS, onChange = vi.fn()) {
   return { onChange, ...render(<FiltrosChips escuelas={padronEjemplo} filtros={filtros} onChange={onChange} />) }
+}
+
+const escuelaTatacua = escuela({ cueAnexo: '1800087-00', nombre: 'Escuela N° 87 Colonia Tatacuá', departamento: 'San Roque' })
+
+function FiltrosControlados({ escuelas, onSeleccionar }: {
+  escuelas: EscuelaMapaEnriquecida[]
+  onSeleccionar: (cueAnexo: string) => void
+}) {
+  const [filtros, setFiltros] = React.useState(FILTROS_MAPA_VACIOS)
+  return <FiltrosChips escuelas={escuelas} filtros={filtros} onChange={setFiltros} onSeleccionar={onSeleccionar} />
 }
 
 afterEach(cleanup)
@@ -108,7 +119,55 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Buscar escuela o CUE' }), { target: { value: 'Tatacuá' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), { target: { value: 'Tatacuá' } })
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ q: 'Tatacuá' }))
+  })
+
+  it('muestra sugerencias por nombre y selecciona con Enter limpiando la búsqueda', async () => {
+    const user = userEvent.setup()
+    const onSeleccionar = vi.fn()
+    render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={onSeleccionar} />)
+
+    const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
+    await user.type(busqueda, 'tatacua')
+    expect(screen.getByRole('listbox')).toHaveTextContent('Escuela N° 87 Colonia Tatacuá')
+    expect(screen.getByRole('option')).toHaveTextContent('1800087-00')
+
+    await user.keyboard('{Enter}')
+    expect(onSeleccionar).toHaveBeenCalledWith('1800087-00')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(busqueda).toHaveValue('')
+  })
+
+  it('muestra un estado cuando la búsqueda no tiene resultados', async () => {
+    const user = userEvent.setup()
+    render(<FiltrosControlados escuelas={[escuelaTatacua]} onSeleccionar={vi.fn()} />)
+    await user.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin coincidencias')
+    expect(screen.getByText('Ninguna escuela coincide')).toBeInTheDocument()
+    expect(screen.queryByRole('option')).not.toBeInTheDocument()
+  })
+
+  it('cambia la opción activa con flechas y Esc cierra sin limpiar', async () => {
+    const user = userEvent.setup()
+    render(<FiltrosControlados escuelas={[escuelaTatacua, escuela({ cueAnexo: '1800088-00', nombre: 'Escuela N° 88 Tatacuá' })]} onSeleccionar={vi.fn()} />)
+    const busqueda = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })
+    await user.type(busqueda, 'tatacua')
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('option', { name: /1800088-00/ })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{ArrowUp}')
+    expect(screen.getByRole('option', { name: /1800087-00/ })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(busqueda).toHaveValue('tatacua')
+  })
+
+  it('respeta los demás filtros activos al sugerir escuelas', async () => {
+    const user = userEvent.setup()
+    const primario = escuelaTatacua
+    const secundario = escuela({ cueAnexo: '1800088-00', nombre: 'Escuela Secundaria Tatacuá', niveles: ['Secundario'] })
+    render(<FiltrosChips escuelas={[primario, secundario]} filtros={{ ...FILTROS_MAPA_VACIOS, niveles: ['Secundario'], q: 'tatacua' }} onChange={vi.fn()} onSeleccionar={vi.fn()} />)
+    await user.click(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }))
+    expect(screen.getByRole('option')).toHaveTextContent('1800088-00')
+    expect(screen.queryByText('1800087-00')).not.toBeInTheDocument()
   })
 })

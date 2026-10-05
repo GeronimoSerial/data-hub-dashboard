@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
@@ -12,8 +12,8 @@ const CUE = '1801605-04'
 // caso del hallazgo 7, el click que antes no abría nada.
 const CUE_SIN_AFECTACION = '1801605-99'
 
-// M1: el buscador de escuelas llama a `mapRef.current?.getMap()?.flyTo(...)`
-// al seleccionar un resultado. `vi.hoisted` porque el factory de
+// La selección registrada por el contenedor llama a
+// `mapRef.current?.getMap()?.flyTo(...)`. `vi.hoisted` porque el factory de
 // `vi.mock('react-map-gl/maplibre', ...)` lo referencia y ese factory se
 // hoistea por encima del resto del archivo.
 // Q3: `fitBounds` es el encuadre de la ruta (al elegir una escuela y al
@@ -523,6 +523,7 @@ async function cargar() {
 // cada test desmonta explícitamente al final en vez de confiar en que el
 // próximo `render()` lo reemplace.
 let desmontarMapa: (() => void) | null = null
+let seleccionarEscuelaRegistrada: ((escuela: EscuelaMapaPadron) => void) | null = null
 
 type PropsRenderMapa = {
   mostrarEnlaceNominal: boolean
@@ -530,6 +531,7 @@ type PropsRenderMapa = {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   pestana: 'actual' | 'radar' | 'planificacion'
+  onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }
 
 type OpcionesRenderMapa = Omit<PropsRenderMapa, 'pestana' | 'escuelasMapa'> & {
@@ -539,7 +541,16 @@ type OpcionesRenderMapa = Omit<PropsRenderMapa, 'pestana' | 'escuelasMapa'> & {
 
 async function renderMapa(props: OpcionesRenderMapa) {
   const MapInfraestructuraPage = await cargar()
-  let propsActuales: PropsRenderMapa = { pestana: 'actual', escuelasMapa: FIXTURE_ESCUELAS_MAPA, ...props }
+  seleccionarEscuelaRegistrada = null
+  const registrarSeleccion = (fn: ((escuela: EscuelaMapaPadron) => void) | null) => {
+    seleccionarEscuelaRegistrada = fn
+  }
+  let propsActuales: PropsRenderMapa = {
+    pestana: 'actual',
+    escuelasMapa: FIXTURE_ESCUELAS_MAPA,
+    onRegistrarSeleccion: registrarSeleccion,
+    ...props,
+  }
   const vista = render(<MapInfraestructuraPage {...propsActuales} />)
   const { unmount } = vista
   desmontarMapa = unmount
@@ -565,14 +576,13 @@ describe('MapInfraestructuraPage — filtros de padrón', () => {
   })
 })
 
-// Elige una escuela por el buscador (la ruta que usa el usuario: escribir el
-// nombre y pickear el resultado) y devuelve la ficha ya abierta. Compartido
-// por los bloques que necesitan una selección real — con su flyTo, su
-// encuadre de ruta y su aviso — y no sólo un click sobre el mapa.
+// Invoca la selección registrada por el contenedor y devuelve la ficha ya
+// abierta. El buscador se prueba en FiltrosChips; acá se conserva la cobertura
+// del vuelo, el encuadre de ruta y el aviso de escuelas sin ubicación.
 async function seleccionarPorBuscador(nombre: string) {
-  const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
-  await userEvent.type(input, nombre)
-  await userEvent.click(await screen.findByText(new RegExp(nombre, 'i')))
+  const escuela = FIXTURE_ESCUELAS_MAPA.escuelas.find((item) => item.nombre === nombre)
+  if (!escuela || !seleccionarEscuelaRegistrada) throw new Error(`No se registró la selección de ${nombre}`)
+  await act(async () => seleccionarEscuelaRegistrada?.(escuela))
   return screen.findByTestId('mock-ficha-modal')
 }
 
@@ -997,13 +1007,7 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
 
   it('buscar y seleccionar una escuela sin afectación hace flyTo al punto y abre la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
-
-    // El aria-label completo distingue el buscador de escuelas del filtro
-    // homónimo del panel de leyenda ("Buscar escuela" + placeholder corto).
-    const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
-    await userEvent.type(input, 'Escuela sin afectación')
-
-    await userEvent.click(await screen.findByText(/Escuela sin afectación/i))
+    await seleccionarPorBuscador('Escuela sin afectación')
 
     expect(FLY_TO_MOCK).toHaveBeenCalledWith(
       expect.objectContaining({ center: [-58.8, -27.5] }),
@@ -1393,25 +1397,14 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       ultimaNovedad: null,
       alumnosSinClases: 0,
     }
-    // Array NUEVO en vez de `push` sobre el padrón compartido: `buscarEscuelas`
-    // indexa el padrón en un WeakMap POR IDENTIDAD de array (para no
-    // renormalizar las ~2000 escuelas en cada tecla), así que mutar el array
-    // estable deja el índice viejo y la escuela recién agregada NUNCA aparece
-    // en los resultados — el buscador responde "Sin resultados".
+    // Se usa un array nuevo para no alterar el fixture compartido con otros tests.
     const padronOriginal = FIXTURE_ESCUELAS_MAPA.escuelas
     FIXTURE_ESCUELAS_MAPA.escuelas = [...padronOriginal, ESCUELA_SIN_UBICACION]
 
     try {
       await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-      // El resultado se elige por texto y no por `role="option"`: en este
-      // entorno el popover del combobox queda `data-anchor-hidden` (el ancla
-      // mide 0px dentro del shell inert), o sea fuera del árbol de
-      // accesibilidad, y `getByRole` no lo encuentra aunque el <option>
-      // exista. Es el mismo camino que usa `seleccionarPorBuscador`.
-      const input = screen.getByLabelText(/Buscar escuela por nombre, CUE/i)
-      await userEvent.type(input, 'Escuela del interior')
-      await userEvent.click(await screen.findByText('Escuela del interior'))
+      await seleccionarPorBuscador('Escuela del interior')
 
       // Antes el handler salía en silencio: ficha nenhuma, explicación
       // ninguna. Ahora se explica por qué no se puede señalar.
