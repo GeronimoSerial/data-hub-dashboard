@@ -4,12 +4,10 @@
 // la capa de partes. Sin React, sin red y sin base de datos: sólo transforma el
 // array que ya le entrega el llamador.
 //
-// CONTRATO DE COMPATIBILIDAD: los nombres de campo de PropiedadesEscuelaMapa
-// son los mismos que consume `circlePaintPartes` en map-infraestructura-page.tsx
-// (`['get','color']`, `['match', ['get','servicio'], 'suspendido', ..., 'parcial', ...]`)
-// y los agregados `clusterProperties` (`severidadRango`, `sinActualizar`,
-// `esEvacuado`). Por eso la capa existente sigue funcionando sin cambios cuando
-// se le pasa el padrón completo en vez de sólo las escuelas afectadas.
+// CONTRATO DE COMPATIBILIDAD: las propiedades alimentan las capas de punto,
+// badges y los agregados `clusterProperties` (`severidadRango`,
+// `sinActualizar`, `esEvacuado`). Las escuelas sin reporte no llevan icono:
+// se dibujan como círculos neutros.
 
 import type { FeatureCollection, Point } from 'geojson'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
@@ -33,9 +31,8 @@ export interface PropiedadesEscuelaMapa {
   cueAnexo: string
   nombre: string
   color: string
-  // 'normal' para escuelas sin afectación (nunca dispara el trazo de borde
-  // grueso de `circlePaintPartes`, que sólo reacciona a 'suspendido'/'parcial');
-  // el servicio real de ParteMapa cuando la escuela SÍ está afectada.
+  // 'normal' para escuelas sin afectación; el servicio real de ParteMapa
+  // cuando la escuela SÍ está afectada.
   servicio: string
   alumnosAlcanzados: number
   // Etiqueta cruda para la ficha y rango numérico para el cluster.
@@ -99,7 +96,7 @@ export function construirEscuelasMapaFeatureCollection(
             severidad: ETIQUETA_SIN_AFECTACION,
             severidadRango: 0,
             gravedad: escuela.gravedad,
-            icono: iconoPunto(escuela),
+            icono: null,
             sinActualizar: false,
             esEvacuado: false,
             esCentroEvacuados: false,

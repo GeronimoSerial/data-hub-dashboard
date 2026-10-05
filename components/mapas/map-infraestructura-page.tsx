@@ -20,7 +20,7 @@ import MapGL, {
 } from 'react-map-gl/maplibre'
 import type {
   CircleLayerSpecification,
-  DataDrivenPropertyValueSpecification,
+  ExpressionSpecification,
   FillLayerSpecification,
   FilterSpecification,
   GeoJSONSource,
@@ -135,7 +135,7 @@ import { filtrarDepartamentoMapa, indicadoresDePartes } from '@/lib/infraestruct
 import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
-import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
+import { construirEscuelasMapaFeatureCollection } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
@@ -147,7 +147,6 @@ import {
   ID_IMAGEN_ESCUELA_BAJA,
   ID_IMAGEN_ESCUELA_CRITICA,
   ID_IMAGEN_ESCUELA_MEDIA,
-  ID_IMAGEN_ESCUELA_NORMAL,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -340,16 +339,15 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
   }
 }
 
-// ── Tamaño: fijo en escuelas, por tramos en clusters ───────────────────────
+// ── Tamaño: neutro chico en escuelas sin reporte, mayor en clusters ─────────
 //
 // La antigua codificación escalaba el radio por `alumnosAlcanzados` (área
 // proporcional al dato, interpolando sobre la raíz cuadrada). Ese canal dejó
 // de usarse: la matrícula pasó a la ficha/lista y un punto de tamaño
-// variable terminaba tapando a sus vecinas a zoom bajo. El radio de cada
-// escuela es fijo; el color informa la severidad y el badge de estado
-// informa servicio/evacuación/sin reportar. Los CLUSTERS sí escalan el radio
-// con la cantidad de escuelas agrupadas (`expresionRadioCluster`), y eso es
-// intencional: más escuelas agrupadas = burbuja más grande.
+// variable terminaba tapando a sus vecinas a zoom bajo. Las escuelas afectadas
+// mantienen el radio y el badge actuales; las que no tienen reporte usan un
+// punto neutro menor que crece suavemente con el zoom. Los clusters sin
+// reportes también son menores que los que contienen escuelas afectadas.
 
 // Color NEUTRO compartido por el borde del punto y los íconos del badge (el
 // color de severidad ya está tomado por el relleno; reusarlo para el estado
@@ -357,21 +355,17 @@ function fillPaintDepartamentoHover(): FillLayerSpecification['paint'] {
 // punto del fondo, ya no codifica el servicio.
 const ANILLO_COLOR = '#1c1c1c'
 
-// El color del punto o cluster sale de la gravedad más alta (0 sin reporte,
-// 1 Baja, 2 Media, 3 Alta, 4 Crítica).
-//
-// Antes de mirar la severidad se chequea `escuelasAfectadas === 0`: un cluster
-// que agrupa SÓLO escuelas sin afectación reportada (severidadRango = 0, el
-// mismo 0 que 'Baja') se pinta con el gris neutro COLOR_SIN_AFECTACION, nunca
-// con una severidad real. Sólo si hay al menos una afectada se usa la
-// severidad más alta (`severidadRango`, agregado por max).
-export function colorPorSeveridadRango(): DataDrivenPropertyValueSpecification<string> {
-  const expresion: unknown[] = ['case', ['==', ['get', 'escuelasAfectadas'], 0], COLOR_SIN_AFECTACION]
+// Los clusters afectados usan la gravedad más alta presente. Un cluster que
+// contiene sólo escuelas sin reporte usa el fondo y el borde neutros del tema.
+export function colorPorSeveridadRango(oscuro = false): ExpressionSpecification {
+  const colorFondo = oscuro ? '#000000' : '#ffffff' // `--page` en globals.css; MapLibre no resuelve var().
+  const expresion: ExpressionSpecification = [
+    'case', ['==', ['get', 'escuelasAfectadas'], 0], colorFondo, colorSeveridad(SEVERIDADES[0]),
+  ]
   for (let i = SEVERIDADES.length - 1; i >= 1; i--) {
-    expresion.push(['>=', ['get', 'gravedad'], i + 1], colorSeveridad(SEVERIDADES[i]))
+    expresion.splice(expresion.length - 1, 0, ['>=', ['get', 'gravedad'], i + 1], colorSeveridad(SEVERIDADES[i]))
   }
-  expresion.push(['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, colorSeveridad(SEVERIDADES[0]))
-  return expresion as unknown as DataDrivenPropertyValueSpecification<string>
+  return expresion
 }
 
 // El radio del cluster sube por tramos con la cantidad de escuelas.
@@ -379,18 +373,79 @@ export const RADIO_CLUSTER_MENOR = 16
 export const RADIO_CLUSTER_MEDIO = 22
 export const RADIO_CLUSTER_MAYOR = 28
 
-export function expresionRadioCluster(): DataDrivenPropertyValueSpecification<number> {
-  return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR] as unknown as DataDrivenPropertyValueSpecification<number>
+export function expresionRadioCluster(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], RADIO_CLUSTER_MENOR, 10, RADIO_CLUSTER_MEDIO, 50, RADIO_CLUSTER_MAYOR]
 }
 
-export function circlePaintPartes(): CircleLayerSpecification['paint'] {
+export function expresionRadioClusterSinReporte(): ExpressionSpecification {
+  return ['step', ['get', 'point_count'], 10, 10, 12, 50, 14]
+}
+
+export function radioEscuelaSinReporte(): ExpressionSpecification {
+  return ['interpolate', ['linear'], ['zoom'], 6, 3, 10, 5, 14, 6]
+}
+
+export function colorEscuelaSinReporte(oscuro: boolean): string {
+  // `--page` en globals.css; MapLibre no resuelve var().
+  return oscuro ? '#000000' : '#ffffff'
+}
+
+export function colorBordeSinReporte(oscuro: boolean): string {
+  // `--ink-faint` en globals.css; MapLibre no resuelve var().
+  return oscuro ? '#9b9895' : '#8a8886'
+}
+
+export function circlePaintEscuelasSinReporte(oscuro: boolean): CircleLayerSpecification['paint'] {
   return {
-    'circle-radius': ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
-    'circle-color': colorPorSeveridadRango(),
-    'circle-opacity': 0.9,
-    'circle-stroke-color': ['case', ['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, ANILLO_COLOR],
-    'circle-stroke-width': 1,
+    'circle-radius': radioEscuelaSinReporte(),
+    'circle-color': colorEscuelaSinReporte(oscuro),
+    'circle-stroke-color': colorBordeSinReporte(oscuro),
+    'circle-stroke-width': 1.5,
+    'circle-opacity': 1,
   }
+}
+
+export function circlePaintPartes(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-radius': [
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      radioEscuelaSinReporte(), ['case', ['==', ['get', 'gravedad'], 0], radioPunto(0), radioPunto(1)],
+    ],
+    'circle-color': [
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      colorEscuelaSinReporte(oscuro), ['get', 'color'],
+    ],
+    'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1, 0.9],
+    'circle-stroke-color': [
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      colorBordeSinReporte(oscuro), ANILLO_COLOR,
+    ],
+    'circle-stroke-width': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1],
+  }
+}
+
+export function circlePaintCluster(oscuro = false): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': colorPorSeveridadRango(oscuro),
+    'circle-radius': [
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], expresionRadioClusterSinReporte(), expresionRadioCluster(),
+    ],
+    'circle-stroke-color': ['case', ['==', ['get', 'escuelasAfectadas'], 0], colorBordeSinReporte(oscuro), ANILLO_COLOR],
+    'circle-stroke-width': ['case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1],
+  }
+}
+
+export function expresionConteoCluster(): ExpressionSpecification {
+  return ['to-string', ['case', ['==', ['get', 'escuelasAfectadas'], 0], ['get', 'point_count'], ['get', 'escuelasAfectadas']]]
+}
+
+export function colorTextoCluster(oscuro = false): ExpressionSpecification {
+  // `--ink-soft` en globals.css; MapLibre no resuelve var().
+  return ['case', ['==', ['get', 'escuelasAfectadas'], 0], oscuro ? '#c9c6c3' : '#5f5e5c', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff']
+}
+
+export function filtroIconoEscuelaAfectada(): FilterSpecification {
+  return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'estado'], 'afectada']]
 }
 
 // Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
@@ -813,7 +868,7 @@ export default function MapInfraestructuraPage(props: {
     return map
   }, [dataVisible])
 
-  // V2: badge de estado por escuela NO agrupada. Un ícono lucide por punto,
+  // V2: badge de estado por escuela afectada NO agrupada. Un ícono lucide por punto,
   // La función pura resume el estado de clases o, si es normal, el reloj de
   // actualización. Cada escuela muestra como máximo un badge.
   const badgesEstado = useMemo(() => {
@@ -827,6 +882,7 @@ export default function MapInfraestructuraPage(props: {
     }> = []
     for (const escuela of dataEscuelasMapaVisible?.escuelas ?? []) {
       if (escuela.lat === null || escuela.lon === null) continue
+      if (escuela.estado !== 'afectada') continue
       if (!cuesNoAgrupados.has(escuela.cueAnexo)) continue
       const icono = iconoPunto(escuela)
       if (icono === null) continue
@@ -1756,28 +1812,22 @@ export default function MapInfraestructuraPage(props: {
                 altas: ['+', ['case', ['==', ['get', 'severidad'], 'Alta'], 1, 0]],
               }}
             >
-              {/*
-                V2: el estado ya no se codifica con anillos/halos apilados. A
-                nivel escuela individual lo dice el badge DOM (icono Lucide,
-                ver `badgesEstado`); a nivel cluster, un símbolo en la esquina
-                (ver las capas symbol de abajo). Por eso acá ya no hay capas
-                `circle` de "sin reportar" ni de "evacuado".
-              */}
+              {/* Las escuelas sin reporte usan un punto neutro menor. */}
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
                 filter={['!', ['has', 'point_count']]}
                 paint={{
-                  ...circlePaintPartes(),
-                  'circle-opacity': (['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 0, puntosVisibles ? 0.9 : 0]) as unknown as number,
+                  ...circlePaintPartes(mode === 'dark'),
+                  'circle-opacity': ['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], puntosVisibles ? 1 : 0, puntosVisibles ? 0.9 : 0],
                   'circle-opacity-transition': { duration: 180, delay: 0 },
                 }}
               />
               {/*
                 Q13a: ícono de escuela individual sobre el círculo de
-                severidad (que se conserva debajo). Mismo filtro que
-                CAPA_PARTES_ID para que coincida con el padrón, y el
+                severidad (que se conserva debajo). El filtro de esta capa
+                limita los íconos a las escuelas afectadas, y el
                 mismo gate de imágenes registradas que las capas symbol de
                 cluster. `icon-allow-overlap` para que no desaparezcan al
                 estar juntas. Q13b: esta capa también es interactiva (ver
@@ -1786,22 +1836,17 @@ export default function MapInfraestructuraPage(props: {
 
                 Q17: `icon-size: 1.2` agranda la escuela individual (~26 px)
                 SÓLO en esta capa; el SVG base compartido queda igual para no
-                agrandar de rebote los íconos Tent/DoorOpen de cluster. La
-                variante normal es la misma en ambos temas (R2: se sacó el
-                filtro CSS de modo oscuro, ya no hace falta compensar colores
-                de entrada; ver comentario en globals.css). Las de severidad
-                también son las mismas en ambos temas.
+                agrandar de rebote los íconos Tent/DoorOpen de cluster. Las
+                variantes de severidad son las mismas en ambos temas.
               */}
               {iconosClusterListos && (
                 <Layer
                   id={CAPA_PARTES_ESCUELA_ICONO_ID}
                   type="symbol"
-                  filter={['!', ['has', 'point_count']]}
+                  filter={filtroIconoEscuelaAfectada()}
                   layout={{
                     'icon-image': [
                       'case',
-                      ['!=', ['get', 'estado'], 'afectada'],
-                      ID_IMAGEN_ESCUELA_NORMAL,
                       ['==', ['get', 'severidad'], 'Crítica'], ID_IMAGEN_ESCUELA_CRITICA,
                       ['==', ['get', 'severidad'], 'Alta'], ID_IMAGEN_ESCUELA_ALTA,
                       ['==', ['get', 'severidad'], 'Media'], ID_IMAGEN_ESCUELA_MEDIA,
@@ -1818,35 +1863,24 @@ export default function MapInfraestructuraPage(props: {
                   }}
                 />
               )}
-              {/*
-                Clusters (T1.1b): el color ya no es un gris neutro fijo — los
-                clusters pintan del color de la severidad MÁS ALTA presente
-                entre las escuelas agrupadas, leída del agregado
-                `severidadRango` de clusterProperties (max). Promediar las
-                severidades inventaría un color que no está en la escala y
-                ocultaría el peor caso, que es lo que importa en una
-                emergencia. El tamaño del círculo sube por tramos con el
-                conteo (más escuelas agrupadas = círculo más grande).
-              */}
+              {/* Los clusters afectados usan la severidad más alta; los que
+                  sólo tienen escuelas sin reporte son neutros y más chicos. */}
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
                 layout={{ visibility: radarActivo ? 'none' : 'visible' }}
                 filter={['has', 'point_count']}
                 paint={{
-                  'circle-color': colorPorSeveridadRango(),
-                  'circle-radius': expresionRadioCluster(),
+                  ...circlePaintCluster(mode === 'dark'),
                   'circle-opacity': puntosVisibles ? 1 : 0,
                   'circle-opacity-transition': { duration: 180, delay: 0 },
-                  'circle-stroke-color': '#1c1c1c',
-                  'circle-stroke-width': 1,
                 }}
               />
               <Layer
                 id={CAPA_PARTES_CLUSTER_COUNT_ID}
                 type="symbol"
                 layout={{
-                  'text-field': ['case', ['==', ['get', 'escuelasAfectadas'], 0], '', ['get', 'escuelasAfectadas']],
+                  'text-field': expresionConteoCluster(),
                   'text-size': 12,
                   'text-font': ['Noto Sans Regular'],
                   'text-allow-overlap': false,
@@ -1854,13 +1888,7 @@ export default function MapInfraestructuraPage(props: {
                 }}
                 filter={['has', 'point_count']}
                 paint={{
-                  // Contraste del conteo: sobre los fondos claros de la escala
-                  // tonal (Baja#fecaca/Media#f87171) un trazo blanco se pierde,
-                  // así que se usa texto oscuro; sobre Alta/Crítica el fondo es
-                  // oscuro y se conserva el blanco. El umbral sale del orden
-                  // real de SEVERIDADES (Baja 0, Media 1, Alta 2, Crítica 3):
-                  // rango <= 1 => fondo claro => texto oscuro.
-                  'text-color': ['case', ['<=', ['get', 'severidadRango'], 1], '#1c1c1c', '#ffffff'],
+                  'text-color': colorTextoCluster(mode === 'dark'),
                   'text-opacity': puntosVisibles ? 1 : 0,
                   'text-opacity-transition': { duration: 180, delay: 0 },
                 }}

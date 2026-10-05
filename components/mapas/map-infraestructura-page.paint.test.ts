@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
-import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import { paintPuntosRiesgoAcceso } from '@/lib/mapas/peligro-capas'
 import {
   circlePaintPartes,
+  circlePaintEscuelasSinReporte,
+  circlePaintCluster,
   colorPorSeveridadRango,
+  colorTextoCluster,
+  expresionConteoCluster,
+  expresionRadioClusterSinReporte,
+  filtroIconoEscuelaAfectada,
   expresionRadioCluster,
   RADIO_CLUSTER_MAYOR,
   RADIO_CLUSTER_MEDIO,
@@ -14,18 +19,18 @@ import {
 
 describe('colorPorSeveridadRango', () => {
   it('es una expresión `case` con la guarda de sin afectación, los pares condición/color y el color de Baja como default', () => {
-    const expresion = colorPorSeveridadRango() as unknown[]
+    const expresion = colorPorSeveridadRango(false) as unknown[]
     expect(expresion[0]).toBe('case')
-    // Guarda de cluster sin escuelas afectadas, tres rangos de gravedad,
-    // gravedad 0 neutra y color de Baja como default.
-    expect(expresion.length).toBe(4 + 2 * SEVERIDADES.length)
+    // Guarda de cluster sin escuelas afectadas, tres rangos de gravedad y
+    // color de Baja como default.
+    expect(expresion.length).toBe(2 + 2 * SEVERIDADES.length)
     expect(expresion[1]).toEqual(['==', ['get', 'escuelasAfectadas'], 0])
-    expect(expresion[2]).toBe(COLOR_SIN_AFECTACION)
+    expect(expresion[2]).toBe('#ffffff')
     expect(expresion[expresion.length - 1]).toBe(colorSeveridad('Baja'))
   })
 
   it('la gravedad más alta presente gana según la escala del padrón', () => {
-    const expresion = colorPorSeveridadRango() as unknown[]
+    const expresion = colorPorSeveridadRango(false) as unknown[]
     for (let i = 1; i < SEVERIDADES.length; i++) {
       // Los pares de gravedad arrancan después de la guarda de cluster.
       const indiceCondicion = 3 + (i - 1) * 2
@@ -60,11 +65,9 @@ describe('colorPorSeveridadRango', () => {
     return expresion[expresion.length - 1] as string
   }
 
-  it('con 0 escuelas afectadas en el cluster el color es el gris neutro', () => {
-    const expresion = colorPorSeveridadRango() as unknown[]
-    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe(
-      COLOR_SIN_AFECTACION,
-    )
+  it('con 0 escuelas afectadas en el cluster el color es el fondo del tema', () => {
+    const expresion = colorPorSeveridadRango(false) as unknown[]
+    expect(evaluarColorCluster(expresion, { escuelasAfectadas: 0, gravedad: 0 })).toBe('#ffffff')
   })
 
   it('con al menos una escuela afectada el color es el de su severidad', () => {
@@ -103,7 +106,11 @@ describe('expresionRadioCluster', () => {
 describe('circlePaintPartes', () => {
   it('el radio usa la gravedad y declara todas las claves del paint del punto', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-radius']).toEqual(['case', ['==', ['get', 'gravedad'], 0], 5, 8])
+    expect(paint['circle-radius']).toEqual([
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'],
+      ['interpolate', ['linear'], ['zoom'], 6, 3, 10, 5, 14, 6],
+      ['case', ['==', ['get', 'gravedad'], 0], 5, 8],
+    ])
     expect(Object.keys(paint).sort()).toEqual([
       'circle-color',
       'circle-opacity',
@@ -115,13 +122,158 @@ describe('circlePaintPartes', () => {
 
   it('el borde usa gris neutro para gravedad 0 y no codifica el servicio', () => {
     const paint = circlePaintPartes()!
-    expect(paint['circle-stroke-width']).toBe(1)
+    expect(paint['circle-stroke-width']).toEqual(['case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], 1.5, 1])
     expect(paint['circle-stroke-color']).toEqual([
-      'case', ['==', ['get', 'gravedad'], 0], COLOR_SIN_AFECTACION, '#1c1c1c',
+      'case', ['==', ['get', 'estado'], 'sin_afectacion_reportada'], '#8a8886', '#1c1c1c',
     ])
     // El estado del servicio pasó al badge de íconos (V2): el paint del punto
     // ya no debe tener ninguna expresión data-driven sobre `servicio`.
     expect(paint).not.toHaveProperty('circle-stroke-opacity')
+  })
+})
+
+describe('estilo de escuelas sin reporte', () => {
+  function evaluarInterpolacionZoom(expresion: unknown[], zoom: number): number {
+    expect(expresion[0]).toBe('interpolate')
+    expect(expresion[1]).toEqual(['linear'])
+    const paradas = expresion.slice(3) as number[]
+    for (let i = 0; i < paradas.length - 2; i += 2) {
+      const desde = paradas[i]
+      const valorDesde = paradas[i + 1]
+      const hasta = paradas[i + 2]
+      const valorHasta = paradas[i + 3]
+      if (zoom <= hasta) {
+        const proporcion = (zoom - desde) / (hasta - desde)
+        return valorDesde + (valorHasta - valorDesde) * proporcion
+      }
+    }
+    return paradas[paradas.length - 1]
+  }
+
+  it('escala suavemente por zoom y siempre queda menor que el radio de las afectadas', () => {
+    const paint = circlePaintEscuelasSinReporte(false)!
+    const radio = paint['circle-radius'] as unknown[]
+    for (const [zoom, esperado] of [[6, 3], [8, 4], [10, 5], [12, 5.5], [14, 6]]) {
+      expect(evaluarInterpolacionZoom(radio, zoom)).toBeCloseTo(esperado)
+      expect(evaluarInterpolacionZoom(radio, zoom)).toBeLessThan(8)
+    }
+  })
+
+  it('usa el fondo del tema, borde token neutro de 1.5 px y opacidad plena', () => {
+    const claro = circlePaintEscuelasSinReporte(false)!
+    const oscuro = circlePaintEscuelasSinReporte(true)!
+    expect(claro['circle-color']).toBe('#ffffff')
+    expect(claro['circle-stroke-color']).toBe('#8a8886')
+    expect(claro['circle-stroke-width']).toBe(1.5)
+    expect(claro['circle-opacity']).toBe(1)
+    expect(oscuro['circle-color']).toBe('#000000')
+    expect(oscuro['circle-stroke-color']).toBe('#9b9895')
+  })
+})
+
+describe('clusters sin reporte', () => {
+  function evaluarPaint(
+    expresion: unknown,
+    props: Record<string, number>,
+    zoom = 10,
+  ): unknown {
+    if (!Array.isArray(expresion)) return expresion
+    const op = expresion[0]
+    if (op === 'literal') return expresion[1]
+    if (op === 'to-string') return String(evaluarPaint(expresion[1], props, zoom))
+    if (op === 'get') return props[expresion[1] as string]
+    if (op === '==') return evaluarPaint(expresion[1], props, zoom) === expresion[2]
+    if (op === '<=') return (evaluarPaint(expresion[1], props, zoom) as number) <= (expresion[2] as number)
+    if (op === 'case') {
+      for (let i = 1; i < expresion.length - 1; i += 2) {
+        if (evaluarPaint(expresion[i], props, zoom)) return evaluarPaint(expresion[i + 1], props, zoom)
+      }
+      return evaluarPaint(expresion[expresion.length - 1], props, zoom)
+    }
+    if (op === 'step') {
+      let valor = evaluarPaint(expresion[2], props, zoom)
+      const entrada = evaluarPaint(expresion[1], props, zoom) as number
+      for (let i = 3; i < expresion.length; i += 2) {
+        if (entrada < (expresion[i] as number)) break
+        valor = evaluarPaint(expresion[i + 1], props, zoom)
+      }
+      return valor
+    }
+    if (op === 'interpolate') {
+      const entrada = zoom
+      for (let i = 3; i < expresion.length - 2; i += 2) {
+        const desde = expresion[i] as number
+        const valorDesde = expresion[i + 1] as number
+        const hasta = expresion[i + 2] as number
+        const valorHasta = expresion[i + 3] as number
+        if (entrada <= hasta) return valorDesde + ((entrada - desde) / (hasta - desde)) * (valorHasta - valorDesde)
+      }
+      return expresion[expresion.length - 1]
+    }
+    return expresion
+  }
+
+  function evaluarStep(expresion: unknown[], pointCount: number): number {
+    expect(expresion[0]).toBe('step')
+    let valor = expresion[2] as number
+    for (let i = 3; i < expresion.length; i += 2) {
+      if (pointCount < (expresion[i] as number)) break
+      valor = expresion[i + 1] as number
+    }
+    return valor
+  }
+
+  it('usa radios neutros escalonados siempre menores que el cluster afectado menor', () => {
+    const radios = expresionRadioClusterSinReporte() as unknown[]
+    for (const count of [1, 9, 10, 49, 50, 100]) {
+      expect(evaluarStep(radios, count)).toBeLessThan(RADIO_CLUSTER_MENOR)
+    }
+    expect([1, 10, 50].map((count) => evaluarStep(radios, count))).toEqual([10, 12, 14])
+    const paint = circlePaintCluster(false)!
+    expect(paint['circle-color']).toEqual(colorPorSeveridadRango(false))
+    expect(paint['circle-stroke-color']).toEqual([
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], '#8a8886', '#1c1c1c',
+    ])
+    expect(paint['circle-stroke-width']).toEqual([
+      'case', ['==', ['get', 'escuelasAfectadas'], 0], 1.5, 1,
+    ])
+    for (const point_count of [1, 10, 50]) {
+      const radio = evaluarPaint(paint['circle-radius'], { escuelasAfectadas: 0, point_count })
+      expect(radio).toBeLessThan(RADIO_CLUSTER_MENOR)
+      expect(evaluarPaint(paint['circle-radius'], { escuelasAfectadas: 1, point_count })).toBeGreaterThan(radio as number)
+    }
+  })
+
+  it('muestra point_count en neutro y usa --ink-soft para el texto sin reporte', () => {
+    const conteo = expresionConteoCluster()
+    const claro = colorTextoCluster(false)
+    const oscuro = colorTextoCluster(true)
+    expect(conteo[0]).toBe('to-string')
+    expect(evaluarPaint(conteo, { escuelasAfectadas: 0, point_count: 12 })).toBe('12')
+    expect(evaluarPaint(conteo, { escuelasAfectadas: 4, point_count: 8 })).toBe('4')
+    expect(evaluarPaint(claro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#5f5e5c')
+    expect(evaluarPaint(oscuro, { escuelasAfectadas: 0, severidadRango: 0 })).toBe('#c9c6c3')
+  })
+})
+
+describe('filtro del ícono de escuela', () => {
+  function evaluarFiltro(expresion: unknown[], propiedades: Record<string, unknown>): boolean {
+    const [op, ...args] = expresion
+    if (op === 'all') return args.every((parte) => evaluarFiltro(parte as unknown[], propiedades))
+    if (op === '!') return !evaluarFiltro(args[0] as unknown[], propiedades)
+    if (op === 'has') return args[0] === 'point_count' && 'point_count' in propiedades
+    if (op === '==') {
+      const consulta = args[0] as unknown[]
+      return propiedades[consulta[1] as string] === args[1]
+    }
+    throw new Error(`Operador de filtro no soportado: ${String(op)}`)
+  }
+
+  it('incluye escuelas individuales afectadas y excluye las sin reporte y los clusters', () => {
+    const filtro = filtroIconoEscuelaAfectada() as unknown[]
+    expect(evaluarFiltro(filtro, { estado: 'afectada' })).toBe(true)
+    expect(evaluarFiltro(filtro, { estado: 'sin_afectacion_reportada' })).toBe(false)
+    expect(evaluarFiltro(filtro, { estado: 'afectada', point_count: 7 })).toBe(false)
   })
 })
 

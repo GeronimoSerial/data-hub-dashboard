@@ -115,6 +115,15 @@ describe('construirEscuelasMapaFeatureCollection', () => {
     expect(props.estado).toBe('sin_afectacion_reportada')
   })
 
+  it('ninguna escuela sin reporte lleva badge aunque sus clases o actualización sugieran un ícono', () => {
+    const centro = escuelaSinAfectacion({ clases: 'centro', sinActualizar: true })
+    const reloj = escuelaSinAfectacion({ clases: 'normal', sinActualizar: true })
+
+    const fc = construirEscuelasMapaFeatureCollection([centro, reloj])
+
+    expect(fc.features.map((feature) => feature.properties.icono)).toEqual([null, null])
+  })
+
   it('marca esCentroEvacuados sólo para centro_evacuados, y esEvacuado para ambos', () => {
     const escuelas = [
       escuelaAfectada({ cueAnexo: 'habitual', parte: parte({ estadoEstablecimiento: 'habitual' }) }),
