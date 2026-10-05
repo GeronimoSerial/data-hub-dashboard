@@ -8,7 +8,9 @@ import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 
 vi.mock('@/components/infraestructura/evolucion-panel', () => ({
-  EvolucionPanel: () => <div data-testid="mock-evolucion" />,
+  EvolucionPanel: (props: { filtros: FiltrosMapa }) => (
+    <div data-testid="mock-evolucion" data-filtros={JSON.stringify(props.filtros)} />
+  ),
 }))
 
 const escuelas: EscuelaMapaEnriquecida[] = [
@@ -48,7 +50,7 @@ describe('PanelEstadisticas', () => {
 
   it('muestra las cinco tarjetas con los números de resumir', () => {
     const resumen = resumir(escuelas)
-    const { container } = render(<PanelEstadisticas escuelas={escuelas} />)
+    const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const kpis = container.querySelector<HTMLElement>('.map-est__kpis') ?? container
 
     expect(leerNumeroKpi('Escuelas afectadas', kpis)).toBe('3')
@@ -64,7 +66,7 @@ describe('PanelEstadisticas', () => {
     const { container } = render(
       <>
         <PanelSituacionActual escuelas={filtradas} actualizadoEn={null} onSeleccionar={vi.fn()} />
-        <PanelEstadisticas escuelas={filtradas} />
+        <PanelEstadisticas escuelas={filtradas} filtros={filtros} />
       </>,
     )
     const situacion = container.querySelector<HTMLElement>('.map-sitact')!
@@ -81,7 +83,7 @@ describe('PanelEstadisticas', () => {
   })
 
   it('al agrupar por nivel cambia la primera columna y duplica escuelas con varios niveles', () => {
-    render(<PanelEstadisticas escuelas={escuelas} />)
+    render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
 
     expect(screen.getByRole('button', { name: 'Departamento' })).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Nivel' }))
@@ -96,18 +98,18 @@ describe('PanelEstadisticas', () => {
 
   it('muestra estados vacíos sin tabla', () => {
     const sinNiveles = escuelas.map((escuela) => ({ ...escuela, niveles: [] }))
-    const { rerender } = render(<PanelEstadisticas escuelas={sinNiveles} />)
+    const { rerender } = render(<PanelEstadisticas escuelas={sinNiveles} filtros={FILTROS_MAPA_VACIOS} />)
     fireEvent.click(screen.getByRole('button', { name: 'Nivel' }))
     expect(screen.getByText('No hay niveles cargados en el padrón.')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
-    rerender(<PanelEstadisticas escuelas={[]} />)
+    rerender(<PanelEstadisticas escuelas={[]} filtros={FILTROS_MAPA_VACIOS} />)
     expect(screen.getByText('No hay escuelas con estos filtros.')).toBeInTheDocument()
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
   it('presenta celdas numéricas y una barra porcentual del ancho indicado', () => {
-    const { container } = render(<PanelEstadisticas escuelas={escuelas} />)
+    const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const fila = container.querySelector('.map-est__tabla tbody tr')
     expect(fila).not.toBeNull()
     const celdasNumericas = fila?.querySelectorAll('.map-est__numero')
@@ -115,5 +117,12 @@ describe('PanelEstadisticas', () => {
     const barra = fila?.querySelector<HTMLElement>('.map-est__barra span')
     expect(barra?.style.width).toBe('100%')
     expect(barra?.parentElement).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  it('pasa los filtros activos a EvolucionPanel', () => {
+    const filtros: FiltrosMapa = { ...FILTROS_MAPA_VACIOS, departamentos: ['Goya'] }
+    render(<PanelEstadisticas escuelas={escuelas} filtros={filtros} />)
+
+    expect(screen.getByTestId('mock-evolucion')).toHaveAttribute('data-filtros', JSON.stringify(filtros))
   })
 })

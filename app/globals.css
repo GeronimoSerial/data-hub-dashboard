@@ -5030,25 +5030,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   cursor: pointer;
 }
 
-/* ── Pestaña de evolución (F5.3) ──────────────────────────────────────────
-   Una sola columna centrada: los gráficos necesitan ancho estable y la tabla
-   de ranking scrollea dentro de su propia superficie (.ui-table-wrap). */
+/* ── Evolución dentro de Estadísticas (F5.3) ───────────────────────────────
+   Los gráficos ocupan el ancho de la sección y el ranking scrollea dentro de
+   su propia superficie (.ui-table-wrap). */
 .evolucion-panel {
   display: flex;
   flex-direction: column;
   gap: var(--s-4);
-  max-width: 64rem;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
 }
 .evolucion-vista {
   display: flex;
   flex-direction: column;
   gap: var(--s-3);
-  /* Hallazgo 23: las cuatro vistas no comparten altura (gráfico de 17rem vs.
-     tabla vs. mensaje) y al cambiar de subpestaña el layout saltaba. Se reserva
-     la altura típica de un gráfico más el texto de encabezado para que el salto
-     entre vistas sea mínimo. La vista de acumulado puede superarlo y crecer. */
-  min-height: 21rem;
+  /* Reserva la altura del gráfico de 17rem y un poco de aire para evitar saltos
+     al cambiar de subpestaña. La vista de acumulado puede crecer. */
+  min-height: 18rem;
 }
 .evolucion-subtitulo {
   margin: 0;

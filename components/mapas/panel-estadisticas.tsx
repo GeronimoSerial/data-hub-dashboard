@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { agrupar, resumir, type AgruparPor } from '@/lib/infraestructura/mapa/agregar'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
-import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
+import type { EscuelaMapaEnriquecida, FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 
 // Los gráficos se cargan al abrir Estadísticas para no sumar su peso al mapa inicial.
 const EvolucionPanel = dynamic(
@@ -33,7 +33,7 @@ function etiquetaFila(clave: string, por: AgruparPor): string {
   return por === 'departamento' ? etiquetaDepartamento(clave) : clave
 }
 
-export function PanelEstadisticas({ escuelas }: { escuelas: EscuelaMapaEnriquecida[] }) {
+export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapaEnriquecida[]; filtros: FiltrosMapa }) {
   const [por, setPor] = useState<AgruparPor>('departamento')
   const resumen = resumir(escuelas)
   const filas = agrupar(escuelas, por)
@@ -121,7 +121,7 @@ export function PanelEstadisticas({ escuelas }: { escuelas: EscuelaMapaEnriqueci
 
       <section className="map-est__evolucion" aria-labelledby="map-est-evolucion-titulo">
         <h3 id="map-est-evolucion-titulo" className="map-sitact__titulo-seccion">Evolución en el tiempo</h3>
-        <EvolucionPanel />
+        <EvolucionPanel filtros={filtros} />
       </section>
     </section>
   )

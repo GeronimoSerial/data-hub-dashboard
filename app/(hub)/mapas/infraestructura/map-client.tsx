@@ -163,7 +163,7 @@ export function InfraestructuraMapClient(props: {
             className="mapa-pestana-panel mapa-pestana-panel--scroll"
             data-testid="pestana-estadisticas"
           >
-            <PanelEstadisticas escuelas={escuelasFiltradas} />
+            <PanelEstadisticas escuelas={escuelasFiltradas} filtros={filtros} />
           </div>
         )}
       </div>
