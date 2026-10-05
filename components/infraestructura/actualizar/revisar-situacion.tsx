@@ -30,7 +30,7 @@ export interface RevisarSituacionProps {
   faltaRespuesta: boolean
   onInteractuar: () => void
   consecuencias: SituacionRecorrido[]
-  clasesEdificio: ValorClasesEdificio
+  clasesEdificio: ValorClasesEdificio & { confirmarInterrupcionTotal?: boolean }
   onResponder: (respuesta: RespuestaSituacion | null) => void
   onCambiarClasesEdificio: (valor: ValorClasesEdificio & { confirmarInterrupcionTotal: boolean }) => void
   onCascada: (consecuenciaId: string, solucionadaEn: string) => void
@@ -42,21 +42,27 @@ function seccionesDe(turnos: TurnoContexto[]): number[] {
 }
 
 export function RevisarSituacion(p: RevisarSituacionProps): JSX.Element {
-  const [modo, setModo] = useState<Modo>('eligiendo')
+  const cambioGuardado = p.respuesta?.tipo === 'cambio' ? p.respuesta.cambio : undefined
+  const [modo, setModo] = useState<Modo>(cambioGuardado ? 'cambio' : 'eligiendo')
   const [preguntandoAspectos, setPreguntandoAspectos] = useState(false)
-  const [aspectos, setAspectos] = useState<AspectoCambio[]>([])
-  const [gravedad, setGravedad] = useState<ValorGravedad>({ severidad: p.situacion.severidad, justificacionCritica: '', justificacionCriticaDetalle: '' })
+  const [aspectos, setAspectos] = useState<AspectoCambio[]>(cambioGuardado?.aspectos ?? [])
+  const [gravedad, setGravedad] = useState<ValorGravedad>({
+    severidad: cambioGuardado?.severidad ?? p.situacion.severidad,
+    justificacionCritica: cambioGuardado?.justificacionCritica ?? '',
+    justificacionCriticaDetalle: cambioGuardado?.justificacionCriticaDetalle ?? '',
+  })
   const [alcance, setAlcance] = useState<{ secciones: number[]; alumnos: number[]; alcanceEstablecimiento: ValorAlcanceEstablecimiento['alcance'] }>(() => {
     const todas = seccionesDe(p.turnos)
-    const cubreTodaLaEscuela = todas.length > 0 && todas.every((id) => p.situacion.secciones.includes(id))
+    const secciones = cambioGuardado?.secciones ?? p.situacion.secciones
+    const cubreTodaLaEscuela = todas.length > 0 && todas.every((id) => secciones.includes(id))
     return {
-      secciones: p.situacion.secciones,
-      alumnos: p.situacion.alumnos,
+      secciones,
+      alumnos: cambioGuardado?.alumnos ?? p.situacion.alumnos,
       alcanceEstablecimiento: cubreTodaLaEscuela ? 'toda' : 'algunas',
     }
   })
   const [clases, setClases] = useState<ValorClasesEdificio>(p.clasesEdificio)
-  const [interrumpeTodo, setInterrumpeTodo] = useState(false)
+  const [interrumpeTodo, setInterrumpeTodo] = useState(p.clasesEdificio.confirmarInterrupcionTotal ?? false)
   const [cuando, setCuando] = useState<EleccionVigencia>(VIGENCIA_AHORA)
   const [cascada, setCascada] = useState<{ pendientes: SituacionRecorrido[]; solucionadaEn: string } | null>(null)
   const solucionRef = useRef<HTMLDivElement>(null)

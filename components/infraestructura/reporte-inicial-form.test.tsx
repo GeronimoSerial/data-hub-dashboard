@@ -273,7 +273,7 @@ describe('ReporteInicialForm', () => {
     continuar()
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Elija el tipo de situación, el motivo y la severidad para continuar.',
+      'Elija el tipo de situación, el motivo y la gravedad para continuar.',
     )
     expect(screen.getByRole('heading', { name: '¿Qué pasó?' })).toBeInTheDocument()
   })
@@ -361,6 +361,63 @@ describe('ReporteInicialForm', () => {
     expect(textoAlertas()).toContain('Esa hora todavía no pasó.')
     expect(screen.queryByText('Desde hoy a las 23:59')).not.toBeInTheDocument()
     vi.useRealTimers()
+  })
+
+  it('enfoca y desplaza la fecha futura al mostrar su error', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.setSystemTime(new Date('2026-10-04T18:00:00.000Z'))
+    renderFormulario()
+    expect(document.querySelector('.reporte-inicial')).toHaveClass('reporte-inicial--asistente')
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+    completarEstadoEstablecimiento()
+    fireEvent.click(screen.getByRole('radio', { name: 'Otro día' }))
+    const fecha = screen.getByLabelText('Fecha') as HTMLInputElement
+    const elementosDesplazados: Element[] = []
+    const descriptorScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    const scrollIntoView = vi.fn(function (this: HTMLElement) {
+      elementosDesplazados.push(this)
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    fireEvent.change(fecha, { target: { value: '2026-10-06' } })
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '10:00' } })
+
+    try {
+      continuar()
+
+      const mensaje = await screen.findByRole('alert')
+      expect(mensaje).toHaveTextContent('La fecha no puede ser posterior a hoy.')
+      expect(fecha).toHaveFocus()
+      expect(elementosDesplazados).toContain(mensaje)
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'end' })
+
+      fireEvent.change(fecha, { target: { value: '2025-10-03' } })
+      continuar()
+      expect(await screen.findByRole('alert')).toHaveTextContent('La fecha no puede ser anterior a hace 12 meses.')
+    } finally {
+      if (descriptorScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', descriptorScroll)
+      else delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+      vi.useRealTimers()
+    }
+  })
+
+  it('muestra las modalidades de asistencia en un subgrupo sólo al elegir Sí', () => {
+    renderFormulario()
+    completarQuePaso()
+    continuar()
+    completarAQuienAfecta()
+    continuar()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'No' }))
+    expect(screen.queryByRole('group', { name: '¿De qué forma?' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí' }))
+    const modalidades = screen.getByRole('group', { name: '¿De qué forma?' })
+    expect(within(modalidades).getByRole('checkbox', { name: 'Clase virtual' })).toBeInTheDocument()
+    expect(within(modalidades).getByRole('checkbox', { name: 'Cuadernillo' })).toBeInTheDocument()
   })
 
   it('usa etiquetas de alcance y una confirmación sin repetir el título', async () => {
@@ -597,7 +654,7 @@ describe('ReporteInicialForm', () => {
       expect(document.querySelector('.reporte-inicial__confirmacion-mensaje svg')).toBeInTheDocument()
       expect(screen.getByRole('heading', { name: 'Situación guardada' })).toBeInTheDocument()
 
-      const volverAlPanel = screen.getByRole('link', { name: 'Volver al panel' })
+      const volverAlPanel = screen.getByRole('link', { name: 'Ver estado actual' })
       expect(volverAlPanel.tagName).toBe('A')
       expect(volverAlPanel).toHaveAttribute('href', `/problematicas/parte?cue=${props.cue}`)
       expect(consoleError).not.toHaveBeenCalled()
@@ -783,14 +840,23 @@ describe('ReporteInicialForm', () => {
     expect(screen.getByRole('button', { name: /guardar situación/i })).toBeEnabled()
   })
 
-  it('una sesión vencida (401) conserva el borrador y explica cómo retomar', async () => {
-    stubFetch({}, 401)
+  it('una sesión vencida (401) muestra una alerta y permite reintentar manualmente', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({}, 401))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, movimientoId: 'm1' }, 201))
+    vi.stubGlobal('fetch', fetchMock)
 
     renderFormulario()
     guardarReporte()
 
-    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(resumenConfirmacion()).toHaveTextContent(/Inundación.*Alta/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    expect(await screen.findByText(MENSAJE_REPORTE_EXITOSO)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -798,6 +864,7 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
   const clave = `parte-nuevo:draft:${props.cue}`
 
   it('guarda el borrador con su paso y ofrece retomarlo al remontar (#32)', async () => {
+    expect(MENSAJE_BORRADOR_PENDIENTE).toBe('Tiene un parte sin enviar.')
     const primero = renderFormulario()
     completarQuePaso()
     continuar()
@@ -811,7 +878,13 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '¿Qué pasó?' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    const aviso = document.querySelector('.aviso-retoma') as HTMLElement
+    const continuarBorrador = within(aviso).getByRole('button', { name: 'Continuar donde lo dejé' })
+    const descartarBorrador = within(aviso).getByRole('button', { name: 'Descartar' })
+    expect(continuarBorrador).toHaveClass('ui-button--secondary')
+    expect(descartarBorrador).toHaveClass('ui-button--ghost')
+    expect(continuarBorrador.compareDocumentPosition(descartarBorrador) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(continuarBorrador)
     expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.

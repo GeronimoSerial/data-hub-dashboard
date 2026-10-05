@@ -15,10 +15,6 @@ import type {
 import type { EstadoEstablecimiento, SeccionEstablecimiento, ServicioEstado, TipoMovimiento } from './trayectoria-tipos'
 
 export interface DescribirMovimientoOpciones {
-  // Cuando el movimiento es el reporte inicial, la primera afectación
-  // agregada se narra como "Se inició la situación…" en vez de
-  // "Se agregó…" (spec §15, segundo ejemplo del historial). El resto de las
-  // líneas usa el mismo criterio que una actualización.
   tipo?: TipoMovimiento
   secciones?: SeccionEstablecimiento[]
 }
@@ -101,70 +97,61 @@ const ESTADO_ESTABLECIMIENTO_TEXTO: Record<EstadoEstablecimiento, string> = {
   centro_evacuados: 'centro de evacuados',
 }
 
-const HORA_ZONA = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-})
-const FECHA_ZONA = new Intl.DateTimeFormat('es-AR', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  day: 'numeric',
-  month: 'long',
-})
-const DIA_ZONA = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'America/Argentina/Buenos_Aires',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-})
-
-function momentoDesde(iso: string): string {
-  const fecha = new Date(iso)
-  if (Number.isNaN(fecha.getTime())) return 'desde hora no indicada'
-  const hora = HORA_ZONA.format(fecha)
-  if (DIA_ZONA.format(fecha) === DIA_ZONA.format(new Date())) return `desde ${hora}`
-  return `desde el ${FECHA_ZONA.format(fecha)}, ${hora}`
-}
-
 /** Título compartido por el resumen de carga, la línea de tiempo y el historial. */
-export function tituloMovimiento(diff: DiffParte, tipo: TipoMovimiento, rigeDesde: string): string {
-  const agregado = diff.afectacionesAgregadas[0]
-  const severidad = diff.severidadesCambiadas[0]
-  const retirada = diff.afectacionesRetiradas[0]
-  const alcance = diff.alcancesCambiados[0]
-  let situacion: string
-  let gravedad: string
+export function tituloMovimiento(diff: DiffParte, tipo: TipoMovimiento, _rigeDesde: string): string {
+  const ids = new Set([
+    ...diff.afectacionesAgregadas.map((item) => item.afectacionId),
+    ...diff.afectacionesRetiradas.map((item) => item.afectacionId),
+    ...diff.severidadesCambiadas.map((item) => item.afectacionId),
+    ...diff.alcancesCambiados.map((item) => item.afectacionId),
+    ...(diff.datosCambiados ?? []).map((item) => item.afectacionId),
+  ])
+  if (ids.size > 1) return `Se actualizaron ${ids.size} situaciones`
 
-  if (agregado) {
-    situacion = agregado.motivo
-    gravedad = agregado.severidad
-  } else if (severidad) {
-    situacion = severidad.motivo
-    gravedad = `${severidad.de} → ${severidad.a}`
-  } else if (retirada) {
-    situacion = retirada.motivo
-    gravedad = retirada.cierre === 'solucionada' ? 'Solucionada' : 'Resuelta'
-  } else if (alcance) {
-    situacion = alcance.motivo
-    gravedad = 'Alcance actualizado'
-  } else if (diff.datosCambiados?.[0]) {
-    situacion = diff.datosCambiados[0].motivo
-    gravedad = 'Datos actualizados'
-  } else if (diff.establecimientoCambiado || diff.serviciosCambiados.length > 0) {
-    situacion = 'Funcionamiento'
-    gravedad = diff.establecimientoCambiado
-      ? ESTADO_ESTABLECIMIENTO_TEXTO[diff.establecimientoCambiado.a]
-      : textoServicioEstado(diff.serviciosCambiados[0].a ?? diff.serviciosCambiados[0].de ?? 'normal')
-  } else if (diff.asistenciaPedagogicaCambiada) {
-    situacion = 'Asistencia pedagógica'
-    gravedad = 'Actualizada'
-  } else {
-    situacion = tipo === 'confirmacion' ? 'Situación confirmada' : 'Movimiento del parte'
-    gravedad = 'Actualizado'
+  const agregado = diff.afectacionesAgregadas[0]
+  if (agregado) return `Se informó ${agregado.motivo}`
+
+  const severidad = diff.severidadesCambiadas[0]
+  if (severidad) return `Cambió la gravedad: ${severidad.de} → ${severidad.a}`
+
+  const retirada = diff.afectacionesRetiradas[0]
+  if (retirada) {
+    return retirada.cierre === 'solucionada'
+      ? `Se solucionó ${retirada.motivo}`
+      : `Se dejó de informar ${retirada.motivo}`
   }
 
-  return `${situacion} · ${gravedad} · ${momentoDesde(rigeDesde)}`
+  const alcance = diff.alcancesCambiados[0]
+  if (alcance) return `Cambió el alcance de ${alcance.motivo}`
+
+  const datos = (diff.datosCambiados ?? [])[0]
+  if (datos) return `Se actualizaron los datos de ${datos.motivo}`
+
+  if (diff.establecimientoCambiado && diff.serviciosCambiados.length > 0) return 'Cambiaron las clases y el edificio'
+  if (diff.serviciosCambiados.length > 0) return 'Cambió el funcionamiento de las clases'
+  if (diff.establecimientoCambiado) return 'Cambió el estado del edificio'
+  if (diff.asistenciaPedagogicaCambiada) return 'Cambió la asistencia pedagógica'
+  return tipo === 'confirmacion' ? 'Situación confirmada' : 'Se actualizó el parte'
+}
+
+function detalleAlcance(secciones: number, alumnos: number): string {
+  const textoSecciones = `${secciones} ${pluralizar(secciones, 'sección', 'secciones')}`
+  const textoAlumnos = `${alumnos} ${pluralizar(alumnos, 'alumno', 'alumnos')}`
+  return secciones > 0
+    ? `Alcanza a ${textoSecciones}${alumnos > 0 ? ` (${textoAlumnos})` : ''}`
+    : `Alcanza a ${textoAlumnos}`
+}
+
+function detalleCambioAlcance(cambio: DiffParte['alcancesCambiados'][number]): string {
+  const partes: string[] = []
+  if (cambio.seccionesAgregadas > 0) partes.push(`${cambio.seccionesAgregadas} ${pluralizar(cambio.seccionesAgregadas, 'sección', 'secciones')} más`)
+  if (cambio.seccionesRetiradas > 0) partes.push(`${cambio.seccionesRetiradas} ${pluralizar(cambio.seccionesRetiradas, 'sección', 'secciones')} menos`)
+  if (cambio.alumnosAgregados > 0) partes.push(`${cambio.alumnosAgregados} ${pluralizar(cambio.alumnosAgregados, 'alumno', 'alumnos')} más`)
+  if (cambio.alumnosRetirados > 0) partes.push(`${cambio.alumnosRetirados} ${pluralizar(cambio.alumnosRetirados, 'alumno', 'alumnos')} menos`)
+  const verbo = cambio.seccionesRetiradas + cambio.alumnosRetirados > 0
+    ? cambio.seccionesAgregadas + cambio.alumnosAgregados > 0 ? 'Se actualizó' : 'Se redujo'
+    : 'Se amplió'
+  return `${verbo} el alcance de ${cambio.motivo}: ${partes.join(' y ')}`
 }
 
 export function describirMovimiento(
@@ -179,46 +166,28 @@ export function describirMovimiento(
 
   lineas.push(...lineasServicio(diff.serviciosCambiados, opciones.secciones ?? []).filter(Boolean))
 
-  const esReporteInicial = opciones.tipo === 'reporte_inicial'
-
-  diff.afectacionesAgregadas.forEach((agregada, indice) => {
-    if (esReporteInicial && indice === 0) {
-      lineas.push(`Se inició la situación "${agregada.motivo}"`)
-      const partes: string[] = [`Severidad ${agregada.severidad}`]
-      if (agregada.secciones > 0) {
-        partes.push(`${agregada.secciones} ${pluralizar(agregada.secciones, 'sección', 'secciones')}`)
-      }
-      if (agregada.alumnos > 0) {
-        partes.push(`${agregada.alumnos} ${pluralizar(agregada.alumnos, 'alumno', 'alumnos')}`)
-      }
-      lineas.push(partes.join(' · '))
-      if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
-      return
-    }
-
-    lineas.push(`Se agregó "${agregada.motivo}" · Severidad ${agregada.severidad}`)
-    if (agregada.secciones > 0) {
-      lineas.push(
-        `${agregada.secciones} ${pluralizar(agregada.secciones, 'sección incorporada', 'secciones incorporadas')}`,
-      )
-    }
-    if (agregada.alumnos > 0) {
-      lineas.push(
-        `${agregada.alumnos} ${pluralizar(agregada.alumnos, 'alumno incorporado', 'alumnos incorporados')}`,
-      )
-    }
+  diff.afectacionesAgregadas.forEach((agregada) => {
+    lineas.push(`Se informó ${agregada.motivo}`)
+    lineas.push(`Gravedad ${agregada.severidad}`)
+    if (agregada.secciones > 0 || agregada.alumnos > 0) lineas.push(detalleAlcance(agregada.secciones, agregada.alumnos))
     if (agregada.causadaPor) lineas.push(`Causado por "${agregada.causadaPor.motivo}"`)
   })
 
   for (const retirada of diff.afectacionesRetiradas) {
-    // "Se resolvió", no "Se retiró": la §15 no fija una cadena para esto, y
-    // "retirar" nombra lo que el sistema hace con la fila, no lo que pasó en
-    // la escuela. Es la misma palabra que el director tocó para llegar acá.
-    lineas.push(retirada.cierre === 'solucionada' ? `Se solucionó "${retirada.motivo}"` : `Se resolvió "${retirada.motivo}"`)
+    lineas.push(retirada.cierre === 'solucionada' ? `Se solucionó ${retirada.motivo}` : `Se dejó de informar ${retirada.motivo}`)
   }
 
+  const idsSituaciones = new Set([
+    ...diff.afectacionesAgregadas.map((item) => item.afectacionId),
+    ...diff.afectacionesRetiradas.map((item) => item.afectacionId),
+    ...diff.severidadesCambiadas.map((item) => item.afectacionId),
+    ...diff.alcancesCambiados.map((item) => item.afectacionId),
+    ...(diff.datosCambiados ?? []).map((item) => item.afectacionId),
+  ])
   for (const cambio of diff.severidadesCambiadas) {
-    lineas.push(`Severidad de "${cambio.motivo}": ${cambio.de} → ${cambio.a}`)
+    lineas.push(idsSituaciones.size > 1
+      ? `${cambio.motivo}: gravedad ${cambio.de} → ${cambio.a}`
+      : `Situación: ${cambio.motivo}`)
   }
 
   // diff.datosCambiados puede faltar en un resumen ya persistido de antes de
@@ -244,26 +213,7 @@ export function describirMovimiento(
   }
 
   for (const cambio of diff.alcancesCambiados) {
-    if (cambio.seccionesAgregadas > 0) {
-      lineas.push(
-        `${cambio.seccionesAgregadas} ${pluralizar(cambio.seccionesAgregadas, 'sección incorporada', 'secciones incorporadas')} en "${cambio.motivo}"`,
-      )
-    }
-    if (cambio.seccionesRetiradas > 0) {
-      lineas.push(
-        `${cambio.seccionesRetiradas} ${pluralizar(cambio.seccionesRetiradas, 'sección retirada', 'secciones retiradas')} de "${cambio.motivo}"`,
-      )
-    }
-    if (cambio.alumnosAgregados > 0) {
-      lineas.push(
-        `${cambio.alumnosAgregados} ${pluralizar(cambio.alumnosAgregados, 'alumno incorporado', 'alumnos incorporados')} en "${cambio.motivo}"`,
-      )
-    }
-    if (cambio.alumnosRetirados > 0) {
-      lineas.push(
-        `${cambio.alumnosRetirados} ${pluralizar(cambio.alumnosRetirados, 'alumno retirado', 'alumnos retirados')} de "${cambio.motivo}"`,
-      )
-    }
+    lineas.push(detalleCambioAlcance(cambio))
   }
 
   if (diff.establecimientoCambiado) {

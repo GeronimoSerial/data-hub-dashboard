@@ -70,6 +70,8 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
                 min={fechaInput(min)}
                 max={fechaInput(max)}
                 value={value.fecha}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${id}-error` : undefined}
                 onChange={(evento) => onChange({ ...value, fecha: evento.target.value })}
               />
             </label>
@@ -81,6 +83,7 @@ export function VigenciaChips({ value, onChange, label, disabled = false, error 
               type="time"
               lang="es-AR"
               value={value.hora}
+              aria-invalid={error ? true : undefined}
               aria-describedby={error ? `${id}-error` : undefined}
               onChange={(evento) => onChange({ ...value, hora: evento.target.value })}
             />

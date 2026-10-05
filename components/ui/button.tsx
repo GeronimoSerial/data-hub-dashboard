@@ -10,7 +10,7 @@ type Props = React.ComponentProps<typeof ButtonPrimitive> & {
 export function Button({ className, variant = 'default', size = 'default', ...props }: Props) {
   return (
     <ButtonPrimitive
-      className={cn('ui-button', `ui-button--${variant}`, `ui-button--${size}`, className)}
+      className={cn('ui-button', `ui-button--${variant}`, size !== 'default' && `ui-button--${size}`, className)}
       {...props}
     />
   )

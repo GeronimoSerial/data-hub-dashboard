@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
 import { Button } from '@/components/ui/button'
 import { Opcion } from '@/components/ui/opcion'
 import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { armarCandidatasCausa, type CandidataCausa } from '@/lib/infraestructura/parte/candidatas-causa'
@@ -25,11 +27,12 @@ export interface AlgoNuevoProps {
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
   onTerminar: (nueva: NuevaSituacion | null) => void
+  onEtapaChange?: (etapa: Etapa) => void
   onActualizarExistente: (id: string) => void
   onSolucionarExistente: (id: string, solucionadaEn: string) => void
 }
 
-type Etapa = 'pregunta' | 'causa' | 'datos'
+type Etapa = 'pregunta' | 'datos' | 'causa'
 type DecisionDuplicado = 'distintos' | 'actualizar' | 'solucionada'
 
 function fechaCorta(fecha: string): string {
@@ -37,23 +40,52 @@ function fechaCorta(fecha: string): string {
   if (!Number.isFinite(fechaValida.getTime())) return fecha
   return new Intl.DateTimeFormat('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+    day: 'numeric',
+    month: 'long',
   }).format(fechaValida)
 }
 
 function fechaCausaLegible(fecha: string): string {
   const fechaValida = new Date(fecha)
   if (!Number.isFinite(fechaValida.getTime())) return fecha
-  return new Intl.DateTimeFormat('es-AR', {
+  const fechaLocal = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Argentina/Buenos_Aires',
-    day: 'numeric',
-    month: 'long',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(fechaValida)
+  const hoy = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date())
+  const ayerDate = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const ayer = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(ayerDate)
+  const dia = fechaLocal === hoy ? 'hoy' : fechaLocal === ayer ? 'ayer' : new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', day: 'numeric', month: 'long',
+  }).format(fechaValida).toLocaleLowerCase('es-AR')
+  const hora = new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires',
     hourCycle: 'h23',
     hour: '2-digit',
     minute: '2-digit',
   }).format(fechaValida)
+  return `${dia} ${hora}`
+}
+
+function detalleCausa(candidata: CandidataCausa, cantidadSeccionesEscuela: number): string {
+  const partes: Array<string | undefined> = [candidata.severidad]
+  if (candidata.secciones !== undefined) {
+    if (cantidadSeccionesEscuela > 0 && candidata.secciones === cantidadSeccionesEscuela) {
+      partes.push('toda la escuela')
+    } else {
+      const alcance = `${candidata.secciones} ${candidata.secciones === 1 ? 'sección' : 'secciones'}`
+      partes.push(candidata.alumnos !== undefined ? `${alcance}, ${candidata.alumnos} ${candidata.alumnos === 1 ? 'alumno' : 'alumnos'}` : alcance)
+    }
+  }
+  partes.push(`desde ${fechaCausaLegible(candidata.fecha)}`)
+  if (!candidata.activa) partes.push('Solucionada')
+  return partes.filter(Boolean).join(' · ')
 }
 
 function crearNuevaSituacion(borrador: AfectacionBorrador, causadaPorId: string | null): NuevaSituacion | null {
@@ -77,26 +109,53 @@ export function AlgoNuevo({
   turnos,
   motivos,
   onTerminar,
+  onEtapaChange,
   onActualizarExistente,
   onSolucionarExistente,
 }: AlgoNuevoProps): JSX.Element {
   const [etapa, setEtapa] = useState<Etapa>('pregunta')
-  const [causadaPorId, setCausadaPorId] = useState<string | null | undefined>(undefined)
+  const [hayAlgoNuevo, setHayAlgoNuevo] = useState<boolean | null>(null)
+  const [causadaPorId, setCausadaPorId] = useState<string | null>(null)
   const [borrador, setBorrador] = useState<AfectacionBorrador>(() => crearAfectacionVacia('nueva-situacion'))
   const [motivoPendiente, setMotivoPendiente] = useState<string | null>(null)
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
   const [cuandoSolucionada, setCuandoSolucionada] = useState<EleccionVigencia>(VIGENCIA_AHORA)
-  const [mostrarTodasLasCausas, setMostrarTodasLasCausas] = useState(false)
+  const [cantidadCerradasVisibles, setCantidadCerradasVisibles] = useState(0)
+
+  useEffect(() => { onEtapaChange?.(etapa) }, [etapa, onEtapaChange])
 
   const candidatasOrdenadas = armarCandidatasCausa(candidatasCausa)
-  const candidatasVisibles = mostrarTodasLasCausas ? candidatasOrdenadas : candidatasOrdenadas.slice(0, 5)
-  const cantidadOculta = candidatasOrdenadas.length - candidatasVisibles.length
+  const candidatasActivas = candidatasOrdenadas.filter((candidata) => candidata.activa)
+  const candidatasCerradas = candidatasOrdenadas.filter((candidata) => !candidata.activa)
+  const cantidadSeccionesEscuela = turnos.reduce((total, turno) => total + turno.niveles.reduce((subtotal, nivel) => subtotal + nivel.secciones.length, 0), 0)
+  const candidatasVisibles = [...candidatasActivas, ...candidatasCerradas.slice(0, cantidadCerradasVisibles)]
+  const causasCerradasRestantes = candidatasCerradas.length - cantidadCerradasVisibles
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
   const completaLaGravedad = gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = borrador.secciones.length > 0 &&
     (borrador.categoria !== 'establecimiento' || borrador.alcanceEstablecimiento !== '')
   const datosCompletos = borrador.categoria !== '' && borrador.motivo !== '' && completaLaGravedad && alcanceCompleto
+
+  function mensajeFaltantes(): string | null {
+    const faltantes: string[] = []
+    if (!borrador.categoria) faltantes.push('el tipo')
+    if (!borrador.motivo) faltantes.push('el motivo')
+    if (!completaLaGravedad) faltantes.push('la gravedad')
+    if (borrador.categoria === 'establecimiento' && !borrador.alcanceEstablecimiento) {
+      faltantes.push('el alcance del establecimiento')
+    } else if (borrador.secciones.length === 0) {
+      faltantes.push('al menos una sección')
+    }
+
+    if (faltantes.length === 0) return null
+    const lista = faltantes.length === 1
+      ? faltantes[0]
+      : `${faltantes.slice(0, -1).join(', ')} y ${faltantes[faltantes.length - 1]}`
+    return `Elija ${lista}.`
+  }
+
+  const textoFaltantes = mensajeFaltantes()
 
   function aplicarMotivo(motivo: string): void {
     setBorrador((actual) => ({
@@ -144,24 +203,38 @@ export function AlgoNuevo({
     if (nueva && datosCompletos) onTerminar(nueva)
   }
 
+  function continuarDesdeDatos(): void {
+    if (!datosCompletos || motivoPendiente !== null) return
+    if (candidatasOrdenadas.length > 0) {
+      setEtapa('causa')
+    } else {
+      terminar()
+    }
+  }
+
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
-      <h2 className="asistente__titulo">¿Hay algo nuevo?</h2>
+      <h2 className="asistente__titulo">{etapa === 'pregunta' ? '¿Hay algo nuevo?' : 'Situación nueva'}</h2>
       {etapa === 'pregunta' ? (
         <>
           <fieldset className="afectacion-campos__grupo" aria-label="¿Hay algo nuevo?">
             <div className="afectacion-campos__opciones">
-              <Opcion tipo="radio" name="algo-nuevo" onChange={() => onTerminar(null)} label="No" />
-              <Opcion tipo="radio" name="algo-nuevo" onChange={() => setEtapa('causa')} label="Sí, agregar una situación nueva" />
+              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === false} onChange={() => { setHayAlgoNuevo(false); onTerminar(null) }} label="No" />
+              <Opcion tipo="radio" name="algo-nuevo" checked={hayAlgoNuevo === true} onChange={() => { setHayAlgoNuevo(true); setEtapa('datos') }} label="Sí, agregar una situación nueva" />
             </div>
           </fieldset>
+          {hayAlgoNuevo ? (
+            <div className="asistente__acciones">
+              <Button type="button" onClick={() => setEtapa('datos')}>Continuar</Button>
+            </div>
+          ) : null}
         </>
       ) : null}
 
       {etapa === 'causa' ? (
         <>
           <fieldset className="afectacion-campos__grupo">
-            <legend className="afectacion-campos__legend">¿Esta situación se originó por otra anterior?</legend>
+            <legend className="afectacion-campos__legend">¿Se originó por alguna de estas situaciones?</legend>
             <div className="afectacion-campos__opciones algo-nuevo__causas">
               <Opcion
                 tipo="radio"
@@ -171,34 +244,49 @@ export function AlgoNuevo({
                 label="No, es independiente"
                 compacta
               />
-              {candidatasVisibles.map((candidata) => (
-                <Opcion
-                  key={candidata.id}
-                  tipo="radio"
-                  name="causa-problema-nuevo"
-                  aria-label={`${candidata.motivo} · ${fechaCausaLegible(candidata.fecha)} · ${candidata.activa ? 'Activa' : 'Solucionada'}`}
-                  checked={causadaPorId === candidata.id}
-                  onChange={() => setCausadaPorId(candidata.id)}
-                  label={`${candidata.motivo} · ${fechaCausaLegible(candidata.fecha)}`}
-                  ayuda={<span className="algo-nuevo__causa-estado">{candidata.activa ? 'Activa' : 'Solucionada'}</span>}
-                  compacta
-                />
-              ))}
+              {candidatasVisibles.map((candidata) => {
+                const detalle = detalleCausa(candidata, cantidadSeccionesEscuela)
+                return (
+                  <Opcion
+                    key={candidata.id}
+                    tipo="radio"
+                    name="causa-problema-nuevo"
+                    aria-label={`${candidata.motivo} · ${detalle}`}
+                    checked={causadaPorId === candidata.id}
+                    onChange={() => setCausadaPorId(candidata.id)}
+                    label={candidata.motivo}
+                    ayuda={<span className="algo-nuevo__causa-estado">{detalle}</span>}
+                    compacta
+                  />
+                )
+              })}
             </div>
-            {cantidadOculta > 0 ? (
+            {candidatasCerradas.length > 0 && cantidadCerradasVisibles === 0 ? (
               <Button
                 type="button"
                 variant="ghost"
                 className="algo-nuevo__ver-causas"
-                aria-expanded={mostrarTodasLasCausas}
-                onClick={() => setMostrarTodasLasCausas(true)}
+                aria-expanded={false}
+                onClick={() => setCantidadCerradasVisibles(Math.min(5, candidatasCerradas.length))}
               >
-                Ver más ({cantidadOculta})
+                Ver anteriores ({candidatasCerradas.length})
+              </Button>
+            ) : null}
+            {cantidadCerradasVisibles > 0 && causasCerradasRestantes > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="algo-nuevo__ver-causas"
+                aria-expanded={true}
+                onClick={() => setCantidadCerradasVisibles((cantidad) => Math.min(cantidad + 5, candidatasCerradas.length))}
+              >
+                Ver más ({causasCerradasRestantes})
               </Button>
             ) : null}
           </fieldset>
           <div className="asistente__acciones">
-            <Button type="button" disabled={causadaPorId === undefined} onClick={() => setEtapa('datos')}>
+            <Button type="button" variant="secondary" onClick={() => setEtapa('datos')}>Volver</Button>
+            <Button type="button" onClick={terminar}>
               Continuar
             </Button>
           </div>
@@ -207,7 +295,8 @@ export function AlgoNuevo({
 
       {etapa === 'datos' ? (
         <div className="algo-nuevo__datos">
-          <div className="algo-nuevo__campos">
+          <div className="asistente__cuerpo">
+            <h2 className="asistente__titulo">¿Qué pasó?</h2>
             <CamposQuePaso
               borrador={borrador}
               idPrefijo="algo-nuevo"
@@ -216,18 +305,40 @@ export function AlgoNuevo({
               esNueva
               onChange={cambiarBorrador}
             />
+            <div className="afectacion-campos__grupo">
+              <Label htmlFor="algo-nuevo-descripcion">Descripción (opcional)</Label>
+              <Textarea
+                id="algo-nuevo-descripcion"
+                maxLength={500}
+                value={borrador.descripcion}
+                onChange={(evento) => setBorrador({ ...borrador, descripcion: evento.target.value })}
+              />
+            </div>
           </div>
-          <CamposAQuienAfecta
-            borrador={borrador}
-            idPrefijo="algo-nuevo"
-            turnos={turnos}
-            usaSelectorEstablecimiento
-            onChange={setBorrador}
-          />
-          <div className="asistente__acciones">
-            <Button type="button" disabled={!datosCompletos || motivoPendiente !== null} onClick={terminar}>
+          <div className="asistente__cuerpo">
+            <h2 className="asistente__titulo">¿A quiénes afecta?</h2>
+            <CamposAQuienAfecta
+              borrador={borrador}
+              idPrefijo="algo-nuevo"
+              turnos={turnos}
+              usaSelectorEstablecimiento
+              ocultarPreguntaAlcance
+              ocultarDescripcion
+              onChange={setBorrador}
+            />
+          </div>
+          <div className="asistente__acciones algo-nuevo__acciones">
+            <Button
+              type="button"
+              className="algo-nuevo__continuar"
+              disabled={!datosCompletos || motivoPendiente !== null}
+              aria-describedby={textoFaltantes ? 'algo-nuevo-faltantes' : undefined}
+              onClick={continuarDesdeDatos}
+            >
               Continuar
             </Button>
+            <Button type="button" variant="secondary" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>Volver</Button>
+            {textoFaltantes ? <p id="algo-nuevo-faltantes" className="algo-nuevo__faltantes" role="status">{textoFaltantes}</p> : null}
           </div>
         </div>
       ) : null}

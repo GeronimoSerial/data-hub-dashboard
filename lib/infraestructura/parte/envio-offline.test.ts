@@ -306,10 +306,16 @@ describe('intentarEnviar', () => {
 
     expect(resultado.ok).toBe(false)
     if (!resultado.ok) {
-      expect(resultado.estado).toBe('error')
-      expect(resultado.motivo).toMatch(/sesi[oó]n/i)
+      expect(resultado.estado).toBe('sesion-vencida')
+      expect(resultado.motivo).toBe('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')
     }
-    expect(await leerBorrador(almacen, 'problematica', 'cue-1')).not.toBeNull()
+    expect((await leerBorrador(almacen, 'problematica', 'cue-1'))?.estado).toBe('sesion-vencida')
+    expect(esEstadoReintentable('sesion-vencida')).toBe(false)
+    const fetchReintento = vi.fn().mockResolvedValue(respuesta(true, 201, { ok: true }))
+    expect(await reenviarCola(opciones(almacen, fetchReintento))).toBeNull()
+    expect(fetchReintento).not.toHaveBeenCalled()
+    expect((await reenviarCola(opciones(almacen, fetchReintento), { deliberado: true }))?.ok).toBe(true)
+    expect(fetchReintento).toHaveBeenCalledOnce()
   })
 
   // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
@@ -592,6 +598,7 @@ describe('estado veraz: red vs servidor', () => {
     expect(esEstadoReintentable('pendiente-envio')).toBe(true)
     expect(esEstadoReintentable('error-servidor')).toBe(true)
     expect(esEstadoReintentable('error')).toBe(false)
+    expect(esEstadoReintentable('sesion-vencida')).toBe(false)
     expect(esEstadoReintentable('enviando')).toBe(false)
     expect(esEstadoReintentable(null)).toBe(false)
   })

@@ -7,7 +7,7 @@ describe('EstadoActualSeveridad', () => {
   it('usa el mismo triángulo de severidad Alta y muestra la marca sugerida opcional', () => {
     const { container } = render(<EstadoActualSeveridad severidad="Alta" sugerida />)
 
-    expect(screen.getByText('Severidad Alta')).toBeInTheDocument()
+    expect(screen.getByText('Gravedad Alta')).toBeInTheDocument()
     expect(screen.getByText('Sugerido')).toBeInTheDocument()
     expect(container.querySelector('.estado-actual-severidad__marca--triangulo')).toHaveAttribute(
       'style',

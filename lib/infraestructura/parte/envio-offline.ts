@@ -9,6 +9,7 @@ export type EstadoEnvio =
   | 'error-servidor'
   | 'enviando'
   | 'enviado'
+  | 'sesion-vencida'
   | 'error'
 
 export interface AlmacenClaveValor {
@@ -66,14 +67,14 @@ export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
   'error-servidor': 'No pudimos enviar. Reintentamos en unos segundos.',
   enviando: 'Enviando…',
   enviado: 'Enviado',
+  'sesion-vencida': 'La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.',
   error: 'No se pudo enviar',
 }
 
 export const TIEMPO_MAXIMO_ENVIO_MS = 15000
 export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Reintentamos solos; su parte queda guardado.'
 
-const MENSAJE_SESION_VENCIDA =
-  'La sesión venció. Iniciá sesión nuevamente para reintentar; el borrador se conserva.'
+const MENSAJE_SESION_VENCIDA = MENSAJES_ESTADO['sesion-vencida']
 
 const MENSAJE_RESPUESTA_INESPERADA = 'respuesta inesperada del servidor'
 
@@ -482,16 +483,20 @@ async function completarEnvio<T>(
       ? MENSAJE_SESION_VENCIDA
       : motivo ?? MENSAJES_ESTADO.error
 
+  if (clasificacion === 'sesion-vencida') {
+    await registrarError(opciones, borradorEnviando, motivoError, cuerpo, 'sesion-vencida')
+    return { ok: false, estado: 'sesion-vencida', motivo: motivoError }
+  }
   await registrarError(opciones, borradorEnviando, motivoError, cuerpo)
   return { ok: false, estado: 'error', motivo: motivoError }
 }
 
-async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string, cuerpo: unknown): Promise<void> {
+async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string, cuerpo: unknown, estado: 'error' | 'sesion-vencida' = 'error'): Promise<void> {
   const borradorError: BorradorParte<T> = {
     ...borrador,
     url: opciones.url,
     cuerpo,
-    estado: 'error',
+    estado,
     motivoError,
     actualizadoEn: new Date().toISOString(),
   }
@@ -594,7 +599,7 @@ export async function reenviarCola<T>(
   { deliberado = false }: { deliberado?: boolean } = {},
 ): Promise<ResultadoEnvio | null> {
   const cola = await leerBorrador<T>(opciones.almacen, opciones.tipo, opciones.cue)
-  if (!cola || (!esEstadoReintentable(cola.estado) && !(deliberado && cola.estado === 'enviando'))) return null
+  if (!cola || (!esEstadoReintentable(cola.estado) && !(deliberado && (cola.estado === 'enviando' || cola.estado === 'sesion-vencida')))) return null
   return intentarEnviar(cola.datos, { ...opciones, reintentoDeliberado: deliberado })
 }
 

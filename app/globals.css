@@ -1494,6 +1494,7 @@ time {
   }
 }
 .confirm-sheet__cuerpo { padding: var(--s-4) var(--s-5); overflow-y: auto; }
+.confirm-sheet__cuerpo > .opcion + .opcion { margin-top: var(--s-2); }
 .confirm-sheet__acciones {
   display: flex;
   gap: var(--s-3);
@@ -2436,8 +2437,10 @@ time {
 }
 
 .entrada-actualizar__principal {
-  border: 2px solid var(--sev-critica, currentColor);
-  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--fill);
   padding: var(--s-4);
 }
 
@@ -2455,26 +2458,6 @@ time {
   padding: var(--s-3);
 }
 
-.entrada-actualizar__historial-control {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 44px;
-  padding: var(--s-3);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: var(--fill);
-  color: var(--ink);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.entrada-actualizar__historial-control:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 .entrada-actualizar__motivo,
 .entrada-actualizar__detalle {
   margin: 0;
@@ -2487,15 +2470,38 @@ time {
 .entrada-actualizar__otras ul {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
   margin: 0;
-  padding-left: var(--s-5);
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.entrada-actualizar__otras li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.entrada-actualizar__otra-motivo {
+  font-weight: 600;
 }
 
 .entrada-actualizar__detalle {
   color: var(--ink-soft);
   font-size: var(--t-small);
 }
+
+.entrada-actualizar .asistente__acciones {
+  flex-direction: row;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.entrada-actualizar .asistente__acciones > :first-child { flex: 1 1 auto; }
+.entrada-actualizar .asistente__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
 
 .entrada-actualizar .asistente__acciones > * {
   min-height: 44px;
@@ -3123,6 +3129,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 .secciones-selector__seccion { display: flex; flex-direction: column; }
+.secciones-selector__seccion + .secciones-selector__seccion { border-top: 1px solid var(--line-soft); }
 
 /* Each section is a row, not a floating checkbox: full-bleed hit area and a
    hover tint so the list scans like a list. */
@@ -3345,8 +3352,14 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   box-sizing: border-box;
   width: 100%;
   min-height: 48px;
-  justify-content: center;
+  justify-content: flex-start;
   text-align: left;
+}
+
+/* En el celular las dos opciones se apilan: lado a lado "Algunas secciones"
+   cortaba en dos líneas y quedaba más alta que su vecina. */
+@media (max-width: 480px) {
+  .selector-establecimiento__opciones { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3659,15 +3672,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .historial-estado__accion { align-self: flex-start; }
 
 .historial-volver {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--accent);
-  font-size: var(--t-small);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  justify-self: start;
+  min-height: 48px;
+}
+
+@media (max-width: 480px) {
+  .historial-volver:last-child { justify-self: stretch; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -3882,9 +3892,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .estado-actual-acciones > .ui-button { min-height: 48px; }
 
+/* Celular: lo que el director viene a hacer (actualizar) queda fijo abajo,
+   al alcance del pulgar, en vez de al final de una pantalla que hay que
+   recorrer entera. Los bloques de arriba se compactan para que el estado se
+   lea sin tanto scroll. */
 @media (max-width: 480px) {
-  .estado-actual-acciones { flex-direction: column; align-items: stretch; }
-  .estado-actual-acciones > .ui-button { width: 100%; }
+  .estado-actual { gap: var(--s-4); }
+  .estado-actual-bloque { padding-top: var(--s-4); gap: var(--s-2); }
+  .estado-actual-pie {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    gap: var(--s-2);
+    padding: var(--s-3) 0 calc(var(--s-3) + env(safe-area-inset-bottom));
+    background: var(--card);
+  }
+  .estado-actual-acciones { flex-wrap: nowrap; }
+  .estado-actual-acciones__principal { flex: 1 1 auto; }
 }
 
 /* En escritorio los dos datos de cabecera —servicio y establecimiento— se
@@ -4066,8 +4090,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--danger-tint);
   color: var(--danger);
   font-size: var(--t-small);
+  scroll-margin-bottom: var(--reporte-acciones-sticky-alto, 8.5rem);
 }
 
+.estado-envio-aviso { scroll-margin-bottom: var(--reporte-acciones-sticky-alto, 6rem); }
 .estado-envio-aviso {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -4189,10 +4215,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .actualizacion-resumen { padding-top: 0; border-top: 0; }
 
-.actualizacion-resumen__acciones {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-3);
+.recorrido-actualizacion__aviso {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--warn);
+  border-radius: var(--r-md);
+  background: var(--warn-tint);
+  color: var(--ink);
+  font-size: var(--t-small);
 }
 
 .actualizacion-borrador {
@@ -4203,11 +4234,23 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .actualizacion-borrador__acciones {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: var(--s-2);
 }
 
-.actualizacion-borrador__acciones > * { width: 100%; min-height: 48px; }
+.actualizacion-borrador__acciones > * { width: auto; min-height: 48px; }
+
+.actualizacion-borrador__acciones > :first-child { flex: 1 1 auto; }
+.actualizacion-borrador__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
+
+/* "Descartar" es una acción secundaria legible, no un control deshabilitado. */
+.actualizacion-borrador__acciones .ui-button--ghost {
+  border-color: transparent;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .revisar-situacion,
 .algo-nuevo,
@@ -4259,7 +4302,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 
 @media (max-width: 480px) {
-  .actualizacion-resumen__acciones { flex-direction: column; align-items: stretch; }
   .actualizacion-resumen__fila { grid-template-columns: 1fr; gap: var(--s-1); }
 }
 
@@ -4519,6 +4561,13 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-left: 2px solid var(--line);
 }
 
+.afectacion-campos__subtitulo {
+  margin: 0;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
 .afectacion-campos__espera {
   margin: 0;
   font-size: var(--t-small);
@@ -4639,8 +4688,41 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   border-top: 0;
 }
 
+/* "Situación nueva" es el título de la pantalla; los bloques que siguen son
+   secciones de ella, así que van un escalón más chicas y el primero no repite
+   el filete bajo el título. */
+.algo-nuevo__datos > .asistente__cuerpo > .asistente__titulo { font-size: 1.0625rem; margin-bottom: 0; }
+.algo-nuevo__datos > .asistente__cuerpo:first-child { border-top: 0; padding-top: 0; }
+
 .algo-nuevo__causa-estado { color: var(--ink-faint); }
-.algo-nuevo__ver-causas { align-self: flex-start; }
+.algo-nuevo__ver-causas { align-self: flex-start; padding-inline: 0; text-decoration: underline; text-underline-offset: 3px; }
+.algo-nuevo__acciones {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+.algo-nuevo__continuar {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s-2) var(--s-4);
+}
+.algo-nuevo__volver {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-height: 44px;
+  padding: var(--s-2) var(--s-4);
+}
+.algo-nuevo__faltantes,
+.afectacion-borrador__resumen {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+  line-height: 1.4;
+}
+.algo-nuevo__faltantes { grid-column: 1 / -1; grid-row: 2; }
 
 .aviso-retoma {
   display: flex;
@@ -4673,20 +4755,31 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-height: 48px;
 }
 
-@media (max-width: 767px) {
-  .aviso-retoma .asistente__acciones {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
+.aviso-retoma .asistente__acciones { flex-wrap: nowrap; gap: var(--s-2); }
 
-  .aviso-retoma .asistente__acciones > * {
-    width: 100%;
-  }
+.aviso-retoma .asistente__acciones > :first-child { flex: 1 1 auto; }
+.aviso-retoma .asistente__acciones > :last-child:not(:first-child) { flex: 0 0 auto; }
+
+/* Mismo tratamiento que el aviso de Actualizar: "Descartar" se lee como
+   acción y no como un control deshabilitado. */
+.aviso-retoma .ui-button--ghost {
+  padding-inline: var(--s-2);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (max-width: 480px) {
+  .reporte-inicial--asistente {
+    --reporte-acciones-sticky-alto: calc(5rem + var(--s-3) + env(safe-area-inset-bottom));
+    padding-bottom: var(--reporte-acciones-sticky-alto);
+  }
+
+  /* Barra fija al alcance del pulgar: Volver | Continuar en una sola fila,
+     igual que en Actualizar. La acción principal es la más ancha. */
   .asistente__acciones {
-    flex-direction: column-reverse;
+    flex-direction: row;
+    flex-wrap: nowrap;
     align-items: stretch;
     position: sticky;
     bottom: 0;
@@ -4694,7 +4787,36 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     padding-bottom: calc(var(--s-4) + env(safe-area-inset-bottom));
     z-index: 1;
   }
-  .asistente__acciones > * { min-height: 44px; }
+  .asistente__acciones > * { min-height: 48px; flex: 1 1 0; width: auto; }
+  .asistente__acciones > :last-child:not(:first-child) { flex: 2 1 0; }
+  /* Misma barra que el resto de los pasos: Volver | Continuar en una fila y,
+     si falta algo, la nota arriba de los botones. */
+  .algo-nuevo__acciones {
+    flex-direction: row;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: stretch;
+  }
+  .algo-nuevo > .asistente__acciones,
+  .algo-nuevo__datos > .asistente__acciones {
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--line);
+  }
+  .algo-nuevo__faltantes { grid-column: 1 / -1; grid-row: 1; }
+  .algo-nuevo__volver { grid-column: 1; grid-row: 2; }
+  .algo-nuevo__continuar { grid-column: 2; grid-row: 2; }
+
+  /* Con el teclado abierto, el campo que se escribe no queda bajo la barra fija. */
+  .reporte-inicial textarea,
+  .reporte-inicial input:not([type='radio']):not([type='checkbox']) {
+    scroll-margin-bottom: var(--reporte-acciones-sticky-alto, 6rem);
+  }
+
+  .vigencia-chips input[type='date'],
+  .vigencia-chips input[type='time'],
+  .vigencia-field__error,
+  .reporte-inicial__error {
+    scroll-margin-bottom: var(--reporte-acciones-sticky-alto);
+  }
 
   .recorrido-actualizacion { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
   .recorrido-actualizacion > section > .asistente__acciones {

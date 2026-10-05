@@ -14,6 +14,9 @@ function esConfirmacionSinCambios(cambio: string): boolean {
 }
 
 function detalleYaIncluido(titulo: string, detalle: string): boolean {
+  if (titulo === detalle) return true
+
+  // Los títulos persistidos antes del cambio incluyen gravedad y vigencia.
   const severidad = /^Severidad de "(.+)": (.+) → (.+)$/.exec(detalle)
   if (severidad) return titulo.startsWith(`${severidad[1]} · ${severidad[2]} → ${severidad[3]} ·`)
 

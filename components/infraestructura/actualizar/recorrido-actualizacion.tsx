@@ -29,7 +29,8 @@ export interface RecorridoActualizacionProps {
   motivos: MotivoRow[]
 }
 
-const MENSAJE_GUARDADO = 'Parte actualizado.'
+const TITULO_GUARDADO = 'Parte actualizado'
+const MENSAJE_GUARDADO = 'Ya figura en el estado actual de su escuela.'
 const MENSAJE_ERROR_GUARDADO = 'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 const MENSAJE_BORRADOR_INVALIDO = 'No se pudo recuperar la actualización guardada. Empezará una nueva.'
 type Carga = { fase: 'cargando' } | { fase: 'error'; mensaje: string } | { fase: 'listo'; datos: EstadoActualRespuesta; historial: MovimientoHistorial[] }
@@ -123,13 +124,13 @@ function crearLineasResumen(
     }
 
     const filas: FilaResumenActualizacion[] = []
-    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: `${situacion.severidad} → ${respuesta.cambio.severidad}` })
+    if (respuesta.cambio.severidad) filas.push({ etiqueta: 'Gravedad', valor: respuesta.cambio.severidad === situacion.severidad ? `${situacion.severidad} (sin cambios)` : `${situacion.severidad} → ${respuesta.cambio.severidad}` })
     if (respuesta.cambio.secciones) {
       const alumnos = respuesta.cambio.alumnos?.length ?? contarAlumnos(respuesta.cambio.secciones, turnos)
       filas.push({ etiqueta: 'Alcance', valor: detalleAlcance(respuesta.cambio.secciones, alumnos) })
     }
     if (respuesta.cambio.aspectos.includes('clases-edificio') && recorrido.clasesEdificio) {
-      filas.push({ etiqueta: 'Clases', valor: `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
+      filas.push({ etiqueta: 'Clases', valor: etiquetaServicio(estadoServicio) === etiquetaServicio(recorrido.clasesEdificio.servicioEstado) ? `${etiquetaServicio(estadoServicio)} (sin cambios)` : `${etiquetaServicio(estadoServicio)} → ${etiquetaServicio(recorrido.clasesEdificio.servicioEstado)}` })
     }
     if (filas.length) bloques.push({ titulo: situacion.motivo, filas })
   }
@@ -196,6 +197,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const claveBorrador = `parte-actualizar:draft:${cue}`
   const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? { brinda: false, modalidades: [] }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
+  const [etapaAlgoNuevo, setEtapaAlgoNuevo] = useState<'pregunta' | 'datos' | 'causa'>('pregunta')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
   const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>(() => ({
     brinda: asistenciaVigente.brinda ? 'si' : 'no',
@@ -213,16 +215,24 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const [guardado, setGuardado] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
-  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null>(null)
   const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const enviandoRef = useRef(false)
   const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   const exitoRef = useRef<() => void>(() => {})
   const candidatasCausa = useMemo(() => [
-    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.rigeDesde, activa: true })),
-    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false })),
-  ], [situaciones, recorrido.respuestas, datos.recientes])
+    ...situaciones.filter((s) => recorrido.respuestas[s.id]?.tipo !== 'solucionada').map((s) => ({
+      id: s.id,
+      motivo: s.motivo,
+      fecha: s.rigeDesde,
+      activa: true,
+      severidad: s.severidad,
+      secciones: s.secciones.length,
+      alumnos: s.categoria === 'alumnos' ? s.alumnos.length : contarAlumnos(s.secciones, turnos),
+    })),
+    ...(datos.recientes ?? []).map((s) => ({ id: s.id, motivo: s.motivo, fecha: s.retiradaEn, activa: false, severidad: s.severidad })),
+  ], [situaciones, recorrido.respuestas, datos.recientes, turnos])
   const asistenciaSeleccionada = crearAsistenciaSeleccionada(asistenciaPedagogica.brinda, asistenciaPedagogica.modalidades)
   const asistenciaCambiada = !asistenciaCoincide(asistenciaVigente, asistenciaSeleccionada)
   const lineasResumen = useMemo(() => {
@@ -298,7 +308,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       },
       onCambioEstado: (borrador) => {
         setEstadoEnvio(borrador.estado)
-        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor') setEstadoAvisoEnvio(borrador.estado)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor' || borrador.estado === 'sesion-vencida') setEstadoAvisoEnvio(borrador.estado)
+        else if (borrador.estado !== 'enviando') setEstadoAvisoEnvio(null)
         if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
         setIntentosEnvio(borrador.intentos)
         if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
@@ -321,7 +332,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       const cola = await leerColaEnvio<PayloadActualizacion>(await almacen(), 'actualizacion', cue)
       if (!cancelado && cola) {
         setEstadoEnvio(cola.estado)
-        if (cola.estado === 'pendiente-envio' || cola.estado === 'error-servidor') setEstadoAvisoEnvio(cola.estado)
+        if (cola.estado === 'pendiente-envio' || cola.estado === 'error-servidor' || cola.estado === 'sesion-vencida') setEstadoAvisoEnvio(cola.estado)
         setMotivoEnvio(cola.motivoError ?? null)
         setIntentosEnvio(cola.intentos)
         if (esEstadoReintentable(cola.estado) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
@@ -338,7 +349,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   useEffect(() => {
     reintentarRef.current = (deliberado = false) => {
       const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
-      if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && errorEnReintento))) return
+      const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
+      if (guardado || (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento)))) return
       void (async () => {
         const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
         if (resultado?.ok) alEnviarConExito()
@@ -436,21 +448,22 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   return (
     <div className="reporte-inicial reporte-inicial--con-panel recorrido-actualizacion">
       {borradorPendiente ? (
-        <aside className="aviso-retoma actualizacion-borrador" aria-label="Actualización guardada">
-          <p>Tiene una carga sin enviar.</p>
+        <aside className="aviso-retoma actualizacion-borrador" aria-label="Parte sin enviar">
+          <p>Tiene un parte sin enviar.</p>
           <div className="actualizacion-borrador__acciones">
-            <Button type="button" onClick={() => {
+            <Button type="button" variant="secondary" onClick={() => {
               generacionRef.current = borradorPendiente.generacion
               setEtapa(borradorPendiente.etapa)
               setRecorrido(borradorPendiente.recorrido)
               setAsistenciaPedagogica(borradorPendiente.asistenciaPedagogica)
               setInteraccionIniciada(true)
               setBorradorPendiente(null)
-            }}>Continuar</Button>
-            <Button type="button" variant="secondary" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
+            }}>Continuar donde lo dejé</Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>Descartar</Button>
           </div>
         </aside>
       ) : null}
+      {avisoBorrador ? <p className="recorrido-actualizacion__aviso" role="alert">{avisoBorrador}</p> : null}
       {etapa === 'entrada' ? (
         <EntradaActualizar
           situaciones={situaciones}
@@ -465,7 +478,6 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
         />
       ) : null}
 
-      {avisoBorrador ? <p className="estado-actual-aviso__texto" role="alert">{avisoBorrador}</p> : null}
       {etapa !== 'entrada' ? <ProgresoActualizacion paso={pasoProgreso} total={totalPasos} /> : null}
       {actual && typeof etapa === 'object' ? (
         <section>
@@ -534,6 +546,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             estado={recorrido}
             turnos={turnos}
             motivos={motivos}
+            onEtapaChange={setEtapaAlgoNuevo}
             onTerminar={(nueva) => {
               setRecorrido((r) => ({ ...r, nueva }))
               setInteraccionIniciada(true)
@@ -552,7 +565,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               encolarCascada(id, solucionadaEn)
             }}
           />
-          <div className="asistente__acciones">
+          {etapaAlgoNuevo === 'pregunta' ? <div className="asistente__acciones">
             <Button
               type="button"
               variant="secondary"
@@ -560,7 +573,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             >
               Volver
             </Button>
-          </div>
+          </div> : null}
         </>
       ) : null}
 
@@ -600,8 +613,8 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
       />
       <ConfirmSheet
         open={confirmarDescarte}
-        titulo="¿Descartar la actualización guardada?"
-        confirmarLabel="Descartar actualización"
+        titulo="¿Descartar el parte sin enviar?"
+        confirmarLabel="Sí, descartar"
         cancelarLabel="Cancelar"
         onCancelar={() => setConfirmarDescarte(false)}
         onConfirmar={() => {
@@ -615,7 +628,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
           setConfirmarDescarte(false)
         }}
       >
-        <p>Se borrarán las respuestas que había guardado.</p>
+        <p>Se pierde lo que cargó y no se envía nada.</p>
       </ConfirmSheet>
     </div>
   )
@@ -637,13 +650,16 @@ function ProgresoActualizacion({ paso, total }: { paso: number; total: number })
 function ConfirmacionEnviado({ cue, onRecargar }: { cue: string; onRecargar: () => void }): JSX.Element {
   return (
     <div className="reporte-inicial__confirmacion" role="status">
-      <p className="reporte-inicial__confirmacion-mensaje"><CircleCheck aria-hidden="true" size={20} />{MENSAJE_GUARDADO}</p>
+      <div className="reporte-inicial__confirmacion-mensaje">
+        <CircleCheck aria-hidden="true" size={20} />
+        <div><h2>{TITULO_GUARDADO}</h2><p>{MENSAJE_GUARDADO}</p></div>
+      </div>
       <div className="reporte-inicial__confirmacion-acciones">
         <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
-          Volver al panel
+          Ver estado actual
         </a>
         <Button type="button" variant="secondary" onClick={onRecargar}>
-          Cargar otra situación
+          Actualizar de nuevo
         </Button>
       </div>
     </div>
@@ -670,7 +686,7 @@ function ResumenEnvio({
   enviando: boolean
   onCambiarAsistencia: (seleccion: AsistenciaSeleccionada) => void
   estadoEnvio: EstadoEnvio | null
-  estadoAvisoEnvio: 'pendiente-envio' | 'error-servidor' | null
+  estadoAvisoEnvio: 'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null
   motivoEnvio: string | null
   onRetry: () => void
   error: string | null
@@ -735,7 +751,7 @@ function ResumenEnvio({
       ) : null}
       </fieldset>
       {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) ? (
-        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando'
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando'
           ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={onRetry} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
           : <p role="status" aria-live="polite">
               {estadoEnvio === 'error' && motivoEnvio
@@ -744,7 +760,7 @@ function ResumenEnvio({
             </p>
       ) : null}
       {error ? <p className="reporte-inicial__error" role="alert">{error}</p> : null}
-      <div className="actualizacion-resumen__acciones">
+      <div className="asistente__acciones">
         <Button type="button" variant="secondary" onClick={onVolver}>
           Volver
         </Button>

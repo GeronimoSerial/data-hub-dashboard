@@ -16,7 +16,7 @@ function estadoActual() {
       { id: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', descripcion: null, rigeDesde: '2026-10-03T10:00:00.000Z', creadaEn: '2026-10-03T10:00:00.000Z', causadaPorId: 'a', secciones: [], totales: { secciones: 0, alumnos: 0 } },
     ],
     recientes: [],
-    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', titulo: 'Sin energía o agua · Media · desde 07:00', cambios: ['Se agregó "Sin energía o agua" · Severidad Media'] },
+    ultimaCarga: { creadaEn: '2026-10-03T10:00:00.000Z', titulo: 'Se informó Sin energía o agua', cambios: ['Se informó Sin energía o agua', 'Gravedad Media'] },
   }
 }
 
@@ -35,6 +35,33 @@ function stub(respuestaPost: Record<string, unknown> = { ok: true, movimientoId:
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear() })
 
 describe('RecorridoActualizacion', () => {
+  it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('radio', { name: /^Afecta al establecimiento/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByRole('radio', { name: /^Afecta al establecimiento/ })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByText('¿Se originó por alguna de estas situaciones?')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+  })
+
   it('solucionar la causa pregunta por la consecuencia y envía un único POST', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
@@ -132,7 +159,7 @@ describe('RecorridoActualizacion', () => {
     expect(document.querySelector('.actualizacion-resumen__lista')?.textContent).not.toMatch(/2026-10-04T/)
   })
 
-  it('un problema nuevo siempre pregunta si es consecuencia de algo anterior', async () => {
+  it('describe la situación nueva antes de preguntar por su origen', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
@@ -141,13 +168,15 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     }
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    expect(screen.getByRole('group', { name: '¿Esta situación se originó por otra anterior?' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('radio', { name: /^Inundación/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByText('¿Qué tipo de situación es?')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })).not.toBeInTheDocument()
     elegirCategoriaEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: /^Inundación/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     const cuerpo = await cuerpoDelPost(fetchMock)
@@ -165,8 +194,6 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     elegirCategoriaEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sin energía o agua' }))
     const sheet = screen.getByRole('dialog')
@@ -191,8 +218,6 @@ describe('RecorridoActualizacion', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     }
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
-    fireEvent.click(screen.getByRole('radio', { name: 'No, es independiente' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     elegirCategoriaEstablecimiento()
     fireEvent.click(screen.getByRole('radio', { name: 'Sin energía o agua' }))
     const sheet = screen.getByRole('dialog')
@@ -203,6 +228,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Media' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Guardar actualización' }))
     const cuerpo = await cuerpoDelPost(fetchMock)

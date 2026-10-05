@@ -35,7 +35,7 @@ vi.mock('@/lib/infraestructura/parte/almacen-indexeddb', async (importOriginal) 
 })
 
 const CUE = '1801605-41'
-const guardado = 'Parte actualizado.'
+const guardado = 'Parte actualizado'
 const base = {
   ok: true, periodo: { id: 'p', nombre: 'ENOS' },
   parte: { id: 'parte', cueAnexo: CUE, estadoEstablecimiento: 'habitual', estadoEstablecimientoRigeDesde: '2026-10-02T10:00:00.000Z', actualizadaEn: '2026-10-03T10:00:00.000Z' },
@@ -139,8 +139,8 @@ describe('RecorridoActualizacion: envío', () => {
     const avisosConsola = vi.spyOn(console, 'warn').mockImplementation(() => {})
     try {
       const fetchMock = stub(); montar(); await enviar(); await screen.findByText(guardado)
-      expect(screen.getByRole('link', { name: 'Volver al panel' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
-      const botonCargarOtro = screen.getByRole('button', { name: 'Cargar otra situación' })
+      expect(screen.getByRole('link', { name: 'Ver estado actual' })).toHaveAttribute('href', `/problematicas/parte?cue=${CUE}`)
+      const botonCargarOtro = screen.getByRole('button', { name: 'Actualizar de nuevo' })
       expect(botonCargarOtro.tagName).toBe('BUTTON')
       const avisos = [...erroresConsola.mock.calls, ...avisosConsola.mock.calls].flat().map(String).join('\n')
       expect(avisos).not.toContain('Base UI: a component that acts as a button expected a native <button>')
@@ -241,10 +241,17 @@ describe('RecorridoActualizacion: envío', () => {
     expect(screen.getByRole('button', { name: 'Volver' })).toBeEnabled()
   })
 
-  it('un 401 conserva el recorrido e indica que la sesión venció', async () => {
-    const fetchMock = stub(async () => respuesta({ error: 'unauthorized' }, 401)); montar(); await enviar()
-    expect(await screen.findByText(/sesión/i)).toBeInTheDocument()
+  it('un 401 muestra el aviso de sesión vencida y permite reintentar manualmente', async () => {
+    let n = 0
+    const fetchMock = stub(async () => ++n === 1 ? respuesta({ error: 'unauthorized' }, 401) : respuesta())
+    montar(); await enviar()
+    const aviso = await screen.findByRole('alert')
+    expect(within(aviso).getByText('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')).toBeInTheDocument()
+    expect(within(aviso).getByRole('button', { name: 'Reintentar ahora' })).toBeInTheDocument()
     expect(screen.getByText(/Inundación/)).toBeInTheDocument(); expect(posteos(fetchMock)).toHaveLength(1)
+    fireEvent.click(within(aviso).getByRole('button', { name: 'Reintentar ahora' }))
+    await screen.findByText(guardado)
+    expect(posteos(fetchMock)).toHaveLength(2)
   })
 
   it('un 5xx muestra error de servidor y reintenta con la misma clave', async () => {

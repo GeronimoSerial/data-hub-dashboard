@@ -156,8 +156,8 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     expect(screen.getByText('Inaccesibilidad de alumnos')).toBeVisible()
 
     // Severidad propia por afectación (spec §9), escrita — nunca sólo color.
-    expect(screen.getByText('Severidad Alta')).toBeVisible()
-    expect(screen.getByText('Severidad Media')).toBeVisible()
+    expect(screen.getByText('Gravedad Alta')).toBeVisible()
+    expect(screen.getByText('Gravedad Media')).toBeVisible()
 
     // Alcance resumido en el formato de spec §6.
     expect(screen.getByText('3 secciones · 74 alumnos')).toBeVisible()

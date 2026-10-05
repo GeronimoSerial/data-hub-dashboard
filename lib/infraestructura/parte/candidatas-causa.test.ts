@@ -8,6 +8,16 @@ function candidata(id: string, fecha: string, activa: boolean, motivo = id): Can
 }
 
 describe('armarCandidatasCausa', () => {
+  it('conserva gravedad y cantidades del candidato activo', () => {
+    const completa: CandidataCausa = {
+      ...candidata('a', '2026-10-04T10:00:00.000Z', true),
+      severidad: 'Alta',
+      secciones: 5,
+      alumnos: 107,
+    }
+    expect(armarCandidatasCausa([completa], ahora)).toEqual([completa])
+  })
+
   it('deduplica por situación y prioriza el registro activo', () => {
     const candidatas = armarCandidatasCausa([
       candidata('a', '2026-10-04T10:00:00.000Z', false, 'Cerrada duplicada'),

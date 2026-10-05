@@ -924,7 +924,7 @@ describe('GET /api/problematicas/parte — contexto del estado actual', () => {
 
     expect(body.recientes.map((r: { motivo: string }) => r.motivo)).toContain('Tormenta severa')
     expect(body.recientes[0].cierre).toBe('solucionada')
-    expect(body.ultimaCarga.cambios.join(' ')).toMatch(/Se solucionó "Tormenta severa"/)
+    expect(body.ultimaCarga.cambios.join(' ')).toMatch(/Se solucionó Tormenta severa/)
     expect(typeof body.ultimaCarga.creadaEn).toBe('string')
   })
 
