@@ -4,6 +4,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { forwardRef, useEffect, useImperativeHandle, type JSX, type ReactNode } from 'react'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
+import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
@@ -168,6 +170,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: PARTE.actualizadaEn,
       alumnosSinClases: 74,
+      situacionesHistoricas: 0,
     },
     {
       cueAnexo: CUE_SIN_AFECTACION,
@@ -186,6 +189,7 @@ const FIXTURE_ESCUELAS_MAPA: EscuelasMapaPadronResultado = {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
+      situacionesHistoricas: 0,
     },
   ],
   sinUbicacion: [],
@@ -486,11 +490,12 @@ vi.mock('react-map-gl/maplibre', () => {
   return {
     __esModule: true,
     default: MapGL,
-    Layer: (props: { id?: string; filter?: unknown; paint?: unknown }) => (
+    Layer: (props: { id?: string; filter?: unknown; paint?: unknown; layout?: Record<string, unknown> }) => (
       <div
         data-testid={`mock-layer-${props.id ?? 'sin-id'}`}
         data-filter={JSON.stringify(props.filter)}
         data-paint={JSON.stringify(props.paint)}
+        data-layout-visibility={props.layout?.visibility}
       />
     ),
     Marker: (props: { children?: React.ReactNode }) => <>{props.children ?? null}</>,
@@ -985,6 +990,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
         sinActualizar: false,
         ultimaNovedad: null,
         alumnosSinClases: 0,
+        situacionesHistoricas: 0,
       })
       CUES_DESAGRUPADOS_MOCK.cues.push(cueAnexo)
     }
@@ -1020,6 +1026,103 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.getByRole('group', { name: 'Variable meteorológica' })).toBeInTheDocument()
     expect(screen.queryByRole('list', { name: /niveles de peligro meteorológico/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /todas las escuelas/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('MapInfraestructuraPage — Planificación', () => {
+  it('muestra el panel de Planificación y sus tres vistas en la pestaña', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+
+    const panel = await screen.findByTestId('panel-lateral')
+    expect(within(panel).getByRole('heading', { name: 'Planificación' })).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Vista' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Escuelas aisladas' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Inundación' })).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Historial' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('heading', { name: 'Situación actual' })).not.toBeInTheDocument()
+  })
+
+  it('mantiene sólo el mapa base como control de capas en Situación actual', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true, pestana: 'actual' })
+
+    expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
+    expect(screen.getByText('Mapa base')).toBeInTheDocument()
+  })
+
+  it('colorea los puntos por vista y cambia los colores al elegir Historial', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+
+    const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+    const coloresAisladas = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      .features.map((feature: { properties: { cueAnexo: string; color: string } }) => [feature.properties.cueAnexo, feature.properties.color])
+    expect(coloresAisladas).toEqual([
+      [CUE, colorNivelPlan(0)],
+      [CUE_SIN_AFECTACION, colorNivelPlan(0)],
+    ])
+
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+
+    const coloresHistorial = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      .features.map((feature: { properties: { cueAnexo: string; color: string } }) => [feature.properties.cueAnexo, feature.properties.color])
+    expect(coloresHistorial).toEqual([
+      [CUE, colorSeveridad('Crítica')],
+      [CUE_SIN_AFECTACION, colorNivelPlan(0)],
+    ])
+  })
+
+  it('abre la ficha desde Prioridad en el panel actual y no la conserva al cambiar de pestaña', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    const { rerender } = await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: /Escuela 1/ }))
+
+    expect(await within(screen.getByTestId('panel-lateral')).findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+    rerender({ pestana: 'actual' })
+    expect(within(screen.getByTestId('panel-lateral')).queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByRole('heading', { name: 'Situación actual' })).toBeInTheDocument()
+  })
+
+  it('sin contexto territorial muestra el vacío en Escuelas aisladas y mantiene Historial', async () => {
+    const escuelas = {
+      ...FIXTURE_ESCUELAS_MAPA,
+      escuelas: FIXTURE_ESCUELAS_MAPA.escuelas.map((escuela, indice) => ({
+        ...escuela,
+        situacionesHistoricas: indice === 0 ? 6 : 0,
+      })),
+    }
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion', escuelasMapa: escuelas })
+
+    expect(within(screen.getByTestId('panel-planificacion')).getByText('Todavía no hay datos para esta vista.')).toBeInTheDocument()
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Historial' }))
+    expect(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: /Escuela 1/ })).toBeInTheDocument()
+  })
+
+  it('oculta las capas de partes mientras está activa', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+    expect(screen.getByTestId('mock-layer-infra-partes')).toHaveAttribute('data-layout-visibility', 'none')
+    expect(screen.getByTestId('mock-layer-infra-partes-cluster')).toHaveAttribute('data-layout-visibility', 'none')
+    expect(document.querySelector('[data-capa="infra-badge-estado"]')).toBeNull()
+  })
+
+  it('permite seleccionar una escuela desde sus puntos coloreados', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+    await userEvent.click(screen.getByTestId('mock-click-punto-nivel'))
+
+    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
   })
 })
 
@@ -1187,10 +1290,12 @@ describe('MapInfraestructuraPage — capas territoriales de accesos (T5c2)', () 
     expect(llamadasTerritorio.habilitados.every((habilitado) => habilitado === false)).toBe(true)
   })
 
-  it('con el flag prendido monta el control y habilita el hook territorial', async () => {
+  it('con el flag prendido mantiene el contexto territorial sin ofrecer capas ni controles', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(screen.queryByText('Capas territoriales')).not.toBeInTheDocument()
+    expect(screen.queryByText('Dificultad para llegar por camino')).not.toBeInTheDocument()
+    expect(screen.getByText('Mapa base')).toBeInTheDocument()
     expect(screen.queryByLabelText(/agua estimada por crecida de río/i)).not.toBeInTheDocument()
     expect(llamadasTerritorio.habilitados.at(-1)).toBe(true)
   })
@@ -1314,21 +1419,10 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     expect(await screen.findByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
-  it('la leyenda de accesos va antes del panel de situación actual', async () => {
+  it('oculta la leyenda de accesos cuando ambas capas generales están apagadas', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
 
-    // La leyenda explica las capas territoriales y cambia con la selección: al
-    // final del panel quedaba empujada debajo del pliegue de indicadores y el
-    // usuario nunca la veía.
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
-    )
-
-    const leyenda = await screen.findByTestId('leyenda-aislamiento')
-    const panelActual = screen.getByText('Situación actual')
-    expect(
-      leyenda.compareDocumentPosition(panelActual) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(screen.queryByTestId('leyenda-aislamiento')).not.toBeInTheDocument()
   })
 })
 
@@ -1409,6 +1503,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       sinActualizar: false,
       ultimaNovedad: null,
       alumnosSinClases: 0,
+      situacionesHistoricas: 0,
     }
     // Se usa un array nuevo para no alterar el fixture compartido con otros tests.
     const padronOriginal = FIXTURE_ESCUELAS_MAPA.escuelas
@@ -1502,23 +1597,14 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
   })
 })
 
-// Q3: los íconos de las capas territoriales (aislamiento, inundación y cruces
-// de agua) se dibujan ENCIMA del polígono del departamento y no estaban en
-// `capasInteractivas`: el click caía en el departamento y terminaba
-// filtrando la provincia entera en vez de abrir la escuela del ícono.
-describe('Q3: los íconos territoriales no caen en el departamento', () => {
-  it('clickear el ícono de aislamiento abre esa escuela y no filtra el departamento', async () => {
+// Q3: la ruta y los cruces de la escuela seleccionada siguen disponibles,
+// pero las capas territoriales generales ya no se ofrecen desde el mapa.
+describe('accesos territoriales fuera de los controles generales', () => {
+  it('no ofrece capas generales de aislamiento o inundación', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, hazardContextEnabled: true })
-    await userEvent.click(
-      screen.getByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' }),
-    )
-
-    await userEvent.click(screen.getByTestId('mock-click-aislamiento'))
-
-    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
-    expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
-    expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
-    expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Dificultad para llegar por camino (0 a 3)' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-layer-infra-aislamiento-symbol')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-layer-infra-inundacion-symbol')).not.toBeInTheDocument()
   })
 
   it('no ofrece el toggle ni la capa de agua estimada', async () => {

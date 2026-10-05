@@ -62,23 +62,20 @@ import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
+import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
 import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
-  AccesosLayerControl,
   RadarLayerControl,
   type CapaAccesos,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
-import { InfraLegendPanel } from '@/components/mapas/legend-panel'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import {
   CapasAccesosTerritoriales,
-  CAPA_AISLAMIENTO_ID,
   CAPA_CRUCES_ACCESO_ID,
-  CAPA_INUNDACION_ID,
   LeyendaAccesos,
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
@@ -100,13 +97,10 @@ import {
 } from '@/lib/mapas/peligro-capas'
 import {
   construirCrucesAcceso,
-  construirPuntosAislamiento,
-  construirPuntosInundacion,
   construirRutaAcceso,
   ETIQUETAS_CRUCE,
   DESCRIPCIONES_CRUCE,
   ICONOS_ACCESOS_MAPA,
-  resumirCobertura,
   type ClasificacionCruce,
 } from '@/lib/mapas/accesos-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
@@ -133,6 +127,8 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { colorRiesgo, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel } from '@/components/mapas/capa-puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
@@ -528,7 +524,7 @@ function cargarIconoEnMapa(mapa: MapLibreMap, id: string, svg: string): Promise<
 
 // Las capas territoriales adicionales arrancan apagadas. La ruta de acceso
 // aparece automáticamente al seleccionar una escuela.
-const CAPAS_ACCESOS_VISIBLES_DEFECTO: Record<CapaAccesos, boolean> = {
+const CAPAS_ACCESOS_OCULTAS: Record<CapaAccesos, boolean> = {
   aislamiento: false,
   inundacion: false,
 }
@@ -641,9 +637,6 @@ export default function MapInfraestructuraPage(props: {
   // tocar SU propio estado — nunca el encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
-  const [capasAccesosVisibles, setCapasAccesosVisibles] = useState<Record<CapaAccesos, boolean>>(
-    CAPAS_ACCESOS_VISIBLES_DEFECTO,
-  )
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
   // Resumen del departamento clickeado. Reemplaza al tooltip de hover: la
   // información aparece recién con el CLIC (ver `handleClick`), nunca con el
@@ -706,6 +699,9 @@ export default function MapInfraestructuraPage(props: {
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
   const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
+  const esPlanificacion = props.pestana === 'planificacion'
+  const ocultarPartes = radarActivo || esPlanificacion
+  const [vistaPlanificacion, setVistaPlanificacion] = useState<VistaPlanificacion>('aisladas')
   const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {
     const anterior = pestanaPrevia.current
@@ -763,6 +759,12 @@ export default function MapInfraestructuraPage(props: {
   }, [data])
 
   const dataEscuelasMapa = props.escuelasMapa
+  const contextoTerritorial = props.hazardContextEnabled ?? false
+  const {
+    data: territorio,
+    loading: territorioLoading,
+    error: territorioError,
+  } = useTerritorioMapa(contextoTerritorial)
   const actualizadoEn = useMemo(
     () => ultimaActualizacion(dataEscuelasMapa?.escuelas ?? []),
     [dataEscuelasMapa],
@@ -786,15 +788,27 @@ export default function MapInfraestructuraPage(props: {
     [dataEscuelasMapaVisible],
   )
   const colorPorCue = useMemo(() => {
-    if (!modoRadar) return new Map<string, string>()
-    return new Map(
-      escuelasPorRiesgo(
-        radarData?.puntos ?? [],
-        dataEscuelasMapaVisible?.escuelas ?? [],
-        horizonteEfectivo,
-      ).map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]),
-    )
-  }, [modoRadar, radarData, dataEscuelasMapaVisible, horizonteEfectivo])
+    const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
+    if (radarActivo) {
+      return new Map(
+        escuelasPorRiesgo(
+          radarData?.puntos ?? [],
+          escuelasVisibles,
+          horizonteEfectivo,
+        ).map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]),
+      )
+    }
+    if (esPlanificacion) return coloresPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
+    return new Map<string, string>()
+  }, [
+    radarActivo,
+    esPlanificacion,
+    radarData,
+    dataEscuelasMapaVisible,
+    horizonteEfectivo,
+    vistaPlanificacion,
+    territorio,
+  ])
   const puntosNivel = useMemo(
     () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
     [dataEscuelasMapaVisible, colorPorCue],
@@ -913,8 +927,8 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [])
 
-  const { departamentosGeojson, departamentosSinMatch } = useMemo(() => {
-    if (!departamentosRaw) return { departamentosGeojson: null, departamentosSinMatch: [] as string[] }
+  const departamentosGeojson = useMemo(() => {
+    if (!departamentosRaw) return null
 
     const nombresConocidos = departamentosRaw.features.map((f) => f.properties.nombre)
     const escuelas = (data?.partes ?? []).map((parte) => ({
@@ -924,9 +938,6 @@ export default function MapInfraestructuraPage(props: {
     const { escuelasCaidasPorDepartamento, departamentosSinMatch: sinMatch } =
       agregarEscuelasCaidasPorDepartamento(escuelas, nombresConocidos)
 
-    // "Un departamento que no matchee no se silencia": además del warning en
-    // consola (visible para quien opera/depura), sinMatch viaja como prop a
-    // InfraLegendPanel para que también sea visible en la interfaz.
     if (sinMatch.length > 0) {
       console.error(
         '[mapa-infraestructura] departamento(s) sin match contra el GeoJSON:',
@@ -947,10 +958,7 @@ export default function MapInfraestructuraPage(props: {
       }
     })
 
-    return {
-      departamentosGeojson: { type: 'FeatureCollection' as const, features },
-      departamentosSinMatch: sinMatch,
-    }
+    return { type: 'FeatureCollection' as const, features }
   }, [departamentosRaw, data])
 
   // Coropleta de peligro: copia del MISMO `departamentosRaw` ya cargado (no se
@@ -1031,34 +1039,12 @@ export default function MapInfraestructuraPage(props: {
   //
   // La ficha puede consultar acceso territorial en cualquier pestaña. Las
   // capas y controles del mapa siguen apagados en Radar.
-  const contextoTerritorial = props.hazardContextEnabled ?? false
   const hazardOn = contextoTerritorial && !modoRadar
-
-  // Capas estáticas (aislamiento OSM + susceptibilidad physrisk): un solo
-  // fetch de largo plazo, sin polling.
-  const {
-    data: territorio,
-    loading: territorioLoading,
-    error: territorioError,
-  } = useTerritorioMapa(contextoTerritorial)
 
   // Los puntos territoriales siguen el padrón VISIBLE (mismo criterio que los
   // puntos de riesgo): todas las escuelas del departamento en foco, tengan o
   // no afectación. El resumen de cobertura de la leyenda, en cambio, cuenta
   // sobre TODO el padrón (la cobertura no depende del filtro de pantalla).
-  const puntosAislamiento = useMemo(
-    () => construirPuntosAislamiento(dataEscuelasMapaVisible?.escuelas ?? [], territorio),
-    [dataEscuelasMapaVisible, territorio],
-  )
-  const puntosInundacion = useMemo(
-    () => construirPuntosInundacion(dataEscuelasMapaVisible?.escuelas ?? [], territorio),
-    [dataEscuelasMapaVisible, territorio],
-  )
-  const resumenCobertura = useMemo(
-    () => resumirCobertura(dataEscuelasMapa?.escuelas ?? [], territorio),
-    [dataEscuelasMapa, territorio],
-  )
-
   // La ficha y la ruta usan la misma selección en las tres pestañas.
   const cueRuta = seleccionCue
 
@@ -1134,15 +1120,9 @@ export default function MapInfraestructuraPage(props: {
     // Radar: sólo cuando está activo. Agregarlas de a una evita que el mapa
     // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
     ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
-    ...(radarActivo ? [CAPA_PUNTOS_NIVEL_ID] : []),
-    // Accesos territoriales: sus íconos se dibujan ENCIMA del departamento y
-    // no estaban en la lista interactiva, así que el click pasaba de largo y
-    // la feature que llegaba al handler era el polígono del departamento —
-    // que terminaba filtrando la provincia entera en vez de elegir la escuela
-    // del ícono. Se anotan sólo mientras su capa está montada (mismo criterio
-    // que Radar).
-    ...(hazardOn && capasAccesosVisibles.aislamiento ? [CAPA_AISLAMIENTO_ID] : []),
-    ...(hazardOn && capasAccesosVisibles.inundacion ? [CAPA_INUNDACION_ID] : []),
+    ...(radarActivo || esPlanificacion ? [CAPA_PUNTOS_NIVEL_ID] : []),
+    // Los cruces de la ruta seleccionada quedan interactivos sólo cuando la
+    // geometría de esa ruta está montada.
     ...(hazardOn && rutaGeojson !== null ? [CAPA_CRUCES_ACCESO_ID] : []),
   ]
 
@@ -1176,7 +1156,7 @@ export default function MapInfraestructuraPage(props: {
     setClusterInfoClic(null)
     setCruceInfoClic(null)
 
-    if (radarActivo) {
+    if (radarActivo || esPlanificacion) {
       const puntoNivel = features.find((item) => item.layer?.id === CAPA_PUNTOS_NIVEL_ID)
       const cue = puntoNivel?.properties?.cueAnexo
       if (typeof cue === 'string') {
@@ -1184,26 +1164,10 @@ export default function MapInfraestructuraPage(props: {
         if (escuela) handleSeleccionarEscuelaBuscada(escuela)
         return
       }
-      if (event.lngLat) window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
-      return
-    }
-
-    // Accesos territoriales, antes que partes/clusters y con `return`: sus
-    // íconos están dibujados encima del departamento, así que si el click
-    // cayera en la búsqueda de partes el departamento ganaba siempre y el
-    // gesto terminaba filtrando la provincia en vez de abrir la escuela (o el
-    // cruce) que el usuario quiso señalar. Ninguno de los dos toca acá el
-    // estado del departamento.
-    const puntoTerritorial = features.find(
-      (item) => item.layer?.id === CAPA_AISLAMIENTO_ID || item.layer?.id === CAPA_INUNDACION_ID,
-    )
-    const cueTerritorial = puntoTerritorial?.properties?.cueAnexo
-    if (typeof cueTerritorial === 'string') {
-      setSeleccionCue(cueTerritorial)
-      setFichaCerradaCue(null)
-      setFichaPestana(props.pestana)
-      encuadreRutaPendiente.current = cueTerritorial
-      return
+      if (radarActivo) {
+        if (event.lngLat) window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
+        return
+      }
     }
 
     const cruceClic = features.find((item) => item.layer?.id === CAPA_CRUCES_ACCESO_ID)
@@ -1270,6 +1234,7 @@ export default function MapInfraestructuraPage(props: {
     }
   }, [
     radarActivo,
+    esPlanificacion,
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
@@ -1360,10 +1325,6 @@ export default function MapInfraestructuraPage(props: {
     setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
   }
 
-  function alternarCapaAccesos(capa: CapaAccesos, value: boolean) {
-    setCapasAccesosVisibles((prev) => ({ ...prev, [capa]: value }))
-  }
-
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
   // descuenta la columna izquierda, donde también vive la ficha.
@@ -1397,14 +1358,6 @@ export default function MapInfraestructuraPage(props: {
             }}
           />
         </>
-      )}
-      {(props.pestana !== 'actual' || radarActivo) && (
-        <InfraLegendPanel
-          departamentosSinMatch={departamentosSinMatch}
-          mostrarLeyendaPeligro={false}
-          mostrarLeyendaAcceso={!radarActivo && capasRadarVisibles['riesgo-acceso']}
-          hayNivelProvisorio={radarActivo ? (radarData?.hayNivelProvisorio ?? false) : false}
-        />
       )}
     </>
   ) : null
@@ -1558,12 +1511,12 @@ export default function MapInfraestructuraPage(props: {
           */}
           {hazardOn && (
             <CapasAccesosTerritoriales
-              puntosAislamiento={puntosAislamiento}
-              puntosInundacion={puntosInundacion}
+              puntosAislamiento={null}
+              puntosInundacion={null}
               ruta={rutaGeojson}
               celdasExposicion={celdasExposicion}
               cruces={crucesGeojson}
-              visibles={capasAccesosVisibles}
+              visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
               oscuro={mode === 'dark'}
             />
@@ -1614,7 +1567,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_ID}
                 type="circle"
-                layout={{ visibility: radarActivo ? 'none' : 'visible' }}
+                layout={{ visibility: ocultarPartes ? 'none' : 'visible' }}
                 filter={['!', ['has', 'point_count']]}
                 paint={{
                   ...circlePaintPartes(mode === 'dark'),
@@ -1643,6 +1596,7 @@ export default function MapInfraestructuraPage(props: {
                   type="symbol"
                   filter={filtroIconoEscuelaAfectada()}
                   layout={{
+                    visibility: ocultarPartes ? 'none' : 'visible',
                     'icon-image': [
                       'case',
                       ['==', ['get', 'severidad'], 'Crítica'], ID_IMAGEN_ESCUELA_CRITICA,
@@ -1666,7 +1620,7 @@ export default function MapInfraestructuraPage(props: {
               <Layer
                 id={CAPA_PARTES_CLUSTER_ID}
                 type="circle"
-                layout={{ visibility: radarActivo ? 'none' : 'visible' }}
+                layout={{ visibility: ocultarPartes ? 'none' : 'visible' }}
                 filter={['has', 'point_count']}
                 paint={{
                   ...circlePaintCluster(mode === 'dark'),
@@ -1682,7 +1636,7 @@ export default function MapInfraestructuraPage(props: {
                   'text-size': 12,
                   'text-font': ['Noto Sans Regular'],
                   'text-allow-overlap': false,
-                  visibility: radarActivo ? 'none' : 'visible',
+                  visibility: ocultarPartes ? 'none' : 'visible',
                 }}
                 filter={['has', 'point_count']}
                 paint={{
@@ -1705,7 +1659,7 @@ export default function MapInfraestructuraPage(props: {
                   id={CAPA_CLUSTER_CENTRO_EVACUADOS_ID}
                   type="symbol"
                   filter={['all', ['has', 'point_count'], ['==', ['get', 'esCentroEvacuados'], 1]]}
-                  layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS)}
+                  layout={{ ...layoutIconoCluster(ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS), visibility: ocultarPartes ? 'none' : 'visible' }}
                 />
               )}
               {iconosClusterListos && (
@@ -1718,7 +1672,7 @@ export default function MapInfraestructuraPage(props: {
                     ['==', ['get', 'esEvacuado'], 1],
                     ['==', ['get', 'esCentroEvacuados'], 0],
                   ]}
-                  layout={layoutIconoCluster(ID_IMAGEN_CLUSTER_EVACUADO)}
+                  layout={{ ...layoutIconoCluster(ID_IMAGEN_CLUSTER_EVACUADO), visibility: ocultarPartes ? 'none' : 'visible' }}
                 />
               )}
             </Source>
@@ -1732,7 +1686,7 @@ export default function MapInfraestructuraPage(props: {
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
-          {!radarActivo && badgesEstado.map((badge) => {
+          {!ocultarPartes && badgesEstado.map((badge) => {
             const Icono = ICONOS_BADGE_ESTADO[badge.icono]
             const etiqueta = ETIQUETA_ICONO_ESTADO[badge.icono]
             return (
@@ -1760,7 +1714,7 @@ export default function MapInfraestructuraPage(props: {
             )
           })}
 
-          {radarActivo && (
+          {(radarActivo || esPlanificacion) && (
             <CapaPuntosNivel
               idCapa={CAPA_PUNTOS_NIVEL_ID}
               idFuente={FUENTE_PUNTOS_NIVEL_ID}
@@ -1897,11 +1851,11 @@ export default function MapInfraestructuraPage(props: {
           )}
           {hazardOn && (
             <LeyendaAccesos
-              visibles={capasAccesosVisibles}
+              visibles={CAPAS_ACCESOS_OCULTAS}
               territorio={territorio}
               territorioLoading={territorioLoading}
               territorioError={territorioError}
-              resumen={resumenCobertura}
+              resumen={null}
             />
           )}
           <PanelLateral
@@ -1942,7 +1896,20 @@ export default function MapInfraestructuraPage(props: {
                 }}
               />
             )}
-            planificacion={panelActual}
+            planificacion={(
+              <PanelPlanificacion
+                vista={vistaPlanificacion}
+                onVista={setVistaPlanificacion}
+                escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
+                territorio={territorio}
+                cargando={contextoTerritorial && territorioLoading}
+                error={territorioError !== null}
+                onSeleccionar={(cue) => {
+                  const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
+                  if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+                }}
+              />
+            )}
           />
         </div>
       )}
@@ -1963,9 +1930,6 @@ export default function MapInfraestructuraPage(props: {
             setIconosClusterListos(false)
           }}
         />
-        {hazardOn && (
-          <AccesosLayerControl capas={capasAccesosVisibles} onChange={alternarCapaAccesos} />
-        )}
         {radarActivo && false && (
           <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
         )}
