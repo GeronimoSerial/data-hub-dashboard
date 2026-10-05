@@ -81,6 +81,7 @@ import {
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import { useRadar } from '@/lib/infraestructura/use-radar'
+import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
@@ -694,6 +695,10 @@ export default function MapInfraestructuraPage(props: {
   const radarActivo = modoRadar
   const esPlanificacion = props.pestana === 'planificacion'
   const ocultarPartes = radarActivo || esPlanificacion
+  useEffect(() => {
+    const contenedor = mapRef.current?.getMap().getContainer()
+    if (contenedor) colapsarAtribucion(contenedor)
+  }, [radarActivo, versionEstilo])
   const [vistaPlanificacion, setVistaPlanificacion] = useState<VistaPlanificacion>('aisladas')
   const pestanaPrevia = useRef(props.pestana)
   useEffect(() => {

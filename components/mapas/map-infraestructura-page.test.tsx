@@ -23,9 +23,10 @@ const CUE_SIN_AFECTACION = '1801605-99'
 // pulsar "Ver recorrido"). Es un spy además de `flyTo` para poder contar
 // cuántas veces se encuadró: encuadrar de más es un bug tan visible como no
 // encuadrar.
-const { FLY_TO_MOCK, FIT_BOUNDS_MOCK } = vi.hoisted(() => ({
+const { FLY_TO_MOCK, FIT_BOUNDS_MOCK, MAP_CONTAINER_MOCK } = vi.hoisted(() => ({
   FLY_TO_MOCK: vi.fn(),
   FIT_BOUNDS_MOCK: vi.fn(),
+  MAP_CONTAINER_MOCK: { container: null as HTMLElement | null, getContainer: vi.fn() },
 }))
 
 // T5a: cues que el doble del mapa devuelve como DESAGRUPADAS en
@@ -438,6 +439,7 @@ vi.mock('react-map-gl/maplibre', () => {
           fitBounds: FIT_BOUNDS_MOCK,
           resize: vi.fn(),
           stop: vi.fn(),
+          getContainer: MAP_CONTAINER_MOCK.getContainer,
           isStyleLoaded: () => true,
           // `infra-partes-src` tiene que existir para que
           // `actualizarCuesNoAgrupados` corra; `querySourceFeatures` devuelve
@@ -657,6 +659,9 @@ beforeEach(() => {
   MAPA_ESTILO_MOCK.onStyleData = null
   MAPA_ESTILO_MOCK.montajesFuente = 0
   vi.restoreAllMocks()
+  MAP_CONTAINER_MOCK.container = document.createElement('div')
+  MAP_CONTAINER_MOCK.container.innerHTML = '<details class="maplibregl-ctrl maplibregl-ctrl-attrib maplibregl-compact maplibregl-compact-show" open></details>'
+  MAP_CONTAINER_MOCK.getContainer.mockReset().mockImplementation(() => MAP_CONTAINER_MOCK.container)
   // Los spies del doble del mapa son `vi.fn()` de módulo: se limpian a mano
   // para que el conteo de encuadres (`toHaveBeenCalledTimes`) sea el de este
   // test y no la suma de los anteriores.
@@ -687,6 +692,29 @@ afterEach(() => {
   desmontarMapa = null
   window.history.replaceState({}, '', '/')
   document.body.innerHTML = ''
+})
+
+describe('MapInfraestructuraPage — atribución compacta', () => {
+  it('colapsa la atribución al cambiar de Situación actual a Radar y Planificación', async () => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+    const atribucion = MAP_CONTAINER_MOCK.container?.querySelector('.maplibregl-ctrl-attrib')
+
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+
+    atribucion?.setAttribute('open', '')
+    atribucion?.classList.add('maplibregl-compact-show')
+    vista.rerender({ pestana: 'radar' })
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+
+    atribucion?.setAttribute('open', '')
+    atribucion?.classList.add('maplibregl-compact-show')
+    vista.rerender({ pestana: 'planificacion' })
+    expect(atribucion).not.toHaveAttribute('open')
+    expect(atribucion).not.toHaveClass('maplibregl-compact-show')
+    expect(MAP_CONTAINER_MOCK.getContainer).toHaveBeenCalled()
+  })
 })
 
 describe('MapInfraestructuraPage — orquestación de modales', () => {
