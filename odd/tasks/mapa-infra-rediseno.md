@@ -29,7 +29,7 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 
 ## Checklist
 
-- [ ] B1 — Tasks 1–4 (pestañas y panel por pestaña)
+- [ ] B1 — Tasks 1–4 (pestañas y panel por pestaña) — T1 be0a61d, T2 b8386d3, T3 0717c4d, T4 1cabd6b; N2 done and released; N1 code review OK; pending: N1 build + full suite + visual review, then merge
 - [ ] B2 — Tasks 5–9 (datos enriquecidos y filtros)
 - [ ] B3 — Tasks 10–15 (situación actual)
 - [ ] B4 — Tasks 16–19 (radar y planificación)
@@ -51,4 +51,5 @@ The plan claimed batches 4 and 6 were independent of 2/3/5. Not fully true: Task
 ## Next step
 
 Wave 1: B6 merged; B1 running (T1–T4 committed, N2 on its gate). Full isolation job v3 authorized by the user and running locally as systemd unit `mapa-job-aislamiento` (log ~/.cache/mapa-n2/job-aislamiento.log, serialized by heavy.lock). Importing its output into staging is NOT yet authorized.
-B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (worktree mapa-b2, dispatch ctx_355231408d95); if B1 changes after review, the B2 N2 merges feat/mapa-b1 into its branch. B2 merges into feat/staging only after B1. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
+B2 launched early at the user's request, stacked on feat/mapa-b1 @ 1cabd6b (worktree mapa-b2, dispatch ctx_355231408d95); if B1 changes after review, the B2 N2 merges feat/mapa-b1 into its branch. B2 merges into feat/staging only after B1.
+- B1 gate (N2): tsc clean, lint 0 errors, focused vitest 192 green; full suite timed out at 900 s under machine load (48 DB/PGlite files failing in beforeAll, unrelated to the diff) and build skipped because the isolation job held heavy.lock. N1 runs build + full suite before merging. On each worker_done: full-batch diff review, gate, visual review, merge, next wave.
