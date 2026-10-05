@@ -21,7 +21,7 @@ export interface EntradaActualizarProps {
 }
 
 // "desde hoy, 10:27" / "desde 5 de octubre, 10:27": la frase corre en minúscula.
-function desde(iso: string): string {
+export function desde(iso: string): string {
   return formatearMomentoHistorial(iso).replace(/^Hoy/, 'hoy')
 }
 

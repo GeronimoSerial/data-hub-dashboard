@@ -21,6 +21,7 @@ export interface AfectacionFicha {
   severidad: Severidad
   descripcion: string | null
   rigeDesde: string
+  creadaEn: string
   totales: { secciones: number; alumnos: number }
 }
 

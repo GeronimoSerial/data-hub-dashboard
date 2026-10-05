@@ -69,6 +69,7 @@ export async function GET(request: Request) {
         severidad: afectacion.severidad,
         descripcion: afectacion.descripcion,
         rigeDesde: afectacion.rigeDesde,
+        creadaEn: afectacion.creadaEn,
         totales: afectacion.totales,
       })),
       secciones: ficha.secciones,

@@ -10,8 +10,8 @@ import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
-import type { AfectacionFicha } from '@/lib/infraestructura/use-ficha-parte'
-import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
+import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 
 interface FichaEscuelaPanelProps {
   escuela: EscuelaMapaEnriquecida
@@ -35,20 +35,6 @@ function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
 function etiquetaCategoria(categoria: string | null): string | null {
   if (!categoria) return null
   return esCategoria(categoria) ? CATEGORIA_META[categoria].label : categoria
-}
-
-function fechaSituacionPrincipal(afectaciones: AfectacionFicha[], gravedad: string): string | null {
-  const candidatas = afectaciones
-    .map((afectacion) => ({
-      fecha: afectacion.rigeDesde,
-      severidadEtiqueta: afectacion.severidad,
-      severidad: SEVERIDADES.indexOf(afectacion.severidad),
-    }))
-    .filter(({ fecha, severidad }) => severidad >= 0 && Number.isFinite(Date.parse(fecha)))
-  const coincidentes = candidatas.filter((afectacion) => afectacion.severidadEtiqueta === gravedad)
-  const principales = (coincidentes.length > 0 ? coincidentes : candidatas)
-    .sort((a, b) => b.severidad - a.severidad || Date.parse(a.fecha) - Date.parse(b.fecha))
-  return principales[0]?.fecha ?? null
 }
 
 function FilaEstado({ escuela }: { escuela: EscuelaMapaEnriquecida }) {
@@ -105,8 +91,13 @@ export function FichaEscuelaPanel({
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
   const severidad = ETIQUETA_GRAVEDAD[escuela.gravedad]
-  const desde = fechaSituacionPrincipal(afectaciones, severidad)
-  const categoria = etiquetaCategoria(escuela.categoriaPrincipal)
+  const principal = situacionPrincipal(afectaciones.map((afectacion) => ({
+    ...afectacion,
+    estadoEstablecimiento: datos?.parte?.estadoEstablecimiento ?? 'habitual',
+  })))
+  const categoria = principal
+    ? CATEGORIA_META[principal.categoria].label
+    : etiquetaCategoria(escuela.categoriaPrincipal)
   const novedad = datos?.parte?.actualizadaEn
     ? tiempoRelativo(datos.parte.actualizadaEn, ahoraMs)
     : ''
@@ -140,7 +131,7 @@ export function FichaEscuelaPanel({
           style={{ backgroundColor: colorSeveridad(severidad), color: escuela.gravedad === 1 ? 'var(--ink)' : 'var(--white)' }}
         >
           <strong>Gravedad {severidad}</strong>
-          <span>{categoria}{categoria && desde ? ' · ' : ''}{desde ? `desde ${tiempoRelativo(desde, ahoraMs)}` : ''}</span>
+          <span>{principal ? `${categoria} · desde ${desde(principal.rigeDesde)}` : categoria}</span>
         </div>
       ) : (
         <p className="map-ficha-escuela__sin-reportes">Sin reportes abiertos</p>

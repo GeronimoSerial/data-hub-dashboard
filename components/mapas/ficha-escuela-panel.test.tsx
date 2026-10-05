@@ -15,7 +15,7 @@ const escuela: EscuelaMapaEnriquecida = {
 
 const afectaciones = [{
   id: 'afectacion-1', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta',
-  descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-02T15:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
+  descripcion: 'Afecta dos aulas', rigeDesde: '2026-10-02T15:00:00.000Z', creadaEn: '2026-10-02T15:00:00.000Z', totales: { secciones: 2, alumnos: 30 },
 }]
 
 const movimientos: MovimientoHistorial[] = [
@@ -72,7 +72,7 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Sin actualizar')).toBeInTheDocument()
     expect(screen.getByText('Acceso de prueba')).toBeInTheDocument()
     expect(await screen.findByText((_, element) =>
-      element?.textContent === 'Inaccesibilidad de alumnos · desde hace 3 d'
+      element?.textContent === 'Inaccesibilidad de alumnos · desde 2 de octubre, 12:00'
     )).toBeInTheDocument()
     expect(screen.getByText('Acceso').closest('details')).toHaveProperty('open', true)
     expect(screen.getByText('Clases y apoyo pedagógico').closest('details')).toHaveProperty('open', true)
@@ -131,6 +131,17 @@ describe('FichaEscuelaPanel', () => {
     expect(await screen.findByText(titulo)).toBeInTheDocument()
   })
 
+  it('muestra desde hoy cuando la situación principal rige hoy', async () => {
+    instalarFetch({ situaciones: [{
+      ...afectaciones[0], rigeDesde: '2026-10-05T15:00:00.000Z', creadaEn: '2026-10-05T15:00:00.000Z',
+    }] })
+    renderFicha()
+
+    expect(await screen.findByText((_, element) =>
+      element?.textContent === 'Inaccesibilidad de alumnos · desde hoy, 12:00'
+    )).toBeInTheDocument()
+  })
+
   it('muestra clases normales cerradas y la etiqueta Con clases', () => {
     instalarFetch()
     const normal = { ...escuela, clases: 'normal' as const, apoyo: null }
@@ -146,16 +157,39 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Sin reportes abiertos')).toBeInTheDocument()
   })
 
-  it('usa la situación de mayor severidad cuando no coincide con la gravedad de la escuela', async () => {
+  it('usa la situación de igual gravedad con rigeDesde más reciente', async () => {
     instalarFetch({ situaciones: [
-      { ...afectaciones[0], id: 'media-reciente', severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'media-antigua', severidad: 'Media', rigeDesde: '2026-10-02T15:00:00.000Z' },
-      { ...afectaciones[0], id: 'baja-antigua', severidad: 'Baja', rigeDesde: '2026-09-01T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Alta', rigeDesde: '2026-10-04T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'antigua', motivo: 'Inaccesibilidad', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
     ] })
     renderFicha()
 
     expect(await screen.findByText((_, element) =>
-      element?.textContent === 'Inaccesibilidad de alumnos · desde hace 3 d'
+      element?.textContent === 'Afecta al establecimiento · desde 4 de octubre, 12:00'
+    )).toBeInTheDocument()
+  })
+
+  it('prioriza una situación de mayor severidad sobre una más reciente', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], id: 'alta-antigua', categoria: 'alumnos', severidad: 'Alta', rigeDesde: '2026-10-02T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'media-reciente', motivo: 'Inundación', categoria: 'establecimiento', severidad: 'Media', rigeDesde: '2026-10-04T15:00:00.000Z' },
+    ] })
+    renderFicha()
+
+    expect(await screen.findByText((_, element) =>
+      element?.textContent === 'Inaccesibilidad de alumnos · desde 2 de octubre, 12:00'
+    )).toBeInTheDocument()
+  })
+
+  it('desempata por creadaEn más reciente cuando rigeDesde coincide', async () => {
+    instalarFetch({ situaciones: [
+      { ...afectaciones[0], id: 'creada-antigua', categoria: 'alumnos', creadaEn: '2026-10-03T15:00:00.000Z' },
+      { ...afectaciones[0], id: 'creada-reciente', motivo: 'Inundación', categoria: 'establecimiento', creadaEn: '2026-10-04T15:00:00.000Z' },
+    ] })
+    renderFicha()
+
+    expect(await screen.findByText((_, element) =>
+      element?.textContent === 'Afecta al establecimiento · desde 2 de octubre, 12:00'
     )).toBeInTheDocument()
   })
 
@@ -210,7 +244,8 @@ describe('FichaEscuelaPanel', () => {
     const secciones = screen.getAllByText('Cargando…')
     expect(secciones).toHaveLength(2)
     expect(screen.getByText('Situaciones').closest('summary')).toBeInTheDocument()
-    expect(screen.getByText('Inaccesibilidad de alumnos')).toBeInTheDocument()
+    expect(screen.getByText('Inaccesibilidad de alumnos', { selector: 'span' })).toBeInTheDocument()
+    expect(screen.queryByText(/desde/)).not.toBeInTheDocument()
   })
 
   it('no conserva la ficha anterior al cambiar de CUE', async () => {
