@@ -275,6 +275,7 @@ export function CamposQuePaso({
 export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
   usaSelectorEstablecimiento?: boolean
+  ocultarPreguntaAlcance?: boolean
 }
 
 export function CamposAQuienAfecta({
@@ -282,6 +283,7 @@ export function CamposAQuienAfecta({
   idPrefijo,
   turnos,
   usaSelectorEstablecimiento = false,
+  ocultarPreguntaAlcance = false,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
@@ -328,7 +330,7 @@ export function CamposAQuienAfecta({
         </div>
       ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
         <div className="afectacion-campos__grupo">
-          <p className="afectacion-campos__legend">¿A quiénes afecta?</p>
+          <p className={`afectacion-campos__legend${ocultarPreguntaAlcance ? ' sr-only' : ''}`}>¿A quiénes afecta?</p>
           <AvisosRedSeguridad
             avisos={evaluarRedesSeguridad({
               categoria: 'establecimiento',

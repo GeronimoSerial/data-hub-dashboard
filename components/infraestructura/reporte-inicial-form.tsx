@@ -740,6 +740,7 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
               idPrefijo="reporte"
               turnos={turnos}
               usaSelectorEstablecimiento
+              ocultarPreguntaAlcance
               onChange={cambiarAfectacion}
               disabled={enviando}
             />

@@ -370,7 +370,8 @@ describe('ReporteInicialForm', () => {
     continuar()
     completarAQuienAfecta()
 
-    expect(document.querySelector('.afectacion-campos__legend')).toHaveTextContent('¿A quiénes afecta?')
+    expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
+    expect(document.querySelector('.afectacion-campos__legend.sr-only')).toHaveTextContent('¿A quiénes afecta?')
     expect(screen.queryByText('Alcance')).not.toBeInTheDocument()
 
     continuar()
