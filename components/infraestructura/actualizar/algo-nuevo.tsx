@@ -40,9 +40,8 @@ function fechaCorta(fecha: string): string {
   if (!Number.isFinite(fechaValida.getTime())) return fecha
   return new Intl.DateTimeFormat('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
+    day: 'numeric',
+    month: 'long',
   }).format(fechaValida)
 }
 

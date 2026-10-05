@@ -220,7 +220,7 @@ describe('AlgoNuevo', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
 
     const sheet = screen.getByRole('dialog')
-    expect(within(sheet).getByText('Ya tiene activa "Inundación" desde el 03/10/2026. ¿Qué pasó con esa?')).toBeInTheDocument()
+    expect(within(sheet).getByText('Ya tiene activa "Inundación" desde el 3 de octubre. ¿Qué pasó con esa?')).toBeInTheDocument()
     fireEvent.click(within(sheet).getByRole('radio', { name: 'Son dos situaciones distintas a la vez' }))
     expect(within(sheet).getByRole('button', { name: 'Continuar' })).toBeEnabled()
     fireEvent.click(within(sheet).getByRole('button', { name: 'Continuar' }))
