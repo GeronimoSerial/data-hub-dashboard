@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { forwardRef, useEffect, useImperativeHandle, type JSX } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, type JSX, type ReactNode } from 'react'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -60,27 +60,31 @@ const PARTE: ParteMapa = crearParteMapa({
 // Q3: el bloque territorial llega como un objeto (`accesoTerritorial`) con el
 // botón "Ver recorrido"; el doble lo expone sólo cuando la página se lo pasa,
 // que es justo cuando hay dominio territorial prendido.
-vi.mock('@/components/infraestructura/ficha-parte-modal', () => ({
-  FichaParteModal: (props: {
-    open: boolean
-    cueAnexo: string
-    onOpenChange: (open: boolean) => void
+vi.mock('@/components/mapas/ficha-escuela-panel', () => ({
+  FichaEscuelaPanel: (props: {
+    escuela: { cueAnexo: string }
+    acceso: ReactNode
+    onCerrar: () => void
     onVerAlumnosAlcanzados: (id: string) => void
     onVerHistorialCompleto: () => void
-    accesoTerritorial?: { onVerRutaEnMapa?: () => void }
-  }): JSX.Element | null =>
-    props.open ? (
-      <div data-testid="mock-ficha-modal" data-cue={props.cueAnexo}>
-        <button onClick={() => props.onOpenChange(false)}>cerrar-ficha</button>
-        <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
-        <button onClick={() => props.onVerHistorialCompleto()}>abrir-historial-desde-ficha</button>
-        {props.accesoTerritorial?.onVerRutaEnMapa && (
-          <button onClick={() => props.accesoTerritorial?.onVerRutaEnMapa?.()}>
-            ver-recorrido-desde-ficha
-          </button>
-        )}
-      </div>
-    ) : null,
+  }): JSX.Element => (
+    <section data-testid="mock-ficha-escuela" data-cue={props.escuela.cueAnexo}>
+      <button onClick={props.onCerrar}>Volver a la lista</button>
+      <button onClick={() => props.onVerAlumnosAlcanzados('a1')}>abrir-nominal-desde-ficha</button>
+      <button onClick={props.onVerHistorialCompleto}>Ver historial</button>
+      {props.acceso}
+    </section>
+  ),
+}))
+
+vi.mock('@/components/infraestructura/ficha-acceso-territorial', () => ({
+  FichaAccesoTerritorial: (props: { onVerRutaEnMapa?: () => void }): JSX.Element => (
+    <button data-testid="ficha-acceso-ver-ruta" onClick={props.onVerRutaEnMapa}>Ver recorrido</button>
+  ),
+}))
+
+vi.mock('@/components/infraestructura/ficha-territorial', () => ({
+  FichaTerritorial: (): JSX.Element => <div data-testid="ficha-territorial" />,
 }))
 
 vi.mock('@/components/infraestructura/alcance-nominal-modal', () => ({
@@ -577,12 +581,12 @@ async function seleccionarPorBuscador(nombre: string) {
   const escuela = FIXTURE_ESCUELAS_MAPA.escuelas.find((item) => item.nombre === nombre)
   if (!escuela || !seleccionarEscuelaRegistrada) throw new Error(`No se registró la selección de ${nombre}`)
   await act(async () => seleccionarEscuelaRegistrada?.(escuela))
-  return screen.findByTestId('mock-ficha-modal')
+  return screen.findByTestId('mock-ficha-escuela')
 }
 
 async function cerrarFicha() {
-  await userEvent.click(screen.getByText('cerrar-ficha'))
-  await waitFor(() => expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument())
+  await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
+  await waitFor(() => expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument())
 }
 
 // Viewport del mapa. jsdom arranca en 1024x768, que es justo el breakpoint en
@@ -668,9 +672,9 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
   it('abre la ficha al hacer click en un parte del mapa', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    const ficha = await screen.findByTestId('mock-ficha-modal')
+    const ficha = await screen.findByTestId('mock-ficha-escuela')
     expect(ficha).toHaveAttribute('data-cue', CUE)
   })
 
@@ -681,10 +685,13 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
   it('abre la ficha al hacer click en una escuela del padrón sin afectación', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-parte-sin-afectacion'))
-    const ficha = await screen.findByTestId('mock-ficha-modal')
+    const ficha = await screen.findByTestId('mock-ficha-escuela')
     expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
+    expect(within(screen.getByTestId('panel-lateral')).getByRole('button', { name: 'Volver a la lista' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.querySelector('.map-ficha-panel')).toBeNull()
   })
 
   // La capa `symbol` del ícono de escuela es la que el usuario realmente
@@ -695,10 +702,10 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
   it('clickear el ícono de una escuela del padrón abre su ficha y nada más', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     await userEvent.click(screen.getByTestId('mock-click-escuela-icono'))
 
-    const ficha = await screen.findByTestId('mock-ficha-modal')
+    const ficha = await screen.findByTestId('mock-ficha-escuela')
     expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
     // El click noSeleccionó el departamento que está debajo del ícono.
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
@@ -712,14 +719,14 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
     await userEvent.click(await screen.findByText('abrir-nominal-desde-ficha'))
     expect(await screen.findByTestId('mock-nominal-modal')).toBeInTheDocument()
     // La ficha sigue abierta: abrir el nominal no la cierra.
-    expect(screen.getByTestId('mock-ficha-modal')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
   it('abre el modal de historial desde la ficha', async () => {
     await renderMapa({ mostrarEnlaceNominal: true })
 
     await userEvent.click(screen.getByTestId('mock-click-parte'))
-    await userEvent.click(await screen.findByText('abrir-historial-desde-ficha'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver historial' }))
     expect(await screen.findByTestId('mock-historial-modal')).toBeInTheDocument()
   })
 
@@ -733,7 +740,7 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-parte'))
     await userEvent.click(await screen.findByText('abrir-nominal-desde-ficha'))
-    await userEvent.click(await screen.findByText('abrir-historial-desde-ficha'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Ver historial' }))
 
     await userEvent.click(screen.getByText('cerrar-nominal'))
     await waitFor(() => expect(screen.queryByTestId('mock-nominal-modal')).not.toBeInTheDocument())
@@ -845,7 +852,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await userEvent.click(screen.getByTestId('mock-click-peligro'))
     expect(screen.queryByTestId('risk-explanation-departamento')).not.toBeInTheDocument()
     // La ficha de partes NO se abrió: son estados independientes.
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
   })
 
   it('no dibuja marcadores escolares de riesgo en el radar meteorológico', async () => {
@@ -854,7 +861,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     // El punto de riesgo ahora es un <Marker> DOM (ícono Lucide) con su
     // propio onClick, no una capa circle de MapLibre.
     expect(screen.queryByRole('button', { name: `Riesgo alto: ${CUE}` })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
   })
 
   it('no monta el marcador de riesgo legado', async () => {
@@ -1006,7 +1013,7 @@ describe('M1: clic de departamento y buscador de escuelas', () => {
     )
     // Hallazgo 7: sin afectación reportada igual se abre la ficha de la
     // escuela (la ausencia de parte la resuelve el propio modal).
-    const ficha = await screen.findByTestId('mock-ficha-modal')
+    const ficha = await screen.findByTestId('mock-ficha-escuela')
     expect(ficha).toHaveAttribute('data-cue', CUE_SIN_AFECTACION)
   })
 })
@@ -1130,6 +1137,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     // La selección NO se fue con la ficha: la ruta de la escuela sigue dibujada
     // y la leyenda la sigue describiendo.
     expect(screen.getByTestId('leyenda-ruta-disponible')).toBeInTheDocument()
+    expect(within(screen.getByTestId('panel-lateral')).getByText('Situación actual')).toBeInTheDocument()
     // Y hay una forma explícita de volver a la ficha.
     expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
   })
@@ -1142,7 +1150,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
 
     await userEvent.click(screen.getByTestId('reabrir-ficha'))
 
-    const ficha = await screen.findByTestId('mock-ficha-modal')
+    const ficha = await screen.findByTestId('mock-ficha-escuela')
     expect(ficha).toHaveAttribute('data-cue', CUE)
     expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
@@ -1162,7 +1170,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     // flotando sobre el mapa.
     expect(screen.queryByTestId('leyenda-ruta-disponible')).not.toBeInTheDocument()
     expect(screen.queryByTestId('leyenda-ruta-sin-seleccion')).toBeInTheDocument()
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reabrir-ficha')).not.toBeInTheDocument()
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
   })
@@ -1189,7 +1197,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     // Con la ficha abierta tampoco: el grupo es para el estado "cerrada".
     expect(screen.queryByTestId('quitar-seleccion')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
     expect(await screen.findByTestId('quitar-seleccion')).toBeInTheDocument()
     // Ambos botones son botones de verdad, no <div> con onClick.
     expect(screen.getByTestId('reabrir-ficha').tagName).toBe('BUTTON')
@@ -1208,7 +1216,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
     await seleccionarPorBuscador('Escuela 1')
     await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'true'))
 
-    await userEvent.click(screen.getByText('cerrar-ficha'))
+    await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
     // Cerrada con selección viva: el atributo dice "false" pero el grupo
     // sigue — es lo que permite al CSS correr los controles de capas.
     await waitFor(() => expect(shell).toHaveAttribute('data-ficha-abierta', 'false'))
@@ -1224,7 +1232,7 @@ describe('Q1: cerrar la ficha conserva la selección', () => {
 
     await seleccionarPorBuscador('Escuela 1')
 
-    expect(await screen.findByTestId('mock-ficha-modal')).toBeInTheDocument()
+    expect(await screen.findByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
   it('la leyenda de accesos va antes del panel de situación actual', async () => {
@@ -1271,7 +1279,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     // y la ficha, su toggle y el margen derecho (574px): la ruta queda en la
     // franja que el usuario realmente ve.
     expect(opciones).toEqual({
-      padding: { top: 60, bottom: 60, left: 400, right: 574 },
+      padding: { top: 60, bottom: 60, left: 400, right: 356 },
       duration: 700,
     })
   })
@@ -1324,7 +1332,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     // el del botón.
     FIT_BOUNDS_MOCK.mockClear()
 
-    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
 
     expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1)
     expect(FIT_BOUNDS_MOCK).toHaveBeenCalledWith(
@@ -1333,13 +1341,13 @@ describe('Q3: encuadre de la ruta de acceso', () => {
         [-58.8, -27.47],
       ],
       {
-        padding: { top: 60, bottom: 60, left: 400, right: 574 },
+        padding: { top: 60, bottom: 60, left: 400, right: 356 },
         duration: 600,
       },
     )
     // En pantalla ancha la ficha es un panel lateral que no tapa la ruta: se
     // queda abierta.
-    expect(screen.getByTestId('mock-ficha-modal')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
   it('"Ver recorrido" con la ruta apagada enciende la capa y encuadra cuando llega', async () => {
@@ -1352,7 +1360,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     expect(llamadasGeometria.habilitados.at(-1)).toBe(false)
     FIT_BOUNDS_MOCK.mockClear()
 
-    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
 
     expect(casilla).toBeChecked()
     await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
@@ -1367,11 +1375,11 @@ describe('Q3: encuadre de la ruta de acceso', () => {
     await userEvent.click(casilla)
     FIT_BOUNDS_MOCK.mockClear()
 
-    await userEvent.click(screen.getByText('ver-recorrido-desde-ficha'))
+    await userEvent.click(screen.getByTestId('ficha-acceso-ver-ruta'))
 
     // La hoja inferior tapaba la ruta entera, así que se cierra… pero la
     // selección vive: el grupo flotante devuelve la ficha.
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
     expect(casilla).toBeChecked()
     await waitFor(() => expect(FIT_BOUNDS_MOCK).toHaveBeenCalledTimes(1))
@@ -1410,7 +1418,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       const aviso = await screen.findByTestId('aviso-busqueda-sin-ubicacion')
       expect(aviso).toHaveTextContent('La escuela "Escuela del interior" no tiene ubicación cargada')
       expect(aviso).toHaveTextContent('se muestra la ficha, pero no se puede señalar en el mapa')
-      expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute(
+      expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute(
         'data-cue',
         ESCUELA_SIN_UBICACION.cueAnexo,
       )
@@ -1422,7 +1430,7 @@ describe('Q3: encuadre de la ruta de acceso', () => {
       expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
 
       // Y con la ficha cerrada, "Quitar selección" también lo limpia.
-      await userEvent.click(screen.getByText('cerrar-ficha'))
+      await userEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
       await userEvent.click(await screen.findByTestId('quitar-seleccion'))
       expect(screen.queryByTestId('aviso-busqueda-sin-ubicacion')).not.toBeInTheDocument()
     } finally {
@@ -1445,7 +1453,7 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     const panel = screen.getByTestId('panel-lateral')
     expect(panel).not.toBeEmptyDOMElement()
     expect(within(panel).getByTestId('panel-radar')).toBeInTheDocument()
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
   })
 
   it('mantiene el mismo mapa montado al cambiar a Radar', async () => {
@@ -1480,7 +1488,7 @@ describe('Task 4: cambiar de pestaña a Radar', () => {
     expect(within(panel).queryByTestId('panel-radar')).not.toBeInTheDocument()
     expect(screen.getByTestId('reabrir-ficha')).toBeInTheDocument()
     await userEvent.click(screen.getByTestId('reabrir-ficha'))
-    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute('data-cue', CUE)
+    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
   })
 })
 
@@ -1497,7 +1505,7 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
 
     await userEvent.click(screen.getByTestId('mock-click-aislamiento'))
 
-    expect(await screen.findByTestId('mock-ficha-modal')).toHaveAttribute('data-cue', CUE)
+    expect(await screen.findByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
     expect(screen.queryByText('Quitar filtro')).not.toBeInTheDocument()
     expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
@@ -1521,7 +1529,7 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
     expect(screen.getByText(/No hay puente cargado en el mapa en este cruce/)).toBeInTheDocument()
     expect(screen.getByText(/puede existir sin estar cargado/)).toBeInTheDocument()
     // Un cruce es un dato, no una selección: no abre ficha ni filtra.
-    expect(screen.queryByTestId('mock-ficha-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mock-ficha-escuela')).not.toBeInTheDocument()
     expect(screen.queryByText('Departamento:')).not.toBeInTheDocument()
     expect(screen.queryByText(esParrafoPopupDepartamento)).not.toBeInTheDocument()
 
@@ -1532,63 +1540,52 @@ describe('Q3: los íconos territoriales no caen en el departamento', () => {
   })
 })
 
-// Q3: el padding de `fitBounds` se calcula desde el viewport y desde lo que
-// tapa el mapa. Estos tests son sobre la función pura: los tres regímenes del
-// CSS (columna + panel lateral, columna + hoja inferior, sólo hoja inferior
-// alta) y el recorte que evita que MapLibre se quede sin caja para el bbox.
+// Task 13c: la ficha comparte la columna izquierda, así que el encuadre de la
+// ruta reserva siempre la misma zona del mapa, con ficha abierta o cerrada.
 describe('paddingEncuadre', () => {
   async function paddingEncuadre() {
     const mod = await import('./map-infraestructura-page')
     return mod.paddingEncuadre
   }
 
-  it('por encima de 1080px deja libre la columna izquierda y el panel de la ficha', async () => {
+  it('reserva la columna izquierda y conserva el padding con la ficha abierta', async () => {
     viewport(1440, 900)
     const calcular = await paddingEncuadre()
 
-    expect(calcular(true)).toEqual({ top: 60, bottom: 60, left: 400, right: 574 })
-    // Sin ficha el mismo encuadre no descuenta el panel derecho.
-    expect(calcular(false)).toEqual({ top: 60, bottom: 60, left: 400, right: 356 })
+    expect(calcular()).toEqual({ top: 60, bottom: 60, left: 400, right: 356 })
   })
 
-  it('de 721 a 1080px la ficha es hoja inferior: el padding va abajo', async () => {
+  it('no agrega una hoja inferior en pantallas de 721 a 1080px', async () => {
     viewport(1024, 768)
     const calcular = await paddingEncuadre()
 
-    // 768 * 0.55 = 422, más los 60 base. El toggle colapsado reserva 90px.
-    expect(calcular(true)).toEqual({ top: 60, bottom: 482, left: 400, right: 150 })
+    expect(calcular()).toEqual({ top: 60, bottom: 60, left: 400, right: 356 })
   })
 
-  it('hasta 720px desaparece la columna izquierda y la hoja es más alta', async () => {
+  it('hasta 720px no reserva la columna izquierda', async () => {
     viewport(500, 800)
     const calcular = await paddingEncuadre()
 
-    // 800 * 0.6 = 480, más los 60 base; sin columna a la izquierda.
-    expect(calcular(true)).toEqual({ top: 60, bottom: 540, left: 60, right: 60 })
-    expect(calcular(false)).toEqual({ top: 60, bottom: 60, left: 60, right: 60 })
+    expect(calcular()).toEqual({ top: 60, bottom: 60, left: 60, right: 60 })
   })
 
-  it('recorta en proporción cuando la ficha lateral no deja caja horizontal', async () => {
-    // 1100px: columna (400) + ficha, toggle y margen (574) = 974 contra el tope del
-    // 80% (880). Se achica el par, no cada lado por su cuenta.
-    viewport(1100, 900)
+  it('recorta en proporción cuando el padding excede el ancho máximo', async () => {
+    viewport(800, 900)
     const calcular = await paddingEncuadre()
 
-    const padding = calcular(true)
+    const padding = calcular()
     const { left = 0, right = 0 } = padding
-    expect(left + right).toBe(880)
-    expect(padding).toEqual({ top: 60, bottom: 60, left: 361, right: 519 })
+    expect(left + right).toBe(640)
+    expect(padding).toEqual({ top: 60, bottom: 60, left: 339, right: 301 })
   })
 
-  it('recorta en proporción cuando la hoja inferior no deja caja vertical', async () => {
-    // 200px de alto: la hoja (55% = 110) + 60 base supera el tope del 80%
-    // (160). MapLibre lanzaría con el padding sin recortar.
-    viewport(1024, 200)
+  it('recorta en proporción cuando el padding excede el alto máximo', async () => {
+    viewport(1024, 100)
     const calcular = await paddingEncuadre()
 
-    const padding = calcular(true)
+    const padding = calcular()
     const { top = 0, bottom = 0 } = padding
-    expect(top + bottom).toBe(160)
-    expect(padding).toEqual({ top: 42, bottom: 118, left: 400, right: 150 })
+    expect(top + bottom).toBe(80)
+    expect(padding).toEqual({ top: 40, bottom: 40, left: 400, right: 356 })
   })
 })

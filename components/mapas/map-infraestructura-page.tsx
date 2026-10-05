@@ -62,7 +62,9 @@ import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
-import { FichaParteModal } from '@/components/infraestructura/ficha-parte-modal'
+import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
+import { FichaTerritorial } from '@/components/infraestructura/ficha-territorial'
+import { FichaAccesoTerritorial } from '@/components/infraestructura/ficha-acceso-territorial'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
@@ -136,7 +138,7 @@ import { useTotalesMapa } from '@/lib/infraestructura/use-totales-mapa'
 import type { TotalesDepartamento } from '@/lib/infraestructura/totales-mapa'
 import { filtrarDepartamentoEscuelasMapa } from '@/lib/infraestructura/filtrar-departamento-escuelas-mapa'
 import { construirEscuelasMapaFeatureCollection, COLOR_SIN_AFECTACION } from '@/lib/mapas/construir-escuelas-mapa-feature-collection'
-import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, EscuelaMapa, ParteMapa } from '@/lib/infraestructura/parte-mapa'
+import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { iconoPunto, radioPunto, type IconoPunto } from '@/lib/infraestructura/mapa/punto'
 import {
@@ -531,35 +533,27 @@ const CAPAS_ACCESOS_VISIBLES_DEFECTO: Record<CapaAccesos, boolean> = {
 // ── Encuadre de la ruta de acceso ──────────────────────────────────────────
 //
 // Encajar el bbox de la ruta con un padding de 60 fijo metía la escuela (y
-// parte de la ruta) debajo de la columna izquierda o de la ficha: el
-// director tenía que volver a acercar a mano para ver el acceso. El padding
-// se calcula desde el viewport real y desde si la ficha está tapando el
-// mapa, leyendo los MISMOS números que declara globals.css:
+// parte de la ruta) debajo de la columna izquierda: el director tenía que
+// volver a acercar a mano para ver el acceso. La ficha comparte esa columna,
+// así que el padding reserva únicamente el ancho de la columna izquierda:
 //
 // - `.map-left-stack`: `left: 55px` + `width: min(20rem, …)` ⇒ ocupa hasta
 //   x≈375px, pero sólo por arriba de 720px (debajo es un cajón overlay).
-// - `.map-ficha-panel`: panel lateral de `min(400px, 100vw - 24px)` por
-//   encima de 1080px; hoja inferior de 55vh (60vh hasta 720px) por debajo.
 const PADDING_ENCUADRE_BASE = 60
 const ANCHO_COLUMNA_IZQUIERDA = 340
-const ANCHO_FICHA_LATERAL = 400
 // Fracción de la ventana que el padding puede comerse como máximo. MapLibre
-// lanza si el padding deja sin caja al bbox, y con la columna izquierda (340)
-// más la ficha lateral (424) esa suma pasa fácil el ancho de una tablet.
+// lanza si el padding deja sin caja al bbox; el recorte proporcional evita
+// que el padding horizontal deje sin espacio el mapa en pantallas angostas.
 const MAX_PADDING_ANCHO = 0.8
 const MAX_PADDING_ALTO = 0.8
 
 /**
  * Padding de `fitBounds` para la ruta de la escuela seleccionada.
  *
- * `fichaCubre` es `true` cuando la ficha está abierta Y su panel tapa parte
- * del mapa; el llamador lo decide (el handler de "Ver recorrido" la está
- * cerrando en el mismo gesto, así que ahí encuadra sin ella).
- *
  * Puro salvo por la lectura del viewport: no toca estado ni el mapa, así que
  * se puede testear por viewport sin montar nada.
  */
-export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
+export function paddingEncuadre(): PaddingOptions {
   const ancho = window.innerWidth
   const alto = window.innerHeight
 
@@ -567,20 +561,6 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
   let bottom = PADDING_ENCUADRE_BASE
   let left = PADDING_ENCUADRE_BASE + (ancho > 720 ? ANCHO_COLUMNA_IZQUIERDA : 0)
   let right = PADDING_ENCUADRE_BASE + (ancho > 720 ? 296 : 0)
-
-  if (fichaCubre) {
-    if (ancho > 1080) {
-      // Ficha lateral, separación, toggle colapsado y margen del mapa.
-      right = PADDING_ENCUADRE_BASE + Math.min(ANCHO_FICHA_LATERAL, ancho - 24) + 24 + 90
-    } else {
-      // Hoja inferior: se reserva su alto real, no el ancho de la pantalla.
-      bottom += Math.round(alto * (ancho <= 720 ? 0.6 : 0.55))
-      if (ancho > 720) {
-        // El toggle de capas colapsado ocupa 90px a la derecha.
-        right = PADDING_ENCUADRE_BASE + 90
-      }
-    }
-  }
 
   // Recorte proporcional: si el padding se come más del 80% de la ventana no
   // queda caja para el bbox y MapLibre tira. Se achica el par culpable (el
@@ -601,7 +581,7 @@ export function paddingEncuadre(fichaCubre: boolean): PaddingOptions {
   return { top, bottom, left, right }
 }
 
-function extraerEscuelasConCoordenadas(escuelas: EscuelaMapa[]) {
+function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
   return escuelas
     .filter((escuela) => escuela.lat !== null && escuela.lon !== null)
     .map((escuela) => ({
@@ -668,6 +648,10 @@ export default function MapInfraestructuraPage(props: {
   // información aparece recién con el CLIC (ver `handleClick`), nunca con el
   // mouse quieto encima.
   const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
+  const cerrarFicha = useCallback(() => {
+    setFichaCerradaCue(seleccionCue)
+    setDepartamentoInfoClic(null)
+  }, [seleccionCue])
   const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
   // o sin evidencia). Es un popup informativo propio, no una selección: el
@@ -1201,16 +1185,12 @@ export default function MapInfraestructuraPage(props: {
   // el encabezado de la ficha siempre puede mostrar nombre/CUE/localidad/
   // departamento, exista o no una afectación vigente.
   const escuelasPorCue = useMemo(() => {
-    const index = new Map<string, EscuelaMapa>()
+    const index = new Map<string, EscuelaMapaPadron>()
     for (const escuela of dataEscuelasMapa?.escuelas ?? []) index.set(escuela.cueAnexo, escuela)
     return index
   }, [dataEscuelasMapa])
 
   const escuelaSeleccionada = seleccionCue ? (escuelasPorCue.get(seleccionCue) ?? null) : null
-
-  // F3.2: ya no hace falta la coordenada del punto seleccionado (era sólo
-  // para anclar el Popup de MapLibre); el modal no depende de la posición
-  // del punto en el mapa.
   const parteSeleccionado = seleccionCue ? (partesPorCue.get(seleccionCue) ?? null) : null
 
   // ── Accesos territoriales (T5c2) ─────────────────────────────────────────
@@ -1456,7 +1436,7 @@ export default function MapInfraestructuraPage(props: {
   // Seleccionar una escuela desde el buscador: mismo criterio que el click
   // sobre un punto del mapa — vuela al punto, resalta el anillo y abre la
   // ficha, exista o no afectación vigente para ese cueAnexo.
-  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapa) => {
+  const handleSeleccionarEscuelaBuscada = useCallback((escuela: EscuelaMapaPadron) => {
     // Sin coordenadas no hay punto al que volar ni anillo que resaltar, pero
     // la ficha sigue teniendo sentido (dato propio, aunque no se pueda
     // situar en el mapa). Antes el handler salía acá y el usuario no veía
@@ -1506,10 +1486,10 @@ export default function MapInfraestructuraPage(props: {
     const bbox = bboxRuta(rutaGeojson)
     if (bbox === null) return
     mapRef.current?.getMap()?.fitBounds(bbox, {
-      padding: paddingEncuadre(fichaAbierta),
+      padding: paddingEncuadre(),
       duration: 700,
     })
-  }, [geometria, rutaGeojson, cueRuta, fichaAbierta])
+  }, [geometria, rutaGeojson, cueRuta])
 
   // T1.1c: lee del mapa (querySourceFeatures) qué features de
   // `infra-partes-src` están actualmente DESAGRUPADAS y guarda sus cueAnexo.
@@ -1575,13 +1555,12 @@ export default function MapInfraestructuraPage(props: {
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
-  // descuenta la columna izquierda y la ficha para que la escuela quede
-  // visible, no tapada.
+  // descuenta la columna izquierda, donde también vive la ficha.
   function encuadrarRuta() {
     const bbox = bboxRuta(rutaGeojson)
     if (bbox === null) return
     mapRef.current?.getMap()?.fitBounds(bbox, {
-      padding: paddingEncuadre(fichaAbierta),
+      padding: paddingEncuadre(),
       duration: 600,
     })
   }
@@ -1610,7 +1589,7 @@ export default function MapInfraestructuraPage(props: {
       const bbox = bboxRuta(rutaGeojson)
       if (bbox !== null) {
         mapRef.current?.getMap()?.fitBounds(bbox, {
-          padding: paddingEncuadre(window.innerWidth > 1080),
+          padding: paddingEncuadre(),
           duration: 600,
         })
       }
@@ -1627,49 +1606,6 @@ export default function MapInfraestructuraPage(props: {
 
   const panelActual = dataVisible ? (
     <>
-      {/*
-        Aviso del buscador (no error): una escuela del padrón sin
-        coordenadas se puede consultar igual, pero no se puede señalar en
-        el mapa. Va pegado al buscador, que es donde se la eligió, para que
-        el "no pasó nada" del vuelo al punto tenga una explicación a la
-        vista. `role="status"` (no alert): es informativo y no interrumpe.
-      */}
-      {avisoBusqueda && (
-        <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
-          {avisoBusqueda}
-        </p>
-      )}
-
-      {/*
-        Leyenda territorial (T5c2): hermanas de la leyenda de infra, con
-        su propio dominio. Aparece sólo con el flag territorial prendido y
-        siempre que corresponda; sin bloques visibles el componente no renderiza
-        nada.
-
-        Va inmediatamente debajo del buscador, y no al final del panel como
-        estaba: ahí quedaba empujada debajo del resumen de situación actual y
-        el usuario nunca la veía sin scrollear. Explica las capas
-        territoriales (aislamiento, inundación, cruces) justo donde se
-        elige la escuela a la que se aplican, y es también el bloque que
-        cambia con la selección — tiene que estar a la vista cuando eso
-        pasa.
-      */}
-      {hazardOn && (
-        <LeyendaAccesos
-          visibles={capasAccesosVisibles}
-          territorio={territorio}
-          territorioLoading={territorioLoading}
-          territorioError={territorioError}
-          resumen={resumenCobertura}
-          seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
-          geometria={geometria}
-          celdasExposicion={celdasExposicion}
-          geometriaLoading={geometriaLoading}
-          geometriaError={geometriaError}
-          onEncuadrarRuta={encuadrarRuta}
-        />
-      )}
-
       {!modoRadar && (
         <>
           {departamentoSeleccionado && (
@@ -2220,56 +2156,6 @@ export default function MapInfraestructuraPage(props: {
         </MapGL>
       </div>
 
-      {/*
-        F3.2: la ficha pasó de Popup de MapLibre (flotante, atado al punto,
-        se cerraba solo con closeOnClick) a un modal de verdad. `open` deriva
-        de la selección Y de si el usuario la cerró (ver `fichaCerradaCue`),
-        así que seguir clickeando otro punto mientras el modal está abierto lo
-        mantiene abierto con el nuevo cue (la `key` adentro de
-        FichaParteModal fuerza el remontaje del contenido).
-
-        Cerrar la ficha ya NO borra la selección: la ruta, el resaltado del
-        punto y la leyenda de acceso sobreviven, y el grupo
-        `.map-seleccion-acciones` ofrece "Ver ficha" / "Quitar selección".
-      */}
-      <FichaParteModal
-        cueAnexo={seleccionCue ?? ''}
-        open={fichaAbierta && !modoRadar}
-        onOpenChange={(next) => {
-          if (!next) {
-            setFichaCerradaCue(seleccionCue)
-            // El popup de departamento vive en el mapa, no en la ficha: al
-            // cerrar la ficha se limpia para no quedar descolgado.
-            setDepartamentoInfoClic(null)
-          }
-        }}
-        parteResumen={parteSeleccionado}
-        escuela={escuelaSeleccionada}
-        mostrarEnlaceNominal={props.mostrarEnlaceNominal}
-        onVerAlumnosAlcanzados={setNominalAfectacionId}
-        onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
-        habilitado={props.hazardContextEnabled ?? false}
-        // Sección territorial de la ficha: sólo con el flag prendido. Sin `accesoTerritorial` la ficha queda exactamente como
-        // estaba.
-        accesoTerritorial={
-          hazardOn
-            ? {
-                territorio,
-                territorioLoading,
-                territorioError,
-                cueAnexo: seleccionCue ?? '',
-                geometria,
-                geometriaLoading,
-                geometriaError,
-                exposicion,
-                exposicionLoading,
-                exposicionError,
-                onVerRutaEnMapa: handleVerRutaEnMapa,
-              }
-            : undefined
-        }
-      />
-
       <AlcanceNominalModal
         afectacionId={nominalAfectacionId}
         onOpenChange={(open) => !open && setNominalAfectacionId(null)}
@@ -2285,12 +2171,63 @@ export default function MapInfraestructuraPage(props: {
           className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
           id="infra-left-stack"
         >
+          {!modoRadar && avisoBusqueda && (
+            <p role="status" className={styles.hint} data-testid="aviso-busqueda-sin-ubicacion">
+              {avisoBusqueda}
+            </p>
+          )}
+          {hazardOn && (
+            <LeyendaAccesos
+              visibles={capasAccesosVisibles}
+              territorio={territorio}
+              territorioLoading={territorioLoading}
+              territorioError={territorioError}
+              resumen={resumenCobertura}
+              seleccion={seleccionRutaNombre ? { nombre: seleccionRutaNombre } : null}
+              geometria={geometria}
+              celdasExposicion={celdasExposicion}
+              geometriaLoading={geometriaLoading}
+              geometriaError={geometriaError}
+              onEncuadrarRuta={encuadrarRuta}
+            />
+          )}
           <PanelLateral
             pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
-            seleccion={modoRadar ? cueRadarSeleccionado : seleccionCue}
+            seleccion={modoRadar ? cueRadarSeleccionado : fichaAbierta ? seleccionCue : null}
             onCerrarFicha={modoRadar
               ? () => setCueRadarSeleccionado(null)
-              : () => setFichaCerradaCue(seleccionCue)}
+              : cerrarFicha}
+            ficha={!modoRadar && fichaAbierta && escuelaSeleccionada ? (
+              <FichaEscuelaPanel
+                key={seleccionCue}
+                escuela={escuelaSeleccionada}
+                acceso={(
+                  <>
+                    {hazardOn && (
+                      <FichaAccesoTerritorial
+                        territorio={territorio}
+                        territorioLoading={territorioLoading}
+                        territorioError={territorioError}
+                        cueAnexo={seleccionCue ?? ''}
+                        geometria={geometria}
+                        geometriaLoading={geometriaLoading}
+                        geometriaError={geometriaError}
+                        exposicion={exposicion}
+                        exposicionLoading={exposicionLoading}
+                        exposicionError={exposicionError}
+                        onVerRutaEnMapa={handleVerRutaEnMapa}
+                      />
+                    )}
+                    {props.hazardContextEnabled && <FichaTerritorial cueAnexo={seleccionCue ?? ''} />}
+                    {!hazardOn && !props.hazardContextEnabled && <p>Sin acceso calculado</p>}
+                  </>
+                )}
+                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+                onVerAlumnosAlcanzados={setNominalAfectacionId}
+                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+                onCerrar={cerrarFicha}
+              />
+            ) : undefined}
             actual={panelActual}
             radar={(
               // La Task 16 reemplaza este contenido por el panel real; hasta entonces no ocupa espacio.

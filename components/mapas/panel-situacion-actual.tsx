@@ -6,6 +6,7 @@ import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { etiquetaDepartamento, ETIQUETA_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { ordenarReportes, resumir } from '@/lib/infraestructura/mapa/agregar'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
+import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
 
 interface PanelSituacionActualProps {
@@ -53,16 +54,8 @@ function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
   return null
 }
 
-function etiquetaApoyo(escuela: EscuelaMapaEnriquecida): string | null {
-  if (escuela.clases === 'normal' || escuela.apoyo === null) return null
-  if (escuela.apoyo === 'no') return 'Sin apoyo'
-  if (escuela.apoyo === 'virtual') return 'Apoyo virtual'
-  if (escuela.apoyo === 'cuadernillo') return 'Cuadernillo'
-  return 'Virtual y cuadernillo'
-}
-
 function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
-  const apoyo = etiquetaApoyo(escuela)
+  const apoyo = etiquetaApoyoMapa(escuela.clases, escuela.apoyo)
   return (
     <span className="map-sitact__chips">
       {escuela.clases !== 'normal' && (
