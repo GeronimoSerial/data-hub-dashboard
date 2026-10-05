@@ -10,10 +10,7 @@ type Props = {
 
 export function PanelCapas({ value, onChange }: Props) {
   return (
-    <section className="map-sitact" aria-labelledby="map-capas-titulo">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-capas-titulo">Capas</h2>
-      </header>
+    <section className="map-sitact" aria-label="Capas">
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-mapa-base-titulo">
         <h3 id="map-capas-mapa-base-titulo" className="map-sitact__titulo-seccion">Mapa base</h3>
         <RadioGroup value={value} onValueChange={(next) => onChange(next as BasemapId)}>

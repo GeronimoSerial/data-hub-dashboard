@@ -38,8 +38,9 @@ function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'estad
 
 describe('sidebar del mapa sin scroll horizontal', () => {
   it('declara el ancho compartido y contiene el desborde de sus hijos', () => {
-    expect(regla('.map-left-stack')).toMatch(/overflow-x\s*:\s*hidden/i)
-    expect(regla('.map-left-stack')).toMatch(/width\s*:\s*min\(24rem\s*,\s*calc\(100vw\s*-\s*80px\)\)/i)
+    expect(regla('.map-left-stack')).toMatch(/overflow\s*:\s*hidden/i)
+    expect(regla('.map-left-stack')).toMatch(/--map-sidebar-ancho\s*:\s*24rem/i)
+    expect(regla('.map-left-stack')).toMatch(/width\s*:\s*min\(var\(--map-sidebar-ancho\)\s*,\s*calc\(100vw\s*-\s*80px\)\)/i)
     expect(regla('.map-panel-lateral')).toMatch(/min-width\s*:\s*0/i)
     expect(regla('.map-panel-lateral > *')).toMatch(/min-width\s*:\s*0/i)
 
@@ -54,7 +55,21 @@ describe('sidebar del mapa sin scroll horizontal', () => {
 
     const stackMovil = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .find(([, selector, declaraciones]) => selector?.trim() === '.map-left-stack' && /calc\(100vw\s*-\s*24px\)/.test(declaraciones ?? ''))
-    expect(stackMovil?.[2]).toMatch(/width\s*:\s*min\(24rem\s*,\s*calc\(100vw\s*-\s*24px\)\)/i)
+    expect(stackMovil?.[2]).toMatch(/width\s*:\s*min\(var\(--map-sidebar-ancho\)\s*,\s*calc\(100vw\s*-\s*24px\)\)/i)
+  })
+
+  it('ancla el sidebar arriba y abajo y desplaza solo el cuerpo', () => {
+    const stack = regla('.map-left-stack')
+    expect(stack).toMatch(/top\s*:\s*var\(--s-3\)/i)
+    expect(stack).toMatch(/bottom\s*:\s*var\(--s-3\)/i)
+    expect(stack).toMatch(/overflow\s*:\s*hidden/i)
+    expect(regla('.map-panel-lateral__cuerpo')).toMatch(/overflow-y\s*:\s*auto/i)
+    expect(regla('.map-panel-lateral__cuerpo')).toMatch(/min-height\s*:\s*0/i)
+    for (const selector of ['.radar-meteo-timeline', '.radar-meteo-estado']) {
+      expect(regla(selector)).toMatch(/left\s*:\s*calc\(55px\s*\+\s*var\(--map-sidebar-ancho\)\s*\+\s*var\(--s-3\)\)/i)
+    }
+
+    expect(css).not.toMatch(/\.map-left-stack(?:\[[^\]]+\]|\.[\w-]+)\s*\{[^}]*\b(?:height|max-height)\s*:/i)
   })
 
   it.each(['actual', 'radar', 'planificacion', 'estadisticas', 'capas'] as const)(

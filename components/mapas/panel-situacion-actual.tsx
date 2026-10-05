@@ -30,7 +30,7 @@ const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
 })
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
-function horaActualizacion(iso: string, ahoraMs: number): string {
+export function horaActualizacion(iso: string, ahoraMs: number): string {
   const fecha = new Date(iso)
   if (!Number.isFinite(fecha.getTime())) return ''
 
@@ -72,7 +72,7 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
   )
 }
 
-export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }: PanelSituacionActualProps) {
+export function PanelSituacionActual({ escuelas, onSeleccionar }: PanelSituacionActualProps) {
   const [ahoraMs] = useState(() => Date.now())
   const resumen = resumir(escuelas)
   const reportes = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0)
@@ -89,14 +89,7 @@ export function PanelSituacionActual({ escuelas, actualizadoEn, onSeleccionar }:
     : Math.round(resumen.sinClasesConApoyo / resumen.sinClases * 100)
 
   return (
-    <section className="map-sitact" aria-labelledby="map-sitact-titulo">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-sitact-titulo">Situación actual</h2>
-        {actualizadoEn && horaActualizacion(actualizadoEn, ahoraMs) && (
-          <time className="map-sitact__hora" dateTime={actualizadoEn}>{horaActualizacion(actualizadoEn, ahoraMs)}</time>
-        )}
-      </header>
-
+    <section className="map-sitact" aria-label="Situación actual">
       <div className="map-sitact__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>

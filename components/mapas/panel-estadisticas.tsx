@@ -42,12 +42,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
   const filas = agrupar(escuelas, por)
 
   return (
-    <section className="map-est" aria-labelledby="map-est-titulo">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-est-titulo">Estadísticas</h2>
-        <span className="map-sitact__atenuado">Según los filtros activos</span>
-      </header>
-
+    <section className="map-est" aria-label="Estadísticas">
       <div className="map-sitact__kpis map-est__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>

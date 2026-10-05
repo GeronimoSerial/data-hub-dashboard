@@ -117,18 +117,20 @@ export function FichaEscuelaPanel({
 
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
-      <button ref={volverRef} className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
-        <ArrowLeft aria-hidden="true" />Volver a la lista
-      </button>
+      <div className="map-ficha-escuela__encabezado-fijo">
+        <button ref={volverRef} className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
+          <ArrowLeft aria-hidden="true" />Volver a la lista
+        </button>
 
-      <header className="map-ficha-escuela__head">
-        <h2>{escuela.nombre}</h2>
-        <p>
-          CUE {escuela.cueAnexo} · {etiquetaDepartamento(escuela.departamento)}
-          {escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}
-          {escuela.alumnos > 0 && ` · ${FORMATO_NUMERO.format(escuela.alumnos)} alumnos`}
-        </p>
-      </header>
+        <header className="map-ficha-escuela__head">
+          <h2>{escuela.nombre}</h2>
+          <p>
+            CUE {escuela.cueAnexo} · {etiquetaDepartamento(escuela.departamento)}
+            {escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}
+            {escuela.alumnos > 0 && ` · ${FORMATO_NUMERO.format(escuela.alumnos)} alumnos`}
+          </p>
+        </header>
+      </div>
 
       {severidad ? (
         <div

@@ -46,12 +46,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
   const sinPronostico = disponibles.length === 0
 
   return (
-    <section className="map-sitact" aria-labelledby="map-radar-titulo" data-testid="panel-radar">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-radar-titulo">Radar</h2>
-        <span className="map-sitact__hora">Pronóstico</span>
-      </header>
-
+    <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
       <Segmentado
         etiqueta="Horizonte"
         opciones={opciones}

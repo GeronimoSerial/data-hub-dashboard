@@ -64,7 +64,7 @@ import { FullscreenButton } from '@/components/mapas/fullscreen-button'
 import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
+import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
@@ -1811,6 +1811,11 @@ export default function MapInfraestructuraPage(props: {
                 }}
               />
             ) : undefined}
+            subtitulos={{
+              actual: actualizadoEn ? horaActualizacion(actualizadoEn, Date.now()) : undefined,
+              radar: 'Pronóstico',
+              estadisticas: 'Según los filtros activos',
+            }}
             ficha={fichaAbierta && escuelaSeleccionada ? (
               <FichaEscuelaPanel
                 key={seleccionCue}

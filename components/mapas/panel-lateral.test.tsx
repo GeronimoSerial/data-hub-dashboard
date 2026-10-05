@@ -7,6 +7,39 @@ import { PanelRadar } from './panel-radar'
 afterEach(cleanup)
 
 describe('PanelLateral', () => {
+  const contenidos = {
+    actual: <p>Contenido actual</p>,
+    radar: <p>Contenido radar</p>,
+    planificacion: <p>Contenido de planificación</p>,
+    estadisticas: <p>Contenido estadísticas</p>,
+    capas: <p>Contenido capas</p>,
+  }
+
+  it.each([
+    ['actual', 'Situación actual', '4 oct'],
+    ['radar', 'Radar', 'Pronóstico'],
+    ['planificacion', 'Planificación', 'Planificación breve'],
+    ['estadisticas', 'Estadísticas', 'Según los filtros activos'],
+    ['capas', 'Capas', 'Mapa base'],
+  ] as const)('renderiza un encabezado único para %s', (pestana, titulo, subtitulo) => {
+    render(
+      <PanelLateral
+        pestana={pestana}
+        seleccion={null}
+        onCerrarFicha={() => {}}
+        subtitulos={{ [pestana]: subtitulo }}
+        {...contenidos}
+      />,
+    )
+
+    const encabezados = screen.getAllByTestId('panel-encabezado')
+    expect(encabezados).toHaveLength(1)
+    expect(encabezados[0]).toHaveTextContent(titulo)
+    expect(encabezados[0]).toHaveTextContent(subtitulo)
+    expect(screen.getAllByTestId('panel-cuerpo')).toHaveLength(1)
+    expect(screen.getByTestId('panel-cuerpo')).toContainElement(screen.getByText(contenidos[pestana].props.children))
+  })
+
   it('muestra el panel actual sin selección', () => {
     render(
       <PanelLateral
@@ -43,6 +76,7 @@ describe('PanelLateral', () => {
         pestana="radar"
         seleccion={null}
         onCerrarFicha={() => {}}
+        subtitulos={{ radar: 'Pronóstico' }}
         actual={<p>Contenido actual</p>}
         radar={radar}
         planificacion={<p>Contenido de planificación</p>}
@@ -53,7 +87,7 @@ describe('PanelLateral', () => {
 
     const panel = screen.getByTestId('panel-lateral')
     expect(panel).toContainElement(screen.getByTestId('panel-radar'))
-    expect(screen.getByRole('heading', { name: 'Radar' }).parentElement).toHaveClass('map-sitact__encabezado')
+    expect(screen.getByTestId('panel-encabezado')).toHaveTextContent('Pronóstico')
     expect(screen.getByRole('group', { name: 'Horizonte' })).toBeInTheDocument()
     expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toHaveClass('map-sitact__vacio')
     expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()
@@ -95,6 +129,8 @@ describe('PanelLateral', () => {
 
     expect(screen.getByText('Ficha seleccionada')).toBeInTheDocument()
     expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('panel-encabezado')).not.toBeInTheDocument()
+    expect(screen.getAllByTestId('panel-cuerpo')).toHaveLength(1)
     expect(screen.getByTestId('panel-lateral')).not.toBeEmptyDOMElement()
   })
 
@@ -114,8 +150,8 @@ describe('PanelLateral', () => {
       />,
     )
     const panel = screen.getByTestId('panel-lateral')
-    expect(panel.firstElementChild).toHaveTextContent('Resumen del departamento')
-    expect(panel.lastElementChild).toHaveTextContent('Contenido actual')
+    expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent('Resumen del departamento')
+    expect(screen.getByTestId('panel-cuerpo')).toHaveTextContent('Contenido actual')
 
     rerender(
       <PanelLateral
@@ -189,7 +225,7 @@ describe('PanelLateral', () => {
     )
 
     const panel = screen.getByTestId('panel-lateral')
-    expect(panel.firstElementChild).toHaveTextContent('Resumen del departamento')
+    expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent('Resumen del departamento')
     expect(screen.getByText('Contenido estadísticas')).toBeInTheDocument()
     expect(screen.queryByText('Contenido actual')).not.toBeInTheDocument()
   })
@@ -227,7 +263,7 @@ describe('PanelLateral', () => {
         capas={<p>Contenido capas</p>}
       />,
     )
-    expect(screen.getByTestId('panel-lateral').firstElementChild).toHaveTextContent('Resumen del departamento')
+    expect(screen.getByTestId('panel-cuerpo').firstElementChild).toHaveTextContent('Resumen del departamento')
     expect(screen.getByText('Contenido capas')).toBeInTheDocument()
     rerender(
       <PanelLateral

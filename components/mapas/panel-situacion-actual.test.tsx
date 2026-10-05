@@ -122,6 +122,5 @@ describe('PanelSituacionActual', () => {
 
     expect(screen.getByText('Ninguna escuela con situaciones abiertas para estos filtros.')).toBeInTheDocument()
     expect(screen.queryByText(/escuelas sin clases brindan asistencia pedagógica/)).not.toBeInTheDocument()
-    expect(screen.getByText('Situación actual')).toBeInTheDocument()
   })
 })

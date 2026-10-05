@@ -11,7 +11,6 @@ describe('PanelCapas', () => {
   it('muestra las opciones de mapa base y marca la seleccionada', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} />)
 
-    expect(screen.getByRole('heading', { name: 'Capas' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Mapa base' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Mapa base' })).toBeInTheDocument()
     for (const basemap of Object.values(BASEMAPS)) {

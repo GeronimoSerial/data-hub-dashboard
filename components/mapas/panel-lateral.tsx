@@ -1,5 +1,14 @@
 import type { ReactNode } from 'react'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { PanelEncabezado } from './panel-encabezado'
+
+const TITULOS: Record<PestanaMapa, string> = {
+  actual: 'Situación actual',
+  radar: 'Radar',
+  planificacion: 'Planificación',
+  estadisticas: 'Estadísticas',
+  capas: 'Capas',
+}
 
 export interface PanelLateralProps {
   pestana: PestanaMapa
@@ -10,6 +19,8 @@ export interface PanelLateralProps {
   ficha?: ReactNode
   /** Cabecera compartida por las pestañas, oculta mientras se muestra una ficha. */
   cabecera?: ReactNode
+  /** Subtítulos visibles junto al título de cada pestaña. */
+  subtitulos?: Partial<Record<PestanaMapa, ReactNode>>
   actual: ReactNode
   radar: ReactNode
   planificacion: ReactNode
@@ -35,8 +46,11 @@ export function PanelLateral(props: PanelLateralProps) {
   // Lo invocan las fichas que se montan acá desde la Task 13.
   return (
     <div className="map-panel-lateral" data-testid="panel-lateral">
-      {!mostrandoFicha && props.cabecera}
-      {contenido}
+      {!mostrandoFicha && <PanelEncabezado titulo={TITULOS[props.pestana]} subtitulo={props.subtitulos?.[props.pestana]} />}
+      <div className="map-panel-lateral__cuerpo" data-testid="panel-cuerpo">
+        {!mostrandoFicha && props.cabecera}
+        {contenido}
+      </div>
     </div>
   )
 }
