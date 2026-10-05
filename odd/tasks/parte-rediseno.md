@@ -21,7 +21,9 @@
 - [x] B4 — Tasks 20–26 (recorrido actualizar) — T20 b016c47 … T26 73516de, d97f31c, 9a22d2d, f895110; merged 523e136; worktree removed
 - [x] Visual review of B1–B5 — done (report: 2 blockers, 9 important, 12 minor)
 - [x] Polish H2–H23 + flaky test — merged 9a0f971 (12 commits)
-- [ ] Final blind re-review — running
+- [x] Final blind re-review #1 — NOT APPROVED: H1 send hangs with no timeout, H2 movement title says "normal" for an Alta storm, plus 12 minor; the Actualizar walkthrough was not covered
+- [ ] Polish 2 (H1–H14 + full B4 visual coverage) — running, dispatch ctx_17b1813361fe
+- [ ] Final blind re-review #2 (must cover Actualizar end to end)
 - [x] B5 — Tasks 27–28 (background sync) — T27 22f70b9, T28 e6ed196; merged 461e2e8; worktree removed
 
 ## Progress / evidence
