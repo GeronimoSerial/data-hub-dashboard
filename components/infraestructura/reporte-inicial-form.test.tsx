@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReporteInicialForm } from './reporte-inicial-form'
 import { jsonResponse } from '@/lib/infraestructura/test-utils/http'
@@ -24,10 +24,13 @@ function stubFetch(respuesta: unknown = { ok: true, movimientoId: 'm1' }, status
 
 const continuar = () => fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
 const volver = () => fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+const confirmarCategoria = () =>
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
 
 /** Paso 1: tipo de problema, motivo y severidad. */
 function completarQuePaso() {
   fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+  confirmarCategoria()
   fireEvent.click(screen.getByRole('radio', { name: 'Inundación' }))
   fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
 }
@@ -122,6 +125,7 @@ describe('ReporteInicialForm', () => {
     const fetchMock = stubFetch()
     renderFormulario()
     fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Sin energía o agua' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Crítica' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Se prolonga en el tiempo o no tiene fecha de solución' }))
@@ -177,6 +181,7 @@ describe('ReporteInicialForm', () => {
   it('adapta la pregunta de vigencia a la categoría', () => {
     renderFormulario()
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()
@@ -199,6 +204,7 @@ describe('ReporteInicialForm', () => {
     expect(screen.queryByRole('combobox')).toBeNull()
 
     fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
+    confirmarCategoria()
 
     expect(screen.getByRole('radio', { name: 'Inundación' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Tormenta severa' })).toBeInTheDocument()
@@ -280,6 +286,7 @@ describe('ReporteInicialForm', () => {
     renderFormulario()
 
     fireEvent.click(screen.getByRole('radio', { name: /Inaccesibilidad de alumnos/ }))
+    confirmarCategoria()
     fireEvent.click(screen.getByRole('radio', { name: 'Anegamiento' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
     continuar()

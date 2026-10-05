@@ -1,6 +1,6 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { Severidad } from '@/lib/infraestructura/validacion'
@@ -11,6 +11,14 @@ import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-c
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+
+export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
+  establecimiento:
+    'Va a marcar las secciones que no pueden funcionar por un problema de la escuela. Si son alumnos puntuales que no pueden llegar, elija "Inaccesibilidad de alumnos".',
+  alumnos:
+    'Va a marcar sólo a los alumnos que no pueden llegar a la escuela. Si el problema es del edificio o afecta a la escuela, elija "Afecta al establecimiento".',
+}
 
 export interface AfectacionBorrador {
   clientId: string
@@ -120,12 +128,23 @@ export function CamposQuePaso({
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
-  // Al cambiar la categoría se limpian motivo y alumnos: el motivo porque el
-  // catálogo depende de la categoría, los alumnos porque una categoría sin
-  // permiteAlumnos nunca puede llevarlos. Las secciones elegidas se
-  // conservan: siguen siendo válidas para cualquier categoría.
+  const [categoriaPendiente, setCategoriaPendiente] = useState<CategoriaAfectacion | null>(null)
+
+  // Al cambiar la categoría se limpian los datos dependientes: el motivo y
+  // su gravedad porque el catálogo depende de la categoría, y el alcance
+  // porque cada categoría usa un selector distinto.
   function cambiarCategoria(categoria: CategoriaAfectacion) {
-    onChange({ ...borrador, categoria, motivo: '', alumnos: [] })
+    onChange({
+      ...borrador,
+      categoria,
+      motivo: '',
+      severidad: '',
+      justificacionCritica: '',
+      justificacionCriticaDetalle: '',
+      alcanceEstablecimiento: '',
+      secciones: [],
+      alumnos: [],
+    })
   }
 
   const motivosDeLaCategoria = borrador.categoria
@@ -171,7 +190,9 @@ export function CamposQuePaso({
                 name={`${idPrefijo}-categoria`}
                 value={c}
                 checked={borrador.categoria === c}
-                onChange={() => cambiarCategoria(c)}
+                onChange={() => {
+                  if (c !== borrador.categoria) setCategoriaPendiente(c)
+                }}
                 disabled={disabled}
               />
               <span className="opcion-radio__texto">
@@ -185,6 +206,20 @@ export function CamposQuePaso({
           ))}
         </div>
       </fieldset>
+
+      <ConfirmSheet
+        open={categoriaPendiente !== null}
+        titulo={categoriaPendiente ? CATEGORIA_META[categoriaPendiente].label : ''}
+        confirmarLabel="Continuar"
+        cancelarLabel="Elegir otra"
+        onCancelar={() => setCategoriaPendiente(null)}
+        onConfirmar={() => {
+          if (categoriaPendiente) cambiarCategoria(categoriaPendiente)
+          setCategoriaPendiente(null)
+        }}
+      >
+        <p>{categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
+      </ConfirmSheet>
 
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
         <legend className="afectacion-campos__legend">¿Cuál es el motivo?</legend>
