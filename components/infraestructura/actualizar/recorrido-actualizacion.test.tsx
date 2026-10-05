@@ -35,6 +35,33 @@ function stub(respuestaPost: Record<string, unknown> = { ok: true, movimientoId:
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); sessionStorage.clear() })
 
 describe('RecorridoActualizacion', () => {
+  it('deja un solo Volver en datos y vuelve a la pregunta conservando la selección', async () => {
+    stub()
+    render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Actualizar el parte' }))
+    for (let i = 0; i < 2; i++) {
+      fireEvent.click(screen.getByRole('radio', { name: 'Sigue igual' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('radio', { name: /^Afecta al establecimiento/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByRole('radio', { name: /^Afecta al establecimiento/ })).toBeChecked()
+    fireEvent.click(screen.getByRole('radio', { name: 'Tormenta severa' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Alta' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+    expect(screen.getByText('¿Se originó por alguna de estas situaciones?')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(screen.getByRole('radio', { name: 'Alta' })).toBeChecked()
+    expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
+  })
+
   it('solucionar la causa pregunta por la consecuencia y envía un único POST', async () => {
     const fetchMock = stub()
     render(<RecorridoActualizacion cue={CUE} turnos={TURNOS_FIXTURE} motivos={MOTIVOS_FIXTURE} />)

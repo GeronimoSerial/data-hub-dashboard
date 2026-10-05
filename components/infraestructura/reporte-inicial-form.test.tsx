@@ -878,7 +878,13 @@ describe('ReporteInicialForm — borrador persistente (#32) e historial del nave
 
     expect(await screen.findByText(MENSAJE_BORRADOR_PENDIENTE)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '¿Qué pasó?' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Continuar donde lo dejé' }))
+    const aviso = document.querySelector('.aviso-retoma') as HTMLElement
+    const continuarBorrador = within(aviso).getByRole('button', { name: 'Continuar donde lo dejé' })
+    const descartarBorrador = within(aviso).getByRole('button', { name: 'Descartar' })
+    expect(continuarBorrador).toHaveClass('ui-button--secondary')
+    expect(descartarBorrador).toHaveClass('ui-button--ghost')
+    expect(continuarBorrador.compareDocumentPosition(descartarBorrador) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(continuarBorrador)
     expect(screen.getByText('Paso 2 de 4')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '¿A quiénes afecta?' })).toBeInTheDocument()
     // Los datos del paso 1 también vuelven: "Volver" los muestra intactos.

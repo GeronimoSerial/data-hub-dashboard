@@ -177,8 +177,17 @@ export function describirMovimiento(
     lineas.push(retirada.cierre === 'solucionada' ? `Se solucionó ${retirada.motivo}` : `Se dejó de informar ${retirada.motivo}`)
   }
 
+  const idsSituaciones = new Set([
+    ...diff.afectacionesAgregadas.map((item) => item.afectacionId),
+    ...diff.afectacionesRetiradas.map((item) => item.afectacionId),
+    ...diff.severidadesCambiadas.map((item) => item.afectacionId),
+    ...diff.alcancesCambiados.map((item) => item.afectacionId),
+    ...(diff.datosCambiados ?? []).map((item) => item.afectacionId),
+  ])
   for (const cambio of diff.severidadesCambiadas) {
-    lineas.push(`${cambio.motivo}: ${cambio.de} → ${cambio.a}`)
+    lineas.push(idsSituaciones.size > 1
+      ? `${cambio.motivo}: gravedad ${cambio.de} → ${cambio.a}`
+      : `Situación: ${cambio.motivo}`)
   }
 
   // diff.datosCambiados puede faltar en un resumen ya persistido de antes de

@@ -169,7 +169,21 @@ describe('describirMovimiento', () => {
       ...diffVacio,
       severidadesCambiadas: [{ afectacionId: 'af-1', motivo: 'Inundación', de: 'Alta', a: 'Crítica' }],
     }
-    expect(describirMovimiento(diff)).toContain('Inundación: Alta → Crítica')
+    expect(describirMovimiento(diff)).toContain('Situación: Inundación')
+  })
+
+  it('lista la transición de gravedad con el motivo en movimientos de varias situaciones', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      severidadesCambiadas: [
+        { afectacionId: 'a', motivo: 'Tormenta severa', de: 'Alta', a: 'Media' },
+        { afectacionId: 'b', motivo: 'Inundación', de: 'Crítica', a: 'Alta' },
+      ],
+    }
+    expect(describirMovimiento(diff)).toEqual([
+      'Tormenta severa: gravedad Alta → Media',
+      'Inundación: gravedad Crítica → Alta',
+    ])
   })
 
   it('cambio de situación del establecimiento', () => {

@@ -67,6 +67,16 @@ describe('HistorialMovimiento', () => {
     expect(screen.getByText('Funcionamiento: habitual → parcial')).toBeInTheDocument()
   })
 
+  it('no repite la transición de gravedad que ya aparece en el título', () => {
+    renderEnLista(movimiento({
+      titulo: 'Cambió la gravedad: Alta → Baja',
+      cambios: ['Situación: Tormenta severa'],
+    }))
+    expect(screen.getByText('Cambió la gravedad: Alta → Baja')).toBeInTheDocument()
+    expect(screen.getByText('Situación: Tormenta severa')).toBeInTheDocument()
+    expect(screen.queryByText('Tormenta severa: Alta → Baja')).not.toBeInTheDocument()
+  })
+
   it('no repite en el detalle la línea que ya aparece como título', () => {
     renderEnLista(movimiento({
       titulo: 'Se informó Tormenta severa',

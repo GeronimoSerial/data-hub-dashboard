@@ -44,14 +44,24 @@ describe('LineaDeTiempo', () => {
     expect(entrada.querySelectorAll('.linea-de-tiempo__detalles li')).toHaveLength(2)
   })
 
-  it('mantiene el nombre del motivo en el detalle cuando el título resume el cambio', () => {
+  it('muestra sólo la situación en el detalle cuando el título ya resume el cambio de gravedad', () => {
     render(<LineaDeTiempo movimientos={[mov(
       'severidad',
       '2026-10-04T13:42:00.000Z',
-      ['Tormenta severa: Alta → Baja', 'Alcanza a 3 secciones (88 alumnos)'],
+      ['Situación: Tormenta severa', 'Alcanza a 3 secciones (88 alumnos)'],
     )].map((movimiento) => ({ ...movimiento, titulo: 'Cambió la gravedad: Alta → Baja' }))} />)
     const entrada = document.querySelector('.linea-de-tiempo__entrada') as HTMLLIElement
-    expect(entrada.querySelector('.linea-de-tiempo__detalles')?.textContent).toBe('Tormenta severa: Alta → BajaAlcanza a 3 secciones (88 alumnos)')
+    expect(entrada.querySelector('.linea-de-tiempo__detalles')?.textContent).toBe('Situación: Tormenta severaAlcanza a 3 secciones (88 alumnos)')
+  })
+
+  it('conserva la transición por situación si el título resume varios cambios', () => {
+    render(<LineaDeTiempo movimientos={[mov(
+      'varias-gravedades',
+      '2026-10-04T13:42:00.000Z',
+      ['Tormenta severa: gravedad Alta → Media', 'Inundación: gravedad Crítica → Alta'],
+    )].map((movimiento) => ({ ...movimiento, titulo: 'Se actualizaron 2 situaciones' }))} />)
+    const detalles = document.querySelector('.linea-de-tiempo__detalles')
+    expect(detalles?.textContent).toBe('Tormenta severa: gravedad Alta → MediaInundación: gravedad Crítica → Alta')
   })
 
   it('muestra una fecha y hora unificadas por movimiento', () => {

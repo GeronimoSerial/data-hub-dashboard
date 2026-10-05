@@ -92,6 +92,18 @@ describe('AlgoNuevo', () => {
       .toBe(screen.getByRole('heading', { name: '¿Qué pasó?' }).parentElement)
   })
 
+  it('cambia el título según la etapa y notifica cada transición', () => {
+    const onEtapaChange = vi.fn()
+    renderAlgo({ onEtapaChange })
+    expect(screen.getByRole('heading', { name: '¿Hay algo nuevo?' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
+    expect(screen.getByRole('heading', { name: 'Situación nueva' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '¿Hay algo nuevo?' })).not.toBeInTheDocument()
+    expect(onEtapaChange).toHaveBeenLastCalledWith('datos')
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    expect(onEtapaChange).toHaveBeenLastCalledWith('pregunta')
+  })
+
   it('muestra el contador de secciones seleccionadas en cero, singular y plural', () => {
     renderAlgo()
     entrarDatosIndependiente()
@@ -158,23 +170,26 @@ describe('AlgoNuevo', () => {
     expect(callbacks.onTerminar).toHaveBeenCalledWith(expect.objectContaining({ causadaPorId: null }))
   })
 
-  it('muestra sólo las causas activas y revela las cerradas con su cantidad', () => {
-    const candidatas = Array.from({ length: 8 }, (_, indice) => ({
+  it('muestra las causas cerradas en grupos de cinco', () => {
+    const candidatas = Array.from({ length: 22 }, (_, indice) => ({
       id: `situacion-${indice}`,
       motivo: `Situación ${indice}`,
-      fecha: `2026-10-0${5 - Math.floor(indice / 2)}T0${indice % 2}:00:00.000Z`,
-      activa: indice < 6,
+      fecha: new Date(2026, 9, 5, 12, indice).toISOString(),
+      activa: indice < 2,
     }))
     renderAlgo({ candidatasCausa: candidatas })
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
     completarDatosNueva()
 
     const grupo = screen.getByRole('group', { name: '¿Se originó por alguna de estas situaciones?' })
-    expect(within(grupo).getAllByRole('radio')).toHaveLength(7)
-    expect(screen.getByRole('button', { name: 'Ver anteriores (2)' })).toHaveAttribute('aria-expanded', 'false')
-    fireEvent.click(screen.getByRole('button', { name: 'Ver anteriores (2)' }))
-    expect(within(grupo).getAllByRole('radio')).toHaveLength(9)
-    expect(screen.queryByRole('button', { name: /Ver anteriores/ })).not.toBeInTheDocument()
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(3)
+    expect(screen.getByRole('button', { name: 'Ver anteriores (20)' })).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Ver anteriores (20)' }))
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(8)
+    expect(screen.getByRole('button', { name: 'Ver más (15)' })).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Ver más (15)' }))
+    expect(within(grupo).getAllByRole('radio')).toHaveLength(13)
+    expect(screen.getByRole('button', { name: 'Ver más (10)' })).toBeInTheDocument()
   })
 
   it('termina los datos directamente cuando no hay candidatas de causa', () => {

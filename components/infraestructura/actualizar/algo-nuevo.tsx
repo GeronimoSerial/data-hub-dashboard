@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { CamposAQuienAfecta, CamposQuePaso, crearAfectacionVacia, type AfectacionBorrador } from '@/components/infraestructura/afectacion-campos'
 import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
 import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
@@ -27,6 +27,7 @@ export interface AlgoNuevoProps {
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
   onTerminar: (nueva: NuevaSituacion | null) => void
+  onEtapaChange?: (etapa: Etapa) => void
   onActualizarExistente: (id: string) => void
   onSolucionarExistente: (id: string, solucionadaEn: string) => void
 }
@@ -109,6 +110,7 @@ export function AlgoNuevo({
   turnos,
   motivos,
   onTerminar,
+  onEtapaChange,
   onActualizarExistente,
   onSolucionarExistente,
 }: AlgoNuevoProps): JSX.Element {
@@ -120,13 +122,16 @@ export function AlgoNuevo({
   const [situacionPendiente, setSituacionPendiente] = useState<SituacionRecorrido | null>(null)
   const [decisionDuplicado, setDecisionDuplicado] = useState<DecisionDuplicado | null>(null)
   const [cuandoSolucionada, setCuandoSolucionada] = useState<EleccionVigencia>(VIGENCIA_AHORA)
-  const [mostrarTodasLasCausas, setMostrarTodasLasCausas] = useState(false)
+  const [cantidadCerradasVisibles, setCantidadCerradasVisibles] = useState(0)
+
+  useEffect(() => { onEtapaChange?.(etapa) }, [etapa, onEtapaChange])
 
   const candidatasOrdenadas = armarCandidatasCausa(candidatasCausa)
   const candidatasActivas = candidatasOrdenadas.filter((candidata) => candidata.activa)
   const candidatasCerradas = candidatasOrdenadas.filter((candidata) => !candidata.activa)
   const cantidadSeccionesEscuela = turnos.reduce((total, turno) => total + turno.niveles.reduce((subtotal, nivel) => subtotal + nivel.secciones.length, 0), 0)
-  const candidatasVisibles = mostrarTodasLasCausas ? [...candidatasActivas, ...candidatasCerradas] : candidatasActivas
+  const candidatasVisibles = [...candidatasActivas, ...candidatasCerradas.slice(0, cantidadCerradasVisibles)]
+  const causasCerradasRestantes = candidatasCerradas.length - cantidadCerradasVisibles
   const sugerida = motivos.find((motivo) => motivo.nombre === borrador.motivo)?.severidadSugerida ?? null
   const completaLaGravedad = gravedadCompleta(borrador, sugerida)
   const alcanceCompleto = borrador.secciones.length > 0 &&
@@ -210,7 +215,7 @@ export function AlgoNuevo({
 
   return (
     <section className="algo-nuevo" aria-label="Situación nueva">
-      <h2 className="asistente__titulo">¿Hay algo nuevo?</h2>
+      <h2 className="asistente__titulo">{etapa === 'pregunta' ? '¿Hay algo nuevo?' : 'Situación nueva'}</h2>
       {etapa === 'pregunta' ? (
         <>
           <fieldset className="afectacion-campos__grupo" aria-label="¿Hay algo nuevo?">
@@ -257,15 +262,26 @@ export function AlgoNuevo({
                 )
               })}
             </div>
-            {candidatasCerradas.length > 0 && !mostrarTodasLasCausas ? (
+            {candidatasCerradas.length > 0 && cantidadCerradasVisibles === 0 ? (
               <Button
                 type="button"
                 variant="ghost"
                 className="algo-nuevo__ver-causas"
-                aria-expanded={mostrarTodasLasCausas}
-                onClick={() => setMostrarTodasLasCausas(true)}
+                aria-expanded={false}
+                onClick={() => setCantidadCerradasVisibles(Math.min(5, candidatasCerradas.length))}
               >
                 Ver anteriores ({candidatasCerradas.length})
+              </Button>
+            ) : null}
+            {cantidadCerradasVisibles > 0 && causasCerradasRestantes > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="algo-nuevo__ver-causas"
+                aria-expanded={true}
+                onClick={() => setCantidadCerradasVisibles((cantidad) => Math.min(cantidad + 5, candidatasCerradas.length))}
+              >
+                Ver más ({causasCerradasRestantes})
               </Button>
             ) : null}
           </fieldset>
@@ -312,19 +328,18 @@ export function AlgoNuevo({
               onChange={setBorrador}
             />
           </div>
-          <div className="asistente__acciones">
-            <Button type="button" variant="ghost" onClick={() => setEtapa('pregunta')}>Volver</Button>
-            <div className="algo-nuevo__continuar">
-              <Button
-                type="button"
-                disabled={!datosCompletos || motivoPendiente !== null}
-                aria-describedby={textoFaltantes ? 'algo-nuevo-faltantes' : undefined}
-                onClick={continuarDesdeDatos}
-              >
-                Continuar
-              </Button>
-              {textoFaltantes ? <p id="algo-nuevo-faltantes" role="status">{textoFaltantes}</p> : null}
-            </div>
+          <div className="asistente__acciones algo-nuevo__acciones">
+            <Button
+              type="button"
+              className="algo-nuevo__continuar"
+              disabled={!datosCompletos || motivoPendiente !== null}
+              aria-describedby={textoFaltantes ? 'algo-nuevo-faltantes' : undefined}
+              onClick={continuarDesdeDatos}
+            >
+              Continuar
+            </Button>
+            <Button type="button" variant="ghost" className="algo-nuevo__volver" onClick={() => setEtapa('pregunta')}>Volver</Button>
+            {textoFaltantes ? <p id="algo-nuevo-faltantes" className="algo-nuevo__faltantes" role="status">{textoFaltantes}</p> : null}
           </div>
         </div>
       ) : null}

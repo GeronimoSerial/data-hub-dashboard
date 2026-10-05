@@ -196,6 +196,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
   const claveBorrador = `parte-actualizar:draft:${cue}`
   const asistenciaVigente = datos.parte?.asistenciaPedagogica ?? { brinda: false, modalidades: [] }
   const [etapa, setEtapa] = useState<Etapa>('entrada')
+  const [etapaAlgoNuevo, setEtapaAlgoNuevo] = useState<'pregunta' | 'datos' | 'causa'>('pregunta')
   const [recorrido, setRecorrido] = useState<EstadoRecorrido>(RECORRIDO_INICIAL)
   const [asistenciaPedagogica, setAsistenciaPedagogica] = useState<AsistenciaSeleccionada>(() => ({
     brinda: asistenciaVigente.brinda ? 'si' : 'no',
@@ -544,6 +545,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             estado={recorrido}
             turnos={turnos}
             motivos={motivos}
+            onEtapaChange={setEtapaAlgoNuevo}
             onTerminar={(nueva) => {
               setRecorrido((r) => ({ ...r, nueva }))
               setInteraccionIniciada(true)
@@ -562,7 +564,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
               encolarCascada(id, solucionadaEn)
             }}
           />
-          <div className="asistente__acciones">
+          {etapaAlgoNuevo === 'pregunta' ? <div className="asistente__acciones">
             <Button
               type="button"
               variant="secondary"
@@ -570,7 +572,7 @@ function RecorridoCargado({ cue, turnos, motivos, datos, historial, onRecargar }
             >
               Volver
             </Button>
-          </div>
+          </div> : null}
         </>
       ) : null}
 

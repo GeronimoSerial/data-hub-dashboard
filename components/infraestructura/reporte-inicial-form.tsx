@@ -709,17 +709,18 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
         <div className="aviso-retoma" role="status">
           <p>{MENSAJE_BORRADOR_PENDIENTE}</p>
           <div className="asistente__acciones">
-            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>
-              Descartar
-            </Button>
             <Button
               type="button"
+              variant="secondary"
               onClick={() => {
                 aplicarBorrador(borradorPendiente)
                 setBorradorPendiente(null)
               }}
             >
               Continuar donde lo dejé
+            </Button>
+            <Button type="button" variant="ghost" onClick={() => setConfirmarDescarte(true)}>
+              Descartar
             </Button>
           </div>
         </div>
