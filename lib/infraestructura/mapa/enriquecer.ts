@@ -70,7 +70,11 @@ export function enriquecerEscuela(
   ahoraMs: number,
 ): EscuelaMapaEnriquecida {
   const parte = e.parte
-  const clases = parte ? derivarClases(parte.estadoEstablecimiento, parte.servicio) : 'normal'
+  // El edificio y el servicio pertenecen al parte; al solucionar una situación, el servidor no los resetea.
+  const tieneSituacionDeEstablecimiento = parte?.afectaciones.some((a) => a.categoria === 'establecimiento') ?? false
+  const clases = parte && tieneSituacionDeEstablecimiento
+    ? derivarClases(parte.estadoEstablecimiento, parte.servicio)
+    : 'normal'
   const principal = situacionPrincipalDe(parte)
   const niveles = [...new Set(extra.niveles.map((nivel) => nivel.trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'es'))

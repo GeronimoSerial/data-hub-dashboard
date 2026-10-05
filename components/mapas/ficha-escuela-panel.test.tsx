@@ -28,7 +28,7 @@ const movimientos: MovimientoHistorial[] = [
   { id: 'mov-3', tipo: 'confirmacion', rol: 'director', creadaEn: '2026-09-03T12:00:00.000Z', rigeDesde: '2026-09-03T12:00:00.000Z', titulo: 'Situación confirmada', cambios: ['Sigue igual: "Inaccesibilidad"'], severidad: 'Alta' },
 ]
 
-function instalarFetch({ error = false, situaciones = afectaciones, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' } = {}) {
+function instalarFetch({ error = false, situaciones = afectaciones, estadoEstablecimiento = 'habitual' }: { error?: boolean; situaciones?: AfectacionFicha[]; estadoEstablecimiento?: 'habitual' | 'parcial' | 'evacuado' } = {}) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
     ok: !error,
     json: async () => url.includes('/historial') ? { movimientos } : { ok: true, parte: { actualizadaEn: '2026-10-05T12:00:00.000Z', estadoEstablecimiento }, afectaciones: situaciones },
@@ -119,15 +119,24 @@ describe('FichaEscuelaPanel', () => {
     expect(situaciones).toHaveTextContent('Última novedad: hace 3 h')
   })
 
-  it.each([
-    { estado: 'parcial' as const, etiqueta: 'Uso parcial' },
-    { estado: 'habitual' as const, etiqueta: 'Sin daños / en uso normal' },
-  ])('muestra el estado del edificio "$etiqueta"', async ({ estado, etiqueta }) => {
-    instalarFetch({ estadoEstablecimiento: estado })
+  it('muestra el estado del edificio cuando hay una situación abierta de establecimiento', async () => {
+    instalarFetch({
+      estadoEstablecimiento: 'parcial',
+      situaciones: [{ ...afectaciones[0], categoria: 'establecimiento' }],
+    })
     renderFicha()
     const clases = screen.getByText('Clases y asistencia pedagógica').closest('details')
     expect(await screen.findByText('Edificio')).toBeInTheDocument()
-    expect(clases).toHaveTextContent(`Edificio${etiqueta}`)
+    expect(clases).toHaveTextContent('EdificioUso parcial')
+  })
+
+  it('oculta el estado del edificio cuando sólo hay situaciones abiertas de alumnos', async () => {
+    instalarFetch({ estadoEstablecimiento: 'evacuado' })
+    renderFicha()
+    const clases = screen.getByText('Clases y asistencia pedagógica').closest('details')
+    expect(await screen.findByText('Inaccesibilidad')).toBeInTheDocument()
+    expect(clases).not.toHaveTextContent('Edificio')
+    expect(clases).not.toHaveTextContent('Evacuado')
   })
 
   it('muestra el total de situaciones y el movimiento en la línea de tiempo', async () => {

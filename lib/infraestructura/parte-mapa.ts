@@ -414,10 +414,18 @@ export async function listarPartesVigentes(
     if (filtradas.length === 0) continue
 
     const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
+    // El estado del edificio/servicio es del parte y puede quedar viejo al solucionar una situación.
+    // Sólo se proyecta al mapa si existe alguna situación abierta de establecimiento.
+    const tieneSituacionDeEstablecimiento = vigentes.some((a) => a.categoria === 'establecimiento')
+    const estadoEstablecimiento = tieneSituacionDeEstablecimiento
+      ? parteRow.estadoEstablecimiento
+      : 'habitual'
     const servicioVigente = resolverAlcanceVigente(servicioPorParte.get(parteRow.id) ?? [], {
       clave: claveServicioAlcance,
     })
-    const servicioGeneral = calcularEstadoServicioGeneral(servicioVigente, secciones)
+    const servicioGeneral = tieneSituacionDeEstablecimiento
+      ? calcularEstadoServicioGeneral(servicioVigente, secciones)
+      : 'normal'
     if (filtros.servicio !== undefined && servicioGeneral !== filtros.servicio) continue
 
     const alumnosAlcanzados = new Set<number>()
@@ -450,7 +458,7 @@ export async function listarPartesVigentes(
 
     const alumnosDelHecho = alumnosAlcanzados.size
     let alumnosDelEstablecimiento: number | null = null
-    if (parteRow.estadoEstablecimiento === 'evacuado' || parteRow.estadoEstablecimiento === 'centro_evacuados') {
+    if (estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') {
       const turnosInterrumpidos = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'turno').map((s) => s.referenciaId))
       const seccionesInterrumpidas = turnosInterrumpidos.size > 0
         ? secciones.filter((s) => turnosInterrumpidos.has(s.turno))
@@ -461,7 +469,7 @@ export async function listarPartesVigentes(
       }
       if (seccionesInterrumpidas.length > 0) alumnosDelEstablecimiento = roster.size
     }
-    const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: parteRow.estadoEstablecimiento, alumnosDelEstablecimiento })
+    const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: estadoEstablecimiento, alumnosDelEstablecimiento })
 
     partes.push({
       parteId: parteRow.id,
@@ -472,7 +480,7 @@ export async function listarPartesVigentes(
       lat: parteRow.lat,
       lon: parteRow.lon,
       servicio: servicioGeneral,
-      estadoEstablecimiento: parteRow.estadoEstablecimiento,
+      estadoEstablecimiento,
       peorSeveridad,
       categorias: [...categorias],
       afectaciones: filtradas.map((a) => ({
