@@ -192,6 +192,17 @@ describe('parseParteActualizacionInput', () => {
     expect(result.ok).toBe(false)
   })
 
+  it('acepta un rigeDesde levemente futuro (reloj del cliente adelantado) y lo recorta al ahora del servidor', () => {
+    const antes = Date.now()
+    const adelantado = new Date(antes + 2 * 60_000)
+    const result = parseParteActualizacionInput({ ...basePayload, rigeDesde: adelantado.toISOString() })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const recibido = new Date(result.data.rigeDesde).getTime()
+    expect(recibido).toBeGreaterThanOrEqual(antes)
+    expect(recibido).toBeLessThanOrEqual(Date.now())
+  })
+
   it('rechaza un rigeDesde de hace más de 12 meses', () => {
     const vieja = new Date()
     vieja.setMonth(vieja.getMonth() - 13)
