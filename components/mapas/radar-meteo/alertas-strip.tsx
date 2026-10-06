@@ -1,23 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { departamentosAlertaLabel } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import type { AlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 
-export type AlertaRadar = {
-  id: string
-  nivelSat: string | null
-  severidad: string
-  evento: string
-  headline: string | null
-  description: string | null
-  instruction: string | null
-  onset: string
-  expires: string
-  departamentos: Array<string | { id: string; nombre: string }>
-}
-
-export function departamentosAlertaLabel(departamentos: AlertaRadar['departamentos']) {
-  return departamentos.map((depto) => typeof depto === 'string' ? depto : depto.nombre).join(', ')
-}
+export type { AlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+export { departamentosAlertaLabel } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 
 function claseNivel(nivel: string | null) {
   if (!nivel) return ''
