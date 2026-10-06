@@ -1,7 +1,10 @@
 name: CI
 
 on:
+  # Only PRs into main run CI. Promotion PRs (main -> staging -> prod)
+  # carry the exact tree already tested there, so re-running it only adds delay.
   pull_request:
+    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
