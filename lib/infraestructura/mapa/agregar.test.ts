@@ -22,6 +22,7 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
     ultimaNovedad: null,
     alumnosSinClases: 0,
     situacionesHistoricas: 0,
+    solucionadasRecientes: 0,
     ...parcial,
   }
 }
@@ -29,19 +30,23 @@ function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnri
 describe('resumir', () => {
   it('calcula los números sobre el padrón recibido', () => {
     const escuelas = [
-      escuela({ gravedad: 2, clases: 'sin', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 12 }),
+      escuela({ gravedad: 2, clases: 'sin', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 12, solucionadasRecientes: 2 }),
       escuela({ cueAnexo: '1800002-00', gravedad: 1, clases: 'parcial', apoyo: 'cuadernillo', alumnosSinClases: 5 }),
-      escuela({ cueAnexo: '1800003-00', gravedad: 0, clases: 'evacuado', apoyo: 'ambos', sinActualizar: true, alumnosSinClases: 8 }),
+      escuela({ cueAnexo: '1800003-00', gravedad: 0, clases: 'evacuado', apoyo: 'ambos', sinActualizar: true, alumnosSinClases: 8, solucionadasRecientes: 1 }),
       escuela({ cueAnexo: '1800004-00', gravedad: 3, clases: 'normal', apoyo: 'virtual', sinActualizar: true, alumnosSinClases: 0 }),
       escuela({ cueAnexo: '1800005-00', gravedad: 0, clases: 'normal', sinActualizar: false, alumnosSinClases: 0 }),
+      escuela({ cueAnexo: '1800006-00', gravedad: 0, clases: 'sin', apoyo: 'brinda', alumnosSinClases: 4 }),
+      escuela({ cueAnexo: '1800007-00', gravedad: 0, clases: 'parcial', apoyo: 'sin_dato', alumnosSinClases: 3 }),
     ]
 
     expect(resumir(escuelas)).toEqual({
       conReporte: 3,
-      sinClases: 3,
-      alumnosSinClases: 25,
+      sinClases: 5,
+      alumnosSinClases: 32,
       sinActualizar: 3,
-      sinClasesConApoyo: 3,
+      sinClasesConApoyo: 4,
+      sinClasesSinDato: 1,
+      solucionadasRecientes: 2,
     })
   })
 
@@ -52,6 +57,8 @@ describe('resumir', () => {
       alumnosSinClases: 0,
       sinActualizar: 0,
       sinClasesConApoyo: 0,
+      sinClasesSinDato: 0,
+      solucionadasRecientes: 0,
     })
   })
 })
@@ -111,7 +118,7 @@ describe('agrupar', () => {
     ]
     const filtros: FiltrosMapa = {
       q: '', departamentos: ['Goya', 'Capital'], niveles: ['Primario'], gravedades: [],
-      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false,
+      clases: ['sin', 'parcial', 'evacuado'], apoyo: [], sinActualizar: false, solucionadasRecientes: false,
     }
     const filtradas = filtrarEscuelas(padron, filtros)
     const filas = agrupar(filtradas, 'departamento')
@@ -123,6 +130,8 @@ describe('agrupar', () => {
       alumnosSinClases: 25,
       sinActualizar: 0,
       sinClasesConApoyo: 0,
+      sinClasesSinDato: 0,
+      solucionadasRecientes: 0,
     })
     expect(filas.reduce((total, fila) => total + fila.afectadas, 0)).toBe(resumen.conReporte)
     expect(filas.reduce((total, fila) => total + fila.alumnosSinClases, 0)).toBe(resumen.alumnosSinClases)
@@ -162,10 +171,18 @@ describe('agrupar', () => {
 
   it('usa etiquetas de gravedad y la categoría predeterminada, y devuelve vacío para padrón vacío', () => {
     expect(agrupar([
-      escuela({ gravedad: 4, categoriaPrincipal: 'Infraestructura' }),
+      escuela({ gravedad: 4, categoriaPrincipal: 'establecimiento' }),
       escuela({ cueAnexo: 'sin-reporte', gravedad: 0, categoriaPrincipal: null }),
-    ], 'gravedad').map(({ clave }) => clave)).toEqual(['Crítica', 'Sin reporte'])
+    ], 'gravedad').map(({ clave }) => clave)).toEqual(['Crítica', 'Sin situaciones'])
     expect(agrupar([escuela({ categoriaPrincipal: null })], 'categoria').map(({ clave }) => clave)).toEqual(['Sin categoría'])
+    expect(agrupar([
+      escuela({ categoriaPrincipal: 'establecimiento' }),
+      escuela({ cueAnexo: 'alumnos', categoriaPrincipal: 'alumnos' }),
+      escuela({ cueAnexo: 'establecimiento-2', categoriaPrincipal: 'establecimiento' }),
+    ], 'categoria').map(({ clave, escuelas }) => ({ clave, escuelas }))).toEqual([
+      { clave: 'establecimiento', escuelas: 2 },
+      { clave: 'alumnos', escuelas: 1 },
+    ])
     expect(agrupar([], 'departamento')).toEqual([])
   })
 })

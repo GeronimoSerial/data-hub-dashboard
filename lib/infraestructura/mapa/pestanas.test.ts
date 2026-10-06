@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolverPestana } from './pestanas'
+import { pestanaDeMapa, resolverPestana } from './pestanas'
 
 describe('resolverPestana', () => {
   it.each([
@@ -7,6 +7,7 @@ describe('resolverPestana', () => {
     ['#radar', '', 'radar'],
     ['#planificacion', '', 'planificacion'],
     ['#estadisticas', '', 'estadisticas'],
+    ['#capas', '', 'capas'],
     ['#operativa', '', 'actual'],
     ['#evolucion', '', 'estadisticas'],
     ['', '?modo=radar', 'radar'],
@@ -30,5 +31,16 @@ describe('resolverPestana', () => {
 
   it('ignora nombres heredados de Object.prototype', () => {
     expect(resolverPestana('#constructor', '', { radarHabilitado: true })).toBe('actual')
+  })
+})
+
+describe('pestanaDeMapa', () => {
+  it.each([
+    ['capas', 'actual'],
+    ['actual', 'actual'],
+    ['radar', 'radar'],
+    ['planificacion', 'planificacion'],
+  ] as const)('%s usa las capas de %s', (panel, mapa) => {
+    expect(pestanaDeMapa(panel)).toBe(mapa)
   })
 })

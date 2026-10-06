@@ -30,6 +30,7 @@ import type {
 } from 'maplibre-gl'
 import type { FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import type { Map as MapLibreMap, PaddingOptions } from 'maplibre-gl'
+import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 // V8: MapLibre trae sus cadenas de UI (tooltips de controles, aria-labels) en
 // inglés por defecto. `locale` acepta la tabla `{ clave: texto }` de
 // `maplibre-gl` y sólo pisa las claves presentes en el objeto, así que acá se
@@ -55,13 +56,14 @@ import {
 } from 'lucide-react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@/components/mapas/maplibre-popup.css'
-import { BasemapControl } from '@/components/mapas/basemap-control'
 import { PanelLateral } from '@/components/mapas/panel-lateral'
+import { PanelCapas } from '@/components/mapas/panel-capas'
+import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
+import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
-import { Button } from '@/components/ui/button'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
-import { PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
+import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
 import { PanelRadar } from '@/components/mapas/panel-radar'
 import { PanelPlanificacion } from '@/components/mapas/panel-planificacion'
 import { FichaEscuelaPanel } from '@/components/mapas/ficha-escuela-panel'
@@ -69,7 +71,6 @@ import { BloqueAcceso } from '@/components/mapas/bloque-acceso'
 import { AlcanceNominalModal } from '@/components/infraestructura/alcance-nominal-modal'
 import { HistorialParteModal } from '@/components/infraestructura/historial-parte-modal'
 import {
-  RadarLayerControl,
   type CapaAccesos,
   type CapaRadar,
 } from '@/components/mapas/layer-control'
@@ -80,8 +81,10 @@ import {
   bboxRuta,
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
+import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
+import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
@@ -146,7 +149,8 @@ import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
-import { CapaPuntosNivel } from '@/components/mapas/capa-puntos-nivel'
+import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
+import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -155,6 +159,7 @@ import {
   ID_IMAGEN_ESCUELA_BAJA,
   ID_IMAGEN_ESCUELA_CRITICA,
   ID_IMAGEN_ESCUELA_MEDIA,
+  ID_IMAGEN_ESCUELA_SOLUCIONADA,
 } from '@/lib/mapas/iconos-mapa'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -182,7 +187,7 @@ const CAPA_PARTES_CLUSTER_MAX_ZOOM = 11
 
 // V2: badge de estado por escuela individual. Un único ícono Lucide
 // superpuesto al punto de color reemplaza a los anillos/halos apilados que
-// codificaban servicio (grosor/opacidad) y "sin reportar" (halo gris), y a
+// codificaban servicio (grosor/opacidad) y "sin actualizar" (halo gris), y a
 // las formas CSS de evacuación. Se resuelve con <Marker> DOM (no capa
 // MapLibre) y sólo se dibuja sobre escuelas NO agrupadas (`cuesNoAgrupados`),
 // igual que antes hacían los marcadores de evacuación. El ícono comunica QUÉ
@@ -198,7 +203,7 @@ const ICONO_BADGE_ESTADO_TAMANO = 12
 // clusterProperties elige UN ícono de evacuación para la burbuja, en su
 // esquina superior derecha (nunca encima del número). Se pintan con capas
 // `symbol` + `icon-image`, registrando los SVG como imágenes del mapa (ver
-// `registrarIconosCluster`). El resto de los estados (servicio/sin reportar)
+// `registrarIconosCluster`). El resto de los estados (servicio/sin actualizar)
 // queda sólo a nivel escuela individual.
 const CAPA_CLUSTER_CENTRO_EVACUADOS_ID = 'infra-cluster-centro-evacuados'
 const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
@@ -210,6 +215,7 @@ const CAPA_CLUSTER_EVACUADO_ID = 'infra-cluster-evacuado'
 // círculo de 6 px el click sobre una escuela del padrón casi siempre perdía
 // contra el polígono del departamento de abajo.
 const CAPA_PARTES_ESCUELA_ICONO_ID = 'infra-partes-escuela-icono'
+const CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID = 'infra-partes-escuela-solucionada-icono'
 
 // Color de foco/realce de la escuela seleccionada: mismo valor que el token
 // `--marker` (= `--yellow`, globals.css) que el hub usa para selección/foco.
@@ -433,6 +439,10 @@ export function filtroIconoEscuelaAfectada(): FilterSpecification {
   return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'estado'], 'afectada']]
 }
 
+export function filtroIconoEscuelaSolucionada(): FilterSpecification {
+  return ['all', ['!', ['has', 'point_count']], ['==', ['get', 'solucionadaReciente'], true]]
+}
+
 // Componente Lucide por nombre lógico devuelto por la función pura `iconoPunto`.
 const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
   sin: BookX,
@@ -444,22 +454,12 @@ const ICONOS_BADGE_ESTADO: Record<IconoPunto, LucideIcon> = {
 
 // Texto accesible de cada badge, sin depender de una segunda escala de color.
 const ETIQUETA_ICONO_ESTADO: Record<IconoPunto, string> = {
-  sin: 'Sin clases',
-  parcial: 'Clases parciales',
-  evacuado: 'Evacuado',
-  centro: 'Centro de evacuados',
+  sin: ETIQUETA_ESTADO_CLASES.sin,
+  parcial: ETIQUETA_ESTADO_CLASES.parcial,
+  evacuado: ETIQUETA_ESTADO_CLASES.evacuado,
+  centro: ETIQUETA_ESTADO_CLASES.centro,
   reloj: 'Sin actualizar',
 }
-
-// ── Popup de CLIC del departamento ──────────────────────────────────────────
-//
-// El resumen de un departamento (total, afectadas, porcentaje) ya no aparece
-// al pasar el mouse: se guarda acá y se muestra recién al hacer CLIC sobre la
-// capa del departamento (ver `handleClick`). Un solo estado, un solo Popup.
-// Se cierra al volver a clickear el mismo departamento (toggle), al clickear
-// otro (se reemplaza), al clickear una escuela/cluster, al cambiar de modo o
-// con Esc.
-type InfoDepartamentoClic = { lng: number; lat: number; nombre: string }
 
 // Popup del cruce de agua clickeado: misma forma (anclado al `lngLat` del
 // evento) que el del departamento. Guarda la CLASE del cruce, no su texto: la
@@ -592,51 +592,46 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
-  pestana: Exclude<PestanaMapa, 'estadisticas'>
+  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas'>
+  panel?: Exclude<PestanaMapa, 'estadisticas'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }) {
+  const panel = props.panel ?? props.pestana
+  const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
   const styles = useOverlayStyles()
   const { mode } = useThemeMode()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
+  const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
   // la ficha (X o Esc) borraba `seleccionCue` y con él la ruta, el resaltado y
   // la leyenda, sin forma de volver atrás. Ahora `seleccionCue` sigue siendo la
   // selección (dura hasta "Quitar selección" o hasta otro cue) y este estado
-  // sólo recuerda el cue cuya ficha el usuario cerró, para que el grupo
-  // `.map-seleccion-acciones` ofrezca "Ver ficha" de nuevo.
+  // sólo recuerda el cue cuya ficha el usuario cerró, para que el sidebar
+  // ofrezca "Ver ficha" de nuevo.
   //
   // `fichaAbierta` se DERIVA (sin sincronizarla con un useEffect): hay una
   // selección no cerrada y la pestaña donde se eligió es la actual. Toda
   // selección nueva o repetida limpia `fichaCerradaCue` y fija `fichaPestana`
   // para que la ficha se abra en la pestaña desde donde se eligió.
   const [fichaCerradaCue, setFichaCerradaCue] = useState<string | null>(null)
-  const [fichaPestana, setFichaPestana] = useState<Exclude<PestanaMapa, 'estadisticas'> | null>(null)
-  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === props.pestana
-  // Mismo patrón para el panel de base/capas (T1.3 extendido): en mobile tapaba
-  // casi la mitad del mapa. Arranca cerrado y comparte el mismo cajón fijo a
-  // pantalla completa; nunca se abre junto con leftStack (ver los onClick).
-  const [controlsStackAbierto, setControlsStackAbierto] = useState(false)
+  const [fichaPestana, setFichaPestana] = useState<PestanaMapa | null>(null)
+  const fichaAbierta = seleccionCue !== null && fichaCerradaCue !== seleccionCue && fichaPestana === panelLateral
   // F3.2/F3.3/F3.4: estado de los tres modales, deliberadamente separado del
   // estado de encuadre/filtros. Cerrar cualquiera de los tres sólo tiene que
   // tocar SU propio estado — nunca el encuadre del mapa (MapGL no se remonta acá).
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
-  // Resumen del departamento clickeado. Reemplaza al tooltip de hover: la
-  // información aparece recién con el CLIC (ver `handleClick`), nunca con el
-  // mouse quieto encima.
-  const [departamentoInfoClic, setDepartamentoInfoClic] = useState<InfoDepartamentoClic | null>(null)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
-    setDepartamentoInfoClic(null)
   }, [seleccionCue])
   const [clusterInfoClic, setClusterInfoClic] = useState<MapGeoJSONFeature | null>(null)
   // Clasificación de un CRUCE DE AGUA clickeado sobre la ruta (puente, vado
@@ -661,7 +656,7 @@ export default function MapInfraestructuraPage(props: {
   const encuadreRutaPendiente = useRef<string | null>(null)
   // T1.1c: qué cueAnexo están dibujados AHORA como puntos individuales (no
   // agrupados) en `infra-partes-src`, recomputado cada vez que el mapa
-  // termina de moverse o hacer zoom (onMoveEnd). El halo "sin reportar" y
+  // termina de moverse o hacer zoom (onMoveEnd). El halo "sin actualizar" y
   // los marcadores de evacuación sólo se pintan sobre puntos que el
   // clustering de supercluster dejó sueltos de verdad, sin adivinar por
   // umbral de zoom (que peca de off-by-one y no mostraba nada a zoom
@@ -686,7 +681,8 @@ export default function MapInfraestructuraPage(props: {
   // El horizonte de la pestaña se guarda como valor del motor; 72 h es la
   // opción inicial cuando todavía no hay evidencia disponible.
   const [horizonteSeleccionado, setHorizonteSeleccionado] = useState<HorizonteMotor>(72)
-  const [capasRadarVisibles, setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
+  const [variableRadar, setVariableRadar] = useState<VariableRadarUI>('lluvia')
+  const [capasRadarVisibles, _setCapasRadarVisibles] = useState(CAPAS_RADAR_VISIBLES_DEFECTO)
 
   // El hook SIEMPRE se llama (regla de hooks), pero sólo dispara request con
   // `activo` true — es decir, flag prendido Y modo Radar. En "Situación actual"
@@ -695,6 +691,18 @@ export default function MapInfraestructuraPage(props: {
   const radarActivo = modoRadar
   const esPlanificacion = props.pestana === 'planificacion'
   const ocultarPartes = radarActivo || esPlanificacion
+  // Al ocultar la pestaña, detener cualquier flyTo sobre un contenedor sin
+  // layout. Al volver a mostrar el mapa, MapLibre recalcula el tamaño.
+  useEffect(() => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (props.visible ?? true) {
+      mapa.resize()
+    } else {
+      mapa.stop()
+    }
+  }, [props.visible])
+
   useEffect(() => {
     const contenedor = mapRef.current?.getMap().getContainer()
     if (contenedor) colapsarAtribucion(contenedor)
@@ -723,7 +731,6 @@ export default function MapInfraestructuraPage(props: {
         map.flyTo({ ...vistaPreviaRadar.current, duration: 700 })
       }
     }
-    setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
@@ -805,37 +812,34 @@ export default function MapInfraestructuraPage(props: {
     () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
     [dataEscuelasMapaVisible, colorPorCue],
   )
+  // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
+  const mostrarRiesgoSituacion = props.pestana === 'actual'
+    && !radarActivo
+    && !esPlanificacion
+    && (capasVisibles.escuelasAisladas || capasVisibles.riesgoCorteInundacion)
+  const puntosRiesgo = useMemo(
+    () => mostrarRiesgoSituacion
+      ? puntosRiesgoSobreSituacion(
+        dataEscuelasMapaVisible?.escuelas ?? [],
+        capasVisibles.escuelasAisladas ? 'aisladas' : 'inundacion',
+        territorio,
+      )
+      : construirPuntosNivel([], new Map()),
+    [mostrarRiesgoSituacion, capasVisibles.escuelasAisladas, capasVisibles.riesgoCorteInundacion, dataEscuelasMapaVisible, territorio],
+  )
 
-  // M1: al ocultar la pestaña (el mapa NO se desmonta, sólo queda oculto
-  // con `hidden`), cortar cualquier flyTo en curso con `.stop()` para no
-  // gastar rAF sobre un contenedor sin layout. Al volver a mostrarse,
-  // `.resize()` + `.fitBounds()` corrigen el encuadre si MapLibre calculó
-  // mal el tamaño mientras estaba oculto (mismo patrón que
-  // map-natalidad-page.tsx en la rama main).
+  // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
+  // listener vive mientras alguno está abierto (mismo patrón que `FichaParteModal`).
   useEffect(() => {
-    const mapa = mapRef.current?.getMap()
-    if (!mapa) return
-    if (props.visible ?? true) {
-      mapa.resize()
-    } else {
-      mapa.stop()
-    }
-  }, [props.visible])
-
-  // Cierre con Esc de los popups abiertos por clic. Un solo listener los cierra
-  // todos, y sólo existe mientras alguno está abierto (mismo patrón que
-  // `FichaParteModal`).
-  useEffect(() => {
-    if (!departamentoInfoClic && !clusterInfoClic && !cruceInfoClic) return
+    if (!clusterInfoClic && !cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setDepartamentoInfoClic(null)
       setClusterInfoClic(null)
       setCruceInfoClic(null)
     }
     window.addEventListener('keydown', alPresionarTecla)
     return () => window.removeEventListener('keydown', alPresionarTecla)
-  }, [departamentoInfoClic, clusterInfoClic, cruceInfoClic])
+  }, [clusterInfoClic, cruceInfoClic])
 
   const datosAlertasFiltrados = useMemo(() => {
     if (!data || !props.escuelasMapa) return data
@@ -1013,6 +1017,10 @@ export default function MapInfraestructuraPage(props: {
   // R2: en tema oscuro se usa el estilo oscuro real del proveedor en vez del
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
   const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
+  const mapStyleRef = useRef(mapStyle)
+  useEffect(() => {
+    mapStyleRef.current = mapStyle
+  }, [mapStyle])
   // Q6a: identidad de la escuela seleccionada. El padrón COMPLETO
   // (`dataEscuelasMapa`, afectadas y sin afectación reportada) indexa por
   // cueAnexo; cubre también las escuelas que NO están en `partesPorCue`, así
@@ -1084,9 +1092,8 @@ export default function MapInfraestructuraPage(props: {
       setEscuelaResaltada(null)
       setSeleccionCue(escuela.cueAnexo)
       setFichaCerradaCue(null)
-      setFichaPestana(props.pestana)
+      setFichaPestana(panelLateral)
       encuadreRutaPendiente.current = escuela.cueAnexo
-      setControlsStackAbierto(false)
       return
     }
     setAvisoBusqueda(null)
@@ -1094,10 +1101,9 @@ export default function MapInfraestructuraPage(props: {
     mapRef.current?.getMap()?.flyTo({ center: [escuela.lon, escuela.lat], zoom: 14, duration: 900 })
     setSeleccionCue(escuela.cueAnexo)
     setFichaCerradaCue(null)
-    setFichaPestana(props.pestana)
+    setFichaPestana(panelLateral)
     encuadreRutaPendiente.current = escuela.cueAnexo
-    setControlsStackAbierto(false)
-  }, [props.pestana])
+  }, [panelLateral])
 
   // El cluster también es clickeable para hacer zoom de expansión.
   const capasInteractivas = [
@@ -1106,6 +1112,7 @@ export default function MapInfraestructuraPage(props: {
     // individual (~22 px contra los 12 px del círculo). Sin esto, el click
     // sobre una escuela del padrón lo gana el polígono del departamento.
     CAPA_PARTES_ESCUELA_ICONO_ID,
+    CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
     CAPA_PARTES_CLUSTER_ID,
     CAPA_DEPARTAMENTOS_RELLENO_ID,
     'infra-departamentos-etiqueta',
@@ -1142,9 +1149,6 @@ export default function MapInfraestructuraPage(props: {
   const handleClick = useCallback((event: MapLayerMouseEvent) => {
     const features = event.features ?? []
 
-    // Cualquier clic cierra el popup de departamento vigente; si el clic cae
-    // sobre un departamento, se vuelve a abrir más abajo con sus números.
-    setDepartamentoInfoClic(null)
     setClusterInfoClic(null)
     setCruceInfoClic(null)
 
@@ -1183,7 +1187,8 @@ export default function MapInfraestructuraPage(props: {
       ?? features.find(
         (item) =>
           item.layer?.id === CAPA_PARTES_ID ||
-          item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID,
+          item.layer?.id === CAPA_PARTES_ESCUELA_ICONO_ID ||
+          item.layer?.id === CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID,
       )
     if (feature?.layer?.id === CAPA_PARTES_CLUSTER_ID) {
       setClusterInfoClic(feature)
@@ -1200,7 +1205,7 @@ export default function MapInfraestructuraPage(props: {
       // Clickear (incluso sobre la escuela ya seleccionada con la ficha
       // cerrada) reabre la ficha: es la misma intención que "Ver ficha".
       setFichaCerradaCue(null)
-      setFichaPestana(props.pestana)
+      setFichaPestana(panelLateral)
       // Igual que al elegir desde el buscador: la ruta de esta escuela se
       // encuadra sola cuando su geometría llegue.
       encuadreRutaPendiente.current = cue
@@ -1218,11 +1223,6 @@ export default function MapInfraestructuraPage(props: {
       if (siguiente === null) {
         mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
       }
-      // Mismo resumen que antes mostraba el hover, ahora atado al clic. Al
-      // deseleccionar (toggle sobre el mismo departamento) queda cerrado.
-      setDepartamentoInfoClic(
-        siguiente === null ? null : { nombre, lng: event.lngLat.lng, lat: event.lngLat.lat },
-      )
     }
   }, [
     radarActivo,
@@ -1230,7 +1230,6 @@ export default function MapInfraestructuraPage(props: {
     dataEscuelasMapaVisible,
     handleSeleccionarEscuelaBuscada,
     departamentoSeleccionado,
-    setDepartamentoInfoClic,
     setClusterInfoClic,
     setCruceInfoClic,
     setSeleccionCue,
@@ -1238,7 +1237,7 @@ export default function MapInfraestructuraPage(props: {
     setDepartamentoSeleccionado,
     setFichaCerradaCue,
     setFichaPestana,
-    props.pestana,
+    panelLateral,
   ])
 
   useEffect(() => {
@@ -1309,13 +1308,24 @@ export default function MapInfraestructuraPage(props: {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
-    if (map) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+    if (map) {
+      ultimoEstiloCargado.current = mapStyleRef.current
+      const handleStyleLoad = () => {
+        if (!map.isStyleLoaded()) return
+        const estiloCargado = mapStyleRef.current
+        if (cambioEstiloCargado(ultimoEstiloCargado.current, estiloCargado, true)) {
+          setVersionEstilo((version) => version + 1)
+          setIconosClusterListos(false)
+        }
+        ultimoEstiloCargado.current = estiloCargado
+        registrarIconosCluster()
+        window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+      }
+      map.on('style.load', handleStyleLoad)
+      window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
-
-  function alternarCapaRadar(capa: CapaRadar, value: boolean) {
-    setCapasRadarVisibles((prev) => ({ ...prev, [capa]: value }))
-  }
 
   // Encuadre de la ruta seleccionada: sólo si la geometría dibujada tiene un
   // bbox real (una ruta ausente dejaría un `fitBounds` inválido). El padding
@@ -1330,17 +1340,6 @@ export default function MapInfraestructuraPage(props: {
     <>
       {!modoRadar && (
         <>
-          {departamentoSeleccionado && (
-            <div className={`${styles.panel} map-departamento-seleccionado`}>
-              <span>Departamento: <strong>{departamentoSeleccionado}</strong></span>
-              <button type="button" onClick={() => {
-                entradaPuntosPendiente.current = true
-                setPuntosVisibles(false)
-                setDepartamentoSeleccionado(null)
-                mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
-              }}>Quitar filtro</button>
-            </div>
-          )}
           <PanelSituacionActual
             escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
             actualizadoEn={actualizadoEn}
@@ -1372,6 +1371,8 @@ export default function MapInfraestructuraPage(props: {
           ref={mapRef}
           attributionControl={false}
           mapStyle={mapStyle}
+          // Los estilos claro y oscuro son distintos: el diff descarta las fuentes propias sin emitir `style.load`.
+          styleDiffing={false}
           locale={LOCALE_MAPLIBRE_ES}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
@@ -1383,24 +1384,13 @@ export default function MapInfraestructuraPage(props: {
           style={{ width: '100%', height: '100%' }}
           interactiveLayerIds={capasInteractivas}
           onClick={handleClick}
-          onMouseMove={(event) => {
-            if (radarActivo && event.lngLat) {
-              window.dispatchEvent(new CustomEvent('radar-meteo-map-click', { detail: { lat: event.lngLat.lat, lng: event.lngLat.lng } }))
-            }
-          }}
           cursor="pointer"
           onLoad={handleMapLoad}
           // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.
-          // Al terminar la carga se vuelve a montar el árbol dinámico en orden.
+          // El style.load (registrado en onLoad) determina el final real de
+          // setStyle; styledata también puede pertenecer al estilo anterior.
           onStyleData={() => {
             const map = mapRef.current?.getMap()
-            if (map?.isStyleLoaded()) {
-              if (cambioEstiloCargado(ultimoEstiloCargado.current, mapStyle, true)) {
-                setVersionEstilo((version) => version + 1)
-                setIconosClusterListos(false)
-              }
-              ultimoEstiloCargado.current = mapStyle
-            }
             registrarIconosCluster()
             if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
           }}
@@ -1441,6 +1431,7 @@ export default function MapInfraestructuraPage(props: {
             <Layer
               id={CAPA_DEPARTAMENTOS_BORDE_ID}
               type="line"
+              layout={{ visibility: visibilidadCapa(capasVisibles.limitesDepartamentos) }}
               paint={radarActivo ? { 'line-color': '#d6e9f4', 'line-width': 0.7, 'line-opacity': 0.55 } : linePaintDepartamentos()}
             />
             <Layer
@@ -1458,7 +1449,7 @@ export default function MapInfraestructuraPage(props: {
             <Layer
               id="infra-departamentos-etiqueta"
               type="symbol"
-              layout={symbolLayoutDepartamentos()}
+              layout={{ ...symbolLayoutDepartamentos(), visibility: visibilidadCapa(capasVisibles.nombresDepartamentos) }}
               paint={symbolPaintDepartamentos(radarActivo)}
             />
           </Source>
@@ -1466,11 +1457,9 @@ export default function MapInfraestructuraPage(props: {
           {/*
             Radar (E4): fuente y layers PROPIOS, montados ENCIMA de las capas
             actuales (decisión 2: SUMAR, no reemplazar). Así el modo Radar no
-            desmonta nada de lo existente ni toca sus ids — el riesgo de
-            regresión del layout actual queda en cero — y las capas de radar
-            se pueden apagar con su propio control (RadarLayerControl) sin
-            afectar las de partes. `peligroGeojson` reutiliza el mismo
-            departamentosRaw; no hay fetch extra para la coropleta.
+            desmonta nada de lo existente ni toca sus ids. `peligroGeojson`
+            reutiliza el mismo departamentosRaw; no hay fetch extra para la
+            coropleta.
           */}
           {radarActivo && peligroGeojson && (
             <Source id="infra-peligro-src" type="geojson" data={peligroGeojson}>
@@ -1519,6 +1508,8 @@ export default function MapInfraestructuraPage(props: {
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
               oscuro={mode === 'dark'}
+              mostrarRuta={capasVisibles.rutaAcceso}
+              mostrarCruces={capasVisibles.crucesAgua}
             />
           )}
 
@@ -1536,7 +1527,7 @@ export default function MapInfraestructuraPage(props: {
                 severidadRango: ['max', ['get', 'severidadRango']],
                 // T1.1c: en el cluster `sinActualizar` se agrega como 0/1 con
                 // max() — el cluster vale 1 si AL MENOS UNO de sus puntos
-                // está sin reportar (semántica OR), a diferencia de los
+                // está sin actualizar (semántica OR), a diferencia de los
                 // puntos individuales donde sigue siendo un booleano real.
                 sinActualizar: ['max', ['case', ['get', 'sinActualizar'], 1, 0]],
                 gravedad: ['max', ['get', 'gravedad']],
@@ -1615,6 +1606,25 @@ export default function MapInfraestructuraPage(props: {
                   }}
                 />
               )}
+              {iconosClusterListos && (
+                <Layer
+                  id={CAPA_PARTES_ESCUELA_SOLUCIONADA_ICONO_ID}
+                  type="symbol"
+                  filter={filtroIconoEscuelaSolucionada()}
+                  layout={{
+                    visibility: ocultarPartes ? 'none' : 'visible',
+                    'icon-image': ID_IMAGEN_ESCUELA_SOLUCIONADA,
+                    'icon-size': 1.2,
+                    'icon-anchor': 'center',
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                  }}
+                  paint={{
+                    'icon-opacity': puntosVisibles ? 1 : 0,
+                    'icon-opacity-transition': { duration: 180, delay: 0 },
+                  }}
+                />
+              )}
               {/* Los clusters afectados usan la severidad más alta; los que
                   sólo tienen escuelas sin reporte son neutros y más chicos. */}
               <Layer
@@ -1678,11 +1688,15 @@ export default function MapInfraestructuraPage(props: {
             </Source>
           )}
 
+          {mostrarRiesgoSituacion && (
+            <CapaRiesgoSituacion puntos={puntosRiesgo} beforeId={CAPA_PARTES_ID} />
+          )}
+
           {/*
             V2: badge de estado por escuela NO agrupada. Mismo criterio de
             visibilidad que tenían los marcadores de evacuación
             (`cuesNoAgrupados`), pero un solo badge que resume la condición de
-            mayor prioridad (servicio, evacuación o sin reportar) en vez de
+            mayor prioridad (servicio, evacuación o sin actualizar) en vez de
             anillos/halos/formas apiladas. Sólo se renderizan las escuelas con
             badge (las normales no agregan ruido).
           */}
@@ -1723,31 +1737,8 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          <RadarMeteo activo={radarActivo} escuelas={dataEscuelasMapa?.escuelas ?? []} />
+          <RadarMeteo activo={radarActivo} variable={variableRadar} escuelas={dataEscuelasMapa?.escuelas ?? []} />
 
-          {/*
-            Popup del departamento clickeado: mismo contenido y estilo que el
-            viejo tooltip de hover, pero atado al CLIC (ver `handleClick`). Las
-            escuelas y los clusters no tienen popup: el clic ya abre la ficha o
-            hace zoom de expansión.
-          */}
-          {departamentoInfoClic && (() => {
-            const clave = normalizarNombreDepartamento(departamentoInfoClic.nombre)
-            const totales = totalesPorDepartamento.get(clave)
-            if (!totales) return null
-            return (
-              <Popup
-                longitude={departamentoInfoClic.lng}
-                latitude={departamentoInfoClic.lat}
-                {...PROPS_POPUP_INFO}
-              >
-                <p>
-                  En <strong>{totales.departamentoOriginal}</strong> hay <strong>{totales.totalEscuelas}</strong> escuelas ·{' '}
-                  <strong>{totales.escuelasAfectadas}</strong> con reporte · representa <strong>{totales.porcentajeAfectadas}%</strong>
-                </p>
-              </Popup>
-            )
-          })()}
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
               Mismo componente y estilo que el del departamento: un dato
               puntual que se lee sin cambiar de modo. La etiqueta sale de
@@ -1785,7 +1776,7 @@ export default function MapInfraestructuraPage(props: {
                 className='mapa-tooltip mapa-tooltip-cluster'
               >
                 <p>
-                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con reporte ({criticas} críticas, {altas} altas)
+                  <strong>{total}</strong> escuelas · <strong>{afectadas}</strong> con situaciones abiertas ({criticas} críticas, {altas} altas)
                 </p>
                 <button
                   type='button'
@@ -1847,7 +1838,7 @@ export default function MapInfraestructuraPage(props: {
 
       {dataVisible && (
         <div
-          className={`${styles.leftStack} ${radarActivo ? 'radar-meteo-left-stack' : ''}`}
+          className={styles.leftStack}
           id="infra-left-stack"
         >
           {!modoRadar && avisoBusqueda && (
@@ -1856,9 +1847,46 @@ export default function MapInfraestructuraPage(props: {
             </p>
           )}
           <PanelLateral
-            pestana={modoRadar ? 'radar' : props.pestana === 'planificacion' ? 'planificacion' : 'actual'}
+            pestana={panelLateral}
             seleccion={fichaAbierta ? seleccionCue : null}
             onCerrarFicha={cerrarFicha}
+            cabecera={(
+              <>
+                {seleccionCue !== null && !fichaAbierta && (
+                  <SeleccionEscuela
+                    nombre={escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}
+                    onVerFicha={() => {
+                      setFichaPestana(panelLateral)
+                      setFichaCerradaCue(null)
+                    }}
+                    onQuitarSeleccion={() => {
+                      setSeleccionCue(null)
+                      setEscuelaResaltada(null)
+                      setFichaCerradaCue(null)
+                      setFichaPestana(null)
+                      setAvisoBusqueda(null)
+                      setCruceInfoClic(null)
+                    }}
+                  />
+                )}
+                {departamentoSeleccionado && (
+                  <ResumenDepartamento
+                    nombre={departamentoSeleccionado}
+                    totales={totalesPorDepartamento.get(normalizarNombreDepartamento(departamentoSeleccionado)) ?? null}
+                    onQuitar={() => {
+                      entradaPuntosPendiente.current = true
+                      setPuntosVisibles(false)
+                      setDepartamentoSeleccionado(null)
+                      mapRef.current?.getMap()?.fitBounds(LIMITES_CORRIENTES, { padding: 24 })
+                    }}
+                  />
+                )}
+              </>
+            )}
+            subtitulos={{
+              actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
+              radar: 'Pronóstico',
+            }}
             ficha={fichaAbierta && escuelaSeleccionada ? (
               <FichaEscuelaPanel
                 key={seleccionCue}
@@ -1883,6 +1911,8 @@ export default function MapInfraestructuraPage(props: {
                 horizonte={horizonteEfectivo}
                 disponibles={horizontesDisponibles}
                 onHorizonte={setHorizonteSeleccionado}
+                variable={variableRadar}
+                onVariable={setVariableRadar}
                 puntos={radarData?.puntos ?? null}
                 escuelas={dataEscuelasMapaVisible?.escuelas ?? []}
                 cargando={radarLoading && radarData === null}
@@ -1907,92 +1937,26 @@ export default function MapInfraestructuraPage(props: {
                 }}
               />
             )}
+            capas={(
+              <PanelCapas
+                value={basemap}
+                onChange={(id) => {
+                  setBasemap(id)
+                  // Cambiar de base recarga el estilo y descarta las imágenes registradas.
+                  setIconosClusterListos(false)
+                }}
+                capasVisibles={capasVisibles}
+                onCapasVisiblesChange={setCapasVisibles}
+                haySeleccion={seleccionCue !== null}
+                riesgoDisponible={contextoTerritorial}
+              />
+            )}
           />
         </div>
       )}
 
-      <div
-        className={styles.controlsStack}
-        id="infra-controls-stack"
-        data-open={controlsStackAbierto ? 'true' : 'false'}
-        style={radarActivo ? { display: 'none' } : undefined}
-      >
-        <BasemapControl
-          value={basemap}
-          onChange={(id) => {
-            setBasemap(id)
-            // Al cambiar de base MapLibre recarga el estilo y descarta las
-            // imágenes registradas: se desmontan las capas symbol hasta que
-            // `onStyleData` vuelva a registrarlas.
-            setIconosClusterListos(false)
-          }}
-        />
-        {radarActivo && false && (
-          <RadarLayerControl capas={capasRadarVisibles} onChange={alternarCapaRadar} />
-        )}
-      </div>
-
-      <Button
-        variant="secondary"
-        size="sm"
-        className={styles.controlsStackToggle}
-        style={radarActivo ? { display: 'none' } : undefined}
-        onClick={() => setControlsStackAbierto((abierto) => !abierto)}
-        aria-expanded={controlsStackAbierto}
-        aria-controls="infra-controls-stack"
-      >
-        {controlsStackAbierto ? 'Cerrar' : 'Capas'}
-      </Button>
-
       {!radarActivo && <FullscreenButton targetRef={shellRef} />}
 
-      {/*
-        Con una escuela seleccionada y la ficha cerrada, la selección queda
-        visible en el mapa (resaltado + ruta) pero sin ningún control: la
-        única forma de volver atrás era abrir otra escuela y perder el trabajo
-        de leer la ruta. Este grupo devuelve las dos acciones que importan.
-
-        Deliberadamente NO usa un modal: es un par de botones, y sin ficha
-        abierta no hay backdrop que esconda nada. Sólo en "Situación actual" —
-        en Radar el grupo estorbaría a los paneles de riesgo, y la
-        selección de ficha no compite ahí con su propio panel de explicación.
-      */}
-      {seleccionCue !== null &&
-        !fichaAbierta &&
-        !modoRadar &&
-        (
-          <div className="map-seleccion-acciones" role="group" aria-label="Escuela seleccionada">
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              data-testid="reabrir-ficha"
-              aria-label={`Reabrir la ficha de ${escuelasPorCue.get(seleccionCue)?.nombre ?? seleccionCue}`}
-              onClick={() => {
-                setFichaPestana(props.pestana)
-                setFichaCerradaCue(null)
-              }}
-            >
-              Ver ficha
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              data-testid="quitar-seleccion"
-              onClick={() => {
-                setSeleccionCue(null)
-                setEscuelaResaltada(null)
-                setFichaCerradaCue(null)
-                setFichaPestana(null)
-                setAvisoBusqueda(null)
-                setCruceInfoClic(null)
-              }}
-            >
-              Quitar selección
-            </Button>
-          </div>
-        )}
     </div>
   )
 }

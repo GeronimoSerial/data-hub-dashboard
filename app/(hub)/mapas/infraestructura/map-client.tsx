@@ -3,7 +3,7 @@
 import * as React from 'react'
 import dynamic from 'next/dynamic'
 import { Tabs, TabsList, TabsTab } from '@/components/ui/tabs'
-import { resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
+import { pestanaDeMapa, resolverPestana } from '@/lib/infraestructura/mapa/pestanas'
 import { filtrarEscuelas } from '@/lib/infraestructura/mapa/filtrar'
 import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -74,7 +74,7 @@ export function InfraestructuraMapClient(props: {
     const escuela = padron?.escuelas.find((item) => item.cueAnexo === cueAnexo)
     if (!escuela) return
     if (tab === 'estadisticas') {
-      onTab('actual')
+      onTab(ultimaPestanaMapa || 'actual')
     }
     seleccionarEscuelaRef.current?.(escuela)
   }
@@ -93,7 +93,7 @@ export function InfraestructuraMapClient(props: {
   }, [props.riskRadarEnabled])
 
   const mapaVisible = tab !== 'estadisticas'
-  if (tab !== 'estadisticas' && tab !== ultimaPestanaMapa) {
+  if (mapaVisible && tab !== ultimaPestanaMapa) {
     setUltimaPestanaMapa(tab)
   }
 
@@ -105,7 +105,7 @@ export function InfraestructuraMapClient(props: {
             <TabsTab
               value="actual"
               aria-label={cantidadConReporte > 0
-                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con reporte`
+                ? `Situación actual, ${cantidadConReporte} ${cantidadConReporte === 1 ? 'escuela' : 'escuelas'} con situaciones abiertas`
                 : undefined}
             >
               Situación actual
@@ -118,16 +118,16 @@ export function InfraestructuraMapClient(props: {
             {props.riskRadarEnabled && <TabsTab value="radar">Radar</TabsTab>}
             <TabsTab value="planificacion">Planificación</TabsTab>
             <TabsTab value="estadisticas">Estadísticas</TabsTab>
+            <TabsTab value="capas">Capas</TabsTab>
           </TabsList>
         </Tabs>
+        <FiltrosChips
+          escuelas={padron?.escuelas ?? []}
+          filtros={filtros}
+          onChange={setFiltros}
+          onSeleccionar={seleccionarEscuela}
+        />
       </div>
-
-      <FiltrosChips
-        escuelas={padron?.escuelas ?? []}
-        filtros={filtros}
-        onChange={setFiltros}
-        onSeleccionar={seleccionarEscuela}
-      />
 
       <div className="mapa-pestanas-cuerpo">
         {/*
@@ -147,17 +147,14 @@ export function InfraestructuraMapClient(props: {
             hazardContextEnabled={props.hazardContextEnabled ?? false}
             riskRadarEnabled={props.riskRadarEnabled ?? false}
             seasonalEnabled={props.seasonalEnabled ?? false}
-            pestana={ultimaPestanaMapa}
+            pestana={pestanaDeMapa(ultimaPestanaMapa)}
+            panel={ultimaPestanaMapa}
             visible={mapaVisible}
             escuelasMapa={escuelasMapa}
             onRegistrarSeleccion={registrarSeleccion}
           />
         </div>
 
-        {/*
-          La pestaña de Estadísticas se monta al abrirla y se desmonta al salir.
-          Así, la evolución y su consulta sólo se cargan cuando hacen falta.
-        */}
         {tab === 'estadisticas' && (
           <div
             className="mapa-pestana-panel mapa-pestana-panel--scroll"
@@ -166,6 +163,7 @@ export function InfraestructuraMapClient(props: {
             <PanelEstadisticas escuelas={escuelasFiltradas} filtros={filtros} />
           </div>
         )}
+
       </div>
     </div>
   )

@@ -216,6 +216,27 @@ describe('CapasAccesosTerritoriales', () => {
     ).toMatchObject({ 'line-color': '#111827' })
   })
 
+  it.each([
+    { capa: 'ruta', props: { mostrarRuta: false }, ocultas: [CAPA_RUTA_ACCESO_CASING_ID, CAPA_RUTA_ACCESO_ID] },
+    { capa: 'cruces', props: { mostrarCruces: false }, ocultas: [CAPA_CRUCES_ACCESO_ID] },
+  ])('permite ocultar $capa sin desmontar sus capas', ({ capa, props, ocultas }) => {
+    render(<CapasAccesosTerritoriales {...base} visibles={visibles([])} {...props} />)
+    for (const id of ocultas) {
+      expect(screen.getByTestId(`mock-layer-${id}`)).toHaveAttribute('data-layout', expect.stringContaining('"visibility":"none"'))
+    }
+    if (capa === 'cruces') {
+      // A14 toma los cruces de esta fuente GeoJSON aunque el símbolo esté oculto.
+      expect(screen.getByTestId('mock-source-infra-accesos-cruces-src')).toBeInTheDocument()
+    }
+  })
+
+  it('mantiene visibles ruta y cruces por defecto', () => {
+    render(<CapasAccesosTerritoriales {...base} visibles={visibles([])} />)
+    for (const id of [CAPA_RUTA_ACCESO_CASING_ID, CAPA_RUTA_ACCESO_ID, CAPA_CRUCES_ACCESO_ID]) {
+      expect(screen.getByTestId(`mock-layer-${id}`).getAttribute('data-layout')).not.toContain('"visibility":"none"')
+    }
+  })
+
   it('monta celdas debajo de la ruta y solo con la ruta seleccionada visible', () => {
     const { container, rerender } = render(
       <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />,

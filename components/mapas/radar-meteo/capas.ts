@@ -4,6 +4,6 @@ export const CAPAS_RADAR = {
   etiqueta: 'infra-departamentos-etiqueta',
 } as const
 
-export function antesDelRaster(inverseMaskAvailable: boolean) {
-  return inverseMaskAvailable ? CAPAS_RADAR.mascara : CAPAS_RADAR.borde
+export function beforeIdSiExiste(map: { getLayer: (id: string) => unknown }, id: string): string | undefined {
+  return map.getLayer(id) ? id : undefined
 }

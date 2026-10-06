@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { agrupar, resumir, type AgruparPor } from '@/lib/infraestructura/mapa/agregar'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
+import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import type { EscuelaMapaEnriquecida, FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
 
 // Los gráficos se cargan al abrir Estadísticas para no sumar su peso al mapa inicial.
@@ -30,7 +31,9 @@ const ETIQUETAS_AGRUPACION: Record<AgruparPor, string> = {
 }
 
 function etiquetaFila(clave: string, por: AgruparPor): string {
-  return por === 'departamento' ? etiquetaDepartamento(clave) : clave
+  if (por === 'departamento') return etiquetaDepartamento(clave)
+  if (por === 'categoria' && esCategoria(clave)) return CATEGORIA_META[clave].label
+  return clave
 }
 
 export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapaEnriquecida[]; filtros: FiltrosMapa }) {
@@ -39,16 +42,16 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
   const filas = agrupar(escuelas, por)
 
   return (
-    <section className="map-est" aria-labelledby="map-est-titulo">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-est-titulo">Estadísticas</h2>
-        <span className="map-sitact__atenuado">Según los filtros activos</span>
+    <section className="map-est" aria-label="Estadísticas">
+      <header className="map-est__encabezado">
+        <h2>Estadísticas</h2>
+        <p>Según los filtros activos</p>
       </header>
 
       <div className="map-sitact__kpis map-est__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>
-          <span>Escuelas con reporte</span>
+          <span>Escuelas con situaciones abiertas</span>
         </div>
         <div className="map-sitact__kpi map-sitact__kpi--resaltado">
           <strong>{FORMATO_NUMERO.format(resumen.sinClases)}</strong>
@@ -64,18 +67,18 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
         </div>
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.sinClasesConApoyo)} / {FORMATO_NUMERO.format(resumen.sinClases)}</strong>
-          <span>Sin clases con apoyo pedagógico</span>
+          <span>Sin clases con asistencia pedagógica</span>
+          <small>Sin dato: {FORMATO_NUMERO.format(resumen.sinClasesSinDato)}</small>
+        </div>
+        <div className="map-sitact__kpi">
+          <strong>{FORMATO_NUMERO.format(resumen.solucionadasRecientes)}</strong>
+          <span>Solucionadas en los últimos 15 días</span>
         </div>
       </div>
 
       <section className="map-est__agrupacion" aria-labelledby="map-est-agrupar-titulo">
         <h3 id="map-est-agrupar-titulo" className="map-sitact__titulo-seccion">Agrupar por</h3>
-        <Segmentado
-          etiqueta="Agrupar por"
-          opciones={OPCIONES_AGRUPACION}
-          valor={por}
-          onChange={setPor}
-        />
+        <Segmentado etiqueta="Agrupar por" opciones={OPCIONES_AGRUPACION} valor={por} onChange={setPor} />
       </section>
 
       {escuelas.length === 0 ? (
@@ -90,7 +93,7 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                 <tr>
                   <th scope="col">{ETIQUETAS_AGRUPACION[por]}</th>
                   <th scope="col">Escuelas</th>
-                  <th scope="col">Con reporte</th>
+                  <th scope="col">Con situaciones abiertas</th>
                   <th scope="col">%</th>
                   <th scope="col">Alumnos sin clases</th>
                 </tr>

@@ -28,10 +28,13 @@ export function BloqueAcceso({ geometria, exposicion, cargando = false, error = 
         </div>
       )}
       <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-cruces">
-        {lineas.cruces === 'Sin cruces de agua'
-          ? <Check aria-hidden="true" />
-          : <TriangleAlert aria-hidden="true" />}
-        <span>{lineas.cruces}</span>
+        {lineas.crucesConRiesgo
+          ? <TriangleAlert aria-hidden="true" data-testid="bloque-acceso-cruces-icono" data-icono="alerta" />
+          : <Check aria-hidden="true" data-testid="bloque-acceso-cruces-icono" data-icono="ok" />}
+        <span>
+          {lineas.cruces}
+          {lineas.crucesDetalle && <span className="map-bloque-acceso__detalle">{lineas.crucesDetalle}</span>}
+        </span>
       </div>
       {lineas.riesgo && (
         <div className={`map-bloque-acceso__fila map-bloque-acceso__riesgo--${lineas.riesgo.toLowerCase()}`} data-testid="bloque-acceso-riesgo">

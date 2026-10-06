@@ -22,10 +22,10 @@ import {
 import { LeyendaRadar } from './leyenda'
 import { LineaTiempoRadar } from './linea-tiempo'
 import { PopupRadar } from './popup'
-import { SelectorRadar, type VariableRadarUI } from './selector'
+import type { VariableRadarUI } from './selector'
 import { AlertasStrip, type AlertaRadar } from './alertas-strip'
 import { EscuelaForecastCard } from './escuela-card'
-import { antesDelRaster } from './capas'
+import { beforeIdSiExiste, CAPAS_RADAR } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
 
 interface ResumenRadar {
@@ -256,8 +256,7 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuelas?: EscuelaMapa[] }) {
-  const [variable, setVariable] = useState<VariableRadarUI>('lluvia')
+export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolean; variable: VariableRadarUI; escuelas?: EscuelaMapa[] }) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<1 | 2 | 4>(1)
@@ -271,6 +270,7 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
   const [geometriasAlerta, setGeometriasAlerta] = useState<{ alertaId: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
   const [resumenError, setResumenError] = useState(false)
   const [map, setMap] = useState<MapLibreMap | null>(null)
+  const [capasExistentes, setCapasExistentes] = useState({ borde: false, etiqueta: false, mascara: false })
   const [zoom, setZoom] = useState(0)
   const [cueEscuela, setCueEscuela] = useState<string | null>(null)
   const [activoPrevio, setActivoPrevio] = useState(activo)
@@ -434,6 +434,18 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
         ? candidate
         : null
       setMap(readyMap)
+      const siguientes = {
+        borde: Boolean(readyMap && beforeIdSiExiste(readyMap, CAPAS_RADAR.borde)),
+        etiqueta: Boolean(readyMap && beforeIdSiExiste(readyMap, CAPAS_RADAR.etiqueta)),
+        mascara: Boolean(readyMap && beforeIdSiExiste(readyMap, CAPAS_RADAR.mascara)),
+      }
+      setCapasExistentes((actuales) =>
+        actuales.borde === siguientes.borde
+        && actuales.etiqueta === siguientes.etiqueta
+        && actuales.mascara === siguientes.mascara
+          ? actuales
+          : siguientes,
+      )
       if (readyMap) setZoom(readyMap.getZoom())
       if (debug && typeof window !== 'undefined') {
         const debugWindow = window as Window & { __radarDebugMap?: MapLibreMap }
@@ -450,6 +462,32 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
     const actualizarZoom = () => setZoom(map.getZoom())
     map.on('zoomend', actualizarZoom)
     return () => { map.off('zoomend', actualizarZoom) }
+  }, [map])
+
+  useEffect(() => {
+    if (!map) return
+
+    const actualizarCapas = () => {
+      const siguientes = {
+        borde: Boolean(beforeIdSiExiste(map, CAPAS_RADAR.borde)),
+        etiqueta: Boolean(beforeIdSiExiste(map, CAPAS_RADAR.etiqueta)),
+        mascara: Boolean(beforeIdSiExiste(map, CAPAS_RADAR.mascara)),
+      }
+      setCapasExistentes((actuales) =>
+        actuales.borde === siguientes.borde
+        && actuales.etiqueta === siguientes.etiqueta
+        && actuales.mascara === siguientes.mascara
+          ? actuales
+          : siguientes,
+      )
+    }
+
+    map.on('styledata', actualizarCapas)
+    map.on('idle', actualizarCapas)
+    return () => {
+      map.off('styledata', actualizarCapas)
+      map.off('idle', actualizarCapas)
+    }
   }, [map])
 
   useEffect(() => {
@@ -525,6 +563,11 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
   }, [activo, onMapClick])
 
   const frameTime = times[frame] ?? ''
+  const beforeMask = capasExistentes.borde ? CAPAS_RADAR.borde : undefined
+  const beforeEtiquetas = capasExistentes.etiqueta ? CAPAS_RADAR.etiqueta : undefined
+  const beforeRaster = inverseMask
+    ? (capasExistentes.mascara ? CAPAS_RADAR.mascara : undefined)
+    : beforeMask
   const debugFrameMatches = rasterFrame?.index === frame && rasterFrame.time === frameTime
   const escuelasVisibles = useMemo(() => {
     if (!map || zoom < 9) return []
@@ -616,37 +659,37 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
           >•</button>
         </Marker>
       ))}
-      {variable === 'granizo' && rainUnderlay && imageCoordinates && (
+      {variable === 'granizo' && rainUnderlay && imageCoordinates && beforeRaster && (
         <Source id="radar-meteo-rain-underlay" type="image" url={rainUnderlay} coordinates={imageCoordinates}>
           <Layer
             id="radar-meteo-rain-base"
             type="raster"
             paint={{ ...paintRaster, 'raster-opacity': 0.25 }}
-            beforeId={antesDelRaster(Boolean(inverseMask))}
+            beforeId={beforeRaster}
           />
         </Source>
       )}
-      {rasterFrame && imageCoordinates && (
+      {rasterFrame && imageCoordinates && beforeRaster && (
         <Source id="radar-meteo-image" type="image" url={rasterFrame.image} coordinates={imageCoordinates}>
           <Layer
             id="radar-meteo-raster"
             type="raster"
             paint={paintRaster}
-            beforeId={antesDelRaster(Boolean(inverseMask))}
+            beforeId={beforeRaster}
           />
         </Source>
       )}
-      {inverseMask && (
+      {inverseMask && beforeMask && (
         <Source id="radar-meteo-inverse-mask-source" type="geojson" data={inverseMask}>
           <Layer
             id="radar-meteo-inverse-mask"
             type="fill"
             paint={{ 'fill-color': '#020811', 'fill-opacity': 1 }}
-            beforeId="infra-departamentos-borde"
+            beforeId={beforeMask}
           />
         </Source>
       )}
-      {debugPoints && (
+      {debugPoints && beforeEtiquetas && (
         <Source id="radar-meteo-debug-points" type="geojson" data={debugPoints}>
           <Layer
             id="radar-meteo-debug-cells"
@@ -657,11 +700,11 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
               'circle-stroke-color': '#ffffff',
               'circle-stroke-width': 1,
             }}
-            beforeId="infra-departamentos-etiqueta"
+            beforeId={beforeEtiquetas}
           />
         </Source>
       )}
-      {windFeatures && (
+      {windFeatures && beforeEtiquetas && (
         <Source id="radar-meteo-wind" type="geojson" data={windFeatures}>
           <Layer
             id="radar-meteo-wind-arrows"
@@ -678,16 +721,16 @@ export function RadarMeteo({ activo, escuelas = [] }: { activo: boolean; escuela
               'text-halo-color': '#0b1724',
               'text-halo-width': 0.75,
             }}
-            beforeId="infra-departamentos-etiqueta"
+            beforeId={beforeEtiquetas}
           />
         </Source>
       )}
 
-      <SelectorRadar value={variable} onChange={setVariable}>
+      {(loading || error) && <div className="radar-meteo-estado">
         {loading && <div className="radar-meteo-loading" role="status">Cargando pronóstico…</div>}
         {loading && <div className="radar-meteo-skeleton" aria-hidden="true" />}
         {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}
-      </SelectorRadar>
+      </div>}
 
       {debug && (
         <output className="radar-meteo-debug-readout" data-frame-matches={debugFrameMatches}>

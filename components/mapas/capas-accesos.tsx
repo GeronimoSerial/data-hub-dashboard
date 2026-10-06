@@ -30,6 +30,7 @@ import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, COLOR_CELDAS_
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
 import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
+import { visibilidadCapa } from '@/lib/infraestructura/mapa/capas'
 
 // ---------------------------------------------------------------------------
 // Ids de capas (los consume la página para `fitBounds` e interactividad)
@@ -64,16 +65,17 @@ function layoutPuntoTerritorial(): SymbolLayerSpecification['layout'] {
 
 // Cruces de la ruta: sí permiten solapamiento, porque un puente y un vado
 // pueden caer muy cerca y ambos deben verse.
-function layoutCruce(): SymbolLayerSpecification['layout'] {
+function layoutCruce(mostrar = true): SymbolLayerSpecification['layout'] {
   return {
     'icon-image': ['get', 'icono'],
     'icon-size': 0.9,
     'icon-allow-overlap': true,
+    visibility: visibilidadCapa(mostrar),
   }
 }
 
-function layoutRuta(): LineLayerSpecification['layout'] {
-  return { 'line-join': 'round', 'line-cap': 'round' }
+function layoutRuta(mostrar = true): LineLayerSpecification['layout'] {
+  return { 'line-join': 'round', 'line-cap': 'round', visibility: visibilidadCapa(mostrar) }
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +91,8 @@ type CapasAccesosTerritorialesProps = {
   visibles: Record<CapaAccesos, boolean>
   iconosListos: boolean
   oscuro: boolean
+  mostrarRuta?: boolean
+  mostrarCruces?: boolean
 }
 
 export function CapasAccesosTerritoriales({
@@ -100,6 +104,8 @@ export function CapasAccesosTerritoriales({
   visibles,
   iconosListos,
   oscuro,
+  mostrarRuta = true,
+  mostrarCruces = true,
 }: CapasAccesosTerritorialesProps) {
   return (
     <>
@@ -134,7 +140,7 @@ export function CapasAccesosTerritoriales({
           <Layer
             id={CAPA_RUTA_ACCESO_CASING_ID}
             type="line"
-            layout={layoutRuta()}
+            layout={layoutRuta(mostrarRuta)}
             paint={{
               'line-color': oscuro ? '#111827' : '#ffffff',
               'line-width': 7,
@@ -143,7 +149,7 @@ export function CapasAccesosTerritoriales({
           <Layer
             id={CAPA_RUTA_ACCESO_ID}
             type="line"
-            layout={layoutRuta()}
+            layout={layoutRuta(mostrarRuta)}
             paint={{ 'line-color': COLOR_RUTA_ACCESO, 'line-width': 4 }}
           />
         </Source>
@@ -151,7 +157,7 @@ export function CapasAccesosTerritoriales({
 
       {ruta !== null && cruces !== null && iconosListos && (
         <Source id={FUENTE_CRUCES_ID} type="geojson" data={cruces}>
-          <Layer id={CAPA_CRUCES_ACCESO_ID} type="symbol" layout={layoutCruce()} />
+          <Layer id={CAPA_CRUCES_ACCESO_ID} type="symbol" layout={layoutCruce(mostrarCruces)} />
         </Source>
       )}
     </>

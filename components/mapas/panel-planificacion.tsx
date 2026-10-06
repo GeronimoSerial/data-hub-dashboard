@@ -35,11 +35,7 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
   const lista = prioridadPlanificacion(escuelas, vista, { territorio })
 
   return (
-    <section className="map-sitact" aria-labelledby="map-planificacion-titulo" data-testid="panel-planificacion">
-      <header className="map-sitact__encabezado">
-        <h2 id="map-planificacion-titulo">Planificación</h2>
-      </header>
-
+    <section className="map-sitact" aria-label="Planificación" data-testid="panel-planificacion">
       <Segmentado
         etiqueta="Vista"
         opciones={VISTAS_PLANIFICACION.map((valor) => ({ valor, etiqueta: ETIQUETA_VISTA[valor] }))}

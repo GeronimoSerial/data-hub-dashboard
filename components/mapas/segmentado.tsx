@@ -16,11 +16,12 @@ export function Segmentado<T extends string | number>(props: {
   opciones: ReadonlyArray<OpcionSegmentada<T>>
   valor: T
   onChange: (valor: T) => void
+  columnas?: 2
 }): JSX.Element {
-  const { etiqueta, opciones, valor, onChange } = props
+  const { etiqueta, opciones, valor, onChange, columnas } = props
 
   return (
-    <div className="map-seg" role="group" aria-label={etiqueta}>
+    <div className={`map-seg${columnas ? ` map-seg--${columnas}` : ''}`} role="group" aria-label={etiqueta}>
       {opciones.map((opcion) => (
         <button
           aria-pressed={opcion.valor === valor}

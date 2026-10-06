@@ -537,7 +537,7 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
     // rigeDesde repartido en las últimas 6 semanas (42 días), con un piso de
     // 7 días: así siempre queda margen para que actualizadaEn (calculado
     // debajo) sea estrictamente posterior a la creación, incluso en el caso
-    // "sin reportar" (actualizado hace más de 72hs, pero nunca ANTES de
+    // "sin actualizar" (actualizado hace más de 72hs, pero nunca ANTES de
     // creado — sería una trayectoria imposible).
     const antiguedadDias = randInt(7, 42)
     const rigeDesdeParte = diasAtras(antiguedadDias, ahora)

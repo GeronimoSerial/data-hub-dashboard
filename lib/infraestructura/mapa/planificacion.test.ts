@@ -12,9 +12,9 @@ import type { NivelPlanificacion } from './planificacion'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 
 const escuelas: EscuelaMapaEnriquecida[] = [
-  { cueAnexo: 'a', nombre: 'Escuela Zeta', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null, niveles: ['Primario'], alumnos: 10, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 2 },
-  { cueAnexo: 'b', nombre: 'Escuela Beta', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null, niveles: ['Inicial'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 5 },
-  { cueAnexo: 'c', nombre: 'Escuela Alfa', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null, niveles: ['Secundario'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0 },
+  { cueAnexo: 'a', nombre: 'Escuela Zeta', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null, niveles: ['Primario'], alumnos: 10, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 2, solucionadasRecientes: 0 },
+  { cueAnexo: 'b', nombre: 'Escuela Beta', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null, niveles: ['Inicial'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 5, solucionadasRecientes: 0 },
+  { cueAnexo: 'c', nombre: 'Escuela Alfa', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null, niveles: ['Secundario'], alumnos: 30, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0, solucionadasRecientes: 0 },
 ]
 
 function territorio(overrides: Partial<NonNullable<TerritorioMapa['aislamiento']>> & Partial<NonNullable<TerritorioMapa['susceptibilidad']>> = {}): TerritorioMapa {

@@ -1,4 +1,7 @@
 import type { FeatureCollection, Point } from 'geojson'
+import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
+import { coloresPlanificacion, type VistaPlanificacion } from './planificacion'
+import type { EscuelaMapaEnriquecida } from './tipos'
 
 export interface PropiedadesPuntoNivel {
   cueAnexo: string
@@ -26,4 +29,13 @@ export function construirPuntosNivel(
       }]
     }),
   }
+}
+
+export function puntosRiesgoSobreSituacion(
+  escuelas: EscuelaMapaEnriquecida[],
+  vista: Extract<VistaPlanificacion, 'aisladas' | 'inundacion'>,
+  territorio: TerritorioMapa | null,
+): FeatureCollection<Point, PropiedadesPuntoNivel> {
+  const puntos = construirPuntosNivel(escuelas, coloresPlanificacion(escuelas, vista, { territorio }))
+  return { ...puntos, features: puntos.features.filter(({ properties }) => properties.conDato) }
 }

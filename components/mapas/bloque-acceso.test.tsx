@@ -11,6 +11,10 @@ const geometria: GeometriaAccesoRespuesta = {
   cueAnexo: '1801605-04',
   disponible: true,
   ruta: { type: 'LineString', coordinates: [[0, 0], [0.01, 0]] },
+  cruces: [
+    { lon: 0.003, lat: 0.001, clasificacion: 'vado' },
+    { lon: 0.006, lat: 0.002, clasificacion: 'sin_evidencia' },
+  ],
   resumen: { puente: 0, vado: 1, sinEvidencia: 1 },
 }
 
@@ -41,9 +45,11 @@ describe('BloqueAcceso', () => {
 
     expect(screen.getByText('Camino de acceso · 1,1 km')).toBeInTheDocument()
     expect(screen.getByText('2 cruces de agua en el camino')).toBeInTheDocument()
+    expect(screen.getByText('1 vado · 1 sin puente registrado')).toBeInTheDocument()
     expect(screen.getByText('Riesgo de corte por inundación: Alto')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-via').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-cruces').querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-cruces-icono')).toHaveAttribute('data-icono', 'alerta')
     expect(screen.getByTestId('bloque-acceso-riesgo').querySelector('svg')).toBeInTheDocument()
   })
 
@@ -64,15 +70,21 @@ describe('BloqueAcceso', () => {
       .toHaveTextContent('Ruta Provincial 13 (pavimentada) → Saladas · 14 km')
   })
 
-  it('muestra el mensaje de ausencia de cruces sin advertencia', () => {
+  it('muestra los cruces con puente sin advertencia', () => {
     render(
       <BloqueAcceso
-        geometria={{ ...geometria, resumen: { puente: 3, vado: 0, sinEvidencia: 0 } }}
+        geometria={{
+          ...geometria,
+          cruces: [{ lon: 0.003, lat: 0.001, clasificacion: 'puente' }],
+          resumen: { puente: 1, vado: 0, sinEvidencia: 0 },
+        }}
         exposicion={null}
       />,
     )
 
-    expect(screen.getByText('Sin cruces de agua')).toBeInTheDocument()
+    expect(screen.getByText('1 cruce de agua en el camino')).toBeInTheDocument()
+    expect(screen.getByText('1 con puente')).toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-cruces-icono')).toHaveAttribute('data-icono', 'ok')
   })
 
   it('muestra el mensaje de ausencia de acceso', () => {

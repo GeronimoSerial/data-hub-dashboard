@@ -464,6 +464,48 @@ describe('listarEscuelasMapa', () => {
 })
 
 describe('listarEscuelasMapaEnriquecidas', () => {
+  it('deriva clases normales y gravedad cero para un parte con sólo situaciones solucionadas', async () => {
+    const cue = 'MAPA-ENRIQ-SOLUCIONADA'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    const parteId = await crearParte(cue)
+    const afectacionId = await crearAfectacion({ parteId, secciones: [] })
+    await getDb().update(infraParte).set({ estadoEstablecimiento: 'evacuado' }).where(eq(infraParte.id, parteId))
+    await getDb().update(infraAfectacion).set({
+      retiradaEn: new Date().toISOString(), cierre: 'solucionada',
+    }).where(eq(infraAfectacion.id, afectacionId))
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0]).toMatchObject({ clases: 'normal', gravedad: 0 })
+  })
+
+  it('ignora edificio y servicio heredados con una única situación abierta de alumnos', async () => {
+    const cue = 'MAPA-ENRIQ-SOLO-ALUMNOS'
+    const seccionId = 98761
+    const alumnoId = 98761001
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    const client = crearEjecutorSql(getRawClient())
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      args: [seccionId, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+    })
+    await client.execute({
+      sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+      args: [seccionId, alumnoId],
+    })
+    const parteId = await crearParte(cue)
+    await getDb().update(infraParte).set({ estadoEstablecimiento: 'evacuado' }).where(eq(infraParte.id, parteId))
+    await crearAfectacion({ parteId, categoria: 'alumnos', secciones: [seccionId], alumnos: [alumnoId] })
+    await crearServicioAlcance({ parteId, tipo: 'establecimiento', estado: 'suspendido' })
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+    const { partes, indicadores } = await listarPartesVigentes({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0]).toMatchObject({ clases: 'normal', gravedad: 3 })
+    expect(partes[0]).toMatchObject({ estadoEstablecimiento: 'habitual', servicio: 'normal', alumnosAlcanzados: 1 })
+    expect(indicadores).toMatchObject({ evacuadas: 0, conServicioSuspendido: 0, alumnosAlcanzados: 1 })
+  })
+
   it('cuenta todas las situaciones históricas por escuela y deja en cero las que no tienen', async () => {
     const cueConHistorial = 'MAPA-ENRIQ-HISTORIAL'
     const cueSinHistorial = 'MAPA-ENRIQ-SIN-HISTORIAL'
@@ -472,8 +514,9 @@ describe('listarEscuelasMapaEnriquecidas', () => {
 
     const parteActual = await crearParte(cueConHistorial)
     const solucionadaId = await crearAfectacion({ parteId: parteActual, secciones: [] })
-    await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
+    const retiradaId = await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
     await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, solucionadaId))
+    await getDb().update(infraAfectacion).set({ cierre: 'retirada' }).where(eq(infraAfectacion.id, retiradaId))
 
     const periodoHistoricoId = 'MAPA-ENRIQ-PERIODO-HISTORICO'
     const ahora = new Date().toISOString()
@@ -500,8 +543,26 @@ describe('listarEscuelasMapaEnriquecidas', () => {
 
     const resultado = await listarEscuelasMapaEnriquecidas({ territorio: 'MAPA-ENRIQ' })
 
-    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(3)
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(2)
     expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueSinHistorial)?.situacionesHistoricas).toBe(0)
+  })
+
+  it('cuenta sólo situaciones solucionadas dentro de los últimos 15 días', async () => {
+    const cue = 'MAPA-ENRIQ-SOLUCIONADAS-RECIENTES'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    const parteId = await crearParte(cue)
+    const ahora = Date.now()
+    const reciente = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 3 * 24 * 60 * 60 * 1000).toISOString() })
+    const vieja = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 20 * 24 * 60 * 60 * 1000).toISOString() })
+    const retirada = await crearAfectacion({ parteId, secciones: [], retiradaEn: new Date(ahora - 2 * 24 * 60 * 60 * 1000).toISOString() })
+    await crearAfectacion({ parteId, secciones: [] })
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, reciente))
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, vieja))
+    await getDb().update(infraAfectacion).set({ cierre: 'retirada' }).where(eq(infraAfectacion.id, retirada))
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0].solucionadasRecientes).toBe(1)
   })
 
   it('incluye niveles y la matrícula del corte vigente', async () => {
