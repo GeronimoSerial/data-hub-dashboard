@@ -150,7 +150,8 @@ import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
-import { CapaPuntosNivel } from '@/components/mapas/capa-puntos-nivel'
+import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
+import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -799,6 +800,21 @@ export default function MapInfraestructuraPage(props: {
   const puntosNivel = useMemo(
     () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
     [dataEscuelasMapaVisible, colorPorCue],
+  )
+  // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
+  const mostrarRiesgoSituacion = props.pestana === 'actual'
+    && !radarActivo
+    && !esPlanificacion
+    && (capasVisibles.escuelasAisladas || capasVisibles.riesgoCorteInundacion)
+  const puntosRiesgo = useMemo(
+    () => mostrarRiesgoSituacion
+      ? puntosRiesgoSobreSituacion(
+        dataEscuelasMapaVisible?.escuelas ?? [],
+        capasVisibles.escuelasAisladas ? 'aisladas' : 'inundacion',
+        territorio,
+      )
+      : construirPuntosNivel([], new Map()),
+    [mostrarRiesgoSituacion, capasVisibles.escuelasAisladas, capasVisibles.riesgoCorteInundacion, dataEscuelasMapaVisible, territorio],
   )
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
@@ -1646,6 +1662,10 @@ export default function MapInfraestructuraPage(props: {
             </Source>
           )}
 
+          {mostrarRiesgoSituacion && (
+            <CapaRiesgoSituacion puntos={puntosRiesgo} beforeId={CAPA_PARTES_ID} />
+          )}
+
           {/*
             V2: badge de estado por escuela NO agrupada. Mismo criterio de
             visibilidad que tenían los marcadores de evacuación
@@ -1904,6 +1924,7 @@ export default function MapInfraestructuraPage(props: {
                 capasVisibles={capasVisibles}
                 onCapasVisiblesChange={setCapasVisibles}
                 haySeleccion={seleccionCue !== null}
+                riesgoDisponible={contextoTerritorial}
               />
             )}
           />

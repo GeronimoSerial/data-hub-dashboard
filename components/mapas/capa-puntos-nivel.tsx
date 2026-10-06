@@ -4,6 +4,9 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 import type { PropiedadesPuntoNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { colorBordeSinReporte, colorEscuelaSinReporte, radioPuntoNivel } from '@/lib/infraestructura/mapa/punto'
 
+export const CAPA_RIESGO_SITUACION_ID = 'infra-riesgo-situacion'
+export const FUENTE_RIESGO_SITUACION_ID = 'infra-riesgo-situacion-src'
+
 const COLOR_BORDE_CLARO = '#1c1c1c'
 const COLOR_BORDE_OSCURO = '#f4f1ec'
 
@@ -26,6 +29,26 @@ export function CapaPuntosNivel(props: {
   return (
     <Source id={props.idFuente} type="geojson" data={props.puntos}>
       <Layer id={props.idCapa} type="circle" paint={paintPuntosNivel(props.oscuro)} />
+    </Source>
+  )
+}
+
+export function CapaRiesgoSituacion(props: {
+  puntos: FeatureCollection<Point, PropiedadesPuntoNivel>
+  beforeId: string
+}) {
+  return (
+    <Source id={FUENTE_RIESGO_SITUACION_ID} type="geojson" data={props.puntos}>
+      <Layer
+        id={CAPA_RIESGO_SITUACION_ID}
+        type="circle"
+        beforeId={props.beforeId}
+        paint={{
+          'circle-color': ['get', 'color'],
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 4.5, 10, 6.5, 14, 8],
+          'circle-opacity': 0.45,
+        }}
+      />
     </Source>
   )
 }

@@ -4,12 +4,14 @@ import { resolve } from 'node:path'
 import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa } from './capas'
 
 describe('capas opcionales del mapa', () => {
-  it('activa por defecto límites, nombres, ruta y cruces', () => {
+  it('activa referencias por defecto y deja apagadas las capas de riesgo', () => {
     expect(CAPAS_VISIBLES_DEFAULT).toEqual({
       limitesDepartamentos: true,
       nombresDepartamentos: true,
       rutaAcceso: true,
       crucesAgua: true,
+      escuelasAisladas: false,
+      riesgoCorteInundacion: false,
     })
   })
 
@@ -27,5 +29,16 @@ describe('capas opcionales del mapa', () => {
     const rellenoInicio = pagina.indexOf('id={CAPA_DEPARTAMENTOS_RELLENO_ID}')
     const relleno = pagina.slice(pagina.lastIndexOf('<Layer', rellenoInicio), pagina.indexOf('/>', rellenoInicio))
     expect(relleno).not.toMatch(/layout=/)
+  })
+
+  it('monta la capa de riesgo después de la fuente de partes y fuera de las capas interactivas', () => {
+    const pagina = readFileSync(resolve(process.cwd(), 'components/mapas/map-infraestructura-page.tsx'), 'utf8')
+    const inicioRiesgo = pagina.indexOf('<CapaRiesgoSituacion')
+    const inicioPartes = pagina.indexOf('<Source\n              id="infra-partes-src"')
+    const inicioInteractivas = pagina.indexOf('const capasInteractivas = [')
+    const interactivas = pagina.slice(inicioInteractivas, pagina.indexOf('\n  ]', inicioInteractivas))
+    expect(inicioRiesgo).toBeGreaterThanOrEqual(0)
+    expect(inicioRiesgo).toBeGreaterThan(inicioPartes)
+    expect(interactivas).not.toContain('infra-riesgo-situacion')
   })
 })

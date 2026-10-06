@@ -181,6 +181,8 @@
 /* Panel de Situación actual del mapa de infraestructura. */
 .map-sitact { display: grid; gap: var(--s-4); align-content: start; }
 .map-capas__grupo { display: grid; gap: var(--s-2); }
+.map-capas__escala-riesgo { display: flex; flex-wrap: wrap; gap: var(--s-2); font-size: var(--t-micro); }
+.map-capas__muestra-riesgo { width: 0.55rem; height: 0.55rem; border-radius: var(--r-xs); }
 .map-sitact__kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 .map-sitact__kpi { display: grid; gap: var(--s-1); padding: var(--s-3); border-radius: var(--r-md); background: var(--fill); }
 .map-sitact__kpi strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
