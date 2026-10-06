@@ -179,6 +179,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00,1800087-00')
     expect(montajesMapa.total).toBe(1)
 
+    await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)

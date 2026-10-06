@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FiltrosChips } from './filtros-chips'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type FiltrosMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -56,7 +56,50 @@ function FiltrosControlados({ escuelas, onSeleccionar }: {
   return <FiltrosChips escuelas={escuelas} filtros={filtros} onChange={setFiltros} onSeleccionar={onSeleccionar} />
 }
 
-afterEach(cleanup)
+let anchoContenedor = 500
+const anchosMedicion: Record<string, number> = {
+  departamentos: 100, niveles: 70, gravedades: 85, clases: 75,
+  apoyo: 150, sinActualizar: 115, solucionadasRecientes: 205, mas: 115,
+}
+const observadores: ResizeObserverCallback[] = []
+
+class ResizeObserverControlado {
+  constructor(callback: ResizeObserverCallback) { observadores.push(callback) }
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+function dispararResize() {
+  act(() => observadores.forEach((callback) => callback([], {} as ResizeObserver)))
+}
+
+vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+  if (this.matches('.filtros-barra')) return { width: anchoContenedor, height: 36, top: 0, left: 0, right: anchoContenedor, bottom: 36, x: 0, y: 0, toJSON: () => ({}) }
+  const clave = this.getAttribute('data-medicion-filtro')
+  if (clave) {
+    const width = anchosMedicion[clave] ?? 0
+    return { width, height: 36, top: 0, left: 0, right: width, bottom: 36, x: 0, y: 0, toJSON: () => ({}) }
+  }
+  return { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0, x: 0, y: 0, toJSON: () => ({}) }
+})
+Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+  configurable: true,
+  get() {
+    if (this.matches('.filtros-barra')) return anchoContenedor
+    const clave = this.getAttribute('data-medicion-filtro')
+    return clave ? anchosMedicion[clave] ?? 0 : 0
+  },
+})
+
+beforeEach(() => vi.stubGlobal('ResizeObserver', ResizeObserverControlado))
+
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+  anchoContenedor = 500
+  observadores.length = 0
+})
 
 describe('FiltrosChips', () => {
   it('deja Departamento, Nivel, Gravedad y Clases en el grupo de chips en línea', () => {
@@ -90,28 +133,88 @@ describe('FiltrosChips', () => {
     expect(reglaPopover).toMatch(/max-height:/)
   })
 
-  it('mantiene un único quiebre en rango 1100–1250 px y agrupa las reglas compactas', () => {
+  it('contrasta el contador de filtros activos dentro del botón activo', () => {
     const css = readFileSync('app/globals.css', 'utf8')
-    const bloques = [...css.matchAll(/@container\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\}/g)]
-      .filter(([, , reglas]) => reglas?.includes('.mapa-pestanas-barra .filtros-compactos-boton')
-        || reglas?.includes('.mapa-pestanas-barra .filtros-controles'))
+    const regla = css.match(/\.filtros-chip--activo \.filtros-chip__contador\s*\{[^}]*\}/)?.[0]
 
-    expect(bloques).toHaveLength(1)
-    const condicion = bloques[0]?.[1] ?? ''
-    const ancho = Number(condicion.match(/max-width:\s*(\d+)px/)?.[1])
-    expect(ancho).toBe(1200)
-    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-compactos-boton')
-    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-controles')
-    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-chips-principales')
-    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-mas')
-    expect(bloques[0]?.[2]).toMatch(/\.filtros-mas\s*\{[^}]*display:\s*none/)
+    expect(regla).toBeDefined()
+    expect(regla).toMatch(/background:\s*var\(--page\)/)
+    expect(regla).toMatch(/color:\s*var\(--ink\)/)
   })
 
-  it('mantiene cuatro chips principales en una sola línea en modo ancho', () => {
+  it('elimina el breakpoint compacto y hace flexible la fila de filtros', () => {
     const css = readFileSync('app/globals.css', 'utf8')
-    const regla = css.match(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*\}/)?.[0]
+    expect(css).not.toContain('@container (max-width: 1200px)')
+    expect(css).not.toContain('.filtros-compactos-boton')
+    expect(css).not.toContain('.filtros-controles')
+    const regla = css.match(/\.mapa-pestanas-barra \.filtros-barra\s*\{[^}]*\}/)?.[0]
+    expect(regla).toMatch(/flex:\s*1 1 0/)
+    expect(regla).toMatch(/min-width:\s*0/)
+    expect(regla).toMatch(/justify-content:\s*flex-end/)
+    expect(css).toMatch(/\.map-filtros-medicion\s*\{[^}]*visibility:\s*hidden/)
+  })
 
-    expect(regla).toMatch(/flex-wrap:\s*nowrap/)
+  it('mide los siete filtros en una fila oculta sin duplicar controles accesibles', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    renderFiltros()
+    const fila = document.querySelector<HTMLElement>('.map-filtros-medicion')
+    expect(fila).toHaveAttribute('aria-hidden', 'true')
+    const regla = readFileSync('app/globals.css', 'utf8').match(/\.map-filtros-medicion\s*\{[^}]*\}/)?.[0]
+    expect(regla).toMatch(/visibility:\s*hidden/)
+    expect(regla).toMatch(/position:\s*absolute/)
+    expect(fila?.querySelectorAll('[data-medicion-filtro]')).toHaveLength(8)
+    expect(screen.getAllByRole('button', { name: 'Departamento' })).toHaveLength(1)
+    expect(css).toMatch(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*flex-wrap:\s*nowrap/)
+  })
+
+  it('muestra los siete filtros en línea cuando hay ancho de sobra', () => {
+    anchoContenedor = 1200
+    renderFiltros()
+    dispararResize()
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(5)
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip--interruptor')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /Más filtros/ })).not.toBeInTheDocument()
+  })
+
+  it('deja cinco filtros en línea y lleva los otros dos al panel en el ancho justo', async () => {
+    anchoContenedor = 660
+    renderFiltros()
+    dispararResize()
+    expect(document.querySelectorAll('.filtros-chips-principales .filtros-chip-grupo')).toHaveLength(5)
+    const boton = screen.getByRole('button', { name: 'Más filtros' })
+    await userEvent.setup().click(boton)
+    const panel = screen.getByRole('dialog', { name: 'Más filtros' })
+    expect(within(panel).getByRole('switch', { name: 'Sin actualizar' })).toBeInTheDocument()
+    expect(within(panel).getByRole('switch', { name: 'Solucionadas en los últimos 15 días' })).toBeInTheDocument()
+    expect(within(panel).queryByText('Departamento')).not.toBeInTheDocument()
+  })
+
+  it('pone todos los filtros en el panel cuando sólo cabe el botón', async () => {
+    anchoContenedor = 130
+    renderFiltros()
+    dispararResize()
+    const boton = screen.getByRole('button', { name: 'Filtros' })
+    await userEvent.setup().click(boton)
+    const panel = screen.getByRole('dialog', { name: 'Filtros' })
+    expect(within(panel).getByText('Departamento')).toBeInTheDocument()
+    expect(within(panel).getByText('Asistencia pedagógica')).toBeInTheDocument()
+    expect(within(panel).getByRole('switch', { name: 'Sin actualizar' })).toBeInTheDocument()
+    expect(within(panel).getByRole('switch', { name: 'Solucionadas en los últimos 15 días' })).toBeInTheDocument()
+  })
+
+  it('recalcula al ensanchar el contenedor y muestra contador activo dentro del chip Más filtros', () => {
+    anchoContenedor = 500
+    const filtros = { ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true }
+    const { rerender } = renderFiltros(filtros)
+    dispararResize()
+    const boton = screen.getByRole('button', { name: 'Más filtros, 1 activos' })
+    expect(boton).toHaveClass('filtros-chip', 'filtros-chip--activo')
+    expect(boton.querySelector('svg')).toBeInTheDocument()
+    expect(boton).toHaveTextContent('1')
+    anchoContenedor = 2000
+    rerender(<FiltrosChips escuelas={padronEjemplo} filtros={filtros} onChange={vi.fn()} />)
+    dispararResize()
+    expect(screen.queryByRole('button', { name: /Más filtros/ })).not.toBeInTheDocument()
   })
 
   it('abre Más filtros con asistencia pedagógica y dos switches, y cuenta todos los activos', async () => {
@@ -164,20 +267,21 @@ describe('FiltrosChips', () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...filtros, niveles: [] })
   })
 
-  it('Limpiar filtros aparece sólo con algún filtro activo', () => {
+  it('Limpiar filtros aparece sólo con algún filtro activo', async () => {
     const { rerender } = renderFiltros()
     expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument()
 
     rerender(<FiltrosChips escuelas={padronEjemplo} filtros={{ ...FILTROS_MAPA_VACIOS, q: 'Goya' }} onChange={() => {}} />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Más filtros' }))
     expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
   })
 
-  it('mantiene Limpiar filtros junto a los interruptores en el panel compacto', () => {
+  it('mantiene Limpiar filtros dentro del panel de filtros', async () => {
     renderFiltros({ ...FILTROS_MAPA_VACIOS, q: 'Goya' })
-
-    const sinActualizar = screen.getByRole('button', { name: 'Sin actualizar' })
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Más filtros' }))
+    const sinActualizar = screen.getByRole('switch', { name: 'Sin actualizar' })
     const limpiar = screen.getByRole('button', { name: 'Limpiar filtros' })
-    const contenedor = sinActualizar.closest('.filtros-chip-final')
+    const contenedor = sinActualizar.closest('.map-filtros-mas-panel')
 
     expect(contenedor).not.toBeNull()
     expect(contenedor).toContainElement(limpiar)
@@ -292,9 +396,8 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    const chip = document.querySelector<HTMLElement>('.filtros-controles .filtros-chip--interruptor')
-    if (chip === null) throw new Error('No se encontró el interruptor Sin actualizar')
-    await user.click(chip)
+    await user.click(screen.getByRole('button', { name: 'Más filtros' }))
+    await user.click(screen.getByRole('switch', { name: 'Sin actualizar' }))
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ sinActualizar: true }))
   })
 
@@ -303,19 +406,16 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     const { rerender } = renderFiltros(FILTROS_MAPA_VACIOS, onChange)
     const nombre = 'Solucionadas en los últimos 15 días'
-    const chip = document.querySelector<HTMLElement>('.filtros-controles .filtros-chip--interruptor:last-of-type')
-    if (chip === null) throw new Error('No se encontró el interruptor de situaciones solucionadas')
-
-    expect(chip).toHaveClass('filtros-chip--interruptor')
-    expect(chip).toHaveAccessibleName(nombre)
-    expect(chip).toHaveAttribute('aria-pressed', 'false')
-    await user.click(chip)
+    await user.click(screen.getByRole('button', { name: 'Más filtros' }))
+    const interruptor = screen.getByRole('switch', { name: nombre })
+    expect(interruptor).toHaveAttribute('aria-checked', 'false')
+    await user.click(interruptor)
     expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true })
 
     rerender(<FiltrosChips escuelas={padronEjemplo} filtros={{ ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true }} onChange={onChange} />)
-    expect(screen.getByRole('button', { name: /Solucionadas en los últimos 15 días/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Más filtros, 1 activos' })).toHaveClass('filtros-chip--activo')
     expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /Solucionadas en los últimos 15 días/ }))
+    await user.click(screen.getByRole('switch', { name: nombre }))
     expect(onChange).toHaveBeenLastCalledWith(FILTROS_MAPA_VACIOS)
   })
 
@@ -429,19 +529,18 @@ describe('FiltrosChips', () => {
     expect(screen.queryByText('1800087-00')).not.toBeInTheDocument()
   })
 
-  it('abre y cierra el panel compacto con Escape o clic fuera y cuenta los filtros activos', async () => {
+  it('abre y cierra el panel de filtros con Escape o clic fuera', async () => {
     const user = userEvent.setup()
+    anchoContenedor = 130
     renderFiltros({ ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], sinActualizar: true })
+    dispararResize()
     const boton = screen.getByRole('button', { name: 'Filtros, 2 activos' })
-    const barra = boton.closest('.filtros-barra')
-
-    expect(barra).toHaveAttribute('data-abierto', 'false')
     await user.click(boton)
-    expect(barra).toHaveAttribute('data-abierto', 'true')
+    expect(screen.getByRole('dialog', { name: 'Filtros' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
-    expect(barra).toHaveAttribute('data-abierto', 'false')
+    expect(screen.queryByRole('dialog', { name: 'Filtros' })).not.toBeInTheDocument()
     await user.click(boton)
     await user.click(document.body)
-    expect(barra).toHaveAttribute('data-abierto', 'false')
+    expect(screen.queryByRole('dialog', { name: 'Filtros' })).not.toBeInTheDocument()
   })
 })

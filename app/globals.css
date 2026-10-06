@@ -5147,7 +5147,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   overflow: visible;
   padding: var(--s-1) var(--gutter);
   background: var(--page);
-  container-type: inline-size;
 }
 .mapa-pestanas-barra > .ui-tabs { flex: 0 0 auto; min-width: 0; }
 .mapa-pestanas-barra .ui-tabs-list { flex-wrap: nowrap; }
@@ -5187,7 +5186,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: var(--page);
   overflow: visible;
 }
-.mapa-pestanas-barra .filtros-barra { padding: 0; border: 0; background: transparent; }
+.mapa-pestanas-barra .filtros-barra { flex: 1 1 0; min-width: 0; justify-content: flex-end; padding: 0; border: 0; background: transparent; }
 .mapa-pestanas-barra .filtros-chips-principales {
   display: flex;
   flex: 0 0 auto;
@@ -5197,7 +5196,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-width: max-content;
 }
 .mapa-pestanas-barra .filtros-mas { display: flex; flex: 0 0 auto; }
-.mapa-pestanas-barra .filtros-controles { display: none; }
 .filtros-busqueda {
   display: flex;
   flex: 1 1 auto;
@@ -5228,9 +5226,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .filtros-busqueda-contenedor--abierto { flex: 0 1 15rem; min-width: 10rem; }
 .filtros-busqueda-contenedor .filtros-busqueda { width: 100%; }
-.filtros-busqueda-boton,
-.filtros-compactos-boton,
-.mapa-pestanas-barra .filtros-mas-boton {
+.filtros-busqueda-boton {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -5246,18 +5242,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font: inherit;
   cursor: pointer;
 }
-.filtros-busqueda-boton svg,
-.filtros-compactos-boton svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
-.filtros-busqueda-boton:focus-visible,
-.filtros-compactos-boton:focus-visible,
-.mapa-pestanas-barra .filtros-mas-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
-.filtros-compactos-boton { display: none; white-space: nowrap; }
-.mapa-pestanas-barra .filtros-mas-boton {
-  display: inline-flex;
-  white-space: nowrap;
-}
-.filtros-compactos-boton span,
-.mapa-pestanas-barra .filtros-mas-boton span {
+.filtros-busqueda-boton svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.filtros-busqueda-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.mapa-pestanas-barra .filtros-chip__contador {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5268,26 +5255,28 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   color: var(--page);
   font-size: var(--t-small);
 }
-.filtros-controles {
-  display: flex;
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--s-2);
-  min-width: max-content;
+.filtros-chip--activo .filtros-chip__contador {
+  background: var(--page);
+  color: var(--ink);
 }
-.filtros-chip-final {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: var(--s-2);
+.map-filtros-medicion {
+  display: flex;
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
   white-space: nowrap;
 }
+.map-filtros-medicion > div { display: flex; flex: 0 0 auto; }
+.map-filtros-medicion .filtros-chip-grupo { flex: 0 0 auto; }
+.map-filtros-medicion [data-medicion-filtro="mas"] { flex: 0 0 auto; }
 .map-filtros-mas-posicionador { z-index: var(--z-popup); }
 .map-filtros-mas-panel {
   display: grid;
   gap: var(--s-3);
   min-width: 19rem;
+  max-width: calc(100vw - 2 * var(--gutter));
   padding: var(--s-3);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
@@ -5302,35 +5291,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   font-weight: 600;
 }
 
-/* Cuatro chips (~410 px + 24 de gaps), Más filtros (~120 px), lupa (44 px),
-   pestañas (~540–600 px) y gaps (~40 px) suman ~1.180–1.240 px; a 1456 px
-   queda holgura y el quiebre a 1200 px activa el modo compacto. */
-@container (max-width: 1200px) {
-  .mapa-pestanas-barra .filtros-chips-principales { display: none; }
-  .mapa-pestanas-barra .filtros-mas { display: none; }
-  .mapa-pestanas-barra .filtros-compactos-boton { display: inline-flex; }
-  .mapa-pestanas-barra .filtros-controles {
-    position: absolute;
-    z-index: var(--z-popup);
-    top: calc(100% + var(--s-1));
-    right: 0;
-    display: none;
-    width: min(22rem, calc(100vw - 2 * var(--gutter)));
-    min-width: 0;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-    gap: var(--s-2);
-    padding: var(--s-3);
-    border: 1px solid var(--line);
-    border-radius: var(--r-md);
-    background: var(--card);
-    box-shadow: var(--e-float);
-    overflow: visible;
-  }
-  .mapa-pestanas-barra .filtros-barra[data-abierto='true'] .filtros-controles { display: grid; }
-  .mapa-pestanas-barra .filtros-controles .filtros-chip-final { display: grid; white-space: normal; }
-  .mapa-pestanas-barra .filtros-controles .filtros-chip { justify-content: flex-start; white-space: normal; }
-}
 .filtros-sugerencias {
   position: absolute;
   z-index: var(--z-popup);
