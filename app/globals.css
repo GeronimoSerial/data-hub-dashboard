@@ -245,6 +245,8 @@
 
 /* Control segmentado compartido por Radar y Planificación. */
 .map-seg { display: flex; flex-wrap: wrap; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.map-seg--2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.map-seg--2 .map-seg__opcion { padding-inline: var(--s-1); font-size: var(--t-small); white-space: nowrap; }
 .map-seg__opcion { flex: 1 1 7rem; min-width: 0; max-width: 100%; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
 .map-seg__opcion[aria-pressed='true'] { background: var(--page); color: var(--ink); box-shadow: 0 1px 2px var(--line); }
 .map-seg__opcion[aria-disabled='true'] { color: var(--ink-faint); cursor: not-allowed; }

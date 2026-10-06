@@ -59,6 +59,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         opciones={VARIABLES_RADAR_UI.map((valor) => ({ valor, etiqueta: ETIQUETAS_VARIABLE_RADAR[valor] }))}
         valor={variable}
         onChange={onVariable}
+        columnas={2}
       />
 
       {cargando ? (

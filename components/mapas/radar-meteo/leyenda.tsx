@@ -5,10 +5,10 @@ import { formatearAntiguedad } from './escalas'
 import type { VariableRadarUI } from './selector'
 
 const titulos: Record<VariableRadarUI, string> = {
-  lluvia: 'Lluvia (mm)',
+  lluvia: 'Lluvia',
   probabilidad: 'Probabilidad',
   viento: 'Viento',
-  granizo: 'Granizo',
+  granizo: 'Granizo (estimado)',
 }
 
 const unidades: Record<VariableRadarUI, string> = {
