@@ -323,7 +323,37 @@ vi.mock('@/lib/infraestructura/use-exposicion-ruta', () => ({
 // (devolver null/vacío sin datos).
 const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] as unknown[] }))
 const estadoRadar = vi.hoisted(() => ({ sinPronostico: false }))
-const estadoRadarMeteo = vi.hoisted(() => ({ sinDatos: false }))
+const estadoRadarMeteo = vi.hoisted(() => ({ sinDatos: false, conResumen: false }))
+
+vi.mock('@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo', () => ({
+  useResumenRadarMeteo: () => ({
+    resumen: estadoRadarMeteo.conResumen
+      ? {
+          runId: 'run-test',
+          runAt: '2026-10-06T12:00:00Z',
+          sinDatos: false,
+          frescura: null,
+          dias: ['2026-10-06'],
+          departamentos: [
+            {
+              id: '18133',
+              nombre: 'San Cosme',
+              dias: [{ fecha: '2026-10-06', lluvia24h: 24, lluviaLocalMax: 24, rafagaMaxKmh: null, picoHora: null, tormenta: false, granizoMax: null, cobertura: 100, resaltado: { lluvia: null, rafaga: null }, ensamble: null }],
+              proximas48h: [],
+            },
+            {
+              id: '18001',
+              nombre: 'Bella Vista',
+              dias: [{ fecha: '2026-10-06', lluvia24h: 10, lluviaLocalMax: 10, rafagaMaxKmh: null, picoHora: null, tormenta: false, granizoMax: null, cobertura: 100, resaltado: { lluvia: null, rafaga: null }, ensamble: null }],
+              proximas48h: [],
+            },
+          ],
+          alertasSmn: [],
+        }
+      : estadoRadarMeteo.sinDatos ? { runId: null, runAt: null, sinDatos: true, frescura: null, dias: [], departamentos: [], alertasSmn: [] } : null,
+    error: false,
+  }),
+}))
 
 vi.mock('@/lib/infraestructura/radar-meteo/use-radar-meteo', () => ({
   useRadarMeteo: () => ({
@@ -798,6 +828,7 @@ beforeEach(() => {
   llamadasRadar.filtros.length = 0
   estadoRadar.sinPronostico = false
   estadoRadarMeteo.sinDatos = false
+  estadoRadarMeteo.conResumen = false
   llamadasTerritorio.habilitados.length = 0
   llamadasGeometria.cues.length = 0
   llamadasGeometria.habilitados.length = 0
@@ -950,6 +981,39 @@ describe('MapInfraestructuraPage — orquestación de modales', () => {
 })
 
 describe('MapInfraestructuraPage — modo Radar', () => {
+  it('centra el mapa al elegir un departamento del pronóstico y limpia al repetir el clic', async () => {
+    estadoRadarMeteo.sinDatos = true
+    estadoRadarMeteo.conResumen = true
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: { id: '18133', nombre: 'San Cosme', centroide: { lon: -58.5, lat: -27.3 } },
+            geometry: { type: 'Polygon', coordinates: [[[-58.6, -27.4], [-58.4, -27.4], [-58.4, -27.2], [-58.6, -27.4]]] },
+          },
+          {
+            type: 'Feature',
+            properties: { id: '18001', nombre: 'Bella Vista', centroide: { lon: -59.0, lat: -28.5 } },
+            geometry: { type: 'Polygon', coordinates: [[[-59.1, -28.6], [-58.9, -28.6], [-58.9, -28.4], [-59.1, -28.6]]] },
+          },
+        ],
+      }),
+    }))
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
+
+    const fila = await screen.findByRole('button', { name: /San Cosme/ })
+    await userEvent.click(fila)
+    expect(FLY_TO_MOCK).toHaveBeenCalledTimes(1)
+    expect(FLY_TO_MOCK).toHaveBeenCalledWith({ center: [-58.5, -27.3], zoom: 8, duration: 800 })
+
+    await userEvent.click(fila)
+    expect(FLY_TO_MOCK).toHaveBeenCalledTimes(1)
+    expect(fila).toHaveAttribute('aria-pressed', 'false')
+  })
+
   it('muestra el panel lateral de Situación actual y no el panel de Radar', async () => {
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
 
@@ -1029,7 +1093,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 
     expect(llamadasRadar.activos.at(-1)).toBe(true)
     expect(screen.getAllByRole('group', { name: 'Variable meteorológica' })).toHaveLength(1)
-    expect(screen.getByText('Consultando alertas…')).toBeInTheDocument()
+    expect(screen.queryByText('Consultando alertas…')).not.toBeInTheDocument()
     const variables = screen.getByRole('group', { name: 'Variable meteorológica' })
     expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(within(variables).getByRole('button', { name: 'Viento' }))
@@ -1105,14 +1169,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(within(panel).getByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
-  it('sin horizontes con datos muestra el aviso y deshabilita las tres opciones', async () => {
+  it('sin horizontes del motor mantiene la carga del pronóstico meteorológico', async () => {
     estadoRadar.sinPronostico = true
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    expect(screen.getByText('Cargando pronóstico…')).toBeInTheDocument()
     const grupo = screen.getByRole('group', { name: 'Horizonte' })
     for (const nombre of ['24 h', '72 h', '10 días']) {
-      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'true')
+      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'false')
     }
   })
 

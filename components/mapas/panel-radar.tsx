@@ -2,6 +2,8 @@
 
 import type { JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
+import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
+import { PronosticoResumen } from '@/components/mapas/radar-meteo/pronostico-resumen'
 import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
@@ -11,8 +13,11 @@ import {
   ETIQUETA_NIVEL_RIESGO,
   resumirRiesgo,
 } from '@/lib/infraestructura/mapa/radar'
+import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
+import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import type { GrupoAlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 
 export interface PanelRadarProps {
   horizonte: HorizonteMotor
@@ -27,23 +32,39 @@ export interface PanelRadarProps {
   cargando: boolean
   error: string | null
   onSeleccionar: (cueAnexo: string) => void
+  alertas: {
+    grupos: GrupoAlertaRadar[]
+    cargando: boolean
+    error: boolean
+    claveSeleccionada: string | null
+    onSeleccionar: (clave: string | null) => void
+  }
+  pronostico: {
+    resumen: ResumenRadarMeteo | null
+    cargando: boolean
+    error: boolean
+    departamentoId: string | null
+    onDepartamento: (id: string | null) => void
+  }
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
-  const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar } = props
+  const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas, pronostico } = props
+  const hayMotor = disponibles.length > 0
+  const hayPronostico = pronostico.resumen !== null && !pronostico.resumen.sinDatos && pronostico.resumen.departamentos.length > 0
+  const pronosticoHorizonte = hayPronostico && pronostico.resumen ? pronosticoPorHorizonte(pronostico.resumen, horizonte) : null
   const opciones = HORIZONTES.map((valor) => ({
     valor,
     etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor],
-    deshabilitada: !disponibles.includes(valor),
+    deshabilitada: hayMotor && !disponibles.includes(valor),
     titulo: 'Sin datos para este horizonte',
   }))
   const lista = puntos === null ? [] : escuelasPorRiesgo(puntos, escuelas, horizonte)
     .filter(({ nivel }) => nivel === 'muy_alto' || nivel === 'alto' || nivel === 'moderado')
   const resumen = resumirRiesgo(lista)
-  const sinPronostico = disponibles.length === 0
 
   return (
     <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
@@ -52,6 +73,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         opciones={opciones}
         valor={horizonte}
         onChange={onHorizonte}
+        columnas={3}
       />
 
       <Segmentado
@@ -62,55 +84,72 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         columnas={2}
       />
 
-      {cargando ? (
-        <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
-      ) : error ? (
-        <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
-      ) : sinPronostico ? (
-        <p className="map-sitact__vacio">Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.</p>
-      ) : (
-        <>
-          <div className="map-sitact__kpis" aria-label="Resumen de riesgo">
-            <div className="map-sitact__kpi map-sitact__kpi--resaltado">
-              <strong>{FORMATO_NUMERO.format(resumen.escuelasAltas)}</strong>
-              <span>Riesgo alto o muy alto</span>
-            </div>
-            <div className="map-sitact__kpi">
-              <strong>{FORMATO_NUMERO.format(resumen.alumnosAltos)}</strong>
-              <span>Alumnos en esas escuelas</span>
-            </div>
-          </div>
+      <AlertasSeccion {...alertas} />
 
-          <section aria-labelledby="map-radar-riesgo-titulo">
-            <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
-            {lista.length > 0 ? (
-              <div className="map-sitact__lista">
-                {lista.map(({ escuela, nivel }) => {
-                  const departamento = etiquetaDepartamento(escuela.departamento)
-                  const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
-                  return (
-                    <button
-                      key={escuela.cueAnexo}
-                      type="button"
-                      className="map-sitact__fila"
-                      onClick={() => onSeleccionar(escuela.cueAnexo)}
-                      aria-label={`${escuela.nombre}, ${departamento}`}
-                    >
-                      <span className="map-sitact__franja" style={{ backgroundColor: colorRiesgo(nivel) }} />
-                      <span className="map-sitact__contenido-fila">
-                        <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
-                        <span className="map-sitact__meta">{departamento}{niveles}</span>
-                      </span>
-                      <span className="map-sitact__cuando">{ETIQUETA_NIVEL_RIESGO[nivel]}</span>
-                    </button>
-                  )
-                })}
+      {hayMotor ? (
+        <>
+          {cargando ? (
+            <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+          ) : error ? (
+            <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
+          ) : (
+            <>
+              <div className="map-sitact__kpis" aria-label="Resumen de riesgo">
+                <div className="map-sitact__kpi map-sitact__kpi--resaltado">
+                  <strong>{FORMATO_NUMERO.format(resumen.escuelasAltas)}</strong>
+                  <span>Riesgo alto o muy alto</span>
+                </div>
+                <div className="map-sitact__kpi">
+                  <strong>{FORMATO_NUMERO.format(resumen.alumnosAltos)}</strong>
+                  <span>Alumnos en esas escuelas</span>
+                </div>
               </div>
-            ) : (
-              <p className="map-sitact__vacio">Ninguna escuela en riesgo para estos filtros.</p>
-            )}
-          </section>
+
+              <section aria-labelledby="map-radar-riesgo-titulo">
+                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
+                {lista.length > 0 ? (
+                  <div className="map-sitact__lista">
+                    {lista.map(({ escuela, nivel }) => {
+                      const departamento = etiquetaDepartamento(escuela.departamento)
+                      const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
+                      return (
+                        <button
+                          key={escuela.cueAnexo}
+                          type="button"
+                          className="map-sitact__fila"
+                          onClick={() => onSeleccionar(escuela.cueAnexo)}
+                          aria-label={`${escuela.nombre}, ${departamento}`}
+                        >
+                          <span className="map-sitact__franja" style={{ backgroundColor: colorRiesgo(nivel) }} />
+                          <span className="map-sitact__contenido-fila">
+                            <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
+                            <span className="map-sitact__meta">{departamento}{niveles}</span>
+                          </span>
+                          <span className="map-sitact__cuando">{ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="map-sitact__vacio">Ninguna escuela en riesgo para estos filtros.</p>
+                )}
+              </section>
+            </>
+          )}
+          {pronosticoHorizonte ? (
+            <PronosticoResumen pronostico={pronosticoHorizonte} horizonte={horizonte} runAt={pronostico.resumen?.runAt ?? null} departamentoId={pronostico.departamentoId} onDepartamento={pronostico.onDepartamento} />
+          ) : pronostico.cargando ? (
+            <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+          ) : null}
         </>
+      ) : pronostico.cargando && !hayPronostico || cargando && !hayPronostico ? (
+        <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>
+      ) : hayPronostico && pronosticoHorizonte ? (
+        <PronosticoResumen pronostico={pronosticoHorizonte} horizonte={horizonte} runAt={pronostico.resumen?.runAt ?? null} departamentoId={pronostico.departamentoId} onDepartamento={pronostico.onDepartamento} />
+      ) : error !== null && pronostico.error ? (
+        <p role="status" className="map-sitact__vacio">No se pudo cargar el pronóstico. Intente de nuevo más tarde.</p>
+      ) : (
+        <p className="map-sitact__vacio">Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.</p>
       )}
     </section>
   )

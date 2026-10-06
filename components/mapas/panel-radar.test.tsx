@@ -5,6 +5,21 @@ import { PanelRadar } from './panel-radar'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { VariableRadarUI } from './radar-meteo/selector'
+import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
+
+function resumenMeteo(): ResumenRadarMeteo {
+  const dia = (lluvia24h: number) => ({ fecha: '2026-10-06', lluvia24h, lluviaLocalMax: lluvia24h, rafagaMaxKmh: 25, picoHora: null, tormenta: false, granizoMax: null, cobertura: 100, resaltado: { lluvia: null, rafaga: null }, ensamble: null })
+  return {
+    runId: 'test-run', runAt: '2026-10-06T12:00:00Z', sinDatos: false, frescura: null, dias: ['2026-10-06', '2026-10-07'], alertasSmn: [],
+    departamentos: [
+      { id: 'goya', nombre: 'Goya', dias: [dia(12), dia(20)], proximas48h: [] },
+      { id: 'bella-vista', nombre: 'Bella Vista', dias: [dia(30), dia(40)], proximas48h: [] },
+      { id: 'alv', nombre: 'General Alvear', dias: [dia(0), dia(0)], proximas48h: [] },
+    ],
+  }
+}
+
+const pronosticoVacio = { resumen: null, cargando: false, error: false, departamentoId: null, onDepartamento: vi.fn() }
 
 const escuelas: EscuelaMapaEnriquecida[] = [
   {
@@ -56,6 +71,8 @@ function props(overrides: Partial<React.ComponentProps<typeof PanelRadar>> = {})
     cargando: false,
     error: null,
     onSeleccionar: vi.fn(),
+    alertas: { grupos: [], cargando: false, error: false, claveSeleccionada: null, onSeleccionar: vi.fn() },
+    pronostico: pronosticoVacio,
     ...overrides,
   }
 }
@@ -142,10 +159,10 @@ describe('PanelRadar', () => {
     expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el pronóstico. Intente de nuevo más tarde.')
     error.unmount()
 
-    const sinPronostico = render(<PanelRadar {...props({ disponibles: [] })} />)
+    const sinPronostico = render(<PanelRadar {...props({ disponibles: [], pronostico: { ...pronosticoVacio, resumen: { ...resumenMeteo(), sinDatos: true, departamentos: [] } } })} />)
     expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
     expect(screen.queryByText('Riesgo alto o muy alto')).not.toBeInTheDocument()
-    expect(within(screen.getByRole('group', { name: 'Horizonte' })).getAllByRole('button').every((boton) => boton.getAttribute('aria-disabled') === 'true')).toBe(true)
+    expect(within(screen.getByRole('group', { name: 'Horizonte' })).getAllByRole('button').every((boton) => boton.getAttribute('aria-disabled') === 'false')).toBe(true)
     sinPronostico.unmount()
 
     render(<PanelRadar {...props({ puntos: [] })} />)
@@ -153,10 +170,55 @@ describe('PanelRadar', () => {
     expect(screen.getByText('Ninguna escuela en riesgo para estos filtros.')).toBeInTheDocument()
   })
 
+  it('mantiene visible la sección de alertas cuando no hay pronóstico del motor de riesgo', () => {
+    render(<PanelRadar {...props({ disponibles: [] })} />)
+
+    expect(screen.getByRole('region', { name: 'Alertas del SMN' })).toBeInTheDocument()
+    expect(screen.getByText('Sin alertas oficiales vigentes ni próximas · SMN')).toBeInTheDocument()
+  })
+
   it('no incluye textos técnicos ni repite escuelas con varios niveles educativos', () => {
     const { container } = render(<PanelRadar {...props()} />)
 
     expect(container.textContent).not.toMatch(/lluvia observada|fuente|corrida|ensamble|modelo|metodolog|extracto/i)
     expect(screen.getAllByText('Escuela Moderada')).toHaveLength(1)
+  })
+
+  it('muestra el pronóstico aunque el motor de riesgo no tenga datos', () => {
+    render(<PanelRadar {...props({ disponibles: [], pronostico: { ...pronosticoVacio, resumen: resumenMeteo() } })} />)
+    expect(screen.queryByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Resumen del pronóstico')).toBeInTheDocument()
+    const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-radar-pronostico__fila'))
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Bella Vista, 70 mm', 'Goya, 32 mm', 'General Alvear, 0 mm'])
+    const horizonte = screen.getByRole('group', { name: 'Horizonte' })
+    expect(within(horizonte).getAllByRole('button').every((boton) => boton.getAttribute('aria-disabled') !== 'true')).toBe(true)
+  })
+
+  it('actualiza la lluvia mostrada al cambiar el horizonte', () => {
+    const resumen = resumenMeteo()
+    const { rerender } = render(<PanelRadar {...props({ horizonte: 24, disponibles: [], pronostico: { ...pronosticoVacio, resumen } })} />)
+    expect(screen.getByRole('button', { name: 'Bella Vista, 30 mm' })).toBeInTheDocument()
+    rerender(<PanelRadar {...props({ horizonte: 240, disponibles: [], pronostico: { ...pronosticoVacio, resumen } })} />)
+    expect(screen.getByRole('button', { name: 'Bella Vista, 70 mm' })).toBeInTheDocument()
+  })
+
+  it('muestra motor y pronóstico juntos, y pasa la selección del departamento', () => {
+    const onDepartamento = vi.fn()
+    render(<PanelRadar {...props({ pronostico: { ...pronosticoVacio, resumen: resumenMeteo(), onDepartamento } })} />)
+    expect(screen.getByText('Escuelas en riesgo')).toBeInTheDocument()
+    expect(screen.getByText('Pronóstico por departamento')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Bella Vista, 70 mm' }))
+    expect(onDepartamento).toHaveBeenCalledWith('bella-vista')
+  })
+
+  it('muestra carga, vacío y error del pronóstico sin motor', () => {
+    const cargando = render(<PanelRadar {...props({ disponibles: [], pronostico: { ...pronosticoVacio, cargando: true } })} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando pronóstico…')
+    cargando.unmount()
+    const sinDatos = render(<PanelRadar {...props({ disponibles: [], pronostico: { ...pronosticoVacio, resumen: { ...resumenMeteo(), sinDatos: true, departamentos: [] } } })} />)
+    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    sinDatos.unmount()
+    render(<PanelRadar {...props({ disponibles: [], error: 'falló', pronostico: { ...pronosticoVacio, error: true } })} />)
+    expect(screen.getByRole('status')).toHaveTextContent('No se pudo cargar el pronóstico. Intente de nuevo más tarde.')
   })
 })
