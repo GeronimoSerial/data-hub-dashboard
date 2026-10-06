@@ -90,7 +90,7 @@ export function FichaEscuelaPanel({
   onVerHistorialCompleto,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
-  const volverRef = useRef<HTMLButtonElement>(null)
+  const tituloRef = useRef<HTMLHeadingElement>(null)
   const [ahoraMs] = useState(() => Date.now())
   const datos = estado.fase === 'listo' ? estado.datos : null
   const afectaciones = datos?.afectaciones ?? []
@@ -107,7 +107,7 @@ export function FichaEscuelaPanel({
     ? tiempoRelativo(datos.parte.actualizadaEn, ahoraMs)
     : ''
   useEffect(() => {
-    volverRef.current?.focus()
+    tituloRef.current?.focus()
     const alPresionarTecla = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onCerrar()
     }
@@ -118,12 +118,12 @@ export function FichaEscuelaPanel({
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
       <div className="map-ficha-escuela__encabezado-fijo">
-        <button ref={volverRef} className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
+        <button className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
           <ArrowLeft aria-hidden="true" />Volver a la lista
         </button>
 
         <header className="map-ficha-escuela__head">
-          <h2>{escuela.nombre}</h2>
+          <h2 ref={tituloRef} tabIndex={-1}>{escuela.nombre}</h2>
           <p>
             CUE {escuela.cueAnexo} · {etiquetaDepartamento(escuela.departamento)}
             {escuela.niveles.length > 0 && ` · ${escuela.niveles.join(', ')}`}

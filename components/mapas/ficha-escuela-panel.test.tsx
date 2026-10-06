@@ -334,14 +334,30 @@ describe('FichaEscuelaPanel', () => {
     expect(onVerHistorialCompleto).toHaveBeenCalledOnce()
   })
 
-  it('cierra con Escape y enfoca volver a la lista al abrirse', () => {
+  it('al abrirse enfoca el título y Escape cierra la ficha', () => {
     instalarFetch()
     const onCerrar = vi.fn()
     renderFicha({ onCerrar })
 
-    expect(screen.getByRole('button', { name: 'Volver a la lista' })).toHaveFocus()
+    const titulo = screen.getByRole('heading', { name: escuela.nombre })
+    const volver = screen.getByRole('button', { name: 'Volver a la lista' })
+    expect(titulo).toHaveAttribute('tabindex', '-1')
+    expect(titulo).toHaveFocus()
+    expect(volver).not.toHaveFocus()
+    expect(volver.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.keyDown(window, { key: 'Escape' })
     expect(onCerrar).toHaveBeenCalledOnce()
+  })
+
+  it('quita el anillo del título y reserva el del botón para foco visible', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaTitulo = css.match(/\.map-ficha-escuela__head h2:focus\s*\{[^}]*\}/)?.[0]
+    const reglaVolver = css.match(/\.map-ficha-escuela__back:focus-visible\s*\{[^}]*\}/)?.[0]
+
+    expect(reglaTitulo).toContain('outline: none')
+    expect(css).not.toMatch(/\.map-ficha-escuela__back:focus(?!-visible)\s*\{[^}]*outline\s*:/)
+    expect(reglaVolver).toContain('outline: 2px solid var(--ink)')
+    expect(reglaVolver).toContain('outline-offset: 2px')
   })
 
   it('ofrece ver alumnos alcanzados sólo cuando el enlace nominal está habilitado', async () => {

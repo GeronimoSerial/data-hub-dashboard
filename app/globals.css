@@ -254,6 +254,7 @@
 .map-ficha-escuela__back { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; justify-self: start; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--t-small); font-weight: 600; cursor: pointer; }
 .map-ficha-escuela__back svg { width: 16px; height: 16px; }
 .map-ficha-escuela__head h2 { margin: 0; font-size: 1.375rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.map-ficha-escuela__head h2:focus { outline: none; }
 .map-ficha-escuela__head p { margin: var(--s-1) 0 0; color: var(--ink-faint); font-size: var(--t-micro); }
 .map-ficha-escuela__gravedad { display: grid; gap: var(--s-1); padding: var(--s-3); border-radius: var(--r-md); }
 .map-ficha-escuela__gravedad strong { font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
@@ -275,7 +276,7 @@
 .map-ficha-escuela__accion { grid-column: 1 / -1; }
 .map-ficha-escuela__link { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .map-ficha-escuela__historial { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
-.map-ficha-escuela__back:focus-visible,
+.map-ficha-escuela__back:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .map-ficha-escuela__fold > summary:focus-visible,
 .map-ficha-escuela__link:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
