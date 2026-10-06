@@ -13,14 +13,20 @@ const alerta: AlertaRadar = {
 describe('franja de alertas oficiales', () => {
   it('muestra el estado vacío y última actualización', () => {
     render(<AlertasStrip alertas={[]} actualizado="2026-10-01T12:00:00Z" />)
-    expect(screen.getByText(/Sin alertas oficiales vigentes para Corrientes/)).toBeInTheDocument()
+    expect(screen.getByText(/Sin alertas oficiales vigentes ni próximas para Corrientes/)).toBeInTheDocument()
     expect(screen.getByText(/Actualizado/)).toBeInTheDocument()
   })
 
   it('oculta la actualización cuando no hay fecha', () => {
     const { container } = render(<AlertasStrip alertas={[]} actualizado={null} />)
-    expect(container.textContent).toContain('Sin alertas oficiales vigentes para Corrientes · SMN')
+    expect(container.textContent).toContain('Sin alertas oficiales vigentes ni próximas para Corrientes · SMN')
     expect(container.querySelector('small')).not.toBeInTheDocument()
+  })
+
+  it('marca como próxima la alerta que todavía no empezó', () => {
+    const { unmount } = render(<AlertasStrip alertas={[{ ...alerta, id: 'smn-2', onset: '2099-01-01T12:00:00Z', expires: '2099-01-02T12:00:00Z' }, alerta]} actualizado={null} />)
+    expect(screen.getAllByText(/Próxima/)).toHaveLength(1)
+    unmount()
   })
 
   it('expande el texto oficial y mantiene severidad sin color SAT', () => {

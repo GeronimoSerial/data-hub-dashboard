@@ -38,10 +38,11 @@ export function AlertasStrip({ alertas, actualizado, onSelect }: {
   onSelect?: (alerta: AlertaRadar | null) => void
 }) {
   const [abierta, setAbierta] = useState<string | null>(null)
+  const [ahoraMs] = useState(() => Date.now())
   if (!alertas.length) {
     return (
       <div className="radar-alertas radar-alertas-empty">
-        Sin alertas oficiales vigentes para Corrientes · SMN
+        Sin alertas oficiales vigentes ni próximas para Corrientes · SMN
         {actualizado && <small>Actualizado {horaArgentina(actualizado)}</small>}
       </div>
     )
@@ -55,6 +56,7 @@ export function AlertasStrip({ alertas, actualizado, onSelect }: {
       }}>
         <span className="radar-alerta-icon" aria-hidden="true">!</span>
         <span>
+          {Date.parse(alerta.onset) > ahoraMs && <em className="radar-alerta-proxima">Próxima · </em>}
           <strong>{alerta.evento}</strong> · {alerta.severidad}
           <small>
             {departamentosAlertaLabel(alerta.departamentos) || 'Corrientes'} ·

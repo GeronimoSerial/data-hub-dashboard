@@ -498,10 +498,23 @@ export async function alertasSmnActivas(ahora = new Date()) {
     .orderBy(desc(smnAlerta.sent))
 
   // CAP permits explicit offsets, so compare instants instead of ISO text.
-  return filas.filter((alerta) => {
-    if (!alerta.onset || !alerta.expires) return false
-    const onsetMs = Date.parse(alerta.onset)
-    const expiresMs = Date.parse(alerta.expires)
-    return Number.isFinite(onsetMs) && Number.isFinite(expiresMs) && onsetMs <= ahora.getTime() && ahora.getTime() < expiresMs
-  })
+  // Upcoming alerts (onset in the future) are included too: the SMN usually
+  // publishes them a day or two ahead and they are the most useful warning.
+  // Active alerts come first, then upcoming ones by start time.
+  const ahoraMs = ahora.getTime()
+  return filas
+    .filter((alerta) => {
+      if (!alerta.onset || !alerta.expires) return false
+      const onsetMs = Date.parse(alerta.onset)
+      const expiresMs = Date.parse(alerta.expires)
+      return Number.isFinite(onsetMs) && Number.isFinite(expiresMs) && ahoraMs < expiresMs
+    })
+    .sort((a, b) => {
+      const onsetA = Date.parse(a.onset!)
+      const onsetB = Date.parse(b.onset!)
+      const activaA = onsetA <= ahoraMs
+      const activaB = onsetB <= ahoraMs
+      if (activaA !== activaB) return activaA ? -1 : 1
+      return activaA ? 0 : onsetA - onsetB
+    })
 }
