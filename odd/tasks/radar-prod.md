@@ -23,8 +23,9 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - [x] T1 R1: lib `alertas-agrupadas` (agrupar por evento+severidad+onset+expires, texto de la pastilla) + hook `useResumenRadarMeteo`
 - [x] T2 R1: pastilla sobre el mapa + `RadarMeteo` controlado (resumen/alerta por props) + wiring en la página
 - [x] T3 R1: sección "Alertas del SMN" en el sidebar (`PanelRadar`), detalle expandible, CSS
-- [ ] T4 R2: lib `pronostico-horizonte` (agregación por horizonte desde el resumen) + tests
-- [ ] T5 R2: `PanelRadar` con resumen de pronóstico + clic en departamento centra el mapa
+- [x] T4 R2: lib `pronostico-horizonte` (agregación por horizonte desde el resumen) + tests
+- [ ] T5 R2: `PanelRadar` con resumen de pronóstico (KPIs + lista por departamento, horizontes habilitados)
+- [ ] T5b R2: clic en un departamento lo resalta y centra en el mapa (wiring en la página)
 - [ ] T6 R3: test de la capa de lluvia con payload real reducido (+ fix si hay bug)
 - [ ] T7 Gate final (tsc, lint, suite completa) y reporte
 
@@ -32,3 +33,4 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - T1: tsc limpio; vitest alertas-agrupadas + use-resumen + components/mapas/radar-meteo: 34 pasan. Ruta: delegada (N3).
 - T2: tsc limpio (tras T2fix: import type JSX); eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 40 archivos / 378 tests pasan. Ruta: delegada (N3 + N3 de fix).
 - T3: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 41 archivos / 385 tests pasan. Ruta: delegada (N3).
+- T4: tsc limpio; vitest pronostico-horizonte: 6 pasan. Ruta: delegada (N3).
