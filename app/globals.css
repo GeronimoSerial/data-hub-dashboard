@@ -186,6 +186,9 @@
 .map-sitact__kpi strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .map-sitact__kpi span { color: var(--ink-soft); font-size: var(--t-micro); }
 .map-sitact__kpi--resaltado strong { color: var(--accent); }
+.map-sitact__kpi--secundario { grid-column: 1 / -1; display: flex; align-items: baseline; gap: var(--s-3); padding: var(--s-2) var(--s-3); border: 1px solid var(--line); background: transparent; }
+.map-sitact__kpi--secundario strong { color: var(--ink-soft); }
+.map-sitact__kpi--secundario span { color: var(--ink-faint); }
 .map-sitact__apoyo { display: grid; gap: var(--s-2); }
 .map-sitact__apoyo p { margin: 0; font-size: var(--t-small); }
 .map-sitact__barra { display: flex; height: 8px; overflow: hidden; border-radius: var(--r-pill); background: var(--band); }

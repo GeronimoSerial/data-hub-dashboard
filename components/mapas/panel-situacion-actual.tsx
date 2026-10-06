@@ -107,7 +107,7 @@ export function PanelSituacionActual({ escuelas, onSeleccionar }: PanelSituacion
           <strong>{FORMATO_NUMERO.format(resumen.sinActualizar)}</strong>
           <span>Sin actualizar</span>
         </div>
-        <div className="map-sitact__kpi">
+        <div className="map-sitact__kpi map-sitact__kpi--secundario">
           <strong>{FORMATO_NUMERO.format(resumen.solucionadasRecientes)}</strong>
           <span>Solucionadas en los últimos 15 días</span>
         </div>

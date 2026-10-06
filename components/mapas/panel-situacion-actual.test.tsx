@@ -74,6 +74,19 @@ describe('PanelSituacionActual', () => {
     expect(within(situaciones).queryByText('Escuela sin reporte')).not.toBeInTheDocument()
   })
 
+  it('muestra la quinta KPI como secundaria a ancho completo sin cambiar los valores', () => {
+    const { container } = render(<PanelSituacionActual escuelas={escuelas} actualizadoEn={null} onSeleccionar={vi.fn()} />)
+    const kpis = Array.from(container.querySelectorAll('.map-sitact__kpi'))
+    const css = readFileSync('app/globals.css', 'utf8')
+    const reglaSecundaria = css.match(/\.map-sitact__kpi--secundario\s*\{[^}]*\}/)?.[0]
+
+    expect(kpis.map((kpi) => kpi.querySelector('strong')?.textContent)).toEqual(['3', '4', '110', '1', '0'])
+    expect(kpis.slice(0, 4).every((kpi) => !kpi.classList.contains('map-sitact__kpi--secundario'))).toBe(true)
+    expect(kpis[4]).toHaveClass('map-sitact__kpi--secundario')
+    expect(kpis[4].querySelector('span')).toHaveTextContent('Solucionadas en los últimos 15 días')
+    expect(reglaSecundaria).toContain('grid-column: 1 / -1')
+  })
+
   it('selecciona la escuela al activar su renglón', () => {
     const onSeleccionar = vi.fn()
     render(<PanelSituacionActual escuelas={escuelas} actualizadoEn={null} onSeleccionar={onSeleccionar} />)
