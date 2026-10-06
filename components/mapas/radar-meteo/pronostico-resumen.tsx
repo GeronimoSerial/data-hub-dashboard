@@ -32,7 +32,7 @@ export function PronosticoResumen(props: {
       <div className="map-sitact__kpis map-sitact__kpis--3" aria-label="Resumen del pronóstico">
         <div className={`map-sitact__kpi${pronostico.conLluvia20mm > 0 ? ' map-sitact__kpi--resaltado' : ''}`}>
           <strong>{pronostico.conLluvia20mm}</strong>
-          <span>Departamentos con lluvia ≥ 20 mm</span>
+          <span>Deptos. con lluvia ≥ 20 mm</span>
         </div>
         <div className="map-sitact__kpi">
           <strong>{pronostico.rafagaMax ? `${pronostico.rafagaMax.kmh} km/h` : 'Sin dato'}</strong>
@@ -41,7 +41,7 @@ export function PronosticoResumen(props: {
         </div>
         <div className="map-sitact__kpi">
           <strong>{pronostico.conGranizo}</strong>
-          <span>Departamentos con granizo posible</span>
+          <span>Deptos. con granizo posible</span>
         </div>
       </div>
 

@@ -73,6 +73,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         opciones={opciones}
         valor={horizonte}
         onChange={onHorizonte}
+        columnas={3}
       />
 
       <Segmentado
