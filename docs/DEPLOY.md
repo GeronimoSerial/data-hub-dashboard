@@ -229,17 +229,20 @@ Al instalar timers, reemplazar `<CONTENEDOR>` por el nombre/ID real mostrado por
 y **no** comparte datos con producción: arranca vacío, con las localizaciones sembradas solas. No
 tiene `PADRON_PG_URL`; si hace falta padrón en staging se importa por operador, igual que en prod.
 
-1. Mergear o pushear a la rama `staging` (por PR desde la rama de trabajo).
-2. El workflow **Publish GHCR image** publica `:staging` y redespliega la app de staging.
+Flujo de ramas: rama de trabajo → `main` → `staging` → `prod`. El CI (`.github/workflows/ci.yml`)
+corre solo en los PR hacia `main`; los PR de promoción llevan el mismo árbol ya probado y no lo repiten.
+
+1. PR de la rama de trabajo a `main`. Esperar el CI en verde y mergear.
+2. PR de `main` a `staging` (o fast-forward de `staging` a `main`). El workflow **Publish GHCR
+   image** publica `:staging` y redespliega la app de staging.
 3. Repetir el smoke test de abajo contra `staging.analisis.sistemas.mec.gob.ar`.
-4. Si pasa, PR de la rama de trabajo a `main`.
 
 ## Despliegue a producción
 
-`main` acumula lo aprobado, pero producción solo cambia cuando se actualiza `prod`: un push a
+`main` acumula lo aprobado y `staging` lo valida, pero producción solo cambia cuando se actualiza `prod`: un push a
 `prod` publica la imagen `latest` en GHCR y el workflow redespliega `analisis.sistemas.mec.gob.ar`.
 
-1. PR de `main` a `prod` (o fast-forward de `prod` a un commit de `main` ya validado en staging).
+1. PR de `staging` a `prod` (o fast-forward de `prod` a `staging`), una vez pasado el smoke test de staging.
 2. Esperar el workflow **Publish GHCR image** hasta `success`. Si falla, no se despliega nada.
 3. El paso *Trigger Coolify deploy* redespliega producción solo.
 4. **Smoke test contra el FQDN de producción:**
@@ -248,7 +251,7 @@ tiene `PADRON_PG_URL`; si hace falta padrón en staging se importa por operador,
    - `GET /mapas/matricula` y `GET /mapas/infraestructura` → anónimo redirige a login (307).
    - `GET /tablero` → 307 anónimo.
    - `GET /data/summary.json` y `GET /maplibre-gl-worker.js` → 200.
-   - `GET /problematicas/nueva?cue=1800554-00` → 200 con el nombre de la escuela en pantalla.
+   - `GET /problematicas/parte/nuevo?cue=1800554-00` → 200 con el nombre de la escuela en pantalla.
 
 ### Nunca correr el import del padrón dentro del contenedor
 
