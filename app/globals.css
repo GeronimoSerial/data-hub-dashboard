@@ -429,7 +429,13 @@ time {
   padding-right: var(--s-5);
   border-right: 1px solid rgb(255 255 255 / 0.18);
 }
-.app-header__logo { display: block; height: 28px; width: auto; }
+.app-header__logo { display: block; height: 44px; width: auto; }
+
+@media (max-width: 920px) {
+  /* Around 846px is needed for the 222px logo with separator spacing, product
+     name, two nav links, account controls, and flex gaps. */
+  .app-header--mapa .app-header__logo { display: none; }
+}
 
 .app-signature {
   background: var(--white);
@@ -2987,7 +2993,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (max-width: 760px) {
   :root { --header-h: 133px; }
   .app-page:has(> .app-header--mapa) { --header-h: 68px; }
-  .app-header--mapa .app-header__logo { display: none; }
   .app-signature .app-signature__mark { display: none; }
   [data-theme='dark'] .app-signature .app-signature__mark--inv { display: none; }
   .app-signature .app-signature__compact { display: flex; }

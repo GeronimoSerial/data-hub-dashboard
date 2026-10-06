@@ -16,7 +16,7 @@ vi.mock('@/lib/auth-client', () => ({
     signOut: vi.fn(),
   },
 }))
-vi.mock('@/components/marca', () => ({ MarcaBanda: () => <img className="app-header__logo" alt="Gobierno de Corrientes · Ministerio de Educación" />, MarcaCompacta: () => null, MarcaHorizontal: () => null, MarcaHorizontalInversa: () => null }))
+vi.mock('@/components/marca', () => ({ MarcaBanda: () => <img className="app-header__logo" src="/marca/logo-educacion-h-inv.svg" width={1051} height={208} alt="Gobierno de Corrientes · Ministerio de Educación" />, MarcaCompacta: () => null, MarcaHorizontal: () => null, MarcaHorizontalInversa: () => null }))
 
 afterEach(() => {
   cleanup()
@@ -43,12 +43,19 @@ describe('AppShell', () => {
       const brand = screen.getByRole('link', { name: 'Hub de Datos, inicio' })
       if (!band || !logo) throw new Error('No se encontró la firma compacta en la banda')
       expect(logo).toBeInTheDocument()
+      expect(logo).toHaveClass('app-header__logo')
+      expect(logo).toHaveAttribute('src', '/marca/logo-educacion-h-inv.svg')
       expect(band.contains(logo)).toBe(true)
       expect((logo.compareDocumentPosition(brand) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy()
       expect(document.querySelector('header.app-header')).toHaveClass('app-header--mapa')
       expect(document.querySelector('header.app-header')).toHaveAttribute('data-compacto', 'true')
     },
   )
+
+  it('no muestra MarcaBanda en /', () => {
+    render(<AppShell initialUser={null}>Contenido</AppShell>)
+    expect(document.querySelector('.app-header__logo')).not.toBeInTheDocument()
+  })
 
   it('mantiene el header completo en /explorar', () => {
     route.pathname = '/explorar'
