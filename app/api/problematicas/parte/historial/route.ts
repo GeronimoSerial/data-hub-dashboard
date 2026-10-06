@@ -40,7 +40,10 @@ export async function GET(request: Request) {
     return Response.json({ error: 'No hay un corte vigente de Gestión Educativa' }, { status: 503 })
   }
 
-  const movimientos = await listarMovimientosDescritos(cue.value, corte.id)
+  const movimientos = (await listarMovimientosDescritos(cue.value, corte.id)).map((movimiento) => ({
+    ...movimiento,
+    severidad: movimiento.severidad ?? null,
+  }))
 
   return Response.json({ ok: true, movimientos }, { status: 200, headers: CACHE_HEADERS })
 }

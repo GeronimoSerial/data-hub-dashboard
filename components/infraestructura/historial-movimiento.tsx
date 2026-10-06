@@ -1,8 +1,9 @@
 import type { JSX } from 'react'
 import type { RolMovimiento, TipoMovimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 import {
   debeMostrarRigeDesde,
-  formatearCargaCorta,
+  formatearMomentoHistorial,
   formatearRigeDesde,
 } from './historial-formato'
 
@@ -18,7 +19,9 @@ export interface MovimientoHistorial {
   rol: RolMovimiento
   creadaEn: string
   rigeDesde: string
+  titulo: string
   cambios: string[]
+  severidad?: Severidad | null
 }
 
 const ROL_TEXTO: Record<RolMovimiento, string> = {
@@ -34,9 +37,10 @@ const ROL_TEXTO: Record<RolMovimiento, string> = {
  * contenedor (historial-parte.tsx) resuelve la carga y el orden.
  */
 export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHistorial }): JSX.Element {
-  const carga = formatearCargaCorta(movimiento.creadaEn)
+  const carga = formatearMomentoHistorial(movimiento.creadaEn)
   const rol = ROL_TEXTO[movimiento.rol] ?? movimiento.rol
   const mostrarVigencia = debeMostrarRigeDesde(movimiento.creadaEn, movimiento.rigeDesde)
+  const cambios = movimiento.cambios.filter((cambio) => cambio !== movimiento.titulo)
 
   return (
     <li className="historial-movimiento">
@@ -51,9 +55,11 @@ export function HistorialMovimiento({ movimiento }: { movimiento: MovimientoHist
         <p className="historial-movimiento__vigencia">{formatearRigeDesde(movimiento.rigeDesde)}</p>
       ) : null}
 
-      {movimiento.cambios.length > 0 ? (
+      <p className="historial-movimiento__titulo">{movimiento.titulo}</p>
+
+      {cambios.length > 0 ? (
         <ul className="historial-movimiento__cambios">
-          {movimiento.cambios.map((cambio, indice) => (
+          {cambios.map((cambio, indice) => (
             // Las líneas son texto ya redactado y pueden repetirse entre sí
             // dentro de un mismo movimiento (por ejemplo dos secciones con
             // el mismo cambio de servicio), así que la posición es la única

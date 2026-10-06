@@ -100,7 +100,14 @@ async function sesionDeVerificacionParaCue(cueAnexo: string) {
 // componente cliente renderice su estado inicial de carga y la salida al parte.
 function esperaHistorial() {
   expect(screen.getByText('Buscando los movimientos del parte…')).toBeInTheDocument()
-  expect(screen.getByRole('link', { name: /volver al parte/i })).toBeInTheDocument()
+  const volver = screen.getAllByRole('link', { name: /volver al estado actual/i })[0]
+  expect(volver).toBeInTheDocument()
+  expect(volver).toHaveAttribute('href', '/problematicas/parte?cue=1801605-04')
+  const estado = screen.getByText('Buscando los movimientos del parte…')
+  expect(volver.compareDocumentPosition(estado) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(screen.getAllByRole('link', { name: /volver al estado actual/i })).toHaveLength(2)
+  expect(volver.parentElement).toHaveClass('historial-contenido')
+  expect(screen.getByRole('heading', { level: 1 }).parentElement?.parentElement).toHaveClass('historial-contenido')
 }
 
 describe('HistorialPartePage', () => {
@@ -111,7 +118,7 @@ describe('HistorialPartePage', () => {
     render(jsx)
 
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /volver al parte/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /volver al estado actual/i })).toBeNull()
   })
 
   it('regresión: con la contraseña compartida vigente, abre el historial', async () => {
@@ -146,7 +153,7 @@ describe('HistorialPartePage — acceso por sesión de verificación', () => {
     render(jsx)
 
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /volver al parte/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /volver al estado actual/i })).toBeNull()
   })
 
   it('sesión cuya verificación fue revocada: muestra el ingreso', async () => {
@@ -161,7 +168,7 @@ describe('HistorialPartePage — acceso por sesión de verificación', () => {
     render(jsx)
 
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /volver al parte/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /volver al estado actual/i })).toBeNull()
   })
 
   it('sesión cuya verificación ya fue respondida: muestra el ingreso', async () => {
@@ -178,6 +185,6 @@ describe('HistorialPartePage — acceso por sesión de verificación', () => {
     render(jsx)
 
     expect(screen.getByLabelText(/contraseña/i)).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /volver al parte/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /volver al estado actual/i })).toBeNull()
   })
 })

@@ -3,7 +3,8 @@
 import { useEffect, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { MENSAJE_ACCESO_VENCIDO } from './estado-actual-textos'
-import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
+import { LineaDeTiempo } from './linea-de-tiempo'
+import type { MovimientoHistorial } from './historial-movimiento'
 
 type Estado =
   | { fase: 'cargando' }
@@ -132,17 +133,11 @@ export function HistorialParte({
           No hay una situación hidrometeorológica en seguimiento para este establecimiento.
         </p>
         <a className="ui-button ui-button--default historial-estado__accion" href={`/problematicas/parte/nuevo?cue=${encodeURIComponent(cue)}`}>
-          Iniciar un reporte
+          Cargar una situación
         </a>
       </div>
     )
   }
 
-  return (
-    <ol className="historial-lista">
-      {estado.movimientos.map((movimiento) => (
-        <HistorialMovimiento key={movimiento.id} movimiento={movimiento} />
-      ))}
-    </ol>
-  )
+  return <LineaDeTiempo movimientos={estado.movimientos} />
 }

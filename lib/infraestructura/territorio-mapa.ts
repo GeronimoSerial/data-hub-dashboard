@@ -21,6 +21,7 @@ import {
   infraSusceptibilidadEstatica,
   type CruceAccesoOsm,
   type RutaGeoJson,
+  type ViaPrincipalAcceso,
 } from '@/lib/db/schema'
 import {
   ultimaVersionPorCue,
@@ -82,10 +83,38 @@ export interface GeometriaAccesoRespuesta {
   versionJob?: string
   fechaExtractoOsm?: string
   licencia?: string
-  atribucion?: typeof ATRIBUCION_OSM
   ruta?: RutaGeoJson
   cruces?: CruceAccesoOsm[]
   resumen?: { puente: number; vado: number; sinEvidencia: number }
+  viaPrincipal?: ViaPrincipalAcceso | null
+  destino?: { nombre: string } | null
+  distanciaKm?: number | null
+}
+
+function parsearViaPrincipal(valor: string | null): ViaPrincipalAcceso | null {
+  if (valor === null) return null
+
+  try {
+    const parseado: unknown = JSON.parse(valor)
+    if (typeof parseado !== 'object' || parseado === null) return null
+
+    const via = parseado as Record<string, unknown>
+    if (
+      (typeof via.nombre !== 'string' && via.nombre !== null) ||
+      typeof via.tipo !== 'string' ||
+      typeof via.pavimentada !== 'boolean'
+    ) {
+      return null
+    }
+
+    return {
+      nombre: via.nombre,
+      tipo: via.tipo,
+      pavimentada: via.pavimentada,
+    }
+  } catch {
+    return null
+  }
 }
 
 // Regla de nivel de aislamiento: entero 0..3 => ese nivel; cualquier otra cosa
@@ -280,7 +309,6 @@ export function construirRespuestaGeometria(
       motivo: fila.motivoSinGeometria ?? 'sin_geometria',
       fechaExtractoOsm: fila.fechaExtractoOsm,
       licencia: fila.licencia,
-      atribucion: ATRIBUCION_OSM,
     }
   }
 
@@ -297,10 +325,12 @@ export function construirRespuestaGeometria(
     versionJob: fila.versionJob,
     fechaExtractoOsm: fila.fechaExtractoOsm,
     licencia: fila.licencia,
-    atribucion: ATRIBUCION_OSM,
     ruta: fila.ruta,
     cruces: fila.cruces,
     resumen,
+    viaPrincipal: parsearViaPrincipal(fila.viaPrincipal),
+    destino: fila.destinoNombre ? { nombre: fila.destinoNombre } : null,
+    distanciaKm: fila.distanciaDestinoM === null ? null : fila.distanciaDestinoM / 1000,
   }
 }
 

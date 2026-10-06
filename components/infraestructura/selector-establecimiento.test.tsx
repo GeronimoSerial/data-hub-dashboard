@@ -1,0 +1,56 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { TURNOS_FIXTURE } from '@/components/test-utils/parte-formulario'
+import { SelectorEstablecimiento, type ValorAlcanceEstablecimiento } from './selector-establecimiento'
+
+const todas = TURNOS_FIXTURE.flatMap((t) => t.niveles.flatMap((n) => n.secciones))
+
+function Controlado() {
+  const [v, setV] = useState<ValorAlcanceEstablecimiento>({ alcance: '', secciones: [] })
+  return (
+    <>
+      <SelectorEstablecimiento turnos={TURNOS_FIXTURE} valor={v} onCambiar={setV} />
+      <output data-testid="v">{JSON.stringify(v)}</output>
+    </>
+  )
+}
+const v = () => JSON.parse(screen.getByTestId('v').textContent!)
+
+afterEach(cleanup)
+
+describe('SelectorEstablecimiento', () => {
+  it('no tiene checkbox maestro de tres estados', () => {
+    render(<Controlado />)
+    expect(screen.queryByRole('checkbox', { name: /Todas las secciones/ })).not.toBeInTheDocument()
+  })
+  it('"Toda la escuela" selecciona todas las secciones', () => {
+    render(<Controlado />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Toda la escuela' }))
+    expect(v()).toEqual({ alcance: 'toda', secciones: todas.map((s) => s.geSectionId) })
+  })
+  it('"Algunas secciones" muestra checkboxes simples y marcar una no marca "Toda la escuela"', () => {
+    render(<Controlado />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    const s = todas[0]
+    fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(`^${s.curso} "${s.division}"`) }))
+    expect(v()).toEqual({ alcance: 'algunas', secciones: [s.geSectionId] })
+    expect(screen.getByRole('radio', { name: 'Toda la escuela' })).not.toBeChecked()
+  })
+  it('usa la lista agrupada compartida para elegir secciones', () => {
+    render(<Controlado />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    const s = todas.find((x) => x.alumnos.length > 0)!
+    fireEvent.click(screen.getByRole('checkbox', { name: new RegExp(`^${s.curso} "${s.division}"`) }))
+    expect(v()).toEqual({ alcance: 'algunas', secciones: [s.geSectionId] })
+    expect(screen.getByRole('heading', { name: /Mañana · \d+ de \d+ secciones/ })).toBeInTheDocument()
+  })
+  it('expone un control por turno dentro de la selección por secciones', () => {
+    render(<Controlado />)
+    fireEvent.click(screen.getByRole('radio', { name: 'Algunas secciones' }))
+    const turno = TURNOS_FIXTURE[0]
+    expect(screen.getByRole('checkbox', { name: `Todo el turno ${turno.turno}` })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: new RegExp(turno.turno) })).toBeInTheDocument()
+  })
+})

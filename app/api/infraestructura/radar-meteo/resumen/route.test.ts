@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ acceso: { ok: true, user: { id: 'test' } } as { ok: boolean; status?: number; user?: { id: string } }, enabled: true, run: null as unknown, alertas: [] as unknown[], ensemble: null as unknown }))
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({ verificarAccesoLectura: vi.fn(async () => mocks.acceso) }))
 vi.mock('@/lib/infraestructura/riesgo/flags', () => ({ riskRadarEnabled: vi.fn(() => mocks.enabled) }))
@@ -10,6 +10,7 @@ import { GET } from './route'
 const req = (headers?: HeadersInit) => new Request('http://localhost/api/infraestructura/radar-meteo/resumen', { headers })
 describe('GET /api/infraestructura/radar-meteo/resumen', () => {
   beforeEach(() => { mocks.acceso = { ok: true, user: { id: 'test' } }; mocks.enabled = true; mocks.run = null; mocks.alertas=[]; mocks.ensemble=null })
+  afterEach(() => { vi.useRealTimers() })
   it('requiere acceso y respeta el flag', async () => {
     mocks.acceso = { ok: false, status: 401 }
     expect((await GET(req())).status).toBe(401)
@@ -23,6 +24,8 @@ describe('GET /api/infraestructura/radar-meteo/resumen', () => {
     expect((await GET(req({ 'If-None-Match': response.headers.get('ETag')! }))).status).toBe(304)
   })
   it('combina las alertas activas y el ensemble con el resumen por día', async () => {
+    // El resumen sólo incluye días desde hoy (Buenos Aires): fijar el reloj al día del run.
+    vi.setSystemTime(new Date('2026-09-30T12:00:00-03:00'))
     mocks.run = { id:'radar-1', runAt:'2026-09-30T12:00:00Z', gridVersion:'g', payload:{times:['2026-09-30T12:00:00Z'],cells:[],values:{}} }
     const resumenDiario={p10:1,p50:2,p90:3,pMayor10:.4,pMayor25:.2,pMayor50:.1,miembrosValidos:50}
     mocks.ensemble={runId:'ens-1',runAt:'2026-09-30T12:00:00Z',modelo:'ecmwf_ifs025',diarios:{'18133':{'2026-09-30':resumenDiario}}}

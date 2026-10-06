@@ -52,6 +52,9 @@ function filaGeometria(
     ruta: null,
     cruces: [],
     motivoSinGeometria: null,
+    viaPrincipal: null,
+    destinoNombre: null,
+    distanciaDestinoM: null,
     fechaExtractoOsm: '2026-01-01',
     licencia: 'ODbL-1.0',
     importadoEn: '2026-01-01T00:00:00Z',
@@ -234,8 +237,8 @@ describe('construirRespuestaGeometria', () => {
       motivo: 'sin_conexion_red',
       fechaExtractoOsm: '2026-01-01',
       licencia: 'ODbL-1.0',
-      atribucion: '© OpenStreetMap contributors',
     })
+    expect(respuesta).not.toHaveProperty('atribucion')
   })
 
   it('fila sin ruta y sin motivo => cae al motivo genérico sin_geometria', () => {
@@ -272,10 +275,69 @@ describe('construirRespuestaGeometria', () => {
       versionJob: '3',
       fechaExtractoOsm: '2026-01-01',
       licencia: 'ODbL-1.0',
-      atribucion: '© OpenStreetMap contributors',
       ruta,
       cruces,
       resumen: { puente: 2, vado: 1, sinEvidencia: 1 },
+      viaPrincipal: null,
+      destino: null,
+      distanciaKm: null,
+    })
+    expect(respuesta).not.toHaveProperty('atribucion')
+  })
+
+  it('incluye la vía principal, el destino y la distancia convertida a kilómetros', () => {
+    const respuesta = construirRespuestaGeometria(
+      'CUE-1',
+      filaGeometria({
+        cueAnexo: 'CUE-1',
+        versionJob: '4',
+        ruta: { type: 'LineString', coordinates: [[-60.5, -31.7]] },
+        viaPrincipal: JSON.stringify({ nombre: 'Ruta Provincial 13', tipo: 'primary', pavimentada: true }),
+        destinoNombre: 'Saladas',
+        distanciaDestinoM: 14000,
+      }),
+    )
+
+    expect(respuesta).toMatchObject({
+      disponible: true,
+      viaPrincipal: { nombre: 'Ruta Provincial 13', tipo: 'primary', pavimentada: true },
+      destino: { nombre: 'Saladas' },
+      distanciaKm: 14,
     })
   })
+
+  it('expone null en los datos de vía y destino para una fila vieja', () => {
+    const respuesta = construirRespuestaGeometria(
+      'CUE-1',
+      filaGeometria({
+        cueAnexo: 'CUE-1',
+        versionJob: '1',
+        ruta: { type: 'LineString', coordinates: [[-60.5, -31.7]] },
+      }),
+    )
+
+    expect(respuesta).toMatchObject({
+      disponible: true,
+      viaPrincipal: null,
+      destino: null,
+      distanciaKm: null,
+    })
+  })
+
+  it.each(['{no', '{"nombre":1}'])(
+    'tolera vía principal inválida (%s) sin lanzar',
+    (viaPrincipal) => {
+      const respuesta = construirRespuestaGeometria(
+        'CUE-1',
+        filaGeometria({
+          cueAnexo: 'CUE-1',
+          versionJob: '1',
+          ruta: { type: 'LineString', coordinates: [[-60.5, -31.7]] },
+          viaPrincipal,
+        }),
+      )
+
+      expect(respuesta).toMatchObject({ disponible: true, viaPrincipal: null })
+    },
+  )
 })

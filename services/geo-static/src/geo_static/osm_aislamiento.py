@@ -130,12 +130,161 @@ docs/ejecucion-enos/G1/registro.md.
 from __future__ import annotations
 
 import math
+import re
 from typing import Optional
 
 UMBRAL_SNAP_SIN_CONEXION_M = 5000.0
 UMBRAL_VIA_PAVIMENTADA_CERCANA_M = 3000.0
 UMBRAL_VIA_NO_ALCANZABLE_M = 20000.0
 SUPERFICIES_NO_PAVIMENTADAS = {"unpaved", "dirt", "ground", "gravel", "sand"}
+FACTOR_VIA = {
+    "motorway": 1.0,
+    "trunk": 1.0,
+    "primary": 1.0,
+    "secondary": 1.2,
+    "tertiary": 1.5,
+    "unclassified": 2.0,
+    "residential": 2.0,
+    "track": 3.0,
+    "service": 3.0,
+}
+
+
+def asignar_costo(grafo) -> None:
+    """Asigna una vez el costo de ruteo a cada arista del grafo.
+
+    Los tipos OSM desconocidos reciben 3.0 (el mayor factor definido), para
+    tratarlos de forma conservadora. `length` se conserva para reportar
+    distancias físicas.
+    """
+    for _, _, _, datos in grafo.edges(keys=True, data=True):
+        highway = _primer_valor(datos.get("highway"))
+        factor = FACTOR_VIA.get(highway, 3.0)
+        surface = _primer_valor(datos.get("surface"))
+        if highway != "track" and surface in SUPERFICIES_NO_PAVIMENTADAS:
+            factor *= 1.5
+        datos["costo"] = float(datos.get("length", 0.0)) * factor
+
+
+def _peso_ruta(grafo) -> str:
+    """Usa costo si está completo; preserva `length` en grafos legacy."""
+    if all("costo" in datos for _, _, _, datos in grafo.edges(keys=True, data=True)):
+        return "costo"
+    return "length"
+
+
+def _longitud_ruta(grafo, ruta) -> float:
+    """Suma la longitud real siguiendo la arista de menor costo por tramo."""
+    longitud = 0.0
+    for u, v in zip(ruta[:-1], ruta[1:]):
+        aristas = (grafo.get_edge_data(u, v) or {}).values()
+        datos = list(aristas)
+        if not datos:
+            continue
+        elegida = min(datos, key=lambda d: d.get("costo", d.get("length", math.inf)))
+        longitud += float(elegida.get("length", 0.0))
+    return longitud
+
+
+def _arista_de_menor_costo(grafo, u, v):
+    """Devuelve la paralela que representa el tramo elegido por el ruteo."""
+    aristas = (grafo.get_edge_data(u, v) or {}).values()
+    datos = list(aristas)
+    if not datos:
+        return None
+    return min(datos, key=lambda d: d.get("costo", d.get("length", math.inf)))
+
+
+def _nombre_via(datos_arista: dict):
+    """Resuelve el nombre vial a partir de ref y después name."""
+    ref = _primer_valor(datos_arista.get("ref"))
+    if ref is not None:
+        ref = str(ref).split(";", 1)[0].strip()
+        if not ref:
+            return _primer_valor(datos_arista.get("name"))
+        coincidencia = re.fullmatch(r"(RP|RN)[\s.-]*(\d+)", ref, flags=re.IGNORECASE)
+        if coincidencia:
+            prefijo, numero = coincidencia.groups()
+            clase = "Provincial" if prefijo.upper() == "RP" else "Nacional"
+            return f"Ruta {clase} {numero}"
+        return ref
+    return _primer_valor(datos_arista.get("name"))
+
+
+def calcular_via_principal(grafo, ruta_nodos) -> Optional[dict]:
+    """Devuelve la vía con más metros entre los tramos reales de una ruta.
+
+    Cuenta la arista paralela de menor costo (o menor length en grafos sin
+    costo), igual que `_longitud_ruta` y Dijkstra. En rutas snapeadas a una
+    arista se omite el tramo parcial desde el punto de snap hasta el extremo:
+    la métrica considera solamente los tramos completos representados por
+    `ruta_nodos`.
+    """
+    if len(ruta_nodos) < 2:
+        return None
+
+    metros_por_via = {}
+    for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
+        datos = _arista_de_menor_costo(grafo, u, v)
+        if datos is None:
+            continue
+        nombre = _nombre_via(datos)
+        tipo = _primer_valor(datos.get("highway"))
+        clave = (nombre, tipo)
+        agregado = metros_por_via.setdefault(clave, {"metros": 0.0, "pavimentada": True})
+        agregado["metros"] += float(datos.get("length", 0.0))
+        agregado["pavimentada"] = agregado["pavimentada"] and not _es_tramo_sin_pavimentar(datos)
+
+    if not metros_por_via:
+        return None
+    (nombre, tipo), agregado = min(
+        metros_por_via.items(),
+        key=lambda item: (
+            -item[1]["metros"],
+            item[0][0] is None,
+            item[0][0] or "",
+            item[0][1] is None,
+            str(item[0][1] or ""),
+        ),
+    )
+    return {"nombre": nombre, "tipo": tipo, "pavimentada": agregado["pavimentada"]}
+
+
+def buscar_destinos_mas_cercanos(
+    grafo_invertido, nodos_destino: dict, grafo_seguro_invertido=None
+) -> dict:
+    """Busca una sola vez las localidades urbanas mas cercanas por costo.
+
+    En el grafo invertido cada ruta empieza en el nodo localidad y termina en
+    el nodo que la consulta. Si dos localidades comparten nodo, el llamador
+    debe resolverlo antes de invocar esta funcion.
+    """
+    import networkx as nx
+
+    fuentes = set(nodos_destino)
+    if not fuentes:
+        return {
+            "distancias": {},
+            "rutas": {},
+            "nombres": {},
+            "alcanzables_seguro": set() if grafo_seguro_invertido is not None else None,
+        }
+    distancias, rutas = nx.multi_source_dijkstra(
+        grafo_invertido, fuentes, weight=_peso_ruta(grafo_invertido)
+    )
+    alcanzables_seguro = None
+    if grafo_seguro_invertido is not None:
+        alcanzables_seguro = set(
+            nx.multi_source_dijkstra_path_length(
+                grafo_seguro_invertido, fuentes, weight=None
+            )
+        )
+    return {
+        "distancias": distancias,
+        "rutas": rutas,
+        "nombres": dict(nodos_destino),
+        "alcanzables_seguro": alcanzables_seguro,
+    }
 HIGHWAYS_SIN_SURFACE_ES_NO_PAVIMENTADO = {"track", "unclassified"}
 
 # Valores de `highway` considerados conduccibles tras leer el extracto local
@@ -225,7 +374,7 @@ def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
     """Coordenadas [lon, lat] de la geometria REALMENTE usada por la ruta.
 
     Para cada par consecutivo (u, v) elige, entre las aristas paralelas
-    `grafo.get_edge_data(u, v)`, la de menor `length` (la que uso Dijkstra) y
+    `grafo.get_edge_data(u, v)`, la de menor `costo` (la que usa Dijkstra) y
     toma su geometria real via `_geometria_arista` (atributo `geometry` si
     existe; si no, las coordenadas de los dos nodos OSM, que son nodos reales
     de la via, no una recta inventada). Orienta cada tramo para que empiece en
@@ -237,11 +386,10 @@ def _coordenadas_ruta(grafo, ruta_nodos) -> list[list[float]]:
 
     coords: list[list[float]] = []
     for u, v in zip(ruta_nodos[:-1], ruta_nodos[1:]):
-        datos_aristas = grafo.get_edge_data(u, v) or {}
-        if not datos_aristas:
+        datos = _arista_de_menor_costo(grafo, u, v)
+        if datos is None:
             continue
-        k_min = min(datos_aristas, key=lambda k: datos_aristas[k].get("length", math.inf))
-        geometria = _geometria_arista(datos_aristas[k_min], grafo, u, v)
+        geometria = _geometria_arista(datos, grafo, u, v)
         puntos = [(p[0], p[1]) for p in geometria.coords]
 
         ux, uy = grafo.nodes[u]["x"], grafo.nodes[u]["y"]
@@ -1040,6 +1188,7 @@ def _evaluar_escuela_arista(
     indice,
     tolerancia_dedup_m,
     nodo_cabecera,
+    nombres_destino=None,
 ) -> tuple:
     """Metricas y registro de geometria de UNA escuela snapeada a su arista.
 
@@ -1054,7 +1203,10 @@ def _evaluar_escuela_arista(
     from shapely.ops import substring
 
     resultado = _resultado_vacio()
-    geometria = {"ruta": None, "cruces": [], "motivo_sin_geometria": None}
+    geometria = {
+        "ruta": None, "cruces": [], "motivo_sin_geometria": None,
+        "destino": None, "distancia_destino_m": None, "via_principal": None,
+    }
     resultado["snap_distancia_m"] = snap["distancia_m"]
 
     if snap["distancia_m"] > UMBRAL_SNAP_SIN_CONEXION_M:
@@ -1079,7 +1231,7 @@ def _evaluar_escuela_arista(
         opciones.append(
             {
                 "exit": v,
-                "costo": (1.0 - frac) * float(datos_e.get("length", 0.0)),
+                "costo": (1.0 - frac) * float(datos_e.get("costo", datos_e.get("length", 0.0))),
                 "datos": datos_e,
                 "clave": (u, v, k),
                 "sentido_adelante": True,
@@ -1090,13 +1242,15 @@ def _evaluar_escuela_arista(
     if datos_aristas_er and u in distancias_cab:
         kr = min(
             datos_aristas_er,
-            key=lambda kk: datos_aristas_er[kk].get("length", math.inf),
+            key=lambda kk: datos_aristas_er[kk].get(
+                "costo", datos_aristas_er[kk].get("length", math.inf)
+            ),
         )
         datos_er = datos_aristas_er[kr]
         opciones.append(
             {
                 "exit": u,
-                "costo": frac * float(datos_er.get("length", 0.0)),
+                "costo": frac * float(datos_er.get("costo", datos_er.get("length", 0.0))),
                 "datos": datos_er,
                 "clave": (v, u, kr),
                 "sentido_adelante": False,
@@ -1109,11 +1263,20 @@ def _evaluar_escuela_arista(
         return resultado, geometria
 
     mejor = min(opciones, key=lambda op: op["costo"] + distancias_cab[op["exit"]])
-    costo_total = mejor["costo"] + distancias_cab[mejor["exit"]]
-    resultado["distancia_cabecera_departamental_m"] = costo_total
-    resultado["distancia_via_pavimentada_m"] = costo_total
-
     ruta_desde_exit = list(reversed(rutas_cab[mejor["exit"]]))
+    distancia_parcial = (1.0 - frac if mejor["sentido_adelante"] else frac) * float(
+        mejor["datos"].get("length", 0.0)
+    )
+    distancia_real = distancia_parcial + _longitud_ruta(grafo, ruta_desde_exit)
+    resultado["distancia_cabecera_departamental_m"] = distancia_real
+    nodo_destino = rutas_cab[mejor["exit"]][0]
+    nombre_destino = (nombres_destino or {}).get(nodo_destino)
+    if nombre_destino is not None:
+        resultado["destino"] = {"nombre": nombre_destino}
+        resultado["distancia_destino_m"] = distancia_real
+        geometria["destino"] = resultado["destino"]
+        geometria["distancia_destino_m"] = distancia_real
+    resultado["distancia_via_pavimentada_m"] = distancia_real
 
     tramos_sin_pavimentar = 0
     cruces_con_puente = 0
@@ -1183,7 +1346,7 @@ def _evaluar_escuela_arista(
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         try:
             resultado["tiene_alternativa_sin_cruce"] = nx.has_path(
-                grafo_seguro, mejor["exit"], nodo_cabecera
+                grafo_seguro, mejor["exit"], nodo_destino
             )
         except (nx.NetworkXError, nx.NodeNotFound):
             resultado["tiene_alternativa_sin_cruce"] = False
@@ -1205,6 +1368,7 @@ def _evaluar_escuela_arista(
         geometria["motivo_sin_geometria"] = "ruta_degenerada"
     else:
         geometria["ruta"] = {"type": "LineString", "coordinates": coordenadas}
+    geometria["via_principal"] = calcular_via_principal(grafo, ruta_desde_exit)
     geometria["cruces"] = cruces_export
     return resultado, geometria
 
@@ -1292,6 +1456,8 @@ def calcular_metricas_escuela(
     import networkx as nx
     import osmnx as ox
 
+    peso_ruta = _peso_ruta(grafo)
+
     resultado = {
         "distancia_via_pavimentada_m": None,
         "distancia_cabecera_departamental_m": None,
@@ -1319,10 +1485,10 @@ def calcular_metricas_escuela(
 
     try:
         ruta_cabecera = nx.shortest_path(
-            grafo, nodo_escuela, nodo_cabecera, weight="length"
+            grafo, nodo_escuela, nodo_cabecera, weight=peso_ruta
         )
-        resultado["distancia_cabecera_departamental_m"] = nx.shortest_path_length(
-            grafo, nodo_escuela, nodo_cabecera, weight="length"
+        resultado["distancia_cabecera_departamental_m"] = _longitud_ruta(
+            grafo, ruta_cabecera
         )
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         resultado["motivo_sin_datos"] = "sin_conexion_red"
@@ -1379,6 +1545,8 @@ def _resultado_vacio() -> dict:
     return {
         "distancia_via_pavimentada_m": None,
         "distancia_cabecera_departamental_m": None,
+        "destino": None,
+        "distancia_destino_m": None,
         "tramos_sin_pavimentar_count": None,
         "cruces_agua_count": None,
         "cruces_agua_con_puente_count": None,
@@ -1400,6 +1568,7 @@ def calcular_metricas_departamento(
     *,
     geometrias_out: Optional[list] = None,
     indice_aristas: Optional[dict] = None,
+    busqueda_destinos: Optional[dict] = None,
 ) -> list:
     """Version batched de `calcular_metricas_escuela` para TODAS las escuelas
     de un mismo departamento (mismo `nodo_cabecera`).
@@ -1470,6 +1639,8 @@ def calcular_metricas_departamento(
     if not escuelas_depto:
         return []
 
+    peso_ruta = _peso_ruta(grafo)
+
     if indice_aristas is not None:
         return _calcular_metricas_departamento_por_arista(
             grafo,
@@ -1481,6 +1652,7 @@ def calcular_metricas_departamento(
             tolerancia_dedup_m,
             geometrias_out,
             indice_aristas,
+            busqueda_destinos,
         )
 
     lons = [e["lon"] for e in escuelas_depto]
@@ -1489,15 +1661,21 @@ def calcular_metricas_departamento(
         grafo, X=lons, Y=lats, return_dist=True
     )
 
-    distancias_cab, rutas_cab = nx.single_source_dijkstra(
-        grafo_invertido, nodo_cabecera, weight="length"
-    )
-
-    alcanzables_seguro = None
-    if grafo_seguro_invertido is not None:
-        alcanzables_seguro = set(
-            nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
+    nombres_destino = None
+    if busqueda_destinos is not None:
+        distancias_cab = busqueda_destinos["distancias"]
+        rutas_cab = busqueda_destinos["rutas"]
+        nombres_destino = busqueda_destinos["nombres"]
+        alcanzables_seguro = busqueda_destinos["alcanzables_seguro"]
+    else:
+        distancias_cab, rutas_cab = nx.single_source_dijkstra(
+            grafo_invertido, nodo_cabecera, weight=peso_ruta
         )
+        alcanzables_seguro = None
+        if grafo_seguro_invertido is not None:
+            alcanzables_seguro = set(
+                nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
+            )
 
     resultados = []
     for escuela, nodo_escuela, dist_snap in zip(escuelas_depto, nodos_escuela, dists_snap):
@@ -1510,7 +1688,12 @@ def calcular_metricas_departamento(
             resultados.append(resultado)
             if geometrias_out is not None:
                 geometrias_out.append(
-                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                    {
+                        "ruta": None, "cruces": [],
+                        "motivo_sin_geometria": "sin_conexion_red",
+                        "destino": None, "distancia_destino_m": None,
+                        "via_principal": None,
+                    }
                 )
             continue
 
@@ -1519,12 +1702,24 @@ def calcular_metricas_departamento(
             resultados.append(resultado)
             if geometrias_out is not None:
                 geometrias_out.append(
-                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                    {
+                        "ruta": None, "cruces": [],
+                        "motivo_sin_geometria": "sin_conexion_red",
+                        "destino": None, "distancia_destino_m": None,
+                        "via_principal": None,
+                    }
                 )
             continue
 
-        resultado["distancia_cabecera_departamental_m"] = distancias_cab[nodo_escuela]
         ruta_cabecera = list(reversed(rutas_cab[nodo_escuela]))
+        resultado["distancia_cabecera_departamental_m"] = _longitud_ruta(
+            grafo, ruta_cabecera
+        )
+        nodo_destino = rutas_cab[nodo_escuela][0]
+        nombre_destino = (nombres_destino or {}).get(nodo_destino)
+        if nombre_destino is not None:
+            resultado["destino"] = {"nombre": nombre_destino}
+            resultado["distancia_destino_m"] = resultado["distancia_cabecera_departamental_m"]
 
         tramos_sin_pavimentar = 0
         cruces_con_puente = 0
@@ -1569,7 +1764,7 @@ def calcular_metricas_departamento(
             grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
             try:
                 resultado["tiene_alternativa_sin_cruce"] = nx.has_path(
-                    grafo_seguro, nodo_escuela, nodo_cabecera
+                    grafo_seguro, nodo_escuela, nodo_destino
                 )
             except (nx.NetworkXError, nx.NodeNotFound):
                 resultado["tiene_alternativa_sin_cruce"] = False
@@ -1583,7 +1778,13 @@ def calcular_metricas_departamento(
                 ruta_geom = {"type": "LineString", "coordinates": coordenadas}
                 motivo_geom = None
             geometrias_out.append(
-                {"ruta": ruta_geom, "cruces": cruces_export, "motivo_sin_geometria": motivo_geom}
+                {
+                    "ruta": ruta_geom, "cruces": cruces_export,
+                    "motivo_sin_geometria": motivo_geom,
+                    "destino": resultado["destino"],
+                    "distancia_destino_m": resultado["distancia_destino_m"],
+                    "via_principal": calcular_via_principal(grafo, ruta_cabecera),
+                }
             )
 
         resultados.append(resultado)
@@ -1601,6 +1802,7 @@ def _calcular_metricas_departamento_por_arista(
     tolerancia_dedup_m: float,
     geometrias_out: Optional[list],
     indice_aristas: dict,
+    busqueda_destinos: Optional[dict],
 ) -> list:
     """Camino N3-C de `calcular_metricas_departamento`: snap a la ARISTA mas
     cercana (una sola consulta vectorizada para todas las escuelas) y ruteo
@@ -1615,19 +1817,26 @@ def _calcular_metricas_departamento_por_arista(
     camino batched)."""
     import networkx as nx
 
+    peso_ruta = _peso_ruta(grafo)
     lats = [e["lat"] for e in escuelas_depto]
     lons = [e["lon"] for e in escuelas_depto]
     snaps = _snap_arista_batch(grafo, indice_aristas, lats, lons)
 
-    distancias_cab, rutas_cab = nx.single_source_dijkstra(
-        grafo_invertido, nodo_cabecera, weight="length"
-    )
-
-    alcanzables_seguro = None
-    if grafo_seguro_invertido is not None:
-        alcanzables_seguro = set(
-            nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
+    if busqueda_destinos is not None:
+        distancias_cab = busqueda_destinos["distancias"]
+        rutas_cab = busqueda_destinos["rutas"]
+        nombres_destino = busqueda_destinos["nombres"]
+        alcanzables_seguro = busqueda_destinos["alcanzables_seguro"]
+    else:
+        distancias_cab, rutas_cab = nx.single_source_dijkstra(
+            grafo_invertido, nodo_cabecera, weight=peso_ruta
         )
+        nombres_destino = None
+        alcanzables_seguro = None
+        if grafo_seguro_invertido is not None:
+            alcanzables_seguro = set(
+                nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
+            )
 
     resultados = []
     for escuela, snap in zip(escuelas_depto, snaps):
@@ -1637,7 +1846,8 @@ def _calcular_metricas_departamento_por_arista(
             resultados.append(resultado)
             if geometrias_out is not None:
                 geometrias_out.append(
-                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red"}
+                    {"ruta": None, "cruces": [], "motivo_sin_geometria": "sin_conexion_red",
+                     "destino": None, "distancia_destino_m": None, "via_principal": None}
                 )
             continue
 
@@ -1651,6 +1861,7 @@ def _calcular_metricas_departamento_por_arista(
             indice_aristas,
             tolerancia_dedup_m,
             nodo_cabecera,
+            nombres_destino,
         )
         resultados.append(resultado)
         if geometrias_out is not None:

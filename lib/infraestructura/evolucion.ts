@@ -31,6 +31,12 @@ import {
 import { listarSeccionesDeCues } from './secciones-cue'
 import { calcularEstadoServicioGeneral } from './servicio-educativo'
 import { claveServicioAlcance, resolverAlcanceVigente } from './vigencia-alcance'
+import { normalizarNombreDepartamento } from '@/lib/mapas/normalizar-departamento'
+
+export interface FiltrosEvolucion {
+  departamentos?: string[]
+  niveles?: string[]
+}
 
 export interface PuntoEscuelasServicioCaido {
   fecha: string // YYYY-MM-DD (UTC)
@@ -179,7 +185,7 @@ function construirDistribucionMotivo(partes: ParteMapa[]): DistribucionMotivo[] 
     })
 }
 
-export async function obtenerEvolucionMapa(): Promise<EvolucionMapa> {
+export async function obtenerEvolucionMapa(filtros: FiltrosEvolucion = {}): Promise<EvolucionMapa> {
   const periodo = await obtenerRangoPeriodoVigente()
   if (!periodo) return vacio()
 
@@ -188,22 +194,42 @@ export async function obtenerEvolucionMapa(): Promise<EvolucionMapa> {
   // IndicadoresMapa (criterio de aceptación #6). `servicio == null` significa
   // "sin filtro" (comportamiento por defecto de listarPartesVigentes), igual
   // que la pestaña del mapa cuando no hay filtros activos.
-  const { partes } = await listarPartesVigentes()
+  const { partes: partesVigentes } = await listarPartesVigentes()
 
-  const rankingDepartamentos = construirRanking(partes)
-  const distribucionMotivo = construirDistribucionMotivo(partes)
+  if (partesVigentes.length === 0) return vacio()
 
-  if (partes.length === 0) {
-    return { serieEscuelasServicioCaido: [], rankingDepartamentos, distribucionMotivo, alumnosAcumulados: [] }
-  }
+  const departamentos = new Set((filtros.departamentos ?? []).map(normalizarNombreDepartamento))
+  const filtrarDepartamento = departamentos.size > 0
+  let partes = filtrarDepartamento
+    ? partesVigentes.filter((parte) => departamentos.has(normalizarNombreDepartamento(parte.departamento)))
+    : partesVigentes
+  if (partes.length === 0) return vacio()
 
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
 
   const corte = await getCorteVigente(client)
   if (!corte) {
+    if ((filtros.niveles?.length ?? 0) > 0) return vacio()
+    const rankingDepartamentos = construirRanking(partes)
+    const distribucionMotivo = construirDistribucionMotivo(partes)
     return { serieEscuelasServicioCaido: [], rankingDepartamentos, distribucionMotivo, alumnosAcumulados: [] }
   }
+
+  const niveles = new Set((filtros.niveles ?? []).map((nivel) => nivel.trim()).filter(Boolean))
+  const filtrarNivel = niveles.size > 0
+  const seccionesCargadas = filtrarNivel
+    ? await listarSeccionesDeCues(client, corte.id, [...new Set(partesVigentes.map((p) => p.cueAnexo))])
+    : undefined
+  if (seccionesCargadas) {
+    partes = partes.filter((parte) =>
+      (seccionesCargadas.get(parte.cueAnexo) ?? []).some((seccion) => niveles.has(seccion.nivel?.trim() ?? '')),
+    )
+  }
+  if (partes.length === 0) return vacio()
+
+  const rankingDepartamentos = construirRanking(partes)
+  const distribucionMotivo = construirDistribucionMotivo(partes)
 
   // Misma población que `partes` (escuelas con al menos una afectación
   // vigente hoy): es la que determina IndicadoresMapa.conServicioSuspendido/
@@ -217,7 +243,7 @@ export async function obtenerEvolucionMapa(): Promise<EvolucionMapa> {
   const [servicioRows, afectacionesRows, seccionesPorCue] = await Promise.all([
     cargarServicioAlcanceDeVariosPartes(client, parteIds),
     cargarAfectacionesDeVariosPartes(client, corte.id, parteIds),
-    listarSeccionesDeCues(client, corte.id, cueAnexos),
+    seccionesCargadas ?? listarSeccionesDeCues(client, corte.id, cueAnexos),
   ])
 
   const servicioPorParte = agruparPorParte(servicioRows)

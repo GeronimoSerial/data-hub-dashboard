@@ -51,19 +51,23 @@ describe('descubrirArchivosGeoStatic', () => {
 
 function crearDbFalsa() {
   const llamadas: Array<{ tabla: string; valores: unknown }> = []
+  const conflictos: Array<Record<string, unknown>> = []
   const db = {
     insert(tabla: { _: { name?: string } } & Record<string, unknown>) {
       return {
         values(valores: unknown) {
           llamadas.push({ tabla: String((tabla as { _?: { name?: string } })._?.name ?? 'tabla'), valores })
           return {
-            onConflictDoUpdate: vi.fn().mockResolvedValue(undefined),
+            onConflictDoUpdate: vi.fn((configuracion: Record<string, unknown>) => {
+              conflictos.push(configuracion)
+              return Promise.resolve(undefined)
+            }),
           }
         },
       }
     },
   }
-  return { db, llamadas }
+  return { db, llamadas, conflictos }
 }
 
 const tablaFalsa = {
@@ -263,7 +267,69 @@ describe('importarGeometria', () => {
     expect(fila.fechaExtractoOsm).toBe('2026-09-26')
     expect(fila.ruta).toEqual(filaGeometriaBase().ruta)
     expect(fila.cruces).toEqual(filaGeometriaBase().cruces)
+    expect(fila.viaPrincipal).toBeNull()
+    expect(fila.destinoNombre).toBeNull()
+    expect(fila.distanciaDestinoM).toBeNull()
     expect(typeof fila.importadoEn).toBe('string')
+  })
+
+  it('inserta los campos de destino y via principal del registro v3', async () => {
+    const viaPrincipal = { nombre: 'Ruta Provincial 27', tipo: 'primary', pavimentada: true }
+    const path = escribirNdjsonGz('geometria-v3.ndjson.gz', [filaGeometriaBase({
+      via_principal: viaPrincipal,
+      destino: { nombre: 'Saladas' },
+      distancia_destino_m: 35677.17,
+    })])
+
+    const { db, llamadas, conflictos } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const fila = (llamadas[0].valores as Array<Record<string, unknown>>)[0]
+    expect(JSON.parse(fila.viaPrincipal as string)).toEqual(viaPrincipal)
+    expect(fila.destinoNombre).toBe('Saladas')
+    expect(fila.distanciaDestinoM).toBe(35677.17)
+    expect(Object.keys(conflictos[0].set as object)).toEqual(expect.arrayContaining([
+      'viaPrincipal', 'destinoNombre', 'distanciaDestinoM',
+    ]))
+  })
+
+  it('acepta campos nuevos explicitamente nulos', async () => {
+    const path = escribirNdjsonGz('geometria-campos-nulos.ndjson.gz', [filaGeometriaBase({
+      via_principal: null,
+      destino: null,
+      distancia_destino_m: null,
+    })])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 1, fallidas: 0 })
+    const fila = (llamadas[0].valores as Array<Record<string, unknown>>)[0]
+    expect(fila.viaPrincipal).toBeNull()
+    expect(fila.destinoNombre).toBeNull()
+    expect(fila.distanciaDestinoM).toBeNull()
+  })
+
+  it('rechaza via_principal invalida sin llamar a la db', async () => {
+    const path = escribirNdjsonGz('geometria-via-invalida.ndjson.gz', [filaGeometriaBase({
+      via_principal: { nombre: 'Ruta', tipo: 'primary', pavimentada: 'si' },
+    })])
+
+    const { db, llamadas } = crearDbFalsa()
+    const resultado = await importarGeometria(path, {
+      db: db as never,
+      tabla: tablaGeometriaFalsa as never,
+    })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, fallidas: 1 })
+    expect(llamadas).toHaveLength(0)
   })
 
   it('acepta ruta null cuando se declara motivo_sin_geometria', async () => {

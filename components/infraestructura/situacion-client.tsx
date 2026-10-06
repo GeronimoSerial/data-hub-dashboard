@@ -7,7 +7,7 @@
 // reabre/cierra nada que el usuario tenga abierto. El selector "Cambios
 // desde" persiste su propia selección entre refrescos (no se resetea).
 //
-// Contrato de color (mismo que el modo Radar de E4, ver risk-explanation-panel.tsx):
+// La escala de riesgo escolar mantiene los niveles definidos para el mapa:
 // el color es SIEMPRE un refuerzo de un texto, nunca la única señal; "Sin
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
 import { useCallback, useEffect, useState, type JSX } from 'react'
@@ -155,11 +155,7 @@ function PanelFuentesSalud(props: { fuentes: FuenteSaludCliente[] }): JSX.Elemen
   )
 }
 
-// El modo Radar de /mapas/infraestructura no expone todavía un querystring de
-// preselección por departamento/escuela (ver registro.md, pendiente
-// documentado): el enlace lleva a la vista correcta, el operador ubica el
-// departamento/escuela ahí mismo.
-const ENLACE_RADAR = '/mapas/infraestructura'
+const ENLACE_RADAR = '/mapas/infraestructura#radar'
 
 function PanelPrioridades(props: { prioridades: PrioridadCliente[] }): JSX.Element {
   if (props.prioridades.length === 0) {

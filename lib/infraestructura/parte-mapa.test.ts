@@ -1,12 +1,14 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { getRawClient } from '@/lib/db'
+import { eq } from 'drizzle-orm'
+import { getDb, getRawClient } from '@/lib/db'
 import { ensureSeeded } from '@/lib/db/seed'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { crearEjecutorSql, ensureGeSchema } from './ge-db'
 import { obtenerPeriodoVigente } from './parte-consulta'
 import type * as ParteConsultaModule from './parte-consulta'
-import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
+import { calcularAlumnosAlcanzados, listarEscuelasMapa, listarEscuelasMapaEnriquecidas, listarPartesVigentes, redondearCoordenada, type FiltrosMapa } from './parte-mapa'
 import { crearAfectacion, crearParte, crearServicioAlcance } from './test-utils/parte-fixtures'
+import { infraAfectacion, infraParte, infraPeriodo } from '@/lib/db/schema'
 
 // Se envuelve el obtenerPeriodoVigente real (no se reemplaza): el resto de los
 // tests sigue leyendo el período sembrado, y los tests de listarEscuelasMapa
@@ -81,6 +83,45 @@ beforeAll(async () => {
 })
 
 describe('listarPartesVigentes', () => {
+  it('cuenta partes abiertos sin actualizar y excluye los recientes y los retirados', async () => {
+    const client = crearEjecutorSql(getRawClient())
+    const cues = [
+      ['CUE-INDICADOR-ANTIGUO', 9101],
+      ['CUE-INDICADOR-RECIENTE', 9102],
+      ['CUE-INDICADOR-RETIRADO', 9103],
+    ] as const
+    for (const [cue, seccionId] of cues) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES (?, NULL, ?, ?, ?, ?, ?)',
+        args: [cue, cue, 'Paraná', 'Paraná', -31.7, -60.5],
+      })
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+        args: [seccionId, cue, '1', 'A', 'PRIMARIA', 'MAÑANA'],
+      })
+    }
+    const parteAntiguoId = await crearParte('CUE-INDICADOR-ANTIGUO')
+    await crearAfectacion({ parteId: parteAntiguoId, secciones: [9101] })
+    await getDb().update(infraParte).set({
+      actualizadaEn: new Date(Date.now() - 73 * 60 * 60 * 1000).toISOString(),
+    }).where(eq(infraParte.id, parteAntiguoId))
+
+    const parteRecienteId = await crearParte('CUE-INDICADOR-RECIENTE')
+    await crearAfectacion({ parteId: parteRecienteId, secciones: [9102] })
+
+    const parteRetiradoId = await crearParte('CUE-INDICADOR-RETIRADO')
+    const hace73Horas = new Date(Date.now() - 73 * 60 * 60 * 1000).toISOString()
+    await crearAfectacion({ parteId: parteRetiradoId, secciones: [9103], retiradaEn: hace73Horas })
+    await getDb().update(infraParte).set({ actualizadaEn: hace73Horas }).where(eq(infraParte.id, parteRetiradoId))
+
+    const { partes, indicadores } = await listarPartesVigentes()
+    expect(partes.map((parte) => parte.cueAnexo).sort()).toEqual([
+      'CUE-INDICADOR-ANTIGUO',
+      'CUE-INDICADOR-RECIENTE',
+    ].sort())
+    expect(indicadores.sinActualizar).toBe(1)
+  })
+
   it('filtra un departamento del GeoJSON aunque GE use mayúsculas y tildes distintas', async () => {
     const client = crearEjecutorSql(getRawClient())
     await ensureGeSchema(client)
@@ -419,6 +460,102 @@ describe('listarEscuelasMapa', () => {
     expect(escuelas[0].lat).toBe(12.34568)
     expect(escuelas[0].lon).toBe(-54.32199)
     expect(sinUbicacion).toEqual([])
+  })
+})
+
+describe('listarEscuelasMapaEnriquecidas', () => {
+  it('cuenta todas las situaciones históricas por escuela y deja en cero las que no tienen', async () => {
+    const cueConHistorial = 'MAPA-ENRIQ-HISTORIAL'
+    const cueSinHistorial = 'MAPA-ENRIQ-SIN-HISTORIAL'
+    await sembrarEscuelaPadron({ cue: cueConHistorial, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    await sembrarEscuelaPadron({ cue: cueSinHistorial, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.4, lon: -58.4 })
+
+    const parteActual = await crearParte(cueConHistorial)
+    const solucionadaId = await crearAfectacion({ parteId: parteActual, secciones: [] })
+    await crearAfectacion({ parteId: parteActual, secciones: [], retiradaEn: new Date().toISOString() })
+    await getDb().update(infraAfectacion).set({ cierre: 'solucionada' }).where(eq(infraAfectacion.id, solucionadaId))
+
+    const periodoHistoricoId = 'MAPA-ENRIQ-PERIODO-HISTORICO'
+    const ahora = new Date().toISOString()
+    await getDb().insert(infraPeriodo).values({
+      id: periodoHistoricoId,
+      nombre: 'Período histórico de prueba',
+      inicioEn: ahora,
+      finEn: ahora,
+      estado: 'historico',
+      creadaEn: ahora,
+    })
+    const parteHistorica = crypto.randomUUID()
+    await getDb().insert(infraParte).values({
+      id: parteHistorica,
+      periodoId: periodoHistoricoId,
+      cueAnexo: cueConHistorial,
+      estadoEstablecimiento: 'habitual',
+      estadoEstablecimientoRigeDesde: ahora,
+      corteId: 1,
+      creadaEn: ahora,
+      actualizadaEn: ahora,
+    })
+    await crearAfectacion({ parteId: parteHistorica, secciones: [] })
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ territorio: 'MAPA-ENRIQ' })
+
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueConHistorial)?.situacionesHistoricas).toBe(3)
+    expect(resultado.escuelas.find((escuela) => escuela.cueAnexo === cueSinHistorial)?.situacionesHistoricas).toBe(0)
+  })
+
+  it('incluye niveles y la matrícula del corte vigente', async () => {
+    const cue = 'MAPA-ENRIQ-NIVELES'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.3, lon: -58.3 })
+    const client = crearEjecutorSql(getRawClient())
+    for (const [sectionId, nivel, personas] of [
+      [8801, 'Primario', 3],
+      [8802, 'Inicial', 2],
+    ] as const) {
+      await client.execute({
+        sql: 'INSERT INTO ge.ge_seccion (corte_id, ge_section_id, cue_anexo, curso, division, nivel, turno) VALUES (1, ?, ?, ?, ?, ?, ?)',
+        args: [sectionId, cue, '1', 'A', nivel, 'Mañana'],
+      })
+      for (let alumno = 0; alumno < personas; alumno++) {
+        await client.execute({
+          sql: 'INSERT INTO ge.ge_alumno_seccion (corte_id, ge_section_id, ge_person_id) VALUES (1, ?, ?)',
+          args: [sectionId, sectionId * 100 + alumno],
+        })
+      }
+    }
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0]).toMatchObject({ niveles: ['Inicial', 'Primario'], alumnos: 5 })
+    expect(resultado.totalPadron).toBe(1)
+  })
+
+  it('deriva clases y apoyo de un parte evacuado con asistencia pedagógica', async () => {
+    const cue = 'MAPA-ENRIQ-EVACUADO'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.4, lon: -58.4 })
+    const parteId = await crearParte(cue)
+    await crearAfectacion({ parteId, secciones: [] })
+    await getDb().update(infraParte).set({ estadoEstablecimiento: 'evacuado', asistenciaPedagogica: JSON.stringify({ brinda: true, modalidades: ['Cuadernillo'] }) }).where(eq(infraParte.id, parteId))
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0]).toMatchObject({ estado: 'afectada', parte: { parteId }, clases: 'evacuado', apoyo: 'cuadernillo' })
+  })
+
+  it('enriquece escuelas sin parte con valores vacíos y conserva estado', async () => {
+    const cue = 'MAPA-ENRIQ-SIN-PARTE'
+    await sembrarEscuelaPadron({ cue, departamento: 'MAPA-ENRIQ', localidad: 'MAPA-ENRIQ', lat: -27.5, lon: -58.5 })
+
+    const resultado = await listarEscuelasMapaEnriquecidas({ cueAnexo: cue })
+
+    expect(resultado.escuelas[0]).toMatchObject({
+      estado: 'sin_afectacion_reportada',
+      clases: 'normal',
+      apoyo: null,
+      gravedad: 0,
+      sinActualizar: false,
+    })
+    expect(resultado.escuelas[0].parte).toBeUndefined()
   })
 })
 

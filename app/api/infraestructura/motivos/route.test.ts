@@ -143,6 +143,31 @@ describe('POST /api/infraestructura/motivos', () => {
     const res = await POST(postReq({ id: 'x2', nombre: 'X2', categoria: 'inventada', orden: 1 }))
     expect(res.status).toBe(400)
   })
+
+  it('guarda la gravedad sugerida y la devuelve en GET', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(admin())
+    const { POST, GET } = await import('./route')
+    const res = await POST(postReq({ id: 'granizo', nombre: 'Granizo', categoria: 'establecimiento', orden: 60, severidadSugerida: 'Alta' }))
+    expect(res.status).toBe(200)
+    const body = await (await GET()).json()
+    expect(body.motivos.find((m: { id: string }) => m.id === 'granizo').severidadSugerida).toBe('Alta')
+  })
+
+  it('acepta sin sugerido (null) y lo persiste como null', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(admin())
+    const { POST, GET } = await import('./route')
+    await POST(postReq({ id: 'granizo-2', nombre: 'Granizo fuerte', categoria: 'establecimiento', orden: 61, severidadSugerida: null }))
+    const body = await (await GET()).json()
+    expect(body.motivos.find((m: { id: string }) => m.id === 'granizo-2').severidadSugerida).toBeNull()
+  })
+
+  it('rechaza una gravedad sugerida inválida con 400', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(admin())
+    const { POST } = await import('./route')
+    const res = await POST(postReq({ id: 'x', nombre: 'X', categoria: 'establecimiento', orden: 1, severidadSugerida: 'Gravísima' }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Gravedad sugerida inválida')
+  })
 })
 
 describe('DELETE /api/infraestructura/motivos', () => {

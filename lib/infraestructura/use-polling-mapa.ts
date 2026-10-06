@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { FiltrosMapa } from './parte-mapa'
-import { construirQueryStringFiltrosMapa } from './query-string-filtros-mapa'
 
 const INTERVALO_POLLING_MS = 15000
 
-export function usePollingMapa<T>(ruta: string, filtros: FiltrosMapa, mensajeError: string): {
+export function usePollingMapa<T>(ruta: string, mensajeError: string): {
   data: T | null
   loading: boolean
   error: string | null
@@ -14,7 +12,6 @@ export function usePollingMapa<T>(ruta: string, filtros: FiltrosMapa, mensajeErr
   const [data, setData] = useState<T | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const filtrosRef = useRef(filtros)
   const abortRef = useRef<AbortController | null>(null)
   const intervaloRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const desmontadoRef = useRef(false)
@@ -27,7 +24,7 @@ export function usePollingMapa<T>(ruta: string, filtros: FiltrosMapa, mensajeErr
     if (primeraCargaRef.current && !desmontadoRef.current) setLoading(true)
 
     try {
-      const respuesta = await fetch(`${ruta}${construirQueryStringFiltrosMapa(filtrosRef.current)}`, {
+      const respuesta = await fetch(ruta, {
         signal: controller.signal,
         cache: 'no-cache',
         headers: { Accept: 'application/json' },
@@ -82,20 +79,16 @@ export function usePollingMapa<T>(ruta: string, filtros: FiltrosMapa, mensajeErr
   }, [detenerIntervalo, ejecutarFetch, iniciarIntervalo])
 
   useEffect(() => {
-    filtrosRef.current = filtros
-    void ejecutarFetch()
-    iniciarIntervalo()
-    // The primitive dependencies preserve the existing filter refresh contract.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    filtros.territorio,
-    filtros.nivel,
-    filtros.cueAnexo,
-    filtros.motivo,
-    filtros.severidad,
-    filtros.categoria,
-    filtros.servicio,
-  ])
+    let cancelado = false
+    queueMicrotask(() => {
+      if (cancelado) return
+      void ejecutarFetch()
+      iniciarIntervalo()
+    })
+    return () => {
+      cancelado = true
+    }
+  }, [ejecutarFetch, iniciarIntervalo])
 
   return { data, loading, error }
 }

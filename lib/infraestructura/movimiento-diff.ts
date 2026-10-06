@@ -34,9 +34,16 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
+  causadaPor?: { afectacionId: string; motivo: string }
 }
 
 export interface DiffAfectacionRetirada {
+  afectacionId: string
+  motivo: string
+  cierre?: 'solucionada' | 'retirada'
+}
+
+export interface DiffAfectacionConfirmada {
   afectacionId: string
   motivo: string
 }
@@ -100,6 +107,7 @@ export interface DiffParte {
   serviciosCambiados: DiffServicioCambio[]
   establecimientoCambiado: DiffEstablecimientoCambio | null
   asistenciaPedagogicaCambiada?: DiffAsistenciaPedagogicaCambio | null
+  afectacionesConfirmadas?: DiffAfectacionConfirmada[]
 }
 
 function contarAlcance(afectacion: Afectacion): { secciones: number; alumnos: number } {
@@ -347,6 +355,7 @@ export function contarCambios(diff: DiffParte): number {
     diff.serviciosCambiados.length +
     (diff.establecimientoCambiado === null ? 0 : 1)
     + (diff.asistenciaPedagogicaCambiada == null ? 0 : 1)
+    + (diff.afectacionesConfirmadas?.length ?? 0)
   )
 }
 
@@ -360,5 +369,6 @@ export function esDiffVacio(diff: DiffParte): boolean {
     diff.serviciosCambiados.length === 0 &&
     diff.establecimientoCambiado === null
     && diff.asistenciaPedagogicaCambiada == null
+    && (diff.afectacionesConfirmadas?.length ?? 0) === 0
   )
 }

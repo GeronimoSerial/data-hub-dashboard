@@ -1,22 +1,38 @@
 'use client'
 
-import type { JSX } from 'react'
+import { useState, type JSX } from 'react'
 import type { TurnoContexto, SeccionContexto } from '@/lib/infraestructura/contexto'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
-import { SEVERIDADES, type Severidad } from '@/lib/infraestructura/validacion'
+import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import { detectarMotivoDuplicado } from '@/lib/infraestructura/duplicado-motivo'
-import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
-import { SEVERIDAD_CRITERIOS } from '@/lib/infraestructura/severidad'
+import { CampoGravedad } from '@/components/infraestructura/campo-gravedad'
+import type { JustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import { SeccionesSelector } from '@/components/infraestructura/secciones-selector'
+import { SelectorEstablecimiento } from '@/components/infraestructura/selector-establecimiento'
 import { Label } from '@/components/ui/label'
+import { Opcion } from '@/components/ui/opcion'
 import { Textarea } from '@/components/ui/textarea'
+import { ConfirmSheet } from '@/components/ui/confirm-sheet'
+import { SelectorAlumnos } from '@/components/infraestructura/selector-alumnos'
+import { AvisosRedSeguridad } from '@/components/infraestructura/aviso-red-seguridad'
+import { evaluarRedesSeguridad } from '@/lib/infraestructura/red-seguridad'
+
+export const TEXTO_CONFIRMAR_CATEGORIA: Record<CategoriaAfectacion, string> = {
+  establecimiento:
+    'Va a marcar las secciones donde la escuela no puede funcionar con normalidad. Si son alumnos puntuales que no pueden llegar, elija "Inaccesibilidad de alumnos".',
+  alumnos:
+    'Va a marcar sólo a los alumnos que no pueden llegar a la escuela. Si la situación afecta al edificio o a la escuela, elija "Afecta al establecimiento".',
+}
 
 export interface AfectacionBorrador {
   clientId: string
   categoria: CategoriaAfectacion | ''
   motivo: string
   severidad: Severidad | ''
+  justificacionCritica: JustificacionCritica | ''
+  justificacionCriticaDetalle: string
+  alcanceEstablecimiento: '' | 'toda' | 'algunas'
   secciones: number[]
   alumnos: number[]
   descripcion: string
@@ -67,6 +83,9 @@ export function crearAfectacionVacia(clientId: string): AfectacionBorrador {
     categoria: '',
     motivo: '',
     severidad: '',
+    justificacionCritica: '',
+    justificacionCriticaDetalle: '',
+    alcanceEstablecimiento: '',
     secciones: [],
     alumnos: [],
     descripcion: '',
@@ -114,12 +133,23 @@ export function CamposQuePaso({
   onChange,
   disabled = false,
 }: CamposQuePasoProps): JSX.Element {
-  // Al cambiar la categoría se limpian motivo y alumnos: el motivo porque el
-  // catálogo depende de la categoría, los alumnos porque una categoría sin
-  // permiteAlumnos nunca puede llevarlos. Las secciones elegidas se
-  // conservan: siguen siendo válidas para cualquier categoría.
+  const [categoriaPendiente, setCategoriaPendiente] = useState<CategoriaAfectacion | null>(null)
+
+  // Al cambiar la categoría se limpian los datos dependientes: el motivo y
+  // su gravedad porque el catálogo depende de la categoría, y el alcance
+  // porque cada categoría usa un selector distinto.
   function cambiarCategoria(categoria: CategoriaAfectacion) {
-    onChange({ ...borrador, categoria, motivo: '', alumnos: [] })
+    onChange({
+      ...borrador,
+      categoria,
+      motivo: '',
+      severidad: '',
+      justificacionCritica: '',
+      justificacionCriticaDetalle: '',
+      alcanceEstablecimiento: '',
+      secciones: [],
+      alumnos: [],
+    })
   }
 
   const motivosDeLaCategoria = borrador.categoria
@@ -156,102 +186,79 @@ export function CamposQuePaso({
   return (
     <>
       <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Qué tipo de problema es?</legend>
+        <legend className="afectacion-campos__legend">¿Qué tipo de situación es?</legend>
         <div className="afectacion-campos__opciones">
           {CATEGORIAS.map((c) => (
-            <label key={c} className="opcion-radio">
-              <input
-                type="radio"
+            <Opcion
+                key={c}
+                tipo="radio"
                 name={`${idPrefijo}-categoria`}
                 value={c}
                 checked={borrador.categoria === c}
-                onChange={() => cambiarCategoria(c)}
+                onChange={() => {
+                  if (c === borrador.categoria) return
+                  if (borrador.categoria === '') cambiarCategoria(c)
+                  else setCategoriaPendiente(c)
+                }}
                 disabled={disabled}
+                label={CATEGORIA_META[c].label}
+                ayuda={CATEGORIA_META[c].descripcion}
               />
-              <span className="opcion-radio__texto">
-                <span className="opcion-radio__titulo">{CATEGORIA_META[c].label}</span>
-                {/* La glosa ya existía en CATEGORIA_META y no se mostraba en
-                    ninguna pantalla. Es la que traduce el rótulo
-                    administrativo a algo que un director lee sin interpretar. */}
-                <span className="opcion-radio__ayuda">{CATEGORIA_META[c].descripcion}</span>
-              </span>
-            </label>
           ))}
         </div>
       </fieldset>
 
+      <ConfirmSheet
+        open={categoriaPendiente !== null}
+        titulo={categoriaPendiente ? CATEGORIA_META[categoriaPendiente].label : ''}
+        confirmarLabel="Continuar"
+        cancelarLabel="Elegir otra"
+        onCancelar={() => setCategoriaPendiente(null)}
+        onConfirmar={() => {
+          if (categoriaPendiente) cambiarCategoria(categoriaPendiente)
+          setCategoriaPendiente(null)
+        }}
+      >
+        <p>{categoriaPendiente ? TEXTO_CONFIRMAR_CATEGORIA[categoriaPendiente] : null}</p>
+      </ConfirmSheet>
+
       <fieldset className="afectacion-campos__grupo" disabled={disabled || !borrador.categoria}>
         <legend className="afectacion-campos__legend">¿Cuál es el motivo?</legend>
         {borrador.categoria === '' ? (
-          <p className="afectacion-campos__espera">Elija primero el tipo de problema.</p>
+          <p className="afectacion-campos__espera">Elija primero el tipo de situación.</p>
         ) : (
           <div className="afectacion-campos__opciones">
             {motivosDeLaCategoria.map((m) => (
-              <label key={m.id} className="opcion-radio opcion-radio--compacta">
-                <input
-                  type="radio"
+              <Opcion
+                  key={m.id}
+                  tipo="radio"
                   name={`${idPrefijo}-motivo`}
                   value={m.nombre}
                   checked={borrador.motivo === m.nombre}
-                  onChange={() => onChange({ ...borrador, motivo: m.nombre })}
+                  onChange={() => onChange({
+                    ...borrador,
+                    motivo: m.nombre,
+                    severidad: '',
+                    justificacionCritica: '',
+                    justificacionCriticaDetalle: '',
+                  })}
                   disabled={disabled}
+                  label={m.nombre}
+                  compacta
                 />
-                <span className="opcion-radio__texto">
-                  <span className="opcion-radio__titulo">{m.nombre}</span>
-                </span>
-              </label>
             ))}
           </div>
         )}
       </fieldset>
 
-      {/*
-        Cada nivel lleva escrito qué lo distingue del siguiente. La
-        especificación define que la severidad es por afectación pero no sus
-        criterios, así que sin esto "Alta" y "Crítica" quedaban a
-        interpretación de cada director y el dato dejaba de ser comparable
-        entre escuelas.
-
-        Va como texto a la vista y NO como tooltip: lo llena un director desde
-        el celular, donde no existe el hover, y el contrato de UX de este
-        recorrido prohíbe poner algo necesario detrás de él. El criterio se lee
-        justo cuando hay que decidir, sin un gesto extra.
-
-        El criterio viaja por aria-describedby y no dentro de la etiqueta: así
-        el nombre accesible de la opción sigue siendo "Alta" y no la frase
-        entera, que es lo que un lector de pantalla necesita para anunciar la
-        selección.
-      */}
-      <fieldset className="afectacion-campos__grupo" disabled={disabled}>
-        <legend className="afectacion-campos__legend">¿Qué tan grave es?</legend>
-        <div className="afectacion-campos__opciones">
-          {SEVERIDADES.map((s) => (
-            <label key={s} className="opcion-radio">
-              <input
-                type="radio"
-                name={`${idPrefijo}-severidad`}
-                value={s}
-                checked={borrador.severidad === s}
-                onChange={() => onChange({ ...borrador, severidad: s })}
-                disabled={disabled}
-                aria-labelledby={`${idPrefijo}-severidad-${s}-nombre`}
-                aria-describedby={`${idPrefijo}-severidad-${s}-criterio`}
-              />
-              <span className="opcion-radio__texto">
-                {/* Con la marca al lado, elegir severidad deja de ser leer
-                    cuatro palabras sueltas y pasa a ser ubicarse en una
-                    escala — la misma que después ve en el parte. */}
-                <span className="opcion-radio__titulo" id={`${idPrefijo}-severidad-${s}-nombre`}>
-                  <EstadoActualSeveridad severidad={s} prefijo={false} marca={false} />
-                </span>
-                <span className="opcion-radio__ayuda" id={`${idPrefijo}-severidad-${s}-criterio`}>
-                  {SEVERIDAD_CRITERIOS[s]}
-                </span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <CampoGravedad
+        idPrefijo={idPrefijo}
+        categoria={borrador.categoria}
+        sugerida={motivosDeLaCategoria.find((m) => m.nombre === borrador.motivo)?.severidadSugerida ?? null}
+        valor={borrador}
+        onCambiar={(gravedad) => onChange({ ...borrador, ...gravedad })}
+        disabled={disabled}
+      />
 
       {duplicado?.coincidenciaExacta && (
         <p className="aviso-badge" role="status">
@@ -267,47 +274,138 @@ export function CamposQuePaso({
 
 export interface CamposAQuienAfectaProps extends CamposComunes {
   turnos: TurnoContexto[]
+  usaSelectorEstablecimiento?: boolean
+  ocultarPreguntaAlcance?: boolean
+  ocultarDescripcion?: boolean
 }
 
 export function CamposAQuienAfecta({
   borrador,
   idPrefijo,
   turnos,
+  usaSelectorEstablecimiento = false,
+  ocultarPreguntaAlcance = false,
+  ocultarDescripcion = false,
   onChange,
   disabled = false,
 }: CamposAQuienAfectaProps): JSX.Element {
   const totalAlumnos = totalAlumnosDe(borrador, turnos)
   const seccionesDisponibles = aplanarSecciones(turnos)
   const matriculaDisponible = seccionesDisponibles.reduce((suma, seccion) => suma + seccion.matricula, 0)
+  const cantidadSecciones = borrador.secciones.length
+  const textoSecciones = cantidadSecciones === 0
+    ? 'Ninguna sección seleccionada'
+    : cantidadSecciones === 1
+      ? '1 sección seleccionada'
+      : `${cantidadSecciones} secciones seleccionadas`
 
   return (
     <>
-      <div className="afectacion-campos__grupo">
-        <Label>Secciones afectadas</Label>
-        <SeccionesSelector
-          turnos={turnos}
-          seleccionadas={borrador.secciones}
-          alumnosSeleccionados={borrador.alumnos}
-          onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
-          disabled={disabled}
-          permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
-        />
-        <p className="afectacion-borrador__resumen" aria-live="polite">
-          Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
-          {matriculaDisponible} alumnos
-        </p>
-      </div>
+      {borrador.categoria === 'alumnos' ? (
+        <div className="afectacion-campos__grupo">
+          <Label>Alumnos afectados</Label>
+          <SelectorAlumnos
+            turnos={turnos}
+            alumnosSeleccionados={borrador.alumnos}
+            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            disabled={disabled}
+          />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
+          <AvisosRedSeguridad
+            avisos={evaluarRedesSeguridad({
+              categoria: 'alumnos',
+              alumnosMarcados: borrador.alumnos.length,
+              matricula: matriculaDisponible,
+              seccionesMarcadas: borrador.secciones.length,
+              seccionesTotales: seccionesDisponibles.length,
+              alcanceEstablecimiento: '',
+            })}
+            onAccion={(tipo) => {
+              if (tipo === 'cambiar-a-establecimiento') {
+                onChange({
+                  ...borrador,
+                  categoria: 'establecimiento',
+                  motivo: '',
+                  severidad: '',
+                  justificacionCritica: '',
+                  justificacionCriticaDetalle: '',
+                  alumnos: [],
+                  secciones: [],
+                  alcanceEstablecimiento: '',
+                })
+              }
+            }}
+          />
+        </div>
+      ) : usaSelectorEstablecimiento && borrador.categoria === 'establecimiento' ? (
+        <div className="afectacion-campos__grupo">
+          <p className={`afectacion-campos__legend${ocultarPreguntaAlcance ? ' sr-only' : ''}`}>¿A quiénes afecta?</p>
+          <AvisosRedSeguridad
+            avisos={evaluarRedesSeguridad({
+              categoria: 'establecimiento',
+              alumnosMarcados: 0,
+              matricula: matriculaDisponible,
+              seccionesMarcadas: borrador.secciones.length,
+              seccionesTotales: seccionesDisponibles.length,
+              alcanceEstablecimiento: borrador.alcanceEstablecimiento,
+            })}
+            onAccion={(tipo) => {
+              if (tipo === 'marcar-toda-la-escuela') {
+                onChange({
+                  ...borrador,
+                  alcanceEstablecimiento: 'toda',
+                  secciones: seccionesDisponibles.map((s) => s.geSectionId),
+                  alumnos: [],
+                })
+              }
+            }}
+          />
+          <SelectorEstablecimiento
+            turnos={turnos}
+            valor={{ alcance: borrador.alcanceEstablecimiento, secciones: borrador.secciones }}
+            onCambiar={(v) => onChange({ ...borrador, alcanceEstablecimiento: v.alcance, secciones: v.secciones, alumnos: [] })}
+            disabled={disabled}
+          />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
+          {borrador.alcanceEstablecimiento === 'algunas' ? (
+            <p className="afectacion-borrador__resumen" aria-live="polite">
+              Seleccionadas: {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de{' '}
+              {matriculaDisponible} alumnos
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="afectacion-campos__grupo">
+          <Label>Secciones afectadas</Label>
+          <SeccionesSelector
+            turnos={turnos}
+            seleccionadas={borrador.secciones}
+            alumnosSeleccionados={borrador.alumnos}
+            onCambiar={(secciones, alumnos) => onChange({ ...borrador, secciones, alumnos })}
+            disabled={disabled}
+            permiteAlumnos={borrador.categoria ? CATEGORIA_META[borrador.categoria].permiteAlumnos : true}
+          />
+          <p className="afectacion-borrador__resumen" aria-live="polite">{textoSecciones}</p>
+          {borrador.secciones.length > 0 ? (
+            <p className="afectacion-borrador__resumen">
+              {borrador.secciones.length} de {seccionesDisponibles.length} secciones · {totalAlumnos} de {matriculaDisponible} alumnos
+            </p>
+          ) : null}
+        </div>
+      )}
 
-      <div className="afectacion-campos__grupo">
-        <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
-        <Textarea
-          id={`${idPrefijo}-descripcion`}
-          maxLength={500}
-          value={borrador.descripcion}
-          onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
-          disabled={disabled}
-        />
-      </div>
+      {!ocultarDescripcion ? (
+        <div className="afectacion-campos__grupo">
+          <Label htmlFor={`${idPrefijo}-descripcion`}>Descripción (opcional)</Label>
+          <Textarea
+            id={`${idPrefijo}-descripcion`}
+            maxLength={500}
+            value={borrador.descripcion}
+            onChange={(evento) => onChange({ ...borrador, descripcion: evento.target.value })}
+            disabled={disabled}
+          />
+        </div>
+      ) : null}
     </>
   )
 }

@@ -111,6 +111,8 @@ describe('sinSituacionEnSeguimiento', () => {
             severidad: 'Alta',
             descripcion: null,
             rigeDesde: '2026-09-18T13:30:00.000Z',
+            creadaEn: '2026-09-18T13:30:00.000Z',
+            causadaPorId: null,
             secciones: [],
             totales: { secciones: 3, alumnos: 74 },
           },
@@ -121,16 +123,16 @@ describe('sinSituacionEnSeguimiento', () => {
 })
 
 describe('vocabulary', () => {
-  it('shows "Funcionamiento escolar parcialmente interrumpido" as a derived label (spec §3.4)', () => {
-    expect(ETIQUETA_SERVICIO.parcial).toBe('Funcionamiento escolar parcialmente interrumpido')
-    expect(ETIQUETA_SERVICIO.normal).toBe('Funcionamiento escolar normal')
-    expect(ETIQUETA_SERVICIO.suspendido).toBe('Funcionamiento escolar interrumpido')
+  it('shows "Funcionamiento parcialmente interrumpido" as a derived label (spec §3.4)', () => {
+    expect(ETIQUETA_SERVICIO.parcial).toBe('Funcionamiento parcialmente interrumpido')
+    expect(ETIQUETA_SERVICIO.normal).toBe('Funcionamiento habitual')
+    expect(ETIQUETA_SERVICIO.suspendido).toBe('Funcionamiento interrumpido')
   })
 
   it('names the establishment states as spec §3.5 does', () => {
-    expect(ETIQUETA_ESTABLECIMIENTO.habitual).toBe('Funcionamiento habitual')
-    expect(ETIQUETA_ESTABLECIMIENTO.parcial).toBe('Funcionamiento parcial')
-    expect(ETIQUETA_ESTABLECIMIENTO.evacuado).toBe('Establecimiento evacuado')
-    expect(ETIQUETA_ESTABLECIMIENTO.centro_evacuados).toBe('Utilizado como centro de evacuados')
+    expect(ETIQUETA_ESTABLECIMIENTO.habitual).toBe('Sin daños / en uso normal')
+    expect(ETIQUETA_ESTABLECIMIENTO.parcial).toBe('Uso parcial')
+    expect(ETIQUETA_ESTABLECIMIENTO.evacuado).toBe('Evacuado')
+    expect(ETIQUETA_ESTABLECIMIENTO.centro_evacuados).toBe('Usado como centro de evacuados')
   })
 })

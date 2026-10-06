@@ -216,6 +216,9 @@ export const infraMotivo = pgTable('infra_motivo', {
   nombre: text('nombre').notNull(),
   categoria: text('categoria').notNull(),
   orden: integer('orden').notNull().default(0),
+  // Gravedad que el wizard marca como "Sugerido" (spec rediseño §4.1).
+  // Null = sin sugerido. Nunca restringe: el director elige libremente.
+  severidadSugerida: text('severidad_sugerida'),
 })
 
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
@@ -334,11 +337,22 @@ export const infraAfectacion = pgTable(
     // Soft delete: nunca se borra una fila, se marca el momento en que dejó
     // de regir. Null mientras la afectación sigue vigente.
     retiradaEn: text('retirada_en'),
+    // Justificación obligatoria al elegir Crítica cuando el motivo no la
+    // sugería (spec rediseño §4.3). `detalle` sólo con justificación 'otro'.
+    justificacionCritica: text('justificacion_critica'),
+    justificacionCriticaDetalle: text('justificacion_critica_detalle'),
+    // Situación que provocó ésta (spec rediseño §4.4). Sin FK declarada: las
+    // afectaciones nunca se borran y la causa puede vivir en otro parte
+    // (otro período) de la misma escuela.
+    causadaPorId: text('causada_por_id'),
+    // Por qué dejó de regir: 'solucionada' | 'retirada'. Null mientras rige.
+    cierre: text('cierre'),
   },
   (t) => [
     index('infra_afectacion_parte_id_idx').on(t.parteId),
     index('infra_afectacion_creada_en_idx_e7b').on(t.creadaEn),
     index('infra_afectacion_rige_desde_idx_e7b').on(t.rigeDesde),
+    index('infra_afectacion_causada_por_id_idx').on(t.causadaPorId),
   ],
 )
 
@@ -409,7 +423,7 @@ export const infraMovimiento = pgTable(
       .notNull()
       .references(() => infraParte.id, { onDelete: 'cascade' }),
     // 'reporte_inicial' | 'actualizacion' | 'cambio_servicio' |
-    // 'cambio_establecimiento' | 'resolucion' (esta última reservada para el
+    // 'cambio_establecimiento' | 'confirmacion' | 'resolucion' (esta última reservada para el
     // futuro flujo de supervisor, nunca producida en esta etapa)
     tipo: text('tipo').notNull(),
     rol: text('rol').notNull(), // 'director' | 'supervisor'
@@ -1158,8 +1172,14 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
-// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → cabecera
-// departamental y cruces de agua clasificados). Es contexto territorial
+export type ViaPrincipalAcceso = {
+  nombre: string | null
+  tipo: string
+  pavimentada: boolean
+}
+
+// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
+// urbana cercana y cruces de agua clasificados). Es contexto territorial
 // derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
 // edificio. `ruta` null + `motivoSinGeometria` explica la ausencia.
 export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
@@ -1167,6 +1187,9 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
   cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  viaPrincipal: text('via_principal'),
+  destinoNombre: text('destino_nombre'),
+  distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),

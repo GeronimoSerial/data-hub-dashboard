@@ -1,27 +1,45 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { CircleCheck } from 'lucide-react'
 import type { FormEvent, JSX } from 'react'
 import {
   CamposAQuienAfecta,
   CamposQuePaso,
   aplanarSecciones,
   crearAfectacionVacia,
+  esAfectacionLista,
+  esAfectacionParcial,
   totalAlumnosDe,
   type AfectacionBorrador,
 } from '@/components/infraestructura/afectacion-campos'
-import { VigenciaField } from '@/components/infraestructura/vigencia-field'
-import {
-  ETIQUETA_ESTABLECIMIENTO,
-  ETIQUETA_SERVICIO,
-} from '@/components/infraestructura/estado-actual-textos'
+import { gravedadCompleta } from '@/components/infraestructura/campo-gravedad'
+import { VigenciaChips } from '@/components/infraestructura/vigencia-chips'
+import { ETIQUETA_ESTABLECIMIENTO } from '@/components/infraestructura/estado-actual-textos'
+import { CamposClasesEdificio } from '@/components/infraestructura/campos-clases-edificio'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import { armarResumen } from '@/components/infraestructura/reporte-inicial-resumen'
 import { limpiarVinculoVerificacion, leerVinculoVerificacion } from './verificacion-vinculo'
 import { Button } from '@/components/ui/button'
+import { EstadoEnvioAviso } from '@/components/infraestructura/estado-envio-aviso'
+import { Opcion } from '@/components/ui/opcion'
+import { ConfirmSheet } from '@/components/ui/confirm-sheet'
 import type { TurnoContexto } from '@/lib/infraestructura/contexto'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
 import type { Severidad } from '@/lib/infraestructura/validacion'
+import { JUSTIFICACIONES_CRITICA } from '@/lib/infraestructura/justificacion-critica'
+import { requiereJustificacionCritica } from '@/lib/infraestructura/justificacion-critica'
 import type { EstadoEstablecimiento } from '@/lib/infraestructura/trayectoria-tipos'
+import {
+  errorVigencia as obtenerErrorVigencia,
+  etiquetaVigencia,
+  esEleccionVigencia,
+  resolverVigencia,
+  VIGENCIA_AHORA,
+  type EleccionVigencia,
+} from '@/lib/infraestructura/vigencia-eleccion'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, rangoVigencia } from '@/lib/infraestructura/vigencia-rango'
+import { VERSION_BORRADOR_ACTUAL, migrarPasoBorrador } from '@/lib/infraestructura/parte/borrador-migracion'
 import {
   colapsarHistorial,
   crearBorradorStore,
@@ -29,42 +47,74 @@ import {
   leerPasoBaseHistorial,
 } from '@/lib/infraestructura/parte/borrador-historial'
 import {
-  crearAlmacenNavegador,
+  crearAlmacenLocalStorage,
+  claveBorrador as claveBorradorCola,
+  esEstadoReintentable,
   intentarEnviar,
+  reenviarCola,
   registrarAutoReintento,
+  programarReintento,
   leerBorrador as leerColaEnvio,
   MENSAJES_ESTADO,
+  type AlmacenClaveValor,
+  type EnviarOpciones,
   type EstadoEnvio,
 } from '@/lib/infraestructura/parte/envio-offline'
+import { crearAlmacenParte } from '@/lib/infraestructura/parte/almacen-indexeddb'
+import { alEnviarEnSegundoPlano, pedirSyncParte, registrarServiceWorkerParte } from '@/lib/infraestructura/parte/registrar-sync'
 
-const almacenParte = crearAlmacenNavegador()
+const almacenBorradores = crearAlmacenLocalStorage()
 
 export interface ReporteInicialFormProps {
   cue: string
   turnos: TurnoContexto[]
   motivos: MotivoRow[]
+  onGuardadoChange?: (guardado: boolean) => void
 }
 
 const MENSAJE_ERROR_GUARDADO =
-  'No pudimos guardar el reporte. La información ingresada se mantiene para que pueda volver a intentar.'
+  'No pudimos guardar el parte. La información ingresada se mantiene para que pueda volver a intentar.'
 
 const MENSAJE_GUARDADO =
-  'El reporte fue registrado. El estado actual y el historial ya reflejan lo informado.'
+  'Ya figura en el estado actual de su escuela.'
 
 const MENSAJE_FALTA_QUE_PASO =
-  'Elija el tipo de problema, el motivo y la severidad para continuar.'
+  'Elija el tipo de situación, el motivo y la gravedad para continuar.'
 
 const MENSAJE_FALTA_ALCANCE_AFECTACION =
-  'Elija al menos una sección afectada para continuar.'
+  'Elija al menos una sección para esta situación.'
 
 const MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO = 'Indique cómo está el edificio.'
+const MENSAJE_FECHA_FUTURA = 'La fecha no puede ser posterior a hoy.'
+const MENSAJE_FECHA_ANTIGUA = 'La fecha no puede ser anterior a hace 12 meses.'
 
-const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', '¿Cómo sigue el servicio?', 'Confirmar'] as const
+export const MENSAJE_BORRADOR_PENDIENTE =
+  'Tiene un parte sin enviar.'
 
-type Paso = 1 | 2 | 3 | 4
+function mensajeErrorVigencia(eleccion: EleccionVigencia): string | null {
+  const mensaje = obtenerErrorVigencia(eleccion)
+  if (!mensaje || eleccion.modo !== 'otro' || !eleccion.fecha || !eleccion.hora) return mensaje
 
+  const [año, mes, dia] = eleccion.fecha.split('-').map(Number)
+  const [hora, minuto] = eleccion.hora.split(':').map(Number)
+  const momento = new Date(año, mes - 1, dia, hora, minuto)
+  const { min, max } = rangoVigencia()
+  if (momento.getTime() > max.getTime()) return MENSAJE_FECHA_FUTURA
+  if (momento.getTime() < min.getTime()) return MENSAJE_FECHA_ANTIGUA
+  return mensaje
+}
+
+const PASOS = ['¿Qué pasó?', '¿A quiénes afecta?', 'Clases y edificio', '¿Desde cuándo?', 'Confirmar'] as const
+
+type Paso = 1 | 2 | 3 | 4 | 5
+
+const PASO_DESDE_CUANDO: Paso = 4
+const PASO_CONFIRMAR: Paso = 5
+
+// Alumnos no pregunta por clases ni edificio: su recorrido salta el paso 3,
+// y el indicador "Paso X de N" cuenta sólo los pasos que realmente recorre.
 function pasosDe(categoria: AfectacionBorrador['categoria']): Paso[] {
-  return categoria === 'alumnos' ? [1, 2, 4] : [1, 2, 3, 4]
+  return categoria === 'alumnos' ? [1, 2, 4, 5] : [1, 2, 3, 4, 5]
 }
 
 // Borrador de sesión (#32): F5 no debería empezar el asistente de cero. La
@@ -77,6 +127,9 @@ function claveBorradorDe(cue: string): string {
 
 interface BorradorParteNuevo {
   generacion: string
+  // Ausente en los borradores anteriores a la división del paso 3: ver
+  // migrarPasoBorrador.
+  version?: number
   paso: Paso
   afectacion: AfectacionBorrador
   servicioEstado: '' | 'normal' | 'suspendido'
@@ -84,6 +137,7 @@ interface BorradorParteNuevo {
   asistenciaBrinda: '' | 'si' | 'no'
   modalidadesAsistencia: string[]
   rigeDesde: string
+  vigencia?: EleccionVigencia
   // Vestigial (ver esBorradorParteNuevo): sólo se lee por compatibilidad con
   // borradores viejos, ya no se escribe.
   idempotencyKey?: string
@@ -95,6 +149,7 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   if (typeof b.generacion !== 'string' || typeof b.rigeDesde !== 'string') {
     return false
   }
+  if (b.vigencia !== undefined && !esEleccionVigencia(b.vigencia)) return false
   // `idempotencyKey` fue un campo vestigial del borrador de este asistente
   // (nunca lo usaba el POST: la idempotencyKey real la decide el motor de
   // envío por tipo+cue, ver lib/infraestructura/parte/envio-offline.ts). Ya
@@ -102,7 +157,10 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   // acepta y se ignora, para no invalidar borradores existentes en el
   // dispositivo del director.
   if (b.idempotencyKey !== undefined && typeof b.idempotencyKey !== 'string') return false
-  if (b.paso !== 1 && b.paso !== 2 && b.paso !== 3 && b.paso !== 4) return false
+  if (b.version !== undefined && typeof b.version !== 'number') return false
+  if (b.paso !== 1 && b.paso !== 2 && b.paso !== 3 && b.paso !== 4 && b.paso !== 5) return false
+  // Un borrador sin versión nunca tuvo el paso 5.
+  if (b.paso === 5 && (b.version ?? 1) < VERSION_BORRADOR_ACTUAL) return false
   if (b.servicioEstado !== '' && b.servicioEstado !== 'normal' && b.servicioEstado !== 'suspendido') {
     return false
   }
@@ -128,21 +186,31 @@ function esBorradorParteNuevo(valor: unknown): valor is BorradorParteNuevo {
   }
   if (!Array.isArray(a.secciones) || !a.secciones.every((n) => typeof n === 'number')) return false
   if (!Array.isArray(a.alumnos) || !a.alumnos.every((n) => typeof n === 'number')) return false
+  if (a.justificacionCritica !== undefined && a.justificacionCritica !== '' && !JUSTIFICACIONES_CRITICA.includes(a.justificacionCritica as (typeof JUSTIFICACIONES_CRITICA)[number])) return false
+  if (a.justificacionCriticaDetalle !== undefined && typeof a.justificacionCriticaDetalle !== 'string') return false
+  if (a.alcanceEstablecimiento !== undefined && a.alcanceEstablecimiento !== '' && a.alcanceEstablecimiento !== 'toda' && a.alcanceEstablecimiento !== 'algunas') return false
   return true
 }
 
 const borradorStore = crearBorradorStore(esBorradorParteNuevo)
-const leerBorrador = (clave: string) => borradorStore.leer(almacenParte, clave)
+const leerBorrador = (clave: string) => borradorStore.leer(almacenBorradores, clave)
 const guardarBorrador = (clave: string, borrador: BorradorParteNuevo) =>
-  borradorStore.guardar(almacenParte, clave, borrador)
-const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenParte, clave)
+  borradorStore.guardar(almacenBorradores, clave, borrador)
+const limpiarBorrador = (clave: string) => borradorStore.limpiar(almacenBorradores, clave)
 
 // El paso restaurado tiene que ser alcanzable con el botón "atrás" del
 // navegador (#31): si la entrada actual es la inicial, empujamos las que
 // faltan; si ya es el paso restaurado (recarga con F5 conserva el
 // history.state), no hacemos nada para no duplicar entradas.
-function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string, pasos: Paso[]): void {
-  const base = leerPasoBaseHistorial(generacion)
+function sincronizarHistorialTrasRestaurar(
+  pasoActual: Paso,
+  generacion: string,
+  pasos: Paso[],
+  versionBorrador: number | undefined,
+): void {
+  // Las entradas del historial de una sesión anterior a la división del paso 3
+  // guardan la numeración vieja.
+  const base = migrarPasoBorrador(leerPasoBaseHistorial(generacion), versionBorrador)
   const indiceBase = pasos.indexOf(base as Paso)
   const indiceActual = pasos.indexOf(pasoActual)
   for (let i = Math.max(0, indiceBase + 1); i <= indiceActual; i += 1) {
@@ -168,7 +236,12 @@ function sincronizarHistorialTrasRestaurar(pasoActual: Paso, generacion: string,
  * única afectación viaja en `afectacionesNuevas` y las otras dos listas van
  * vacías, igual que antes.
  */
-export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormProps): JSX.Element {
+export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: ReporteInicialFormProps): JSX.Element {
+  const almacenRef = useRef<Promise<AlmacenClaveValor> | null>(null)
+  function almacen(): Promise<AlmacenClaveValor> {
+    almacenRef.current ??= crearAlmacenParte()
+    return almacenRef.current
+  }
   const [paso, setPaso] = useState<Paso>(1)
   const [afectacion, setAfectacion] = useState<AfectacionBorrador>(() =>
     crearAfectacionVacia(crypto.randomUUID()),
@@ -178,14 +251,19 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const [confirmarInterrupcionTotal, setConfirmarInterrupcionTotal] = useState(false)
   const [asistenciaBrinda, setAsistenciaBrinda] = useState<'' | 'si' | 'no'>('')
   const [modalidadesAsistencia, setModalidadesAsistencia] = useState<string[]>([])
-  const [rigeDesde, setRigeDesde] = useState(() => new Date().toISOString())
+  const [vigencia, setVigencia] = useState<EleccionVigencia>(VIGENCIA_AHORA)
+  const [errorVigencia, setErrorVigencia] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [estadoEnvio, setEstadoEnvio] = useState<EstadoEnvio | null>(null)
+  const [estadoAvisoEnvio, setEstadoAvisoEnvio] = useState<'pendiente-envio' | 'error-servidor' | 'sesion-vencida' | null>(null)
+  const [intentosEnvio, setIntentosEnvio] = useState(0)
   const [motivoEnvio, setMotivoEnvio] = useState<string | null>(null)
   const [guardado, setGuardado] = useState<{ movimientoId: string } | null>(null)
+  const [borradorPendiente, setBorradorPendiente] = useState<BorradorParteNuevo | null>(null)
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false)
   const enviandoRef = useRef(false)
-  const reintentarRef = useRef<() => void>(() => {})
+  const reintentarRef = useRef<(deliberado?: boolean) => void>(() => {})
   // Identidad de las entradas de historial de ESTE asistente: un popstate de
   // una sesión ya reiniciada no debe revivir sus pasos.
   const generacionRef = useRef<string | null>(null)
@@ -204,7 +282,32 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       setServicioEstado('')
       setEstadoEstablecimiento('')
     }
+    if (paso === 2 && siguiente.categoria === 'establecimiento' && siguiente.motivo === '') {
+      setPaso(1)
+      setError('Elija el motivo de la situación del establecimiento.')
+    }
     setAfectacion(siguiente)
+  }
+
+  function aplicarBorrador(borrador: BorradorParteNuevo): void {
+    generacionRef.current = borrador.generacion
+    const pasosBorrador = pasosDe(borrador.afectacion.categoria)
+    const pasoGuardado = migrarPasoBorrador(borrador.paso, borrador.version) as Paso
+    const pasoSolicitado = pasosBorrador.includes(pasoGuardado) ? pasoGuardado : PASO_CONFIRMAR
+    const faltaMotivoEstablecimiento =
+      pasoSolicitado === 2 &&
+      borrador.afectacion.categoria === 'establecimiento' &&
+      borrador.afectacion.motivo === ''
+    const pasoRestaurado = faltaMotivoEstablecimiento ? 1 : pasoSolicitado
+    setPaso(pasoRestaurado)
+    setAfectacion({ ...crearAfectacionVacia(borrador.afectacion.clientId), ...borrador.afectacion })
+    setError(faltaMotivoEstablecimiento ? 'Elija el motivo de la situación del establecimiento.' : null)
+    setServicioEstado(borrador.servicioEstado)
+    setEstadoEstablecimiento(borrador.estadoEstablecimiento)
+    setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
+    setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
+    setVigencia(borrador.vigencia ?? VIGENCIA_AHORA)
+    sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasosBorrador, borrador.version)
   }
 
   // Restaura el borrador SOLO dentro de un efecto, nunca durante el render:
@@ -216,17 +319,15 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     ;(async () => {
       const borrador = await leerBorrador(claveBorrador)
       if (cancelado || !borrador) return
-      generacionRef.current = borrador.generacion
-      const pasos = pasosDe(borrador.afectacion.categoria)
-      const pasoRestaurado = pasos.includes(borrador.paso) ? borrador.paso : 4
-      setPaso(pasoRestaurado)
-      setAfectacion(borrador.afectacion)
-      setServicioEstado(borrador.servicioEstado)
-      setEstadoEstablecimiento(borrador.estadoEstablecimiento)
-      setAsistenciaBrinda(borrador.asistenciaBrinda ?? '')
-      setModalidadesAsistencia(borrador.modalidadesAsistencia ?? [])
-      setRigeDesde(borrador.rigeDesde)
-      sincronizarHistorialTrasRestaurar(pasoRestaurado, borrador.generacion, pasos)
+      if (
+        borrador.paso === 1 &&
+        !esAfectacionParcial(borrador.afectacion) &&
+        !esAfectacionLista(borrador.afectacion)
+      ) {
+        aplicarBorrador(borrador)
+      } else {
+        setBorradorPendiente(borrador)
+      }
     })()
     return () => {
       cancelado = true
@@ -240,10 +341,12 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   useEffect(() => {
     let cancelado = false
     ;(async () => {
-      const colaPendiente = await leerColaEnvio(almacenParte, 'nuevo', cue)
+      const colaPendiente = await leerColaEnvio(await almacen(), 'nuevo', cue)
       if (cancelado || !colaPendiente) return
       setEstadoEnvio(colaPendiente.estado)
+      if (colaPendiente.estado === 'pendiente-envio' || colaPendiente.estado === 'error-servidor' || colaPendiente.estado === 'sesion-vencida') setEstadoAvisoEnvio(colaPendiente.estado)
       setMotivoEnvio(colaPendiente.motivoError ?? null)
+      setIntentosEnvio(colaPendiente.intentos)
     })()
     return () => {
       cancelado = true
@@ -279,20 +382,27 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   const indicePaso = pasos.indexOf(paso)
 
   // Evacuating while only some sections are marked needs an explicit
-  // confirmation; marking every section already means the whole school.
+  // confirmation; the sheet updates the declared scope before continuing.
   const evacuaEstablecimiento = estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados'
-  const marcaTodasLasSecciones = afectacion.secciones.length >= aplanarSecciones(turnos).length
-  const requiereConfirmarInterrupcion = evacuaEstablecimiento && !marcaTodasLasSecciones
 
   async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault()
-    if (paso !== 4) return
+    if (paso !== PASO_CONFIRMAR) return
     if (enviando || enviandoRef.current) return
 
     enviandoRef.current = true
     setEnviando(true)
     setError(null)
     setMotivoEnvio(null)
+
+    const rigeDesde = resolverVigencia(vigencia)
+    if (rigeDesde === null) {
+      enviandoRef.current = false
+      setEnviando(false)
+      setError(null)
+      setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      return
+    }
 
     const datosEnvio = {
       cue,
@@ -301,6 +411,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         {
           motivo: afectacion.motivo,
           severidad: afectacion.severidad as Severidad,
+          justificacionCritica: afectacion.justificacionCritica || undefined,
+          justificacionCriticaDetalle: afectacion.justificacionCriticaDetalle || undefined,
           descripcion: afectacion.descripcion.trim() || undefined,
           secciones: afectacion.secciones,
           alumnos: afectacion.alumnos.length > 0 ? afectacion.alumnos : undefined,
@@ -322,44 +434,16 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         afectacion.categoria === 'alumnos' || estadoEstablecimiento === ''
           ? undefined
           : { estado: estadoEstablecimiento },
-      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && marcaTodasLasSecciones),
+      confirmarInterrupcionTotal: confirmarInterrupcionTotal || (evacuaEstablecimiento && afectacion.alcanceEstablecimiento === 'toda'),
       asistenciaPedagogica: asistenciaBrinda === '' ? undefined : { brinda: asistenciaBrinda === 'si', modalidades: asistenciaBrinda === 'si' ? modalidadesAsistencia : [] },
     }
 
-    const resultado = await intentarEnviar(datosEnvio, {
-      almacen: almacenParte,
-      tipo: 'nuevo',
-      cue,
-      fetchImpl: fetch,
-      url: '/api/problematicas/parte',
-      construirCuerpo: (datos, idempotencyKey) => {
-        const vinculo = leerVinculoVerificacion()
-        return { ...datos, idempotencyKey, ...(vinculo ? { verificacion: vinculo } : {}) }
-      },
-      // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
-      // real, aunque el transporte HTTP haya sido 2xx.
-      validarExito: (respuesta) => {
-        const cuerpo = respuesta as { ok?: boolean; movimientoId?: string } | null
-        return !!cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string'
-      },
-      onCambioEstado: (borrador) => {
-        setEstadoEnvio(borrador.estado)
-        setMotivoEnvio(borrador.motivoError ?? null)
-      },
-    })
+    const resultado = await intentarEnviar(datosEnvio, { ...opcionesEnvio(), almacen: await almacen() })
 
     if (resultado.ok) {
       const datos = resultado.respuesta as { ok?: boolean; movimientoId?: string; error?: string } | null
       if (datos && datos.ok === true && typeof datos.movimientoId === 'string') {
-        void limpiarBorrador(claveBorrador)
-        limpiarVinculoVerificacion()
-        // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
-        // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
-        // historial — indicePaso ya cuenta correctamente cuántas entradas
-        // de historial se empujaron (ver pasos/indicePaso más arriba en el
-        // componente).
-        colapsarHistorial(indicePaso)
-        setGuardado({ movimientoId: datos.movimientoId })
+        alEnviarConExito(datos.movimientoId)
         return
       }
       enviandoRef.current = false
@@ -375,34 +459,116 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     // muestra onCambioEstado; acá no hay nada más que hacer.
   }
 
+  function opcionesEnvio(): Omit<EnviarOpciones<Record<string, unknown>>, 'almacen'> {
+    return {
+      tipo: 'nuevo',
+      cue,
+      fetchImpl: (input, init) => fetch(input, init),
+      url: '/api/problematicas/parte',
+      construirCuerpo: (datos, idempotencyKey) => {
+        const vinculo = leerVinculoVerificacion()
+        return { ...datos, idempotencyKey, ...(vinculo ? { verificacion: vinculo } : {}) }
+      },
+      // Hallazgo #2 del gate N1: un 2xx sin `movimientoId` no es un éxito
+      // real, aunque el transporte HTTP haya sido 2xx.
+      validarExito: (respuesta) => {
+        const cuerpo = respuesta as { ok?: boolean; movimientoId?: string } | null
+        return !!cuerpo && cuerpo.ok === true && typeof cuerpo.movimientoId === 'string'
+      },
+      onCambioEstado: (borrador) => {
+        setEstadoEnvio(borrador.estado)
+        if (borrador.estado === 'pendiente-envio' || borrador.estado === 'error-servidor' || borrador.estado === 'sesion-vencida') setEstadoAvisoEnvio(borrador.estado)
+        else if (borrador.estado !== 'enviando') setEstadoAvisoEnvio(null)
+        if (borrador.estado !== 'enviando') setMotivoEnvio(borrador.motivoError ?? null)
+        setIntentosEnvio(borrador.intentos)
+        if (esEstadoReintentable(borrador.estado)) void pedirSyncParte()
+      },
+    }
+  }
+
+  function alEnviarConExito(movimientoId: string): void {
+    void limpiarBorrador(claveBorrador)
+    limpiarVinculoVerificacion()
+    // indicePaso, no paso - 1: con pasosDe([1,2,4]) para categoría
+    // 'alumnos', paso puede ser 4 sin que exista un paso 3 real en el
+    // historial — indicePaso ya cuenta correctamente cuántas entradas
+    // de historial se empujaron (ver pasos/indicePaso más arriba en el
+    // componente).
+    colapsarHistorial(indicePaso)
+    setGuardado({ movimientoId })
+    onGuardadoChange?.(true)
+  }
+
+  const alEnviarConExitoRef = useRef(alEnviarConExito)
   useEffect(() => {
-    reintentarRef.current = () => {
+    alEnviarConExitoRef.current = alEnviarConExito
+  })
+
+  useEffect(() => {
+    reintentarRef.current = (deliberado = false) => {
       if (guardado) return
-      if (estadoEnvio !== 'pendiente-envio') return
-      void manejarEnvio({ preventDefault() {} } as unknown as FormEvent<HTMLFormElement>)
+      const errorEnReintento = estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'error-servidor' || estadoEnvio === 'enviando')
+      const sesionVencidaEnReintento = estadoAvisoEnvio === 'sesion-vencida' && (estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando')
+      if (!esEstadoReintentable(estadoEnvio) && !(deliberado && (errorEnReintento || sesionVencidaEnReintento))) return
+      void (async () => {
+        const resultado = await reenviarCola({ ...opcionesEnvio(), almacen: await almacen() }, { deliberado })
+        if (resultado?.ok) {
+          const datos = resultado.respuesta as { movimientoId: string }
+          alEnviarConExito(datos.movimientoId)
+        }
+      })()
     }
   })
   useEffect(() => {
-    return registrarAutoReintento(() => reintentarRef.current())
+    void registrarServiceWorkerParte()
   }, [])
+  useEffect(() => alEnviarEnSegundoPlano((clave) => {
+    if (clave === claveBorradorCola('nuevo', cue)) alEnviarConExitoRef.current('')
+  }), [cue])
+  useEffect(() => registrarAutoReintento(() => reintentarRef.current()), [])
+  useEffect(() => {
+    if (!errorVigencia && !error) return
+    const cuerpo = document.querySelector<HTMLElement>('.asistente__cuerpo')
+    const formulario = cuerpo?.closest('form')
+    let campo: HTMLInputElement | null | undefined
+    if (errorVigencia) {
+      campo = cuerpo?.querySelector<HTMLInputElement>(vigencia.modo === 'otro' ? 'input[type="date"]' : 'input[type="time"]')
+    } else {
+      const grupos = cuerpo?.querySelectorAll<HTMLFieldSetElement>('fieldset:not(.vigencia-chips)') ?? []
+      const primerGrupoIncompleto = Array.from(grupos).find((grupo) => !grupo.querySelector('input[type="radio"]:checked'))
+      campo = primerGrupoIncompleto?.querySelector<HTMLInputElement>('input[type="radio"]')
+    }
+    const mensaje = formulario?.querySelector<HTMLElement>(errorVigencia ? '.vigencia-field__error' : '.reporte-inicial__error')
+    campo?.focus({ preventScroll: true })
+    mensaje?.scrollIntoView?.({ block: window.matchMedia?.('(max-width: 480px)').matches ? 'end' : 'nearest' })
+  }, [error, errorVigencia, vigencia.modo])
+  useEffect(() => {
+    if (guardado || enviando) return
+    if (!esEstadoReintentable(estadoEnvio)) return
+    if (estadoEnvio === 'pendiente-envio' && typeof navigator !== 'undefined' && navigator.onLine === false) return
+    return programarReintento(intentosEnvio, () => reintentarRef.current())
+  }, [estadoEnvio, intentosEnvio, guardado, enviando])
 
   // Persiste el borrador y el paso en cada cambio relevante. El primer
   // run (montaje o "registrar otra") se salta para no reescribir la clave
   // recién limpia con el estado por defecto.
   useEffect(() => {
+    if (borradorPendiente) return
     if (omitirEscrituraRef.current) {
       omitirEscrituraRef.current = false
       return
     }
     void guardarBorrador(claveBorrador, {
       generacion: generacionVigente(),
+      version: VERSION_BORRADOR_ACTUAL,
       paso,
       afectacion,
       servicioEstado,
       estadoEstablecimiento,
       asistenciaBrinda,
       modalidadesAsistencia,
-      rigeDesde,
+      rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
+      vigencia,
     })
   }, [
     claveBorrador,
@@ -412,7 +578,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     estadoEstablecimiento,
     asistenciaBrinda,
     modalidadesAsistencia,
-    rigeDesde,
+    vigencia,
+    borradorPendiente,
   ])
 
   // Qué le falta al paso actual para poder avanzar. `null` significa que el
@@ -421,20 +588,40 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // contestar es una acusación, no una ayuda.
   function faltanteDelPaso(actual: Paso): string | null {
     if (actual === 1) {
-      const completo =
-        afectacion.categoria !== '' && afectacion.motivo !== '' && afectacion.severidad !== ''
+      const sugerida = motivos.find((m) => m.nombre === afectacion.motivo)?.severidadSugerida ?? null
+      const completo = afectacion.categoria !== '' && afectacion.motivo !== '' && gravedadCompleta(afectacion, sugerida)
+      if (
+        !completo &&
+        afectacion.categoria !== '' &&
+        afectacion.motivo !== '' &&
+        afectacion.severidad !== '' &&
+        requiereJustificacionCritica(afectacion.severidad, sugerida)
+      ) {
+        return 'Indique por qué la situación es crítica.'
+      }
       return completo ? null : MENSAJE_FALTA_QUE_PASO
     }
     if (actual === 2) {
-      return afectacion.secciones.length > 0 ? null : MENSAJE_FALTA_ALCANCE_AFECTACION
+      if (afectacion.categoria === 'establecimiento' && afectacion.alcanceEstablecimiento === '') {
+        return MENSAJE_FALTA_ALCANCE_AFECTACION
+      }
+      if (afectacion.secciones.length === 0) return MENSAJE_FALTA_ALCANCE_AFECTACION
+      return null
     }
     if (actual === 3) {
-      if (estadoEstablecimiento === '') return MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO
-      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) return 'Elija al menos una modalidad de asistencia pedagógica.'
-      if (requiereConfirmarInterrupcion && !confirmarInterrupcionTotal) {
-        return 'Confirme que se interrumpe todo el establecimiento para continuar.'
+      const faltantes: string[] = []
+      if (servicioEstado === '') faltantes.push('Indique si hay clases.')
+      if (estadoEstablecimiento === '') faltantes.push(MENSAJE_FALTA_ESTADO_ESTABLECIMIENTO)
+      if (asistenciaBrinda === 'si' && modalidadesAsistencia.length === 0) {
+        faltantes.push('Elija al menos una modalidad de asistencia pedagógica.')
       }
-      return null
+      return faltantes.length > 0 ? faltantes.join(' ') : null
+    }
+    if (actual === PASO_DESDE_CUANDO) {
+      if (vigencia.modo !== 'ahora' && resolverVigencia(vigencia) === null) {
+        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+        return MENSAJE_FUERA_DE_RANGO_VIGENCIA
+      }
     }
     return null
   }
@@ -442,7 +629,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   function avanzar() {
     const faltante = faltanteDelPaso(paso)
     if (faltante) {
-      setError(faltante)
+      if (faltante === MENSAJE_FUERA_DE_RANGO_VIGENCIA) {
+        setError(null)
+        setErrorVigencia(mensajeErrorVigencia(vigencia) ?? MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+      } else setError(faltante)
       return
     }
     setError(null)
@@ -470,9 +660,10 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   // se guardó. La idempotencyKey real la decide el motor de envío por
   // tipo+cue (ver envio-offline.ts) y ya quedó limpia sola: un envío exitoso
   // borra esa cola antes de mostrar la confirmación, así que el próximo
-  // "Guardar reporte" acuña una clave nueva sin que este formulario tenga que
+  // "guardar parte" acuña una clave nueva sin que este formulario tenga que
   // gestionar ninguna.
   function registrarOtra() {
+    onGuardadoChange?.(false)
     omitirEscrituraRef.current = true
     void limpiarBorrador(claveBorrador)
     enviandoRef.current = false
@@ -480,7 +671,8 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
     setServicioEstado('')
     setEstadoEstablecimiento('')
-    setRigeDesde(new Date().toISOString())
+    setVigencia(VIGENCIA_AHORA)
+    setErrorVigencia(null)
     setEnviando(false)
     setError(null)
     setGuardado(null)
@@ -489,13 +681,16 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
   if (guardado) {
     return (
       <div className="reporte-inicial__confirmacion" role="status">
-        <p>{MENSAJE_GUARDADO}</p>
+        <div className="reporte-inicial__confirmacion-mensaje">
+          <CircleCheck aria-hidden="true" size={20} />
+          <div><h2>Situación guardada</h2><p>{MENSAJE_GUARDADO}</p></div>
+        </div>
         <div className="reporte-inicial__confirmacion-acciones">
-          <Button render={<a href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`} />}>
-            Volver al panel
-          </Button>
+          <a className="ui-button ui-button--default" href={`/problematicas/parte?cue=${encodeURIComponent(cue)}`}>
+            Ver estado actual
+          </a>
           <Button type="button" variant="secondary" onClick={registrarOtra}>
-            Registrar otra incidencia
+            Cargar otra situación
           </Button>
         </div>
       </div>
@@ -520,17 +715,38 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
             secciones: afectacion.secciones.length,
           },
     estadoEstablecimiento: afectacion.categoria === 'alumnos' ? '' : estadoEstablecimiento,
-    rigeDesde,
-  }).concat(
-    asistenciaBrinda === ''
-      ? []
-      : [asistenciaBrinda === 'si'
-          ? `Se brinda asistencia pedagógica: ${modalidadesAsistencia.join(' y ')}`
-          : 'No se brinda asistencia pedagógica'],
-  )
+    rigeDesde: resolverVigencia(vigencia) ?? new Date().toISOString(),
+    ...(afectacion.categoria === 'alumnos' || asistenciaBrinda === ''
+      ? {}
+      : { asistenciaPedagogica: { brinda: asistenciaBrinda === 'si', modalidades: modalidadesAsistencia } }),
+  })
 
   return (
-    <form className="reporte-inicial" onSubmit={manejarEnvio}>
+    <form className="reporte-inicial reporte-inicial--asistente" onSubmit={manejarEnvio}>
+      <ConfirmSheet
+        open={borradorPendiente !== null && !confirmarDescarte}
+        titulo={MENSAJE_BORRADOR_PENDIENTE}
+        confirmarLabel="Continuar donde lo dejé"
+        cancelarLabel="Descartar"
+        onConfirmar={() => {
+          if (!borradorPendiente) return
+          aplicarBorrador(borradorPendiente)
+          setBorradorPendiente(null)
+        }}
+        onCancelar={() => setConfirmarDescarte(true)}
+        onCerrar={() => {
+          if (!borradorPendiente) return
+          aplicarBorrador(borradorPendiente)
+          setBorradorPendiente(null)
+        }}
+      >
+        <p>Puede seguir donde lo dejó o descartarlo y empezar de nuevo.</p>
+      </ConfirmSheet>
+      {borradorPendiente ? null : (
+        <>
+      <h3 id="asistente-paso-titulo" className="asistente__titulo asistente__titulo--paso">
+        {PASOS[paso - 1]}
+      </h3>
       <div className="asistente__progreso">
         <p className="asistente__contador">
           Paso {indicePaso + 1} de {pasos.length}
@@ -551,133 +767,106 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
       </div>
 
       <section className="asistente__cuerpo" aria-labelledby="asistente-paso-titulo">
-        <h3 id="asistente-paso-titulo" className="asistente__titulo">
-          {PASOS[paso - 1]}
-        </h3>
-
         {paso === 1 && (
           <CamposQuePaso
             borrador={afectacion}
             idPrefijo="reporte"
             motivos={motivos}
             otrasAfectaciones={[]}
-            onChange={cambiarAfectacion}
+            onChange={(siguiente) => {
+              cambiarAfectacion(siguiente)
+              const sugerida = motivos.find((motivo) => motivo.nombre === siguiente.motivo)?.severidadSugerida ?? null
+              if (error === MENSAJE_FALTA_QUE_PASO && siguiente.categoria !== '' && siguiente.motivo !== '' && gravedadCompleta(siguiente, sugerida)) {
+                setError(null)
+              }
+            }}
             disabled={enviando}
           />
         )}
 
         {paso === 2 && (
-          <>
-            <CamposAQuienAfecta
-              borrador={afectacion}
-              idPrefijo="reporte"
-              turnos={turnos}
-              onChange={cambiarAfectacion}
-              disabled={enviando}
-            />
-            {afectacion.categoria === 'alumnos' && (
-              <div className="afectacion-campos__grupo">
-                <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
-              </div>
-            )}
-          </>
+          <CamposAQuienAfecta
+            borrador={afectacion}
+            idPrefijo="reporte"
+            turnos={turnos}
+            usaSelectorEstablecimiento
+            ocultarPreguntaAlcance
+            onChange={cambiarAfectacion}
+            disabled={enviando}
+          />
         )}
 
         {paso === 3 && (
           <>
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo funciona la escuela?</legend>
-              <div className="afectacion-campos__opciones">
-                {(['normal', 'suspendido'] as const).map((estado) => (
-                  <label key={estado} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="servicio-educativo"
-                      value={estado}
-                      checked={servicioEstado === estado}
-                      onChange={() => setServicioEstado(estado)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{ETIQUETA_SERVICIO[estado]}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-
-            <fieldset className="afectacion-campos__grupo" disabled={enviando}>
-              <legend className="afectacion-campos__legend">¿Cómo está el edificio?</legend>
-              <div className="afectacion-campos__opciones">
-                {Object.entries(ETIQUETA_ESTABLECIMIENTO).map(([valor, etiqueta]) => (
-                  <label key={valor} className="opcion-radio opcion-radio--compacta">
-                    <input
-                      type="radio"
-                      name="estado-establecimiento"
-                      value={valor}
-                      checked={estadoEstablecimiento === valor}
-                      onChange={() => setEstadoEstablecimiento(valor as EstadoEstablecimiento)}
-                      disabled={enviando}
-                    />
-                    <span className="opcion-radio__texto">
-                      <span className="opcion-radio__titulo">{etiqueta}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            {requiereConfirmarInterrupcion && (
-              <div className="afectacion-campos__grupo" role="note">
-                <p>El alcance declarado incluye solo algunas secciones, pero este estado implica la interrupción de toda la escuela.</p>
-                <label><input type="checkbox" checked={confirmarInterrupcionTotal} onChange={(e) => setConfirmarInterrupcionTotal(e.target.checked)} /> Confirmo que se interrumpe todo el establecimiento</label>
-              </div>
-            )}
+            <CamposClasesEdificio
+              valor={{ servicioEstado, estadoEstablecimiento }}
+              onCambiar={(x) => {
+                setServicioEstado(x.servicioEstado)
+                setEstadoEstablecimiento(x.estadoEstablecimiento)
+              }}
+              alcanceParcial={afectacion.alcanceEstablecimiento !== 'toda'}
+              onInterrumpirTodaLaEscuela={() => {
+                setAfectacion((a) => ({
+                  ...a,
+                  alcanceEstablecimiento: 'toda',
+                  secciones: aplanarSecciones(turnos).map((s) => s.geSectionId),
+                }))
+                setConfirmarInterrupcionTotal(true)
+              }}
+              disabled={enviando}
+            />
 
             <fieldset className="afectacion-campos__grupo" disabled={enviando}>
               <legend className="afectacion-campos__legend">¿Se brinda asistencia pedagógica?</legend>
               {(['si', 'no'] as const).map((valor) => (
-                <label key={valor} className="opcion-radio opcion-radio--compacta">
-                  <input type="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} />
-                  <span>{valor === 'si' ? 'Sí' : 'No'}</span>
-                </label>
+                <Opcion key={valor} tipo="radio" name="asistencia-pedagogica" checked={asistenciaBrinda === valor} onChange={() => { setAsistenciaBrinda(valor); if (valor === 'no') setModalidadesAsistencia([]) }} label={valor === 'si' ? 'Sí' : 'No'} compacta />
               ))}
-              {asistenciaBrinda === 'si' && (['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
-                <label key={modalidad} className="opcion-radio opcion-radio--compacta">
-                  <input type="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => setModalidadesAsistencia((actuales) => e.target.checked ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))} />
-                  <span>{modalidad}</span>
-                </label>
-              ))}
+              {asistenciaBrinda === 'si' && (
+                <div className="afectacion-campos__anidado" role="group" aria-labelledby="asistencia-modalidad-titulo">
+                  <p id="asistencia-modalidad-titulo" className="afectacion-campos__subtitulo">¿De qué forma?</p>
+                  {(['Clase virtual', 'Cuadernillo'] as const).map((modalidad) => (
+                    <Opcion key={modalidad} tipo="checkbox" checked={modalidadesAsistencia.includes(modalidad)} onChange={(e) => {
+                      const marcada = e.currentTarget.checked
+                      setModalidadesAsistencia((actuales) => marcada ? [...actuales, modalidad] : actuales.filter((m) => m !== modalidad))
+                    }} label={modalidad} compacta />
+                  ))}
+                </div>
+              )}
             </fieldset>
-
-            <div className="afectacion-campos__grupo">
-              <VigenciaField value={rigeDesde} onChange={setRigeDesde} disabled={enviando} />
-            </div>
           </>
         )}
 
-        {paso === 4 && (
+        {paso === PASO_DESDE_CUANDO && (
+          <div className="afectacion-campos__grupo">
+            <VigenciaChips
+              value={vigencia}
+              onChange={(valor) => { setVigencia(valor); setErrorVigencia(null) }}
+              label={etiquetaVigencia(afectacion.categoria)}
+              disabled={enviando}
+              error={errorVigencia}
+            />
+          </div>
+        )}
+
+        {paso === PASO_CONFIRMAR && (
           <div className="asistente__resumen">
             <p className="asistente__resumen-intro">
               Esto es lo que va a quedar informado. Revíselo antes de guardar.
             </p>
-            <ul className="asistente__resumen-lista">
-              {lineasResumen.map((linea) => (
-                <li key={linea}>{linea}</li>
+            <dl className="asistente__resumen-lista">
+              {lineasResumen.map((fila) => (
+                <div className="asistente__resumen-fila" key={fila.etiqueta}>
+                  <dt>{fila.etiqueta}</dt>
+                  <dd>
+                    {fila.valor}
+                    {fila.severidad ? <> · <EstadoActualSeveridad severidad={fila.severidad as Severidad} prefijo={false} /></> : null}
+                  </dd>
+                </div>
               ))}
-            </ul>
+            </dl>
           </div>
         )}
       </section>
-
-      {estadoEnvio && (
-        <p role="status" aria-live="polite">
-          {estadoEnvio === 'error' && motivoEnvio
-            ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
-            : MENSAJES_ESTADO[estadoEnvio]}
-        </p>
-      )}
 
       {error && (
         <p className="reporte-inicial__error" role="alert">
@@ -685,16 +874,26 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
         </p>
       )}
 
+      {estadoEnvio && (estadoEnvio !== 'enviando' || estadoAvisoEnvio !== null) && (
+        estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor' || estadoEnvio === 'sesion-vencida' || estadoEnvio === 'enviando'
+          ? <EstadoEnvioAviso estado={estadoAvisoEnvio ?? (estadoEnvio === 'enviando' ? 'error-servidor' : estadoEnvio)} mensaje={motivoEnvio ?? undefined} onRetry={() => void reintentarRef.current(true)} disabled={estadoEnvio === 'enviando' && estadoAvisoEnvio !== 'error-servidor'} />
+          : <p role="status" aria-live="polite">
+              {estadoEnvio === 'error' && motivoEnvio
+                ? `${MENSAJES_ESTADO.error}: ${motivoEnvio}`
+                : MENSAJES_ESTADO[estadoEnvio]}
+            </p>
+      )}
+
       <div className="asistente__acciones">
         {indicePaso > 0 && (
-          <Button type="button" variant="secondary" onClick={retroceder} disabled={enviando}>
+          <Button type="button" variant="secondary" onClick={retroceder}>
             Volver
           </Button>
         )}
         {/*
           Las dos `key` no son decorativas: sin ellas React reconcilia ambos
           botones como el MISMO nodo del DOM y sólo le cambia el `type`. El
-          click que avanza del paso 3 al 4 corre el handler, React vuelve a
+          click que avanza al último paso corre el handler, React vuelve a
           renderizar con type="submit" y recién entonces el navegador ejecuta
           la acción por defecto del click — que ahora es enviar el formulario.
           Resultado: un solo toque en "Continuar" guardaba el reporte sin que
@@ -702,18 +901,34 @@ export function ReporteInicialForm({ cue, turnos, motivos }: ReporteInicialFormP
           anterior se desmonta y no queda ninguna acción por defecto que
           ejecutar.
         */}
-        {paso < 4 ? (
+        {paso < PASO_CONFIRMAR ? (
           <Button key="continuar" type="button" onClick={avanzar} disabled={enviando}>
             Continuar
           </Button>
         ) : (
-          // Habilitado siempre: llegar al paso 4 ya exige los datos
+          // Habilitado siempre: llegar a Confirmar ya exige los datos
           // obligatorios, así que no queda ningún botón gris sin explicación.
-          <Button key="guardar" type="submit" disabled={enviando}>
-            {enviando ? 'Guardando…' : 'Guardar reporte'}
+          <Button key="guardar" type="submit" disabled={enviando || estadoEnvio === 'enviando' || estadoEnvio === 'pendiente-envio' || estadoEnvio === 'error-servidor'}>
+            {estadoAvisoEnvio === 'error-servidor' && (estadoEnvio === 'enviando' || estadoEnvio === 'error-servidor') ? 'Reintentando…' : enviando || estadoEnvio === 'enviando' ? 'Guardando…' : estadoEnvio === 'pendiente-envio' ? 'Envío pendiente' : 'Guardar situación'}
           </Button>
         )}
       </div>
+        </>
+      )}
+      <ConfirmSheet
+        open={confirmarDescarte}
+        titulo="¿Descartar el parte sin enviar?"
+        confirmarLabel="Sí, descartar"
+        onCancelar={() => setConfirmarDescarte(false)}
+        onConfirmar={() => {
+          omitirEscrituraRef.current = true
+          void limpiarBorrador(claveBorrador)
+          setBorradorPendiente(null)
+          setConfirmarDescarte(false)
+        }}
+      >
+        <p>Se pierde lo que cargó y no se envía nada.</p>
+      </ConfirmSheet>
     </form>
   )
 }

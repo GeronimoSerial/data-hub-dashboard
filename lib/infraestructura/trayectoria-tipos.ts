@@ -34,6 +34,7 @@ export type TipoMovimiento =
   | 'actualizacion'
   | 'cambio_servicio'
   | 'cambio_establecimiento'
+  | 'confirmacion'
   // Reservado para el futuro recorrido de supervisor (spec §3.3, §10 de
   // CONTRACT.md). Ninguna función de este batch produce este valor.
   | 'resolucion'
@@ -81,12 +82,21 @@ export interface AfectacionAlcanceSeccion {
 export interface Afectacion extends FilaConVigencia {
   id: string
   parteId: string
+  causadaPorId?: string | null
   motivo: string
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
   creadaEn: string
   secciones: AfectacionAlcanceSeccion[]
+}
+
+export interface SituacionReciente {
+  id: string
+  motivo: string
+  severidad: Severidad
+  retiradaEn: string
+  cierre: 'solucionada' | 'retirada' | null
 }
 
 // --- Servicio educativo (spec §10) ---
@@ -118,6 +128,9 @@ export interface ServicioAlcance extends FilaConVigencia {
 export interface SeccionEstablecimiento {
   geSectionId: number
   turno: string
+  curso?: string
+  division?: string
+  nivel?: string
 }
 
 // --- Movimiento (spec §3.3, §15) ---

@@ -9,10 +9,14 @@ import {
   claveBorrador,
   clasificarRespuesta,
   crearAlmacenMemoria,
+  esEstadoReintentable,
   guardarBorrador,
   intentarEnviar,
   leerBorrador,
+  MENSAJES_ESTADO,
+  programarReintento,
   registrarAutoReintento,
+  reenviarCola,
   type BorradorParte,
   type EnviarOpciones,
 } from './envio-offline'
@@ -124,6 +128,20 @@ describe('intentarEnviar', () => {
     expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
   })
 
+  it('invoca fetchImpl desligado del objeto de opciones (como el fetch real del navegador)', async () => {
+    const almacen = crearAlmacenMemoria()
+    await guardarBorrador(almacen, crearBorrador())
+    const fetchImpl = vi.fn(function (this: unknown, _input: string, _init?: RequestInit) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation')
+      return Promise.resolve(respuesta(true, 200, { id: 'parte-9' }))
+    })
+
+    const resultado = await intentarEnviar({ observacion: 'Texto' }, opciones(almacen, fetchImpl))
+
+    expect(resultado.ok).toBe(true)
+    expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+  })
+
   it('deja el borrador pendiente cuando falla la red', async () => {
     const almacen = crearAlmacenMemoria()
     await guardarBorrador(almacen, crearBorrador())
@@ -158,6 +176,113 @@ describe('intentarEnviar', () => {
     expect(borrador?.intentos).toBe(3)
   })
 
+  it('corta un fetch colgado, conserva el borrador y reintenta con la misma idempotencyKey', async () => {
+    vi.useFakeTimers()
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+    }))
+    const config = { ...opciones(almacen, fetchImpl), timeoutMs: 15000 }
+
+    const intento = intentarEnviar({ observacion: 'Texto' }, config)
+    try {
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length === 0; microtarea += 1) {
+        await Promise.resolve()
+      }
+      await vi.advanceTimersByTimeAsync(15000)
+      const resultado = await intento
+
+      expect(resultado).toEqual({
+        ok: false,
+        estado: 'error-servidor',
+        motivo: 'El servidor no respondió. Reintentamos solos; su parte queda guardado.',
+      })
+      expect((fetchImpl.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true)
+      const borrador = await leerBorrador<{ observacion: string }>(almacen, 'problematica', 'cue-1')
+      expect(borrador?.estado).toBe('error-servidor')
+      expect(borrador?.motivoError).toBe('El servidor no respondió. Reintentamos solos; su parte queda guardado.')
+
+      fetchImpl.mockImplementationOnce(async () => respuesta(true, 200, { id: 'parte-9' }))
+      await intentarEnviar({ observacion: 'Texto' }, config)
+      const claveInicial = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string).idempotencyKey
+      const claveReintento = JSON.parse((fetchImpl.mock.calls[1][1] as RequestInit).body as string).idempotencyKey
+      expect(claveReintento).toBe(claveInicial)
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('aborta un envío colgado al reintentar deliberadamente y conserva la misma clave', async () => {
+    vi.useFakeTimers()
+    const almacen = crearAlmacenMemoria()
+    const resoluciones: Array<(response: Response) => void> = []
+    const fetchImpl = vi.fn((_url: string, _init?: RequestInit) => new Promise<Response>((resolve) => {
+      resoluciones.push(resolve)
+    }))
+    const config = { ...opciones(almacen, fetchImpl), timeoutMs: 15000 }
+
+    const primero = intentarEnviar({ observacion: 'Texto' }, config)
+    try {
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length === 0; microtarea += 1) await Promise.resolve()
+      const segunda = reenviarCola(config, { deliberado: true })
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length < 2; microtarea += 1) await Promise.resolve()
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2)
+      const initPrimera = fetchImpl.mock.calls[0][1] as RequestInit
+      const initSegunda = fetchImpl.mock.calls[1][1] as RequestInit
+      const clavePrimera = JSON.parse(initPrimera.body as string).idempotencyKey
+      expect(initPrimera.signal?.aborted).toBe(true)
+      expect(JSON.parse(initSegunda.body as string).idempotencyKey).toBe(clavePrimera)
+      expect(new Headers(initSegunda.headers).get('Idempotency-Key')).toBe(clavePrimera)
+
+      resoluciones[0](respuesta(true, 200, { id: 'tardío' }))
+      await primero
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toMatchObject({ estado: 'enviando' })
+      resoluciones[1](respuesta(true, 200, { id: 'actual' }))
+      expect(await segunda).toEqual({ ok: true, respuesta: { id: 'actual' } })
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('aborta el intento agotado antes del reintento y descarta su resultado tardío', async () => {
+    vi.useFakeTimers()
+    const almacen = crearAlmacenMemoria()
+    const resoluciones: Array<(response: Response) => void> = []
+    const fetchImpl = vi.fn((_url: string, _init?: RequestInit) => new Promise<Response>((resolve) => {
+      resoluciones.push(resolve)
+    }))
+    const config = { ...opciones(almacen, fetchImpl), timeoutMs: 15000 }
+
+    const primero = intentarEnviar({ observacion: 'Texto' }, config)
+    try {
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length === 0; microtarea += 1) await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(15000)
+      await primero
+      const clavePrimera = JSON.parse((fetchImpl.mock.calls[0][1] as RequestInit).body as string).idempotencyKey
+
+      const segundo = reenviarCola(config)
+      for (let microtarea = 0; microtarea < 10 && fetchImpl.mock.calls.length < 2; microtarea += 1) await Promise.resolve()
+      expect(fetchImpl).toHaveBeenCalledTimes(2)
+      expect((fetchImpl.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true)
+      const initSegundo = fetchImpl.mock.calls[1][1] as RequestInit
+      expect(JSON.parse(initSegundo.body as string).idempotencyKey).toBe(clavePrimera)
+      expect(new Headers(initSegundo.headers).get('Idempotency-Key')).toBe(clavePrimera)
+
+      resoluciones[0](respuesta(true, 200, { id: 'tardío' }))
+      await Promise.resolve()
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toMatchObject({ estado: 'enviando' })
+
+      resoluciones[1](respuesta(true, 200, { id: 'actual' }))
+      expect(await segundo).toEqual({ ok: true, respuesta: { id: 'actual' } })
+      expect(await leerBorrador(almacen, 'problematica', 'cue-1')).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('marca error no reintentable y conserva el borrador (422)', async () => {
     const almacen = crearAlmacenMemoria()
     await guardarBorrador(almacen, crearBorrador())
@@ -181,10 +306,16 @@ describe('intentarEnviar', () => {
 
     expect(resultado.ok).toBe(false)
     if (!resultado.ok) {
-      expect(resultado.estado).toBe('error')
-      expect(resultado.motivo).toMatch(/sesi[oó]n/i)
+      expect(resultado.estado).toBe('sesion-vencida')
+      expect(resultado.motivo).toBe('La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.')
     }
-    expect(await leerBorrador(almacen, 'problematica', 'cue-1')).not.toBeNull()
+    expect((await leerBorrador(almacen, 'problematica', 'cue-1'))?.estado).toBe('sesion-vencida')
+    expect(esEstadoReintentable('sesion-vencida')).toBe(false)
+    const fetchReintento = vi.fn().mockResolvedValue(respuesta(true, 201, { ok: true }))
+    expect(await reenviarCola(opciones(almacen, fetchReintento))).toBeNull()
+    expect(fetchReintento).not.toHaveBeenCalled()
+    expect((await reenviarCola(opciones(almacen, fetchReintento), { deliberado: true }))?.ok).toBe(true)
+    expect(fetchReintento).toHaveBeenCalledOnce()
   })
 
   // Hallazgo de revisión #2 (gate N1): un 2xx con un cuerpo que no cumple el
@@ -435,5 +566,91 @@ describe('registrarAutoReintento', () => {
       vi.advanceTimersByTime(30000)
       expect(callback).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('estado veraz: red vs servidor', () => {
+  it('un 5xx deja el borrador en error-servidor, no en pendiente-envio', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn(async () => respuesta(false, 503, { error: 'caído' }))
+    const resultado = await intentarEnviar({ observacion: 'x' }, {
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, k }),
+    })
+    expect(resultado).toEqual({ ok: false, estado: 'error-servidor' })
+    expect((await leerBorrador(almacen, 'nuevo', 'cue-1'))?.estado).toBe('error-servidor')
+  })
+
+  it('una falla de red deja el borrador en pendiente-envio', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn(async () => { throw new TypeError('Failed to fetch') })
+    const resultado = await intentarEnviar({ observacion: 'x' }, {
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, k }),
+    })
+    expect(resultado).toEqual({ ok: false, estado: 'pendiente-envio' })
+  })
+
+  it('los mensajes no hablan de conexión para un error del servidor', () => {
+    expect(MENSAJES_ESTADO['error-servidor']).not.toMatch(/conexi/i)
+    expect(MENSAJES_ESTADO['pendiente-envio']).toMatch(/sin conexión/i)
+  })
+
+  it('esEstadoReintentable sólo acepta pendiente-envio y error-servidor', () => {
+    expect(esEstadoReintentable('pendiente-envio')).toBe(true)
+    expect(esEstadoReintentable('error-servidor')).toBe(true)
+    expect(esEstadoReintentable('error')).toBe(false)
+    expect(esEstadoReintentable('sesion-vencida')).toBe(false)
+    expect(esEstadoReintentable('enviando')).toBe(false)
+    expect(esEstadoReintentable(null)).toBe(false)
+  })
+})
+
+describe('reenviarCola', () => {
+  it('reenvía los datos guardados en la cola con la misma idempotencyKey', async () => {
+    const almacen = crearAlmacenMemoria()
+    await guardarBorrador(almacen, crearBorrador({ tipo: 'nuevo', estado: 'error-servidor', idempotencyKey: 'k-1', datos: { observacion: 'de la cola' } }))
+    const fetchImpl = vi.fn(async () => respuesta(true, 201, { ok: true }))
+    const resultado = await reenviarCola<Record<string, unknown>>({
+      almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d, k) => ({ ...d, idempotencyKey: k }),
+    })
+    expect(resultado).toEqual({ ok: true, respuesta: { ok: true } })
+    const cuerpo = JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string)
+    expect(cuerpo).toEqual({ observacion: 'de la cola', idempotencyKey: 'k-1' })
+  })
+
+  it('devuelve null si la cola está vacía o en un estado no reintentable', async () => {
+    const almacen = crearAlmacenMemoria()
+    const fetchImpl = vi.fn()
+    const opciones = { almacen, tipo: 'nuevo', cue: 'cue-1', fetchImpl, url: '/api', construirCuerpo: (d: unknown) => d }
+    expect(await reenviarCola(opciones)).toBeNull()
+    await guardarBorrador(almacen, crearBorrador({ tipo: 'nuevo', estado: 'error' }))
+    expect(await reenviarCola(opciones)).toBeNull()
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})
+
+describe('programarReintento', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('dispara después de la espera con backoff y se puede cancelar', () => {
+    const callback = vi.fn()
+    programarReintento(1, callback)
+    vi.advanceTimersByTime(1999)
+    expect(callback).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(callback).toHaveBeenCalledTimes(1)
+
+    const otro = vi.fn()
+    const cancelar = programarReintento(0, otro)
+    cancelar()
+    vi.advanceTimersByTime(60_000)
+    expect(otro).not.toHaveBeenCalled()
+  })
+
+  it('nunca espera más de 30 segundos', () => {
+    const callback = vi.fn()
+    programarReintento(50, callback)
+    vi.advanceTimersByTime(30_000)
+    expect(callback).toHaveBeenCalledTimes(1)
   })
 })

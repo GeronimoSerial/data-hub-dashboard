@@ -6,8 +6,10 @@
 export type EstadoEnvio =
   | 'guardado-local'
   | 'pendiente-envio'
+  | 'error-servidor'
   | 'enviando'
   | 'enviado'
+  | 'sesion-vencida'
   | 'error'
 
 export interface AlmacenClaveValor {
@@ -21,6 +23,8 @@ export interface BorradorParte<T> {
   cue: string
   idempotencyKey: string
   datos: T
+  url?: string
+  cuerpo?: unknown
   estado: EstadoEnvio
   motivoError?: string
   intentos: number
@@ -48,6 +52,9 @@ export interface EnviarOpciones<T> {
   // omite, cualquier 2xx se considera válido (comportamiento previo a este
   // hallazgo, el que siguen usando los tests genéricos del motor).
   validarExito?: (respuesta: unknown) => boolean
+  timeoutMs?: number
+  // El reintento manual puede sustituir un POST que sigue colgado.
+  reintentoDeliberado?: boolean
 }
 
 export type ResultadoEnvio =
@@ -56,14 +63,18 @@ export type ResultadoEnvio =
 
 export const MENSAJES_ESTADO: Record<EstadoEnvio, string> = {
   'guardado-local': 'Guardado en este dispositivo',
-  'pendiente-envio': 'Pendiente de envío — se enviará al recuperar conexión',
+  'pendiente-envio': 'Sin conexión. Su parte queda guardado y se envía solo cuando vuelva.',
+  'error-servidor': 'No pudimos enviar. Reintentamos en unos segundos.',
   enviando: 'Enviando…',
   enviado: 'Enviado',
+  'sesion-vencida': 'La sesión venció. Vuelva a ingresar con el enlace de su escuela; lo cargado se conserva.',
   error: 'No se pudo enviar',
 }
 
-const MENSAJE_SESION_VENCIDA =
-  'La sesión venció. Iniciá sesión nuevamente para reintentar; el borrador se conserva.'
+export const TIEMPO_MAXIMO_ENVIO_MS = 15000
+export const MENSAJE_TIEMPO_AGOTADO = 'El servidor no respondió. Reintentamos solos; su parte queda guardado.'
+
+const MENSAJE_SESION_VENCIDA = MENSAJES_ESTADO['sesion-vencida']
 
 const MENSAJE_RESPUESTA_INESPERADA = 'respuesta inesperada del servidor'
 
@@ -149,7 +160,12 @@ function conBloqueo<T>(almacen: AlmacenClaveValor, nombre: string, tarea: () => 
 // disparado por `registrarAutoReintento` bastante después) TIENE que volver
 // a golpear la red, no reutilizar ciegamente el resultado de un intento
 // anterior con la misma clave.
-const enviosEnCursoPorAlmacen = new WeakMap<AlmacenClaveValor, Map<string, Promise<ResultadoEnvio>>>()
+interface EnvioEnCurso {
+  controlador: AbortController
+  promesa: Promise<ResultadoEnvio>
+}
+
+const enviosEnCursoPorAlmacen = new WeakMap<AlmacenClaveValor, Map<string, EnvioEnCurso>>()
 
 export function crearAlmacenMemoria(): AlmacenClaveValor {
   const valores = new Map<string, string>()
@@ -208,7 +224,7 @@ function operarIndice<T>(
   )
 }
 
-function crearAlmacenLocalStorage(): AlmacenClaveValor {
+export function crearAlmacenLocalStorage(): AlmacenClaveValor {
   return {
     async obtener(clave) {
       try {
@@ -359,19 +375,25 @@ export async function intentarEnviar<T>(
   // concurrentes con la misma idempotencyKey producen un único movimiento).
   const claveResultado = `${clave}:${idempotencyKey}`
   const enCurso = mapaDelAlmacen(enviosEnCursoPorAlmacen, opciones.almacen)
-  const promesaExistente = enCurso.get(claveResultado)
-  if (promesaExistente) return promesaExistente
+  const envioExistente = enCurso.get(claveResultado)
+  if (envioExistente && !envioExistente.controlador.signal.aborted && !opciones.reintentoDeliberado) return envioExistente.promesa
+  envioExistente?.controlador.abort()
 
-  const promesaEnvio = completarEnvio(datos, opciones, borradorEnviando, idempotencyKey, intentos).finally(
-    () => {
-      // Sólo se borra a sí misma: si para cuando termina ya hay una entrada
-      // NUEVA (un reintento posterior que arrancó después de que ésta se
-      // hubiera borrado y volvió a registrar), no la pisa.
-      if (enCurso.get(claveResultado) === promesaEnvio) enCurso.delete(claveResultado)
-    },
-  )
-  enCurso.set(claveResultado, promesaEnvio)
-  return promesaEnvio
+  const controlador = new AbortController()
+  const envio: EnvioEnCurso = { controlador, promesa: Promise.resolve({ ok: false, estado: 'enviando' }) }
+  enCurso.set(claveResultado, envio)
+  envio.promesa = completarEnvio(
+    datos,
+    opciones,
+    borradorEnviando,
+    idempotencyKey,
+    intentos,
+    controlador,
+    () => enCurso.get(claveResultado) === envio,
+  ).finally(() => {
+    if (enCurso.get(claveResultado) === envio) enCurso.delete(claveResultado)
+  })
+  return envio.promesa
 }
 
 async function completarEnvio<T>(
@@ -380,19 +402,44 @@ async function completarEnvio<T>(
   borradorEnviando: BorradorParte<T>,
   idempotencyKey: string,
   intentos: number,
+  controlador: AbortController,
+  sigueVigente: () => boolean,
 ): Promise<ResultadoEnvio> {
   const cuerpo = opciones.construirCuerpo(datos, idempotencyKey)
   let respuesta: Response
+  let tiempoAgotado = false
+  const temporizador = setTimeout(() => {
+    tiempoAgotado = true
+    controlador.abort()
+  }, opciones.timeoutMs ?? TIEMPO_MAXIMO_ENVIO_MS)
   try {
-    respuesta = await opciones.fetchImpl(opciones.url, {
+    const fetchImpl = opciones.fetchImpl
+    // Browser fetch requires `this` to be undefined or window.
+    const fetchPendiente = fetchImpl(opciones.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(cuerpo),
+      signal: controlador.signal,
     })
+    respuesta = await Promise.race([
+      fetchPendiente,
+      new Promise<never>((_resolver, rechazar) => {
+        controlador.signal.addEventListener('abort', () => rechazar(new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    ])
   } catch {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos)
+    if (!sigueVigente()) return { ok: false, estado: 'enviando' }
+    if (tiempoAgotado) {
+      const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo, MENSAJE_TIEMPO_AGOTADO)
+      return { ok: false, estado: pendiente.estado, motivo: MENSAJE_TIEMPO_AGOTADO }
+    }
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'pendiente-envio', cuerpo)
     return { ok: false, estado: pendiente.estado }
+  } finally {
+    clearTimeout(temporizador)
   }
+
+  if (!sigueVigente()) return { ok: false, estado: 'enviando' }
 
   if (respuesta.ok) {
     let json: unknown = {}
@@ -401,6 +448,7 @@ async function completarEnvio<T>(
     } catch {
       json = {}
     }
+    if (!sigueVigente()) return { ok: false, estado: 'enviando' }
     const esValida = opciones.validarExito ? opciones.validarExito(json) : true
     if (esValida) {
       await borrarBorrador(opciones.almacen, opciones.tipo, opciones.cue)
@@ -411,7 +459,7 @@ async function completarEnvio<T>(
     // intento — se conserva el MISMO borrador (misma idempotencyKey) marcado
     // como error, para que un reintento posterior siga pudiendo deduplicar
     // contra lo que el servidor haya llegado a persistir.
-    await registrarError(opciones, borradorEnviando, MENSAJE_RESPUESTA_INESPERADA)
+    await registrarError(opciones, borradorEnviando, MENSAJE_RESPUESTA_INESPERADA, cuerpo)
     return { ok: false, estado: 'error', motivo: MENSAJE_RESPUESTA_INESPERADA }
   }
 
@@ -421,11 +469,12 @@ async function completarEnvio<T>(
   } catch {
     errorCuerpo = null
   }
+  if (!sigueVigente()) return { ok: false, estado: 'enviando' }
   const motivo = (errorCuerpo as { error?: string } | null)?.error
   const clasificacion = clasificarRespuesta(respuesta.status)
 
   if (clasificacion === 'reintentable') {
-    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos)
+    const pendiente = await registrarPendiente(opciones, borradorEnviando, intentos, 'error-servidor', cuerpo)
     return { ok: false, estado: pendiente.estado }
   }
 
@@ -434,14 +483,20 @@ async function completarEnvio<T>(
       ? MENSAJE_SESION_VENCIDA
       : motivo ?? MENSAJES_ESTADO.error
 
-  await registrarError(opciones, borradorEnviando, motivoError)
+  if (clasificacion === 'sesion-vencida') {
+    await registrarError(opciones, borradorEnviando, motivoError, cuerpo, 'sesion-vencida')
+    return { ok: false, estado: 'sesion-vencida', motivo: motivoError }
+  }
+  await registrarError(opciones, borradorEnviando, motivoError, cuerpo)
   return { ok: false, estado: 'error', motivo: motivoError }
 }
 
-async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string): Promise<void> {
+async function registrarError<T>(opciones: EnviarOpciones<T>, borrador: BorradorParte<T>, motivoError: string, cuerpo: unknown, estado: 'error' | 'sesion-vencida' = 'error'): Promise<void> {
   const borradorError: BorradorParte<T> = {
     ...borrador,
-    estado: 'error',
+    url: opciones.url,
+    cuerpo,
+    estado,
     motivoError,
     actualizadoEn: new Date().toISOString(),
   }
@@ -453,10 +508,16 @@ async function registrarPendiente<T>(
   opciones: EnviarOpciones<T>,
   borrador: BorradorParte<T>,
   intentos: number,
+  estado: 'pendiente-envio' | 'error-servidor',
+  cuerpo: unknown,
+  motivoError?: string,
 ): Promise<BorradorParte<T>> {
   const pendiente: BorradorParte<T> = {
     ...borrador,
-    estado: 'pendiente-envio',
+    url: opciones.url,
+    cuerpo,
+    estado,
+    ...(motivoError ? { motivoError } : {}),
     intentos: intentos + 1,
     actualizadoEn: new Date().toISOString(),
   }
@@ -524,4 +585,25 @@ export function registrarAutoReintento(callback: () => void): () => void {
       temporizador = null
     }
   }
+}
+
+// Un envío que quedó en cola por red o por un 5xx se puede reintentar sin
+// intervención del director; 'error' (4xx) y 'sesion-vencida' no.
+export function esEstadoReintentable(estado: EstadoEnvio | null): boolean {
+  return estado === 'pendiente-envio' || estado === 'error-servidor'
+}
+
+// Reintenta con los datos guardados en la cola y conserva su idempotencyKey.
+export async function reenviarCola<T>(
+  opciones: EnviarOpciones<T>,
+  { deliberado = false }: { deliberado?: boolean } = {},
+): Promise<ResultadoEnvio | null> {
+  const cola = await leerBorrador<T>(opciones.almacen, opciones.tipo, opciones.cue)
+  if (!cola || (!esEstadoReintentable(cola.estado) && !(deliberado && (cola.estado === 'enviando' || cola.estado === 'sesion-vencida')))) return null
+  return intentarEnviar(cola.datos, { ...opciones, reintentoDeliberado: deliberado })
+}
+
+export function programarReintento(intentos: number, callback: () => void): () => void {
+  const temporizador = setTimeout(callback, calcularEsperaReintento(intentos))
+  return () => clearTimeout(temporizador)
 }

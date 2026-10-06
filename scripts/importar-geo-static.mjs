@@ -246,6 +246,9 @@ function mapearFilaGeometria(fila) {
     versionJob: fila.version_job,
     ruta: fila.ruta,
     cruces: fila.cruces,
+    viaPrincipal: fila.via_principal == null ? null : JSON.stringify(fila.via_principal),
+    destinoNombre: fila.destino?.nombre ?? null,
+    distanciaDestinoM: fila.distancia_destino_m ?? null,
     motivoSinGeometria: fila.motivo_sin_geometria,
     fechaExtractoOsm: fila.fecha_extracto_osm,
     licencia: fila.licencia,
@@ -269,6 +272,27 @@ const cruceGeometriaSchema = z.object({
   clasificacion: z.enum(['puente', 'vado', 'sin_evidencia']),
 })
 
+const viaPrincipalObjetoSchema = z.object({
+  nombre: z.string().nullable(),
+  tipo: z.string().min(1),
+  pavimentada: z.boolean(),
+})
+
+const viaPrincipalGeometriaSchema = z.string().nullable().superRefine((valor, contexto) => {
+  if (valor === null) return
+  let objeto
+  try {
+    objeto = JSON.parse(valor)
+  } catch {
+    contexto.addIssue({ code: 'custom', message: 'viaPrincipal debe contener JSON valido' })
+    return
+  }
+  const parseo = viaPrincipalObjetoSchema.safeParse(objeto)
+  if (!parseo.success) {
+    contexto.addIssue({ code: 'custom', message: 'viaPrincipal no cumple el esquema esperado' })
+  }
+})
+
 /** Esquema de una fila de geometria ya mapeada (camelCase). Refuerza ademas la
  * regla de negocio: sin ruta (`ruta` null) el job debe declarar el motivo. */
 const schemaFilaGeometria = z
@@ -277,6 +301,9 @@ const schemaFilaGeometria = z
     versionJob: z.string().min(1, 'version_job no puede estar vacio'),
     ruta: rutaGeometriaSchema,
     cruces: z.array(cruceGeometriaSchema),
+    viaPrincipal: viaPrincipalGeometriaSchema,
+    destinoNombre: z.string().min(1).nullable(),
+    distanciaDestinoM: z.number().finite().nonnegative().nullable(),
     motivoSinGeometria: z.string().nullable(),
     fechaExtractoOsm: fechaIsoSchema,
     licencia: z.string().min(1, 'licencia no puede estar vacia'),
@@ -293,6 +320,9 @@ const schemaFilaGeometria = z
 const setGeometriaExcluido = {
   ruta: sql`excluded.ruta`,
   cruces: sql`excluded.cruces`,
+  viaPrincipal: sql`excluded.via_principal`,
+  destinoNombre: sql`excluded.destino_nombre`,
+  distanciaDestinoM: sql`excluded.distancia_destino_m`,
   motivoSinGeometria: sql`excluded.motivo_sin_geometria`,
   fechaExtractoOsm: sql`excluded.fecha_extracto_osm`,
   licencia: sql`excluded.licencia`,

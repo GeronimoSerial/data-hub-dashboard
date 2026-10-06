@@ -40,6 +40,11 @@ export interface EncabezadoParteProps {
   escuela?: EscuelaEncabezado
   /** Bajada opcional de la pantalla, debajo del <h2>. */
   descripcion?: string
+  /**
+   * Deja el nombre de la pantalla sólo para lectores de pantalla. El
+   * asistente ya titula cada paso con su pregunta y no necesita otro título.
+   */
+  pantallaOculta?: boolean
 }
 
 function lineaEscuela(escuela: EscuelaEncabezado): string {
@@ -51,6 +56,7 @@ export function EncabezadoParte({
   pantalla,
   escuela,
   descripcion,
+  pantallaOculta = false,
 }: EncabezadoParteProps): JSX.Element {
   return (
     <header className="encabezado-parte">
@@ -64,7 +70,7 @@ export function EncabezadoParte({
         </div>
       )}
 
-      <h2 className="encabezado-parte__pantalla">{pantalla}</h2>
+      <h2 className={pantallaOculta ? 'sr-only' : 'encabezado-parte__pantalla'}>{pantalla}</h2>
       {descripcion && <p className="encabezado-parte__descripcion">{descripcion}</p>}
     </header>
   )
