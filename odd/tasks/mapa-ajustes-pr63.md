@@ -117,3 +117,12 @@ Revisión de N1 sobre A1–A14 a 1456×835. Un commit `fix(mapa): …` por punto
 
 ### Gate final de las correcciones (F1–F13)
 tsc limpio; `pnpm lint` 0 errores (14 warnings: 13 preexistentes + el `<img>` del test de app-shell de A13); suite completa 321/322 archivos, 2884 tests verdes; única falla la conocida `radar-meteo/resumen/route.test.ts` (ya falla en feat/staging, no se tocó). Reporte: `~/.cache/mapa-n2/ajustes-fix/report.md`.
+
+## Segunda revisión (N1)
+Ruta: delegada (N3 escribe; N2 verifica con tsc + vitest + eslint y commitea). Un N3 nuevo por task.
+- [x] G1 (bloqueante) Tras abrir Radar el mapa queda sin datos
+- [ ] G2 (importante) Filtros en línea según el ancho real disponible; "Más filtros" con estilo de chip
+- [ ] G3 (menor) Segmentado de variables del Radar sin ítem suelto
+
+### Evidencia por punto (G)
+- **G1** — Causa raíz: `react-map-gl` (@vis.gl/react-maplibre 8.1.2, `maplibre.js:393-397`) llama `map.setStyle(url, { diff: styleDiffing })` con `styleDiffing = true` por defecto; en MapLibre 6.3 el diff (`_diffStyle` → `_updateDiff` → `style.setState`) no emite `style.load` y elimina las fuentes/capas propias, que no están en el estilo oscuro; el remontaje (`Fragment key={versionEstilo}`) dependía de un `styledata` con `isStyleLoaded()` que puede pertenecer al estilo anterior. Corrección: `styleDiffing={false}` (el estilo se reconstruye y emite `style.load`), el remontaje se decide en `style.load` con `mapStyleRef` (el estilo realmente cargado) y no en el primer `styledata`. Tests: doble del mapa fiel (`setStyle` descarta fuentes/capas/imágenes; sólo emite `style.load` con `styleDiffing === false`); secuencias actual→Radar→actual, actual→Radar→Capas, transiciones entre las cuatro pestañas y Estadísticas oculto. Fallaban sin la prop (7 casos). Evidencia: vitest 7 archivos/114 verdes, tsc limpio, eslint 0 errores. Ruta: delegada (el primer N3 se cortó por timeout con el diseño a medias; dos N3 de corrección: `styleDiffing` y errores de tsc/lint). **Para N1: verificar en Chrome la secuencia Situación actual → Radar → Situación actual/Capas (no se levantó servidor).**

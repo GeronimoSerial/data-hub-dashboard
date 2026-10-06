@@ -1017,6 +1017,10 @@ export default function MapInfraestructuraPage(props: {
   // R2: en tema oscuro se usa el estilo oscuro real del proveedor en vez del
   // filtro CSS que invertía todo el canvas (ver comentario en globals.css).
   const mapStyle = radarActivo || mode === 'dark' ? 'https://tiles.openfreemap.org/styles/dark' : BASEMAPS[basemap].styleUrl
+  const mapStyleRef = useRef(mapStyle)
+  useEffect(() => {
+    mapStyleRef.current = mapStyle
+  }, [mapStyle])
   // Q6a: identidad de la escuela seleccionada. El padrón COMPLETO
   // (`dataEscuelasMapa`, afectadas y sin afectación reportada) indexa por
   // cueAnexo; cubre también las escuelas que NO están en `partesPorCue`, así
@@ -1304,7 +1308,22 @@ export default function MapInfraestructuraPage(props: {
     registrarIconosCluster()
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
-    if (map) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+    if (map) {
+      ultimoEstiloCargado.current = mapStyleRef.current
+      const handleStyleLoad = () => {
+        if (!map.isStyleLoaded()) return
+        const estiloCargado = mapStyleRef.current
+        if (cambioEstiloCargado(ultimoEstiloCargado.current, estiloCargado, true)) {
+          setVersionEstilo((version) => version + 1)
+          setIconosClusterListos(false)
+        }
+        ultimoEstiloCargado.current = estiloCargado
+        registrarIconosCluster()
+        window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+      }
+      map.on('style.load', handleStyleLoad)
+      window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setCuesNoAgrupados, setIconosClusterListos])
 
@@ -1352,6 +1371,8 @@ export default function MapInfraestructuraPage(props: {
           ref={mapRef}
           attributionControl={false}
           mapStyle={mapStyle}
+          // Los estilos claro y oscuro son distintos: el diff descarta las fuentes propias sin emitir `style.load`.
+          styleDiffing={false}
           locale={LOCALE_MAPLIBRE_ES}
           // Encuadre inicial ajustado a la provincia. MAP_CENTER/MAP_ZOOM son
           // los del mapa de matrícula y dejaban a Corrientes descentrada y
@@ -1366,16 +1387,10 @@ export default function MapInfraestructuraPage(props: {
           cursor="pointer"
           onLoad={handleMapLoad}
           // MapLibre descarta fuentes, capas e imágenes al cambiar el estilo.
-          // Al terminar la carga se vuelve a montar el árbol dinámico en orden.
+          // El style.load (registrado en onLoad) determina el final real de
+          // setStyle; styledata también puede pertenecer al estilo anterior.
           onStyleData={() => {
             const map = mapRef.current?.getMap()
-            if (map?.isStyleLoaded()) {
-              if (cambioEstiloCargado(ultimoEstiloCargado.current, mapStyle, true)) {
-                setVersionEstilo((version) => version + 1)
-                setIconosClusterListos(false)
-              }
-              ultimoEstiloCargado.current = mapStyle
-            }
             registrarIconosCluster()
             if (map?.isStyleLoaded()) window.dispatchEvent(new CustomEvent('radar-meteo-map-ready', { detail: map }))
           }}
