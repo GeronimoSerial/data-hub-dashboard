@@ -82,6 +82,8 @@ import {
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
+import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
 import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
@@ -630,6 +632,7 @@ export default function MapInfraestructuraPage(props: {
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
+  const [departamentoRadarId, setDepartamentoRadarId] = useState<string | null>(null)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
@@ -689,6 +692,17 @@ export default function MapInfraestructuraPage(props: {
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
   const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
+  const { resumen: resumenRadar, error: resumenRadarError } = useResumenRadarMeteo(radarActivo)
+  const [ahoraRadarMs] = useState(() => Date.now())
+  const [claveAlertaRadar, setClaveAlertaRadar] = useState<string | null>(null)
+  const gruposAlertasRadar = useMemo(
+    () => agruparAlertas(resumenRadar?.alertasSmn ?? [], ahoraRadarMs),
+    [resumenRadar, ahoraRadarMs],
+  )
+  const alertasResaltadas = radarActivo
+    ? gruposAlertasRadar.find((grupo) => grupo.clave === claveAlertaRadar)?.alertas ?? []
+    : []
+  const irAAlertasRadar = () => document.getElementById('radar-alertas-smn')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const esPlanificacion = props.pestana === 'planificacion'
   const ocultarPartes = radarActivo || esPlanificacion
   // Al ocultar la pestaña, detener cualquier flyTo sobre un contenedor sin
@@ -903,14 +917,17 @@ export default function MapInfraestructuraPage(props: {
   // lado de duplicar esa lógica de join en el servidor.
   const [departamentosRaw, setDepartamentosRaw] = useState<FeatureCollection<
     Polygon | MultiPolygon,
-    { nombre: string }
+    { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
   > | null>(null)
 
   useEffect(() => {
     let cancelado = false
     fetch(DEPARTAMENTOS_URL)
       .then((respuesta) => respuesta.json())
-      .then((geojson: FeatureCollection<Polygon | MultiPolygon, { nombre: string }>) => {
+      .then((geojson: FeatureCollection<
+        Polygon | MultiPolygon,
+        { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
+      >) => {
         if (!cancelado) setDepartamentosRaw(geojson)
       })
       .catch(() => {
@@ -922,6 +939,21 @@ export default function MapInfraestructuraPage(props: {
       cancelado = true
     }
   }, [])
+
+  const departamentoRadarNombre = useMemo(
+    () => radarActivo
+      ? departamentosRaw?.features.find((feature) => feature.properties.id === departamentoRadarId)?.properties.nombre ?? null
+      : null,
+    [radarActivo, departamentosRaw, departamentoRadarId],
+  )
+  const seleccionarDepartamentoRadar = (id: string | null) => {
+    setDepartamentoRadarId(id)
+    if (id === null) return
+    const centroide = departamentosRaw?.features.find((feature) => feature.properties.id === id)?.properties.centroide
+    if (centroide) {
+      mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
+    }
+  }
 
   const departamentosGeojson = useMemo(() => {
     if (!departamentosRaw) return null
@@ -1438,13 +1470,13 @@ export default function MapInfraestructuraPage(props: {
               id={CAPA_DEPARTAMENTO_HOVER_ID}
               type="fill"
               paint={fillPaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
+              filter={['==', ['get', 'nombre'], (radarActivo ? departamentoRadarNombre : departamentoSeleccionado) ?? '']}
             />
             <Layer
               id={CAPA_DEPARTAMENTO_HOVER_BORDE_ID}
               type="line"
               paint={linePaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
+              filter={['==', ['get', 'nombre'], (radarActivo ? departamentoRadarNombre : departamentoSeleccionado) ?? '']}
             />
             <Layer
               id="infra-departamentos-etiqueta"
@@ -1737,7 +1769,14 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          <RadarMeteo activo={radarActivo} variable={variableRadar} escuelas={dataEscuelasMapa?.escuelas ?? []} />
+          <RadarMeteo
+            activo={radarActivo}
+            variable={variableRadar}
+            escuelas={dataEscuelasMapa?.escuelas ?? []}
+            resumen={resumenRadar}
+            alertasResaltadas={alertasResaltadas}
+            onVerAlertas={irAAlertasRadar}
+          />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
               Mismo componente y estilo que el del departamento: un dato
@@ -1921,6 +1960,14 @@ export default function MapInfraestructuraPage(props: {
                   const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
                   if (escuela) handleSeleccionarEscuelaBuscada(escuela)
                 }}
+                alertas={{
+                  grupos: gruposAlertasRadar,
+                  cargando: resumenRadar === null && !resumenRadarError,
+                  error: resumenRadarError && resumenRadar === null,
+                  claveSeleccionada: claveAlertaRadar,
+                  onSeleccionar: setClaveAlertaRadar,
+                }}
+                pronostico={{ resumen: resumenRadar, cargando: resumenRadar === null && !resumenRadarError, error: resumenRadarError && resumenRadar === null, departamentoId: radarActivo ? departamentoRadarId : null, onDepartamento: seleccionarDepartamentoRadar }}
               />
             )}
             planificacion={(

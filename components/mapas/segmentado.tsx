@@ -16,7 +16,7 @@ export function Segmentado<T extends string | number>(props: {
   opciones: ReadonlyArray<OpcionSegmentada<T>>
   valor: T
   onChange: (valor: T) => void
-  columnas?: 2
+  columnas?: 2 | 3
 }): JSX.Element {
   const { etiqueta, opciones, valor, onChange, columnas } = props
 

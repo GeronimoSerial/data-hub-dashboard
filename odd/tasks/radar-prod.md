@@ -1,0 +1,40 @@
+# Radar en producción: que funcione bien (QA de N1)
+
+Rama `feat/radar-prod` (base `origin/staging` 417d058). N1 coordina; N2 lidera; N3 (Codex gpt-6-luna, effort high) implementa.
+
+## Objetivo
+Corregir el Radar con el código de producción y datos reales (7 días, 9 alertas SMN próximas).
+
+## Problemas
+- R1 (bloqueante) Las alertas del SMN tapan el mapa: una pastilla compacta sobre el mapa; listado completo, agrupado por evento+horario, en el sidebar (sección "Alertas del SMN").
+- R2 (bloqueante) El panel dice "Todavía no hay un pronóstico disponible" aunque hay pronóstico: mostrar resumen del pronóstico (`/radar-meteo/resumen`) por horizonte cuando el motor de riesgo no tiene datos.
+- R3 (verificación) La capa de lluvia: test con payload real reducido; corregir si hay bug.
+
+## Restricciones
+- No tocar el flujo del parte (`components/infraestructura/**`, `lib/infraestructura/parte/**`, `app/api/problematicas/**`, `app/problematicas/**`, `movimiento-descripcion*`, `estado-actual-textos.ts`). `app/globals.css`: sólo `.map-*` y `.radar-*`.
+- TDD: activo por pedido. Runner: `pnpm exec vitest run <archivos>` vía `heavy.sh`.
+- Ruta por task: delegada (N3 nuevo por task); N2 sólo verifica y commitea. Disparador: escritor para 2+ archivos no triviales.
+
+## Diseño
+- Estado de alertas elevado a `map-infraestructura-page`: hook `useResumenRadarMeteo` (extrae el fetch de `RadarMeteo`) alimenta `RadarMeteo` (pastilla + resaltado) y `PanelRadar` (sección + resumen de pronóstico). La alerta seleccionada es estado de la página.
+- Horizontes sobre `departamentos[].dias[]` del resumen: 24 h = día 1; 72 h = 3 días; 10 días = todos los disponibles (máx. 7). Probabilidad máx. sólo de `proximas48h`.
+
+## Tasks
+- [x] T1 R1: lib `alertas-agrupadas` (agrupar por evento+severidad+onset+expires, texto de la pastilla) + hook `useResumenRadarMeteo`
+- [x] T2 R1: pastilla sobre el mapa + `RadarMeteo` controlado (resumen/alerta por props) + wiring en la página
+- [x] T3 R1: sección "Alertas del SMN" en el sidebar (`PanelRadar`), detalle expandible, CSS
+- [x] T4 R2: lib `pronostico-horizonte` (agregación por horizonte desde el resumen) + tests
+- [x] T5 R2: `PanelRadar` con resumen de pronóstico (KPIs + lista por departamento, horizontes habilitados)
+- [x] T5b R2: clic en un departamento lo resalta y centra en el mapa (wiring en la página)
+- [x] T6 R3: test de la capa de lluvia con payload real reducido (+ fix si hay bug)
+- [x] T7 Gate final (tsc, lint, suite completa) y reporte
+
+## Evidencia
+- T1: tsc limpio; vitest alertas-agrupadas + use-resumen + components/mapas/radar-meteo: 34 pasan. Ruta: delegada (N3).
+- T2: tsc limpio (tras T2fix: import type JSX); eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 40 archivos / 378 tests pasan. Ruta: delegada (N3 + N3 de fix).
+- T3: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 41 archivos / 385 tests pasan. Ruta: delegada (N3).
+- T4: tsc limpio; vitest pronostico-horizonte: 6 pasan. Ruta: delegada (N3).
+- T5: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 43 archivos / 399 tests pasan. Ruta: delegada (N3). Pendiente en T5b: warning de import sin uso en pronostico-resumen.test.tsx.
+- T5b: tsc limpio; vitest page+panel+pronostico-resumen: 111 pasan (incluye test de flyTo al centroide). Ruta: delegada (N3).
+- T6 (R3): SIN BUG en la capa. Fixture real reducido (239 celdas, 4 pasos, máx. 53 mm/3 h) generado desde la corrida de hoy; el test monta `RadarMeteo` y verifica raster con alfa>0 en el paso lluvioso, transparente en el seco y puntos debug con color == `colorLluvia(valor/3)`. tsc limpio; vitest components/mapas/radar-meteo: 9 archivos / 35 tests (también con TZ=UTC). Ruta: delegada (N3 + N3 de fix de warning).
+- T7 gate final: tsc limpio; `pnpm lint` 0 errores (15 warnings preexistentes); suite completa (7G, dot, 4 workers): 330 archivos / 2945 tests pasan, 21 skipped. La falla conocida de `resumen/route.test.ts` no se reprodujo; el flaky de reporte-inicial tampoco.

@@ -23,16 +23,13 @@ import { LeyendaRadar } from './leyenda'
 import { LineaTiempoRadar } from './linea-tiempo'
 import { PopupRadar } from './popup'
 import type { VariableRadarUI } from './selector'
-import { AlertasStrip, type AlertaRadar } from './alertas-strip'
+import { AlertasPastilla } from './alertas-pastilla'
+import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import type { AlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import type { ResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { EscuelaForecastCard } from './escuela-card'
 import { beforeIdSiExiste, CAPAS_RADAR } from './capas'
 import type { EscuelaMapa } from '@/lib/infraestructura/parte-mapa'
-
-interface ResumenRadar {
-  runAt: string | null
-  departamentos: unknown[]
-  alertasSmn: AlertaRadar[]
-}
 
 const variablesSolicitadas = [
   'precipitation',
@@ -256,7 +253,14 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolean; variable: VariableRadarUI; escuelas?: EscuelaMapa[] }) {
+export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas }: {
+  activo: boolean
+  variable: VariableRadarUI
+  escuelas?: EscuelaMapa[]
+  resumen: ResumenRadarMeteo | null
+  alertasResaltadas: AlertaRadar[]
+  onVerAlertas: () => void
+}) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<1 | 2 | 4>(1)
@@ -265,10 +269,7 @@ export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolea
   const [retry, setRetry] = useState(0)
   const [rasterFrame, setRasterFrame] = useState<RasterFrame | null>(null)
   const [boundary, setBoundary] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null)
-  const [resumen, setResumen] = useState<ResumenRadar | null>(null)
-  const [alertaActiva, setAlertaActiva] = useState<AlertaRadar | null>(null)
-  const [geometriasAlerta, setGeometriasAlerta] = useState<{ alertaId: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
-  const [resumenError, setResumenError] = useState(false)
+  const [geometriasAlerta, setGeometriasAlerta] = useState<{ clave: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
   const [map, setMap] = useState<MapLibreMap | null>(null)
   const [capasExistentes, setCapasExistentes] = useState({ borde: false, etiqueta: false, mascara: false })
   const [zoom, setZoom] = useState(0)
@@ -279,7 +280,6 @@ export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolea
     setActivoPrevio(activo)
     if (!activo) {
       setPoint(null)
-      setAlertaActiva(null)
       setCueEscuela(null)
       setPlaying(false)
     }
@@ -292,30 +292,8 @@ export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolea
     refreshKey: retry,
   })
 
-  useEffect(() => {
-    if (!activo) return
-    let cancelado = false
-    const cacheKey = 'radar-meteo-resumen-v1'
-    const etag = sessionStorage.getItem(`${cacheKey}-etag`)
-    fetch('/api/infraestructura/radar-meteo/resumen', {
-      headers: etag ? { 'If-None-Match': etag } : undefined,
-    }).then(async (response) => {
-      if (response.status === 304) return null
-      if (!response.ok) throw new Error('No se pudo cargar el resumen')
-      const respuesta = await response.json() as ResumenRadar
-      const nuevoEtag = response.headers.get('ETag')
-      if (nuevoEtag) sessionStorage.setItem(`${cacheKey}-etag`, nuevoEtag)
-      sessionStorage.setItem(`${cacheKey}-data`, JSON.stringify(respuesta))
-      return respuesta
-    }).then((respuesta) => {
-      if (cancelado) return
-      const guardado = respuesta ?? JSON.parse(sessionStorage.getItem(`${cacheKey}-data`) ?? 'null') as ResumenRadar | null
-      setResumen(guardado)
-      setResumenError(!guardado)
-    }).catch(() => { if (!cancelado) setResumenError(true) })
-    return () => { cancelado = true }
-  }, [activo])
-
+  const [ahoraMs] = useState(() => Date.now())
+  const grupos = useMemo(() => agruparAlertas(resumen?.alertasSmn ?? [], ahoraMs), [resumen, ahoraMs])
   const times = data?.tiempos ?? tiemposVacios
   const raster = useMemo(() => {
     if (!data || data.sinDatos || typeof document === 'undefined') {
@@ -576,40 +554,46 @@ export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolea
   }, [map, zoom, escuelas])
   const escuelaSeleccionada = escuelas.find((escuela) => escuela.cueAnexo === cueEscuela)
   const departamentosAlerta = useMemo(() => {
-    if (!boundary || !alertaActiva) return null
-    const ids = new Set(alertaActiva.departamentos.filter((depto) => typeof depto !== 'string').map((depto) => (depto as { id: string }).id))
-    const nombres = new Set(alertaActiva.departamentos.map((depto) => (typeof depto === 'string' ? depto : depto.nombre).toLocaleLowerCase('es')))
+    if (!boundary || !alertasResaltadas.length) return null
+    const ids = new Set(alertasResaltadas.flatMap((alerta) => alerta.departamentos
+      .filter((depto): depto is { id: string; nombre: string } => typeof depto !== 'string')
+      .map((depto) => depto.id)))
+    const nombres = new Set(alertasResaltadas.flatMap((alerta) => alerta.departamentos
+      .map((depto) => (typeof depto === 'string' ? depto : depto.nombre).toLocaleLowerCase('es'))))
     return {
       type: 'FeatureCollection' as const,
       features: boundary.features.filter((feature) =>
         ids.has(String(feature.properties?.id))
         || nombres.has(String(feature.properties?.nombre).toLocaleLowerCase('es'))),
     }
-  }, [boundary, alertaActiva])
+  }, [boundary, alertasResaltadas])
   useEffect(() => {
-    if (!alertaActiva) return
+    const clave = alertasResaltadas.map((alerta) => alerta.id).join(',')
+    if (!clave) return
     let cancelado = false
     fetch('/api/infraestructura/radar-meteo/alertas')
       .then((response) => response.json())
       .then((respuesta: { alertas?: Array<{ id: string; poligonos?: Array<Array<[number, number]>> }> }) => {
-      if (cancelado) return
-      const alerta = respuesta.alertas?.find((item) => item.id === alertaActiva.id)
-      const features = (alerta?.poligonos ?? []).filter((ring) => ring.length >= 4).map((ring) => ({
-        type: 'Feature' as const,
-        properties: {},
-        geometry: { type: 'Polygon' as const, coordinates: [ring] },
-      }))
-      setGeometriasAlerta({ alertaId: alertaActiva.id, datos: { type: 'FeatureCollection', features } })
+        if (cancelado) return
+        const ids = new Set(alertasResaltadas.map((alerta) => alerta.id))
+        const features = (respuesta.alertas ?? []).filter((alerta) => ids.has(alerta.id))
+          .flatMap((alerta) => alerta.poligonos ?? [])
+          .filter((ring) => ring.length >= 4).map((ring) => ({
+            type: 'Feature' as const,
+            properties: {},
+            geometry: { type: 'Polygon' as const, coordinates: [ring] },
+          }))
+        setGeometriasAlerta({ clave, datos: { type: 'FeatureCollection', features } })
       })
       .catch(() => undefined)
     return () => { cancelado = true }
-  }, [alertaActiva])
+  }, [alertasResaltadas])
   if (!activo) {
     return null
   }
   return (
     <>
-      {resumen && <AlertasStrip alertas={resumen.alertasSmn ?? []} actualizado={resumen.runAt} onSelect={setAlertaActiva} />}
+      <AlertasPastilla grupos={grupos} onVer={onVerAlertas} />
       {departamentosAlerta && (
         <Source
           id="radar-alerta-departamentos"
@@ -623,21 +607,19 @@ export function RadarMeteo({ activo, variable, escuelas = [] }: { activo: boolea
           />
         </Source>
       )}
-      {geometriasAlerta && geometriasAlerta.alertaId === alertaActiva?.id && (
+      {geometriasAlerta && geometriasAlerta.clave === alertasResaltadas.map((alerta) => alerta.id).join(',') && (
         <Source id="radar-alerta-poligonos" type="geojson" data={geometriasAlerta.datos}>
           <Layer
             id="radar-alerta-poligonos-borde"
             type="line"
             paint={{
-              'line-color': alertaActiva?.nivelSat ? '#f4cf73' : '#c4d0d8',
+              'line-color': alertasResaltadas[0]?.nivelSat ? '#f4cf73' : '#c4d0d8',
               'line-width': 3,
               'line-opacity': 0.95,
             }}
           />
         </Source>
       )}
-      {!resumen && !resumenError && <div className="radar-alertas radar-alertas-empty" role="status">Consultando alertas…</div>}
-      {resumenError && <div className="radar-alertas radar-alertas-empty" role="status">No se pudieron cargar las alertas.</div>}
       {cueEscuela && escuelaSeleccionada && (
         <EscuelaForecastCard
           cueAnexo={cueEscuela}
