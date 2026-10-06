@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import type { PronosticoHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
 import { PronosticoResumen } from './pronostico-resumen'
 

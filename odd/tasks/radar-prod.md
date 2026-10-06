@@ -25,7 +25,7 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - [x] T3 R1: sección "Alertas del SMN" en el sidebar (`PanelRadar`), detalle expandible, CSS
 - [x] T4 R2: lib `pronostico-horizonte` (agregación por horizonte desde el resumen) + tests
 - [x] T5 R2: `PanelRadar` con resumen de pronóstico (KPIs + lista por departamento, horizontes habilitados)
-- [ ] T5b R2: clic en un departamento lo resalta y centra en el mapa (wiring en la página)
+- [x] T5b R2: clic en un departamento lo resalta y centra en el mapa (wiring en la página)
 - [ ] T6 R3: test de la capa de lluvia con payload real reducido (+ fix si hay bug)
 - [ ] T7 Gate final (tsc, lint, suite completa) y reporte
 
@@ -35,3 +35,4 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - T3: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 41 archivos / 385 tests pasan. Ruta: delegada (N3).
 - T4: tsc limpio; vitest pronostico-horizonte: 6 pasan. Ruta: delegada (N3).
 - T5: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 43 archivos / 399 tests pasan. Ruta: delegada (N3). Pendiente en T5b: warning de import sin uso en pronostico-resumen.test.tsx.
+- T5b: tsc limpio; vitest page+panel+pronostico-resumen: 111 pasan (incluye test de flyTo al centroide). Ruta: delegada (N3).

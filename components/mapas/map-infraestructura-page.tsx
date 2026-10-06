@@ -632,6 +632,7 @@ export default function MapInfraestructuraPage(props: {
   const [nominalAfectacionId, setNominalAfectacionId] = useState<string | null>(null)
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
+  const [departamentoRadarId, setDepartamentoRadarId] = useState<string | null>(null)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
@@ -916,14 +917,17 @@ export default function MapInfraestructuraPage(props: {
   // lado de duplicar esa lógica de join en el servidor.
   const [departamentosRaw, setDepartamentosRaw] = useState<FeatureCollection<
     Polygon | MultiPolygon,
-    { nombre: string }
+    { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
   > | null>(null)
 
   useEffect(() => {
     let cancelado = false
     fetch(DEPARTAMENTOS_URL)
       .then((respuesta) => respuesta.json())
-      .then((geojson: FeatureCollection<Polygon | MultiPolygon, { nombre: string }>) => {
+      .then((geojson: FeatureCollection<
+        Polygon | MultiPolygon,
+        { nombre: string; id?: string; centroide?: { lon: number; lat: number } }
+      >) => {
         if (!cancelado) setDepartamentosRaw(geojson)
       })
       .catch(() => {
@@ -935,6 +939,21 @@ export default function MapInfraestructuraPage(props: {
       cancelado = true
     }
   }, [])
+
+  const departamentoRadarNombre = useMemo(
+    () => radarActivo
+      ? departamentosRaw?.features.find((feature) => feature.properties.id === departamentoRadarId)?.properties.nombre ?? null
+      : null,
+    [radarActivo, departamentosRaw, departamentoRadarId],
+  )
+  const seleccionarDepartamentoRadar = (id: string | null) => {
+    setDepartamentoRadarId(id)
+    if (id === null) return
+    const centroide = departamentosRaw?.features.find((feature) => feature.properties.id === id)?.properties.centroide
+    if (centroide) {
+      mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
+    }
+  }
 
   const departamentosGeojson = useMemo(() => {
     if (!departamentosRaw) return null
@@ -1451,13 +1470,13 @@ export default function MapInfraestructuraPage(props: {
               id={CAPA_DEPARTAMENTO_HOVER_ID}
               type="fill"
               paint={fillPaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
+              filter={['==', ['get', 'nombre'], (radarActivo ? departamentoRadarNombre : departamentoSeleccionado) ?? '']}
             />
             <Layer
               id={CAPA_DEPARTAMENTO_HOVER_BORDE_ID}
               type="line"
               paint={linePaintDepartamentoHover()}
-              filter={['==', ['get', 'nombre'], departamentoSeleccionado ?? '']}
+              filter={['==', ['get', 'nombre'], (radarActivo ? departamentoRadarNombre : departamentoSeleccionado) ?? '']}
             />
             <Layer
               id="infra-departamentos-etiqueta"
@@ -1948,7 +1967,7 @@ export default function MapInfraestructuraPage(props: {
                   claveSeleccionada: claveAlertaRadar,
                   onSeleccionar: setClaveAlertaRadar,
                 }}
-                pronostico={{ resumen: resumenRadar, cargando: resumenRadar === null && !resumenRadarError, error: resumenRadarError && resumenRadar === null, departamentoId: null, onDepartamento: () => undefined }}
+                pronostico={{ resumen: resumenRadar, cargando: resumenRadar === null && !resumenRadarError, error: resumenRadarError && resumenRadar === null, departamentoId: radarActivo ? departamentoRadarId : null, onDepartamento: seleccionarDepartamentoRadar }}
               />
             )}
             planificacion={(
