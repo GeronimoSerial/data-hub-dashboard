@@ -1948,6 +1948,7 @@ export default function MapInfraestructuraPage(props: {
                   claveSeleccionada: claveAlertaRadar,
                   onSeleccionar: setClaveAlertaRadar,
                 }}
+                pronostico={{ resumen: resumenRadar, cargando: resumenRadar === null && !resumenRadarError, error: resumenRadarError && resumenRadar === null, departamentoId: null, onDepartamento: () => undefined }}
               />
             )}
             planificacion={(

@@ -325,6 +325,13 @@ const llamadasRadar = vi.hoisted(() => ({ activos: [] as boolean[], filtros: [] 
 const estadoRadar = vi.hoisted(() => ({ sinPronostico: false }))
 const estadoRadarMeteo = vi.hoisted(() => ({ sinDatos: false }))
 
+vi.mock('@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo', () => ({
+  useResumenRadarMeteo: () => ({
+    resumen: estadoRadarMeteo.sinDatos ? { runId: null, runAt: null, sinDatos: true, frescura: null, dias: [], departamentos: [], alertasSmn: [] } : null,
+    error: false,
+  }),
+}))
+
 vi.mock('@/lib/infraestructura/radar-meteo/use-radar-meteo', () => ({
   useRadarMeteo: () => ({
     data: estadoRadarMeteo.sinDatos ? { sinDatos: true, razon: 'Todavía no se cargó ningún pronóstico.' } : null,
@@ -1105,14 +1112,14 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(within(panel).getByTestId('mock-ficha-escuela')).toBeInTheDocument()
   })
 
-  it('sin horizontes con datos muestra el aviso y deshabilita las tres opciones', async () => {
+  it('sin horizontes del motor mantiene la carga del pronóstico meteorológico', async () => {
     estadoRadar.sinPronostico = true
     await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
-    expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
+    expect(screen.getByText('Cargando pronóstico…')).toBeInTheDocument()
     const grupo = screen.getByRole('group', { name: 'Horizonte' })
     for (const nombre of ['24 h', '72 h', '10 días']) {
-      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'true')
+      expect(within(grupo).getByRole('button', { name: nombre })).toHaveAttribute('aria-disabled', 'false')
     }
   })
 

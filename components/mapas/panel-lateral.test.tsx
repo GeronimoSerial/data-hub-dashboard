@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { PanelLateral } from './panel-lateral'
 import { PanelRadar } from './panel-radar'
@@ -68,6 +68,7 @@ describe('PanelLateral', () => {
       error={null}
       onSeleccionar={() => {}}
       alertas={{ grupos: [], cargando: false, error: false, claveSeleccionada: null, onSeleccionar: () => {} }}
+      pronostico={{ resumen: null, cargando: false, error: false, departamentoId: null, onDepartamento: vi.fn() }}
     />
     render(
       <PanelLateral
