@@ -2,6 +2,7 @@
 
 import type { JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
+import { AlertasSeccion } from '@/components/mapas/radar-meteo/alertas-seccion'
 import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/lib/infraestructura/mapa/radar'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import type { GrupoAlertaRadar } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
 
 export interface PanelRadarProps {
   horizonte: HorizonteMotor
@@ -27,13 +29,20 @@ export interface PanelRadarProps {
   cargando: boolean
   error: string | null
   onSeleccionar: (cueAnexo: string) => void
+  alertas: {
+    grupos: GrupoAlertaRadar[]
+    cargando: boolean
+    error: boolean
+    claveSeleccionada: string | null
+    onSeleccionar: (clave: string | null) => void
+  }
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
 const HORIZONTES: HorizonteMotor[] = [24, 72, 240]
 
 export function PanelRadar(props: PanelRadarProps): JSX.Element {
-  const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar } = props
+  const { horizonte, disponibles, onHorizonte, variable, onVariable, puntos, escuelas, cargando, error, onSeleccionar, alertas } = props
   const opciones = HORIZONTES.map((valor) => ({
     valor,
     etiqueta: ETIQUETA_HORIZONTE_MOTOR[valor],
@@ -61,6 +70,8 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
         onChange={onVariable}
         columnas={2}
       />
+
+      <AlertasSeccion {...alertas} />
 
       {cargando ? (
         <p role="status" className="map-sitact__vacio">Cargando pronóstico…</p>

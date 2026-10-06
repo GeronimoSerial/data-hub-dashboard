@@ -691,9 +691,9 @@ export default function MapInfraestructuraPage(props: {
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
   const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
-  const { resumen: resumenRadar } = useResumenRadarMeteo(radarActivo)
+  const { resumen: resumenRadar, error: resumenRadarError } = useResumenRadarMeteo(radarActivo)
   const [ahoraRadarMs] = useState(() => Date.now())
-  const [claveAlertaRadar] = useState<string | null>(null)
+  const [claveAlertaRadar, setClaveAlertaRadar] = useState<string | null>(null)
   const gruposAlertasRadar = useMemo(
     () => agruparAlertas(resumenRadar?.alertasSmn ?? [], ahoraRadarMs),
     [resumenRadar, ahoraRadarMs],
@@ -1940,6 +1940,13 @@ export default function MapInfraestructuraPage(props: {
                 onSeleccionar={(cue) => {
                   const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cue)
                   if (escuela) handleSeleccionarEscuelaBuscada(escuela)
+                }}
+                alertas={{
+                  grupos: gruposAlertasRadar,
+                  cargando: resumenRadar === null && !resumenRadarError,
+                  error: resumenRadarError && resumenRadar === null,
+                  claveSeleccionada: claveAlertaRadar,
+                  onSeleccionar: setClaveAlertaRadar,
                 }}
               />
             )}

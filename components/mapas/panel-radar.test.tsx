@@ -56,6 +56,7 @@ function props(overrides: Partial<React.ComponentProps<typeof PanelRadar>> = {})
     cargando: false,
     error: null,
     onSeleccionar: vi.fn(),
+    alertas: { grupos: [], cargando: false, error: false, claveSeleccionada: null, onSeleccionar: vi.fn() },
     ...overrides,
   }
 }
@@ -151,6 +152,13 @@ describe('PanelRadar', () => {
     render(<PanelRadar {...props({ puntos: [] })} />)
     expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('0')
     expect(screen.getByText('Ninguna escuela en riesgo para estos filtros.')).toBeInTheDocument()
+  })
+
+  it('mantiene visible la sección de alertas cuando no hay pronóstico del motor de riesgo', () => {
+    render(<PanelRadar {...props({ disponibles: [] })} />)
+
+    expect(screen.getByRole('region', { name: 'Alertas del SMN' })).toBeInTheDocument()
+    expect(screen.getByText('Sin alertas oficiales vigentes ni próximas · SMN')).toBeInTheDocument()
   })
 
   it('no incluye textos técnicos ni repite escuelas con varios niveles educativos', () => {

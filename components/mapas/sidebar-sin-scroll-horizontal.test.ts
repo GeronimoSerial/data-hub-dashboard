@@ -28,7 +28,7 @@ function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'capas
     seleccion: null,
     onCerrarFicha: vi.fn(),
     actual: createElement(PanelSituacionActual, { escuelas: [], actualizadoEn: null, onSeleccionar: vi.fn() }),
-    radar: createElement(PanelRadar, { horizonte: 72, disponibles: [], onHorizonte: vi.fn(), variable: 'lluvia', onVariable: vi.fn(), puntos: null, escuelas: [], cargando: false, error: null, onSeleccionar: vi.fn() }),
+    radar: createElement(PanelRadar, { horizonte: 72, disponibles: [], onHorizonte: vi.fn(), variable: 'lluvia', onVariable: vi.fn(), puntos: null, escuelas: [], cargando: false, error: null, onSeleccionar: vi.fn(), alertas: { grupos: [], cargando: false, error: false, claveSeleccionada: null, onSeleccionar: vi.fn() } }),
     planificacion: createElement(PanelPlanificacion, { vista: 'aisladas', onVista: vi.fn(), escuelas: [], territorio: null, cargando: false, error: false, onSeleccionar: vi.fn() }),
     capas: createElement(PanelCapas, { value: 'voyager', onChange: vi.fn(), capasVisibles: CAPAS_VISIBLES_DEFAULT, onCapasVisiblesChange: vi.fn(), haySeleccion: false }),
   }

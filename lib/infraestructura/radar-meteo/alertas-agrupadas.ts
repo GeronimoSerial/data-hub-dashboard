@@ -85,7 +85,7 @@ export interface ResumenAlertasRadar {
   nivel: 'red' | 'orange' | 'yellow' | null
 }
 
-function fechaProxima(onset: string): string {
+export function fechaCorta(fecha: string): string {
   const partes = new Intl.DateTimeFormat('es-AR', {
     timeZone: 'America/Argentina/Buenos_Aires',
     weekday: 'short',
@@ -93,10 +93,14 @@ function fechaProxima(onset: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(new Date(onset))
+  }).formatToParts(new Date(fecha))
   const parte = (tipo: Intl.DateTimeFormatPartTypes) => partes.find((item) => item.type === tipo)?.value ?? ''
   const diaSemana = parte('weekday').replace(/[.,]$/u, '')
   return `${diaSemana} ${parte('day')}, ${parte('hour')}:${parte('minute')}`
+}
+
+export function formatearVentanaAlerta(onset: string, expires: string): string {
+  return `${fechaCorta(onset)} – ${fechaCorta(expires)}`
 }
 
 export function resumirAlertas(grupos: GrupoAlertaRadar[]): ResumenAlertasRadar {
@@ -109,7 +113,7 @@ export function resumirAlertas(grupos: GrupoAlertaRadar[]): ResumenAlertasRadar 
     texto = `${vigentes} vigente${vigentes === 1 ? '' : 's'} · ${proximas} próxima${proximas === 1 ? '' : 's'}`
   } else if (proximas) {
     const onset = grupos.filter((grupo) => grupo.proxima).sort((a, b) => Date.parse(a.onset) - Date.parse(b.onset))[0].onset
-    texto = `${proximas} alerta${proximas === 1 ? '' : 's'} del SMN · próxima${proximas === 1 ? '' : 's'} desde ${fechaProxima(onset)}`
+    texto = `${proximas} alerta${proximas === 1 ? '' : 's'} del SMN · próxima${proximas === 1 ? '' : 's'} desde ${fechaCorta(onset)}`
   } else if (vigentes) {
     texto = `${vigentes} alerta${vigentes === 1 ? '' : 's'} vigente${vigentes === 1 ? '' : 's'} del SMN`
   }

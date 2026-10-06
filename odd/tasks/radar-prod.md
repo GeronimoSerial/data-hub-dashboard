@@ -22,7 +22,7 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 ## Tasks
 - [x] T1 R1: lib `alertas-agrupadas` (agrupar por evento+severidad+onset+expires, texto de la pastilla) + hook `useResumenRadarMeteo`
 - [x] T2 R1: pastilla sobre el mapa + `RadarMeteo` controlado (resumen/alerta por props) + wiring en la página
-- [ ] T3 R1: sección "Alertas del SMN" en el sidebar (`PanelRadar`), detalle expandible, CSS
+- [x] T3 R1: sección "Alertas del SMN" en el sidebar (`PanelRadar`), detalle expandible, CSS
 - [ ] T4 R2: lib `pronostico-horizonte` (agregación por horizonte desde el resumen) + tests
 - [ ] T5 R2: `PanelRadar` con resumen de pronóstico + clic en departamento centra el mapa
 - [ ] T6 R3: test de la capa de lluvia con payload real reducido (+ fix si hay bug)
@@ -31,3 +31,4 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 ## Evidencia
 - T1: tsc limpio; vitest alertas-agrupadas + use-resumen + components/mapas/radar-meteo: 34 pasan. Ruta: delegada (N3).
 - T2: tsc limpio (tras T2fix: import type JSX); eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 40 archivos / 378 tests pasan. Ruta: delegada (N3 + N3 de fix).
+- T3: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 41 archivos / 385 tests pasan. Ruta: delegada (N3).

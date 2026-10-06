@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { agruparAlertas, resumirAlertas, type AlertaRadar } from './alertas-agrupadas'
+import { agruparAlertas, formatearVentanaAlerta, resumirAlertas, type AlertaRadar } from './alertas-agrupadas'
 
 function alerta(overrides: Partial<AlertaRadar> = {}): AlertaRadar {
   return {
@@ -83,5 +83,12 @@ describe('resumirAlertas', () => {
     ], ahora)
     expect(resumirAlertas(mezclaSingular).texto).toBe('1 vigente · 1 próxima')
     expect(resumirAlertas([])).toEqual({ total: 0, vigentes: 0, proximas: 0, texto: '', nivel: null })
+  })
+})
+
+describe('formatearVentanaAlerta', () => {
+  it('formatea inicio y fin en la zona horaria de Argentina', () => {
+    expect(formatearVentanaAlerta('2026-10-07T18:00:00Z', '2026-10-08T06:00:00Z'))
+      .toBe('mié 7, 15:00 – jue 8, 03:00')
   })
 })

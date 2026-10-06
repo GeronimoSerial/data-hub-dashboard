@@ -67,6 +67,7 @@ describe('PanelLateral', () => {
       cargando={false}
       error={null}
       onSeleccionar={() => {}}
+      alertas={{ grupos: [], cargando: false, error: false, claveSeleccionada: null, onSeleccionar: () => {} }}
     />
     render(
       <PanelLateral
