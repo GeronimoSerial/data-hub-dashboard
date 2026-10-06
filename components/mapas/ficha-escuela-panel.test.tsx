@@ -245,14 +245,23 @@ describe('FichaEscuelaPanel', () => {
     expect(screen.getByText('Clases y asistencia pedagógica').closest('details')).toHaveProperty('open', false)
   })
 
-  it('muestra el dato ausente de asistencia con el chip neutro y la etiqueta compartida', () => {
+  it('muestra el dato ausente de asistencia sin repetir el rótulo y conserva la etiqueta completa en el chip', () => {
     instalarFetch()
     renderFicha({ escuela: { ...escuela, apoyo: 'sin_dato' } })
 
     const chip = screen.getAllByText('Asistencia pedagógica sin dato').find((element) => element.classList.contains('map-sitact__pill--neutro'))
     expect(chip).toBeDefined()
     expect(chip).toHaveClass('map-sitact__pill--neutro')
-    expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('Asistencia pedagógica sin dato')
+    expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('Sin dato')
+  })
+
+  it('muestra No se brinda bajo el rótulo de asistencia pedagógica', () => {
+    instalarFetch()
+    renderFicha({ escuela: { ...escuela, apoyo: 'no' } })
+
+    expect(screen.getByText('Asistencia pedagógica').nextElementSibling).toHaveTextContent('No se brinda')
+    expect(screen.getByText('Asistencia pedagógica').nextElementSibling).not.toHaveTextContent('Asistencia pedagógica')
+    expect(screen.getAllByText('No se brinda asistencia pedagógica').length).toBeGreaterThan(0)
   })
 
   it('usa chips compartidos que permiten envolver el texto en dos líneas', () => {

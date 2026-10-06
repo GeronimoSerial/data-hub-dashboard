@@ -8,7 +8,7 @@ import { formatearMomentoHistorial } from '@/components/infraestructura/historia
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { ETIQUETA_ESTADO_CLASES, etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
-import { etiquetaApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
+import { etiquetaApoyoMapa, valorApoyoMapa } from '@/lib/infraestructura/mapa/etiqueta-apoyo'
 import { tiempoRelativo } from '@/lib/infraestructura/mapa/tiempo-relativo'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
@@ -154,7 +154,7 @@ export function FichaEscuelaPanel({
         <Desplegable titulo="Clases y asistencia pedagógica" abierto={escuela.clases !== 'normal'}>
           <dl className="map-ficha-escuela__kv">
             <dt>Clases</dt><dd>{ETIQUETA_ESTADO_CLASES[escuela.clases]}</dd>
-            <dt>Asistencia pedagógica</dt><dd>{escuela.clases === 'normal' ? 'No corresponde' : etiquetaApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
+            <dt>Asistencia pedagógica</dt><dd>{valorApoyoMapa(escuela.clases, escuela.apoyo) ?? 'No corresponde'}</dd>
             <dt>Alumnos</dt><dd>{FORMATO_NUMERO.format(escuela.alumnos)}</dd>
             {datos?.parte && afectaciones.some((afectacion) => afectacion.categoria === 'establecimiento') && <><dt>Edificio</dt><dd>{ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}</dd></>}
           </dl>
