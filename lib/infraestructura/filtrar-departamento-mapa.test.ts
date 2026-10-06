@@ -19,6 +19,7 @@ function parte(cueAnexo: string, departamento: string, servicio: ParteMapa['serv
     categorias: ['establecimiento'],
     afectaciones: [],
     seccionesAlcanzadas: 2,
+    alumnosDelHecho: 10,
     alumnosAlcanzados: 10,
     rigeDesde: '2026-09-20T00:00:00Z',
     actualizadaEn: '2026-09-23T11:00:00Z',
@@ -35,7 +36,7 @@ describe('filtrarDepartamentoMapa', () => {
     partes,
     indicadores: {
       escuelas: 3, conServicioSuspendido: 1, conServicioParcial: 1,
-      evacuadas: 0, centrosDeEvacuados: 0, sinReportar: 0,
+      evacuadas: 0, establecimientosParciales: 0, centrosDeEvacuados: 0, sinActualizar: 0,
       alumnosAlcanzados: 30, seccionesAlcanzadas: 6,
     },
   }

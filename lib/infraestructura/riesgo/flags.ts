@@ -1,6 +1,6 @@
 // Única fuente de lectura de flags de feature del motor de riesgo: ninguna
 // otra parte del repo debe leer RISK_ENGINE_ENABLED, RISK_RADAR_ENABLED,
-// AI_BRIEFING_ENABLED ni RISK_MODE; SITUACION_, HAZARD_, SEASONAL_ y REPLAY_
+// AI_BRIEFING_ENABLED ni RISK_MODE; SITUACION_, HAZARD_ y SEASONAL_
 // también viven aquí. listarFlagsOperativas() enumera los flags de /admin/operacion.
 import { episodiosDerivadosEnabled } from '@/lib/infraestructura/episodios-derivados/flags'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
@@ -40,16 +40,6 @@ export function seasonalEnabled(): boolean {
   return esTrue(process.env.SEASONAL_ENABLED)
 }
 
-// Gobierna sólo la UI del modo "Replay" del mapa de infraestructura (batch
-// E7c): el conmutador de modo, el panel de línea de tiempo y las capas del
-// cuadro reproducido. Apagado por defecto. Las APIs de sólo lectura
-// /api/infraestructura/replay y /replay/export (batch E7b) existen siempre,
-// protegidas por ACL staff; este flag sólo oculta el frontend, mismo criterio
-// que hazardContextEnabled/seasonalEnabled.
-export function replayEnabled(): boolean {
-  return esTrue(process.env.REPLAY_ENABLED)
-}
-
 // Modo de operación del motor: 'advisory' solo si el valor es exactamente
 // 'advisory'; cualquier otro valor (incluido undefined o inválido) cae al
 // default seguro 'shadow'. No lanza excepción ante valor inválido.
@@ -73,7 +63,6 @@ export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }
     { nombre: 'AI_BRIEFING_ENABLED', valor: String(aiBriefingEnabled()) },
     { nombre: 'HAZARD_CONTEXT_ENABLED', valor: String(hazardContextEnabled()) },
     { nombre: 'SEASONAL_ENABLED', valor: String(seasonalEnabled()) },
-    { nombre: 'REPLAY_ENABLED', valor: String(replayEnabled()) },
     { nombre: 'RISK_MODE', valor: riskMode() },
     { nombre: 'SITUACION_ENABLED', valor: String(situacionEnabled()) },
     { nombre: 'EPISODIOS_DERIVADOS_ENABLED', valor: String(episodiosDerivadosEnabled()) },

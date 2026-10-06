@@ -44,6 +44,38 @@ describe('ejecutarConReintentos', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
+  it('con opt-in reintenta sólo JSON truncado y reserva cupo antes de cada intento', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response('{"valor":', { status: 200 }))
+      .mockResolvedValueOnce(respuestaOk({ valor: 42 }))
+    const reservar = vi.fn(async () => ({ ok: true as const, esperoMs: 0 }))
+    const r = await ejecutarConReintentos({
+      url: 'https://example.test',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      maxIntentos: 2,
+      backoffBaseMs: 1,
+      backoffMaxMs: 1,
+      reintentarJsonTruncado: true,
+      cupo: { reservar, registrar429: vi.fn(async () => {}) },
+      parsearPayload: (json) => (json as { valor: number }).valor,
+    })
+    expect(r).toEqual({ ok: true, datos: 42 })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(reservar).toHaveBeenCalledTimes(2)
+  })
+
+  it('con opt-in tampoco reintenta un fallo de contrato', async () => {
+    const fetchImpl = vi.fn(async () => respuestaOk({ inesperado: true }))
+    const r = await ejecutarConReintentos({
+      url: 'https://example.test',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      reintentarJsonTruncado: true,
+      parsearPayload: () => { throw new Error('contrato inválido') },
+    })
+    expect(r.ok).toBe(false)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it('429 reintenta con backoff acotado y eventualmente tiene éxito', async () => {
     let llamada = 0
     const fetchImpl = vi.fn(async () => {

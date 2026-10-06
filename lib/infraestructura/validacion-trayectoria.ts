@@ -12,6 +12,7 @@
 import { z } from 'zod'
 import { normalizeCue } from './cue'
 import { SEVERIDADES } from './validacion'
+import { JUSTIFICACIONES_CRITICA } from './justificacion-critica'
 import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
 
 const HTML_RE = /<[^>]*>/
@@ -43,16 +44,23 @@ const cueSchema = z
 // Deben coincidir exactamente con EstadoEstablecimiento / ServicioEstado en
 // trayectoria-tipos.ts. No se importan esos tipos porque Zod necesita los
 // valores en tiempo de ejecución, no sólo el tipo.
-const ESTADOS_ESTABLECIMIENTO = ['habitual', 'evacuado', 'centro_evacuados'] as const
+const ESTADOS_ESTABLECIMIENTO = ['habitual', 'parcial', 'evacuado', 'centro_evacuados'] as const
 const ESTADOS_SERVICIO = ['normal', 'suspendido'] as const
+const asistenciaPedagogicaSchema = z.object({
+  brinda: z.boolean(),
+  modalidades: z.array(z.enum(['Clase virtual', 'Cuadernillo'])).max(2),
+}).refine((v) => v.brinda ? v.modalidades.length > 0 : v.modalidades.length === 0, 'Indique una modalidad si brinda asistencia pedagógica')
 
 // --- Afectaciones (spec §9) ---
 
 export const afectacionNuevaInputSchema = z.object({
   motivo: z.string().trim().min(1, 'Motivo requerido'),
   severidad: z.enum(SEVERIDADES),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).min(1, 'Debe incluir al menos una sección'),
+  causadaPorId: z.string().trim().min(1).optional(),
   // Misma semántica que en problematicaInputSchema: sección sin alumnos acá =
   // sección completa.
   alumnos: z.array(z.number().int().positive()).optional(),
@@ -67,6 +75,8 @@ export type AfectacionNuevaInput = z.infer<typeof afectacionNuevaInputSchema>
 export const afectacionModificacionInputSchema = z.object({
   id: z.string().trim().min(1, 'Falta el identificador de la afectación'),
   severidad: z.enum(SEVERIDADES).optional(),
+  justificacionCritica: z.enum(JUSTIFICACIONES_CRITICA).optional(),
+  justificacionCriticaDetalle: z.string().trim().min(1).max(300).optional(),
   descripcion: descripcionSchema.optional(),
   secciones: z.array(z.number().int().positive()).optional(),
   alumnos: z.array(z.number().int().positive()).optional(),
@@ -125,17 +135,37 @@ export const parteActualizacionInputSchema = z
     // IDs de afectaciones vigentes a retirar (soft delete, spec §8 "retirar
     // una afectación existente").
     afectacionesRetiradas: z.array(z.string().trim().min(1)).default([]),
+    afectacionesSolucionadas: z
+      .array(z.object({ id: z.string().trim().min(1), solucionadaEn: rigeDesdeSchema.optional() }))
+      .default([]),
+    afectacionesConfirmadas: z.array(z.string().trim().min(1)).default([]),
     servicioEducativo: servicioEducativoInputSchema.optional(),
     estadoEstablecimiento: estadoEstablecimientoInputSchema.optional(),
+    confirmarInterrupcionTotal: z.boolean().optional(),
+    asistenciaPedagogica: asistenciaPedagogicaSchema.optional(),
   })
   .refine(
     (data) =>
       data.afectacionesNuevas.length > 0 ||
       data.afectacionesModificadas.length > 0 ||
       data.afectacionesRetiradas.length > 0 ||
+      data.afectacionesSolucionadas.length > 0 ||
+      data.afectacionesConfirmadas.length > 0 ||
       data.servicioEducativo !== undefined ||
-      data.estadoEstablecimiento !== undefined,
+      data.estadoEstablecimiento !== undefined ||
+      data.asistenciaPedagogica !== undefined,
     { message: 'Todavía no realizó cambios en el parte actual' },
+  )
+  .refine((data) => {
+    const evacua = data.estadoEstablecimiento?.estado === 'evacuado' || data.estadoEstablecimiento?.estado === 'centro_evacuados'
+    const declaraSecciones = data.servicioEducativo
+      ? data.servicioEducativo.alcance.tipo === 'seccion'
+      : [...data.afectacionesNuevas, ...data.afectacionesModificadas].some((a) => (a.secciones?.length ?? 0) > 0)
+    return !evacua || !declaraSecciones || data.confirmarInterrupcionTotal === true
+  }, { message: 'Confirme que se interrumpe todo el establecimiento' })
+  .refine(
+    (data) => !(data.estadoEstablecimiento?.estado === 'evacuado' && data.servicioEducativo?.estado === 'normal'),
+    { message: 'Con el edificio evacuado no puede haber clases con normalidad' },
   )
 
 export type ParteActualizacionInput = z.infer<typeof parteActualizacionInputSchema>

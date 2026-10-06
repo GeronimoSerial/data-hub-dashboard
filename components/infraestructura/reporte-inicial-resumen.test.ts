@@ -20,7 +20,7 @@ describe('describirAlcanceServicio', () => {
   it('el servicio normal no menciona alcance alguno', () => {
     expect(
       describirAlcanceServicio({ estado: 'normal', alcanceTipo: '', turnos: [], secciones: 0 }),
-    ).toBe('Funcionamiento escolar normal')
+    ).toBe('Funcionamiento habitual')
   })
 
   it('nombra los turnos suspendidos', () => {
@@ -31,13 +31,13 @@ describe('describirAlcanceServicio', () => {
         turnos: ['Mañana', 'Tarde'],
         secciones: 0,
       }),
-    ).toBe('Funcionamiento escolar interrumpido en el turno Mañana, Tarde')
+    ).toBe('Funcionamiento interrumpido en el turno Mañana, Tarde')
   })
 
   it('singulariza una sección', () => {
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: 'seccion', turnos: [], secciones: 1 }),
-    ).toBe('Funcionamiento escolar interrumpido en 1 sección')
+    ).toBe('Funcionamiento interrumpido en 1 sección')
   })
 
   // El director tiene que poder ver que le falta un dato ANTES de guardar. Un
@@ -46,19 +46,19 @@ describe('describirAlcanceServicio', () => {
   it('un alcance elegido pero vacío se informa como faltante, no como todo el establecimiento', () => {
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: 'turno', turnos: [], secciones: 0 }),
-    ).toBe('Funcionamiento escolar interrumpido, sin alcance indicado')
+    ).toBe('Funcionamiento interrumpido, sin alcance indicado')
     expect(
       describirAlcanceServicio({ estado: 'suspendido', alcanceTipo: '', turnos: [], secciones: 0 }),
-    ).toBe('Funcionamiento escolar interrumpido, sin alcance indicado')
+    ).toBe('Funcionamiento interrumpido, sin alcance indicado')
   })
 })
 
 describe('armarResumen', () => {
-  it('abre con el motivo, la severidad y el alcance de la afectación', () => {
+  it('muestra el motivo, la severidad y el alcance en pares de etiqueta y valor', () => {
     const lineas = armarResumen(base)
 
-    expect(lineas[0]).toBe('Inundación · Severidad Alta')
-    expect(lineas[1]).toBe('2 secciones · 53 alumnos')
+    expect(lineas[0]).toEqual({ etiqueta: 'Situación', valor: 'Inundación', severidad: 'Alta' })
+    expect(lineas[1]).toEqual({ etiqueta: 'Afecta a', valor: '2 secciones · 53 alumnos' })
   })
 
   it('omite la descripción cuando está vacía o en blanco', () => {
@@ -72,7 +72,7 @@ describe('armarResumen', () => {
       afectacion: { ...afectacion, descripcion: '  El patio quedó bajo agua  ' },
     })
 
-    expect(lineas).toContain('El patio quedó bajo agua')
+    expect(lineas).toContainEqual({ etiqueta: 'Detalle', valor: 'El patio quedó bajo agua' })
   })
 
   it('suma servicio y situación del establecimiento sólo si fueron informados', () => {
@@ -82,14 +82,34 @@ describe('armarResumen', () => {
       estadoEstablecimiento: 'centro_evacuados',
     })
 
-    expect(lineas).toContain('Funcionamiento escolar interrumpido en todo el establecimiento')
-    expect(lineas).toContain('Utilizado como centro de evacuados')
+    expect(lineas).toContainEqual({ etiqueta: 'Clases', valor: 'Suspendidas en todo el establecimiento' })
+    expect(lineas).toContainEqual({ etiqueta: 'Edificio', valor: 'Usado como centro de evacuados' })
+  })
+
+  it('capitaliza las respuestas de clases y edificio como filas consistentes', () => {
+    const lineas = armarResumen({
+      ...base,
+      servicio: { estado: 'normal', alcanceTipo: '', turnos: [], secciones: 0 },
+      estadoEstablecimiento: 'parcial',
+    })
+
+    expect(lineas).toContainEqual({ etiqueta: 'Clases', valor: 'Con normalidad' })
+    expect(lineas).toContainEqual({ etiqueta: 'Edificio', valor: 'Uso parcial' })
   })
 
   it('cierra con el momento desde el que rige', () => {
     const lineas = armarResumen(base)
 
-    expect(lineas[lineas.length - 1]).toMatch(/^Rige desde el /)
+    expect(lineas[lineas.length - 1].etiqueta).toBe('Desde')
+    expect(lineas[lineas.length - 1].valor).not.toBe('')
+  })
+
+  it('resume la asistencia pedagógica con el mismo par de etiqueta y valor', () => {
+    const sinAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: false, modalidades: [] } })
+    const conAsistencia = armarResumen({ ...base, asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
+
+    expect(sinAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'No' })
+    expect(conAsistencia.at(-1)).toEqual({ etiqueta: 'Asistencia pedagógica', valor: 'Sí (Clase virtual, Cuadernillo)' })
   })
 
   // Vocabulario prohibido por spec §5.4.
@@ -100,6 +120,7 @@ describe('armarResumen', () => {
       estadoEstablecimiento: 'evacuado',
       afectacion: { ...afectacion, descripcion: 'algo' },
     })
+      .map(({ etiqueta, valor }) => `${etiqueta}: ${valor}`)
       .join(' ')
       .toLowerCase()
 

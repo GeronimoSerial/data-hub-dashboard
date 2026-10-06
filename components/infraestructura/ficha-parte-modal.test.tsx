@@ -26,6 +26,7 @@ const parteResumen = crearParteMapa({
       severidad: 'Alta',
       descripcion: 'El acceso principal quedó bajo agua.',
       rigeDesde: '2026-08-01T00:00:00Z',
+      creadaEn: '2026-08-01T00:00:00Z',
     },
   ],
   seccionesAlcanzadas: 3,
@@ -42,6 +43,7 @@ function respuestaParte() {
       estadoEstablecimiento: 'evacuado',
       estadoEstablecimientoRigeDesde: '2026-08-01T00:00:00Z',
       actualizadaEn: '2026-08-01T00:00:00Z',
+      asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual'] },
     },
     servicio: { estadoGeneral: 'suspendido', alcanceVigente: [] },
     afectaciones: [
@@ -80,7 +82,8 @@ function respuestaHistorial() {
         rol: 'director',
         creadaEn: '2026-08-01T12:00:00Z',
         rigeDesde: '2026-08-01T12:00:00Z',
-        cambios: ['Clases normales → Clases suspendidas'],
+        titulo: 'Cambió el funcionamiento de las clases',
+        cambios: ['Funcionamiento: habitual → interrumpido'],
       },
     ],
   }
@@ -159,6 +162,11 @@ afterEach(() => {
 })
 
 describe('FichaParteModal', () => {
+  it('muestra la asistencia pedagógica y sus modalidades', async () => {
+    stubFetch()
+    render(<FichaParteModal cueAnexo={CUE} open={true} onOpenChange={() => {}} parteResumen={parteResumen} escuela={escuela} mostrarEnlaceNominal={false} onVerAlumnosAlcanzados={() => {}} onVerHistorialCompleto={() => {}} />)
+    expect(await screen.findByText('Sí · Clase virtual')).toBeInTheDocument()
+  })
   it('no fetchea nada mientras el modal está cerrado', () => {
     const fetchMock = stubFetch()
     renderFicha({ open: false })
@@ -169,8 +177,8 @@ describe('FichaParteModal', () => {
     stubFetch()
     renderFicha()
 
-    expect(await screen.findByText(/clases suspendidas/i)).toBeInTheDocument()
-    expect(screen.getByText(/establecimiento evacuado/i)).toBeInTheDocument()
+    expect(await screen.findByText('Funcionamiento interrumpido')).toBeInTheDocument()
+    expect(screen.getByText(/^evacuado$/i)).toBeInTheDocument()
     expect(screen.getByText('Inundación')).toBeInTheDocument()
     expect(await screen.findByText(/3 secciones · 74 alumnos/)).toBeInTheDocument()
   })
@@ -268,7 +276,7 @@ describe('FichaParteModal', () => {
     const onVerHistorial = vi.fn()
     renderFicha({ onVerHistorialCompleto: onVerHistorial })
 
-    expect(await screen.findByText('Clases normales → Clases suspendidas')).toBeInTheDocument()
+    expect(await screen.findByText('Funcionamiento: habitual → interrumpido')).toBeInTheDocument()
     await userEvent.click(await screen.findByRole('button', { name: 'Ver historial completo' }))
     expect(onVerHistorial).toHaveBeenCalledTimes(1)
   })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EstadoActualParte } from './estado-actual-parte'
 import type { EstadoActualRespuesta } from './estado-actual-textos'
@@ -42,6 +42,8 @@ const CON_SITUACION: EstadoActualRespuesta = {
       severidad: 'Alta',
       descripcion: null,
       rigeDesde: '2026-09-18T13:30:00.000Z',
+      creadaEn: '2026-09-18T13:30:00.000Z',
+      causadaPorId: null,
       secciones: [],
       totales: { secciones: 3, alumnos: 74 },
     },
@@ -52,6 +54,8 @@ const CON_SITUACION: EstadoActualRespuesta = {
       severidad: 'Media',
       descripcion: null,
       rigeDesde: '2026-09-18T13:30:00.000Z',
+      creadaEn: '2026-09-18T13:30:00.000Z',
+      causadaPorId: null,
       secciones: [
         {
           geSectionId: 11,
@@ -97,7 +101,7 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     vi.stubGlobal('fetch', responderCon(SIN_SITUACION))
   })
 
-  it('states the spec §17 message and offers "Iniciar un reporte"', async () => {
+  it('states the spec §17 message and offers "Cargar una situación"', async () => {
     render(<EstadoActualParte cue={CUE} />)
 
     expect(
@@ -106,13 +110,13 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
       ),
     ).toBeVisible()
 
-    const iniciar = screen.getByRole('link', { name: 'Iniciar un reporte' })
+    const iniciar = screen.getByRole('link', { name: 'Cargar una situación' })
     expect(iniciar).toHaveAttribute('href', `/problematicas/parte/nuevo?cue=${CUE}`)
   })
 
   it('does not offer "Actualizar el parte" when there is nothing to update', async () => {
     render(<EstadoActualParte cue={CUE} />)
-    await screen.findByRole('link', { name: 'Iniciar un reporte' })
+    await screen.findByRole('link', { name: 'Cargar una situación' })
 
     expect(screen.queryByRole('link', { name: 'Actualizar el parte' })).toBeNull()
   })
@@ -132,10 +136,13 @@ describe('EstadoActualParte — sin situación en seguimiento (spec §17)', () =
     )
     render(<EstadoActualParte cue={CUE} />)
 
-    expect(await screen.findByRole('link', { name: 'Iniciar un reporte' })).toBeVisible()
+    expect(await screen.findByRole('link', { name: 'Cargar una situación' })).toBeVisible()
     // El servicio y el establecimiento sí existen: se siguen mostrando.
-    expect(screen.getByText('Funcionamiento escolar normal')).toBeVisible()
     expect(screen.getByText('Funcionamiento habitual')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Funcionamiento' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Edificio' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'En seguimiento' })).toBeVisible()
+    expect(screen.getByText('Sin daños / en uso normal')).toBeVisible()
     // Y la última actualización sigue siendo el ancla temporal del parte.
     expect(screen.getByText('Última actualización: 18 de septiembre, 10:35')).toBeVisible()
   })
@@ -149,29 +156,26 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
     expect(screen.getByText('Inaccesibilidad de alumnos')).toBeVisible()
 
     // Severidad propia por afectación (spec §9), escrita — nunca sólo color.
-    expect(screen.getByText('Severidad Alta')).toBeVisible()
-    expect(screen.getByText('Severidad Media')).toBeVisible()
+    expect(screen.getByText('Gravedad Alta')).toBeVisible()
+    expect(screen.getByText('Gravedad Media')).toBeVisible()
 
     // Alcance resumido en el formato de spec §6.
     expect(screen.getByText('3 secciones · 74 alumnos')).toBeVisible()
     expect(screen.getByText('1 sección · 12 alumnos')).toBeVisible()
   })
 
-  it('gives each "Informar un cambio" link a distinguishable name', async () => {
+  it('keeps the update screen to one primary action and one history action', async () => {
     render(<EstadoActualParte cue={CUE} />)
-
-    expect(
-      await screen.findByRole('link', { name: 'Informar un cambio en el servicio educativo' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=servicio`)
-    expect(
-      screen.getByRole('link', { name: 'Informar un cambio en la situación del establecimiento' }),
-    ).toHaveAttribute('href', `/problematicas/parte/actualizar?cue=${CUE}&foco=establecimiento`)
+    await screen.findByText('Inundación del establecimiento')
+    expect(screen.getAllByRole('link', { name: 'Actualizar el parte' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'Ver historial' })).toHaveLength(1)
+    expect(screen.queryByRole('link', { name: /Informar un cambio/ })).toBeNull()
   })
 
   it('shows the derived "parcial" service state with the spec §3.4 wording', async () => {
     render(<EstadoActualParte cue={CUE} />)
 
-    expect(await screen.findByText('Funcionamiento escolar parcialmente interrumpido')).toBeVisible()
+    expect(await screen.findByText('Funcionamiento parcialmente interrumpido')).toBeVisible()
   })
 
   it('shows the last update and both available actions', async () => {
@@ -182,10 +186,8 @@ describe('EstadoActualParte — con situación en seguimiento (spec §6)', () =>
       'href',
       `/problematicas/parte/actualizar?cue=${CUE}`,
     )
-    expect(screen.getByRole('link', { name: 'Ver historial' })).toHaveAttribute(
-      'href',
-      `/problematicas/parte/historial?cue=${CUE}`,
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
+    expect(screen.getByRole('dialog', { name: 'Historial' })).toBeInTheDocument()
   })
 
   it('never offers the director a way to close or resolve the situation (spec §18.9)', async () => {

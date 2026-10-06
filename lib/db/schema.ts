@@ -216,6 +216,9 @@ export const infraMotivo = pgTable('infra_motivo', {
   nombre: text('nombre').notNull(),
   categoria: text('categoria').notNull(),
   orden: integer('orden').notNull().default(0),
+  // Gravedad que el wizard marca como "Sugerido" (spec rediseño §4.1).
+  // Null = sin sugerido. Nunca restringe: el director elige libremente.
+  severidadSugerida: text('severidad_sugerida'),
 })
 
 // Otorga a un usuario la capacidad de ver nombres de alumnos. `vence_en` es
@@ -298,9 +301,10 @@ export const infraParte = pgTable(
       .notNull()
       .references(() => infraPeriodo.id),
     cueAnexo: text('cue_anexo').notNull(),
-    // 'habitual' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
+    // 'habitual' | 'parcial' | 'evacuado' | 'centro_evacuados' (spec §11). Independiente
     // del servicio educativo: ver infraServicioAlcance.
     estadoEstablecimiento: text('estado_establecimiento').notNull().default('habitual'),
+    asistenciaPedagogica: text('asistencia_pedagogica'),
     estadoEstablecimientoRigeDesde: text('estado_establecimiento_rige_desde').notNull(),
     corteId: integer('corte_id').notNull(),
     creadaEn: text('creada_en').notNull(),
@@ -333,11 +337,22 @@ export const infraAfectacion = pgTable(
     // Soft delete: nunca se borra una fila, se marca el momento en que dejó
     // de regir. Null mientras la afectación sigue vigente.
     retiradaEn: text('retirada_en'),
+    // Justificación obligatoria al elegir Crítica cuando el motivo no la
+    // sugería (spec rediseño §4.3). `detalle` sólo con justificación 'otro'.
+    justificacionCritica: text('justificacion_critica'),
+    justificacionCriticaDetalle: text('justificacion_critica_detalle'),
+    // Situación que provocó ésta (spec rediseño §4.4). Sin FK declarada: las
+    // afectaciones nunca se borran y la causa puede vivir en otro parte
+    // (otro período) de la misma escuela.
+    causadaPorId: text('causada_por_id'),
+    // Por qué dejó de regir: 'solucionada' | 'retirada'. Null mientras rige.
+    cierre: text('cierre'),
   },
   (t) => [
     index('infra_afectacion_parte_id_idx').on(t.parteId),
     index('infra_afectacion_creada_en_idx_e7b').on(t.creadaEn),
     index('infra_afectacion_rige_desde_idx_e7b').on(t.rigeDesde),
+    index('infra_afectacion_causada_por_id_idx').on(t.causadaPorId),
   ],
 )
 
@@ -408,7 +423,7 @@ export const infraMovimiento = pgTable(
       .notNull()
       .references(() => infraParte.id, { onDelete: 'cascade' }),
     // 'reporte_inicial' | 'actualizacion' | 'cambio_servicio' |
-    // 'cambio_establecimiento' | 'resolucion' (esta última reservada para el
+    // 'cambio_establecimiento' | 'confirmacion' | 'resolucion' (esta última reservada para el
     // futuro flujo de supervisor, nunca producida en esta etapa)
     tipo: text('tipo').notNull(),
     rol: text('rol').notNull(), // 'director' | 'supervisor'
@@ -1157,8 +1172,14 @@ export type RutaGeoJson = {
   coordinates: Array<[number, number]>
 }
 
-// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → cabecera
-// departamental y cruces de agua clasificados). Es contexto territorial
+export type ViaPrincipalAcceso = {
+  nombre: string | null
+  tipo: string
+  pavimentada: boolean
+}
+
+// Geometría OSM usada por el cálculo de aislamiento (ruta escuela → localidad
+// urbana cercana y cruces de agua clasificados). Es contexto territorial
 // derivado de OpenStreetMap: NUNCA un pronóstico ni el estado confirmado del
 // edificio. `ruta` null + `motivoSinGeometria` explica la ausencia.
 export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
@@ -1166,6 +1187,9 @@ export const infraAccesoOsmGeometria = pgTable('infra_acceso_osm_geometria', {
   versionJob: text('version_job').notNull(),
   ruta: jsonb('ruta').$type<RutaGeoJson>(),        // GeoJSON LineString | null
   cruces: jsonb('cruces').$type<CruceAccesoOsm[]>().notNull(), // array [{lon, lat, clasificacion}]
+  viaPrincipal: text('via_principal'),
+  destinoNombre: text('destino_nombre'),
+  distanciaDestinoM: real('distancia_destino_m'),
   motivoSinGeometria: text('motivo_sin_geometria'),
   fechaExtractoOsm: text('fecha_extracto_osm').notNull(),
   licencia: text('licencia').notNull(),
@@ -1202,6 +1226,32 @@ export const infraExposicionRutaInundacion = pgTable('infra_exposicion_ruta_inun
 // ============================================================
 // Fin bloque G1
 // ============================================================
+export const radarMeteoRun = pgTable('radar_meteo_run', {
+  id: text('id').primaryKey(), provider: text('provider').notNull(), model: text('model').notNull(),
+  gridVersion: text('grid_version').notNull(), runAt: text('run_at').notNull(), fetchedAt: text('fetched_at').notNull(),
+  forecastStart: text('forecast_start').notNull(), forecastEnd: text('forecast_end').notNull(), stepMinutes: integer('step_minutes').notNull(),
+  units: jsonb('units').$type<Record<string, string>>().notNull(), status: text('status').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
+}, (t) => [uniqueIndex('radar_meteo_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_run_status_fetched_idx').on(t.status, t.fetchedAt)])
+export const radarMeteoVerificacion = pgTable('radar_meteo_verificacion', {
+  fecha: text('fecha').notNull(),
+  departamento: text('departamento').notNull(),
+  runId: text('run_id').notNull(),
+  pronosticoMm: real('pronostico_mm'),
+  observadoMm: real('observado_mm'),
+  coberturaObs: real('cobertura_obs').notNull(),
+  motivoExclusion: text('motivo_exclusion'),
+  versionAlgoritmo: text('version_algoritmo').notNull(),
+  creadoEn: text('creado_en').notNull(),
+}, (t) => [primaryKey({ columns: [t.fecha, t.departamento] }), index('radar_meteo_verificacion_fecha_idx').on(t.fecha)])
+export const smnAlerta = pgTable('smn_alerta', {
+  id: text('id').primaryKey(), sender: text('sender').notNull(), sent: text('sent').notNull(), onset: text('onset'), expires: text('expires'),
+  event: text('event').notNull(), severity: text('severity').notNull(), urgency: text('urgency'), certainty: text('certainty'), headline: text('headline'), description: text('description'), instruction: text('instruction'),
+  nivelSat: text('nivel_sat'), departamentos: jsonb('departamentos').$type<Array<{id:string;nombre:string}>>().notNull(), poligonos: jsonb('poligonos').$type<unknown[]>().notNull(), raw: text('raw').notNull(), fetchedAt: text('fetched_at').notNull(), cancelada: boolean('cancelada').notNull().default(false),
+}, (t) => [index('smn_alerta_fetched_idx').on(t.fetchedAt), index('smn_alerta_expires_idx').on(t.expires)])
+export const radarMeteoEnsembleRun = pgTable('radar_meteo_ensemble_run', {
+  id: text('id').primaryKey(), model: text('model').notNull(), runAt: text('run_at').notNull(), fetchedAt: text('fetched_at').notNull(), timezone: text('timezone').notNull(), departmentGeoVersion: text('department_geo_version').notNull(), forecastStart: text('forecast_start').notNull(), forecastEnd: text('forecast_end').notNull(), status: text('status').notNull(), idempotencyKey: text('idempotency_key').notNull(), payload: jsonb('payload').$type<unknown>().notNull(),
+}, (t) => [uniqueIndex('radar_meteo_ensemble_run_idempotency_uidx').on(t.idempotencyKey), index('radar_meteo_ensemble_run_status_fetched_idx').on(t.status,t.fetchedAt)])
 // DB1-F2 (pg-core): las fechas guardadas como `text` ISO-8601 UTC se conservan
 // como `text` en esta fase (migrar a timestamptz queda como seguimiento F4/F5).
 // Las tablas better-auth (user/session/account/verification) pasan de epoch ms

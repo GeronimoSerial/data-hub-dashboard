@@ -1,0 +1,54 @@
+'use client'
+
+import { letraViento } from './escalas'
+import type { RespuestaRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-radar-meteo'
+
+function Sparkline({ data }: { data: number[] }) {
+  const points = data
+    .map((value, index) => `${index * 100 / Math.max(1, data.length - 1)},${36 - Math.max(0, Math.min(100, value)) * 0.32}`)
+    .join(' ')
+
+  return (
+    <svg viewBox="0 0 100 40" role="img" aria-label="Probabilidad de precipitación durante siete días">
+      <polyline points={points} fill="none" stroke="#55c8ef" strokeWidth="2" />
+    </svg>
+  )
+}
+
+export function PopupRadar({
+  data,
+  frame,
+  index,
+  paso,
+  onClose,
+}: {
+  data: RespuestaRadarMeteo
+  frame: number
+  index: number
+  paso: 1 | 3
+  onClose: () => void
+}) {
+  const cell = data.grid?.celdas[index]
+  if (!cell) return null
+
+  const precipitation = data.valores.precipitation?.[frame]?.[index]
+  const amount = precipitation === null || precipitation === undefined
+    ? '—'
+    : precipitation.toFixed(1)
+  const direction = data.valores.wind_direction_10m?.[frame]?.[index] ?? null
+  const probabilitySeries = data.valores.precipitation_probability?.map((values) => values[index] ?? 0) ?? []
+
+  return (
+    <div className="radar-meteo-popup" role="dialog" aria-label="Pronóstico en el punto seleccionado">
+      <button type="button" aria-label="Cerrar" onClick={onClose}>×</button>
+      <strong>{cell.lat.toFixed(2)}, {cell.lon.toFixed(2)}</strong>
+      <p>Probabilidad {data.valores.precipitation_probability?.[frame]?.[index] ?? '—'}% · Lluvia {amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</p>
+      <p>
+        Viento del {letraViento(direction)} {data.valores.wind_speed_10m?.[frame]?.[index] ?? '—'} km/h
+        {' '}({direction === null ? '—' : Math.round(direction)}°) · ráfaga {data.valores.wind_gusts_10m?.[frame]?.[index] ?? '—'} km/h
+      </p>
+      <p>Granizo estimado: {data.valores.granizo?.[frame]?.[index] ?? '—'}</p>
+      <Sparkline data={probabilitySeries} />
+    </div>
+  )
+}

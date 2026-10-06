@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, type JSX } from 'react'
+import { BottomSheet } from '@/components/ui/bottom-sheet'
 import { Button } from '@/components/ui/button'
+import { HistorialParte } from './historial-parte'
 import { EstadoActualAfectacion } from './estado-actual-afectacion'
 import {
   ETIQUETA_ESTABLECIMIENTO,
@@ -69,6 +71,7 @@ async function obtenerEstado(cue: string): Promise<Estado> {
 export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
   const [estado, setEstado] = useState<Estado>({ fase: 'cargando' })
   const [intento, setIntento] = useState(0)
+  const [historialAbierto, setHistorialAbierto] = useState(false)
 
   useEffect(() => {
     let vigente = true
@@ -127,26 +130,19 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
       {datos.parte && datos.servicio && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-servicio">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-servicio">
-            Estado del servicio educativo
+            Funcionamiento
           </h2>
           <p className="estado-actual-bloque__valor">{ETIQUETA_SERVICIO[datos.servicio.estadoGeneral]}</p>
           {rigeServicio && (
             <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>
           )}
-          <a
-            className="ui-button ui-button--secondary estado-actual-bloque__accion"
-            href={enlaceCon('/problematicas/parte/actualizar', cue, 'servicio')}
-            aria-label="Informar un cambio en el servicio educativo"
-          >
-            Informar un cambio
-          </a>
         </section>
       )}
 
       {datos.parte && (
         <section className="estado-actual-bloque" aria-labelledby="estado-actual-establecimiento">
           <h2 className="estado-actual-bloque__titulo" id="estado-actual-establecimiento">
-            Situación del establecimiento
+            Edificio
           </h2>
           <p className="estado-actual-bloque__valor">
             {ETIQUETA_ESTABLECIMIENTO[datos.parte.estadoEstablecimiento]}
@@ -154,13 +150,6 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
           {rigeEstablecimiento && (
             <p className="estado-actual-bloque__vigencia">Rige desde el {rigeEstablecimiento}</p>
           )}
-          <a
-            className="ui-button ui-button--secondary estado-actual-bloque__accion"
-            href={enlaceCon('/problematicas/parte/actualizar', cue, 'establecimiento')}
-            aria-label="Informar un cambio en la situación del establecimiento"
-          >
-            Informar un cambio
-          </a>
         </section>
       )}
 
@@ -169,7 +158,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
         aria-labelledby="estado-actual-situacion"
       >
         <h2 className="estado-actual-bloque__titulo" id="estado-actual-situacion">
-          Situación hidrometeorológica en seguimiento
+          En seguimiento
         </h2>
 
         {sinSituacion ? (
@@ -179,7 +168,7 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
               className="ui-button ui-button--default estado-actual-acciones__principal"
               href={enlaceCon('/problematicas/parte/nuevo', cue)}
             >
-              Iniciar un reporte
+              Cargar una situación
             </a>
           </>
         ) : (
@@ -204,16 +193,18 @@ export function EstadoActualParte({ cue }: { cue: string }): JSX.Element {
               >
                 Actualizar el parte
               </a>
-              <a
-                className="ui-button ui-button--secondary"
-                href={enlaceCon('/problematicas/parte/historial', cue)}
-              >
+              <Button type="button" variant="secondary" aria-haspopup="dialog" onClick={() => setHistorialAbierto(true)}>
                 Ver historial
-              </a>
+              </Button>
             </div>
           )}
         </footer>
       )}
+      <BottomSheet open={historialAbierto} titulo="Historial" onCerrar={() => setHistorialAbierto(false)}>
+        {historialAbierto ? (
+          <HistorialParte cue={cue} endpoint={`/api/problematicas/parte/historial?cue=${encodeURIComponent(cue)}`} />
+        ) : null}
+      </BottomSheet>
     </div>
   )
 }

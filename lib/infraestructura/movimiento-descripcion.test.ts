@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { describirMovimiento } from './movimiento-descripcion'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describirMovimiento, tituloMovimiento } from './movimiento-descripcion'
 import { diffParte } from './movimiento-diff'
 import type { DiffParte } from './movimiento-diff'
 import { crearSnapshotVacio } from './trayectoria-tipos'
@@ -32,7 +32,14 @@ const diffVacio: DiffParte = {
   establecimientoCambiado: null,
 }
 
+beforeEach(() => vi.setSystemTime(new Date('2026-10-05T18:00:00.000Z')))
+afterEach(() => vi.useRealTimers())
+
 describe('describirMovimiento', () => {
+  it('describe el alta y las modalidades de asistencia pedagógica', () => {
+    const diff = diffParte(crearSnapshotVacio(), { ...crearSnapshotVacio(), asistenciaPedagogica: { brinda: true, modalidades: ['Clase virtual', 'Cuadernillo'] } })
+    expect(describirMovimiento(diff)).toContain('Se brinda asistencia pedagógica: Clase virtual y Cuadernillo')
+  })
   it('diff vacío no produce líneas', () => {
     expect(describirMovimiento(diffVacio)).toEqual([])
   })
@@ -45,7 +52,7 @@ describe('describirMovimiento', () => {
       ],
     }
     const lineas = describirMovimiento(diff)
-    expect(lineas).toContain('Funcionamiento escolar normal → Funcionamiento escolar interrumpido en 2.º A')
+    expect(lineas).toContain('Funcionamiento: habitual → interrumpido en 2.º A')
   })
 
   it('cambio de servicio sin estado anterior (primer alcance) no usa flecha', () => {
@@ -53,7 +60,33 @@ describe('describirMovimiento', () => {
       ...diffVacio,
       serviciosCambiados: [{ alcance: { tipo: 'establecimiento', referenciaId: null }, de: null, a: 'suspendido' }],
     }
-    expect(describirMovimiento(diff)).toEqual(['Funcionamiento escolar interrumpido'])
+    expect(describirMovimiento(diff)).toEqual(['Funcionamiento: interrumpido'])
+  })
+
+  it('resuelve nombres de sección y agrupa secciones desconocidas sin exponer sus ids', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      serviciosCambiados: [
+        { alcance: { tipo: 'seccion', referenciaId: '1099916' }, de: null, a: 'normal' },
+        { alcance: { tipo: 'seccion', referenciaId: '1099920' }, de: null, a: 'normal' },
+        { alcance: { tipo: 'seccion', referenciaId: '1099918' }, de: null, a: 'normal' },
+      ],
+    }
+    const textos = describirMovimiento(diff)
+    expect(textos).toEqual(['Funcionamiento: habitual en 3 secciones'])
+    expect(textos.join(' ')).not.toMatch(/1099916|1099920|1099918/)
+  })
+
+  it('resuelve el curso, la división y el turno para mostrar el nombre de sección', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      serviciosCambiados: [
+        { alcance: { tipo: 'seccion', referenciaId: '1099916' }, de: null, a: 'normal' },
+      ],
+    }
+    expect(describirMovimiento(diff, {
+      secciones: [{ geSectionId: 1099916, curso: 'Sala 3', division: 'B', turno: 'Mañana' }],
+    })).toEqual(['Funcionamiento: habitual en Sala 3 "B" (Mañana)'])
   })
 
   it('afectación agregada produce el texto del ejemplo de §15', () => {
@@ -73,11 +106,31 @@ describe('describirMovimiento', () => {
     }
     const diff = diffParte(antes, despues)
     const lineas = describirMovimiento(diff)
-    expect(lineas).toContain('Se agregó "Inaccesibilidad de alumnos" · Severidad Media')
-    expect(lineas).toContain('12 alumnos incorporados')
+    expect(lineas).toContain('Se informó Inaccesibilidad de alumnos')
+    expect(lineas).toContain('Gravedad Media')
+    expect(lineas).toContain('Alcanza a 1 sección (12 alumnos)')
   })
 
-  it('reporte inicial narra la primera afectación como "Se inició el reporte por…"', () => {
+  it('redacta el alcance con plurales correctos y omite alumnos si no están informados', () => {
+    const conAlcance = (secciones: number, alumnos: number) => describirMovimiento({
+      ...diffVacio,
+      afectacionesAgregadas: [{ afectacionId: 'a', motivo: 'Tormenta', categoria: 'establecimiento', severidad: 'Alta', secciones, alumnos }],
+    })
+    expect(conAlcance(1, 3)).toContain('Alcanza a 1 sección (3 alumnos)')
+    expect(conAlcance(5, 107)).toContain('Alcanza a 5 secciones (107 alumnos)')
+    expect(conAlcance(5, 0)).toContain('Alcanza a 5 secciones')
+  })
+
+  it('resume el cambio de alcance de una situación con texto claro', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      alcancesCambiados: [{ afectacionId: 'a', motivo: 'Tormenta severa', seccionesAgregadas: 2, seccionesRetiradas: 0, alumnosAgregados: 23, alumnosRetirados: 0 }],
+    }
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-05T13:50:00.000Z')).toBe('Cambió el alcance de Tormenta severa')
+    expect(describirMovimiento(diff)).toContain('Se amplió el alcance de Tormenta severa: 2 secciones más y 23 alumnos más')
+  })
+
+  it('reporte inicial narra la primera situación iniciada', () => {
     const despues: ParteSnapshot = {
       estadoEstablecimiento: 'habitual',
       afectaciones: [
@@ -96,8 +149,9 @@ describe('describirMovimiento', () => {
     }
     const diff = diffParte(crearSnapshotVacio(), despues)
     const lineas = describirMovimiento(diff, { tipo: 'reporte_inicial' })
-    expect(lineas).toContain('Se inició el reporte por "Inundación"')
-    expect(lineas).toContain('Severidad Alta · 3 secciones · 74 alumnos')
+    expect(lineas).toContain('Se informó Inundación')
+    expect(lineas).toContain('Gravedad Alta')
+    expect(lineas).toContain('Alcanza a 3 secciones (74 alumnos)')
   })
 
   it('afectación retirada', () => {
@@ -107,7 +161,7 @@ describe('describirMovimiento', () => {
       servicioAlcance: [],
     }
     const diff = diffParte(antes, crearSnapshotVacio())
-    expect(describirMovimiento(diff)).toContain('Se resolvió "Inundación"')
+    expect(describirMovimiento(diff)).toContain('Se dejó de informar Inundación')
   })
 
   it('cambio de severidad', () => {
@@ -115,12 +169,64 @@ describe('describirMovimiento', () => {
       ...diffVacio,
       severidadesCambiadas: [{ afectacionId: 'af-1', motivo: 'Inundación', de: 'Alta', a: 'Crítica' }],
     }
-    expect(describirMovimiento(diff)).toContain('Severidad de "Inundación": Alta → Crítica')
+    expect(describirMovimiento(diff)).toContain('Situación: Inundación')
+  })
+
+  it('lista la transición de gravedad con el motivo en movimientos de varias situaciones', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      severidadesCambiadas: [
+        { afectacionId: 'a', motivo: 'Tormenta severa', de: 'Alta', a: 'Media' },
+        { afectacionId: 'b', motivo: 'Inundación', de: 'Crítica', a: 'Alta' },
+      ],
+    }
+    expect(describirMovimiento(diff)).toEqual([
+      'Tormenta severa: gravedad Alta → Media',
+      'Inundación: gravedad Crítica → Alta',
+    ])
   })
 
   it('cambio de situación del establecimiento', () => {
     const diff: DiffParte = { ...diffVacio, establecimientoCambiado: { de: 'habitual', a: 'evacuado' } }
-    expect(describirMovimiento(diff)).toContain('Funcionamiento habitual → Establecimiento evacuado')
+    expect(describirMovimiento(diff)).toContain('Funcionamiento: habitual → evacuado')
+    expect(describirMovimiento({ ...diffVacio, establecimientoCambiado: { de: 'habitual', a: 'parcial' } }))
+      .toContain('Funcionamiento: habitual → parcial')
+  })
+
+  it('titula el alta con el evento y sin repetir gravedad ni hora', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      afectacionesAgregadas: [
+        { afectacionId: 'a', motivo: 'Tormenta severa', categoria: 'establecimiento', severidad: 'Alta', secciones: 0, alumnos: 0 },
+      ],
+    }
+    expect(tituloMovimiento(diff, 'reporte_inicial', '2026-10-04T06:50:00.000Z')).toBe('Se informó Tormenta severa')
+  })
+
+  it('titula el cambio de gravedad con la transición y sin la hora', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      severidadesCambiadas: [{ afectacionId: 'a', motivo: 'Tormenta severa', de: 'Alta', a: 'Baja' }],
+    }
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-05T13:50:00.000Z')).toBe('Cambió la gravedad: Alta → Baja')
+  })
+
+  it('resume sin ambigüedad un movimiento que cambia varias situaciones', () => {
+    const diff: DiffParte = {
+      ...diffVacio,
+      severidadesCambiadas: [
+        { afectacionId: 'a', motivo: 'Tormenta', de: 'Alta', a: 'Baja' },
+        { afectacionId: 'b', motivo: 'Inundación', de: 'Media', a: 'Alta' },
+      ],
+    }
+    expect(tituloMovimiento(diff, 'actualizacion', '2026-10-05T13:50:00.000Z')).toBe('Se actualizaron 2 situaciones')
+  })
+
+  it('titula una solución y un cambio de gravedad según el cambio principal', () => {
+    expect(tituloMovimiento({ ...diffVacio, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación', cierre: 'solucionada' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
+      .toBe('Se solucionó Inundación')
+    expect(tituloMovimiento({ ...diffVacio, severidadesCambiadas: [{ afectacionId: 'a', motivo: 'Inundación', de: 'Alta', a: 'Baja' }] }, 'actualizacion', '2026-10-04T06:50:00.000Z'))
+      .toBe('Cambió la gravedad: Alta → Baja')
   })
 
   it('cambio de motivo en una afectación existente se traduce a español llano', () => {
@@ -191,5 +297,33 @@ describe('describirMovimiento', () => {
         expect(linea).not.toMatch(patron)
       }
     }
+  })
+})
+
+const vacioRediseño: DiffParte = {
+  afectacionesAgregadas: [],
+  afectacionesRetiradas: [],
+  severidadesCambiadas: [],
+  alcancesCambiados: [],
+  datosCambiados: [],
+  serviciosCambiados: [],
+  establecimientoCambiado: null,
+  asistenciaPedagogicaCambiada: null,
+}
+
+describe('describirMovimiento — rediseño', () => {
+  it('describe una confirmación', () => {
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesConfirmadas: [{ afectacionId: 'a', motivo: 'Inundación' }] })).toContain('Sigue igual: "Inundación"')
+  })
+  it('distingue solucionada de retirada', () => {
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación', cierre: 'solucionada' }] })).toContain('Se solucionó Inundación')
+    expect(describirMovimiento({ ...vacioRediseño, afectacionesRetiradas: [{ afectacionId: 'a', motivo: 'Inundación' }] })).toContain('Se dejó de informar Inundación')
+  })
+  it('agrega el vínculo causal', () => {
+    const lineas = describirMovimiento({
+      ...vacioRediseño,
+      afectacionesAgregadas: [{ afectacionId: 'b', motivo: 'Sin energía o agua', categoria: 'establecimiento', severidad: 'Media', secciones: 1, alumnos: 0, causadaPor: { afectacionId: 'a', motivo: 'Inundación' } }],
+    })
+    expect(lineas).toContain('Causado por "Inundación"')
   })
 })

@@ -1,0 +1,505 @@
+{
+  "version": 1,
+  "fuente": "Instituto de Modernización e Innovación, Provincia de Corrientes (población municipal del Censo Nacional de Población, Hogares y Viviendas 2022, INDEC); Georef Argentina (coordenadas de localidades)",
+  "url_poblacion": "https://estadistica.corrientes.gob.ar/get_file/Viv_Particulares_Censo2022.csv",
+  "url_coordenadas": "https://apis.datos.gob.ar/georef/api/localidades?provincia=Corrientes&max=1000&campos=id,nombre,centroide,departamento.nombre,categoria",
+  "fecha_consulta": "2026-10-04",
+  "licencia": "Creative Commons Attribution 4.0 (CC BY 4.0)",
+  "umbral_poblacion": 2000,
+  "equivalencias": {
+    "CAA CATI": "18063030",
+    "COLONIA LIEBIG": "18084010",
+    "CONCEPCION DEL YAGUARETE CORA": "18028010",
+    "GOBERNADOR MARTINEZ": "18091020",
+    "GOBERNADOR VIRASORO": "18168030",
+    "SANTA ANA DE LOS GUACARAS": "18133040",
+    "YATAY TI CALLE": "18091060"
+  },
+  "excluidas": [
+    {
+      "municipio": "PAGO DE LOS DESEOS",
+      "departamento": "SALADAS",
+      "poblacion": 2259,
+      "motivo": "No existe una localidad correspondiente en Georef."
+    },
+    {
+      "municipio": "SAN ANTONIO DE ITATI",
+      "departamento": "BERON DE ASTRADA",
+      "poblacion": 2808,
+      "motivo": "En Georef solo figura como localidad censal de «Berón de Astrada»; la correspondencia es ambigua."
+    },
+    {
+      "municipio": "SAN ISIDRO",
+      "departamento": "GOYA",
+      "poblacion": 5366,
+      "motivo": "No existe una localidad correspondiente en Georef."
+    },
+    {
+      "municipio": "TRES DE ABRIL",
+      "departamento": "BELLA VISTA",
+      "poblacion": 3048,
+      "motivo": "No existe una localidad correspondiente en Georef."
+    }
+  ],
+  "localidades": [
+    {
+      "nombre": "9 de Julio",
+      "lat": -28.8407771600765,
+      "lon": -58.8300857171651,
+      "poblacion": 3402,
+      "departamento": "San Roque",
+      "georef_id": "18161030",
+      "municipio": "9 DE JULIO"
+    },
+    {
+      "nombre": "Alvear",
+      "lat": -29.09883935098,
+      "lon": -56.5534358403365,
+      "poblacion": 8722,
+      "departamento": "General Alvear",
+      "georef_id": "18056010",
+      "municipio": "ALVEAR"
+    },
+    {
+      "nombre": "Bella Vista",
+      "lat": -28.5076832122621,
+      "lon": -59.0452172890593,
+      "poblacion": 41321,
+      "departamento": "Bella Vista",
+      "georef_id": "18007010",
+      "municipio": "BELLA VISTA"
+    },
+    {
+      "nombre": "Nuestra Señora del Rosario de Caá Catí",
+      "lat": -27.7521508451429,
+      "lon": -57.6219981561066,
+      "poblacion": 8578,
+      "departamento": "General Paz",
+      "georef_id": "18063030",
+      "municipio": "CAA CATI"
+    },
+    {
+      "nombre": "Carolina",
+      "lat": -29.1502771335216,
+      "lon": -59.1817933807415,
+      "poblacion": 2489,
+      "departamento": "Goya",
+      "georef_id": "18070010",
+      "municipio": "CAROLINA"
+    },
+    {
+      "nombre": "Chavarría",
+      "lat": -28.9552557117496,
+      "lon": -58.5717674623871,
+      "poblacion": 3438,
+      "departamento": "San Roque",
+      "georef_id": "18161010",
+      "municipio": "CHAVARRIA"
+    },
+    {
+      "nombre": "Colonia Liebig's",
+      "lat": -27.9133581893577,
+      "lon": -55.8242391819435,
+      "poblacion": 4423,
+      "departamento": "Ituzaingó",
+      "georef_id": "18084010",
+      "municipio": "COLONIA LIEBIG"
+    },
+    {
+      "nombre": "Colonia Pando",
+      "lat": -28.5237974395846,
+      "lon": -58.4875853173806,
+      "poblacion": 2680,
+      "departamento": "San Roque",
+      "georef_id": "18161020",
+      "municipio": "COLONIA PANDO"
+    },
+    {
+      "nombre": "Concepción",
+      "lat": -28.3932008623293,
+      "lon": -57.8869168616331,
+      "poblacion": 6250,
+      "departamento": "Concepción",
+      "georef_id": "18028010",
+      "municipio": "CONCEPCION DEL YAGUARETE CORA"
+    },
+    {
+      "nombre": "Corrientes",
+      "lat": -27.4633450136008,
+      "lon": -58.8394728460849,
+      "poblacion": 428346,
+      "departamento": "Capital",
+      "georef_id": "18021020",
+      "municipio": "CORRIENTES"
+    },
+    {
+      "nombre": "Curuzú Cuatiá",
+      "lat": -29.7914512117216,
+      "lon": -58.0498588056217,
+      "poblacion": 44251,
+      "departamento": "Curuzú Cuatiá",
+      "georef_id": "18035020",
+      "municipio": "CURUZU CUATIA"
+    },
+    {
+      "nombre": "Empedrado",
+      "lat": -27.9507030287188,
+      "lon": -58.8030952116087,
+      "poblacion": 14883,
+      "departamento": "Empedrado",
+      "georef_id": "18042020",
+      "municipio": "EMPEDRADO"
+    },
+    {
+      "nombre": "Esquina",
+      "lat": -30.0146070645803,
+      "lon": -59.5295187353223,
+      "poblacion": 35322,
+      "departamento": "Esquina",
+      "georef_id": "18049010",
+      "municipio": "ESQUINA"
+    },
+    {
+      "nombre": "Felipe Yofré",
+      "lat": -29.1068306261889,
+      "lon": -58.339630558229,
+      "poblacion": 2368,
+      "departamento": "Mercedes",
+      "georef_id": "18105010",
+      "municipio": "FELIPE YOFRE"
+    },
+    {
+      "nombre": "Gobernador Juan E. Martínez",
+      "lat": -28.912338712049,
+      "lon": -58.9361031061952,
+      "poblacion": 4653,
+      "departamento": "Lavalle",
+      "georef_id": "18091020",
+      "municipio": "GOBERNADOR MARTINEZ"
+    },
+    {
+      "nombre": "Gobernador Igr. Valentín Virasoro",
+      "lat": -28.0468079831449,
+      "lon": -56.0096324855253,
+      "poblacion": 37198,
+      "departamento": "Santo Tomé",
+      "georef_id": "18168030",
+      "municipio": "GOBERNADOR VIRASORO"
+    },
+    {
+      "nombre": "Goya",
+      "lat": -29.1400763814368,
+      "lon": -59.2598912571001,
+      "poblacion": 98368,
+      "departamento": "Goya",
+      "georef_id": "18070020",
+      "municipio": "GOYA"
+    },
+    {
+      "nombre": "Itá Ibaté",
+      "lat": -27.4258760157694,
+      "lon": -57.3381268072242,
+      "poblacion": 5384,
+      "departamento": "General Paz",
+      "georef_id": "18063010",
+      "municipio": "ITA IBATE"
+    },
+    {
+      "nombre": "Itatí",
+      "lat": -27.2692166599188,
+      "lon": -58.2424212691191,
+      "poblacion": 10281,
+      "departamento": "Itatí",
+      "georef_id": "18077010",
+      "municipio": "ITATI"
+    },
+    {
+      "nombre": "Ituzaingó",
+      "lat": -27.5851000792357,
+      "lon": -56.68704523972,
+      "poblacion": 27417,
+      "departamento": "Ituzaingó",
+      "georef_id": "18084020",
+      "municipio": "ITUZAINGO"
+    },
+    {
+      "nombre": "Juan Pujol",
+      "lat": -30.4193217435637,
+      "lon": -57.8558925692433,
+      "poblacion": 2991,
+      "departamento": "Monte Caseros",
+      "georef_id": "18112030",
+      "municipio": "JUAN PUJOL"
+    },
+    {
+      "nombre": "La Cruz",
+      "lat": -29.1786291267576,
+      "lon": -56.6382949898464,
+      "poblacion": 10655,
+      "departamento": "San Martín",
+      "georef_id": "18147030",
+      "municipio": "LA CRUZ"
+    },
+    {
+      "nombre": "Lavalle",
+      "lat": -29.0233312186356,
+      "lon": -59.1791542656857,
+      "poblacion": 9208,
+      "departamento": "Lavalle",
+      "georef_id": "18091030",
+      "municipio": "LAVALLE"
+    },
+    {
+      "nombre": "Loreto",
+      "lat": -27.7684268022989,
+      "lon": -57.2752518110706,
+      "poblacion": 3513,
+      "departamento": "San Miguel",
+      "georef_id": "18154010",
+      "municipio": "LORETO"
+    },
+    {
+      "nombre": "Mariano I. Loza",
+      "lat": -29.3768720997383,
+      "lon": -58.1922345557106,
+      "poblacion": 2561,
+      "departamento": "Mercedes",
+      "georef_id": "18105020",
+      "municipio": "MARIANO I. LOZA"
+    },
+    {
+      "nombre": "Mburucuyá",
+      "lat": -28.0468575823017,
+      "lon": -58.2303056698416,
+      "poblacion": 11541,
+      "departamento": "Mburucuyá",
+      "georef_id": "18098010",
+      "municipio": "MBURUCUYA"
+    },
+    {
+      "nombre": "Mercedes",
+      "lat": -29.184692808419,
+      "lon": -58.0735317667774,
+      "poblacion": 44878,
+      "departamento": "Mercedes",
+      "georef_id": "18105030",
+      "municipio": "MERCEDES"
+    },
+    {
+      "nombre": "Mocoretá",
+      "lat": -30.6166771623996,
+      "lon": -57.9753625741667,
+      "poblacion": 9535,
+      "departamento": "Monte Caseros",
+      "georef_id": "18112040",
+      "municipio": "MOCORETA"
+    },
+    {
+      "nombre": "Monte Caseros",
+      "lat": -30.2494229600191,
+      "lon": -57.6294817667543,
+      "poblacion": 31406,
+      "departamento": "Monte Caseros",
+      "georef_id": "18112050",
+      "municipio": "MONTE CASEROS"
+    },
+    {
+      "nombre": "Paso de la Patria",
+      "lat": -27.3173742609378,
+      "lon": -58.5725641481134,
+      "poblacion": 8765,
+      "departamento": "San Cosme",
+      "georef_id": "18133020",
+      "municipio": "PASO DE LA PATRIA"
+    },
+    {
+      "nombre": "Paso de los Libres",
+      "lat": -29.7137148107283,
+      "lon": -57.085405398509,
+      "poblacion": 53761,
+      "departamento": "Paso de los Libres",
+      "georef_id": "18119030",
+      "municipio": "PASO DE LOS LIBRES"
+    },
+    {
+      "nombre": "Pedro R. Fernández",
+      "lat": -28.7463402488208,
+      "lon": -58.6541382203541,
+      "poblacion": 2476,
+      "departamento": "San Roque",
+      "georef_id": "18161040",
+      "municipio": "PEDRO R. FERNANDEZ"
+    },
+    {
+      "nombre": "Perugorría",
+      "lat": -29.3408478764481,
+      "lon": -58.6082036530838,
+      "poblacion": 5968,
+      "departamento": "Curuzú Cuatiá",
+      "georef_id": "18035030",
+      "municipio": "PERUGORRIA"
+    },
+    {
+      "nombre": "Pueblo Libertador",
+      "lat": -30.2201057337039,
+      "lon": -59.3897582084609,
+      "poblacion": 3846,
+      "departamento": "Esquina",
+      "georef_id": "18049020",
+      "municipio": "PUEBLO LIBERTADOR"
+    },
+    {
+      "nombre": "Riachuelo",
+      "lat": -27.5804349376368,
+      "lon": -58.7431168330177,
+      "poblacion": 7652,
+      "departamento": "Capital",
+      "georef_id": "18021040",
+      "municipio": "RIACHUELO"
+    },
+    {
+      "nombre": "Saladas",
+      "lat": -28.2550670289585,
+      "lon": -58.6237267469976,
+      "poblacion": 22275,
+      "departamento": "Saladas",
+      "georef_id": "18126010",
+      "municipio": "SALADAS"
+    },
+    {
+      "nombre": "San Carlos",
+      "lat": -27.7436223924694,
+      "lon": -55.8984316807213,
+      "poblacion": 3585,
+      "departamento": "Ituzaingó",
+      "georef_id": "18084040",
+      "municipio": "SAN CARLOS"
+    },
+    {
+      "nombre": "San Cosme",
+      "lat": -27.3703733639743,
+      "lon": -58.5125134414712,
+      "poblacion": 6179,
+      "departamento": "San Cosme",
+      "georef_id": "18133030",
+      "municipio": "SAN COSME"
+    },
+    {
+      "nombre": "San Lorenzo",
+      "lat": -28.1380987971767,
+      "lon": -58.7681324143266,
+      "poblacion": 4592,
+      "departamento": "Saladas",
+      "georef_id": "18126020",
+      "municipio": "SAN LORENZO"
+    },
+    {
+      "nombre": "San Luis del Palmar",
+      "lat": -27.5076986550343,
+      "lon": -58.5561477152531,
+      "poblacion": 20413,
+      "departamento": "San Luis del Palmar",
+      "georef_id": "18140010",
+      "municipio": "SAN LUIS DEL PALMAR"
+    },
+    {
+      "nombre": "San Miguel",
+      "lat": -27.998325926444,
+      "lon": -57.5873113031892,
+      "poblacion": 9187,
+      "departamento": "San Miguel",
+      "georef_id": "18154020",
+      "municipio": "SAN MIGUEL"
+    },
+    {
+      "nombre": "San Roque",
+      "lat": -28.5693032326122,
+      "lon": -58.7051349847879,
+      "poblacion": 10686,
+      "departamento": "San Roque",
+      "georef_id": "18161050",
+      "municipio": "SAN ROQUE"
+    },
+    {
+      "nombre": "Santa Ana",
+      "lat": -27.4553549984351,
+      "lon": -58.6547603461789,
+      "poblacion": 4735,
+      "departamento": "San Cosme",
+      "georef_id": "18133040",
+      "municipio": "SANTA ANA DE LOS GUACARAS"
+    },
+    {
+      "nombre": "Santa Lucía",
+      "lat": -28.9898522481525,
+      "lon": -59.1007625543369,
+      "poblacion": 20152,
+      "departamento": "Lavalle",
+      "georef_id": "18091040",
+      "municipio": "SANTA LUCIA"
+    },
+    {
+      "nombre": "Santa Rosa",
+      "lat": -28.2672789123962,
+      "lon": -58.122724375144,
+      "poblacion": 13471,
+      "departamento": "Concepción",
+      "georef_id": "18028020",
+      "municipio": "SANTA ROSA"
+    },
+    {
+      "nombre": "Santo Tomé",
+      "lat": -28.5498158069218,
+      "lon": -56.0348110765932,
+      "poblacion": 31878,
+      "departamento": "Santo Tomé",
+      "georef_id": "18168040",
+      "municipio": "SANTO TOME"
+    },
+    {
+      "nombre": "Sauce",
+      "lat": -30.0855347172816,
+      "lon": -58.7872807765516,
+      "poblacion": 10382,
+      "departamento": "Sauce",
+      "georef_id": "18175010",
+      "municipio": "SAUCE"
+    },
+    {
+      "nombre": "Tabay",
+      "lat": -28.3081359127144,
+      "lon": -58.2868656335838,
+      "poblacion": 3351,
+      "departamento": "Concepción",
+      "georef_id": "18028030",
+      "municipio": "TABAY"
+    },
+    {
+      "nombre": "Tatacua",
+      "lat": -28.3759194197758,
+      "lon": -58.3211361606206,
+      "poblacion": 3198,
+      "departamento": "Concepción",
+      "georef_id": "18028040",
+      "municipio": "TATACUA"
+    },
+    {
+      "nombre": "Yapeyú",
+      "lat": -29.4708978724135,
+      "lon": -56.8150660492958,
+      "poblacion": 2407,
+      "departamento": "San Martín",
+      "georef_id": "18147040",
+      "municipio": "YAPEYU"
+    },
+    {
+      "nombre": "Yatayti Calle",
+      "lat": -29.0283125663823,
+      "lon": -58.912232686265,
+      "poblacion": 3389,
+      "departamento": "Lavalle",
+      "georef_id": "18091060",
+      "municipio": "YATAY TI CALLE"
+    }
+  ]
+}

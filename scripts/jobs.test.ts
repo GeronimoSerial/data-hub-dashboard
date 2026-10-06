@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   calcularGeoPerfiles: vi.fn(),
   calcularAsociacionesRio: vi.fn(),
   ejecutarSyncPronosticoCaudal: vi.fn(),
+  ejecutarSyncRadarMeteo: vi.fn(),
+  ejecutarVerificacionRadarMeteo: vi.fn(),
   ejecutarSyncEnsemble: vi.fn(),
   ejecutarSyncImerg: vi.fn(),
   ejecutarCalculoClimatologia: vi.fn(),
@@ -30,6 +32,12 @@ vi.mock('../lib/infraestructura/riesgo/rio-asociacion.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/sync-pronostico-caudal.ts', () => ({
   ejecutarSyncPronosticoCaudal: mocks.ejecutarSyncPronosticoCaudal,
+}))
+vi.mock('../lib/infraestructura/radar-meteo/job-sync.ts', () => ({
+  ejecutarSyncRadarMeteo: mocks.ejecutarSyncRadarMeteo,
+}))
+vi.mock('../lib/infraestructura/radar-meteo/verificacion.ts', () => ({
+  ejecutarVerificacionRadarMeteo: mocks.ejecutarVerificacionRadarMeteo,
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/sync-ensemble.ts', () => ({
   ejecutarSyncEnsemble: mocks.ejecutarSyncEnsemble,
@@ -70,6 +78,21 @@ beforeEach(() => {
 })
 
 describe('correrJob — despacho por nombre', () => {
+  it('despacha sync-radar-meteo', async () => {
+    mocks.ejecutarSyncRadarMeteo.mockResolvedValue({ estado: 'completo' })
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('sync-radar-meteo')).resolves.toEqual({ estado: 'completo' })
+    expect(mocks.ejecutarSyncRadarMeteo).toHaveBeenCalledTimes(1)
+  })
+
+  it('despacha verificar-radar-meteo con opciones de backfill', async () => {
+    mocks.ejecutarVerificacionRadarMeteo.mockResolvedValue({ departamentos: 25 })
+    const { correrJob } = await import('./jobs.mjs')
+    await expect(correrJob('verificar-radar-meteo', { desde: '2026-09-20' }))
+      .resolves.toEqual({ departamentos: 25 })
+    expect(mocks.ejecutarVerificacionRadarMeteo).toHaveBeenCalledWith({ desde: '2026-09-20' })
+  })
+
   it('rechaza un nombre desconocido con un error que dice "desconocido" y el CLI saldría con 2', async () => {
     const { correrJob, JobDesconocidoError } = await import('./jobs.mjs')
 

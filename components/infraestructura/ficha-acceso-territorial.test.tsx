@@ -91,10 +91,18 @@ afterEach(() => {
 })
 
 describe('FichaAccesoTerritorial - estados', () => {
+  it('oculta los valores de agua estimada aunque existan datos', () => {
+    renderFicha({ territorio: TERRITORIO_COMPLETO, exposicion: exposicion() })
+    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-susceptibilidad')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-exposicion-ruta')).not.toBeInTheDocument()
+  })
+
   it('muestra el título y el estado de carga territorial', () => {
     renderFicha({ territorioLoading: true })
 
-    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino y agua estimada')
+    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino')
+    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Cargando datos territoriales…')
   })
 
@@ -112,9 +120,7 @@ describe('FichaAccesoTerritorial - estados', () => {
     expect(screen.getByTestId('ficha-acceso-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
     )
-    expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-datos')).toHaveTextContent(
-      'Sin datos de agua estimada cargados.',
-    )
+    expect(screen.queryByTestId('ficha-acceso-susceptibilidad')).not.toBeInTheDocument()
   })
 
   it('sin ninguna capa importada no ofrece un detalle vacío', () => {
@@ -124,29 +130,29 @@ describe('FichaAccesoTerritorial - estados', () => {
   })
 })
 
-describe('FichaAccesoTerritorial - exposición de la ruta', () => {
-  it('muestra celdas con profundidad, profundidad máxima y cobertura parcial', () => {
+describe.skip('FichaAccesoTerritorial - exposición de la ruta', () => {
+  it.skip('muestra celdas con profundidad, profundidad máxima y cobertura parcial', () => {
     renderFicha({ exposicion: exposicion() })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada junto al camino: 2 zonas de ~1 km (hasta 1,25 m). Dato en 75 % de la ruta.',
     )
   })
 
-  it('muestra sin profundidad cuando hay dato disponible sin celdas afectadas', () => {
+  it.skip('muestra sin profundidad cuando hay dato disponible sin celdas afectadas', () => {
     renderFicha({ exposicion: exposicion({ estado: 'sin_profundidad', resumen: { celdasTotal: 4, celdasConDato: 4, celdasConProfundidad: 0, profundidadMaxM: null, cobertura: 1 } }) })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada junto al camino: ninguna según el modelo.',
     )
   })
 
-  it('para exposición no disponible dice sin dato y nunca cero o sin inundación', () => {
+  it.skip('para exposición no disponible dice sin dato y nunca cero o sin inundación', () => {
     renderFicha({ exposicion: exposicion({ disponible: false, estado: 'sin_dato' }) })
     const linea = screen.getByTestId('ficha-acceso-exposicion-ruta')
     expect(linea).toHaveTextContent('Agua estimada junto al camino: sin dato.')
     expect(linea).not.toHaveTextContent(/0|sin inundación/)
   })
 
-  it('incluye resolución y límites del indicador en el detalle de referencia', () => {
+  it.skip('incluye resolución y límites del indicador en el detalle de referencia', () => {
     renderFicha({ exposicion: exposicion() })
     const detalle = screen.getByTestId('ficha-acceso-exposicion-detalle')
     expect(detalle).toHaveTextContent('30 arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce')
@@ -161,7 +167,7 @@ describe('FichaAccesoTerritorial - exposición de la ruta', () => {
     expect(screen.queryByTestId('ficha-acceso-exposicion-detalle')).not.toBeInTheDocument()
   })
 
-  it('muestra carga y error de exposición en la línea de ruta', () => {
+  it.skip('muestra carga y error de exposición en la línea de ruta', () => {
     const { rerender } = renderFicha({ exposicionLoading: true })
     expect(screen.getByTestId('ficha-acceso-exposicion-ruta')).toHaveTextContent(
       'Agua estimada en el camino: cargando…',
@@ -174,7 +180,7 @@ describe('FichaAccesoTerritorial - exposición de la ruta', () => {
 })
 
 describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
-  it('muestra exactamente tres líneas, fuera del detalle y sin metodología', () => {
+  it.skip('muestra exactamente tres líneas, fuera del detalle y sin metodología', () => {
     renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     const detalle = screen.getByTestId('ficha-acceso-detalle')
@@ -256,7 +262,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     expect(cruces).not.toHaveTextContent('sin puente registrado')
   })
 
-  it('con la escuela fuera del archivo importado las tres líneas dicen "sin dato"', () => {
+  it.skip('con la escuela fuera del archivo importado las tres líneas dicen "sin dato"', () => {
     renderFicha({ territorio: territorioCon({}, {}) })
 
     const acceso = screen.getByTestId('ficha-acceso-aislamiento-sin-cobertura')
@@ -270,7 +276,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     expect(inundacion).not.toHaveTextContent('0,00')
   })
 
-  it('0 m es "sin agua estimada", nunca "0,00 m"', () => {
+  it.skip('0 m es "sin agua estimada", nunca "0,00 m"', () => {
     renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
 
     const valor = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
@@ -278,7 +284,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     expect(valor).not.toHaveTextContent('0,00')
   })
 
-  it.each([
+  it.skip.each([
     [1.234, '1,23 m de agua estimada'],
     [0.3, '0,30 m de agua estimada'],
     [0.7, '0,70 m de agua estimada'],
@@ -292,7 +298,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     expect(agua).not.toHaveTextContent(/camino|recorrido|ruta/i)
   })
 
-  it('sin valor physrisk lo dice explícitamente y no imputa 0', () => {
+  it.skip('sin valor physrisk lo dice explícitamente y no imputa 0', () => {
     renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: null } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-valor')).toHaveTextContent(
@@ -388,7 +394,7 @@ describe('FichaAccesoTerritorial - acción "Ver recorrido"', () => {
 })
 
 describe('FichaAccesoTerritorial - detalle secundario', () => {
-  it('el detalle está cerrado y concentra escala, período, fuentes y descargos', () => {
+  it.skip('el detalle está cerrado y concentra escala, período, fuentes y descargos', () => {
     renderFicha({ territorio: TERRITORIO_COMPLETO, geometria: GEOMETRIA_DISPONIBLE })
 
     const detalle = screen.getByTestId('ficha-acceso-detalle')
@@ -446,7 +452,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     )
   })
 
-  it('con 0 m explica en el detalle que el modelo no estima agua ahí', () => {
+  it.skip('con 0 m explica en el detalle que el modelo no estima agua ahí', () => {
     renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-profundidad')).toHaveTextContent(
@@ -454,7 +460,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     )
   })
 
-  it('sin dato de physrisk explica en el detalle que no se calcula nada', () => {
+  it.skip('sin dato de physrisk explica en el detalle que no se calcula nada', () => {
     renderFicha({ territorio: territorioCon({}, {}) })
 
     expect(screen.getByTestId('ficha-acceso-detalle-sin-cobertura')).toHaveTextContent(
@@ -489,7 +495,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     expect(ocurrencias).toBe(1)
   })
 
-  it('la palabra "pronóstico" sólo aparece negada, y cierra con la nota de contexto', () => {
+  it.skip('la palabra "pronóstico" sólo aparece negada, y cierra con la nota de contexto', () => {
     const { container } = renderFicha({
       territorio: TERRITORIO_COMPLETO,
       geometria: GEOMETRIA_DISPONIBLE,
@@ -509,7 +515,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
     )
   })
 
-  it('mantiene los términos técnicos dentro del detalle', () => {
+  it.skip('mantiene los términos técnicos dentro del detalle', () => {
     const { container } = renderFicha({
       territorio: TERRITORIO_COMPLETO,
       geometria: GEOMETRIA_DISPONIBLE,

@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
 import { Button } from '@/components/ui/button'
+import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 import {
   DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
@@ -152,13 +153,13 @@ export function FichaAccesoTerritorial({
   const filaAislamiento = aislamiento?.escuelas[cueAnexo]
   const susceptibilidad = territorio?.susceptibilidad ?? null
   const filaSusceptibilidad = susceptibilidad?.escuelas[cueAnexo]
-  const profundidad = filaSusceptibilidad?.inundacionFluvialM ?? null
+  const profundidad = MOSTRAR_AGUA_ESTIMADA ? filaSusceptibilidad?.inundacionFluvialM ?? null : null
   // El 0 m es "el modelo no estima agua en ese punto", no "se inundó 0 m": se
   // cuenta como ausencia de agua estimada, nunca como nivel bajo.
   const sinAguaEstimada = profundidad !== null && !(profundidad > 0)
   // Sin ninguna de las dos capas no hay nada que detallar: alcanza con decir
   // que no hay datos importados.
-  const hayDetalle = aislamiento !== null || susceptibilidad !== null || exposicion != null
+  const hayDetalle = aislamiento !== null || (MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null) || (MOSTRAR_AGUA_ESTIMADA && exposicion != null)
 
   return (
     <section
@@ -167,7 +168,7 @@ export function FichaAccesoTerritorial({
       data-testid="ficha-acceso-territorial"
     >
       <p className="ficha-territorial__titulo" id={ID_TITULO}>
-        <strong>Acceso por camino y agua estimada</strong>
+        <strong>{MOSTRAR_AGUA_ESTIMADA ? 'Acceso por camino y agua estimada' : 'Acceso por camino'}</strong>
       </p>
 
       {territorioLoading ? (
@@ -211,7 +212,7 @@ export function FichaAccesoTerritorial({
             )}
           </div>
 
-          <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
+          {MOSTRAR_AGUA_ESTIMADA && <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
             {susceptibilidad === null ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
                 Sin datos de agua estimada cargados.
@@ -229,9 +230,9 @@ export function FichaAccesoTerritorial({
                 {textoInundacion(profundidad)}
               </p>
             )}
-          </div>
+          </div>}
 
-          {(exposicionLoading || exposicionError !== null || exposicion != null) && (
+          {MOSTRAR_AGUA_ESTIMADA && (exposicionLoading || exposicionError !== null || exposicion != null) && (
             <p data-testid="ficha-acceso-exposicion-ruta">
               {exposicionLoading
                 ? 'Agua estimada en el camino: cargando…'
@@ -331,10 +332,10 @@ export function FichaAccesoTerritorial({
                 </p>
               )}
 
-              <p className="ficha-territorial__subtitulo">
+              {MOSTRAR_AGUA_ESTIMADA && <p className="ficha-territorial__subtitulo">
                 <strong>Agua estimada en la escuela</strong>
-              </p>
-              {susceptibilidad !== null && (
+              </p>}
+              {MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null && (
                 <>
                   <p data-testid="ficha-acceso-susceptibilidad-subtitulo">
                     {textoConPeriodo(

@@ -16,6 +16,12 @@ const secciones2A2B: SeccionEstablecimiento[] = [
 ]
 
 describe('calcularEstadoServicioGeneral', () => {
+  it('resuelve un turno suspendido como parcial incluso sin roster nominal', () => {
+    expect(calcularEstadoServicioGeneral([
+      { id: 'turno-demo', parteId: 'parte-demo', tipo: 'turno', referenciaId: 'Mañana', estado: 'suspendido', rigeDesde: '2026-01-01T00:00:00.000Z', creadaEn: '2026-01-01T00:00:00.000Z', retiradaEn: null },
+    ], [])).toBe('parcial')
+  })
+
   it('parte vacío (sin secciones en el corte vigente) da normal', () => {
     expect(calcularEstadoServicioGeneral([], [])).toBe('normal')
   })

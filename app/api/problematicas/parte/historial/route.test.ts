@@ -13,7 +13,7 @@ import {
   crearSesionVerificacion,
 } from '@/lib/infraestructura/verificacion-sesion'
 import { crearVerificacion } from '@/lib/infraestructura/verificaciones'
-import { POST } from '../route'
+import { GET as GETParte, POST } from '../route'
 import { GET } from './route'
 
 // Estas pruebas cubren la guarda por contraseña. La sesión se fuerza a
@@ -148,10 +148,14 @@ describe('GET /api/problematicas/parte/historial', () => {
         cue: CUE_A,
         idempotencyKey: crypto.randomUUID(),
         rigeDesde: new Date().toISOString(),
-        afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Alta', secciones: [5110] }],
+        afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [5110] }],
       }),
     )
     expect(reporte.status).toBe(201)
+
+    const estado = await GETParte(getReq(CUE_A))
+    const estadoBody = await estado.json()
+    const afectacionId = estadoBody.afectaciones[0].id
 
     // creadaEn tiene precisión de milisegundo: sin esta espera, dos POST
     // consecutivos podrían empatar y el ORDER BY ... DESC de la ruta no
@@ -164,16 +168,34 @@ describe('GET /api/problematicas/parte/historial', () => {
         idempotencyKey: crypto.randomUUID(),
         rigeDesde: new Date().toISOString(),
         estadoEstablecimiento: { estado: 'evacuado' },
+        // The initial report was scoped to one section, so evacuating the
+        // whole building requires the explicit confirmation.
+        confirmarInterrupcionTotal: true,
       }),
     )
     expect(actualizacion.status).toBe(201)
 
+    await new Promise((resolve) => setTimeout(resolve, 5))
+
+    const confirmacion = await POST(
+      postParte({
+        cue: CUE_A,
+        idempotencyKey: crypto.randomUUID(),
+        rigeDesde: new Date().toISOString(),
+        afectacionesConfirmadas: [afectacionId],
+      }),
+    )
+    expect(confirmacion.status).toBe(201)
+
     const res = await GET(getReq(CUE_A))
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.movimientos).toHaveLength(2)
-    expect(body.movimientos[0].tipo).toBe('actualizacion')
-    expect(body.movimientos[1].tipo).toBe('reporte_inicial')
+    expect(body.movimientos).toHaveLength(3)
+    expect(body.movimientos[0].tipo).toBe('confirmacion')
+    expect(body.movimientos[1].tipo).toBe('actualizacion')
+    expect(body.movimientos[2].tipo).toBe('reporte_inicial')
+    expect(body.movimientos[0].severidad).toBeNull()
+    expect(body.movimientos[2].severidad).toBe('Crítica')
     for (const movimiento of body.movimientos) {
       expect(movimiento.cambios.length).toBeGreaterThan(0)
     }

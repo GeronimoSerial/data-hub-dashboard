@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb, getRawClient } from '@/lib/db'
 import { PERIODO_ENOS_2026_2027_ID, ensureSeeded } from '@/lib/db/seed'
@@ -125,6 +125,13 @@ const CUE_IDEM = '1801605-57'
 // CUE exclusivo del test de la carrera cross-device (fix/parte-alta-concurrente):
 // dos POSTs concurrentes con distinta idempotencyKey para la primera alta.
 const CUE_CONCURRENTE = '1801605-58'
+const CUE_O = '1801605-59'
+const CUE_P = '1801605-60'
+const CUE_Q = '1801605-61'
+const CUE_R = '1801605-62'
+const CUE_R2 = '1801605-63'
+const CUE_S = CUE_R2
+const CUE_R3 = '1801605-64'
 
 beforeAll(async () => {
   dir = mkdtempSync(path.join(tmpdir(), 'parte-route-'))
@@ -144,7 +151,7 @@ beforeAll(async () => {
   )
   for (const cue of [
     CUE_A, CUE_B, CUE_C, CUE_D, CUE_E, CUE_F, CUE_G, CUE_H, CUE_I, CUE_J, CUE_K, CUE_L, CUE_M, CUE_N,
-    CUE_IDEM, CUE_CONCURRENTE,
+    CUE_IDEM, CUE_CONCURRENTE, CUE_O, CUE_P, CUE_Q, CUE_R, CUE_R2, CUE_R3,
   ]) {
     await client.execute(
       `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad) VALUES ('${cue}', NULL, 'Escuela', 'ER', 'Parana')`,
@@ -339,6 +346,15 @@ describe('POST /api/problematicas/parte', () => {
     expect(res.status).toBe(400)
   })
 
+  it('en categoría alumnos rechaza una sección sin alumnos explícitos', async () => {
+    const res = await POST(postReq({
+      cue: CUE_O, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Anegamiento', severidad: 'Alta', secciones: [seccionId(CUE_O, '10'), seccionId(CUE_O, '20')], alumnos: alumnoIds(CUE_O, '000', 2) }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Cada sección elegida debe incluir al menos un alumno')
+  })
+
   it('el primer POST crea el parte con el corteId del corte vigente y un movimiento reporte_inicial', async () => {
     const idempotencyKey = crypto.randomUUID()
     const rigeDesde = new Date().toISOString()
@@ -511,7 +527,7 @@ describe('POST /api/problematicas/parte', () => {
         rigeDesde: rigeDesdeInicial,
         afectacionesNuevas: [
           { motivo: 'Inundación', severidad: 'Media', secciones: [seccionId(CUE_D, '10')] },
-          { motivo: 'Anegamiento', severidad: 'Baja', secciones: [seccionId(CUE_D, '20')] },
+          { motivo: 'Anegamiento', severidad: 'Baja', secciones: [seccionId(CUE_D, '20')], alumnos: alumnoIds(CUE_D, '100', 5) },
         ],
       }),
     )
@@ -577,6 +593,28 @@ describe('POST /api/problematicas/parte', () => {
     const getRes = await GET(getReq(CUE_E))
     const getBody = await getRes.json()
     expect(getBody.afectaciones.find((a: { id: string }) => a.id === afectacion!.id)).toBeUndefined()
+  })
+
+  it('solucionar una situación la cierra con cierre=solucionada y la fecha indicada', async () => {
+    const rige = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+    const inicial = await POST(postReq({
+      cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: rige,
+      afectacionesNuevas: [{ motivo: 'Tormenta severa', severidad: 'Alta', secciones: [seccionId(CUE_R, '10')] }],
+    }))
+    const parte = await inicial.json()
+    const [fila] = await getDb().select().from(infraAfectacion).where(and(
+      eq(infraAfectacion.parteId, parte.parteId),
+      eq(infraAfectacion.motivo, 'Tormenta severa'),
+    ))
+    const solucionadaEn = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+    const res = await POST(postReq({
+      cue: CUE_R, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesSolucionadas: [{ id: fila.id, solucionadaEn }],
+    }))
+    expect(res.status).toBe(201)
+    const [cerrada] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.id, fila.id))
+    expect(cerrada.cierre).toBe('solucionada')
+    expect(cerrada.retiradaEn).toBe(solucionadaEn)
   })
 
   it('un envío que no cambia nada responde 409 con el texto exacto de la spec y no escribe movimiento', async () => {
@@ -651,6 +689,36 @@ describe('POST /api/problematicas/parte', () => {
       (a: { tipo: string; referenciaId: string }) => a.tipo === 'seccion' && a.referenciaId === String(seccionB),
     )
     expect(filaSeccionB).toBeUndefined()
+  })
+})
+
+describe('POST /api/problematicas/parte — justificación de Crítica', () => {
+  const base = (cue: string, extra: Record<string, unknown>) => ({
+    cue,
+    idempotencyKey: crypto.randomUUID(),
+    rigeDesde: new Date().toISOString(),
+    afectacionesNuevas: [{ motivo: 'Sin energía o agua', secciones: [seccionId(cue, '10')], ...extra }],
+  })
+
+  it('rechaza Crítica sobre un motivo que sugiere Media sin justificación', async () => {
+    const res = await POST(postReq(base(CUE_O, { severidad: 'Crítica' })))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('Indique por qué la situación es crítica')
+  })
+
+  it('acepta Crítica justificada y persiste la justificación', async () => {
+    const res = await POST(postReq(base(CUE_O, { severidad: 'Crítica', justificacionCritica: 'riesgo_fisico' })))
+    expect(res.status).toBe(201)
+    const filas = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.justificacionCritica, 'riesgo_fisico'))
+    expect(filas.length).toBe(1)
+  })
+
+  it('no pide justificación cuando el motivo ya sugiere Crítica', async () => {
+    const res = await POST(postReq({
+      cue: CUE_P, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(CUE_P, '10')] }],
+    }))
+    expect(res.status).toBe(201)
   })
 })
 
@@ -731,6 +799,140 @@ describe('parte con sesión acotada por CUE', () => {
       ),
     )
     expect(res.status).toBe(401)
+  })
+})
+
+describe('POST /api/problematicas/parte — causa', () => {
+  async function crearInundacion(cue: string): Promise<string> {
+    await POST(postReq({
+      cue,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Inundación', severidad: 'Crítica', secciones: [seccionId(cue, '10')] }],
+    }))
+    const [fila] = await getDb()
+      .select({ id: infraAfectacion.id })
+      .from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, cue), eq(infraAfectacion.motivo, 'Inundación')))
+    if (!fila) throw new Error(`No se encontró la inundación de ${cue}`)
+    return fila.id
+  }
+
+  it('persiste causadaPorId cuando la causa es de la misma escuela y está activa', async () => {
+    const causa = await crearInundacion(CUE_Q)
+    const res = await POST(postReq({
+      cue: CUE_Q, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Sin energía o agua', severidad: 'Media', secciones: [seccionId(CUE_Q, '20')], causadaPorId: causa }],
+    }))
+    expect(res.status).toBe(201)
+    const [hija] = await getDb().select().from(infraAfectacion).where(eq(infraAfectacion.causadaPorId, causa))
+    expect(hija.motivo).toBe('Sin energía o agua')
+  })
+
+  it('rechaza una causa de otra escuela', async () => {
+    const ajena = await crearInundacion(CUE_O)
+    const res = await POST(postReq({
+      cue: CUE_P, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Sin energía o agua', severidad: 'Media', secciones: [seccionId(CUE_P, '20')], causadaPorId: ajena }],
+    }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toBe('La situación indicada como causa no es válida')
+  })
+
+  it('deduplica dos altas con el mismo contenido y la misma causa', async () => {
+    const causa = await crearInundacion(CUE_R2)
+    const entrada = {
+      motivo: 'Sin energía o agua',
+      severidad: 'Media' as const,
+      secciones: [seccionId(CUE_R2, '20')],
+      causadaPorId: causa,
+    }
+    const rigeDesde = new Date().toISOString()
+
+    await POST(postReq({
+      cue: CUE_R2,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde,
+      afectacionesNuevas: [entrada],
+    }))
+    await POST(postReq({
+      cue: CUE_R2,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde,
+      afectacionesNuevas: [entrada],
+    }))
+
+    const vinculadas = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.causadaPorId, causa), eq(infraAfectacion.motivo, entrada.motivo)))
+    expect(vinculadas).toHaveLength(1)
+  })
+
+  it('"sigue igual" registra un movimiento de confirmación aunque no cambie nada', async () => {
+    await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ motivo: 'Tormenta severa', severidad: 'Alta', secciones: [seccionId(CUE_S, '10')] }],
+    }))
+    const [fila] = await getDb().select().from(infraAfectacion)
+      .innerJoin(infraParte, eq(infraParte.id, infraAfectacion.parteId))
+      .where(and(eq(infraParte.cueAnexo, CUE_S), eq(infraAfectacion.motivo, 'Tormenta severa')))
+    const res = await POST(postReq({
+      cue: CUE_S, idempotencyKey: crypto.randomUUID(), rigeDesde: new Date().toISOString(),
+      afectacionesConfirmadas: [fila!.infra_afectacion.id],
+    }))
+    expect(res.status).toBe(201)
+    const movimientos = await getDb().select().from(infraMovimiento).where(eq(infraMovimiento.parteId, fila!.infra_parte.id))
+    const ultimo = movimientos.sort((a, b) => b.creadaEn.localeCompare(a.creadaEn))[0]
+    expect(ultimo!.tipo).toBe('confirmacion')
+    expect((ultimo!.resumen as { afectacionesConfirmadas: unknown[] }).afectacionesConfirmadas).toEqual([{ afectacionId: fila!.infra_afectacion.id, motivo: 'Tormenta severa' }])
+  })
+
+  it('no deduplica contra una afectación sin causa cuando la entrada sí tiene causa', async () => {
+    const causa = await crearInundacion(CUE_R3)
+    const entrada = {
+      motivo: 'Sin energía o agua',
+      severidad: 'Media' as const,
+      secciones: [seccionId(CUE_R3, '20')],
+    }
+
+    await POST(postReq({
+      cue: CUE_R3,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [entrada],
+    }))
+    await POST(postReq({
+      cue: CUE_R3,
+      idempotencyKey: crypto.randomUUID(),
+      rigeDesde: new Date().toISOString(),
+      afectacionesNuevas: [{ ...entrada, causadaPorId: causa }],
+    }))
+
+    const [parte] = await getDb().select({ id: infraParte.id }).from(infraParte)
+      .where(eq(infraParte.cueAnexo, CUE_R3))
+    const vinculadas = await getDb().select().from(infraAfectacion)
+      .where(and(eq(infraAfectacion.parteId, parte!.id), eq(infraAfectacion.motivo, entrada.motivo)))
+    expect(vinculadas).toHaveLength(2)
+    expect(vinculadas.filter((fila) => fila.causadaPorId === causa)).toHaveLength(1)
+  })
+})
+
+describe('GET /api/problematicas/parte — contexto del estado actual', () => {
+  it('devuelve situaciones recientes cerradas y la última carga', async () => {
+    const res = await GET(getReq(CUE_R))
+    const body = await res.json()
+
+    expect(body.recientes.map((r: { motivo: string }) => r.motivo)).toContain('Tormenta severa')
+    expect(body.recientes[0].cierre).toBe('solucionada')
+    expect(body.ultimaCarga.cambios.join(' ')).toMatch(/Se solucionó Tormenta severa/)
+    expect(typeof body.ultimaCarga.creadaEn).toBe('string')
+  })
+
+  it('expone la causa en las afectaciones vigentes', async () => {
+    const body = await (await GET(getReq(CUE_Q))).json()
+    const hija = body.afectaciones.find((a: { motivo: string }) => a.motivo === 'Sin energía o agua')
+
+    expect(hija.causadaPorId).toEqual(expect.any(String))
   })
 })
 

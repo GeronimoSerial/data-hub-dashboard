@@ -1,20 +1,18 @@
 'use client'
 
-import { useEffect, useRef, useState, type JSX } from 'react'
-import { CircleAlert, X } from 'lucide-react'
+import { useEffect, useRef, type JSX } from 'react'
+import { X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { DatosPadronEscuela } from '@/lib/infraestructura/datos-padron-escuela'
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
-import { colorSeveridad } from '@/lib/infraestructura/severidad'
+import {
+  useFichaParte,
+  type AfectacionFicha,
+} from '@/lib/infraestructura/use-ficha-parte'
 import type {
-  Categoria,
-  EstadoEstablecimiento,
-  EstadoServicioGeneral,
-  SeccionEstablecimiento,
-  ServicioAlcance,
   Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { CATEGORIA_META } from '@/lib/infraestructura/categorias'
+import { EstadoActualSeveridad } from '@/components/infraestructura/estado-actual-severidad'
 import {
   ETIQUETA_ESTABLECIMIENTO,
   ETIQUETA_SERVICIO,
@@ -22,96 +20,23 @@ import {
   resumirAlcance,
   rigeDesdeDelServicio,
 } from './estado-actual-textos'
-import { HistorialMovimiento, type MovimientoHistorial } from './historial-movimiento'
+import { HistorialMovimiento } from './historial-movimiento'
 import { FichaTerritorial } from './ficha-territorial'
 import {
   FichaAccesoTerritorial,
   type FichaAccesoTerritorialProps,
 } from './ficha-acceso-territorial'
 
-// --- Forma de GET /api/mapas/infraestructura/parte (ver app/api/mapas/infraestructura/parte/route.ts) ---
-//
-// Deliberadamente SIN nombres de alumnos ni `secciones` por afectación: a
-// diferencia de la ruta del director (`/api/problematicas/parte`), acá
-// `totales` es lo único que viaja por afectación. Por eso este archivo NO
-// reusa `AfectacionVigente`/`EstadoActualAfectacion` (esos tipos exigen
-// `secciones: SeccionAfectada[]`, con nombres, que este endpoint nunca envía).
-interface AfectacionFicha {
-  id: string
-  motivo: string
-  categoria: Categoria
-  severidad: Severidad
-  descripcion: string | null
-  rigeDesde: string
-  totales: { secciones: number; alumnos: number }
-}
-
-interface ParteFicha {
-  id: string
-  cueAnexo: string
-  estadoEstablecimiento: EstadoEstablecimiento
-  estadoEstablecimientoRigeDesde: string
-  actualizadaEn: string
-}
-
-interface RespuestaParteMapa {
-  ok: true
-  periodo: { id: string; nombre: string } | null
-  parte: ParteFicha | null
-  servicio?: { estadoGeneral: EstadoServicioGeneral; alcanceVigente: ServicioAlcance[] }
-  afectaciones?: AfectacionFicha[]
-  // Secciones del establecimiento (turno + id de sección GE) que devuelve la
-  // ruta para CUALQUIER escuela del corte, tenga o no afectación vigente. Es
-  // la fuente cruda; el bloque "Datos de la escuela" ya no la recorre (usa
-  // `datosPadron`, que es el agregado), pero se conserva en la forma de la
-  // respuesta por compatibilidad con la ruta.
-  secciones?: SeccionEstablecimiento[]
-  // Agregado del padrón GE de la escuela (F3.2/V4): nivel(es), matrícula total
-  // del corte vigente, secciones y turnos. `null` = la escuela no tiene
-  // ninguna sección en el corte vigente (se dice explícitamente en la ficha);
-  // `undefined` = una ruta vieja no lo manda. Nunca trae identidad de alumno.
-  datosPadron?: DatosPadronEscuela | null
-  ultimaActualizacion?: string | null
-}
-
-interface RespuestaHistorialMapa {
-  ok?: boolean
-  movimientos?: MovimientoHistorial[]
-}
-
-type EstadoFicha =
-  | { fase: 'cargando' }
-  | { fase: 'listo'; datos: RespuestaParteMapa }
-  | { fase: 'error' }
-
-type EstadoHistorial =
-  | { fase: 'cargando' }
-  | { fase: 'listo'; movimientos: MovimientoHistorial[] }
-  | { fase: 'error' }
-
 // Cantidad de movimientos del historial que se adelantan en la ficha (F3.5):
 // "los primeros 3", el resto queda detrás de "Ver historial completo".
 const MOVIMIENTOS_ADELANTADOS = 3
 
 /**
- * Severidad dentro de la ficha del mapa (hallazgo 21). La ficha NO reusa
- * `EstadoActualSeveridad` a propósito: ese componente es compartido con las
- * pantallas del director y codifica el nivel con una forma propia (círculo,
- * cuadrado, triángulo, rombo). Acá, y sólo acá, se usa un ícono fijo para
- * todos los niveles + el color oficial + el texto: la forma no varía por
- * nivel y el nivel sigue siendo legible sin depender del color.
+ * Severidad en la ficha del mapa, con la misma marca que el resto de las
+ * pantallas.
  */
 function IndicadorSeveridadFicha({ severidad }: { severidad: Severidad }): JSX.Element {
-  return (
-    <span className="estado-actual-severidad">
-      <CircleAlert
-        size={16}
-        aria-hidden
-        style={{ color: colorSeveridad(severidad), flexShrink: 0 }}
-      />
-      <span className="estado-actual-severidad__texto">Severidad {severidad}</span>
-    </span>
-  )
+  return <EstadoActualSeveridad severidad={severidad} />
 }
 
 /**
@@ -141,50 +66,7 @@ function FichaParteModalContenido({
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
 }): JSX.Element {
-  const [estado, setEstado] = useState<EstadoFicha>({ fase: 'cargando' })
-  const [historial, setHistorial] = useState<EstadoHistorial>({ fase: 'cargando' })
-
-  useEffect(() => {
-    let vigente = true
-    fetch(`/api/mapas/infraestructura/parte?cue=${encodeURIComponent(cueAnexo)}`)
-      .then(async (respuesta) => {
-        if (!respuesta.ok) throw new Error('fallo de acceso o de red')
-        return (await respuesta.json()) as RespuestaParteMapa
-      })
-      .then((datos) => {
-        if (vigente) setEstado({ fase: 'listo', datos })
-      })
-      .catch(() => {
-        if (vigente) setEstado({ fase: 'error' })
-      })
-    return () => {
-      vigente = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- un fetch por apertura, cueAnexo va en la key del padre
-  }, [])
-
-  // Segundo fetch, mismo trigger (F3.5): un solo request extra, no una
-  // segunda ronda de aperturas. Independiente del de arriba porque un fallo
-  // de uno no tiene por qué tapar al otro (la ficha puede mostrarse sin el
-  // bloque "qué cambió", y viceversa).
-  useEffect(() => {
-    let vigente = true
-    fetch(`/api/mapas/infraestructura/historial?cue=${encodeURIComponent(cueAnexo)}`)
-      .then(async (respuesta) => {
-        if (!respuesta.ok) throw new Error('fallo de acceso o de red')
-        return (await respuesta.json()) as RespuestaHistorialMapa
-      })
-      .then((datos) => {
-        if (vigente) setHistorial({ fase: 'listo', movimientos: datos.movimientos ?? [] })
-      })
-      .catch(() => {
-        if (vigente) setHistorial({ fase: 'error' })
-      })
-    return () => {
-      vigente = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const { estado, historial } = useFichaParte(cueAnexo)
 
   const datos = estado.fase === 'listo' ? estado.datos : null
 
@@ -231,7 +113,7 @@ function FichaParteModalContenido({
       {servicioGeneral && (
         <section className="estado-actual-bloque" aria-labelledby="ficha-parte-servicio">
           <h3 className="estado-actual-bloque__titulo" id="ficha-parte-servicio">
-            Estado del servicio educativo
+            Funcionamiento
           </h3>
           <p className="estado-actual-bloque__valor">{ETIQUETA_SERVICIO[servicioGeneral]}</p>
           {rigeServicio && <p className="estado-actual-bloque__vigencia">Rige desde el {rigeServicio}</p>}
@@ -241,7 +123,7 @@ function FichaParteModalContenido({
       {estadoEstablecimiento && (
         <section className="estado-actual-bloque" aria-labelledby="ficha-parte-establecimiento">
           <h3 className="estado-actual-bloque__titulo" id="ficha-parte-establecimiento">
-            Situación del establecimiento
+            Edificio
           </h3>
           <p className="estado-actual-bloque__valor">
             {ETIQUETA_ESTABLECIMIENTO[estadoEstablecimiento]}
@@ -249,9 +131,28 @@ function FichaParteModalContenido({
         </section>
       )}
 
+      {datos?.parte?.asistenciaPedagogica && (
+        <section className="estado-actual-bloque" aria-label="Asistencia pedagógica">
+          <h3 className="estado-actual-bloque__titulo">Asistencia pedagógica</h3>
+          <p className="estado-actual-bloque__valor">
+            {datos.parte.asistenciaPedagogica.brinda
+              ? `Sí · ${datos.parte.asistenciaPedagogica.modalidades.join(' · ')}`
+              : 'No'}
+          </p>
+        </section>
+      )}
+
+      {parteResumen && (
+        <section className="estado-actual-bloque" aria-label="Alumnos alcanzados">
+          <h3 className="estado-actual-bloque__titulo">Impacto en alumnos</h3>
+          <p className="estado-actual-bloque__valor">Alumnos alcanzados: {parteResumen.alumnosAlcanzados}</p>
+          <p className="estado-actual-bloque__vigencia">Hecho: {parteResumen.seccionesAlcanzadas} secciones, {parteResumen.alumnosDelHecho} alumnos</p>
+        </section>
+      )}
+
       <section className="estado-actual-bloque estado-actual-bloque--ancho" aria-labelledby="ficha-parte-afectaciones">
         <h3 className="estado-actual-bloque__titulo" id="ficha-parte-afectaciones">
-          Situación hidrometeorológica en seguimiento
+          En seguimiento
         </h3>
 
         {sinAfectaciones ? (

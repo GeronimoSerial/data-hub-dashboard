@@ -16,7 +16,7 @@
  *     mostrar.
  *
  * Usage (requiere gate de seguridad):
- *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs             # siembra (idempotente)
+ *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --escuelas 80 --sin-padron
  *   DATA_DIR=/tmp/mi-demo DEMO_OK=1 node scripts/seed-demo-partes.mjs --limpiar   # borra sólo lo sembrado y sale
  *
  * Gate de seguridad: este script inserta datos FICTICIOS de demo. Para evitar
@@ -256,7 +256,7 @@ const DIVISIONES = ['A', 'B', 'C']
 // disponibles, proporcional al tamaño de cada departamento (con un mínimo de
 // 1 por departamento) para que ningún departamento quede afuera y ninguno
 // (como CAPITAL, con 365 de 2005) se lleve la mitad de la muestra.
-function elegirEstablecimientos(localizaciones, total) {
+function elegirEstablecimientos(localizaciones, total, favorecerSurOeste = false) {
   const porDepartamento = new Map()
   for (const loc of localizaciones) {
     const lista = porDepartamento.get(loc.departamento) ?? []
@@ -265,18 +265,22 @@ function elegirEstablecimientos(localizaciones, total) {
   }
 
   const departamentos = [...porDepartamento.keys()].sort()
-  const totalGeneral = localizaciones.length
+  const surOeste = new Set(['Esquina', 'Goya', 'Curuzú Cuatiá', 'Mercedes', 'Sauce', 'Lavalle'])
   const elegidos = []
-
+  const restantes = []
+  // Cubrimos cada departamento primero; el cupo restante se reparte por sorteo
+  // ponderado por tamaño y, para el demo de lluvia, por el sudoeste.
   for (const dep of departamentos) {
-    const grupo = porDepartamento.get(dep)
-    const proporcion = grupo.length / totalGeneral
-    const cantidad = Math.max(1, Math.round(proporcion * total))
-    const barajado = barajar(grupo)
-    elegidos.push(...barajado.slice(0, Math.min(cantidad, grupo.length)))
+    const grupo = barajar(porDepartamento.get(dep))
+    if (grupo.length) elegidos.push(grupo[0])
+    for (const loc of grupo.slice(1)) {
+      const peso = favorecerSurOeste && surOeste.has(dep) ? 3 : 1
+      const u = Math.max(Number.EPSILON, rand())
+      restantes.push({ loc, clave: -Math.log(u) / peso })
+    }
   }
-
-  return elegidos
+  restantes.sort((a, b) => a.clave - b.clave)
+  return [...elegidos, ...restantes.slice(0, Math.max(0, total - elegidos.length)).map(({ loc }) => loc)].slice(0, total)
 }
 
 async function sembrarMatricula(ge, corteId, establecimientos) {
@@ -453,16 +457,23 @@ async function insertarMovimiento(hub, movimiento) {
   })
 }
 
-const TOTAL_PARTES = 50
-const CANT_EVACUADO = 6
-const CANT_CENTRO_EVACUADOS = 4
-const CANT_HABITUAL = TOTAL_PARTES - CANT_EVACUADO - CANT_CENTRO_EVACUADOS // 40
-const CANT_TODO_RETIRADO = 3 // subconjunto de los 'habitual', no aparecen en el mapa
-const CANT_SERVICIO_SUSPENDIDO = 5
-const CANT_SERVICIO_PARCIAL = 10
-const CANT_SERVICIO_RESTAURADO = 6 // servicio suspendido y restaurado a mitad del período
-const CANT_AFECTACION_RETIRADA = 15 // candidatos a retirar una afectación; sólo cuentan los de 2+ afectaciones
-const CANT_SIN_REPORTAR = 8 // actualizadaEn > 72hs
+const argumentoEscuelas = process.argv.indexOf('--escuelas')
+const totalSolicitado = argumentoEscuelas >= 0 ? Number(process.argv[argumentoEscuelas + 1]) : 50
+if (!Number.isInteger(totalSolicitado) || totalSolicitado < 1) throw new Error('--escuelas debe ser un entero positivo')
+const TOTAL_PARTES = totalSolicitado
+const escalar = (n) => Math.round(n * TOTAL_PARTES / 50)
+const CANT_EVACUADO = escalar(6)
+const CANT_CENTRO_EVACUADOS = escalar(4)
+const CANT_HABITUAL = TOTAL_PARTES - CANT_EVACUADO - CANT_CENTRO_EVACUADOS
+// Cada parte conserva al menos una afectación visible. Las afectaciones
+// retiradas se representan en CANT_AFECTACION_RETIRADA sin hacer desaparecer
+// escuelas del mapa.
+const CANT_TODO_RETIRADO = 0
+const CANT_SERVICIO_SUSPENDIDO = Math.min(TOTAL_PARTES - CANT_TODO_RETIRADO, escalar(5))
+const CANT_SERVICIO_PARCIAL = Math.min(TOTAL_PARTES - CANT_TODO_RETIRADO - CANT_SERVICIO_SUSPENDIDO, escalar(10))
+const CANT_SERVICIO_RESTAURADO = Math.min(TOTAL_PARTES - CANT_TODO_RETIRADO - CANT_SERVICIO_SUSPENDIDO - CANT_SERVICIO_PARCIAL, escalar(6))
+const CANT_AFECTACION_RETIRADA = Math.min(TOTAL_PARTES - CANT_TODO_RETIRADO, escalar(15))
+const CANT_SIN_REPORTAR = Math.min(TOTAL_PARTES, escalar(8))
 
 async function sembrarPartes(hub, periodoId, corteId, establecimientosConSecciones, alumnosPorSeccionGlobal) {
   // Sólo establecimientos con matrícula real (sembrada en Parte A) — pedido
@@ -644,14 +655,14 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
       resumen.servicios++
       serviciosFinal.push(s)
       estadoServicioEsperado = 'suspendido'
-    } else if (idxServicioParcial.has(i) && est.secciones.length > 0) {
-      const seccionElegida = elegir(est.secciones)
+    } else if (idxServicioParcial.has(i)) {
+      const seccionElegida = est.secciones.length > 0 ? elegir(est.secciones) : null
       const servicioId = `demo-servicio-${parteId.slice('demo-parte-'.length)}-1`
       const s = {
         id: servicioId,
         parteId,
-        tipo: 'seccion',
-        referenciaId: String(seccionElegida.geSectionId),
+        tipo: seccionElegida ? 'seccion' : 'turno',
+        referenciaId: seccionElegida ? String(seccionElegida.geSectionId) : 'Mañana',
         estado: 'suspendido',
         rigeDesde: rigeDesdeParte,
         creadaEn,
@@ -660,7 +671,9 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
       await insertarServicioAlcance(hub, s)
       resumen.servicios++
       serviciosFinal.push(s)
-      estadoServicioEsperado = est.secciones.length > 1 ? 'parcial' : 'suspendido'
+      estadoServicioEsperado = seccionElegida
+        ? (est.secciones.length > 1 ? 'parcial' : 'suspendido')
+        : 'parcial'
     } else if (idxServicioRestaurado.has(i)) {
       // Servicio suspendido al inicio y RESTAURADO a mitad del período: la
       // fila se inserta con retiradaEn entre rigeDesdeParte y actualizadaEn
@@ -758,6 +771,7 @@ async function sembrarPartes(hub, periodoId, corteId, establecimientosConSeccion
 
 async function main() {
   const limpiarSolo = process.argv.includes('--limpiar')
+  const sinPadronForzado = process.argv.includes('--sin-padron')
 
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   await ensureSeeded()
@@ -766,16 +780,14 @@ async function main() {
   const ge = raw
   const hub = raw
 
-  const corte = await getCorteVigente(ge)
-  if (!corte) {
-    throw new Error(
-      'No hay corte vigente en schema ge. Ejecutá primero node scripts/sync-ge.mjs --fixture.',
-    )
+  let corte = null
+  if (!sinPadronForzado) {
+    try { corte = await getCorteVigente(ge) } catch { corte = null }
   }
 
   if (limpiarSolo) {
     await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarHub(tx))
-    await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
+    if (corte) await ejecutarEnTransaccion(getRawClient(), (tx) => limpiarGe(tx, corte.id))
     console.log('Datos de demo eliminados (schemas principal + ge).')
     return
   }
@@ -802,27 +814,34 @@ async function main() {
     departamento: String(r.departamento),
   }))
 
-  const establecimientos = elegirEstablecimientos(localizaciones, 150)
-  console.log(
-    `Parte A: ${establecimientos.length} establecimientos elegidos en ${new Set(establecimientos.map((e) => e.departamento)).size} departamentos.`,
-  )
+  const establecimientos = elegirEstablecimientos(localizaciones, TOTAL_PARTES, true)
+  console.log(`Escuelas de demo elegidas: ${establecimientos.length} en ${new Set(establecimientos.map((e) => e.departamento)).size} departamentos.`)
 
   // Parte A entera (limpieza + siembra) en UNA transacción: miles de
   // inserts uno por uno, cada uno con su propio commit/fsync, tardaban
   // varios minutos. Agrupados en una sola transacción de escritura, SQLite
   // sólo fsync-ea una vez al final — la corrida pasa de minutos a segundos
   // sin cambiar una sola fila de lo que se inserta.
-  const { establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal } =
-    await ejecutarEnTransaccion(getRawClient(), async (tx) => {
+  let establecimientosConSecciones = []
+  let totalSecciones = 0
+  let totalAlumnos = 0
+  let alumnosPorSeccionGlobal = new Map()
+  if (corte) {
+    const matricula = await ejecutarEnTransaccion(getRawClient(), async (tx) => {
       await limpiarGe(tx, corte.id)
       return sembrarMatricula(tx, corte.id, establecimientos)
     })
-  console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en schema ge (corte ${corte.id}).`)
+    ;({ establecimientosConSecciones, totalSecciones, totalAlumnos, alumnosPorSeccionGlobal } = matricula)
+    console.log(`Parte A: ${totalSecciones} secciones y ${totalAlumnos} alumnos sembrados en schema ge (corte ${corte.id}).`)
+  } else {
+    establecimientosConSecciones = establecimientos.map((escuela) => ({ ...escuela, secciones: [] }))
+    console.log('Modo sin padrón: partes sin secciones ni alumnos nominales.')
+  }
 
   // Mismo criterio para Parte B.
   const resumen = await ejecutarEnTransaccion(getRawClient(), async (tx) => {
     await limpiarHub(tx)
-    return sembrarPartes(tx, periodoId, corte.id, establecimientosConSecciones, alumnosPorSeccionGlobal)
+    return sembrarPartes(tx, periodoId, corte?.id ?? 0, establecimientosConSecciones, alumnosPorSeccionGlobal)
   })
 
   console.log(
@@ -831,7 +850,7 @@ async function main() {
   console.log(
     `  Desglose por estado de servicio (esperado, ver verificación con listarPartesVigentes): normal=${resumen.porEstadoServicio.normal}, parcial=${resumen.porEstadoServicio.parcial}, suspendido=${resumen.porEstadoServicio.suspendido}`,
   )
-  console.log(`  Con retiradaEn (además de las 3 todo-retirado): ${resumen.serviciosRestaurados} servicios y ${resumen.afectacionesRetiradas} afectaciones.`)
+  console.log(`  Con retiradaEn: ${resumen.serviciosRestaurados} servicios restaurados y ${resumen.afectacionesRetiradas} afectaciones retiradas.`)
 }
 
 // --- Parte C: verificación end-to-end contra listarPartesVigentes --------

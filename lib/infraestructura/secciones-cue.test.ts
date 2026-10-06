@@ -31,8 +31,8 @@ describe('listarSeccionesDelCue', () => {
     const secciones = await listarSeccionesDelCue(client, 1, CUE)
     expect(secciones).toEqual(
       expect.arrayContaining([
-        { geSectionId: 1, turno: 'MAÑANA' },
-        { geSectionId: 2, turno: 'TARDE' },
+        { geSectionId: 1, curso: '1', division: 'A', nivel: 'PRIMARIA', turno: 'MAÑANA' },
+        { geSectionId: 2, curso: '2', division: 'B', nivel: 'PRIMARIA', turno: 'TARDE' },
       ]),
     )
     expect(secciones).toHaveLength(2)

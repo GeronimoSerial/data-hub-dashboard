@@ -1,10 +1,10 @@
 import { normalizarNombreDepartamento } from '@/lib/mapas/departamentos'
 import type { EscuelasMapaResultado } from './parte-mapa'
 
-export function filtrarDepartamentoEscuelasMapa(
-  data: EscuelasMapaResultado,
+export function filtrarDepartamentoEscuelasMapa<T extends EscuelasMapaResultado>(
+  data: T,
   departamento: string | null,
-): EscuelasMapaResultado {
+): T {
   if (!departamento) return data
   const clave = normalizarNombreDepartamento(departamento)
   const escuelas = data.escuelas.filter(
@@ -13,5 +13,5 @@ export function filtrarDepartamentoEscuelasMapa(
   const sinUbicacion = data.sinUbicacion.filter(
     (escuela) => normalizarNombreDepartamento(escuela.departamento) === clave,
   )
-  return { escuelas, sinUbicacion, totalPadron: escuelas.length + sinUbicacion.length }
+  return { ...data, escuelas, sinUbicacion, totalPadron: escuelas.length + sinUbicacion.length }
 }

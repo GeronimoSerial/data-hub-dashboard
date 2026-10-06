@@ -1,0 +1,17 @@
+HTTP/2 401 
+date: Wed, 30 Sep 2026 14:14:00 GMT
+content-type: application/json;charset=UTF-8
+control-allow-origin: *
+expires: 0
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+x-xss-protection: 1; mode=block
+pragma: no-cache
+x-frame-options: DENY
+x-content-type-options: nosniff
+cf-cache-status: BYPASS
+vary: accept-encoding
+speculation-rules: "/cdn-cgi/speculation"
+server: cloudflare
+cf-ray: a433d4db8825deab-EZE
+alt-svc: h3=":443"; ma=86400
+

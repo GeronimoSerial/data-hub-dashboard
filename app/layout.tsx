@@ -65,7 +65,7 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="es"
+      lang="es-AR"
       className={`${barlow.variable} ${barlowSemiCondensed.variable} ${montserrat.variable}`}
     >
       <body>

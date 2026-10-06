@@ -34,9 +34,16 @@ export interface DiffAfectacionAgregada {
   severidad: Severidad
   secciones: number
   alumnos: number
+  causadaPor?: { afectacionId: string; motivo: string }
 }
 
 export interface DiffAfectacionRetirada {
+  afectacionId: string
+  motivo: string
+  cierre?: 'solucionada' | 'retirada'
+}
+
+export interface DiffAfectacionConfirmada {
   afectacionId: string
   motivo: string
 }
@@ -86,6 +93,10 @@ export interface DiffEstablecimientoCambio {
   de: EstadoEstablecimiento
   a: EstadoEstablecimiento
 }
+export interface DiffAsistenciaPedagogicaCambio {
+  de: ParteSnapshot['asistenciaPedagogica']
+  a: ParteSnapshot['asistenciaPedagogica']
+}
 
 export interface DiffParte {
   afectacionesAgregadas: DiffAfectacionAgregada[]
@@ -95,6 +106,8 @@ export interface DiffParte {
   datosCambiados: DiffDatosCambio[]
   serviciosCambiados: DiffServicioCambio[]
   establecimientoCambiado: DiffEstablecimientoCambio | null
+  asistenciaPedagogicaCambiada?: DiffAsistenciaPedagogicaCambio | null
+  afectacionesConfirmadas?: DiffAfectacionConfirmada[]
 }
 
 function contarAlcance(afectacion: Afectacion): { secciones: number; alumnos: number } {
@@ -314,6 +327,9 @@ export function diffParte(antes: ParteSnapshot, despues: ParteSnapshot): DiffPar
     datosCambiados,
     serviciosCambiados: diffServicio(antes.servicioAlcance, despues.servicioAlcance),
     establecimientoCambiado: diffEstablecimiento(antes.estadoEstablecimiento, despues.estadoEstablecimiento),
+    asistenciaPedagogicaCambiada: JSON.stringify(antes.asistenciaPedagogica ?? null) === JSON.stringify(despues.asistenciaPedagogica ?? null)
+      ? null
+      : { de: antes.asistenciaPedagogica, a: despues.asistenciaPedagogica },
   }
 }
 
@@ -338,6 +354,8 @@ export function contarCambios(diff: DiffParte): number {
     diff.datosCambiados.length +
     diff.serviciosCambiados.length +
     (diff.establecimientoCambiado === null ? 0 : 1)
+    + (diff.asistenciaPedagogicaCambiada == null ? 0 : 1)
+    + (diff.afectacionesConfirmadas?.length ?? 0)
   )
 }
 
@@ -350,5 +368,7 @@ export function esDiffVacio(diff: DiffParte): boolean {
     diff.datosCambiados.length === 0 &&
     diff.serviciosCambiados.length === 0 &&
     diff.establecimientoCambiado === null
+    && diff.asistenciaPedagogicaCambiada == null
+    && (diff.afectacionesConfirmadas?.length ?? 0) === 0
   )
 }

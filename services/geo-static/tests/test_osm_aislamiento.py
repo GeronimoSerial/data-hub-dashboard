@@ -19,6 +19,7 @@ import json
 import math
 
 import pandas as pd
+import pytest
 from shapely.geometry import LineString, Point
 from shapely.ops import transform as shapely_transform
 
@@ -33,24 +34,269 @@ from geo_static.osm_aislamiento import (
     MOTIVO_SIN_VIA_CERCANA,
     TOLERANCIA_DEDUP_CRUCE_M,
     _aristas_inseguras,
+    _coordenadas_ruta,
     _es_tramo_sin_pavimentar,
     _primer_valor,
     _tiene_ford,
     _tiene_puente,
+    asignar_costo,
     calcular_indice_aislamiento,
     calcular_metricas_departamento,
     calcular_metricas_escuela,
+    buscar_destinos_mas_cercanos,
+    calcular_via_principal,
     clasificar_cruce,
     clasificar_sin_conexion,
     construir_arbol_agua,
     construir_cruces_por_arista,
     construir_grafo_seguro,
     construir_indice_no_conectadas,
+    construir_indice_aristas,
     construir_red_local,
 )
 from _helpers import patch_nearest_nodes
 
 NAN = float("nan")
+
+
+def grafo_juguete(aristas):
+    """Construye un MultiDiGraph local para pruebas de rutas y costos."""
+    grafo = nx.MultiDiGraph()
+    for u, v, datos in aristas:
+        grafo.add_edge(u, v, **datos)
+    return grafo
+
+
+def test_prefiere_ruta_pavimentada_sobre_huella_mas_corta():
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 4000, "highway": "track"}),
+        ("A", "L", {"length": 1000, "highway": "track"}),
+        ("E", "B", {"length": 3000, "highway": "primary"}),
+        ("B", "L", {"length": 4000, "highway": "primary"}),
+    ])
+    asignar_costo(grafo)
+    ruta = nx.shortest_path(grafo, "E", "L", weight="costo")
+    assert ruta == ["E", "B", "L"]
+
+
+def test_superficie_no_pavimentada_penaliza():
+    grafo = grafo_juguete([
+        ("E", "L", {"length": 1000, "highway": "secondary", "surface": "dirt"})
+    ])
+    asignar_costo(grafo)
+    assert grafo["E"]["L"][0]["costo"] == pytest.approx(1000 * 1.2 * 1.5)
+
+
+def test_coordenadas_ruta_usa_paralela_de_menor_costo():
+    grafo = nx.MultiDiGraph()
+    grafo.add_node("E", x=0.0, y=0.0)
+    grafo.add_node("L", x=1.0, y=0.0)
+    grafo.add_edge("E", "L", length=200, highway="track", geometry=LineString([(0, 0), (0.5, 0.1), (1, 0)]))
+    grafo.add_edge("E", "L", length=500, highway="primary", geometry=LineString([(0, 0), (0.5, 0.2), (1, 0)]))
+    asignar_costo(grafo)
+
+    coords = _coordenadas_ruta(grafo, ["E", "L"])
+
+    assert [0.5, 0.2] in coords
+    assert [0.5, 0.1] not in coords
+
+
+def test_calcular_via_principal_resuelve_ref_nombre_y_sin_nombre():
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 300, "highway": "primary", "ref": "RP13"}),
+        ("A", "B", {"length": 200, "highway": "secondary", "ref": "RN12"}),
+        ("B", "C", {"length": 100, "highway": "tertiary", "name": "Calle Central"}),
+        ("C", "D", {"length": 50, "highway": "residential"}),
+    ])
+
+    assert calcular_via_principal(grafo, ["E", "A"]) == {
+        "nombre": "Ruta Provincial 13", "tipo": "primary", "pavimentada": True,
+    }
+    assert calcular_via_principal(grafo, ["A", "B"]) == {
+        "nombre": "Ruta Nacional 12", "tipo": "secondary", "pavimentada": True,
+    }
+    assert calcular_via_principal(grafo, ["B", "C"]) == {
+        "nombre": "Calle Central", "tipo": "tertiary", "pavimentada": True,
+    }
+    assert calcular_via_principal(grafo, ["C", "D"]) == {
+        "nombre": None, "tipo": "residential", "pavimentada": True,
+    }
+    formato_ref = grafo_juguete([
+        ("E", "A", {"length": 10, "highway": ["primary", "secondary"], "ref": ["RP-13;RN12"]}),
+    ])
+    assert calcular_via_principal(formato_ref, ["E", "A"]) == {
+        "nombre": "Ruta Provincial 13", "tipo": "primary", "pavimentada": True,
+    }
+    assert calcular_via_principal(grafo, []) is None
+    assert calcular_via_principal(grafo, ["E"]) is None
+
+
+def test_calcular_via_principal_suma_metros_y_desempata():
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 5000, "highway": "primary", "ref": "RP13"}),
+        ("A", "B", {"length": 1000, "highway": "secondary", "name": "Zeta"}),
+        ("B", "C", {"length": 1000, "highway": "secondary", "name": "Zeta"}),
+        ("C", "D", {"length": 1000, "highway": "secondary", "name": "Zeta"}),
+    ])
+
+    assert calcular_via_principal(grafo, ["E", "A", "B", "C", "D"]) == {
+        "nombre": "Ruta Provincial 13", "tipo": "primary", "pavimentada": True,
+    }
+
+    empate = grafo_juguete([
+        ("E", "A", {"length": 1000, "highway": "secondary", "name": "Zulu"}),
+        ("A", "B", {"length": 1000, "highway": "secondary", "name": "Beta"}),
+    ])
+    assert calcular_via_principal(empate, ["E", "A", "B"])["nombre"] == "Beta"
+
+
+def test_calcular_via_principal_marca_tramo_track_dirt_no_pavimentado():
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 1200, "highway": "track", "surface": "dirt", "name": "Camino Rural"}),
+        ("A", "B", {"length": 200, "highway": "primary", "ref": "RP13"}),
+    ])
+
+    assert calcular_via_principal(grafo, ["E", "A", "B"]) == {
+        "nombre": "Camino Rural", "tipo": "track", "pavimentada": False,
+    }
+
+
+def test_distancia_reportada_es_longitud_real_de_ruta_elegida_por_costo(monkeypatch):
+    grafo = grafo_juguete([
+        ("E", "A", {"length": 4000, "highway": "track"}),
+        ("A", "L", {"length": 1000, "highway": "track"}),
+        ("E", "B", {"length": 3000, "highway": "secondary"}),
+        ("B", "L", {"length": 4000, "highway": "secondary"}),
+    ])
+    asignar_costo(grafo)
+    _patch_nearest_nodes_departamento(monkeypatch, {(0.0, 0.0): ("E", 0.0)})
+    escuela = {"lat": 0.0, "lon": 0.0}
+    resultado = calcular_metricas_departamento(
+        grafo, grafo.reverse(copy=False), [escuela], "L"
+    )[0]
+    assert resultado["distancia_cabecera_departamental_m"] == 7000
+
+
+def _grafo_destinos_localidades():
+    """Red pequeña con destinos urbanos y un tramo de ruta con geometría."""
+    g = nx.MultiDiGraph()
+    coords = {
+        "E": (-58.90, -27.50), "A": (-58.85, -27.48),
+        "L1": (-58.80, -27.45), "B": (-58.92, -27.49),
+        "L2": (-58.95, -27.47), "C": (-58.70, -27.40),
+    }
+    for nodo, (x, y) in coords.items():
+        g.add_node(nodo, x=x, y=y)
+    # L1 gana por costo aunque la ruta física hacia L2 sea menor.
+    aristas = [
+        ("E", "A", 1000, "primary"), ("A", "L1", 1000, "primary"),
+        ("E", "B", 600, "track"), ("B", "L2", 600, "track"),
+        ("L1", "C", 5000, "primary"),
+    ]
+    for u, v, length, highway in aristas:
+        g.add_edge(
+            u, v, length=length, highway=highway,
+            geometry=LineString([coords[u], coords[v]]),
+        )
+    asignar_costo(g)
+    return g
+
+
+def test_destino_urbano_mas_cercano_por_costo_y_longitud_real(monkeypatch):
+    g = _grafo_destinos_localidades()
+    escuela = {"lat": -27.50, "lon": -58.90, "departamento": "Depto A"}
+    _patch_nearest_nodes_departamento(
+        monkeypatch, {(-58.90, -27.50): ("E", 0.0)}
+    )
+    nodos_destino = {"L1": "L1", "L2": "L2"}
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), nodos_destino)
+    geometrias = []
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [escuela], "C", busqueda_destinos=busqueda,
+        geometrias_out=geometrias,
+    )[0]
+    assert resultado["destino"] == {"nombre": "L1"}
+    assert resultado["distancia_cabecera_departamental_m"] == 2000
+    assert resultado["distancia_destino_m"] == 2000
+    assert geometrias[0]["via_principal"] == {
+        "nombre": None, "tipo": "primary", "pavimentada": True,
+    }
+
+
+def test_destino_puede_ser_de_otro_departamento(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E", "L", length=700, highway="primary")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {(-58.90, -27.50): ("E", 0.0)})
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "Localidad vecina"})
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False),
+        [{"lat": -27.50, "lon": -58.90, "departamento": "Depto A"}], "L",
+        busqueda_destinos=busqueda,
+    )[0]
+    assert resultado["destino"] == {"nombre": "Localidad vecina"}
+    assert resultado["distancia_destino_m"] == 700
+
+
+def test_escuela_sin_camino_a_localidades_queda_sin_conexion(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E", "A", length=100, highway="primary")
+    g.add_node("L")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {(-58.90, -27.50): ("E", 0.0)})
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "L1"})
+    geometrias = []
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [{"lat": -27.50, "lon": -58.90}], "L",
+        busqueda_destinos=busqueda, geometrias_out=geometrias,
+    )[0]
+    assert resultado["motivo_sin_datos"] == "sin_conexion_red"
+    assert geometrias[0]["motivo_sin_geometria"] == "sin_conexion_red"
+    assert geometrias[0]["via_principal"] is None
+
+
+def test_destino_urbano_por_camino_snap_a_arista():
+    g = _grafo_destinos_localidades()
+    indice = construir_indice_aristas(g)
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L1": "L1", "L2": "L2"})
+    geometria = []
+    resultado = calcular_metricas_departamento(
+        g, g.reverse(copy=False), [{"lat": -27.48, "lon": -58.85}], "C",
+        busqueda_destinos=busqueda, geometrias_out=geometria, indice_aristas=indice,
+    )[0]
+    assert resultado["destino"] == {"nombre": "L1"}
+    assert resultado["distancia_destino_m"] == resultado["distancia_cabecera_departamental_m"]
+    assert geometria[0]["ruta"]["coordinates"][-1] == [-58.80, -27.45]
+    assert geometria[0]["destino"] == {"nombre": "L1"}
+    assert geometria[0]["distancia_destino_m"] == resultado["distancia_destino_m"]
+    assert "via_principal" in geometria[0]
+
+
+def test_busqueda_destinos_se_calcula_una_vez_para_varios_departamentos(monkeypatch):
+    g = nx.MultiDiGraph()
+    g.add_edge("E1", "L", length=100, highway="primary")
+    g.add_edge("E2", "L", length=200, highway="primary")
+    asignar_costo(g)
+    _patch_nearest_nodes_departamento(monkeypatch, {
+        (-58.90, -27.50): ("E1", 0.0), (-58.80, -27.40): ("E2", 0.0),
+    })
+    llamadas = 0
+    original = nx.multi_source_dijkstra
+
+    def contar(*args, **kwargs):
+        nonlocal llamadas
+        llamadas += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(nx, "multi_source_dijkstra", contar)
+    busqueda = buscar_destinos_mas_cercanos(g.reverse(copy=False), {"L": "L1"})
+    for escuela in [
+        {"lat": -27.50, "lon": -58.90}, {"lat": -27.40, "lon": -58.80},
+    ]:
+        calcular_metricas_departamento(
+            g, g.reverse(copy=False), [escuela], None, busqueda_destinos=busqueda
+        )
+    assert llamadas == 1
 
 
 class TestCalcularIndiceAislamiento:
@@ -682,7 +928,10 @@ class TestCalcularMetricasDepartamentoEquivalencia:
             cruces_por_arista=cruces, grafo_seguro_invertido=grafo_seguro_invertido,
         )
 
-        assert obtenido == esperado
+        assert [
+            {k: v for k, v in metricas.items() if k not in ("destino", "distancia_destino_m")}
+            for metricas in obtenido
+        ] == esperado
         # Sanity: se ejercitaron las 4 categorias documentadas (nunca todas
         # "con puente", que era exactamente el bug de G1-fix2b).
         assert esperado[0]["cruces_agua_con_vado_count"] == 0
@@ -906,8 +1155,23 @@ def _grafo_lineal_escuela_cabecera():
     g = nx.MultiDiGraph()
     g.add_node("escuela", x=-58.90, y=-27.50)
     g.add_node("cabecera", x=-58.80, y=-27.45)
-    g.add_edge("escuela", "cabecera", length=1000, surface="paved", highway="secondary")
+    g.add_edge("escuela", "cabecera", length=1000, surface="paved", highway="primary", ref="RP13")
     return g
+
+
+def test_registro_geometria_emite_los_campos_aditivos():
+    from geo_static.jobs.calcular_aislamiento import _registro_geometria
+
+    registro = _registro_geometria(
+        "CUE", "2026-09-26", {"type": "LineString", "coordinates": []}, [], None,
+        via_principal={"nombre": "Ruta Provincial 13", "tipo": "primary", "pavimentada": True},
+        destino={"nombre": "Destino"}, distancia_destino_m=123.0,
+    )
+
+    assert registro["version_job"] == "3"
+    assert registro["via_principal"]["nombre"] == "Ruta Provincial 13"
+    assert registro["destino"] == {"nombre": "Destino"}
+    assert registro["distancia_destino_m"] == 123.0
 
 
 def _escuelas_sinteticas():
@@ -1087,7 +1351,18 @@ class TestCorrerSeleccionDeRed:
         ) as f:
             registros = [json.loads(line) for line in f]
         assert registros
+        assert job.VERSION_JOB == "3"
         assert {registro["version_job"] for registro in registros} == {job.VERSION_JOB}
+        assert all(
+            {"via_principal", "destino", "distancia_destino_m"}.issubset(registro)
+            for registro in registros
+        )
+        assert all(registro["via_principal"] is None for registro in registros)
+        with open(
+            output / f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv", encoding="utf-8"
+        ) as archivo_csv:
+            encabezados = next(csv.reader(archivo_csv))
+        assert not {"via_principal", "destino", "distancia_destino_m"}.intersection(encabezados)
 
 
 class TestCorrerSinRuta:

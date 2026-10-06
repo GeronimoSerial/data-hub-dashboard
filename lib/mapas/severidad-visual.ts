@@ -17,6 +17,7 @@ export function rangoSeveridad(severidad: string): number {
 // Si una escuela cumple más de una condición se muestra SÓLO la de mayor
 // prioridad, para no apilar íconos sobre el mismo punto.
 export type IconoEstadoEscuela =
+  | 'Building'
   | 'Tent'
   | 'DoorOpen'
   | 'CircleSlash'
@@ -28,7 +29,7 @@ export interface EstadoVisualEscuela {
   estadoEstablecimiento: string
   // 'normal' | 'parcial' | 'suspendido'.
   servicio: string
-  sinReportar: boolean
+  sinActualizar: boolean
 }
 
 // Orden de prioridad (de mayor a menor):
@@ -36,15 +37,16 @@ export interface EstadoVisualEscuela {
 //   2. evacuado          -> DoorOpen
 //   3. servicio suspendido -> CircleSlash
 //   4. servicio parcial    -> TriangleAlert
-//   5. sinReportar         -> CircleHelp
+//   5. sinActualizar         -> CircleHelp
 //   6. ninguna             -> null (el punto de color solo ya alcanza)
 export function iconoEstadoEscuela(
   estado: EstadoVisualEscuela,
 ): IconoEstadoEscuela | null {
   if (estado.estadoEstablecimiento === 'centro_evacuados') return 'Tent'
   if (estado.estadoEstablecimiento === 'evacuado') return 'DoorOpen'
+  if (estado.estadoEstablecimiento === 'parcial') return 'Building'
   if (estado.servicio === 'suspendido') return 'CircleSlash'
   if (estado.servicio === 'parcial') return 'TriangleAlert'
-  if (estado.sinReportar) return 'CircleHelp'
+  if (estado.sinActualizar) return 'CircleHelp'
   return null
 }

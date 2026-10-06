@@ -60,7 +60,8 @@ describe('HistorialParteModal', () => {
               rol: 'director',
               creadaEn: '2026-08-01T12:00:00Z',
               rigeDesde: '2026-08-01T12:00:00Z',
-              cambios: ['Clases normales → Clases suspendidas'],
+              titulo: 'Cambió el funcionamiento de las clases',
+              cambios: ['Funcionamiento: habitual → interrumpido'],
             },
           ],
         }),
@@ -69,6 +70,6 @@ describe('HistorialParteModal', () => {
 
     render(<HistorialParteModal cueAnexo={CUE} onOpenChange={() => {}} />)
 
-    expect(await screen.findByText('Clases normales → Clases suspendidas')).toBeInTheDocument()
+    expect(await screen.findByText('Funcionamiento: habitual → interrumpido')).toBeInTheDocument()
   })
 })

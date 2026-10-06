@@ -33,6 +33,10 @@ const NOMBRES_VALIDOS = [
   'geo-perfiles',
   'asociacion-rio',
   'sync-pronostico-caudal',
+  'sync-radar-meteo',
+  'verificar-radar-meteo',
+  'sync-smn-alertas',
+  'sync-radar-ensemble',
   'sync-ensemble',
   'sync-imerg',
   'climatologia-precipitacion',
@@ -260,6 +264,30 @@ async function correrSyncPronosticoCaudal() {
   return ejecutarSyncPronosticoCaudal()
 }
 
+async function correrSyncRadarMeteo(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-meteo')
+  const { ejecutarSyncRadarMeteo } = await import('../lib/infraestructura/radar-meteo/job-sync.ts')
+  return ejecutarSyncRadarMeteo(opts)
+}
+
+async function correrVerificarRadarMeteo(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('verificar-radar-meteo')
+  const { ejecutarVerificacionRadarMeteo } = await import('../lib/infraestructura/radar-meteo/verificacion.ts')
+  return ejecutarVerificacionRadarMeteo(opts)
+}
+
+async function correrSyncSmnAlertas() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-smn-alertas')
+  const { syncSmnAlertas } = await import('../lib/infraestructura/radar-meteo/smn-alertas.ts')
+  return syncSmnAlertas()
+}
+
+async function correrSyncRadarEnsemble(opts) {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
+  const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
+  return ejecutarSyncRadarEnsemble(opts)
+}
+
 async function correrSyncEnsemble() {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-ensemble')
   const { ejecutarSyncEnsemble } = await import(
@@ -351,6 +379,14 @@ export async function correrJob(nombre, opts) {
       return correrAsociacionRio(opts)
     case 'sync-pronostico-caudal':
       return correrSyncPronosticoCaudal()
+    case 'sync-radar-meteo':
+      return correrSyncRadarMeteo(opts)
+    case 'verificar-radar-meteo':
+      return correrVerificarRadarMeteo(opts)
+    case 'sync-smn-alertas':
+      return correrSyncSmnAlertas()
+    case 'sync-radar-ensemble':
+      return correrSyncRadarEnsemble(opts)
     case 'sync-ensemble':
       return correrSyncEnsemble()
     case 'sync-imerg':
@@ -403,8 +439,10 @@ export function codigoSalida(nombreJob, resultado) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const nombre = process.argv[2]
+  const desdeIndex = process.argv.indexOf('--desde')
+  const opts = desdeIndex >= 0 ? { desde: process.argv[desdeIndex + 1] } : undefined
   try {
-    const resultado = await correrJob(nombre)
+    const resultado = await correrJob(nombre, opts)
     console.log(JSON.stringify(resultado))
     process.exit(codigoSalida(nombre, resultado))
   } catch (error) {

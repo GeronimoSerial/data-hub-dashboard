@@ -3,9 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { CruceAccesoOsm } from '@/lib/db/schema'
-import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
-import { COLOR_RUTA_ACCESO, TEXTOS_ACCESOS, textoConPeriodo } from '@/lib/mapas/accesos-capas'
+import { COLOR_RUTA_ACCESO } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 import {
@@ -103,7 +102,6 @@ const fcCeldas: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
 const visibles = (activas: CapaAccesos[]): Record<CapaAccesos, boolean> => ({
   aislamiento: activas.includes('aislamiento'),
   inundacion: activas.includes('inundacion'),
-  rutaSeleccion: activas.includes('rutaSeleccion'),
 })
 
 const territorio = territorioCon({}, {}, {
@@ -119,33 +117,14 @@ const resumen: ReturnType<typeof resumirCobertura> = {
 
 const cruces: CruceAccesoOsm[] = []
 
-const geometriaDisponible: GeometriaAccesoRespuesta = {
-  cueAnexo: '1801605-04',
-  disponible: true,
-  fechaExtractoOsm: '2026-06-01',
-  ruta: {
-    type: 'LineString',
-    coordinates: [
-      [-58.9, -27.5],
-      [-58.8, -27.4],
-    ],
-  },
-  cruces,
-  resumen: { puente: 0, vado: 0, sinEvidencia: 0 },
-}
-
 function crearLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
   return (
     <LeyendaAccesos
-      visibles={visibles(['aislamiento', 'inundacion', 'rutaSeleccion'])}
+      visibles={visibles(['aislamiento', 'inundacion'])}
       territorio={territorio}
       territorioLoading={false}
       territorioError={null}
       resumen={resumen}
-      seleccion={null}
-      geometria={null}
-      geometriaLoading={false}
-      geometriaError={null}
       {...overrides}
     />
   )
@@ -169,11 +148,12 @@ describe('CapasAccesosTerritoriales', () => {
     oscuro: false,
   }
 
-  it('no monta ninguna capa si todo está invisible', () => {
+  it('monta la ruta con geometría aunque las capas territoriales estén apagadas', () => {
     render(
       <CapasAccesosTerritoriales {...base} visibles={visibles([])} />,
     )
-    expect(screen.queryAllByTestId(/^mock-layer-/)).toHaveLength(0)
+    expect(screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_ID}`)).toBeInTheDocument()
+    expect(screen.queryByTestId(`mock-layer-${CAPA_AISLAMIENTO_ID}`)).not.toBeInTheDocument()
   })
 
   it.each([
@@ -209,13 +189,12 @@ describe('CapasAccesosTerritoriales', () => {
     expect(aislamiento.getAttribute('data-layout')).toContain('icono')
     expect(aislamiento.getAttribute('data-layout')).toContain('interpolate')
 
-    const inundacion = screen.getByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)
-    expect(inundacion).toHaveAttribute('data-layer-type', 'symbol')
+    expect(screen.queryByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)).not.toBeInTheDocument()
   })
 
-  it('monta la ruta como casing + línea, con el color de casing según el tema', () => {
+  it('monta la ruta automáticamente cuando hay geometría, sin toggle', () => {
     const { rerender } = render(
-      <CapasAccesosTerritoriales {...base} visibles={visibles(['rutaSeleccion'])} oscuro={false} />,
+      <CapasAccesosTerritoriales {...base} visibles={visibles([])} oscuro={false} />,
     )
     const casingClaro = screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}`)
     const linea = screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_ID}`)
@@ -230,7 +209,7 @@ describe('CapasAccesosTerritoriales', () => {
     })
 
     rerender(
-      <CapasAccesosTerritoriales {...base} visibles={visibles(['rutaSeleccion'])} oscuro />,
+      <CapasAccesosTerritoriales {...base} visibles={visibles([])} oscuro />,
     )
     expect(
       JSON.parse(screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}`).getAttribute('data-paint')!),
@@ -239,7 +218,7 @@ describe('CapasAccesosTerritoriales', () => {
 
   it('monta celdas debajo de la ruta y solo con la ruta seleccionada visible', () => {
     const { container, rerender } = render(
-      <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles(['rutaSeleccion'])} />,
+      <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />,
     )
     const celdas = screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)
     expect(celdas).toHaveAttribute('data-layer-type', 'fill')
@@ -252,13 +231,13 @@ describe('CapasAccesosTerritoriales', () => {
       'line-width': 1.5,
     })
     expect(container.querySelector(`[data-testid="mock-layer-${CAPA_CELDAS_EXPOSICION_ID}"]`)?.parentElement?.nextElementSibling?.querySelector(`[data-testid="mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}"]`)).not.toBeNull()
-    rerender(<CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />)
+    rerender(<CapasAccesosTerritoriales {...base} ruta={null} celdasExposicion={fcCeldas} visibles={visibles([])} />)
     expect(screen.queryByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).not.toBeInTheDocument()
   })
 
   it('monta los cruces con la ruta, permitiendo solapamiento', () => {
     render(
-      <CapasAccesosTerritoriales {...base} visibles={visibles(['rutaSeleccion'])} />,
+      <CapasAccesosTerritoriales {...base} visibles={visibles([])} />,
     )
     const crucesLayer = screen.getByTestId(`mock-layer-${CAPA_CRUCES_ACCESO_ID}`)
     expect(crucesLayer).toHaveAttribute('data-layer-type', 'symbol')
@@ -272,7 +251,7 @@ describe('CapasAccesosTerritoriales', () => {
     render(
       <CapasAccesosTerritoriales
         {...base}
-        visibles={visibles(['rutaSeleccion'])}
+        visibles={visibles([])}
         iconosListos={false}
       />,
     )
@@ -285,7 +264,7 @@ describe('CapasAccesosTerritoriales', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — aislamiento', () => {
-  it('muestra un ícono por nivel, la fila sin cobertura y los conteos', () => {
+  it('muestra un ícono por nivel y los conteos sin fuente ni extracto', () => {
     renderLeyenda()
     const bloque = screen.getByTestId('leyenda-aislamiento-contenido')
     expect(bloque.textContent).toContain('Muy baja (0): 5')
@@ -296,18 +275,13 @@ describe('LeyendaAccesos — aislamiento', () => {
     expect(bloque.textContent).toContain('Sin dato (escuela fuera de los datos): 7')
     // Un ícono por cada nivel (5) — la fila "sin dato" no lleva ícono.
     expect(bloque.querySelectorAll('img')).toHaveLength(5)
-    expect(bloque.textContent).toContain(TEXTOS_ACCESOS.subtituloAcceso)
-    expect(bloque.textContent).toContain('extracto 2026-06-01')
+    expect(bloque.textContent).not.toMatch(/ODbL|OpenStreetMap|extracto|fecha|versión|job/i)
   })
 
-  it('incluye el descargo de que no es pronóstico', () => {
+  it('no muestra textos de metodología o descargo', () => {
     renderLeyenda()
-    // El descargo se muestra, pero DENTRO de la ayuda cerrada: lo visible es la
-    // tabla de conteos, no un muro de texto sobre el mapa.
-    const ayuda = screen.getByTestId('leyenda-aislamiento-ayuda')
-    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.noRepresentaAcceso)
-    expect(ayuda.textContent).toContain('no es un pronóstico')
-    expect((ayuda as HTMLDetailsElement).open).toBe(false)
+    expect(screen.queryByTestId('leyenda-aislamiento-ayuda')).not.toBeInTheDocument()
+    expect(screen.getByTestId('leyenda-accesos').textContent).not.toMatch(/pronóstico|período|modelo|fuente|metodología/i)
   })
 
   it('muestra carga, error y falta de datos importados', () => {
@@ -341,37 +315,22 @@ describe('LeyendaAccesos — aislamiento', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — inundación', () => {
-  it('muestra período de retorno, filas por clase, filas no dibujadas y descargo', () => {
+  it('no muestra leyenda de agua estimada aunque esté activada en los datos', () => {
     renderLeyenda({ visibles: visibles(['inundacion']) })
-    const bloque = screen.getByTestId('leyenda-inundacion-contenido')
-    // El período de retorno llega por `textoConPeriodo`, nunca escrito a mano.
-    expect(bloque.textContent).toContain(
-      textoConPeriodo(TEXTOS_ACCESOS.subtituloInundacion, 100),
-    )
-    expect(bloque.textContent).toContain('una vez cada 100 años')
-    expect(bloque.textContent).toContain('una crecida que ocurre, en promedio, una vez cada 100 años')
-    expect(bloque.textContent).toContain('Menos de 0,5 m: 4')
-    expect(bloque.textContent).toContain('De 0,5 a 1 m: 5')
-    expect(bloque.textContent).toContain('1 m o más: 6')
-    // Filas de lo que el modelo NO dibuja: sin profundidad y sin cobertura.
-    expect(bloque.textContent).toContain('Sin agua estimada (0 m): 3')
-    expect(bloque.textContent).toContain('Sin dato (escuela fuera de los datos): 2')
-    expect(bloque.textContent).toContain('OS-Climate physrisk (Apache-2.0) · corrida 2026-05-15')
-    // El descargo y las notas largas quedan en la ayuda cerrada.
-    const ayuda = screen.getByTestId('leyenda-inundacion-ayuda')
-    expect(ayuda.textContent).toContain(
-      textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, 100),
-    )
-    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.noRepresentaInundacion)
-    expect(ayuda.textContent).toContain(TEXTOS_ACCESOS.sinCobertura)
-    expect((ayuda as HTMLDetailsElement).open).toBe(false)
+    expect(screen.queryByTestId('leyenda-inundacion')).not.toBeInTheDocument()
+    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
   })
 
-  it('muestra falta de datos importados de physrisk', () => {
+  it('no presenta metodología o datos de fuente', () => {
+    renderLeyenda({ visibles: visibles(['inundacion']) })
+    expect(screen.queryByTestId('leyenda-inundacion-ayuda')).not.toBeInTheDocument()
+    expect(screen.queryByText(/período de retorno|physrisk|corrida|pronóstico|modelo/i)).not.toBeInTheDocument()
+  })
+
+  it('no monta la capa de inundación cuando está desactivada', () => {
     renderLeyenda({ visibles: visibles(['inundacion']), territorio: null, resumen })
-    expect(screen.getByTestId('leyenda-inundacion-sin-datos')).toHaveTextContent(
-      'Sin datos de agua estimada cargados.',
-    )
+    expect(screen.queryByTestId('leyenda-inundacion-sin-datos')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('leyenda-inundacion')).not.toBeInTheDocument()
   })
 })
 
@@ -380,98 +339,14 @@ describe('LeyendaAccesos — inundación', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — ruta', () => {
-  it('muestra la referencia de celdas únicamente cuando hay celdas en la ruta seleccionada', () => {
+  it('no muestra un bloque de ayuda para elegir escuela o encuadrar la ruta', () => {
     const { rerender } = renderLeyenda({
-      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
-      geometria: geometriaDisponible, celdasExposicion: fcCeldas,
+      visibles: visibles([]),
     })
-    expect(screen.getByText('Agua histórica estimada junto al camino')).toBeInTheDocument()
+    expect(screen.queryByText(/Elegí|Seleccione una escuela para ver el camino/i)).not.toBeInTheDocument()
     rerender(crearLeyenda({
-      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
-      geometria: geometriaDisponible, celdasExposicion: null,
+      visibles: visibles([]),
     }))
-    expect(screen.queryByText('Agua histórica estimada junto al camino')).not.toBeInTheDocument()
-  })
-
-  it('sin selección pide elegir una escuela', () => {
-    renderLeyenda({ visibles: visibles(['rutaSeleccion']) })
-    expect(screen.getByTestId('leyenda-ruta-sin-seleccion')).toHaveTextContent(
-      'Elegí una escuela para ver el camino calculado hasta la ciudad cabecera del departamento.',
-    )
-  })
-
-  it('muestra carga y error', () => {
-    const { rerender } = renderLeyenda({
-      visibles: visibles(['rutaSeleccion']),
-      seleccion: { nombre: 'Escuela Uno' },
-      geometriaLoading: true,
-    })
-    expect(screen.getByTestId('leyenda-ruta-cargando')).toHaveTextContent('Cargando el camino…')
-
-    rerender(crearLeyenda({
-      visibles: visibles(['rutaSeleccion']), seleccion: { nombre: 'Escuela Uno' },
-      geometria: null, geometriaError: 'falló',
-    }))
-    expect(screen.getByRole('alert')).toHaveTextContent('falló')
-  })
-
-  it('traduce cada motivo de indisponibilidad', () => {
-    const motivos: Array<[string, string]> = [
-      ['sin_geometria_importada', 'Todavía no se cargó el recorrido de esta escuela.'],
-      ['sin_conexion_red', 'La escuela no conecta con la red de caminos hasta la ciudad cabecera, así que no se calculó un recorrido.'],
-      ['ruta_degenerada', 'La escuela está junto a la ciudad cabecera de su departamento: no hay recorrido para dibujar.'],
-      ['coordenada_fuera_de_departamento', 'La ubicación cargada de la escuela cae fuera de su departamento.'],
-      ['red_vial_no_conectada', 'Hay un camino a menos de 5 km, pero no se conecta con los caminos principales ni llega a la ciudad cabecera, así que no se dibuja un recorrido. Es falta de dato: no significa que la escuela sea inaccesible.'],
-      ['sin_via_osm_cercana', 'No hay caminos cargados en OpenStreetMap a menos de 5 km de la escuela'],
-      ['otro', 'No hay recorrido calculado para esta escuela.'],
-    ]
-    for (const [motivo, texto] of motivos) {
-      const { unmount } = renderLeyenda({
-        visibles: visibles(['rutaSeleccion']),
-        seleccion: { nombre: 'Escuela Uno' },
-        geometria: { cueAnexo: '1801605-04', disponible: false, motivo },
-      })
-      expect(screen.getByText('Sin recorrido para mostrar').tagName).toBe('B')
-      expect(screen.getByTestId('leyenda-ruta-motivo')).toHaveTextContent(texto)
-      unmount()
-    }
-  })
-
-  it('disponible lista los cruces, avisa cuando no hay y encuadra con el botón', async () => {
-    const onEncuadrarRuta = vi.fn()
-    renderLeyenda({
-      visibles: visibles(['rutaSeleccion']),
-      seleccion: { nombre: 'Escuela Uno' },
-      geometria: geometriaDisponible,
-      onEncuadrarRuta,
-    })
-    const bloque = screen.getByTestId('leyenda-ruta-disponible')
-    expect(bloque.textContent).toContain('Camino calculado · Escuela Uno')
-    expect(bloque.textContent).toContain('No hay cruces de agua en este camino.')
-    expect(bloque.textContent).toContain('Datos calculados con mapas y modelos; no reemplazan el parte ni confirman el estado del edificio')
-    expect(bloque.textContent).toContain('extracto 2026-06-01')
-
-    await userEvent.click(screen.getByRole('button', { name: 'Ver recorrido' }))
-    expect(onEncuadrarRuta).toHaveBeenCalledTimes(1)
-  })
-
-  it('disponible con cruces muestra los conteos y oculta el aviso de sin cruces', () => {
-    renderLeyenda({
-      visibles: visibles(['rutaSeleccion']),
-      seleccion: { nombre: 'Escuela Uno' },
-      geometria: {
-        ...geometriaDisponible,
-        resumen: { puente: 2, vado: 1, sinEvidencia: 3 },
-      },
-    })
-    const bloque = screen.getByTestId('leyenda-ruta-disponible')
-    expect(bloque.textContent).toContain('Puente: 2')
-    expect(bloque.textContent).toContain('Vado: 1')
-    // La etiqueta de esa fila es "Sin puente registrado" (ETIQUETAS_CRUCE), no
-    // "Sin evidencia de puente": OSM no tiene tag de puente en el punto, y eso
-    // no confirma que el puente falte.
-    expect(bloque.textContent).toContain('Sin puente registrado: 3')
-    expect(bloque.textContent).not.toContain('No hay cruces de agua en este camino.')
   })
 })
 
@@ -492,21 +367,13 @@ describe('LeyendaAccesos — estado territorial compartido', () => {
 // ---------------------------------------------------------------------------
 
 describe('LeyendaAccesos — tarjeta de la leyenda', () => {
-  it('muestra la ruta antes de los bloques territoriales', () => {
+  it('muestra solamente la leyenda territorial', () => {
     renderLeyenda()
-    const ruta = screen.getByTestId('leyenda-ruta')
     const aislamiento = screen.getByTestId('leyenda-aislamiento')
-    const inundacion = screen.getByTestId('leyenda-inundacion')
-
-    expect(
-      ruta.compareDocumentPosition(aislamiento) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-    expect(
-      ruta.compareDocumentPosition(inundacion) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(screen.queryByTestId('leyenda-ruta')).not.toBeInTheDocument()
   })
 
-  it('envuelve los tres bloques visibles en una sola tarjeta .map-panel', () => {
+  it('envuelve los bloques visibles en una sola tarjeta .map-panel', () => {
     renderLeyenda()
     const secciones = screen.getAllByTestId('leyenda-accesos')
     expect(secciones).toHaveLength(1)
@@ -516,8 +383,8 @@ describe('LeyendaAccesos — tarjeta de la leyenda', () => {
     expect(seccion).toHaveClass('map-panel')
     expect(seccion).toHaveClass('map-leyenda-accesos')
     expect(seccion.tagName).toBe('SECTION')
-    expect(seccion).toHaveAttribute('aria-label', 'Referencias de las capas territoriales')
-    for (const id of ['leyenda-aislamiento', 'leyenda-inundacion', 'leyenda-ruta']) {
+    expect(seccion).toHaveAttribute('aria-label', 'Datos territoriales')
+    for (const id of ['leyenda-aislamiento']) {
       expect(seccion).toContainElement(screen.getByTestId(id))
     }
   })
@@ -527,15 +394,10 @@ describe('LeyendaAccesos — tarjeta de la leyenda', () => {
     expect(screen.queryByTestId('leyenda-accesos')).not.toBeInTheDocument()
   })
 
-  it('deja cerradas por defecto las ayudas de los tres bloques', () => {
-    renderLeyenda({ seleccion: { nombre: 'Escuela Uno' }, geometria: geometriaDisponible })
-    for (const id of [
-      'leyenda-aislamiento-ayuda',
-      'leyenda-inundacion-ayuda',
-      'leyenda-ruta-ayuda',
-    ]) {
-      expect((screen.getByTestId(id) as HTMLDetailsElement).open).toBe(false)
-    }
+  it('no monta ayudas de fuente o metodología', () => {
+    renderLeyenda()
+    expect(screen.queryByTestId('leyenda-aislamiento-ayuda')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('leyenda-ruta-ayuda')).not.toBeInTheDocument()
   })
 })
 
@@ -573,15 +435,17 @@ describe('bboxRuta', () => {
 // ---------------------------------------------------------------------------
 
 describe('AccesosLayerControl', () => {
-  it('listas las tres capas y notifica el toggle', async () => {
+  it('oculta agua estimada y notifica el toggle de aislamiento', async () => {
     const onChange = vi.fn()
     render(
       <AccesosLayerControl
-        capas={{ aislamiento: false, inundacion: false, rutaSeleccion: false }}
+        capas={{ aislamiento: false, inundacion: false }}
         onChange={onChange}
       />,
     )
     expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.inundacion })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /camino y cruces/i })).not.toBeInTheDocument()
     expect(
       screen.getByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.aislamiento }),
     ).not.toBeChecked()

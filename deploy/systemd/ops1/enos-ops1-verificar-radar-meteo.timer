@@ -1,0 +1,10 @@
+[Unit]
+Description=Timer OPS1 ENOS: verificar-radar-meteo (verificación diaria con IMERG)
+
+[Timer]
+OnCalendar=*-*-* 11:30:00 UTC
+Persistent=true
+Unit=enos-ops1@verificar-radar-meteo.service
+
+[Install]
+WantedBy=timers.target

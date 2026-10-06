@@ -7,12 +7,16 @@
 // histórico", "persistencia". No aparecen en este archivo a propósito.
 import type {
   Categoria,
+  AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
   SeccionEstablecimiento,
   ServicioAlcance,
   Severidad,
+  SituacionReciente,
 } from '@/lib/infraestructura/trayectoria-tipos'
+
+export type { SituacionReciente } from '@/lib/infraestructura/trayectoria-tipos'
 
 // --- Forma de la respuesta de GET /api/problematicas/parte ---
 //
@@ -46,6 +50,8 @@ export interface AfectacionVigente {
   severidad: Severidad
   descripcion: string | null
   rigeDesde: string
+  creadaEn: string
+  causadaPorId: string | null
   secciones: SeccionAfectada[]
   totales: TotalesAfectacion
 }
@@ -56,6 +62,7 @@ export interface ParteResumen {
   estadoEstablecimiento: EstadoEstablecimiento
   estadoEstablecimientoRigeDesde: string
   actualizadaEn: string
+  asistenciaPedagogica?: AsistenciaPedagogica | null
 }
 
 export interface EstadoActualRespuesta {
@@ -66,6 +73,8 @@ export interface EstadoActualRespuesta {
   afectaciones?: AfectacionVigente[]
   secciones?: SeccionEstablecimiento[]
   ultimaActualizacion?: string | null
+  recientes?: SituacionReciente[]
+  ultimaCarga?: { creadaEn: string; titulo: string; cambios: string[] } | null
 }
 
 // --- Cadenas textuales de la especificación ---
@@ -89,16 +98,23 @@ export const MENSAJE_SIN_CORTE =
 // spec §3.4 y §10. El funcionamiento parcialmente interrumpido es un resultado
 // informativo: se muestra, nunca se ofrece como opción de carga.
 export const ETIQUETA_SERVICIO: Record<EstadoServicioGeneral, string> = {
-  normal: 'Funcionamiento escolar normal',
-  parcial: 'Funcionamiento escolar parcialmente interrumpido',
-  suspendido: 'Funcionamiento escolar interrumpido',
+  normal: 'Funcionamiento habitual',
+  parcial: 'Funcionamiento parcialmente interrumpido',
+  suspendido: 'Funcionamiento interrumpido',
+}
+
+// Respuestas de la pregunta de carga "¿Hay clases?" (spec rediseño §5.6).
+export const ETIQUETA_CLASES: Record<'normal' | 'suspendido', string> = {
+  normal: 'Sí, con normalidad',
+  suspendido: 'No, se suspendieron',
 }
 
 // spec §3.5.
 export const ETIQUETA_ESTABLECIMIENTO: Record<EstadoEstablecimiento, string> = {
-  habitual: 'Funcionamiento habitual',
-  evacuado: 'Establecimiento evacuado',
-  centro_evacuados: 'Utilizado como centro de evacuados',
+  habitual: 'Sin daños / en uso normal',
+  parcial: 'Uso parcial',
+  evacuado: 'Evacuado',
+  centro_evacuados: 'Usado como centro de evacuados',
 }
 
 // La provincia entera trabaja en un solo huso; fijarlo evita que el parte se
@@ -166,7 +182,7 @@ export function rigeDesdeDelServicio(alcanceVigente: ServicioAlcance[] | undefin
  * "Sin situación en seguimiento" según spec §17: no hay período provincial
  * abierto, todavía no se inició el parte, o el parte no tiene ninguna
  * afectación vigente. Los tres casos se comunican igual y ofrecen la misma
- * acción, "Iniciar un reporte".
+ * acción, "Cargar una situación".
  */
 export function sinSituacionEnSeguimiento(respuesta: EstadoActualRespuesta): boolean {
   if (!respuesta.periodo || !respuesta.parte) return true

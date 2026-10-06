@@ -5,6 +5,7 @@ import { OVERLAY_LABELS, type OverlayKey } from '@/lib/map-types'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TEXTOS_ACCESOS } from '@/lib/mapas/accesos-capas'
+import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 
 type Props = {
   overlays: Record<OverlayKey, boolean>
@@ -43,72 +44,12 @@ export function LayerControl({ overlays, onChange }: Props) {
   )
 }
 
-// ── Capas del mapa de infraestructura ───────────────────────────────────────
-//
-// Fase 2 (parte-mapa): una escuela = un punto, ya no una capa por categoría
-// (la categoría pasó a ser filtro y dato de ficha, ver
-// map-infraestructura-page). F2.3 agrega 'evacuacion' y 'sinReportar' como
-// capas toggleables aparte de 'escuelas', sin tocar esa forma: son
-// símbolos/anillos superpuestos sobre los mismos puntos, no una
-// recodificación de color ni de tamaño. Componente propio en vez de
-// generalizar LayerControl para no acoplar dos dominios de mapa distintos a
-// un mismo tipo de clave.
-export type CapaInfraestructura = 'escuelas' | 'evacuacion' | 'sinReportar'
-
-export const CAPAS_INFRAESTRUCTURA_LABELS: Record<CapaInfraestructura, string> = {
-  escuelas: 'Todas las escuelas',
-  // "Evacuación" agrupa dos símbolos distintos (evacuado y centro de
-  // evacuados, ver map-infraestructura-page): un solo toggle porque ambos
-  // responden a la misma pregunta operativa ("¿hay algo pasando con el
-  // edificio en sí?"), la leyenda es la que distingue cuál es cuál.
-  evacuacion: 'Evacuación (edificio evacuado o centro de evacuados)',
-  sinReportar: 'Sin novedades hace más de 72 h',
-}
-
-const ORDEN_CAPAS_INFRAESTRUCTURA: CapaInfraestructura[] = [
-  'escuelas',
-  'evacuacion',
-  'sinReportar',
-]
-
-export function InfraLayerControl({
-  capas,
-  onChange,
-}: {
-  capas: Record<CapaInfraestructura, boolean>
-  onChange: (capa: CapaInfraestructura, value: boolean) => void
-}) {
-  const styles = useOverlayStyles()
-
-  return (
-    <div
-      className={styles.controlCard}
-      role="group"
-      aria-labelledby="infra-layer-control-heading"
-    >
-      <h2 className={styles.controlHeading} id="infra-layer-control-heading">
-        Capas
-      </h2>
-      {ORDEN_CAPAS_INFRAESTRUCTURA.map((capa) => (
-        <Checkbox
-          key={capa}
-          label={CAPAS_INFRAESTRUCTURA_LABELS[capa]}
-          checked={capas[capa]}
-          onCheckedChange={(checked) => onChange(capa, checked)}
-        />
-      ))}
-    </div>
-  )
-}
-
 // ── Capas del modo Radar ────────────────────────────────────────────────────
 //
 // Dominio DISTINTO del de arriba: peligro meteorológico estimado y riesgo
 // pronosticado, no estado de servicio observado. Por eso es un union type y un
-// componente HERMANO en vez de ampliar `CapaInfraestructura`: el comentario de
-// ese tipo dice que es a propósito acotado a un dominio, y meter acá 'peligro'
-// y 'riesgo' haría que ambos controles tuvieran que ignorarse mutuamente las
-// claves que no les corresponden. Los dos controles conviven en el mismo
+// componente independiente para que los controles territoriales mantengan su
+// propio dominio. Los dos controles conviven en el mismo
 // `controlsStack` y el radar sólo se monta si el flag está prendido.
 export type CapaRadar = 'peligro' | 'riesgo' | 'riesgo-acceso'
 
@@ -160,15 +101,17 @@ export function RadarLayerControl({
 // la ruta OSM de la escuela seleccionada. Son contexto derivado offline, nunca
 // un pronóstico ni el estado confirmado del edificio. Tercer union type y
 // componente hermano para no acoplar el acotamiento de los dominios previos.
-export type CapaAccesos = 'aislamiento' | 'inundacion' | 'rutaSeleccion'
+export type CapaAccesos = 'aislamiento' | 'inundacion'
 
 export const CAPAS_ACCESOS_LABELS: Record<CapaAccesos, string> = {
   aislamiento: `${TEXTOS_ACCESOS.tituloAcceso} (0 a 3)`,
   inundacion: TEXTOS_ACCESOS.tituloInundacion,
-  rutaSeleccion: 'Camino y cruces de agua de la escuela elegida',
 }
 
-const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = ['aislamiento', 'inundacion', 'rutaSeleccion']
+const ORDEN_CAPAS_ACCESOS: CapaAccesos[] = [
+  'aislamiento',
+  ...(MOSTRAR_AGUA_ESTIMADA ? ['inundacion' as const] : []),
+]
 
 export function AccesosLayerControl({
   capas,

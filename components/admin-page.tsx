@@ -33,6 +33,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { CATEGORIAS, CATEGORIA_META, type CategoriaAfectacion } from '@/lib/infraestructura/categorias'
 import type { MotivoRow } from '@/lib/infraestructura/motivos'
+import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { NominalPermisosAdmin } from '@/components/infraestructura/nominal-permisos-admin'
 
 const COLORS: BadgeColor[] = [
@@ -373,7 +374,7 @@ function RecursoForm({
 
   return (
       <DialogContent>
-        <DialogTitle>
+        <DialogTitle className="admin-form__title">
           {editing ? 'Editar recurso' : 'Nuevo recurso'}
         </DialogTitle>
         <div className="ui-form-grid">
@@ -702,7 +703,7 @@ function TaxonomyForm({
 
   return (
     <DialogContent>
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle className="admin-form__title">{title}</DialogTitle>
         <div className="ui-form-grid">
           {fields.map((f) => {
             if (f.type === 'color') {
@@ -1003,7 +1004,7 @@ function UserForm({
 
   return (
     <DialogContent>
-      <DialogTitle>
+      <DialogTitle className="admin-form__title">
           {editing ? 'Editar usuario' : 'Nuevo usuario'}
         </DialogTitle>
         <div className="ui-form-grid">
@@ -1236,6 +1237,9 @@ function MotivoForm({
     editing?.categoria ?? CATEGORIAS[0],
   )
   const [orden, setOrden] = React.useState(editing?.orden ?? 0)
+  const [severidadSugerida, setSeveridadSugerida] = React.useState(
+    editing?.severidadSugerida ?? 'ninguna',
+  )
   const [saving, setSaving] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -1253,6 +1257,7 @@ function MotivoForm({
           nombre,
           categoria,
           orden,
+          severidadSugerida: severidadSugerida === 'ninguna' ? null : severidadSugerida,
         }),
       })
       if (!res.ok) {
@@ -1269,7 +1274,7 @@ function MotivoForm({
 
   return (
     <DialogContent>
-      <DialogTitle>{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
+      <DialogTitle className="admin-form__title">{editing ? 'Editar motivo' : 'Nuevo motivo'}</DialogTitle>
       <div className="ui-form-grid">
         {error ? (
           <div className="ui-messagebar ui-messagebar--error" role="alert">
@@ -1285,6 +1290,15 @@ function MotivoForm({
           value={categoria}
           options={CATEGORIAS.map((c) => ({ value: c, label: CATEGORIA_META[c].label }))}
           onChange={(value) => setCategoria(value as CategoriaAfectacion)}
+        />
+        <SelectField
+          label="Gravedad sugerida"
+          value={severidadSugerida}
+          options={[
+            { value: 'ninguna', label: 'Sin sugerido' },
+            ...SEVERIDADES.map((severidad) => ({ value: severidad, label: severidad })),
+          ]}
+          onChange={setSeveridadSugerida}
         />
         <AdminField label="Orden" hint="Define el orden dentro de su categoría">
           <Input
@@ -1325,7 +1339,7 @@ function MotivosAdmin() {
   }
 
   return (
-    <div>
+    <div className="admin-motivos">
       <div className="ui-toolbar">
         <span className="ui-hint">
           {motivos.length} {motivos.length === 1 ? 'motivo' : 'motivos'}
@@ -1341,12 +1355,18 @@ function MotivosAdmin() {
         </div>
       ) : null}
 
-      <div className="ui-table-wrap">
+      <div className="ui-table-wrap admin-motivos__table-wrap" data-testid="admin-motivos-table-wrap">
         <table className="ui-table" aria-label="Administración de motivos">
+          <colgroup>
+            <col className="admin-motivos__col-nombre" />
+            <col className="admin-motivos__col-gravedad" />
+            <col className="admin-motivos__col-orden" />
+            <col className="admin-motivos__col-acciones" />
+          </colgroup>
           <thead>
             <tr>
               <th>Motivo</th>
-              <th>Categoría</th>
+              <th>Gravedad sugerida</th>
               <th>Orden</th>
               <th>Acciones</th>
             </tr>
@@ -1354,11 +1374,18 @@ function MotivosAdmin() {
           <tbody>
             {motivos.map((m) => (
               <tr key={m.id}>
-                <td>{m.nombre}</td>
-                <td>{CATEGORIA_META[m.categoria]?.label ?? m.categoria}</td>
-                <td>{m.orden}</td>
+                <td className="admin-motivos__nombre">
+                  <div className="admin-motivos__nombre-contenido">
+                    <span className="admin-motivos__nombre-texto">{m.nombre}</span>
+                    <span className="admin-motivos__categoria">
+                      {CATEGORIA_META[m.categoria]?.label ?? m.categoria}
+                    </span>
+                  </div>
+                </td>
+                <td data-label="Gravedad sugerida">{m.severidadSugerida ?? '—'}</td>
+                <td data-label="Orden">{m.orden}</td>
                 <td>
-                  <div className="ui-actions">
+                  <div className="ui-actions admin-motivos__acciones">
                     <BotonEditar onClick={() => editar(m)} />
                     <ConfirmDelete
                       title="¿Eliminar motivo?"
@@ -1441,14 +1468,16 @@ export function AdminPage({ role }: { role: Role }) {
           </p>
         </div>
 
-        <div className="ui-messagebar ui-messagebar--info">
-          <span>
-            <strong className="ui-messagebar__title">Modelo único</strong>
-            Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
-            referencia una sola vez cada taxonomía. Las taxonomías en uso no
-            pueden eliminarse para preservar la integridad.
-          </span>
-        </div>
+        {['recursos', 'categorias', 'tags', 'niveles', 'tipos'].includes(tab) ? (
+          <div className="ui-messagebar ui-messagebar--info">
+            <span>
+              <strong className="ui-messagebar__title">Modelo único</strong>
+              Cada recurso tiene un tipo de contenido (Reporte, Tablero o Mapa) y
+              referencia una sola vez cada taxonomía. Las taxonomías en uso no
+              pueden eliminarse para preservar la integridad.
+            </span>
+          </div>
+        ) : null}
 
         {writeError ? (
           <div className="ui-messagebar ui-messagebar--error" role="alert">

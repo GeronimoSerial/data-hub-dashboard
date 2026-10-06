@@ -36,6 +36,41 @@
       "when": 1790665257251,
       "tag": "0004_exposicion_ruta_inundacion",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790738929739,
+      "tag": "0005_radar-meteo-run",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790784000000,
+      "tag": "0006_parcial_docentes_asistencia",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790792619858,
+      "tag": "0007_radar-meteo-alertas-ensemble-verificacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791155468692,
+      "tag": "0008_parte-rediseno-modelo",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791198768905,
+      "tag": "0009_acceso-via-principal",
+      "breakpoints": true
     }
   ]
 }

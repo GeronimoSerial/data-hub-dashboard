@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-radar-ensemble (cada 6 h)
+
+[Timer]
+OnCalendar=*-*-* 03,09,15,21:40:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+Unit=enos-ops1@sync-radar-ensemble.service
+
+[Install]
+WantedBy=timers.target
