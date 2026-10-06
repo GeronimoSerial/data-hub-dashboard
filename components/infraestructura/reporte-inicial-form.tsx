@@ -495,6 +495,14 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     // de historial se empujaron (ver pasos/indicePaso más arriba en el
     // componente).
     colapsarHistorial(indicePaso)
+    // The queue entry is gone after a successful send: drop its last known
+    // state too, or the next report starts with the button stuck on "Guardando…".
+    enviandoRef.current = false
+    setEnviando(false)
+    setEstadoEnvio(null)
+    setEstadoAvisoEnvio(null)
+    setMotivoEnvio(null)
+    setIntentosEnvio(0)
     setGuardado({ movimientoId })
     onGuardadoChange?.(true)
   }
@@ -671,6 +679,9 @@ export function ReporteInicialForm({ cue, turnos, motivos, onGuardadoChange }: R
     setAfectacion(crearAfectacionVacia(crypto.randomUUID()))
     setServicioEstado('')
     setEstadoEstablecimiento('')
+    setConfirmarInterrupcionTotal(false)
+    setAsistenciaBrinda('')
+    setModalidadesAsistencia([])
     setVigencia(VIGENCIA_AHORA)
     setErrorVigencia(null)
     setEnviando(false)
