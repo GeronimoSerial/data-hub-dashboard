@@ -29,3 +29,26 @@ export function dentroDeRangoVigencia(fecha: Date, ahora: Date = new Date()): bo
   const { min, max } = rangoVigencia(ahora)
   return fecha.getTime() >= min.getTime() && fecha.getTime() <= max.getTime()
 }
+
+/**
+ * Desfasaje máximo aceptado entre el reloj del cliente y el del servidor.
+ * El cliente fecha con el reloj de su PC (p. ej. "Ahora" =
+ * `new Date().toISOString()`); una PC con la hora adelantada mandaba un
+ * instante "futuro" para el servidor y el envío se rechazaba aunque el
+ * usuario no hubiera elegido ninguna fecha. Cubre relojes sin sincronizar y
+ * un cambio de horario mal aplicado.
+ */
+export const TOLERANCIA_RELOJ_MS = 60 * 60 * 1000
+
+/**
+ * Validación del lado del servidor para un instante que fechó el cliente:
+ * un futuro dentro de la tolerancia de reloj se recorta al `ahora` del
+ * servidor, así nunca se persiste una vigencia futura. `null` = fuera de
+ * rango.
+ */
+export function normalizarVigenciaRecibida(fecha: Date, ahora: Date = new Date()): Date | null {
+  const { min, max } = rangoVigencia(ahora)
+  const t = fecha.getTime()
+  if (t < min.getTime() || t > max.getTime() + TOLERANCIA_RELOJ_MS) return null
+  return t > max.getTime() ? max : new Date(t)
+}

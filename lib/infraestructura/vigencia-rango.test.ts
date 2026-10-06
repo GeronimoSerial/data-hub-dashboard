@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dentroDeRangoVigencia, rangoVigencia } from './vigencia-rango'
+import { dentroDeRangoVigencia, normalizarVigenciaRecibida, rangoVigencia, TOLERANCIA_RELOJ_MS } from './vigencia-rango'
 
 const AHORA = new Date('2026-09-21T12:00:00.000Z')
 
@@ -37,5 +37,32 @@ describe('dentroDeRangoVigencia', () => {
   it('rechaza un instante anterior a la ventana de 12 meses (issue #30)', () => {
     const unSegundoAntesDelLimite = new Date(rangoVigencia(AHORA).min.getTime() - 1000)
     expect(dentroDeRangoVigencia(unSegundoAntesDelLimite, AHORA)).toBe(false)
+  })
+})
+
+// El cliente fecha con el reloj de su PC y el servidor valida con el suyo:
+// una PC con el reloj adelantado mandaba "ahora" en el futuro y el parte se
+// rechazaba aunque el usuario no hubiera elegido ninguna fecha.
+describe('normalizarVigenciaRecibida', () => {
+  it('devuelve el mismo instante cuando está dentro de la ventana', () => {
+    const hace1h = new Date(AHORA.getTime() - 3_600_000)
+    expect(normalizarVigenciaRecibida(hace1h, AHORA)?.toISOString()).toBe(hace1h.toISOString())
+  })
+
+  it('recorta al "ahora" del servidor un instante futuro dentro de la tolerancia de reloj', () => {
+    const adelantado = new Date(AHORA.getTime() + 90_000)
+    expect(normalizarVigenciaRecibida(adelantado, AHORA)?.toISOString()).toBe(AHORA.toISOString())
+    const enElBorde = new Date(AHORA.getTime() + TOLERANCIA_RELOJ_MS)
+    expect(normalizarVigenciaRecibida(enElBorde, AHORA)?.toISOString()).toBe(AHORA.toISOString())
+  })
+
+  it('rechaza un instante futuro más allá de la tolerancia de reloj', () => {
+    const lejos = new Date(AHORA.getTime() + TOLERANCIA_RELOJ_MS + 1000)
+    expect(normalizarVigenciaRecibida(lejos, AHORA)).toBeNull()
+  })
+
+  it('rechaza un instante anterior a la ventana de 12 meses', () => {
+    const viejo = new Date(rangoVigencia(AHORA).min.getTime() - 1000)
+    expect(normalizarVigenciaRecibida(viejo, AHORA)).toBeNull()
   })
 })

@@ -13,7 +13,7 @@ import { z } from 'zod'
 import { normalizeCue } from './cue'
 import { SEVERIDADES } from './validacion'
 import { JUSTIFICACIONES_CRITICA } from './justificacion-critica'
-import { dentroDeRangoVigencia, MENSAJE_FUERA_DE_RANGO_VIGENCIA } from './vigencia-rango'
+import { MENSAJE_FUERA_DE_RANGO_VIGENCIA, normalizarVigenciaRecibida } from './vigencia-rango'
 
 const HTML_RE = /<[^>]*>/
 
@@ -26,8 +26,16 @@ const rigeDesdeSchema = z
   .trim()
   .refine((v) => ISO_DATETIME_RE.test(v) && !Number.isNaN(new Date(v).getTime()), 'Fecha inválida')
   // Issues #29/#30: ventana móvil de los últimos 12 meses (vigencia-rango.ts),
-  // la misma que clampea el cliente.
-  .refine((v) => dentroDeRangoVigencia(new Date(v)), MENSAJE_FUERA_DE_RANGO_VIGENCIA)
+  // la misma que clampea el cliente, con tolerancia al reloj del cliente
+  // adelantado: ese futuro se recorta al ahora del servidor.
+  .transform((v, ctx) => {
+    const fecha = normalizarVigenciaRecibida(new Date(v))
+    if (!fecha) {
+      ctx.addIssue({ code: 'custom', message: MENSAJE_FUERA_DE_RANGO_VIGENCIA })
+      return z.NEVER
+    }
+    return fecha.toISOString()
+  })
 
 const descripcionSchema = z
   .string()
