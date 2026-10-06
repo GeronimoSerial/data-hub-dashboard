@@ -2463,7 +2463,8 @@ time {
 .radar-alertas small { display:block; margin-top:3px; color:#bdcbd2; font-size:11px; }
 .radar-alerta-item { max-width:430px; pointer-events:auto; }
 .radar-alerta-chip { display:flex; align-items:flex-start; gap:9px; width:100%; padding:10px 13px; color:#f2f5f5; text-align:left; background:rgba(13,24,33,.96); border:1px solid #75828a; border-radius:8px; cursor:pointer; }
-.radar-alerta-chip .radar-alerta-icon { display:grid; place-items:center; flex:0 0 22px; height:22px; border:1px solid #c3cdd2; border-radius:50%; font-weight:700; }
+.radar-alerta-chip .radar-alerta-proxima { font-style: normal; font-weight: 600; }
+.radar-alerta-icon { display:grid; place-items:center; flex:0 0 22px; height:22px; border:1px solid #c3cdd2; border-radius:50%; font-weight:700; }
 .radar-alerta-chip.nivel-yellow { border-color:#e8c84b; }.radar-alerta-chip.nivel-orange { border-color:#e49b48; }.radar-alerta-chip.nivel-red { border-color:#df7772; }
 .radar-alerta-detail { margin-top:5px; padding:12px 14px; color:#ecf1f3; background:rgba(12,22,31,.97); border:1px solid #77858d; border-radius:8px; font-size:12px; }
 .radar-alerta-detail p { margin:8px 0 0; line-height:1.45; }
