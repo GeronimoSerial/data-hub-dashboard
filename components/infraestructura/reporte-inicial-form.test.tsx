@@ -129,6 +129,20 @@ afterEach(() => {
 })
 
 describe('ReporteInicialForm', () => {
+  it('después de guardar, "Cargar otra situación" deja el botón de guardar habilitado (#73)', async () => {
+    const fetchMock = stubFetch()
+    renderFormulario()
+    guardarReporte()
+    await screen.findByText('Situación guardada')
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar otra situación' }))
+    llegarAConfirmar()
+    const boton = screen.getByRole('button', { name: /guardar situación/i })
+    expect(boton).toBeEnabled()
+    fireEvent.click(boton)
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await screen.findByText('Situación guardada')
+  })
+
   it('confirma pasar a toda la escuela al declarar secciones y evacuación', () => {
     renderFormulario()
     completarQuePaso()
