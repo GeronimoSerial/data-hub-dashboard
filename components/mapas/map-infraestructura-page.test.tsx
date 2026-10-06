@@ -569,17 +569,20 @@ vi.mock('react-map-gl/maplibre', () => {
   return {
     __esModule: true,
     default: MapGL,
-    Layer: (props: { id?: string; filter?: unknown; paint?: unknown; layout?: { visibility?: string } }) => {
+    Layer: (props: { id?: string; beforeId?: string; filter?: unknown; paint?: unknown; layout?: { visibility?: string } }) => {
       useEffect(() => {
         const id = props.id
         if (!id) return
+        if (props.beforeId && !MAPA_ESTILO_MOCK.capas.has(props.beforeId)) {
+          throw new Error(`Cannot add layer "${id}" before non-existing layer "${props.beforeId}".`)
+        }
         MAPA_ESTILO_MOCK.capas.add(id)
         MAPA_ESTILO_MOCK.visibilidadCapas.set(id, props.layout?.visibility)
         return () => {
           MAPA_ESTILO_MOCK.capas.delete(id)
           MAPA_ESTILO_MOCK.visibilidadCapas.delete(id)
         }
-      }, [props.id, props.layout?.visibility])
+      }, [props.id, props.beforeId, props.layout?.visibility])
       return (
         <div
           data-testid={`mock-layer-${props.id ?? 'sin-id'}`}
@@ -1275,6 +1278,34 @@ describe('MapInfraestructuraPage — recuperación de capas tras cambiar de esti
       await waitFor(() => expect(MAPA_ESTILO_MOCK.fuentes.has('infra-departamentos-src')).toBe(true))
       esperarCapasBase(partesVisibles)
       expect(MAPA_ESTILO_MOCK.visibilidadCapas.get('infra-partes-escuela-icono')).toBe(partesVisibles ? 'visible' : 'none')
+    }
+  })
+
+  it('recorre Situación actual → Radar → Situación actual → Capas → Radar → Planificación', async () => {
+    const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+    await completarCargaEstilo()
+    esperarCapasBase(true)
+
+    const transiciones = [
+      { pestana: 'radar' as const, partesVisibles: false },
+      { pestana: 'actual' as const, partesVisibles: true },
+      { pestana: 'capas' as const, partesVisibles: true },
+      { pestana: 'radar' as const, partesVisibles: false },
+      { pestana: 'planificacion' as const, partesVisibles: false },
+    ]
+
+    for (const transicion of transiciones) {
+      vista.rerender(transicion.pestana === 'capas'
+        ? { pestana: 'actual', panel: 'capas' }
+        : { pestana: transicion.pestana })
+      await completarCargaEstilo()
+      await waitFor(() => expect(MAPA_ESTILO_MOCK.fuentes.has('infra-departamentos-src')).toBe(true))
+      esperarCapasBase(transicion.partesVisibles)
+      expect(MAPA_ESTILO_MOCK.capas.has('infra-departamentos-borde')).toBe(true)
+      expect(MAPA_ESTILO_MOCK.capas.has('infra-departamentos-etiqueta')).toBe(true)
+      if (transicion.partesVisibles) {
+        expect(MAPA_ESTILO_MOCK.capas.has('infra-partes-escuela-icono')).toBe(true)
+      }
     }
   })
 
