@@ -20,7 +20,7 @@ const escuelas: EscuelaMapaEnriquecida[] = [
     cueAnexo: '100', nombre: 'Escuela Alta', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 3, categoriaPrincipal: 'establecimiento',
     clases: 'sin', apoyo: 'virtual', sinActualizar: true, ultimaNovedad: '2026-10-05T12:00:00.000Z', alumnosSinClases: 50,
-    situacionesHistoricas: 0, solucionadasRecientes: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 1,
   },
   {
     cueAnexo: '200', nombre: 'Escuela Parcial', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
@@ -55,8 +55,7 @@ function leerNumeroKpi(etiqueta: string, contenedor: HTMLElement): string {
 
 async function elegirAgrupacion(nombre: string) {
   const user = userEvent.setup()
-  await user.click(screen.getByRole('combobox', { name: 'Agrupar por' }))
-  await user.click(await screen.findByRole('option', { name: nombre }))
+  await user.click(screen.getByRole('button', { name: nombre }))
 }
 
 describe('PanelEstadisticas', () => {
@@ -68,25 +67,28 @@ describe('PanelEstadisticas', () => {
     const kpis = container.querySelector<HTMLElement>('.map-est__kpis') ?? container
 
     expect(leerNumeroKpi('Escuelas con situaciones abiertas', kpis)).toBe('3')
-    expect(screen.getByRole('columnheader', { name: 'Con situaciones' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Estadísticas' })).toBeInTheDocument()
+    expect(screen.getByText('Según los filtros activos')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Con situaciones abiertas' })).toBeInTheDocument()
     expect(screen.queryByText('Afectadas', { exact: true })).not.toBeInTheDocument()
     expect(screen.queryByText('Escuelas afectadas', { exact: true })).not.toBeInTheDocument()
     expect(leerNumeroKpi('Sin clases', kpis)).toBe(String(resumen.sinClases))
     expect(leerNumeroKpi('Alumnos sin clases', kpis)).toBe(String(resumen.alumnosSinClases))
     expect(leerNumeroKpi('Sin actualizar', kpis)).toBe(String(resumen.sinActualizar))
     expect(leerNumeroKpi('Sin clases con asistencia pedagógica', kpis)).toBe(`${resumen.sinClasesConApoyo} / ${resumen.sinClases}`)
-    expect(leerNumeroKpi('Sin clases sin dato de asistencia pedagógica', kpis)).toBe(String(resumen.sinClasesSinDato))
+    expect(within(kpis).getByText(`Sin dato: ${resumen.sinClasesSinDato}`)).toBeInTheDocument()
+    expect(leerNumeroKpi('Solucionadas en los últimos 15 días', kpis)).toBe(String(resumen.solucionadasRecientes))
   })
 
-  it('mantiene seis KPI en una grilla fija de dos columnas y permite envolver sus textos', () => {
+  it('mantiene seis KPI autoajustables y permite envolver sus textos', () => {
     const css = readFileSync('app/globals.css', 'utf8')
     const reglaKpis = css.match(/\.map-est\s+\.map-sitact__kpis\s*\{([^}]*)\}/)?.[1]
     const reglaTexto = css.match(/\.map-est\s+\.map-sitact__kpi\s+span\s*\{([^}]*)\}/)?.[1]
     const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
 
     expect(container.querySelectorAll('.map-est .map-sitact__kpi')).toHaveLength(6)
-    expect(reglaKpis).toMatch(/grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
-    expect(reglaKpis).not.toMatch(/auto-fit/)
+    expect(reglaKpis).toMatch(/grid-template-columns:\s*repeat\(auto-fit,\s*minmax\(10\.5rem,\s*1fr\)\)/)
+    expect(reglaKpis).not.toMatch(/repeat\(2/)
     expect(reglaTexto).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
@@ -116,16 +118,15 @@ describe('PanelEstadisticas', () => {
     const user = userEvent.setup()
     render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
 
-    const selector = screen.getByRole('combobox', { name: 'Agrupar por' })
-    expect(selector).toHaveTextContent('Departamento')
-    await user.click(selector)
-    expect(await screen.findAllByRole('option')).toHaveLength(4)
-    await user.click(await screen.findByRole('option', { name: 'Nivel' }))
-    expect(selector).toHaveTextContent('Nivel')
+    expect(screen.getByRole('group', { name: 'Agrupar por' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Departamento|Nivel|Gravedad|Categoría/ })).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Departamento' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Nivel' }))
+    expect(screen.getByRole('button', { name: 'Nivel' })).toHaveAttribute('aria-pressed', 'true')
 
     const tabla = screen.getByRole('table')
     expect(within(tabla).getAllByRole('columnheader').map((celda) => celda.textContent)).toEqual([
-      'Nivel', 'Escuelas', 'Con situaciones', '%',
+      'Nivel', 'Escuelas', 'Con situaciones abiertas', '%', 'Alumnos sin clases',
     ])
     expect(within(tabla).getByRole('columnheader', { name: 'Nivel' })).toBeInTheDocument()
     expect(within(tabla).getByRole('row', { name: /Primario/ })).toBeInTheDocument()
@@ -157,19 +158,20 @@ describe('PanelEstadisticas', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
-  it('presenta solo tres columnas numéricas y no renderiza la barra porcentual', () => {
+  it('presenta todas las columnas y renderiza la barra porcentual', () => {
     const { container } = render(<PanelEstadisticas escuelas={escuelas} filtros={FILTROS_MAPA_VACIOS} />)
     const fila = container.querySelector('.map-est__tabla tbody tr')
     expect(fila).not.toBeNull()
     const celdasNumericas = fila?.querySelectorAll('.map-est__numero')
-    expect(celdasNumericas).toHaveLength(3)
-    expect(fila?.querySelectorAll('th, td')).toHaveLength(4)
+    expect(celdasNumericas).toHaveLength(4)
+    expect(fila?.querySelectorAll('th, td')).toHaveLength(5)
     expect([...screen.getByRole('table').querySelectorAll('thead th')].map((celda) => celda.textContent)).toEqual([
-      'Departamento', 'Escuelas', 'Con situaciones', '%',
+      'Departamento', 'Escuelas', 'Con situaciones abiertas', '%', 'Alumnos sin clases',
     ])
-    expect(container.querySelector('.map-est__barra')).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Con situaciones' })).toBeInTheDocument()
-    expect(screen.queryByRole('columnheader', { name: 'Alumnos sin clases' })).not.toBeInTheDocument()
+    expect(container.querySelector('.map-est__barra')).toBeInTheDocument()
+    expect(container.querySelector('.map-est__porcentaje-numero')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Con situaciones abiertas' })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Alumnos sin clases' })).toBeInTheDocument()
     expect(screen.getByText('Alumnos sin clases', { selector: '.map-sitact__kpi span' })).toBeInTheDocument()
   })
 
@@ -183,32 +185,22 @@ describe('PanelEstadisticas', () => {
     expect(reglaPrimeraColumna).toMatch(/text-align:\s*left/)
   })
 
-  it('contiene la evolución y sus gráficos en el ancho disponible', () => {
+  it('mantiene la evolución en una columna con todo el ancho porque muestra una vista a la vez', () => {
     const css = readFileSync('app/globals.css', 'utf8')
     const reglaEvolucion = css.match(/\.map-est__evolucion\s*\{([^}]*)\}/)?.[1]
-    const reglaContenido = css.match(/\.map-est__evolucion\s+\.evolucion-panel,\s*\.map-est__evolucion\s+\.evolucion-vista,\s*\.map-est__evolucion\s+\.grafico-contenedor\s*\{([^}]*)\}/)?.[1]
-    const reglaSvg = css.match(/\.map-est__evolucion\s+svg\s*\{([^}]*)\}/)?.[1]
-    const reglaTextoEjes = css.match(/\.map-est__evolucion\s+svg\s+text\s*\{([^}]*)\}/)?.[1]
-    const reglaTablaEvolucion = css.match(/\.map-est__evolucion\s+\.evolucion-tabla\s*\{([^}]*)\}/)?.[1]
-    const reglaScrollEvolucion = css.match(/\.map-est__evolucion\s+\.ui-table-wrap\s*\{([^}]*)\}/)?.[1]
-
-    expect(reglaEvolucion).toMatch(/min-width:\s*0/)
+    const reglaPanel = css.match(/\.map-est__evolucion\s*>\s*\.evolucion-panel\s*\{([^}]*)\}/)?.[1]
     expect(reglaEvolucion).toMatch(/width:\s*100%/)
-    expect(reglaContenido).toMatch(/max-width:\s*100%/)
-    expect(reglaSvg).toMatch(/max-width:\s*100%/)
-    expect(reglaTextoEjes).toMatch(/font-size:\s*var\(--t-micro\)/)
-    expect(reglaTablaEvolucion).toMatch(/table-layout:\s*fixed/)
-    expect(reglaScrollEvolucion).toMatch(/overflow-x:\s*hidden/)
+    expect(reglaPanel).toMatch(/width:\s*100%/)
   })
 
-  it('limita su ancho al sidebar y contiene el scroll horizontal de la tabla', () => {
+  it('centra el contenido a 72rem y permite scroll de tabla solo como último recurso', () => {
     const css = readFileSync('app/globals.css', 'utf8')
     const reglaPanel = css.match(/\.map-est\s*\{([^}]*)\}/)?.[1]
     const reglaTabla = css.match(/\.map-est__tabla-wrap\s*\{([^}]*)\}/)?.[1]
 
-    expect(reglaPanel).toMatch(/min-width:\s*0/)
-    expect(reglaPanel).toMatch(/width:\s*100%/)
-    expect(reglaTabla).toMatch(/overflow-x:\s*hidden/)
+    expect(reglaPanel).toMatch(/width:\s*min\(100%,\s*72rem\)/)
+    expect(reglaPanel).toMatch(/margin:\s*0 auto/)
+    expect(reglaTabla).toMatch(/overflow-x:\s*auto/)
   })
 
   it('pasa los filtros activos a EvolucionPanel', () => {

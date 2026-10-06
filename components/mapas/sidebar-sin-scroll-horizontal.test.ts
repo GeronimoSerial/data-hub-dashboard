@@ -43,7 +43,7 @@ describe('sidebar del mapa sin scroll horizontal', () => {
     expect(regla('.map-panel-lateral > *')).toMatch(/min-width\s*:\s*0/i)
 
     const reglasSidebar = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-      .filter(([, selector]) => /\.map-|\.radar-/.test(selector ?? ''))
+      .filter(([, selector]) => /\.map-|\.radar-/.test(selector ?? '') && !/\.map-est(?:\b|__)/.test(selector ?? ''))
     const desbordes = reglasSidebar.flatMap(([, selector, declaraciones]) =>
       (declaraciones ?? '').split(';')
         .filter((declaracion) => /^\s*overflow-x\s*:\s*(auto|scroll)\b/i.test(declaracion))

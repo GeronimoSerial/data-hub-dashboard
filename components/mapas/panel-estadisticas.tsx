@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select'
+import { Segmentado } from '@/components/mapas/segmentado'
 import { agrupar, resumir, type AgruparPor } from '@/lib/infraestructura/mapa/agregar'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { CATEGORIA_META, esCategoria } from '@/lib/infraestructura/categorias'
@@ -43,6 +43,11 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
 
   return (
     <section className="map-est" aria-label="Estadísticas">
+      <header className="map-est__encabezado">
+        <h2>Estadísticas</h2>
+        <p>Según los filtros activos</p>
+      </header>
+
       <div className="map-sitact__kpis map-est__kpis" aria-label="Resumen de escuelas">
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.conReporte)}</strong>
@@ -63,23 +68,17 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
         <div className="map-sitact__kpi">
           <strong>{FORMATO_NUMERO.format(resumen.sinClasesConApoyo)} / {FORMATO_NUMERO.format(resumen.sinClases)}</strong>
           <span>Sin clases con asistencia pedagógica</span>
+          <small>Sin dato: {FORMATO_NUMERO.format(resumen.sinClasesSinDato)}</small>
         </div>
         <div className="map-sitact__kpi">
-          <strong>{FORMATO_NUMERO.format(resumen.sinClasesSinDato)}</strong>
-          <span>Sin clases sin dato de asistencia pedagógica</span>
+          <strong>{FORMATO_NUMERO.format(resumen.solucionadasRecientes)}</strong>
+          <span>Solucionadas en los últimos 15 días</span>
         </div>
       </div>
 
       <section className="map-est__agrupacion" aria-labelledby="map-est-agrupar-titulo">
         <h3 id="map-est-agrupar-titulo" className="map-sitact__titulo-seccion">Agrupar por</h3>
-        <Select value={por} items={Object.fromEntries(OPCIONES_AGRUPACION.map(({ valor, etiqueta }) => [valor, etiqueta]))} onValueChange={(valor) => valor != null && setPor(valor as AgruparPor)}>
-          <SelectTrigger aria-label="Agrupar por" />
-          <SelectContent>
-            {OPCIONES_AGRUPACION.map(({ valor, etiqueta }) => (
-              <SelectItem key={valor} value={valor}>{etiqueta}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Segmentado etiqueta="Agrupar por" opciones={OPCIONES_AGRUPACION} valor={por} onChange={setPor} />
       </section>
 
       {escuelas.length === 0 ? (
@@ -94,8 +93,9 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                 <tr>
                   <th scope="col">{ETIQUETAS_AGRUPACION[por]}</th>
                   <th scope="col">Escuelas</th>
-                  <th scope="col">Con situaciones</th>
+                  <th scope="col">Con situaciones abiertas</th>
                   <th scope="col">%</th>
+                  <th scope="col">Alumnos sin clases</th>
                 </tr>
               </thead>
               <tbody>
@@ -104,7 +104,15 @@ export function PanelEstadisticas({ escuelas, filtros }: { escuelas: EscuelaMapa
                     <th scope="row">{etiquetaFila(fila.clave, por)}</th>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.escuelas)}</td>
                     <td className="map-est__numero">{FORMATO_NUMERO.format(fila.afectadas)}</td>
-                    <td className="map-est__numero">{fila.porcentaje}%</td>
+                    <td className="map-est__numero">
+                      <span className="map-est__porcentaje">
+                        <span className="map-est__porcentaje-numero">{fila.porcentaje}%</span>
+                        <span className="map-est__barra" aria-hidden="true">
+                          <span style={{ width: `${fila.porcentaje}%` }} />
+                        </span>
+                      </span>
+                    </td>
+                    <td className="map-est__numero">{FORMATO_NUMERO.format(fila.alumnosSinClases)}</td>
                   </tr>
                 ))}
               </tbody>
