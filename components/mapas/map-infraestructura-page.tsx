@@ -85,6 +85,7 @@ import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
+import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
@@ -606,6 +607,7 @@ export default function MapInfraestructuraPage(props: {
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
+  const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -1387,6 +1389,7 @@ export default function MapInfraestructuraPage(props: {
             <Layer
               id={CAPA_DEPARTAMENTOS_BORDE_ID}
               type="line"
+              layout={{ visibility: visibilidadCapa(capasVisibles.limitesDepartamentos) }}
               paint={radarActivo ? { 'line-color': '#d6e9f4', 'line-width': 0.7, 'line-opacity': 0.55 } : linePaintDepartamentos()}
             />
             <Layer
@@ -1404,7 +1407,7 @@ export default function MapInfraestructuraPage(props: {
             <Layer
               id="infra-departamentos-etiqueta"
               type="symbol"
-              layout={symbolLayoutDepartamentos()}
+              layout={{ ...symbolLayoutDepartamentos(), visibility: visibilidadCapa(capasVisibles.nombresDepartamentos) }}
               paint={symbolPaintDepartamentos(radarActivo)}
             />
           </Source>
@@ -1463,6 +1466,8 @@ export default function MapInfraestructuraPage(props: {
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
               oscuro={mode === 'dark'}
+              mostrarRuta={capasVisibles.rutaAcceso}
+              mostrarCruces={capasVisibles.crucesAgua}
             />
           )}
 
@@ -1896,6 +1901,9 @@ export default function MapInfraestructuraPage(props: {
                   // Cambiar de base recarga el estilo y descarta las imágenes registradas.
                   setIconosClusterListos(false)
                 }}
+                capasVisibles={capasVisibles}
+                onCapasVisiblesChange={setCapasVisibles}
+                haySeleccion={seleccionCue !== null}
               />
             )}
           />

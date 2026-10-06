@@ -11,6 +11,7 @@ import { PanelPlanificacion } from './panel-planificacion'
 import { PanelRadar } from './panel-radar'
 import { PanelSituacionActual } from './panel-situacion-actual'
 import { FILTROS_MAPA_VACIOS } from '@/lib/infraestructura/mapa/tipos'
+import { CAPAS_VISIBLES_DEFAULT } from '@/lib/infraestructura/mapa/capas'
 
 const css = readFileSync(resolve(process.cwd(), 'app/globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -32,7 +33,7 @@ function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'estad
     radar: createElement(PanelRadar, { horizonte: 72, disponibles: [], onHorizonte: vi.fn(), variable: 'lluvia', onVariable: vi.fn(), puntos: null, escuelas: [], cargando: false, error: null, onSeleccionar: vi.fn() }),
     planificacion: createElement(PanelPlanificacion, { vista: 'aisladas', onVista: vi.fn(), escuelas: [], territorio: null, cargando: false, error: false, onSeleccionar: vi.fn() }),
     estadisticas: createElement(PanelEstadisticas, { escuelas: [], filtros: FILTROS_MAPA_VACIOS }),
-    capas: createElement(PanelCapas, { value: 'voyager', onChange: vi.fn() }),
+    capas: createElement(PanelCapas, { value: 'voyager', onChange: vi.fn(), capasVisibles: CAPAS_VISIBLES_DEFAULT, onCapasVisiblesChange: vi.fn(), haySeleccion: false }),
   }
 }
 
