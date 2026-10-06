@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type ReactNode,
 } from 'react'
 import MapGL, {
   AttributionControl,
@@ -594,11 +593,11 @@ export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
   pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas'>
-  panel?: PestanaMapa
-  estadisticas?: ReactNode
+  panel?: Exclude<PestanaMapa, 'estadisticas'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
+  visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }) {
   const panel = props.panel ?? props.pestana
@@ -692,6 +691,18 @@ export default function MapInfraestructuraPage(props: {
   const radarActivo = modoRadar
   const esPlanificacion = props.pestana === 'planificacion'
   const ocultarPartes = radarActivo || esPlanificacion
+  // Al ocultar la pestaña, detener cualquier flyTo sobre un contenedor sin
+  // layout. Al volver a mostrar el mapa, MapLibre recalcula el tamaño.
+  useEffect(() => {
+    const mapa = mapRef.current?.getMap()
+    if (!mapa) return
+    if (props.visible ?? true) {
+      mapa.resize()
+    } else {
+      mapa.stop()
+    }
+  }, [props.visible])
+
   useEffect(() => {
     const contenedor = mapRef.current?.getMap().getContainer()
     if (contenedor) colapsarAtribucion(contenedor)
@@ -1860,7 +1871,6 @@ export default function MapInfraestructuraPage(props: {
             subtitulos={{
               actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
               radar: 'Pronóstico',
-              estadisticas: 'Según los filtros activos',
             }}
             ficha={fichaAbierta && escuelaSeleccionada ? (
               <FichaEscuelaPanel
@@ -1912,7 +1922,6 @@ export default function MapInfraestructuraPage(props: {
                 }}
               />
             )}
-            estadisticas={props.estadisticas}
             capas={(
               <PanelCapas
                 value={basemap}

@@ -2,16 +2,17 @@ import type { ReactNode } from 'react'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { PanelEncabezado } from './panel-encabezado'
 
-const TITULOS: Record<PestanaMapa, string> = {
+type PestanaConMapa = Exclude<PestanaMapa, 'estadisticas'>
+
+const TITULOS: Record<PestanaConMapa, string> = {
   actual: 'Situación actual',
   radar: 'Radar',
   planificacion: 'Planificación',
-  estadisticas: 'Estadísticas',
   capas: 'Capas',
 }
 
 export interface PanelLateralProps {
-  pestana: PestanaMapa
+  pestana: PestanaConMapa
   /** Selección vigente PARA la pestaña activa (cue de la escuela), o null. */
   seleccion: string | null
   onCerrarFicha: () => void
@@ -20,11 +21,10 @@ export interface PanelLateralProps {
   /** Cabecera compartida por las pestañas, oculta mientras se muestra una ficha. */
   cabecera?: ReactNode
   /** Subtítulos visibles junto al título de cada pestaña. */
-  subtitulos?: Partial<Record<PestanaMapa, ReactNode>>
+  subtitulos?: Partial<Record<PestanaConMapa, ReactNode>>
   actual: ReactNode
   radar: ReactNode
   planificacion: ReactNode
-  estadisticas: ReactNode
   capas: ReactNode
 }
 
@@ -37,8 +37,6 @@ export function PanelLateral(props: PanelLateralProps) {
     contenido = props.radar
   } else if (props.pestana === 'planificacion') {
     contenido = props.planificacion
-  } else if (props.pestana === 'estadisticas') {
-    contenido = props.estadisticas
   } else if (props.pestana === 'capas') {
     contenido = props.capas
   }

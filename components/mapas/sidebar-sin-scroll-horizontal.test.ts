@@ -5,12 +5,10 @@ import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { PanelCapas } from './panel-capas'
-import { PanelEstadisticas } from './panel-estadisticas'
 import { PanelLateral } from './panel-lateral'
 import { PanelPlanificacion } from './panel-planificacion'
 import { PanelRadar } from './panel-radar'
 import { PanelSituacionActual } from './panel-situacion-actual'
-import { FILTROS_MAPA_VACIOS } from '@/lib/infraestructura/mapa/tipos'
 import { CAPAS_VISIBLES_DEFAULT } from '@/lib/infraestructura/mapa/capas'
 
 const css = readFileSync(resolve(process.cwd(), 'app/globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -24,7 +22,7 @@ function regla(selectorBuscado: string) {
     .join(';')
 }
 
-function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'estadisticas' | 'capas') {
+function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'capas') {
   return {
     pestana,
     seleccion: null,
@@ -32,7 +30,6 @@ function contenidoPestana(pestana: 'actual' | 'radar' | 'planificacion' | 'estad
     actual: createElement(PanelSituacionActual, { escuelas: [], actualizadoEn: null, onSeleccionar: vi.fn() }),
     radar: createElement(PanelRadar, { horizonte: 72, disponibles: [], onHorizonte: vi.fn(), variable: 'lluvia', onVariable: vi.fn(), puntos: null, escuelas: [], cargando: false, error: null, onSeleccionar: vi.fn() }),
     planificacion: createElement(PanelPlanificacion, { vista: 'aisladas', onVista: vi.fn(), escuelas: [], territorio: null, cargando: false, error: false, onSeleccionar: vi.fn() }),
-    estadisticas: createElement(PanelEstadisticas, { escuelas: [], filtros: FILTROS_MAPA_VACIOS }),
     capas: createElement(PanelCapas, { value: 'voyager', onChange: vi.fn(), capasVisibles: CAPAS_VISIBLES_DEFAULT, onCapasVisiblesChange: vi.fn(), haySeleccion: false }),
   }
 }
@@ -73,7 +70,7 @@ describe('sidebar del mapa sin scroll horizontal', () => {
     expect(css).not.toMatch(/\.map-left-stack(?:\[[^\]]+\]|\.[\w-]+)\s*\{[^}]*\b(?:height|max-height)\s*:/i)
   })
 
-  it.each(['actual', 'radar', 'planificacion', 'estadisticas', 'capas'] as const)(
+  it.each(['actual', 'radar', 'planificacion', 'capas'] as const)(
     'no agrega anchos inline que excedan el sidebar en %s',
     (pestana) => {
       render(createElement(PanelLateral, contenidoPestana(pestana)))

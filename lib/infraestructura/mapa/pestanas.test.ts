@@ -36,11 +36,10 @@ describe('resolverPestana', () => {
 
 describe('pestanaDeMapa', () => {
   it.each([
+    ['capas', 'actual'],
     ['actual', 'actual'],
     ['radar', 'radar'],
     ['planificacion', 'planificacion'],
-    ['estadisticas', 'actual'],
-    ['capas', 'actual'],
   ] as const)('%s usa las capas de %s', (panel, mapa) => {
     expect(pestanaDeMapa(panel)).toBe(mapa)
   })
