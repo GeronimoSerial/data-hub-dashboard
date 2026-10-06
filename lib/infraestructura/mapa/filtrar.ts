@@ -7,13 +7,11 @@ function normalizar(texto: string): string {
 function coincideApoyo(escuela: EscuelaMapaEnriquecida, opcion: FiltrosMapa['apoyo'][number]): boolean {
   switch (opcion) {
     case 'brinda':
-      return escuela.apoyo === 'virtual' || escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos'
+      return escuela.apoyo === 'virtual' || escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos' || escuela.apoyo === 'brinda'
     case 'no':
       return escuela.apoyo === 'no'
-    case 'virtual':
-      return escuela.apoyo === 'virtual' || escuela.apoyo === 'ambos'
-    case 'cuadernillo':
-      return escuela.apoyo === 'cuadernillo' || escuela.apoyo === 'ambos'
+    case 'sin_dato':
+      return escuela.apoyo === 'sin_dato'
   }
 }
 
@@ -28,6 +26,7 @@ export function filtrarEscuelas<T extends EscuelaMapaEnriquecida>(escuelas: T[],
     if (f.clases.length > 0 && !f.clases.includes(escuela.clases)) return false
     if (f.apoyo.length > 0 && !f.apoyo.some((opcion) => coincideApoyo(escuela, opcion))) return false
     if (f.sinActualizar && !escuela.sinActualizar) return false
+    if (f.solucionadasRecientes && escuela.solucionadasRecientes <= 0) return false
     if (q && !normalizar(escuela.nombre).includes(q)) {
       const cue = normalizar(escuela.cueAnexo).replace(/-/g, '')
       if (!qCue || !cue.includes(qCue)) return false
@@ -61,7 +60,7 @@ export function contarOpciones(
         sumar(escuela.clases)
         break
       case 'apoyo':
-        for (const opcion of ['brinda', 'no', 'virtual', 'cuadernillo'] as const) {
+        for (const opcion of ['brinda', 'no', 'sin_dato'] as const) {
           if (coincideApoyo(escuela, opcion)) sumar(opcion)
         }
         break

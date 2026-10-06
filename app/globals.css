@@ -180,14 +180,17 @@
 
 /* Panel de Situación actual del mapa de infraestructura. */
 .map-sitact { display: grid; gap: var(--s-4); align-content: start; }
-.map-sitact__encabezado { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); }
-.map-sitact__encabezado h2 { margin: 0; font-size: 1.375rem; font-weight: 700; }
-.map-sitact__hora { color: var(--ink-faint); font-size: var(--t-micro); white-space: nowrap; }
+.map-capas__grupo { display: grid; gap: var(--s-2); }
+.map-capas__escala-riesgo { display: flex; flex-wrap: wrap; gap: var(--s-2); font-size: var(--t-micro); }
+.map-capas__muestra-riesgo { width: 0.55rem; height: 0.55rem; border-radius: var(--r-xs); }
 .map-sitact__kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-2); }
 .map-sitact__kpi { display: grid; gap: var(--s-1); padding: var(--s-3); border-radius: var(--r-md); background: var(--fill); }
 .map-sitact__kpi strong { font-family: var(--font-display); font-size: 1.625rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .map-sitact__kpi span { color: var(--ink-soft); font-size: var(--t-micro); }
 .map-sitact__kpi--resaltado strong { color: var(--accent); }
+.map-sitact__kpi--secundario { grid-column: 1 / -1; display: flex; align-items: baseline; gap: var(--s-3); padding: var(--s-2) var(--s-3); border: 1px solid var(--line); background: transparent; }
+.map-sitact__kpi--secundario strong { color: var(--ink-soft); }
+.map-sitact__kpi--secundario span { color: var(--ink-faint); }
 .map-sitact__apoyo { display: grid; gap: var(--s-2); }
 .map-sitact__apoyo p { margin: 0; font-size: var(--t-small); }
 .map-sitact__barra { display: flex; height: 8px; overflow: hidden; border-radius: var(--r-pill); background: var(--band); }
@@ -195,41 +198,56 @@
 .map-sitact__titulo-seccion { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-2); margin: 0; color: var(--ink-soft); font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
 .map-sitact__atenuado { color: var(--ink-faint); font-family: var(--font-body); font-size: var(--t-micro); font-weight: 400; letter-spacing: normal; text-transform: none; }
 .map-sitact__lista { display: grid; border-top: 1px solid var(--line); }
-.map-sitact__fila { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1) var(--s-3) 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; }
+.map-sitact__fila { display: grid; grid-template-columns: 4px minmax(0, 1fr); align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) var(--s-1) var(--s-3) 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; cursor: pointer; text-align: left; }
 .map-sitact__fila:hover { background: var(--fill); }
 .map-sitact__franja { align-self: stretch; border-radius: var(--r-xs); }
 .map-sitact__contenido-fila { display: grid; min-width: 0; gap: var(--s-1); }
 .map-sitact__nombre { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; font-size: var(--t-small); font-weight: 600; }
-.map-sitact__meta { color: var(--ink-faint); font-size: var(--t-micro); }
-.map-sitact__chips { display: flex; flex-wrap: wrap; gap: var(--s-1); }
-.map-sitact__pill { display: inline-flex; align-items: center; gap: var(--s-1); padding: 1px var(--s-2); border-radius: var(--r-pill); font-size: var(--t-micro); font-weight: 600; white-space: nowrap; }
-.map-sitact__pill svg { width: 12px; height: 12px; }
+.map-sitact__meta-fila { display: flex; min-width: 0; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.map-sitact__meta { min-width: 0; color: var(--ink-faint); font-size: var(--t-micro); overflow-wrap: anywhere; }
+.map-sitact__chips { display: flex; min-width: 0; flex-wrap: wrap; align-items: flex-start; gap: var(--s-1); }
+.map-sitact__pill { display: inline-flex; max-width: 100%; min-width: 0; align-items: center; gap: var(--s-1); padding: 2px var(--s-2); border-radius: var(--r-md); font-size: var(--t-micro); font-weight: 600; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; }
+.map-sitact__pill svg { flex: 0 0 auto; width: 12px; height: 12px; }
 .map-sitact__pill--clases { color: var(--danger-ink); background: var(--danger-tint); }
 .map-sitact__pill--apoyo { color: var(--ok); background: var(--ok-tint); }
 .map-sitact__pill--aviso { color: var(--warn); background: var(--warn-tint); }
 .map-sitact__pill--neutro { color: var(--ink-soft); background: var(--band); }
 .map-sitact__pill--ok { color: var(--ok); background: var(--ok-tint); }
-.map-sitact__cuando { color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.map-sitact__cuando { flex-shrink: 0; align-self: flex-start; color: var(--ink-faint); font-size: var(--t-micro); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 .map-sitact__vacio { margin: 0; padding: var(--s-5) 0; color: var(--ink-faint); font-size: var(--t-small); text-align: center; }
 
-.map-est { display: grid; width: min(100%, 64rem); margin: 0 auto; gap: var(--s-5); align-content: start; }
+.map-est { display: grid; width: min(100%, 72rem); min-width: 0; margin: 0 auto; gap: var(--s-5); align-content: start; }
+.map-est__encabezado { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s-2) var(--s-4); }
+.map-est__encabezado h2 { font-size: 1.375rem; font-weight: 700; line-height: 1.15; }
+.map-est__encabezado p { margin: 0; color: var(--ink-faint); font-size: var(--t-small); }
 .map-est .map-sitact__kpis { grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); }
+.map-est .map-sitact__kpi { min-width: 0; align-content: start; height: 100%; }
+.map-est .map-sitact__kpi span { min-width: 0; overflow-wrap: anywhere; }
+.map-est .map-sitact__kpi small { color: var(--ink-faint); font-size: var(--t-micro); }
 .map-est__agrupacion { display: grid; gap: var(--s-2); }
-.map-est__agrupacion .map-seg { max-width: 28rem; }
-.map-est__tabla-wrap { max-width: 100%; }
+.map-est__agrupacion .map-seg { max-width: 32rem; }
+.map-est__tabla-wrap { min-width: 0; max-width: 100%; overflow-x: auto; }
+.map-est__tabla { width: 100%; }
 .ui-table.map-est__tabla th, .ui-table.map-est__tabla td { text-align: right; font-variant-numeric: tabular-nums; }
 .ui-table.map-est__tabla th:first-child, .ui-table.map-est__tabla td:first-child { text-align: left; }
 .map-est__tabla tbody th { background: transparent; color: var(--ink); font-size: var(--t-small); letter-spacing: normal; text-transform: none; white-space: nowrap; }
 .map-est__numero { white-space: nowrap; }
 .map-est__porcentaje { display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--s-2); }
 .map-est__porcentaje-numero { display: inline-block; width: 4ch; text-align: right; }
-.map-est__barra { display: inline-block; flex: 0 0 4rem; width: 4rem; height: 0.375rem; overflow: hidden; border-radius: var(--r-pill); background: var(--band); vertical-align: middle; }
-.map-est__barra span { display: block; height: 100%; border-radius: var(--r-pill); background: var(--warn); }
-.map-est__evolucion { display: grid; gap: var(--s-3); }
+.map-est__barra { display: inline-block; width: 4.5rem; height: 0.375rem; overflow: hidden; border-radius: var(--r-pill); background: var(--band); vertical-align: middle; }
+.map-est__barra > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.map-est__evolucion { display: grid; min-width: 0; width: 100%; gap: var(--s-3); }
+.map-est__evolucion > .evolucion-panel { min-width: 0; width: 100%; }
+@media (max-width: 719px) {
+  .map-est .map-sitact__kpis { grid-template-columns: 1fr; }
+  .map-est__agrupacion .map-seg { flex-direction: column; }
+}
 
 /* Control segmentado compartido por Radar y Planificación. */
-.map-seg { display: flex; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
-.map-seg__opcion { flex: 1 1 0; min-width: 0; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; }
+.map-seg { display: flex; flex-wrap: wrap; width: 100%; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--fill); }
+.map-seg--2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.map-seg--2 .map-seg__opcion { padding-inline: var(--s-1); font-size: var(--t-small); white-space: nowrap; }
+.map-seg__opcion { flex: 1 1 7rem; min-width: 0; max-width: 100%; padding: 6px var(--s-3); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-align: center; overflow-wrap: anywhere; }
 .map-seg__opcion[aria-pressed='true'] { background: var(--page); color: var(--ink); box-shadow: 0 1px 2px var(--line); }
 .map-seg__opcion[aria-disabled='true'] { color: var(--ink-faint); cursor: not-allowed; }
 .map-seg__opcion:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
@@ -237,9 +255,11 @@
 
 /* Ficha de escuela dentro del panel lateral del mapa. */
 .map-ficha-escuela { display: grid; align-content: start; gap: var(--s-4); }
+.map-ficha-escuela__encabezado-fijo { position: sticky; top: 0; z-index: 1; display: grid; gap: var(--s-2); padding-bottom: var(--s-2); background: var(--card); }
 .map-ficha-escuela__back { display: inline-flex; align-items: center; gap: var(--s-2); min-height: 44px; justify-self: start; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--t-small); font-weight: 600; cursor: pointer; }
 .map-ficha-escuela__back svg { width: 16px; height: 16px; }
 .map-ficha-escuela__head h2 { margin: 0; font-size: 1.375rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
+.map-ficha-escuela__head h2:focus { outline: none; }
 .map-ficha-escuela__head p { margin: var(--s-1) 0 0; color: var(--ink-faint); font-size: var(--t-micro); }
 .map-ficha-escuela__gravedad { display: grid; gap: var(--s-1); padding: var(--s-3); border-radius: var(--r-md); }
 .map-ficha-escuela__gravedad strong { font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; }
@@ -256,10 +276,12 @@
 .map-ficha-escuela__kv { display: grid; grid-template-columns: minmax(82px, 1fr) minmax(0, 2fr); gap: var(--s-2) var(--s-3); margin: 0; }
 .map-ficha-escuela__kv dt { color: var(--ink-faint); }
 .map-ficha-escuela__kv dd { min-width: 0; margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.map-ficha-escuela__situacion { display: grid; gap: var(--s-2); }
+.map-ficha-escuela__situacion h3 { margin: 0; font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; }
 .map-ficha-escuela__accion { grid-column: 1 / -1; }
 .map-ficha-escuela__link { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-weight: 600; text-align: left; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .map-ficha-escuela__historial { display: grid; gap: var(--s-3); margin: 0; padding: 0; list-style: none; }
-.map-ficha-escuela__back:focus-visible,
+.map-ficha-escuela__back:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .map-ficha-escuela__fold > summary:focus-visible,
 .map-ficha-escuela__link:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) {
@@ -399,6 +421,23 @@ time {
    one belongs to the product and carries navigation. Nothing is
    translucent — the manual rules out glass surfaces (§11). */
 .app-header { position: sticky; top: 0; z-index: var(--z-header); }
+
+/* Map viewers use only the ribbon and product band: 8px + 60px. */
+.app-page:has(> .app-header--mapa) { --header-h: 68px; }
+.app-header--mapa__marca {
+  display: flex;
+  align-items: center;
+  margin-right: var(--s-4);
+  padding-right: var(--s-5);
+  border-right: 1px solid rgb(255 255 255 / 0.18);
+}
+.app-header__logo { display: block; height: 44px; width: auto; }
+
+@media (max-width: 920px) {
+  /* Around 846px is needed for the 222px logo with separator spacing, product
+     name, two nav links, account controls, and flex gaps. */
+  .app-header--mapa .app-header__logo { display: none; }
+}
 
 .app-signature {
   background: var(--white);
@@ -2037,7 +2076,7 @@ time {
 
 /* ── Map overlays ──────────────────────────────────────────────────────── */
 
-.map-shell { position: relative; width: 100%; height: 100%; flex-grow: 1; min-height: 0; }
+.map-shell { --map-sidebar-ancho: 24rem; position: relative; width: 100%; height: 100%; flex-grow: 1; min-height: 0; }
 .map-root { position: absolute; inset: 0; }
 .map-panel {
   position: absolute;
@@ -2062,22 +2101,21 @@ time {
    leyenda), así que reclamaban el mismo offset y se montaban uno sobre otro.
    Acá el anclaje pasa al contenedor y los paneles vuelven a ser estáticos:
    apilados en flujo, no superpuestos.
-   La columna se ancla ARRIBA (no abajo): así arranca siempre desde el mismo
-   punto y crece hacia abajo con su propio scroll, en vez de "flotar" con
-   espacio vacío arriba y desplazarse cada vez que cambia la altura de su
-   contenido (carga async). El `left` mayor deja libre el control de zoom de
+   La columna se ancla arriba y abajo con el mismo margen; el scroll queda en
+   el cuerpo del panel. El `left` mayor deja libre el control de zoom de
    MapLibre (esquina superior izquierda), igual que .map-title-panel. */
 .map-left-stack {
+  --map-sidebar-ancho: 24rem;
   position: absolute;
-  top: 25px;
+  top: var(--s-3);
+  bottom: var(--s-3);
   left: 55px;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: var(--s-2);
-  width: min(20rem, calc(100vw - 80px));
-  max-height: calc(100% - 50px);
-  overflow-y: auto;
+  width: min(var(--map-sidebar-ancho), calc(100vw - 80px));
+  overflow: hidden;
   overscroll-behavior: contain;
 }
 .map-left-stack > .map-panel,
@@ -2087,17 +2125,19 @@ time {
   max-width: none;
   flex: 0 0 auto;
 }
+.map-panel-lateral { min-width: 0; max-width: 100%; }
+.map-panel-lateral > * { min-width: 0; max-width: 100%; }
+.map-panel-lateral :where(*) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 
 /* La leyenda va abajo al centro para dejar libre la columna izquierda y el zoom. */
 .map-leyenda {
   position: absolute;
   z-index: 2;
-  left: 50%;
+  left: calc(55px + var(--map-sidebar-ancho) + var(--s-3));
   bottom: var(--s-3);
-  transform: translateX(-50%);
   display: grid;
   gap: var(--s-2);
-  max-width: calc(100% - var(--s-4));
+  max-width: calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4));
   padding: var(--s-2) var(--s-3);
   color: var(--ink);
   background: var(--card);
@@ -2119,6 +2159,30 @@ time {
   border-top: 1px solid var(--line);
   padding-top: var(--s-2);
 }
+.map-leyenda__actual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-1) var(--s-2);
+}
+.map-leyenda__gravedades {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+}
+.map-leyenda__actual .map-leyenda__elemento { gap: var(--s-1); }
+.map-leyenda__boton { flex: 0 0 auto; gap: var(--s-1); }
+.map-leyenda__simbolos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.map-leyenda__simbolos[hidden] { display: none; }
 .map-leyenda__titulo {
   font-weight: 600;
   font-size: var(--t-small);
@@ -2145,6 +2209,13 @@ time {
   z-index: 13;
   bottom: calc(7.5rem + var(--s-3));
 }
+@media (max-width: 720px) {
+  .map-leyenda {
+    left: 50%;
+    max-width: calc(100% - var(--s-4));
+    transform: translateX(-50%);
+  }
+}
 
 /* Panel propio del mapa para la ficha del parte (hallazgo estético): NO es el
    Sheet genérico — vive dentro de .map-shell, sin backdrop ni foco atrapado,
@@ -2168,12 +2239,6 @@ time {
   min-width: 0;
   overscroll-behavior: contain;
   padding: 1rem 1.1rem;
-  transition: transform 160ms ease, opacity 160ms ease;
-  animation: map-ficha-panel-entrada 160ms ease;
-}
-@keyframes map-ficha-panel-entrada {
-  from { transform: translateX(12px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
 }
 .map-ficha-panel__encabezado {
   display: flex;
@@ -2235,30 +2300,48 @@ time {
 .ayuda-leyenda p,
 .ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
 
-/* Acciones de una selección viva con la ficha cerrada ("Ver ficha" /
-   "Quitar selección"). Quedan por encima de la leyenda centrada en el borde
-   inferior. */
-.map-seleccion-acciones {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(var(--s-3) + var(--s-8) + var(--s-5));
-  z-index: 5;
+.map-sitact__resumen-depto {
+  display: grid;
+  gap: var(--s-1);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.map-sidebar-seleccion {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  background: var(--fill);
+  border-radius: var(--r-md);
+}
+.map-sidebar-seleccion__rotulo,
+.map-sidebar-seleccion__nombre { margin: 0; }
+.map-sidebar-seleccion__rotulo {
+  color: var(--ink-soft);
+  font-size: var(--t-small);
+}
+.map-sidebar-seleccion__nombre {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.map-sidebar-seleccion__acciones {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s-2);
 }
-
-.map-departamento-seleccionado {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-2);
-}
-.map-departamento-seleccionado button {
-  flex: none;
+.map-sitact__resumen-depto h2,
+.map-sitact__resumen-depto p { margin: 0; }
+.map-sitact__resumen-depto h2 { font-size: var(--t-body); }
+.map-sitact__resumen-depto p { color: var(--ink-soft); font-size: var(--t-small); }
+.map-sitact__resumen-depto button {
+  justify-self: start;
+  padding: 0;
   border: 0;
   background: transparent;
   color: var(--ink);
+  font: inherit;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -2275,15 +2358,18 @@ time {
   align-items: center;
 }
 
-/* Forecast radar: compact dark glass controls designed to sit directly on the map. */
-.radar-meteo-controls,.radar-meteo-legend,.radar-meteo-timeline,.radar-meteo-popup {
+/* Forecast radar: compact dark glass overlays on the map. */
+.radar-meteo-legend,.radar-meteo-timeline,.radar-meteo-popup {
   position:absolute; z-index:12; color:#e8f3fb; background:rgba(7,17,29,.9); border:1px solid rgba(160,195,220,.2);
   box-shadow:0 8px 28px rgba(0,0,0,.28); backdrop-filter:blur(12px); border-radius:12px; font-size:12px;
 }
 .map-panel-lateral {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2);
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: none;
   color: var(--ink);
   background: var(--card);
   border: 1px solid var(--line);
@@ -2291,19 +2377,25 @@ time {
   box-shadow: var(--e-float);
   padding: var(--s-4);
 }
-.radar-meteo-controls {
-  --radar-meteo-controls-left: calc(55px + min(20rem, calc(100vw - 80px)) + var(--s-3));
-  top:25px;
-  left:var(--radar-meteo-controls-left);
-  padding:8px;
-  display:flex;
-  align-items:center;
-  gap:8px;
+.map-panel-lateral__encabezado {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding-bottom: var(--s-3);
 }
-.radar-meteo-segments { display:flex; gap:3px; }
-.radar-meteo-mobile-variable { display:none; }
-.radar-meteo-segments button,.radar-meteo-timeline button,.radar-meteo-popup button { color:inherit; background:transparent; border:0; border-radius:7px; padding:7px 9px; cursor:pointer; }
-.radar-meteo-segments button[aria-pressed="true"],.radar-meteo-timeline button[aria-pressed="true"] { background:#176985; color:white; }
+.map-panel-lateral__encabezado h2 { min-width: 0; margin: 0; font-size: 1.375rem; font-weight: 700; line-height: 1.2; }
+.map-panel-lateral__encabezado > span { color: var(--ink-faint); font-size: var(--t-micro); text-align: right; }
+.map-panel-lateral__cuerpo { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; }
+.radar-meteo-timeline button,.radar-meteo-popup button { color:inherit; background:transparent; border:0; border-radius:7px; padding:7px 9px; cursor:pointer; }
+.radar-meteo-timeline button[aria-pressed="true"] { background:#176985; color:white; }
+.radar-meteo-estado {
+  position:absolute; z-index:12; left:calc(55px + var(--map-sidebar-ancho) + var(--s-3)); right:16px; bottom:122px;
+  display:flex; align-items:center; justify-content:center; gap:8px; padding:8px 12px; color:#e8f3fb;
+  background:rgba(7,17,29,.9); border:1px solid rgba(160,195,220,.2);
+  box-shadow:0 8px 28px rgba(0,0,0,.28); backdrop-filter:blur(12px); border-radius:12px; font-size:12px;
+}
 .radar-meteo-loading { color:#b5d6e7; animation:radar-shimmer 1.3s infinite alternate; }
 .radar-meteo-skeleton { position:absolute; z-index:4; pointer-events:none; inset:0; background:linear-gradient(105deg,transparent 35%,rgba(180,220,245,.07) 48%,transparent 62%); background-size:220% 100%; animation:radar-skeleton 1.4s linear infinite; }
 @keyframes radar-shimmer { to { opacity:.4 } }
@@ -2320,7 +2412,13 @@ time {
 .radar-meteo-legend-labels { display:flex; justify-content:space-between; color:#b6c8d5; font-size:10px; }
 .radar-meteo-legend span { color:#a9c0d0; white-space:nowrap; }
 .radar-meteo-legend .is-stale { color:#ffc36a; }
-.radar-meteo-timeline { left:14px; right:14px; bottom:14px; padding:9px 14px 18px; }
+.radar-meteo-timeline { left:calc(55px + var(--map-sidebar-ancho) + var(--s-3)); right:14px; bottom:14px; padding:9px 14px 18px; }
+@media(max-width:720px) {
+ .radar-meteo-estado { left:50%; right:auto; transform:translateX(-50%); }
+ .radar-meteo-legend { left:auto; right:16px; }
+ .radar-resumen ~ .radar-meteo-legend { left:16px; }
+ .radar-meteo-timeline { left:14px; right:14px; }
+}
 .radar-meteo-timeline-actions { display:flex; align-items:center; gap:5px; }
 .radar-meteo-timeline-actions strong { margin-left:8px; font-variant-numeric:tabular-nums; }
 .radar-meteo-timeline-actions label { margin-left:auto; display:flex; align-items:center; gap:5px; }
@@ -2336,11 +2434,7 @@ time {
 .radar-meteo-debug-readout { position:fixed; z-index:15; right:360px; top:216px; padding:5px 8px; color:#e8f3fb; background:#101d2b; border:1px solid #536b7d; border-radius:6px; font:11px/1.3 ui-monospace,monospace; }
 .radar-meteo-debug-readout[data-frame-matches="false"] { color:#ffbc75; }
 @media(max-width:600px) {
- .radar-meteo-controls { left:12px; right:12px; top:12px; padding:6px; }
- .radar-meteo-segments { width:100%; }
- .radar-meteo-segments { display:none; }
- .radar-meteo-mobile-variable { display:block; width:100%; color:#e8f3fb; background:#152739; border:1px solid #40586d; border-radius:7px; padding:8px; }
- .radar-meteo-segments button { flex:1; padding:7px 2px; font-size:10px; }
+ .radar-meteo-estado { bottom:120px; }
  .radar-meteo-legend { right:10px; bottom:130px; width:auto; min-width:0; padding:6px 9px; gap:0; border-radius:999px; }
  .radar-meteo-legend-toggle { display:flex; align-items:center; gap:9px; }
  .radar-meteo-legend-title { justify-content:flex-start; gap:5px; white-space:nowrap; }
@@ -2405,24 +2499,6 @@ time {
  .radar-escuela-card { left:8px; bottom:165px; width:min(275px,76vw); max-height:30vh; }
 }
 @media(max-width:600px) {
-  .map-left-stack.radar-meteo-left-stack {
-    display:flex !important;
-    position:absolute !important;
-    inset:auto !important;
-    top:55px !important;
-    left:8px !important;
-    right:auto !important;
-    bottom:auto !important;
-    width:min(230px,calc(100vw - 100px)) !important;
-    max-height:none !important;
-    overflow:visible !important;
-    z-index:13;
-  }
-  .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .radar-meteo-controls {
-    top:calc(123px + 155px) !important;
-  }
   .radar-resumen { bottom:160px; }
   .radar-resumen.is-open { bottom:160px; height:min(42vh,360px); }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }
@@ -2571,7 +2647,7 @@ time {
 .radar-resumen-table { table-layout:fixed; }
 .radar-resumen-table th:first-child { width:88px; min-width:88px; }
 .radar-dia-cell { min-width:36px; padding-right:1px; padding-left:1px; }
-.radar-resumen ~ .radar-meteo-legend { right:auto; left:16px; bottom:122px; }
+.radar-resumen ~ .radar-meteo-legend { right:auto; left:calc(55px + var(--map-sidebar-ancho) + var(--s-3)); bottom:122px; }
 .radar-meteo-retry {
   position:absolute;
   z-index:13;
@@ -2610,10 +2686,6 @@ time {
   .radar-escuela-card { top:calc(12px + 55px); left:8px; width:min(310px,82vw); max-height:42vh; }
 }
 @media(min-width:701px) and (max-width:1100px) {
-  .radar-meteo-controls {
-    max-width:calc(100vw - var(--radar-meteo-controls-left) - 270px - 16px - var(--s-3));
-  }
-  .radar-meteo-segments { flex-wrap:wrap; }
   .radar-alertas { top:calc(25px + 88px + var(--s-3)); }
 }
 /* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
@@ -2650,43 +2722,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex-direction: column;
   gap: var(--s-2);
   width: min(17.5rem, calc(100vw - 24px));
-}
-
-/* Con la ficha abierta, el control de base/capas se corría a la izquierda de
-   la hoja: sin esto quedaba debajo de ella (ficha z-index 4 > stack z-index
-   3) y no se podía tocar ninguna capa sin cerrar la ficha. El `right` es el
-   ancho de la ficha más sus 12px de offset lateral más 12px de separación.
-   En pantallas intermedias se colapsa en el mismo toggle; el panel abierto
-   queda debajo de éste y conserva su offset derecho predeterminado. */
-@media (min-width: 721px) and (max-width: 1080px) {
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
-    display: none;
-  }
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
-    display: inline-flex;
-  }
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
-    top: 52px;
-    z-index: 5;
-    max-height: calc(100% - 64px);
-    overflow-y: auto;
-  }
-}
-
-@media (min-width: 1081px) {
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack {
-    right: calc(min(400px, 100vw - 24px) + 24px);
-  }
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack:not([data-open="true"]) {
-    display: none;
-  }
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack-toggle {
-    display: inline-flex;
-    right: calc(min(400px, 100vw - 24px) + 24px);
-  }
-  .map-shell[data-ficha-abierta="true"] .map-controls-stack[data-open="true"] {
-    top: 52px;
-  }
 }
 
 /* Botón del panel de base/capas, separado de la columna de escuelas. */
@@ -2804,6 +2839,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .map-bloque-acceso__fila > span {
   min-width: 0;
+}
+
+.map-bloque-acceso__detalle {
+  display: block;
+  color: var(--ink-soft);
+  font-size: var(--t-micro);
 }
 
 .map-bloque-acceso__estado {
@@ -2953,6 +2994,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 @media (max-width: 760px) {
   :root { --header-h: 133px; }
+  .app-page:has(> .app-header--mapa) { --header-h: 68px; }
   .app-signature .app-signature__mark { display: none; }
   [data-theme='dark'] .app-signature .app-signature__mark--inv { display: none; }
   .app-signature .app-signature__compact { display: flex; }
@@ -2985,8 +3027,9 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-legend-panel { bottom: 12px; left: 12px; }
   .map-left-stack {
     top: 12px;
+    bottom: auto;
     left: 12px;
-    width: min(20rem, calc(100vw - 24px));
+    width: min(var(--map-sidebar-ancho), calc(100vw - 24px));
     max-height: min(46vh, calc(100% - 24px));
   }
 
@@ -3017,8 +3060,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
     bottom: calc(60vh + 12px);
   }
 
-  /* Separa las acciones de selección de la atribución del mapa. */
-  .map-seleccion-acciones { bottom: 96px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -5100,16 +5141,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .mapa-pestanas-barra {
   display: flex;
-  justify-content: center;
-  overflow-x: auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
   flex: 0 0 auto;
-  display: flex;
-  justify-content: center;
-  padding: var(--s-2) var(--gutter) 0;
+  min-width: 0;
+  overflow: visible;
+  padding: var(--s-1) var(--gutter);
   background: var(--page);
 }
+.mapa-pestanas-barra > .ui-tabs { flex: 0 0 auto; min-width: 0; }
 .mapa-pestanas-barra .ui-tabs-list { flex-wrap: nowrap; }
-.mapa-pestanas-barra .ui-tabs-tab { white-space: nowrap; }
+.mapa-pestanas-barra .ui-tabs-tab {
+  min-height: 2.25rem;
+  padding-block: var(--s-1);
+  white-space: nowrap;
+}
 .mapa-pestanas-cuerpo {
   position: relative;
   display: flex;
@@ -5132,19 +5179,32 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   /* Abre sugerencias sobre el mapa, pero queda bajo el header. */
   z-index: calc(var(--z-header) - 1);
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--s-2);
   padding: var(--s-2) var(--gutter);
   border-bottom: 1px solid var(--line);
   background: var(--page);
+  overflow: visible;
 }
+.mapa-pestanas-barra .filtros-barra { flex: 1 1 0; min-width: 0; justify-content: flex-end; padding: 0; border: 0; background: transparent; }
+.mapa-pestanas-barra .filtros-chips-principales {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: max-content;
+}
+.mapa-pestanas-barra .filtros-mas { display: flex; flex: 0 0 auto; }
 .filtros-busqueda {
   display: flex;
-  flex: 0 1 15rem;
+  flex: 1 1 auto;
   min-width: 0;
   align-items: center;
   gap: var(--s-1);
+  min-height: 2.25rem;
   padding: var(--s-1) var(--s-2);
   border: 1px solid var(--line);
   border-radius: var(--r-pill);
@@ -5163,25 +5223,76 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-busqueda:focus-within { outline: 2px solid var(--info); outline-offset: 2px; }
 .filtros-busqueda-contenedor {
   position: relative;
-  flex: 0 1 15rem;
+  flex: 0 0 auto;
   min-width: 0;
 }
+.filtros-busqueda-contenedor--abierto { flex: 0 1 15rem; min-width: 10rem; }
 .filtros-busqueda-contenedor .filtros-busqueda { width: 100%; }
-.filtros-controles {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s-2);
-  min-width: 0;
-}
-.filtros-chip-final {
+.filtros-busqueda-boton {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--s-2);
+  justify-content: center;
+  gap: var(--s-1);
+  min-width: 2.75rem;
+  min-height: 2.25rem;
+  padding: var(--s-1) var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--fill);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.filtros-busqueda-boton svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.filtros-busqueda-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.mapa-pestanas-barra .filtros-chip__contador {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--page);
+  font-size: var(--t-small);
+}
+.filtros-chip--activo .filtros-chip__contador {
+  background: var(--page);
+  color: var(--ink);
+}
+.map-filtros-medicion {
+  display: flex;
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  height: 0;
+  overflow: hidden;
   white-space: nowrap;
 }
+.map-filtros-medicion > div { display: flex; flex: 0 0 auto; }
+.map-filtros-medicion .filtros-chip-grupo { flex: 0 0 auto; }
+.map-filtros-medicion [data-medicion-filtro="mas"] { flex: 0 0 auto; }
+.map-filtros-mas-posicionador { z-index: var(--z-popup); }
+.map-filtros-mas-panel {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 19rem;
+  max-width: calc(100vw - 2 * var(--gutter));
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e-float);
+}
+.map-filtros-mas-grupo { display: grid; gap: var(--s-2); }
+.map-filtros-mas-titulo {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--t-small);
+  font-weight: 600;
+}
+
 .filtros-sugerencias {
   position: absolute;
   z-index: var(--z-popup);
@@ -5211,6 +5322,7 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-sugerencias__vacio { padding: var(--s-2); }
 .filtros-chip-grupo { display: inline-flex; align-items: center; }
 .filtros-chip-grupo--activo { border-radius: var(--r-pill); background: var(--ink); }
+.mapa-pestanas-barra .filtros-chip { min-height: 2.25rem; }
 .filtros-chip {
   display: inline-flex;
   align-items: center;
@@ -5671,24 +5783,6 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 
 @media(max-width:600px) {
-  .map-left-stack.radar-meteo-left-stack {
-    display:flex !important;
-    position:absolute !important;
-    inset:auto !important;
-    top:55px !important;
-    left:8px !important;
-    right:auto !important;
-    bottom:auto !important;
-    width:min(230px,calc(100vw - 100px)) !important;
-    max-height:none !important;
-    overflow:visible !important;
-    z-index:13;
-  }
-  .radar-meteo-controls { left:8px; right:auto; width:min(230px,calc(100vw - 100px)); z-index:13; }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .map-left-stack.radar-meteo-left-stack { top:210px !important; }
-  [data-radar-activo="true"]:has(.radar-alerta-detail) .radar-meteo-controls {
-    top:calc(123px + 170px) !important;
-  }
   .radar-resumen { bottom:160px; }
   .radar-resumen.is-open { bottom:160px; height:min(36vh,310px); }
   .radar-resumen ~ .radar-meteo-legend { bottom:118px; }

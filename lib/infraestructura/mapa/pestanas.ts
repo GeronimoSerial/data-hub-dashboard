@@ -1,6 +1,12 @@
 import type { PestanaMapa } from './tipos'
 
-const VALIDAS: readonly PestanaMapa[] = ['actual', 'radar', 'planificacion', 'estadisticas']
+export function pestanaDeMapa(
+  pestana: Exclude<PestanaMapa, 'estadisticas'>,
+): Exclude<PestanaMapa, 'estadisticas' | 'capas'> {
+  return pestana === 'capas' ? 'actual' : pestana
+}
+
+const VALIDAS: readonly PestanaMapa[] = ['actual', 'radar', 'planificacion', 'estadisticas', 'capas']
 const ALIAS: Record<string, PestanaMapa> = { operativa: 'actual', evolucion: 'estadisticas' }
 
 export function resolverPestana(

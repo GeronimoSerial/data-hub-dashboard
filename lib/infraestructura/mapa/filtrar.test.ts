@@ -27,6 +27,7 @@ function esc(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquec
     ultimaNovedad: null,
     alumnosSinClases: 0,
     situacionesHistoricas: 0,
+    solucionadasRecientes: 0,
     ...parcial,
   }
 }
@@ -43,10 +44,14 @@ describe('filtrarEscuelas', () => {
     expect(r.map((e) => e.departamento)).toEqual(['Esquina', 'Goya'])
   })
 
-  it('apoyo "virtual" incluye "ambos"; "brinda" excluye "no" y null', () => {
-    const lista = [esc({ apoyo: 'virtual' }), esc({ apoyo: 'ambos' }), esc({ apoyo: 'cuadernillo' }), esc({ apoyo: 'no' }), esc({ apoyo: null })]
-    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, apoyo: ['virtual'] })).toEqual([lista[0], lista[1]])
-    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, apoyo: ['brinda'] })).toEqual([lista[0], lista[1], lista[2]])
+  it('"brinda" incluye todas las modalidades y el estado brinda; "no" y "sin_dato" son distintos', () => {
+    const lista = [
+      esc({ apoyo: 'virtual' }), esc({ apoyo: 'ambos' }), esc({ apoyo: 'cuadernillo' }),
+      esc({ apoyo: 'brinda' }), esc({ apoyo: 'no' }), esc({ apoyo: 'sin_dato' }), esc({ apoyo: null }),
+    ]
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, apoyo: ['brinda'] })).toEqual(lista.slice(0, 4))
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, apoyo: ['no'] })).toEqual([lista[4]])
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, apoyo: ['sin_dato'] })).toEqual([lista[5]])
   })
 
   it('la búsqueda matchea nombre sin tildes ni mayúsculas, y CUE parcial', () => {
@@ -58,6 +63,11 @@ describe('filtrarEscuelas', () => {
   it('sinActualizar=true deja sólo las sin actualizar', () => {
     const lista = [esc({ sinActualizar: false }), esc({ sinActualizar: true }), esc({ sinActualizar: true })]
     expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, sinActualizar: true })).toEqual([lista[1], lista[2]])
+  })
+
+  it('solucionadasRecientes=true deja sólo escuelas con situaciones solucionadas recientes', () => {
+    const lista = [esc(), esc({ cueAnexo: '1800002-00', solucionadasRecientes: 2 })]
+    expect(filtrarEscuelas(lista, { ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true })).toEqual([lista[1]])
   })
 
   it('los filtros vacíos devuelven todas las escuelas en el mismo orden', () => {
@@ -72,15 +82,17 @@ describe('contarOpciones', () => {
     expect(conteos).toEqual(new Map([['Inicial', 1], ['Primario', 1]]))
   })
 
-  it('cuenta apoyo con la misma semántica que el filtro', () => {
+  it('cuenta las tres opciones con la misma semántica que el filtro', () => {
     const conteos = contarOpciones([
       esc({ apoyo: 'virtual' }),
       esc({ apoyo: 'cuadernillo' }),
       esc({ apoyo: 'ambos' }),
+      esc({ apoyo: 'brinda' }),
       esc({ apoyo: 'no' }),
+      esc({ apoyo: 'sin_dato' }),
       esc({ apoyo: null }),
     ], 'apoyo')
-    expect(conteos).toEqual(new Map([['brinda', 3], ['no', 1], ['virtual', 2], ['cuadernillo', 2]]))
+    expect(conteos).toEqual(new Map([['brinda', 4], ['no', 1], ['sin_dato', 1]]))
   })
 
   it('cuenta clases por escuela', () => {

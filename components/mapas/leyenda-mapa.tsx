@@ -1,10 +1,12 @@
 'use client'
 
-import { BookMinus, BookX, Clock, DoorOpen, House } from 'lucide-react'
+import { useState } from 'react'
+import { BookMinus, BookX, Check, ChevronDown, ChevronUp, Clock, DoorOpen, House } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
-import { ETIQUETA_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
+import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 
 type PropsLeyendaMapa =
@@ -14,11 +16,12 @@ type PropsLeyendaMapa =
   | { pestana: 'estadisticas' }
 
 const ESTADOS_LEYENDA = [
-  { Icono: BookX, etiqueta: ETIQUETA_CLASES.sin },
-  { Icono: BookMinus, etiqueta: ETIQUETA_CLASES.parcial },
-  { Icono: DoorOpen, etiqueta: ETIQUETA_CLASES.evacuado },
-  { Icono: House, etiqueta: ETIQUETA_CLASES.centro },
+  { Icono: BookX, etiqueta: ETIQUETA_ESTADO_CLASES.sin },
+  { Icono: BookMinus, etiqueta: ETIQUETA_ESTADO_CLASES.parcial },
+  { Icono: DoorOpen, etiqueta: ETIQUETA_ESTADO_CLASES.evacuado },
+  { Icono: House, etiqueta: ETIQUETA_ESTADO_CLASES.centro },
   { Icono: Clock, etiqueta: 'Sin actualizar' },
+  { Icono: Check, etiqueta: 'Solucionada recientemente' },
 ] as const
 
 export function LeyendaMapa(props: PropsLeyendaMapa) {
@@ -75,35 +78,59 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
     )
   }
 
+  return <LeyendaActual />
+}
+
+function LeyendaActual() {
+  const [simbolosAbiertos, setSimbolosAbiertos] = useState(false)
+
   return (
     <aside className="map-leyenda" aria-label="Referencias del mapa">
-      <ul className="map-leyenda__fila">
-        {[...SEVERIDADES].reverse().map((severidad) => (
-          <li className="map-leyenda__elemento" key={severidad}>
+      <div id="map-leyenda-simbolos" hidden={!simbolosAbiertos}>
+        <ul className="map-leyenda__simbolos">
+          {ESTADOS_LEYENDA.map(({ Icono, etiqueta }) => (
+            <li className="map-leyenda__elemento" key={etiqueta}>
+              <Icono aria-hidden="true" className="map-leyenda__icono" size={14} />
+              <span>{etiqueta}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="map-leyenda__actual">
+        <ul className="map-leyenda__fila map-leyenda__gravedades">
+          {[...SEVERIDADES].reverse().map((severidad) => (
+            <li className="map-leyenda__elemento" key={severidad}>
+              <span
+                aria-hidden="true"
+                className="map-leyenda__muestra"
+                style={{ backgroundColor: colorSeveridad(severidad) }}
+              />
+              <span>{severidad}</span>
+            </li>
+          ))}
+          <li className="map-leyenda__elemento" key="sin-situaciones">
             <span
               aria-hidden="true"
-              className="map-leyenda__muestra"
-              style={{ backgroundColor: colorSeveridad(severidad) }}
+              className="map-leyenda__muestra map-leyenda__muestra--neutra"
             />
-            <span>{severidad}</span>
+            <span>Sin situaciones</span>
           </li>
-        ))}
-        <li className="map-leyenda__elemento" key="sin-reporte">
-          <span
-            aria-hidden="true"
-            className="map-leyenda__muestra map-leyenda__muestra--neutra"
-          />
-          <span>Sin reporte</span>
-        </li>
-      </ul>
-      <ul className="map-leyenda__fila">
-        {ESTADOS_LEYENDA.map(({ Icono, etiqueta }) => (
-          <li className="map-leyenda__elemento" key={etiqueta}>
-            <Icono aria-hidden="true" className="map-leyenda__icono" size={14} />
-            <span>{etiqueta}</span>
-          </li>
-        ))}
-      </ul>
+        </ul>
+        <Button
+          aria-controls="map-leyenda-simbolos"
+          aria-expanded={simbolosAbiertos}
+          className="map-leyenda__boton"
+          onClick={() => setSimbolosAbiertos((abiertos) => !abiertos)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Símbolos
+          {simbolosAbiertos
+            ? <ChevronUp aria-hidden="true" size={14} />
+            : <ChevronDown aria-hidden="true" size={14} />}
+        </Button>
+      </div>
     </aside>
   )
 }

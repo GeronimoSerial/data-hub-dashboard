@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Segmentado } from './segmentado'
@@ -39,5 +41,19 @@ describe('Segmentado', () => {
     expect(deshabilitada).not.toBeDisabled()
     await usuario.click(deshabilitada)
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('define una grilla regular de dos columnas compactas para el Radar', () => {
+    const css = readFileSync(resolve(process.cwd(), 'app/globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const regla = (selector: string) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, selectores]) => selectores?.split(',').some((item) => item.trim() === selector))
+      .map(([, , declaraciones]) => declaraciones ?? '')
+      .join(';')
+
+    expect(regla('.map-seg--2')).toMatch(/display\s*:\s*grid/i)
+    expect(regla('.map-seg--2')).toMatch(/grid-template-columns\s*:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/i)
+    expect(regla('.map-seg--2 .map-seg__opcion')).toMatch(/padding-inline\s*:\s*var\(--s-1\)/i)
+    expect(regla('.map-seg--2 .map-seg__opcion')).toMatch(/font-size\s*:\s*var\(--t-small\)/i)
+    expect(regla('.map-seg--2 .map-seg__opcion')).toMatch(/white-space\s*:\s*nowrap/i)
   })
 })

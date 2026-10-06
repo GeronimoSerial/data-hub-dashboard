@@ -15,6 +15,22 @@
 
 const ALT = 'Gobierno de Corrientes · Ministerio de Educación'
 
+/** Horizontal inverse signature for the dark map header band. At 44px it
+ *  remains below the Manual's 60px minimum as the compact exception accepted
+ *  by the user. */
+export function MarcaBanda() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      className="app-header__logo"
+      src="/marca/logo-educacion-h-inv.svg"
+      alt={ALT}
+      width={1051}
+      height={208}
+    />
+  )
+}
+
 /** Horizontal signature, application 1. Colour on light surfaces. */
 export function MarcaHorizontal({ className = '' }: { className?: string }) {
   return (

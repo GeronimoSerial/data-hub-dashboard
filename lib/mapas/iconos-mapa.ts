@@ -13,10 +13,12 @@
 // El badge de cluster lleva fondo blanco para leerse sobre cualquier color de
 // severidad (incluida Crítica, rojo oscuro), igual que el badge DOM.
 //
-// Los íconos individuales se reservan para las escuelas afectadas y usan su
-// severidad como fondo; las escuelas sin reporte se representan con un punto.
+// Los íconos individuales muestran la severidad de escuelas afectadas y un
+// check neutro para escuelas con una situación solucionada recientemente.
+// Las demás escuelas sin reporte se representan con un punto.
 
 import { SEVERIDAD_COLORES } from '@/lib/infraestructura/severidad'
+import { COLOR_SIN_AFECTACION } from './construir-escuelas-mapa-feature-collection'
 
 export const ATRIBUTOS_LUCIDE_BASE =
   'xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" ' +
@@ -50,6 +52,7 @@ export const ID_IMAGEN_ESCUELA_BAJA = 'infra-icono-escuela-baja'
 export const ID_IMAGEN_ESCUELA_MEDIA = 'infra-icono-escuela-media'
 export const ID_IMAGEN_ESCUELA_ALTA = 'infra-icono-escuela-alta'
 export const ID_IMAGEN_ESCUELA_CRITICA = 'infra-icono-escuela-critica'
+export const ID_IMAGEN_ESCUELA_SOLUCIONADA = 'infra-icono-escuela-solucionada'
 
 const PATH_ESCUELA =
   '<path d="M14 21v-3a2 2 0 0 0-4 0v3" />' +
@@ -76,6 +79,11 @@ export const SVG_ICONO_ESCUELA_BAJA = svgIconoEscuela(SEVERIDAD_COLORES.Baja, '#
 export const SVG_ICONO_ESCUELA_MEDIA = svgIconoEscuela(SEVERIDAD_COLORES.Media, '#1c1c1c')
 export const SVG_ICONO_ESCUELA_ALTA = svgIconoEscuela(SEVERIDAD_COLORES.Alta, '#ffffff')
 export const SVG_ICONO_ESCUELA_CRITICA = svgIconoEscuela(SEVERIDAD_COLORES.Crítica, '#ffffff')
+export const SVG_ICONO_ESCUELA_SOLUCIONADA = construirSvgIcono(
+  '<path d="M20 6 9 17l-5-5" />',
+  COLOR_SIN_AFECTACION,
+  '#ffffff',
+)
 
 export const ICONOS_CLUSTER_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
   { id: ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS, svg: SVG_ICONO_CLUSTER_CENTRO_EVACUADOS },
@@ -86,4 +94,5 @@ export const ICONOS_CLUSTER_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
   { id: ID_IMAGEN_ESCUELA_MEDIA, svg: SVG_ICONO_ESCUELA_MEDIA },
   { id: ID_IMAGEN_ESCUELA_ALTA, svg: SVG_ICONO_ESCUELA_ALTA },
   { id: ID_IMAGEN_ESCUELA_CRITICA, svg: SVG_ICONO_ESCUELA_CRITICA },
+  { id: ID_IMAGEN_ESCUELA_SOLUCIONADA, svg: SVG_ICONO_ESCUELA_SOLUCIONADA },
 ]

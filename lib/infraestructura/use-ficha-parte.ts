@@ -20,8 +20,17 @@ export interface AfectacionFicha {
   categoria: Categoria
   severidad: Severidad
   descripcion: string | null
+  causadaPorId: string | null
   rigeDesde: string
+  creadaEn: string
   totales: { secciones: number; alumnos: number }
+}
+
+export interface SolucionadaFicha {
+  id: string
+  motivo: string
+  severidad: Severidad
+  retiradaEn: string
 }
 
 export interface ParteFicha {
@@ -41,6 +50,7 @@ export interface RespuestaParteMapa {
   afectaciones?: AfectacionFicha[]
   secciones?: SeccionEstablecimiento[]
   datosPadron?: DatosPadronEscuela | null
+  recientes?: SolucionadaFicha[]
   ultimaActualizacion?: string | null
 }
 

@@ -4,31 +4,32 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { PanelRadar } from './panel-radar'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
+import type { VariableRadarUI } from './radar-meteo/selector'
 
 const escuelas: EscuelaMapaEnriquecida[] = [
   {
     cueAnexo: '100', nombre: 'Escuela Moderada', departamento: 'GENERAL ALVEAR', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario', 'Inicial'], alumnos: 80, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '200', nombre: 'Escuela Alta', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Secundario'], alumnos: 60, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '300', nombre: 'Escuela Muy Alta', departamento: 'Goya', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Inicial'], alumnos: 30, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
   {
     cueAnexo: '400', nombre: 'Escuela Baja', departamento: 'Ituzaingó', localidad: 'Centro', lat: null, lon: null,
     niveles: ['Primario'], alumnos: 20, gravedad: 0, categoriaPrincipal: null,
     clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0,
-    situacionesHistoricas: 0,
+    situacionesHistoricas: 0, solucionadasRecientes: 0,
   },
 ]
 
@@ -48,6 +49,8 @@ function props(overrides: Partial<React.ComponentProps<typeof PanelRadar>> = {})
     horizonte: 72 as HorizonteMotor,
     disponibles: [24, 72] as HorizonteMotor[],
     onHorizonte: vi.fn(),
+    variable: 'lluvia' as VariableRadarUI,
+    onVariable: vi.fn(),
     puntos,
     escuelas,
     cargando: false,
@@ -103,6 +106,23 @@ describe('PanelRadar', () => {
     expect(screen.getByRole('button', { name: '10 días' })).toHaveAttribute('aria-disabled', 'true')
   })
 
+  it('muestra la variable meteorológica en un control segmentado y permite elegir viento', () => {
+    const onVariable = vi.fn()
+    render(<PanelRadar {...props({ onVariable })} />)
+
+    const grupo = screen.getByRole('group', { name: 'Variable meteorológica' })
+    expect(within(grupo).getAllByRole('button')).toHaveLength(4)
+    expect(within(grupo).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(grupo).getByRole('button', { name: 'Probabilidad' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(grupo).getByRole('button', { name: 'Viento' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(grupo).getByRole('button', { name: 'Granizo' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(grupo).queryByRole('button', { name: /\(mm\)|\(estimado\)/ })).not.toBeInTheDocument()
+    expect(grupo).toHaveClass('map-seg--2')
+
+    fireEvent.click(within(grupo).getByRole('button', { name: 'Viento' }))
+    expect(onVariable).toHaveBeenCalledWith('viento')
+  })
+
   it('selecciona una escuela al activar su renglón', () => {
     const onSeleccionar = vi.fn()
     render(<PanelRadar {...props({ onSeleccionar })} />)
@@ -125,7 +145,7 @@ describe('PanelRadar', () => {
     const sinPronostico = render(<PanelRadar {...props({ disponibles: [] })} />)
     expect(screen.getByText('Todavía no hay un pronóstico disponible. Vuelva a consultar más tarde.')).toBeInTheDocument()
     expect(screen.queryByText('Riesgo alto o muy alto')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button').filter((boton) => boton.className.includes('map-seg__opcion')).every((boton) => boton.getAttribute('aria-disabled') === 'true')).toBe(true)
+    expect(within(screen.getByRole('group', { name: 'Horizonte' })).getAllByRole('button').every((boton) => boton.getAttribute('aria-disabled') === 'true')).toBe(true)
     sinPronostico.unmount()
 
     render(<PanelRadar {...props({ puntos: [] })} />)

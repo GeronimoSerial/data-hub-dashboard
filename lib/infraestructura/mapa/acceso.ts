@@ -1,10 +1,13 @@
 import type { CruceAccesoOsm, RutaGeoJson } from '@/lib/db/schema'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
+import { ETIQUETAS_CRUCE } from '@/lib/mapas/accesos-capas'
 
 export interface LineasAcceso {
   via: string | null
   cruces: string
+  crucesDetalle: string | null
+  crucesConRiesgo: boolean
   riesgo: 'Bajo' | 'Medio' | 'Alto' | null
 }
 
@@ -60,9 +63,25 @@ function etiquetaViaPrincipal(geometria: GeometriaAccesoRespuesta): string | nul
   return `${nombre} (${superficie})${destino}${etiquetaDistancia}`
 }
 
-function contarCruces(geometria: GeometriaAccesoRespuesta): number {
-  if (geometria.resumen) return geometria.resumen.vado + geometria.resumen.sinEvidencia
-  return (geometria.cruces ?? []).filter((cruce: CruceAccesoOsm) => cruce.clasificacion !== 'puente').length
+function resumirCruces(geometria: GeometriaAccesoRespuesta) {
+  if (geometria.cruces !== undefined) {
+    return geometria.cruces.reduce((resumen, cruce: CruceAccesoOsm) => {
+      if (cruce.clasificacion === 'puente') resumen.puente += 1
+      else if (cruce.clasificacion === 'vado') resumen.vado += 1
+      else resumen.sinEvidencia += 1
+      return resumen
+    }, { puente: 0, vado: 0, sinEvidencia: 0 })
+  }
+  return geometria.resumen ?? { puente: 0, vado: 0, sinEvidencia: 0 }
+}
+
+function detalleCruces(resumen: ReturnType<typeof resumirCruces>): string | null {
+  const etiquetas = [
+    resumen.puente > 0 ? `${resumen.puente} con ${ETIQUETAS_CRUCE.puente.toLocaleLowerCase('es-AR')}` : null,
+    resumen.vado > 0 ? `${resumen.vado} ${ETIQUETAS_CRUCE.vado.toLocaleLowerCase('es-AR')}` : null,
+    resumen.sinEvidencia > 0 ? `${resumen.sinEvidencia} ${ETIQUETAS_CRUCE.sin_evidencia.toLocaleLowerCase('es-AR')}` : null,
+  ].filter((etiqueta): etiqueta is string => etiqueta !== null)
+  return etiquetas.length > 0 ? etiquetas.join(' · ') : null
 }
 
 function nivelRiesgo(exposicion: ExposicionRutaRespuesta | null): LineasAcceso['riesgo'] {
@@ -84,7 +103,8 @@ export function lineasAcceso(
     ? geometria.distanciaKm
     : distanciaKm(geometria.ruta)
   const viaPrincipal = etiquetaViaPrincipal(geometria)
-  const cantidadCruces = contarCruces(geometria)
+  const resumenCruces = resumirCruces(geometria)
+  const cantidadCruces = resumenCruces.puente + resumenCruces.vado + resumenCruces.sinEvidencia
   const cruces = cantidadCruces === 0
     ? 'Sin cruces de agua'
     : `${cantidadCruces} ${cantidadCruces === 1 ? 'cruce' : 'cruces'} de agua en el camino`
@@ -94,6 +114,8 @@ export function lineasAcceso(
       ? null
       : `Camino de acceso · ${etiquetaKm(distancia)}`),
     cruces,
+    crucesDetalle: detalleCruces(resumenCruces),
+    crucesConRiesgo: resumenCruces.vado + resumenCruces.sinEvidencia > 0,
     riesgo: nivelRiesgo(exposicion),
   }
 }

@@ -4,7 +4,6 @@ import type {
   AsistenciaPedagogica,
   EstadoEstablecimiento,
   EstadoServicioGeneral,
-  Severidad,
 } from '@/lib/infraestructura/trayectoria-tipos'
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from '@/lib/infraestructura/umbrales'
 import type {
@@ -13,13 +12,7 @@ import type {
   EscuelaMapaEnriquecida,
   GravedadMapa,
 } from './tipos'
-
-const GRAVEDAD_POR_SEVERIDAD: Record<Severidad, GravedadMapa> = {
-  Baja: 1,
-  Media: 2,
-  Alta: 3,
-  Crítica: 4,
-}
+import { gravedadDeSeveridad } from './gravedad'
 
 export function derivarClases(
   estado: EstadoEstablecimiento,
@@ -37,14 +30,15 @@ export function derivarApoyo(
   asistencia: AsistenciaPedagogica | null,
 ): ApoyoPedagogico {
   if (clases === 'normal') return null
-  if (!asistencia?.brinda) return 'no'
+  if (asistencia === null) return 'sin_dato'
+  if (!asistencia.brinda) return 'no'
 
   const virtual = asistencia.modalidades.includes('Clase virtual')
   const cuadernillo = asistencia.modalidades.includes('Cuadernillo')
   if (virtual && cuadernillo) return 'ambos'
   if (virtual) return 'virtual'
   if (cuadernillo) return 'cuadernillo'
-  return 'no'
+  return 'brinda'
 }
 
 export function esSinActualizar(parte: ParteMapa | undefined, ahoraMs: number): boolean {
@@ -67,16 +61,20 @@ function situacionPrincipalDe(parte: ParteMapa | undefined) {
 
 export function gravedadDe(parte: ParteMapa | undefined): GravedadMapa {
   const principal = situacionPrincipalDe(parte)
-  return principal ? GRAVEDAD_POR_SEVERIDAD[principal.severidad] : 0
+  return principal ? gravedadDeSeveridad(principal.severidad) : 0
 }
 
 export function enriquecerEscuela(
   e: EscuelaMapa,
-  extra: { niveles: string[]; alumnos: number; asistencia: AsistenciaPedagogica | null; situacionesHistoricas: number },
+  extra: { niveles: string[]; alumnos: number; asistencia: AsistenciaPedagogica | null; situacionesHistoricas: number; solucionadasRecientes: number },
   ahoraMs: number,
 ): EscuelaMapaEnriquecida {
   const parte = e.parte
-  const clases = parte ? derivarClases(parte.estadoEstablecimiento, parte.servicio) : 'normal'
+  // El edificio y el servicio pertenecen al parte; al solucionar una situación, el servidor no los resetea.
+  const tieneSituacionDeEstablecimiento = parte?.afectaciones.some((a) => a.categoria === 'establecimiento') ?? false
+  const clases = parte && tieneSituacionDeEstablecimiento
+    ? derivarClases(parte.estadoEstablecimiento, parte.servicio)
+    : 'normal'
   const principal = situacionPrincipalDe(parte)
   const niveles = [...new Set(extra.niveles.map((nivel) => nivel.trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'es'))
@@ -90,7 +88,7 @@ export function enriquecerEscuela(
     lon: e.lon,
     niveles,
     alumnos: extra.alumnos,
-    gravedad: principal ? GRAVEDAD_POR_SEVERIDAD[principal.severidad] : 0,
+    gravedad: principal ? gravedadDeSeveridad(principal.severidad) : 0,
     categoriaPrincipal: principal?.categoria ?? null,
     clases,
     apoyo: derivarApoyo(clases, extra.asistencia),
@@ -98,6 +96,7 @@ export function enriquecerEscuela(
     ultimaNovedad: parte?.actualizadaEn ?? null,
     alumnosSinClases: clases === 'sin' || clases === 'evacuado' || clases === 'centro' ? extra.alumnos : 0,
     situacionesHistoricas: extra.situacionesHistoricas,
+    solucionadasRecientes: extra.solucionadasRecientes,
     ...(parte ? { parte } : {}),
   }
 }

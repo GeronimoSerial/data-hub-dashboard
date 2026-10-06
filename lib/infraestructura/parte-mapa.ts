@@ -32,6 +32,7 @@ import type {
 } from './trayectoria-tipos'
 import { enriquecerEscuela } from './mapa/enriquecer'
 import type { EscuelaMapaEnriquecida } from './mapa/tipos'
+import { VENTANA_CAUSA_DIAS } from './causa-afectacion'
 
 // Mismos filtros de establecimiento/afectación que FiltrosAlertas
 // (consulta.ts), más los dos que agrega el modelo de parte: `categoria`
@@ -414,10 +415,18 @@ export async function listarPartesVigentes(
     if (filtradas.length === 0) continue
 
     const secciones = seccionesPorCue.get(parteRow.cueAnexo) ?? []
+    // El estado del edificio/servicio es del parte y puede quedar viejo al solucionar una situación.
+    // Sólo se proyecta al mapa si existe alguna situación abierta de establecimiento.
+    const tieneSituacionDeEstablecimiento = vigentes.some((a) => a.categoria === 'establecimiento')
+    const estadoEstablecimiento = tieneSituacionDeEstablecimiento
+      ? parteRow.estadoEstablecimiento
+      : 'habitual'
     const servicioVigente = resolverAlcanceVigente(servicioPorParte.get(parteRow.id) ?? [], {
       clave: claveServicioAlcance,
     })
-    const servicioGeneral = calcularEstadoServicioGeneral(servicioVigente, secciones)
+    const servicioGeneral = tieneSituacionDeEstablecimiento
+      ? calcularEstadoServicioGeneral(servicioVigente, secciones)
+      : 'normal'
     if (filtros.servicio !== undefined && servicioGeneral !== filtros.servicio) continue
 
     const alumnosAlcanzados = new Set<number>()
@@ -450,7 +459,7 @@ export async function listarPartesVigentes(
 
     const alumnosDelHecho = alumnosAlcanzados.size
     let alumnosDelEstablecimiento: number | null = null
-    if (parteRow.estadoEstablecimiento === 'evacuado' || parteRow.estadoEstablecimiento === 'centro_evacuados') {
+    if (estadoEstablecimiento === 'evacuado' || estadoEstablecimiento === 'centro_evacuados') {
       const turnosInterrumpidos = new Set(servicioVigente.filter((s) => s.estado === 'suspendido' && s.tipo === 'turno').map((s) => s.referenciaId))
       const seccionesInterrumpidas = turnosInterrumpidos.size > 0
         ? secciones.filter((s) => turnosInterrumpidos.has(s.turno))
@@ -461,7 +470,7 @@ export async function listarPartesVigentes(
       }
       if (seccionesInterrumpidas.length > 0) alumnosDelEstablecimiento = roster.size
     }
-    const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: parteRow.estadoEstablecimiento, alumnosDelEstablecimiento })
+    const alumnosConsecuencia = calcularAlumnosAlcanzados({ alumnosDelHecho, estado: estadoEstablecimiento, alumnosDelEstablecimiento })
 
     partes.push({
       parteId: parteRow.id,
@@ -472,7 +481,7 @@ export async function listarPartesVigentes(
       lat: parteRow.lat,
       lon: parteRow.lon,
       servicio: servicioGeneral,
-      estadoEstablecimiento: parteRow.estadoEstablecimiento,
+      estadoEstablecimiento,
       peorSeveridad,
       categorias: [...categorias],
       afectaciones: filtradas.map((a) => ({
@@ -693,17 +702,33 @@ export async function listarEscuelasMapaEnriquecidas(
   const client = crearEjecutorSql(getRawClient())
   await asegurarGeAdjuntada(client)
   const corte = await getCorteVigente(client)
+  const ahoraMs = Date.now()
 
   const situacionesPorCue = new Map<string, number>()
   const situacionesRes = await client.execute({
     sql: `SELECT p.cue_anexo, COUNT(a.id) AS situaciones
       FROM infra_afectacion a
       INNER JOIN infra_parte p ON p.id = a.parte_id
+      WHERE a.cierre IS NULL OR a.cierre <> 'retirada'
       GROUP BY p.cue_anexo`,
     args: [],
   })
   for (const fila of situacionesRes.rows) {
     situacionesPorCue.set(stringValor(fila.cue_anexo), Number(fila.situaciones ?? 0))
+  }
+
+  const desde = new Date(ahoraMs - VENTANA_CAUSA_DIAS * 24 * 60 * 60 * 1000).toISOString()
+  const solucionadasRes = await client.execute({
+    sql: `SELECT p.cue_anexo, COUNT(a.id) AS situaciones
+      FROM infra_afectacion a
+      INNER JOIN infra_parte p ON p.id = a.parte_id
+      WHERE a.cierre = 'solucionada' AND a.retirada_en >= ?
+      GROUP BY p.cue_anexo`,
+    args: [desde],
+  })
+  const solucionadasRecientesPorCue = new Map<string, number>()
+  for (const fila of solucionadasRes.rows) {
+    solucionadasRecientesPorCue.set(stringValor(fila.cue_anexo), Number(fila.situaciones ?? 0))
   }
 
   const datosPorCue = new Map<string, { niveles: Set<string>; alumnos: number }>()
@@ -739,7 +764,6 @@ export async function listarEscuelasMapaEnriquecidas(
     }
   }
 
-  const ahoraMs = Date.now()
   return {
     ...resultado,
     escuelas: resultado.escuelas.map((escuela) => {
@@ -752,6 +776,7 @@ export async function listarEscuelasMapaEnriquecidas(
           alumnos: datos?.alumnos ?? 0,
           asistencia,
           situacionesHistoricas: situacionesPorCue.get(escuela.cueAnexo) ?? 0,
+          solucionadasRecientes: solucionadasRecientesPorCue.get(escuela.cueAnexo) ?? 0,
         }, ahoraMs),
       }
     }),

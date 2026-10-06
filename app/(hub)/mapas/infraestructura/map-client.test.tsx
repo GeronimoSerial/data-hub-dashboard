@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as React from 'react'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { InfraestructuraMapClient } from './map-client'
 import type { EscuelasMapaPadronResultado } from '@/lib/infraestructura/parte-mapa'
 
 const PADRON_PRUEBA: EscuelasMapaPadronResultado = {
   escuelas: [
-    { cueAnexo: '180001-00', nombre: 'Escuela Primaria', departamento: 'Capital', localidad: 'Corrientes', lat: -27.4, lon: -58.8, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 20, gravedad: 2, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0 },
-    { cueAnexo: '180002-00', nombre: 'Escuela Secundaria', departamento: 'Goya', localidad: 'Goya', lat: -29.1, lon: -59.2, estado: 'sin_afectacion_reportada', niveles: ['Secundario'], alumnos: 30, gravedad: 1, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0 },
-    { cueAnexo: '180003-00', nombre: 'Escuela Rural', departamento: 'Ituzaingó', localidad: 'Ituzaingó', lat: -27.6, lon: -56.7, estado: 'sin_afectacion_reportada', niveles: ['Primario', 'Secundario'], alumnos: 15, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0 },
-    { cueAnexo: '1800087-00', nombre: 'Escuela N° 87 Colonia Tatacuá', departamento: 'San Roque', localidad: 'Tatacuá', lat: -28.2, lon: -58.1, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 18, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0 },
+    { cueAnexo: '180001-00', nombre: 'Escuela Primaria', departamento: 'Capital', localidad: 'Corrientes', lat: -27.4, lon: -58.8, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 20, gravedad: 2, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0, solucionadasRecientes: 0 },
+    { cueAnexo: '180002-00', nombre: 'Escuela Secundaria', departamento: 'Goya', localidad: 'Goya', lat: -29.1, lon: -59.2, estado: 'sin_afectacion_reportada', niveles: ['Secundario'], alumnos: 30, gravedad: 1, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0, solucionadasRecientes: 0 },
+    { cueAnexo: '180003-00', nombre: 'Escuela Rural', departamento: 'Ituzaingó', localidad: 'Ituzaingó', lat: -27.6, lon: -56.7, estado: 'sin_afectacion_reportada', niveles: ['Primario', 'Secundario'], alumnos: 15, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0, solucionadasRecientes: 0 },
+    { cueAnexo: '1800087-00', nombre: 'Escuela N° 87 Colonia Tatacuá', departamento: 'San Roque', localidad: 'Tatacuá', lat: -28.2, lon: -58.1, estado: 'sin_afectacion_reportada', niveles: ['Primario'], alumnos: 18, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 0, solucionadasRecientes: 0 },
   ],
   sinUbicacion: [{ cueAnexo: '180004-00', nombre: 'Escuela sin ubicación', departamento: 'Goya', localidad: 'Goya' }],
   totalPadron: 4,
@@ -30,12 +30,21 @@ const registroSeleccion = vi.hoisted(() => ({
   hashesAlSeleccionar: [] as string[],
 }))
 
+function chipPrincipal(nombre: string) {
+  const chips = document.querySelector<HTMLElement>('.filtros-chips-principales')
+  if (!chips) throw new Error('No se encontró el grupo de chips principales')
+  return within(chips).getByRole('button', { name: nombre })
+}
+
 vi.mock('@/components/mapas/map-infraestructura-page', () => ({
   default: function MapaDePrueba(props: {
     pestana: string
+    panel: string
+    visible?: boolean
     escuelasMapa: EscuelasMapaPadronResultado | null
     onRegistrarSeleccion?: (fn: ((escuela: EscuelasMapaPadronResultado['escuelas'][number]) => void) | null) => void
   }): React.JSX.Element {
+    const [cueSeleccionado, setCueSeleccionado] = React.useState<string | null>(null)
     React.useEffect(() => {
       montajesMapa.total += 1
     }, [])
@@ -43,10 +52,15 @@ vi.mock('@/components/mapas/map-infraestructura-page', () => ({
       props.onRegistrarSeleccion?.((escuela) => {
         registroSeleccion.escuelasSeleccionadas.push(escuela)
         registroSeleccion.hashesAlSeleccionar.push(window.location.hash)
+        setCueSeleccionado(escuela.cueAnexo)
       })
       return () => props.onRegistrarSeleccion?.(null)
     }, [props.onRegistrarSeleccion])
-    return <div data-testid="mock-mapa" data-pestana={props.pestana} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''} />
+    return (
+      <div data-testid="mock-mapa" data-pestana={props.pestana} data-panel={props.panel} data-visible={props.visible} data-seleccion={cueSeleccionado ?? ''} data-escuelas={props.escuelasMapa?.escuelas.length ?? 0} data-cues={props.escuelasMapa?.escuelas.map((escuela) => escuela.cueAnexo).join(',') ?? ''}>
+        <div data-testid="panel-lateral" />
+      </div>
+    )
   },
 }))
 
@@ -75,10 +89,26 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
-  it('muestra una sola fila con Situación actual, Radar, Planificación y Estadísticas', () => {
+  it('muestra cuatro chips en línea y Más filtros con asistencia y switches', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
+    if (!principales) throw new Error('No se encontró el grupo de chips principales')
+    expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
+      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
+    const panel = screen.getByRole('dialog', { name: 'Más filtros' })
+    expect(within(panel).getByText('Asistencia pedagógica')).toBeInTheDocument()
+    await userEvent.click(within(panel).getByRole('checkbox', { name: /Se brinda/ }))
+    await userEvent.click(within(panel).getByRole('switch', { name: 'Sin actualizar' }))
+    expect(screen.getByRole('button', { name: 'Más filtros, 2 activos' })).toBeInTheDocument()
+  })
+
+  it('muestra una sola fila con Situación actual, Radar, Planificación, Estadísticas y Capas', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
-    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas'])
+    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas', 'Capas'])
   })
 
   it('sin el flag del radar no muestra la pestaña Radar', () => {
@@ -86,43 +116,48 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.queryByRole('tab', { name: /Radar/ })).toBeNull()
   })
 
-  it('muestra el contador de escuelas con reporte y lo actualiza con los filtros', async () => {
+  it('muestra el contador de escuelas con situaciones abiertas y lo actualiza con los filtros', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
-    const pestaña = screen.getByRole('tab', { name: 'Situación actual, 2 escuelas con reporte' })
+    const pestaña = screen.getByRole('tab', { name: 'Situación actual, 2 escuelas con situaciones abiertas' })
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
 
-    const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con reporte' })
+    const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con situaciones abiertas' })
     expect(pestañaFiltrada.querySelector('.map-sitact__pill')).toHaveTextContent('1')
   })
 
-  it('no muestra el contador cuando no hay escuelas con reporte', async () => {
+  it('no muestra el contador cuando no hay escuelas con situaciones abiertas', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'sin resultados')
 
     const pestaña = screen.getByRole('tab', { name: 'Situación actual' })
     expect(pestaña.querySelector('.map-sitact__pill')).toBeNull()
   })
 
-  it('muestra los filtros debajo de las pestañas también en Estadísticas', async () => {
+  it('mantiene las pestañas y los filtros en el mismo contenedor, con las pestañas primero', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const tabs = screen.getByRole('tab', { name: /^Situación actual/ })
-    const filtros = screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
+    const filtros = screen.getByRole('button', { name: 'Buscar escuela o CUE' }).closest('.filtros-barra')
     expect(filtros).not.toBeNull()
+    const barra = tabs.closest('.mapa-pestanas-barra')
+    expect(barra).not.toBeNull()
+    expect(barra).toContainElement(tabs)
+    expect(barra).toContainElement(filtros as HTMLElement)
     expect(tabs.compareDocumentPosition(filtros as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
-    expect(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Buscar escuela o CUE' })).toBeVisible()
   })
 
   it('pasa los filtros activos a la sección de evolución', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
@@ -138,12 +173,13 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
     expect(mapa).toHaveAttribute('data-escuelas', '3')
     expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00,1800087-00')
     expect(montajesMapa.total).toBe(1)
 
+    await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }))
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)
@@ -151,6 +187,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
   it('selecciona la escuela sugerida mediante el callback registrado por la página', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     const busqueda = await screen.findByRole('combobox', { name: 'Buscar escuela o CUE' })
     await userEvent.type(busqueda, 'tatacua')
     await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
@@ -158,61 +195,104 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(registroSeleccion.escuelasSeleccionadas).toEqual([PADRON_PRUEBA.escuelas[3]])
   })
 
-  it('vuelve de Estadísticas a Situación actual antes de seleccionar una escuela', async () => {
+  it('selecciona una escuela desde Estadísticas y vuelve a la última pestaña con mapa', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'tatacua')
     await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
 
     expect(registroSeleccion.escuelasSeleccionadas).toEqual([PADRON_PRUEBA.escuelas[3]])
     expect(registroSeleccion.hashesAlSeleccionar).toEqual(['#actual'])
+    expect(screen.getByRole('tab', { name: /^Situación actual/ })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('filtra las escuelas del mapa por texto de búsqueda', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
     const mapa = await screen.findByTestId('mock-mapa')
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
     await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'secundaria')
     expect(mapa).toHaveAttribute('data-escuelas', '1')
     expect(mapa).toHaveAttribute('data-cues', '180002-00')
   })
 
-  it('Estadísticas oculta el mapa sin desmontarlo', async () => {
+  it('abre Estadísticas como sección independiente y oculta el mapa sin desmontarlo', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    const mapa = await screen.findByTestId('mock-mapa')
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
     expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
-    expect(screen.getByTestId('pestana-estadisticas')).toBeVisible()
+    expect(screen.getByTestId('pestana-estadisticas')).toContainElement(screen.getByTestId('mock-evolucion'))
+    expect(within(screen.getByTestId('panel-lateral')).queryByRole('heading', { name: 'Estadísticas' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+    expect(montajesMapa.total).toBe(1)
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
+    expect(screen.queryByTestId('pestana-estadisticas')).not.toBeInTheDocument()
+    expect(screen.getByTestId('pestana-mapa')).not.toHaveAttribute('hidden')
+    expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+    expect(montajesMapa.total).toBe(1)
   })
 
-  it('mantiene la última pestaña del mapa mientras se muestran Estadísticas', async () => {
+  it('al volver de Estadísticas conserva la pestaña con mapa activa', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     await userEvent.click(screen.getByRole('tab', { name: 'Radar' }))
     const mapa = screen.getByTestId('mock-mapa')
     expect(mapa).toHaveAttribute('data-pestana', 'radar')
 
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
-    expect(mapa).toHaveAttribute('data-pestana', 'radar')
     expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+    expect(mapa).toHaveAttribute('data-pestana', 'radar')
 
-    await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
-    expect(mapa).toHaveAttribute('data-pestana', 'actual')
+    await userEvent.click(screen.getByRole('tab', { name: 'Radar' }))
+    expect(screen.getByTestId('pestana-mapa')).not.toHaveAttribute('hidden')
+    expect(mapa).toHaveAttribute('data-pestana', 'radar')
   })
 
-  it('cambiar de pestaña oculta el mapa con CSS sin desmontarlo', async () => {
+  it('en Capas deja el mapa en Situación actual y conserva el mapa montado', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
+    const mapa = await screen.findByTestId('mock-mapa')
+    await userEvent.click(screen.getByRole('tab', { name: 'Capas' }))
+    expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+    expect(mapa).toHaveAttribute('data-pestana', 'actual')
+    expect(mapa).toHaveAttribute('data-panel', 'capas')
+    expect(montajesMapa.total).toBe(1)
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
+    await userEvent.click(screen.getByRole('tab', { name: 'Capas' }))
+    expect(screen.getByTestId('mock-mapa')).toBe(mapa)
+    expect(mapa).toHaveAttribute('data-pestana', 'actual')
+    expect(mapa).toHaveAttribute('data-panel', 'capas')
+    expect(montajesMapa.total).toBe(1)
+  })
+
+  it('#capas selecciona la pestaña Capas', async () => {
+    window.location.hash = 'capas'
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    expect(await screen.findByRole('tab', { name: 'Capas' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-panel', 'capas')
+  })
+
+  it('cambiar entre mapa y Estadísticas conserva la selección y el mapa montado', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
     const mapa = await screen.findByTestId('mock-mapa')
     expect(montajesMapa.total).toBe(1)
     expect(screen.queryByTestId('mock-evolucion')).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
+    await userEvent.type(screen.getByRole('combobox', { name: 'Buscar escuela o CUE' }), 'tatacua')
+    await userEvent.click(screen.getByRole('option', { name: /1800087-00/ }))
+    expect(mapa).toHaveAttribute('data-seleccion', '1800087-00')
+    const cues = mapa.getAttribute('data-cues')
+
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
-    // Mismo nodo del DOM y un solo montaje: MapLibre no se remontó.
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
     expect(montajesMapa.total).toBe(1)
-    // Oculto, no borrado.
-    expect(mapa).not.toBeVisible()
-
-    expect(screen.getByRole('heading', { name: 'Estadísticas' })).toBeInTheDocument()
+    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+    expect(mapa).toHaveAttribute('data-seleccion', '1800087-00')
+    expect(mapa).toHaveAttribute('data-cues', cues)
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('tab', { name: /^Situación actual/ }))
@@ -220,6 +300,8 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.getByTestId('mock-mapa')).toBe(mapa)
     expect(montajesMapa.total).toBe(1)
     expect(mapa).toBeVisible()
+    expect(mapa).toHaveAttribute('data-seleccion', '1800087-00')
+    expect(mapa).toHaveAttribute('data-cues', cues)
     expect(screen.queryByTestId('mock-evolucion')).not.toBeInTheDocument()
   })
 
@@ -229,8 +311,9 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
 
     expect(await screen.findByTestId('mock-evolucion')).toBeInTheDocument()
-    // El mapa sigue montado (y oculto) detrás de la pestaña de evolución.
-    expect(await screen.findByTestId('mock-mapa')).not.toBeVisible()
+    expect(screen.getByTestId('pestana-mapa')).toHaveAttribute('hidden')
+    expect(await screen.findByTestId('mock-mapa')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-mapa')).toHaveAttribute('data-pestana', 'actual')
     expect(montajesMapa.total).toBe(1)
   })
 

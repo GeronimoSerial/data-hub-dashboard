@@ -77,6 +77,7 @@ describe('GET /api/mapas/infraestructura/parte sin corte vigente', () => {
 
     const body = await res.json()
     expect(body).toMatchObject({ ok: true, datosPadron: null, secciones: [] })
+    expect(body.recientes).toEqual([])
     expect(body.parte).not.toBeNull()
     expect(body.afectaciones).toHaveLength(1)
     expect(body.afectaciones[0]).toMatchObject({
@@ -96,6 +97,7 @@ describe('GET /api/mapas/infraestructura/parte sin corte vigente', () => {
       ok: true,
       parte: null,
       datosPadron: null,
+      recientes: [],
     })
     expect(body.afectaciones === undefined || body.afectaciones.length === 0).toBe(true)
   })
