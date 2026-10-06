@@ -27,7 +27,7 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - [x] T5 R2: `PanelRadar` con resumen de pronóstico (KPIs + lista por departamento, horizontes habilitados)
 - [x] T5b R2: clic en un departamento lo resalta y centra en el mapa (wiring en la página)
 - [x] T6 R3: test de la capa de lluvia con payload real reducido (+ fix si hay bug)
-- [ ] T7 Gate final (tsc, lint, suite completa) y reporte
+- [x] T7 Gate final (tsc, lint, suite completa) y reporte
 
 ## Evidencia
 - T1: tsc limpio; vitest alertas-agrupadas + use-resumen + components/mapas/radar-meteo: 34 pasan. Ruta: delegada (N3).
@@ -37,3 +37,4 @@ Corregir el Radar con el código de producción y datos reales (7 días, 9 alert
 - T5: tsc limpio; eslint 0 errores; vitest components/mapas + lib/infraestructura/radar-meteo: 43 archivos / 399 tests pasan. Ruta: delegada (N3). Pendiente en T5b: warning de import sin uso en pronostico-resumen.test.tsx.
 - T5b: tsc limpio; vitest page+panel+pronostico-resumen: 111 pasan (incluye test de flyTo al centroide). Ruta: delegada (N3).
 - T6 (R3): SIN BUG en la capa. Fixture real reducido (239 celdas, 4 pasos, máx. 53 mm/3 h) generado desde la corrida de hoy; el test monta `RadarMeteo` y verifica raster con alfa>0 en el paso lluvioso, transparente en el seco y puntos debug con color == `colorLluvia(valor/3)`. tsc limpio; vitest components/mapas/radar-meteo: 9 archivos / 35 tests (también con TZ=UTC). Ruta: delegada (N3 + N3 de fix de warning).
+- T7 gate final: tsc limpio; `pnpm lint` 0 errores (15 warnings preexistentes); suite completa (7G, dot, 4 workers): 330 archivos / 2945 tests pasan, 21 skipped. La falla conocida de `resumen/route.test.ts` no se reprodujo; el flaky de reporte-inicial tampoco.
