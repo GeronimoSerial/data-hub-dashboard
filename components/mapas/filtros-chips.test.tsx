@@ -40,6 +40,12 @@ function renderFiltros(filtros: FiltrosMapa = FILTROS_MAPA_VACIOS, onChange = vi
   return { onChange, ...render(<FiltrosChips escuelas={padronEjemplo} filtros={filtros} onChange={onChange} />) }
 }
 
+function getChip(nombre: string | RegExp) {
+  const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
+  if (principales === null) throw new Error('No se encontró el grupo de chips principales')
+  return within(principales).getByRole('button', { name: nombre })
+}
+
 const escuelaTatacua = escuela({ cueAnexo: '1800087-00', nombre: 'Escuela N° 87 Colonia Tatacuá', departamento: 'San Roque' })
 
 function FiltrosControlados({ escuelas, onSeleccionar }: {
@@ -53,11 +59,20 @@ function FiltrosControlados({ escuelas, onSeleccionar }: {
 afterEach(cleanup)
 
 describe('FiltrosChips', () => {
+  it('deja Departamento, Nivel, Gravedad y Clases en el grupo de chips en línea', () => {
+    renderFiltros()
+    const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
+    if (principales === null) throw new Error('No se encontró el grupo de chips principales')
+    expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
+      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+    ])
+  })
+
   it('abre el popover de Departamento hacia abajo', async () => {
     const user = userEvent.setup()
     renderFiltros()
 
-    await user.click(screen.getByRole('button', { name: 'Departamento' }))
+    await user.click(getChip('Departamento'))
     const popup = screen.getByRole('dialog', { name: 'Departamento' })
     const posicionador = popup.closest('.filtros-popover-posicionador')
 
@@ -75,12 +90,67 @@ describe('FiltrosChips', () => {
     expect(reglaPopover).toMatch(/max-height:/)
   })
 
+  it('mantiene un único quiebre en rango 1100–1250 px y agrupa las reglas compactas', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const bloques = [...css.matchAll(/@container\s*\(([^)]*)\)\s*\{([\s\S]*?)\n\}/g)]
+      .filter(([, , reglas]) => reglas?.includes('.mapa-pestanas-barra .filtros-compactos-boton')
+        || reglas?.includes('.mapa-pestanas-barra .filtros-controles'))
+
+    expect(bloques).toHaveLength(1)
+    const condicion = bloques[0]?.[1] ?? ''
+    const ancho = Number(condicion.match(/max-width:\s*(\d+)px/)?.[1])
+    expect(ancho).toBe(1200)
+    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-compactos-boton')
+    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-controles')
+    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-chips-principales')
+    expect(bloques[0]?.[2]).toContain('.mapa-pestanas-barra .filtros-mas')
+    expect(bloques[0]?.[2]).toMatch(/\.filtros-mas\s*\{[^}]*display:\s*none/)
+  })
+
+  it('mantiene cuatro chips principales en una sola línea en modo ancho', () => {
+    const css = readFileSync('app/globals.css', 'utf8')
+    const regla = css.match(/\.mapa-pestanas-barra \.filtros-chips-principales\s*\{[^}]*\}/)?.[0]
+
+    expect(regla).toMatch(/flex-wrap:\s*nowrap/)
+  })
+
+  it('abre Más filtros con asistencia pedagógica y dos switches, y cuenta todos los activos', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    renderFiltros(FILTROS_MAPA_VACIOS, onChange)
+    const boton = screen.getByRole('button', { name: 'Más filtros' })
+
+    expect(boton).toHaveAttribute('aria-expanded', 'false')
+    await user.click(boton)
+    const dialog = screen.getByRole('dialog', { name: 'Más filtros' })
+    expect(within(dialog).getByText('Asistencia pedagógica')).toBeInTheDocument()
+    const brindar = within(dialog).getByRole('checkbox', { name: /Se brinda/ })
+    const sinActualizar = within(dialog).getByRole('switch', { name: 'Sin actualizar' })
+    const solucionadas = within(dialog).getByRole('switch', { name: 'Solucionadas en los últimos 15 días' })
+    await user.click(brindar)
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ apoyo: ['brinda'] }))
+    await user.click(sinActualizar)
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ sinActualizar: true }))
+    await user.click(solucionadas)
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ solucionadasRecientes: true }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Más filtros' })).not.toBeInTheDocument()
+
+    await user.click(boton)
+    await user.click(document.body)
+    expect(boton).toHaveAttribute('aria-expanded', 'false')
+
+    cleanup()
+    renderFiltros({ ...FILTROS_MAPA_VACIOS, apoyo: ['brinda'], sinActualizar: true })
+    expect(screen.getByRole('button', { name: 'Más filtros, 2 activos' })).toBeInTheDocument()
+  })
+
   it('elegir Primario en Nivel filtra y muestra el chip activo con su ×', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    await user.click(screen.getByRole('button', { name: /Nivel/ }))
+    await user.click(getChip(/Nivel/))
     await user.click(screen.getByRole('checkbox', { name: /Primario/ }))
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ niveles: ['Primario'] }))
   })
@@ -90,7 +160,7 @@ describe('FiltrosChips', () => {
     const filtros = { ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], departamentos: ['Goya'] }
     const { onChange } = renderFiltros(filtros, vi.fn())
 
-    await user.click(screen.getByRole('button', { name: 'Quitar filtro Nivel' }))
+    await user.click(getChip('Quitar filtro Nivel'))
     expect(onChange).toHaveBeenLastCalledWith({ ...filtros, niveles: [] })
   })
 
@@ -102,10 +172,10 @@ describe('FiltrosChips', () => {
     expect(screen.getByRole('button', { name: 'Limpiar filtros' })).toBeInTheDocument()
   })
 
-  it('mantiene Limpiar filtros junto a Sin actualizar al envolver los chips', () => {
+  it('mantiene Limpiar filtros junto a los interruptores en el panel compacto', () => {
     renderFiltros({ ...FILTROS_MAPA_VACIOS, q: 'Goya' })
 
-    const sinActualizar = screen.getByRole('button', { name: /Sin actualizar/ })
+    const sinActualizar = screen.getByRole('button', { name: 'Sin actualizar' })
     const limpiar = screen.getByRole('button', { name: 'Limpiar filtros' })
     const contenedor = sinActualizar.closest('.filtros-chip-final')
 
@@ -116,7 +186,7 @@ describe('FiltrosChips', () => {
   it('cada opción muestra cuántas escuelas tiene', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    await user.click(screen.getByRole('button', { name: /Nivel/ }))
+    await user.click(getChip(/Nivel/))
 
     const primario = screen.getByRole('checkbox', { name: /Primario/ })
     expect(primario).toHaveAccessibleName(/Primario.*2/)
@@ -126,22 +196,23 @@ describe('FiltrosChips', () => {
     const user = userEvent.setup()
     renderFiltros()
 
-    await user.click(screen.getByRole('button', { name: 'Gravedad' }))
+    await user.click(getChip('Gravedad'))
     expect(screen.getByRole('checkbox', { name: /Sin situaciones/ })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Clases' }))
+    await user.click(getChip('Clases'))
     expect(screen.getByRole('checkbox', { name: /Funcionamiento habitual/ })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /Funcionamiento parcialmente interrumpido/ })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /Funcionamiento interrumpido/ })).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /Usado como centro de evacuados/ })).toBeInTheDocument()
   })
 
-  it('ofrece las tres opciones de asistencia pedagógica y filtra con sus valores canónicos', async () => {
+  it('ofrece las tres opciones de asistencia pedagógica en Más filtros y filtra con sus valores canónicos', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    await user.click(screen.getByRole('button', { name: 'Asistencia pedagógica' }))
-    const dialog = screen.getByRole('dialog', { name: 'Asistencia pedagógica' })
+    await user.click(screen.getByRole('button', { name: 'Más filtros' }))
+    const dialog = screen.getByRole('dialog', { name: 'Más filtros' })
+    expect(within(dialog).getByText('Asistencia pedagógica')).toBeInTheDocument()
     expect(within(dialog).getAllByRole('checkbox')).toHaveLength(3)
     expect(within(dialog).getByRole('checkbox', { name: /Se brinda/ })).toBeInTheDocument()
     expect(within(dialog).getByRole('checkbox', { name: /No se brinda/ })).toBeInTheDocument()
@@ -154,7 +225,7 @@ describe('FiltrosChips', () => {
   it('renderiza cada opción del popover con el Checkbox del sistema', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    await user.click(screen.getByRole('button', { name: /Nivel/ }))
+    await user.click(getChip(/Nivel/))
 
     const popover = screen.getByRole('dialog', { name: 'Nivel' })
     const opciones = within(popover).getAllByRole('checkbox')
@@ -174,7 +245,7 @@ describe('FiltrosChips', () => {
     const escuelasSinNiveles = [escuela({ niveles: [] })]
     render(<FiltrosChips escuelas={escuelasSinNiveles} filtros={FILTROS_MAPA_VACIOS} onChange={vi.fn()} />)
 
-    await user.click(screen.getByRole('button', { name: 'Nivel' }))
+    await user.click(getChip('Nivel'))
 
     expect(screen.getByText('No hay niveles cargados en el padrón.')).toBeInTheDocument()
   })
@@ -182,7 +253,7 @@ describe('FiltrosChips', () => {
   it('Esc cierra el popover y devuelve el foco al chip', async () => {
     const user = userEvent.setup()
     renderFiltros()
-    const chip = screen.getByRole('button', { name: /Nivel/ })
+    const chip = getChip(/Nivel/)
     await user.click(chip)
     const opcion = screen.getByRole('checkbox', { name: /Inicial/ })
     expect(opcion).toHaveFocus()
@@ -195,8 +266,8 @@ describe('FiltrosChips', () => {
   it('muestra el valor de un chip activo o la cantidad de opciones elegidas', () => {
     const filtros = { ...FILTROS_MAPA_VACIOS, niveles: ['Primario'], departamentos: ['Goya', 'Esquina'] }
     renderFiltros(filtros)
-    expect(screen.getByRole('button', { name: /Nivel: Primario/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Departamento: 2 elegidos/ })).toBeInTheDocument()
+    expect(getChip(/Nivel: Primario/)).toBeInTheDocument()
+    expect(getChip(/Departamento: 2 elegidos/)).toBeInTheDocument()
   })
 
   it('presenta departamento con tildes en el popover y el chip activo, conservando el valor del padrón', async () => {
@@ -205,7 +276,7 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     render(<FiltrosChips escuelas={[bellaVista]} filtros={FILTROS_MAPA_VACIOS} onChange={onChange} />)
 
-    await user.click(screen.getByRole('button', { name: 'Departamento' }))
+    await user.click(getChip('Departamento'))
     const opcion = screen.getByRole('checkbox', { name: /Bella Vista/ })
     expect(opcion).toBeInTheDocument()
     await user.click(opcion)
@@ -213,7 +284,7 @@ describe('FiltrosChips', () => {
 
     cleanup()
     render(<FiltrosChips escuelas={[bellaVista]} filtros={{ ...FILTROS_MAPA_VACIOS, departamentos: ['BELLA VISTA'] }} onChange={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Departamento: Bella Vista' })).toBeInTheDocument()
+    expect(getChip('Departamento: Bella Vista')).toBeInTheDocument()
   })
 
   it('Sin actualizar alterna su estado', async () => {
@@ -221,7 +292,9 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     renderFiltros(FILTROS_MAPA_VACIOS, onChange)
 
-    await user.click(screen.getByRole('button', { name: /Sin actualizar/ }))
+    const chip = document.querySelector<HTMLElement>('.filtros-controles .filtros-chip--interruptor')
+    if (chip === null) throw new Error('No se encontró el interruptor Sin actualizar')
+    await user.click(chip)
     expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ sinActualizar: true }))
   })
 
@@ -230,9 +303,11 @@ describe('FiltrosChips', () => {
     const onChange = vi.fn()
     const { rerender } = renderFiltros(FILTROS_MAPA_VACIOS, onChange)
     const nombre = 'Solucionadas en los últimos 15 días'
-    const chip = screen.getByRole('button', { name: nombre })
+    const chip = document.querySelector<HTMLElement>('.filtros-controles .filtros-chip--interruptor:last-of-type')
+    if (chip === null) throw new Error('No se encontró el interruptor de situaciones solucionadas')
 
     expect(chip).toHaveClass('filtros-chip--interruptor')
+    expect(chip).toHaveAccessibleName(nombre)
     expect(chip).toHaveAttribute('aria-pressed', 'false')
     await user.click(chip)
     expect(onChange).toHaveBeenLastCalledWith({ ...FILTROS_MAPA_VACIOS, solucionadasRecientes: true })

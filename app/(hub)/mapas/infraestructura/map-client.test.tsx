@@ -30,6 +30,12 @@ const registroSeleccion = vi.hoisted(() => ({
   hashesAlSeleccionar: [] as string[],
 }))
 
+function chipPrincipal(nombre: string) {
+  const chips = document.querySelector<HTMLElement>('.filtros-chips-principales')
+  if (!chips) throw new Error('No se encontró el grupo de chips principales')
+  return within(chips).getByRole('button', { name: nombre })
+}
+
 vi.mock('@/components/mapas/map-infraestructura-page', () => ({
   default: function MapaDePrueba(props: {
     pestana: string
@@ -90,6 +96,22 @@ afterEach(() => {
 })
 
 describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
+  it('muestra cuatro chips en línea y Más filtros con asistencia y switches', async () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const principales = document.querySelector<HTMLElement>('.filtros-chips-principales')
+    if (!principales) throw new Error('No se encontró el grupo de chips principales')
+    expect(within(principales).getAllByRole('button').map((boton) => boton.textContent?.trim())).toEqual([
+      'Departamento', 'Nivel', 'Gravedad', 'Clases',
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Más filtros' }))
+    const panel = screen.getByRole('dialog', { name: 'Más filtros' })
+    expect(within(panel).getByText('Asistencia pedagógica')).toBeInTheDocument()
+    await userEvent.click(within(panel).getByRole('checkbox', { name: /Se brinda/ }))
+    await userEvent.click(within(panel).getByRole('switch', { name: 'Sin actualizar' }))
+    expect(screen.getByRole('button', { name: 'Más filtros, 2 activos' })).toBeInTheDocument()
+  })
+
   it('muestra una sola fila con Situación actual, Radar, Planificación, Estadísticas y Capas', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
@@ -108,7 +130,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveTextContent('2')
     expect(pestaña.querySelector('.map-sitact__pill')).toHaveClass('ui-tabs-tab__contador')
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
 
     const pestañaFiltrada = screen.getByRole('tab', { name: 'Situación actual, 1 escuela con situaciones abiertas' })
@@ -142,7 +164,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
   it('pasa los filtros activos a la sección de evolución', async () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal />)
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
     await userEvent.click(screen.getByRole('tab', { name: 'Estadísticas' }))
 
@@ -158,7 +180,7 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(mapa).toHaveAttribute('data-escuelas', '4')
     expect(montajesMapa.total).toBe(1)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Nivel' }))
+    await userEvent.click(chipPrincipal('Nivel'))
     await userEvent.click(screen.getByRole('checkbox', { name: /Primario/ }))
     expect(mapa).toHaveAttribute('data-escuelas', '3')
     expect(mapa).toHaveAttribute('data-cues', '180001-00,180003-00,1800087-00')

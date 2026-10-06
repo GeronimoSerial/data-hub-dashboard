@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type Ref } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { contarOpciones, filtrarEscuelas, opcionesDisponibles } from '@/lib/infraestructura/mapa/filtrar'
 import { etiquetaDepartamento, ETIQUETA_APOYO, ETIQUETA_ESTADO_CLASES, ETIQUETA_GRAVEDAD } from '@/lib/infraestructura/mapa/etiquetas'
 import { FILTROS_MAPA_VACIOS, type EscuelaMapaEnriquecida, type EstadoClases, type FiltrosMapa, type GravedadMapa } from '@/lib/infraestructura/mapa/tipos'
@@ -73,6 +74,44 @@ function alternarValor(filtros: FiltrosMapa, clave: ClaveFiltro, valor: string):
   }
 }
 
+function OpcionesFiltro({
+  clave,
+  escuelas,
+  filtros,
+  onChange,
+  primerCheckbox,
+}: {
+  clave: ClaveFiltro
+  escuelas: EscuelaMapaEnriquecida[]
+  filtros: FiltrosMapa
+  onChange: (filtros: FiltrosMapa) => void
+  primerCheckbox?: Ref<HTMLElement>
+}) {
+  const seleccionados = valoresSeleccionados(filtros, clave)
+  const opciones = opcionesPorFiltro(escuelas, clave)
+  const conteos = contarOpciones(escuelas, clave)
+
+  return opciones.length === 0 ? (
+    <div className="filtros-opcion-vacio" role="status">
+      {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
+    </div>
+  ) : opciones.map((opcion, indice) => (
+    <Checkbox
+      key={opcion.valor}
+      className="filtros-opcion"
+      checked={seleccionados.includes(opcion.valor)}
+      ref={indice === 0 ? primerCheckbox : undefined}
+      onCheckedChange={() => onChange(alternarValor(filtros, clave, opcion.valor))}
+      label={(
+        <>
+          <span className="filtros-opcion__etiqueta">{opcion.etiqueta}</span>
+          <span className="filtros-opcion__conteo">{conteos.get(opcion.valor) ?? 0}</span>
+        </>
+      )}
+    />
+  ))
+}
+
 function FiltroDesplegable({
   clave,
   escuelas,
@@ -91,7 +130,6 @@ function FiltroDesplegable({
   const etiqueta = ETIQUETAS_FILTRO[clave]
   const seleccionados = valoresSeleccionados(filtros, clave)
   const opciones = opcionesPorFiltro(escuelas, clave)
-  const conteos = contarOpciones(escuelas, clave)
   const primerCheckbox = useRef<HTMLElement>(null)
   const textoChip = seleccionados.length === 0
     ? etiqueta
@@ -120,25 +158,7 @@ function FiltroDesplegable({
         <Popover.Portal>
           <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4} collisionAvoidance={{ side: 'none', align: 'shift' }}>
             <Popover.Popup className="filtros-popover" aria-label={etiqueta} data-apertura="abajo">
-              {opciones.length === 0 ? (
-                <div className="filtros-opcion-vacio" role="status">
-                  {clave === 'niveles' ? 'No hay niveles cargados en el padrón.' : 'No hay opciones disponibles.'}
-                </div>
-              ) : opciones.map((opcion, indice) => (
-                <Checkbox
-                  key={opcion.valor}
-                  className="filtros-opcion"
-                  checked={seleccionados.includes(opcion.valor)}
-                  ref={indice === 0 ? primerCheckbox : undefined}
-                  onCheckedChange={() => onChange(alternarValor(filtros, clave, opcion.valor))}
-                  label={(
-                    <>
-                      <span className="filtros-opcion__etiqueta">{opcion.etiqueta}</span>
-                      <span className="filtros-opcion__conteo">{conteos.get(opcion.valor) ?? 0}</span>
-                    </>
-                  )}
-                />
-              ))}
+              <OpcionesFiltro clave={clave} escuelas={escuelas} filtros={filtros} onChange={onChange} primerCheckbox={primerCheckbox} />
             </Popover.Popup>
           </Popover.Positioner>
         </Popover.Portal>
@@ -168,11 +188,12 @@ export function FiltrosChips({
   onChange: (filtros: FiltrosMapa) => void
   onSeleccionar?: (cueAnexo: string) => void
 }) {
-  const [popoverAbierto, setPopoverAbierto] = useState<ClaveFiltro | null>(null)
+  const [popoverAbierto, setPopoverAbierto] = useState<{ grupo: 'principal' | 'compacto'; clave: ClaveFiltro } | null>(null)
   const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
   const [opcionActiva, setOpcionActiva] = useState(0)
   const [busquedaAbierta, setBusquedaAbierta] = useState(Boolean(filtros.q))
   const [filtrosCompactosAbiertos, setFiltrosCompactosAbiertos] = useState(false)
+  const [masFiltrosAbiertos, setMasFiltrosAbiertos] = useState(false)
   const busquedaRef = useRef<HTMLInputElement>(null)
   const filtrosBarraRef = useRef<HTMLDivElement>(null)
   const idLista = useId()
@@ -222,6 +243,24 @@ export function FiltrosChips({
   const cantidadFiltrosActivos = filtros.departamentos.length + filtros.niveles.length
     + filtros.gravedades.length + filtros.clases.length + filtros.apoyo.length
     + Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
+  const cantidadMasFiltrosActivos = filtros.apoyo.length
+    + Number(filtros.sinActualizar) + Number(filtros.solucionadasRecientes)
+  function renderChipsPrincipales(grupo: 'principal' | 'compacto') {
+    const claves: ClaveFiltro[] = grupo === 'principal'
+      ? ['departamentos', 'niveles', 'gravedades', 'clases']
+      : ['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo']
+    return claves.map((clave) => (
+      <FiltroDesplegable
+        key={clave}
+        clave={clave}
+        escuelas={escuelas}
+        filtros={filtros}
+        onChange={onChange}
+        abierto={popoverAbierto?.grupo === grupo && popoverAbierto.clave === clave}
+        onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? { grupo, clave } : null)}
+      />
+    ))
+  }
 
   return (
     <div className="filtros-barra" aria-label="Filtros de escuelas" data-abierto={filtrosCompactosAbiertos} ref={filtrosBarraRef}>
@@ -313,18 +352,44 @@ export function FiltrosChips({
         Filtros
         {cantidadFiltrosActivos > 0 ? <span aria-hidden="true">{cantidadFiltrosActivos}</span> : null}
       </button>
+      <div className="filtros-chips-principales">{renderChipsPrincipales('principal')}</div>
+      <div className="filtros-mas">
+        <Popover.Root open={masFiltrosAbiertos} onOpenChange={setMasFiltrosAbiertos} modal={false}>
+          <Popover.Trigger
+            render={<button
+              type="button"
+              className="filtros-mas-boton"
+              aria-expanded={masFiltrosAbiertos}
+              aria-label={`Más filtros${cantidadMasFiltrosActivos ? `, ${cantidadMasFiltrosActivos} activos` : ''}`}
+            />}
+          >
+            Más filtros
+            {cantidadMasFiltrosActivos > 0 ? <span aria-hidden="true">{cantidadMasFiltrosActivos}</span> : null}
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Positioner className="map-filtros-mas-posicionador" side="bottom" align="end" sideOffset={4}>
+              <Popover.Popup className="map-filtros-mas-panel" aria-label="Más filtros">
+                <section className="map-filtros-mas-grupo" aria-label="Asistencia pedagógica">
+                  <h3 className="map-filtros-mas-titulo">Asistencia pedagógica</h3>
+                  <OpcionesFiltro clave="apoyo" escuelas={escuelas} filtros={filtros} onChange={onChange} />
+                </section>
+                <Switch
+                  checked={filtros.sinActualizar}
+                  onCheckedChange={(sinActualizar) => onChange({ ...filtros, sinActualizar })}
+                  label="Sin actualizar"
+                />
+                <Switch
+                  checked={filtros.solucionadasRecientes}
+                  onCheckedChange={(solucionadasRecientes) => onChange({ ...filtros, solucionadasRecientes })}
+                  label="Solucionadas en los últimos 15 días"
+                />
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        </Popover.Root>
+      </div>
       <div className="filtros-controles">
-        {(['departamentos', 'niveles', 'gravedades', 'clases', 'apoyo'] as ClaveFiltro[]).map((clave) => (
-          <FiltroDesplegable
-            key={clave}
-            clave={clave}
-            escuelas={escuelas}
-            filtros={filtros}
-            onChange={onChange}
-            abierto={popoverAbierto === clave}
-            onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? clave : null)}
-          />
-        ))}
+        {renderChipsPrincipales('compacto')}
         <span className="filtros-chip-final">
           <button
             type="button"

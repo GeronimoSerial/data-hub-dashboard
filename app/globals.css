@@ -5180,6 +5180,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   overflow: visible;
 }
 .mapa-pestanas-barra .filtros-barra { padding: 0; border: 0; background: transparent; }
+.mapa-pestanas-barra .filtros-chips-principales {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: max-content;
+}
+.mapa-pestanas-barra .filtros-mas { display: flex; flex: 0 0 auto; }
+.mapa-pestanas-barra .filtros-controles { display: none; }
 .filtros-busqueda {
   display: flex;
   flex: 1 1 auto;
@@ -5211,7 +5221,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-busqueda-contenedor--abierto { flex: 0 1 15rem; min-width: 10rem; }
 .filtros-busqueda-contenedor .filtros-busqueda { width: 100%; }
 .filtros-busqueda-boton,
-.filtros-compactos-boton {
+.filtros-compactos-boton,
+.mapa-pestanas-barra .filtros-mas-boton {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -5230,9 +5241,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .filtros-busqueda-boton svg,
 .filtros-compactos-boton svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
 .filtros-busqueda-boton:focus-visible,
-.filtros-compactos-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.filtros-compactos-boton:focus-visible,
+.mapa-pestanas-barra .filtros-mas-boton:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
 .filtros-compactos-boton { display: none; white-space: nowrap; }
-.filtros-compactos-boton span {
+.mapa-pestanas-barra .filtros-mas-boton {
+  display: inline-flex;
+  white-space: nowrap;
+}
+.filtros-compactos-boton span,
+.mapa-pestanas-barra .filtros-mas-boton span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5258,9 +5275,31 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   gap: var(--s-2);
   white-space: nowrap;
 }
+.map-filtros-mas-posicionador { z-index: var(--z-popup); }
+.map-filtros-mas-panel {
+  display: grid;
+  gap: var(--s-3);
+  min-width: 19rem;
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--card);
+  box-shadow: var(--e-float);
+}
+.map-filtros-mas-grupo { display: grid; gap: var(--s-2); }
+.map-filtros-mas-titulo {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: var(--t-small);
+  font-weight: 600;
+}
 
-/* Punto único de quiebre: los controles pasan al panel si la barra mide menos de 1500 px. */
-@container (max-width: 1500px) {
+/* Cuatro chips (~410 px + 24 de gaps), Más filtros (~120 px), lupa (44 px),
+   pestañas (~540–600 px) y gaps (~40 px) suman ~1.180–1.240 px; a 1456 px
+   queda holgura y el quiebre a 1200 px activa el modo compacto. */
+@container (max-width: 1200px) {
+  .mapa-pestanas-barra .filtros-chips-principales { display: none; }
+  .mapa-pestanas-barra .filtros-mas { display: none; }
   .mapa-pestanas-barra .filtros-compactos-boton { display: inline-flex; }
   .mapa-pestanas-barra .filtros-controles {
     position: absolute;
