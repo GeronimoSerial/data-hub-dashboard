@@ -226,6 +226,9 @@ describe('FichaEscuelaPanel', () => {
   })
 
   it('muestra desde hoy cuando la situación principal rige hoy', async () => {
+    // "hoy" depende del reloj: se fija en el mismo día (Buenos Aires) que rigeDesde.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-05T18:00:00-03:00'))
     instalarFetch({ situaciones: [{
       ...afectaciones[0], rigeDesde: '2026-10-05T15:00:00.000Z', creadaEn: '2026-10-05T15:00:00.000Z',
     }] })
@@ -234,6 +237,7 @@ describe('FichaEscuelaPanel', () => {
     expect(await screen.findByText((_, element) =>
       element?.textContent === 'Inaccesibilidad de alumnos · desde hoy, 12:00'
     )).toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('muestra clases normales cerradas con la etiqueta de servicio compartida', () => {
