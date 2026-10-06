@@ -82,7 +82,7 @@ describe('RadarMeteo — montaje de capas con capas base', () => {
 
   it('espera a que existan las capas base y coloca la máscara antes del borde', async () => {
     const map = crearMapa()
-    render(<RadarMeteo activo variable="lluvia" />)
+    render(<RadarMeteo activo variable="lluvia" resumen={null} alertasResaltadas={[]} onVerAlertas={() => undefined} />)
     act(() => avisarMapa(map))
 
     expect(mapaMock.capas.has('radar-meteo-inverse-mask')).toBe(false)
@@ -103,7 +103,7 @@ describe('RadarMeteo — montaje de capas con capas base', () => {
     mapaMock.capas.add('infra-departamentos-etiqueta')
     mapaMock.orden.push('infra-departamentos-borde', 'infra-departamentos-etiqueta')
 
-    render(<RadarMeteo activo variable="lluvia" />)
+    render(<RadarMeteo activo variable="lluvia" resumen={null} alertasResaltadas={[]} onVerAlertas={() => undefined} />)
     act(() => avisarMapa(map))
 
     await waitFor(() => expect(mapaMock.capas.has('radar-meteo-inverse-mask')).toBe(true))

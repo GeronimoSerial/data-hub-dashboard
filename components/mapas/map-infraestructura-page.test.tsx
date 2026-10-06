@@ -1029,7 +1029,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
 
     expect(llamadasRadar.activos.at(-1)).toBe(true)
     expect(screen.getAllByRole('group', { name: 'Variable meteorológica' })).toHaveLength(1)
-    expect(screen.getByText('Consultando alertas…')).toBeInTheDocument()
+    expect(screen.queryByText('Consultando alertas…')).not.toBeInTheDocument()
     const variables = screen.getByRole('group', { name: 'Variable meteorológica' })
     expect(within(variables).getByRole('button', { name: 'Lluvia' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(within(variables).getByRole('button', { name: 'Viento' }))

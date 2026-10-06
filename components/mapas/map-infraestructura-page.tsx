@@ -82,6 +82,8 @@ import {
 } from '@/components/mapas/capas-accesos'
 import { RadarMeteo } from '@/components/mapas/radar-meteo/radar-meteo'
 import type { VariableRadarUI } from '@/components/mapas/radar-meteo/selector'
+import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupadas'
+import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
 import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
@@ -689,6 +691,17 @@ export default function MapInfraestructuraPage(props: {
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
   const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
+  const { resumen: resumenRadar } = useResumenRadarMeteo(radarActivo)
+  const [ahoraRadarMs] = useState(() => Date.now())
+  const [claveAlertaRadar] = useState<string | null>(null)
+  const gruposAlertasRadar = useMemo(
+    () => agruparAlertas(resumenRadar?.alertasSmn ?? [], ahoraRadarMs),
+    [resumenRadar, ahoraRadarMs],
+  )
+  const alertasResaltadas = radarActivo
+    ? gruposAlertasRadar.find((grupo) => grupo.clave === claveAlertaRadar)?.alertas ?? []
+    : []
+  const irAAlertasRadar = () => document.getElementById('radar-alertas-smn')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const esPlanificacion = props.pestana === 'planificacion'
   const ocultarPartes = radarActivo || esPlanificacion
   // Al ocultar la pestaña, detener cualquier flyTo sobre un contenedor sin
@@ -1737,7 +1750,14 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
-          <RadarMeteo activo={radarActivo} variable={variableRadar} escuelas={dataEscuelasMapa?.escuelas ?? []} />
+          <RadarMeteo
+            activo={radarActivo}
+            variable={variableRadar}
+            escuelas={dataEscuelasMapa?.escuelas ?? []}
+            resumen={resumenRadar}
+            alertasResaltadas={alertasResaltadas}
+            onVerAlertas={irAAlertasRadar}
+          />
 
           {/* Popup del CRUCE DE AGUA clickeado sobre la ruta (ver `handleClick`).
               Mismo componente y estilo que el del departamento: un dato

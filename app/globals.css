@@ -2458,16 +2458,6 @@ time {
 @media(prefers-reduced-motion:reduce) { .radar-meteo-loading,.radar-meteo-skeleton { animation:none; } }
 
 /* H3: information layers keep the map visible while answering the alert and forecast questions. */
-.radar-alertas { position:fixed; z-index:12; top:calc(16px + 56px); left:58px; right:350px; display:flex; gap:8px; align-items:flex-start; pointer-events:none; }
-.radar-alertas-empty { display:flex; justify-content:space-between; align-items:center; min-height:42px; padding:10px 14px; color:#e4edf1; background:rgba(12,22,31,.94); border:1px solid rgba(191,208,219,.26); border-radius:8px; font-size:13px; }
-.radar-alertas small { display:block; margin-top:3px; color:#bdcbd2; font-size:11px; }
-.radar-alerta-item { max-width:430px; pointer-events:auto; }
-.radar-alerta-chip { display:flex; align-items:flex-start; gap:9px; width:100%; padding:10px 13px; color:#f2f5f5; text-align:left; background:rgba(13,24,33,.96); border:1px solid #75828a; border-radius:8px; cursor:pointer; }
-.radar-alerta-chip .radar-alerta-proxima { font-style: normal; font-weight: 600; }
-.radar-alerta-icon { display:grid; place-items:center; flex:0 0 22px; height:22px; border:1px solid #c3cdd2; border-radius:50%; font-weight:700; }
-.radar-alerta-chip.nivel-yellow { border-color:#e8c84b; }.radar-alerta-chip.nivel-orange { border-color:#e49b48; }.radar-alerta-chip.nivel-red { border-color:#df7772; }
-.radar-alerta-detail { margin-top:5px; padding:12px 14px; color:#ecf1f3; background:rgba(12,22,31,.97); border:1px solid #77858d; border-radius:8px; font-size:12px; }
-.radar-alerta-detail p { margin:8px 0 0; line-height:1.45; }
 .radar-resumen { position:fixed; z-index:11; top:calc(16px + 110px); right:14px; bottom:188px; display:flex; flex-direction:column; width:min(390px,35vw); overflow:hidden; color:#edf3f5; background:rgba(10,20,29,.94); border:1px solid rgba(169,194,207,.3); border-radius:10px; box-shadow:0 10px 32px #0005; backdrop-filter:blur(10px); }
 .radar-resumen-header { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:14px 14px 10px; border-bottom:1px solid rgba(169,194,207,.2); }
 .radar-kicker { color:#9db4be; font-size:9px; letter-spacing:.12em; }.radar-resumen h2 { margin:3px 0; font-size:17px; }.radar-resumen-header small { color:#b7c6cc; font-size:10px; }
@@ -2487,11 +2477,6 @@ time {
 .radar-escuela-card form { display:grid; gap:6px; }.radar-escuela-card form label { color:#dce6e9; font-weight:650; }.radar-escuela-card form div { display:flex; gap:5px; }.radar-escuela-card input { min-width:0; flex:1; padding:7px; color:#f2f6f7; background:#111f29; border:1px solid #52646e; border-radius:5px; }.radar-escuela-card button { padding:6px 9px; color:#fff; background:#294959; border:1px solid #607e8c; border-radius:5px; cursor:pointer; }.radar-escuela-card h3 { margin:9px 0 2px; font-size:13px; }.radar-escuela-card p { margin:7px 0; color:#c0cdd2; line-height:1.4; }.radar-escuela-bars { display:flex; height:38px; align-items:flex-end; gap:1px; margin-top:8px; }.radar-escuela-bars i { flex:1; min-width:1px; background:#4a9eaf; border-radius:2px 2px 0 0; }.radar-escuela-sin-lluvia48h { padding:7px 8px; margin:8px 0 0 !important; background:#142630; border-radius:4px; font-size:10px; }.radar-escuela-dias { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; margin-top:8px; }.radar-escuela-dias span { display:grid; gap:3px; min-width:0; padding:4px 2px; background:#192a34; text-align:center; font-size:9px; }.radar-escuela-dias b { color:#eef5f6; font-variant-numeric:tabular-nums; white-space:nowrap; font-size:8px; }
 .radar-escuela-marker { width:17px; height:17px; padding:0; color:#deeff1; background:rgba(35,92,105,.72); border:1px solid rgba(236,248,250,.8); border-radius:50%; box-shadow:0 0 0 2px rgba(8,25,32,.72); font-size:16px; line-height:12px; cursor:pointer; }
 @media(max-width:700px) {
- .radar-alertas { top:calc(12px + 50px); left:9px; right:9px; overflow:auto; }
- .radar-alertas-empty { min-height:35px; padding:8px 10px; font-size:10px; }
- .radar-alertas-empty small { font-size:9px; }
- .radar-alerta-item { min-width:100%; }
- .radar-alerta-chip { padding:8px 10px; font-size:11px; }
  .radar-resumen { top:auto; right:8px; bottom:113px; left:8px; width:auto; height:44px; overflow:hidden; border-radius:10px; transition:height .2s ease; }
  .radar-resumen.is-open { height:min(55vh,440px); }
  .radar-resumen-header { padding:9px 10px; }.radar-resumen h2 { font-size:14px; }.radar-resumen-search { padding:7px 9px; }
@@ -2610,33 +2595,33 @@ time {
 }
 @media(prefers-reduced-motion:reduce) { .radar-resumen { transition:none; } }
 /* H3 review pass: overlay positions are relative to the map shell, below page navigation. */
-.radar-alertas {
+.radar-alertas-pastilla {
+  display:inline-flex;
   position:absolute;
   z-index:14;
   top:calc(25px + 44px + var(--s-3));
   left:430px;
-  right:444px;
-  display:flex;
-  flex-wrap:wrap;
-  align-items:flex-start;
-  gap:8px;
-  pointer-events:none;
-}
-.radar-alerta-item { width:100%; max-width:none; }
-.radar-alerta-chip { width:100%; }
-.radar-alerta-detail { position:relative; padding:14px 38px 14px 14px; }
-.radar-alerta-close {
-  position:absolute;
-  top:6px;
-  right:7px;
-  width:28px;
-  height:28px;
-  padding:0;
+  align-items:center;
+  gap:var(--s-2);
+  width:fit-content;
+  max-width:calc(100% - 430px - 444px);
+  height:36px;
+  padding:0 var(--s-3);
+  overflow:hidden;
   color:#f2f5f5;
-  border:1px solid #71818a;
-  border-radius:5px;
-  font-size:20px;
+  background:rgba(13,24,33,.96);
+  border:1px solid #75828a;
+  border-radius:var(--r-pill);
+  cursor:pointer;
+  font-size:13px;
+  text-align:left;
+  white-space:nowrap;
 }
+.radar-alertas-pastilla span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.radar-alertas-pastilla.nivel-yellow { border-color:#e8c84b; }
+.radar-alertas-pastilla.nivel-orange { border-color:#e49b48; }
+.radar-alertas-pastilla.nivel-red { border-color:#df7772; }
+.radar-alertas-pastilla:focus-visible { outline:2px solid #f2f5f5; outline-offset:2px; }
 .radar-resumen {
   position:absolute;
   top:0;
@@ -2680,14 +2665,14 @@ time {
 .radar-resumen { z-index:11; }
 [data-radar-activo="true"] .maplibregl-ctrl-compass { display:none !important; }
 @media(max-width:700px) {
-  .radar-alertas { top:5px; left:8px; right:8px; }
+  .radar-alertas-pastilla { top:5px; left:8px; max-width:calc(100% - 16px); }
   .radar-resumen { top:auto; right:8px; bottom:115px; left:8px; width:auto; height:44px; }
   .radar-resumen.is-open { height:min(55vh,440px); }
   .radar-resumen ~ .radar-meteo-legend { right:auto; bottom:118px; left:14px; }
   .radar-escuela-card { top:calc(12px + 55px); left:8px; width:min(310px,82vw); max-height:42vh; }
 }
 @media(min-width:701px) and (max-width:1100px) {
-  .radar-alertas { top:calc(25px + 88px + var(--s-3)); }
+  .radar-alertas-pastilla { top:calc(25px + 88px + var(--s-3)); }
 }
 /* Horizontes sin evidencia (hallazgo 17): se distinguen visualmente de los
    habilitados. No se usa el atributo nativo `disabled` a propósito (siguen
