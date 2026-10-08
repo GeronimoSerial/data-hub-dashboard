@@ -105,10 +105,10 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
     expect(screen.getByRole('button', { name: 'Más filtros, 2 activos' })).toBeInTheDocument()
   })
 
-  it('muestra una sola fila con Situación actual, Radar, Planificación, Estadísticas y Capas', () => {
+  it('muestra una sola fila con Situación actual, Radar, Planificación, Estadísticas, Capas y Metodología', () => {
     render(<InfraestructuraMapClient mostrarEnlaceNominal riskRadarEnabled />)
     const tabs = screen.getAllByRole('tab').map((t) => t.textContent?.replace(/\d+$/, '').trim())
-    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas', 'Capas'])
+    expect(tabs).toEqual(['Situación actual', 'Radar', 'Planificación', 'Estadísticas', 'Capas', 'Metodología'])
   })
 
   it('sin el flag del radar no muestra la pestaña Radar', () => {

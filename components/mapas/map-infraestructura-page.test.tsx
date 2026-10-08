@@ -667,7 +667,7 @@ type PropsRenderMapa = {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   pestana: 'actual' | 'radar' | 'planificacion'
-  panel?: Exclude<PestanaMapa, 'estadisticas'>
+  panel?: Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
   visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }

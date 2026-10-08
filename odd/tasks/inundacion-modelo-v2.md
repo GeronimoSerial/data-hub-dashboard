@@ -116,7 +116,7 @@ Route: same five classes, computed over the route samples (worst class along the
 - [x] **T10. Route risk.** Rewrite `nivelRiesgo` (`lib/infraestructura/mapa/acceso.ts`) on the route
   class; remove the "0 → Bajo" mapping.
 - [x] **T11. Lagoon tag.** "Junto a laguna" tag in the school card and map, bare label, no explanation.
-- [ ] **T12. Methodology tab/FAQ.** Single place explaining sources, return periods, thresholds,
+- [x] **T12. Methodology tab/FAQ.** Single place explaining sources, return periods, thresholds,
   limitations (no defenses, DEM vertical error, static not forecast).
 - Checks: `pnpm vitest run` on touched components, `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm build`;
   visual review (desktop) of map + card for both control cases via Claude in Chrome.

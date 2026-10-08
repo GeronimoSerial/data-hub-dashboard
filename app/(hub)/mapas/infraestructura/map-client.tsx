@@ -9,6 +9,7 @@ import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { FiltrosChips } from '@/components/mapas/filtros-chips'
 import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
+import { MetodologiaInundacion } from '@/components/mapas/metodologia-inundacion'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
 
@@ -49,7 +50,7 @@ export function InfraestructuraMapClient(props: {
     [padron, escuelasFiltradas],
   )
   const [ultimaPestanaMapa, setUltimaPestanaMapa] = React.useState<
-    Exclude<PestanaMapa, 'estadisticas'>
+    Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
   >('actual')
 
   // Mismo patrón que AdminPage (components/admin-page.tsx:1841-1857): estado
@@ -73,7 +74,7 @@ export function InfraestructuraMapClient(props: {
   function seleccionarEscuela(cueAnexo: string) {
     const escuela = padron?.escuelas.find((item) => item.cueAnexo === cueAnexo)
     if (!escuela) return
-    if (tab === 'estadisticas') {
+    if (tab === 'estadisticas' || tab === 'metodologia') {
       onTab(ultimaPestanaMapa || 'actual')
     }
     seleccionarEscuelaRef.current?.(escuela)
@@ -92,7 +93,7 @@ export function InfraestructuraMapClient(props: {
     return () => window.removeEventListener('hashchange', syncHash)
   }, [props.riskRadarEnabled])
 
-  const mapaVisible = tab !== 'estadisticas'
+  const mapaVisible = tab !== 'estadisticas' && tab !== 'metodologia'
   if (mapaVisible && tab !== ultimaPestanaMapa) {
     setUltimaPestanaMapa(tab)
   }
@@ -119,6 +120,7 @@ export function InfraestructuraMapClient(props: {
             <TabsTab value="planificacion">Planificación</TabsTab>
             <TabsTab value="estadisticas">Estadísticas</TabsTab>
             <TabsTab value="capas">Capas</TabsTab>
+            <TabsTab value="metodologia">Metodología</TabsTab>
           </TabsList>
         </Tabs>
         <FiltrosChips
@@ -161,6 +163,15 @@ export function InfraestructuraMapClient(props: {
             data-testid="pestana-estadisticas"
           >
             <PanelEstadisticas escuelas={escuelasFiltradas} filtros={filtros} />
+          </div>
+        )}
+
+        {tab === 'metodologia' && (
+          <div
+            className="mapa-pestana-panel mapa-pestana-panel--scroll"
+            data-testid="pestana-metodologia"
+          >
+            <MetodologiaInundacion />
           </div>
         )}
 
