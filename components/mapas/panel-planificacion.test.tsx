@@ -57,6 +57,22 @@ describe('PanelPlanificacion', () => {
     expect(screen.getByText('Ninguna escuela con prioridad para estos filtros.')).toBeInTheDocument()
   })
 
+  it('en Inundación lista las escuelas junto a laguna con etiquetas simples', () => {
+    const conLaguna: TerritorioMapa = {
+      ...territorio,
+      susceptibilidad: { ...territorio.susceptibilidad!, escuelas: {
+        '1': { inundacionFluvialM: null, claseRio: null, juntoLaguna: true },
+        '2': { inundacionFluvialM: null, claseRio: 'medio', juntoLaguna: true },
+      } },
+    }
+    render(<PanelPlanificacion {...props({ vista: 'inundacion', territorio: conLaguna })} />)
+    const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
+    expect(filas[0]).toHaveTextContent('Medio · Junto a laguna')
+    expect(filas[1]).toHaveTextContent('Junto a laguna')
+    expect(filas[1]).not.toHaveTextContent('Nulo')
+  })
+
   it('no muestra estados del territorio en historial ni textos técnicos', () => {
     const { container } = render(<PanelPlanificacion {...props({ vista: 'historial', territorio: null, cargando: true, error: true })} />)
     expect(screen.queryByText('Cargando datos…')).not.toBeInTheDocument()

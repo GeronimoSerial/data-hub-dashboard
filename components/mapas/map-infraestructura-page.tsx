@@ -149,10 +149,10 @@ export {
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { coloresPlanificacion, cuesJuntoLagunaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
-import { puntosRiesgoSobreSituacion, soloConDato } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -823,10 +823,14 @@ export default function MapInfraestructuraPage(props: {
     territorio,
   ])
   const puntosNivel = useMemo(() => {
-    const puntos = construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue)
-    // Exposición a inundación dibuja sólo Alto/Medio/Bajo; sin riesgo y sin dato quedan fuera.
-    return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDato(puntos) : puntos
-  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion])
+    const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
+    const cuesLaguna = esPlanificacion
+      ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
+      : new Set<string>()
+    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
+    // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
+    return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
+  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo

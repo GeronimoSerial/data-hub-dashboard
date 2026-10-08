@@ -28,6 +28,10 @@ export const ETIQUETA_NIVEL_PLAN: Record<NivelPlanificacion, string> = {
   3: 'Alto',
 }
 
+export const ETIQUETA_JUNTO_LAGUNA = 'Junto a laguna'
+/** Azul del marcador de laguna: anillo sobre el punto de riesgo, o punto propio si no hay clase de río. */
+export const COLOR_JUNTO_LAGUNA = '#2563eb'
+
 /** Umbrales del historial (cantidad de situaciones): 0 → Nulo, 1–2 → Bajo, 3–4 → Medio, 5 o más → Alto. Ajustables acá. */
 export const UMBRALES_HISTORIAL = { bajo: 1, medio: 3, alto: 5 } as const
 
@@ -57,9 +61,30 @@ export function nivelPlanificacion(
   }
 }
 
+/** Junto a laguna sólo aplica a Exposición a inundación; en las demás vistas siempre es false. */
+export function juntoLagunaPlanificacion(
+  cueAnexo: string,
+  vista: VistaPlanificacion,
+  datos: { territorio: TerritorioMapa | null },
+): boolean {
+  return vista === 'inundacion' && datos.territorio?.susceptibilidad?.escuelas[cueAnexo]?.juntoLaguna === true
+}
+
+export function cuesJuntoLagunaPlanificacion(
+  escuelas: ReadonlyArray<Pick<EscuelaMapaEnriquecida, 'cueAnexo'>>,
+  vista: VistaPlanificacion,
+  datos: { territorio: TerritorioMapa | null },
+): ReadonlySet<string> {
+  return new Set(escuelas
+    .filter((escuela) => juntoLagunaPlanificacion(escuela.cueAnexo, vista, datos))
+    .map((escuela) => escuela.cueAnexo))
+}
+
 export interface EscuelaPrioridad {
   escuela: EscuelaMapaEnriquecida
-  nivel: 1 | 2 | 3
+  /** Nivel 0 con `juntoLaguna` es una escuela sólo marcada por laguna (sin clase de río). */
+  nivel: NivelPlanificacion
+  juntoLaguna: boolean
 }
 
 export function prioridadPlanificacion(
@@ -68,8 +93,12 @@ export function prioridadPlanificacion(
   datos: { territorio: TerritorioMapa | null },
 ): EscuelaPrioridad[] {
   return escuelas
-    .map((escuela) => ({ escuela, nivel: nivelPlanificacion(escuela, vista, datos) }))
-    .filter((item): item is EscuelaPrioridad => item.nivel > 0)
+    .map((escuela): EscuelaPrioridad => ({
+      escuela,
+      nivel: nivelPlanificacion(escuela, vista, datos),
+      juntoLaguna: juntoLagunaPlanificacion(escuela.cueAnexo, vista, datos),
+    }))
+    .filter((item) => item.nivel > 0 || item.juntoLaguna)
     .sort((a, b) => b.nivel - a.nivel
       || (vista === 'historial'
         ? b.escuela.situacionesHistoricas - a.escuela.situacionesHistoricas
@@ -78,9 +107,18 @@ export function prioridadPlanificacion(
 }
 
 export function textoPrioridad(item: EscuelaPrioridad, vista: VistaPlanificacion): string {
-  if (vista !== 'historial') return ETIQUETA_NIVEL_PLAN[item.nivel]
+  if (vista !== 'historial') {
+    return [
+      item.nivel > 0 ? ETIQUETA_NIVEL_PLAN[item.nivel] : null,
+      item.juntoLaguna ? ETIQUETA_JUNTO_LAGUNA : null,
+    ].filter((etiqueta) => etiqueta !== null).join(' · ')
+  }
   const cantidad = item.escuela.situacionesHistoricas
   return `${cantidad} ${cantidad === 1 ? 'situación' : 'situaciones'}`
+}
+
+export function colorPrioridad(item: Pick<EscuelaPrioridad, 'nivel' | 'juntoLaguna'>): string {
+  return item.nivel === 0 ? COLOR_JUNTO_LAGUNA : colorNivelPlan(item.nivel)
 }
 
 /** Niveles que la leyenda lista. Exposición a inundación muestra sólo Alto/Medio/Bajo: sin riesgo y sin dato no se dibujan ni se listan. */

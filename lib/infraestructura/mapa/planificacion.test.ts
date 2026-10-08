@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  COLOR_JUNTO_LAGUNA,
   colorNivelPlan,
+  colorPrioridad,
   coloresPlanificacion,
+  cuesJuntoLagunaPlanificacion,
   ETIQUETA_NIVEL_PLAN,
+  juntoLagunaPlanificacion,
   nivelesLeyendaPlanificacion,
   nivelPlanificacion,
   prioridadPlanificacion,
@@ -74,11 +78,47 @@ describe('planificacion', () => {
   })
 
   it('redacta la cantidad histórica en singular o plural y el nivel para las otras vistas', () => {
-    const uno = { escuela: { ...escuelas[0], situacionesHistoricas: 1 }, nivel: 1 as const }
-    const varios = { escuela: { ...escuelas[1], situacionesHistoricas: 5 }, nivel: 3 as const }
+    const uno = { escuela: { ...escuelas[0], situacionesHistoricas: 1 }, nivel: 1 as const, juntoLaguna: false }
+    const varios = { escuela: { ...escuelas[1], situacionesHistoricas: 5 }, nivel: 3 as const, juntoLaguna: false }
     expect(textoPrioridad(uno, 'historial')).toBe('1 situación')
     expect(textoPrioridad(varios, 'historial')).toBe('5 situaciones')
     expect(textoPrioridad(varios, 'aisladas')).toBe('Alto')
+  })
+
+  it('en Inundación incluye sólo-laguna después de Bajo y agrega "Junto a laguna" a las escuelas con clase de río', () => {
+    const t = territorio()
+    // a: alto. b: medio. d: bajo + laguna. e: sólo laguna con más alumnos. c: sin riesgo + laguna.
+    const todas: EscuelaMapaEnriquecida[] = [
+      ...escuelas,
+      { ...escuelas[0], cueAnexo: 'd', nombre: 'Escuela Delta', alumnos: 1 },
+      { ...escuelas[0], cueAnexo: 'e', nombre: 'Escuela Eta', alumnos: 99 },
+    ]
+    const datos: { territorio: TerritorioMapa } = { territorio: { ...t, susceptibilidad: { ...t.susceptibilidad!, escuelas: {
+      ...t.susceptibilidad!.escuelas,
+      c: { inundacionFluvialM: 0, claseRio: 'sin_riesgo', juntoLaguna: true },
+      d: { inundacionFluvialM: null, claseRio: 'bajo', juntoLaguna: true },
+      e: { inundacionFluvialM: null, claseRio: 'sin_dato', juntoLaguna: true },
+    } } } }
+    const lista = prioridadPlanificacion(todas, 'inundacion', datos)
+    expect(lista.map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'b', 'd', 'e', 'c'])
+    expect(lista.map((item) => textoPrioridad(item, 'inundacion'))).toEqual([
+      'Alto', 'Medio', 'Bajo · Junto a laguna', 'Junto a laguna', 'Junto a laguna',
+    ])
+    expect(lista.map(({ juntoLaguna }) => juntoLaguna)).toEqual([false, false, true, true, true])
+    expect(colorPrioridad(lista[3])).toBe(COLOR_JUNTO_LAGUNA)
+    expect(colorPrioridad(lista[0])).toBe(colorNivelPlan(3))
+  })
+
+  it('no incluye escuelas junto a laguna fuera de Inundación ni sin marca de laguna', () => {
+    const t = territorio()
+    const datos: { territorio: TerritorioMapa } = { territorio: { ...t, susceptibilidad: { ...t.susceptibilidad!, escuelas: { c: { inundacionFluvialM: 0, claseRio: 'sin_riesgo', juntoLaguna: true } } } } }
+    expect(juntoLagunaPlanificacion('c', 'aisladas', datos)).toBe(false)
+    expect(juntoLagunaPlanificacion('c', 'historial', datos)).toBe(false)
+    expect(juntoLagunaPlanificacion('c', 'inundacion', datos)).toBe(true)
+    expect(juntoLagunaPlanificacion('a', 'inundacion', datos)).toBe(false)
+    expect(prioridadPlanificacion(escuelas, 'aisladas', datos).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'c'])
+    expect(cuesJuntoLagunaPlanificacion(escuelas, 'inundacion', datos)).toEqual(new Set(['c']))
+    expect(cuesJuntoLagunaPlanificacion(escuelas, 'historial', datos).size).toBe(0)
   })
 
   it('asigna colores sólo a niveles con dato', () => {

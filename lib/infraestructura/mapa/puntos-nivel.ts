@@ -7,11 +7,13 @@ export interface PropiedadesPuntoNivel {
   cueAnexo: string
   color?: string
   conDato: boolean
+  juntoLaguna: boolean
 }
 
 export function construirPuntosNivel(
   escuelas: ReadonlyArray<{ cueAnexo: string; lat: number | null; lon: number | null }>,
   colorPorCue: ReadonlyMap<string, string>,
+  juntoLagunaPorCue: ReadonlySet<string> = new Set(),
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return {
     type: 'FeatureCollection',
@@ -25,6 +27,7 @@ export function construirPuntosNivel(
           cueAnexo: escuela.cueAnexo,
           ...(color !== undefined ? { color } : {}),
           conDato: color !== undefined,
+          juntoLaguna: juntoLagunaPorCue.has(escuela.cueAnexo),
         },
       }]
     }),
@@ -36,6 +39,16 @@ export function soloConDato(
   puntos: FeatureCollection<Point, PropiedadesPuntoNivel>,
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return { ...puntos, features: puntos.features.filter(({ properties }) => properties.conDato) }
+}
+
+/** Exposición a inundación: nivel territorial o junto a laguna (sin dato y sin laguna quedan fuera). */
+export function soloConDatoOJuntoLaguna(
+  puntos: FeatureCollection<Point, PropiedadesPuntoNivel>,
+): FeatureCollection<Point, PropiedadesPuntoNivel> {
+  return {
+    ...puntos,
+    features: puntos.features.filter(({ properties }) => properties.conDato || properties.juntoLaguna),
+  }
 }
 
 export function puntosRiesgoSobreSituacion(
