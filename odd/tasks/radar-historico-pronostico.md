@@ -29,6 +29,8 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 - [x] T2 Runs list: `listarRunsRadarMeteoRecientes` in `job-sync.ts` + `app/api/infraestructura/radar-meteo/corridas/route.ts` (id, runAt, fetchedAt for last 48 h, newest first) + tests.
 - [x] T3 Hooks: `asOf` option in `use-radar-meteo.ts` (query + cache key) + new `use-corridas-radar-meteo.ts` + tests.
 - [x] T4 UI: run selector in `components/mapas/radar-meteo/radar-meteo.tsx` (past-run banner, back to "latest") + test.
+- [x] T5a Backend consistency: `asOf` in `resumen/route.ts` and `escuela/[cueAnexo]/route.ts` (+ tests). SMN alerts, ensemble and verification stay "current" (not historized). Authorized by user 2026-10-08.
+- [ ] T5b Frontend consistency: lift `corridaSeleccionada` from `RadarMeteo` to `map-infraestructura-page.tsx`, pass `asOf` to `useResumenRadarMeteo` and `escuela-card.tsx` fetch (+ tests).
 
 ## Acceptance
 - With `asOf`, API returns the run in effect at that instant; without it, behavior is unchanged.
@@ -44,6 +46,7 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 - Visual review (desktop, Claude in Chrome, local PGlite with 16 SYNTHETIC runs; no Open-Meteo/prod calls): selector lists 16 runs; picking `7/10 09:12` reloads the map with a different run, shows the banner "Estás viendo el pronóstico publicado el 7/10 09:12" + "Volver al último", and "Actualizado hace…" disappears. Banner is small/low-contrast but legible. "1 Issue" badge = hydration error on /login caused by a browser extension (`data-keeper-lock-id`), unrelated.
 - FINDING (gap): left panel KPIs, "Pronóstico por departamento" ranking and the per-school popup do NOT follow the selected run: `app/api/infraestructura/radar-meteo/resumen/route.ts:18` and `.../escuela/[cueAnexo]/route.ts:27` still call `obtenerUltimoRunRadarMeteo()`. Numbers were identical (13 deptos, Saladas 286,4 mm) for latest vs past run while the map differed.
 - Not validated: frame anchoring with real data (synthetic times display +2 h; artifact of fake data).
+- T5a (Haiku, 96k tokens): `asOf` in resumen + escuela routes (+8 tests). Parent re-ran `pnpm vitest run app/api/infraestructura/radar-meteo`: 4 files / 30 tests passed; Haiku reported tsc exit 0. Gap: zod import placed at the end of the import block (style only).
 
 ## Next step
 Decide T5 (proposed): make `resumen` and `escuela/[cueAnexo]` accept `asOf` and pass it from `useResumenRadarMeteo`/popup, so the whole radar view is consistent. Then push/PR (user decision).
