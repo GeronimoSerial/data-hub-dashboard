@@ -87,10 +87,13 @@ jobs:
             exit 0
           fi
 
-          response=$(curl -fsS -X GET \
+          # Coolify v4 moved the deploy trigger from GET to POST with a JSON body.
+          response=$(curl -fsS -X POST \
             -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
             -H "Accept: application/json" \
-            "${COOLIFY_URL}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=true")
+            -H "Content-Type: application/json" \
+            --data "$(jq -n --arg uuid "$COOLIFY_APP_UUID" '{uuid: $uuid, force: true}')" \
+            "${COOLIFY_URL}/api/v1/deploy")
 
           deployment_uuid=$(echo "$response" | jq -r '.deployments[0].deployment_uuid // empty')
           if [ -z "$deployment_uuid" ]; then
