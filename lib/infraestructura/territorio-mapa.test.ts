@@ -18,6 +18,8 @@ function filaAislamiento(
     crucesAguaCount: null,
     crucesAguaConPuenteCount: null,
     crucesAguaConVadoCount: null,
+    crucesAguaConVadoExplicitoCount: null,
+    crucesAguaConVadoProbableCount: null,
     tieneAlternativaSinCruce: null,
     tieneAlternativaPavimentada: null,
     indiceAislamiento: null,
@@ -264,6 +266,7 @@ describe('construirRespuestaGeometria', () => {
       { lon: -60.51, lat: -31.71, clasificacion: 'puente' as const },
       { lon: -60.52, lat: -31.72, clasificacion: 'puente' as const },
       { lon: -60.53, lat: -31.73, clasificacion: 'vado' as const },
+      { lon: -60.535, lat: -31.735, clasificacion: 'vado_probable' as const },
       { lon: -60.54, lat: -31.74, clasificacion: 'sin_evidencia' as const },
     ]
     const respuesta = construirRespuestaGeometria(
@@ -279,7 +282,7 @@ describe('construirRespuestaGeometria', () => {
       licencia: 'ODbL-1.0',
       ruta,
       cruces,
-      resumen: { puente: 2, vado: 1, sinEvidencia: 1 },
+      resumen: { puente: 2, vado: 2, sinEvidencia: 1 },
       viaPrincipal: null,
       destino: null,
       distanciaKm: null,

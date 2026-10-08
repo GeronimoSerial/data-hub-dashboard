@@ -101,18 +101,18 @@ cerca de `v` que de `u` (`shapely.reverse`) ANTES de proyectar; `geometrias` y
 `indice["pos"]` mapea `(u, v, k)` a su posicion. Una arista cerrada (`u == v`)
 se deja como esta.
 
-## N3-G — los nodos ford=yes nunca se cargaban (lectura combinada)
+## N3-G — las entidades ford=yes no se cargaban (lectura combinada)
 
 Bug corregido: `construir_geometrias_agua_y_fords_local` (N3-D) leia cursos de
-agua y nodos `ford=yes` con UNA sola llamada
+agua y entidades `ford=yes` con UNA sola llamada
 `get_data_by_custom_criteria(custom_filter={"waterway": [...], "ford":
 ["yes"]}, keep_nodes=True, ...)`. Sobre el extracto real de Corrientes esa
 llamada combinada NO devuelve los nodos `ford=yes` (la corrida real logueo
 `0 fords (nodos ford=yes)`), mientras que una lectura de una sola clave
-(`custom_filter={"ford": ["yes"]}`) devuelve 275 objetos (263 `Point` con
-`ford == "yes"`, 12 ways). Ahora se hacen DOS lecturas de una clave cada una
-(agua y fords por separado); ver el docstring de la funcion sobre el costo
-(~+10 minutos en el extracto real) y la implementacion.
+(`custom_filter={"ford": ["yes"]}`) devuelve 213 entidades en Corrientes
+(202 `Point` y 11 ways). Ahora se hacen DOS lecturas de una clave cada una
+(agua y fords por separado), y las geometrías de los ways también se usan
+para confirmar cruces.
 
 ## Optimizacion de rendimiento (N1) — busquedas batched por departamento
 
@@ -142,6 +142,7 @@ from typing import Optional
 
 UMBRAL_SNAP_SIN_CONEXION_M = 5000.0
 UMBRAL_VIA_PAVIMENTADA_CERCANA_M = 10000.0
+UMBRAL_DISTANCIA_RED_PAVIMENTADA_NIVEL0_M = 2000.0
 UMBRAL_VIA_NO_ALCANZABLE_M = 30000.0
 UMBRAL_KM_SIN_PAVIMENTAR_NIVEL0 = 2.0
 UMBRAL_KM_SIN_PAVIMENTAR_NIVEL2 = 15.0
@@ -226,6 +227,51 @@ def construir_grafo_pavimentado(grafo):
             grafo.get_edge_data(u, v)[k]
         ),
     )
+
+
+def distancias_hasta_red_pavimentada(grafo) -> dict:
+    """Distancia de red desde cada nodo alcanzable hasta la primera via pavimentada.
+
+    Los nodos incidentes a una arista pavimentada son fuentes de distancia cero.
+    Se recorre el grafo invertido para medir el camino dirigido desde cada nodo
+    hacia alguna de esas fuentes usando longitud fisica, no el costo de ruteo.
+    """
+    import networkx as nx
+
+    nodos_pavimentados = {
+        nodo
+        for u, v, datos in grafo.edges(data=True)
+        if not _es_tramo_sin_pavimentar(datos)
+        for nodo in (u, v)
+    }
+    if not nodos_pavimentados:
+        return {}
+    return nx.multi_source_dijkstra_path_length(
+        grafo.reverse(copy=False), nodos_pavimentados, weight="length"
+    )
+
+
+def distancia_pavimentada_desde_snap(grafo, snap, distancias_pavimentadas) -> Optional[float]:
+    """Distancia real desde un snap de arista hasta la red pavimentada."""
+    if not snap or snap["distancia_m"] > UMBRAL_SNAP_SIN_CONEXION_M:
+        return None
+    u, v, k = snap["u"], snap["v"], snap["k"]
+    datos = (grafo.get_edge_data(u, v) or {}).get(k, {})
+    if not _es_tramo_sin_pavimentar(datos):
+        return 0.0
+    frac = float(snap["frac"])
+    largo = float(datos.get("length", 0.0))
+    opciones = []
+    if v in distancias_pavimentadas:
+        opciones.append((1.0 - frac) * largo + distancias_pavimentadas[v])
+    reversas = grafo.get_edge_data(v, u) or {}
+    if reversas and u in distancias_pavimentadas:
+        datos_reversa = min(
+            reversas.values(),
+            key=lambda edge: float(edge.get("length", math.inf)),
+        )
+        opciones.append(frac * float(datos_reversa.get("length", 0.0)) + distancias_pavimentadas[u])
+    return min(opciones) if opciones else None
 
 
 def _arista_de_menor_costo(grafo, u, v):
@@ -398,6 +444,7 @@ TOLERANCIA_FORD_M = 25.0
 # explicito quedan como `sin_evidencia` y no elevan el indice.
 CLASIFICACION_PUENTE = "puente"
 CLASIFICACION_VADO = "vado"
+CLASIFICACION_VADO_PROBABLE = "vado_probable"
 CLASIFICACION_SIN_EVIDENCIA = "sin_evidencia"
 
 
@@ -411,6 +458,8 @@ def clasificar_cruce(cruce: dict) -> str:
         return CLASIFICACION_PUENTE
     if cruce["es_ford"]:
         return CLASIFICACION_VADO
+    if cruce.get("es_ford_probable"):
+        return CLASIFICACION_VADO_PROBABLE
     return CLASIFICACION_SIN_EVIDENCIA
 
 
@@ -459,25 +508,33 @@ def calcular_indice_aislamiento(
     *,
     tramos_sin_pavimentar_km: Optional[float] = None,
     tiene_alternativa_pavimentada: Optional[bool] = None,
+    distancia_cabecera_departamental_m: Optional[float] = None,
 ) -> Optional[int]:
     """Escala 0-3 documentada en el contrato de datos de G1.
 
     Devuelve None cuando faltan datos suficientes (nunca asume "seguro").
     """
     if (
-        distancia_via_pavimentada_m is None
-        or tramos_sin_pavimentar_count is None
+        tramos_sin_pavimentar_count is None
         or cruces_agua_con_puente_count is None
         or cruces_agua_con_vado_count is None
     ):
         return None
 
-    if distancia_via_pavimentada_m > UMBRAL_VIA_NO_ALCANZABLE_M:
-        return 3
-
     if cruces_agua_con_vado_count >= 1:
         # Vado (sin puente): riesgo alto salvo que haya alternativa que lo evite.
         return 2 if tiene_alternativa_sin_cruce else 3
+
+    if distancia_via_pavimentada_m is None:
+        return None
+    distancia_localidad = (
+        distancia_cabecera_departamental_m
+        if distancia_cabecera_departamental_m is not None
+        else distancia_via_pavimentada_m
+    )
+    # Nivel 3 por lejania se mide contra la localidad, no contra el pavimento.
+    if distancia_localidad > UMBRAL_VIA_NO_ALCANZABLE_M:
+        return 3
 
     if (
         tramos_sin_pavimentar_km is not None
@@ -500,7 +557,10 @@ def calcular_indice_aislamiento(
 
     # Puentes y cruces sin evidencia explicita no cuentan como aislamiento.
     sin_cruces_relevantes = cruces_agua_con_vado_count == 0
-    via_cercana = distancia_via_pavimentada_m <= UMBRAL_VIA_PAVIMENTADA_CERCANA_M
+    via_cercana = (
+        distancia_via_pavimentada_m <= UMBRAL_DISTANCIA_RED_PAVIMENTADA_NIVEL0_M
+        and distancia_localidad <= UMBRAL_VIA_PAVIMENTADA_CERCANA_M
+    )
     if sin_cruces_relevantes and via_cercana and limite_sin_pavimentar:
         return 0
 
@@ -703,16 +763,15 @@ def construir_geometrias_agua_y_fords_local(
 ) -> tuple[list, list]:
     """Extrae del extracto local .osm.pbf los cursos de agua (`WATERWAYS_CRUCE`,
     como entidades separadas de la red vial; ver nota de modulo G1-fix2) y los
-    nodos `ford=yes` (N3-D).
+    entidades `ford=yes` (nodos y ways).
 
     Devuelve `(agua, fords)`:
 
     - `agua`: geometrias shapely LineString/MultiLineString de los ways cuyo
       `waterway` esta en `WATERWAYS_CRUCE` (nunca la red vial).
-    - `fords`: geometrias shapely Point (lon/lat) de los nodos cuyo `ford` es
-      "yes". Antes de N3-D los vados a nivel de nodo eran invisibles:
-      `_tiene_ford` solo miraba los tags de la arista y los atributos del nodo
-      del grafo, y `pyrosm` no copia el tag `ford` a los nodos viales.
+    - `fords`: geometrias shapely Point/LineString (lon/lat) de las entidades
+      cuyo `ford` es "yes". Los ways se incluyen aunque no formen parte de la
+      red drive, para no perder evidencia explícita.
 
     ## N3-G — DOS lecturas, no una
 
@@ -721,8 +780,8 @@ def construir_geometrias_agua_y_fords_local(
     Bug verificado con el extracto real de Corrientes: el filtro multi-clave
     NO devuelve los nodos `ford=yes` (la corrida real logueo
     `0 fords (nodos ford=yes)`), mientras que una lectura de una sola clave
-    (`custom_filter={"ford": ["yes"]}`) devuelve 275 objetos (263 `Point` con
-    `ford == "yes"` y 12 ways). Por eso ahora se hacen DOS lecturas
+    (`custom_filter={"ford": ["yes"]}`) devuelve entidades `Point` y ways.
+    Por eso ahora se hacen DOS lecturas
     independientes sobre el mismo objeto `OSM` (pyrosm cachea los elementos
     leidos en `_read_pbf`, asi que no re-lee el pbf):
 
@@ -731,13 +790,12 @@ def construir_geometrias_agua_y_fords_local(
        `filter_type="keep"`, `keep_nodes=False`, `keep_relations=False`) ->
        LineString/MultiLineString.
     b) fords: `custom_filter={"ford": ["yes"]}`, `osm_keys_to_keep=["ford"]`,
-       `filter_type="keep"`, `keep_nodes=True`, `keep_ways=False`,
-       `keep_relations=False` -> `Point` cuyo `ford` es "yes" (via
-       `_primer_valor`). Se maneja `None`/frame vacio.
+       `filter_type="keep"`, `keep_nodes=True`, `keep_ways=True`,
+       `keep_relations=False` -> Point/LineString/MultiLineString cuyo `ford`
+       es "yes" (via `_primer_valor`). Se maneja `None`/frame vacio.
 
-    Costo: la segunda pasada agrega ~+10 minutos sobre el extracto real (se
-    recorre la tabla de nodos buscando `ford=yes`), a cambio de recuperar los
-    fords que el filtro combinado descartaba.
+    La segunda pasada recorre los elementos del bbox buscando `ford=yes`;
+    recupera los nodos y ways que el filtro combinado descartaba.
 
     Mismo orden de bbox que `construir_red_local`: pyrosm espera
     [oeste, sur, este, norte].
@@ -773,7 +831,7 @@ def construir_geometrias_agua_y_fords_local(
         osm_keys_to_keep=["ford"],
         filter_type="keep",
         keep_nodes=True,
-        keep_ways=False,
+        keep_ways=True,
         keep_relations=False,
     )
     if datos_ford is not None and not datos_ford.empty:
@@ -782,7 +840,7 @@ def construir_geometrias_agua_y_fords_local(
             if geometria is None or geometria.is_empty:
                 continue
             if (
-                geometria.geom_type == "Point"
+                geometria.geom_type in ("Point", "LineString", "MultiLineString")
                 and _primer_valor(fila.get("ford")) == "yes"
             ):
                 fords.append(geometria)
@@ -883,6 +941,12 @@ def _tiene_puente(datos_arista: dict) -> bool:
         return True
     tunnel = _primer_valor(datos_arista.get("tunnel"))
     return tunnel == "culvert"
+
+
+def _tiene_tunel(datos_arista: dict) -> bool:
+    """Indica cualquier `tunnel=*` distinto de `no` o vacio."""
+    tunnel = _primer_valor(datos_arista.get("tunnel"))
+    return tunnel not in (None, "", "no")
 
 
 def _tiene_ford(datos_arista: dict, grafo, u, v) -> bool:
@@ -996,12 +1060,18 @@ def construir_cruces_por_arista(
     )
 
     for (u, v, k, datos, idx_agua, punto), cerca in zip(entradas, es_ford_cerca):
+        explicito = _tiene_ford(datos, grafo, u, v) or cerca
         cruces.setdefault((u, v, k), []).append(
             {
                 "agua_idx": idx_agua,
                 "punto": (punto.x, punto.y),
                 "con_puente": _tiene_puente(datos),
-                "es_ford": _tiene_ford(datos, grafo, u, v) or cerca,
+                "es_ford": explicito,
+                "es_ford_probable": (
+                    not explicito and not _tiene_puente(datos)
+                    and not _tiene_tunel(datos)
+                    and _es_tramo_sin_pavimentar(datos)
+                ),
             }
         )
     return cruces
@@ -1255,6 +1325,7 @@ def _evaluar_escuela_arista(
     nodo_cabecera,
     nombres_destino=None,
     alcanzables_pavimentado=None,
+    distancias_via_pavimentada=None,
 ) -> tuple:
     """Metricas y registro de geometria de UNA escuela snapeada a su arista.
 
@@ -1342,12 +1413,16 @@ def _evaluar_escuela_arista(
         resultado["distancia_destino_m"] = distancia_real
         geometria["destino"] = resultado["destino"]
         geometria["distancia_destino_m"] = distancia_real
-    resultado["distancia_via_pavimentada_m"] = distancia_real
+    resultado["distancia_via_pavimentada_m"] = distancia_pavimentada_desde_snap(
+        grafo, snap, distancias_via_pavimentada or {}
+    )
 
     tramos_sin_pavimentar = 0
     tramos_longitud = []
     cruces_con_puente = 0
     cruces_con_vado = 0
+    cruces_vado_explicito = 0
+    cruces_vado_probable = 0
     cruces_sin_evidencia = 0
     ya_vistos_ruta: list = []
     cruces_export: list = []
@@ -1369,6 +1444,11 @@ def _evaluar_escuela_arista(
             cruces_con_puente += 1
         elif cruce["es_ford"]:
             cruces_con_vado += 1
+            cruces_vado_explicito += 1
+            parcial_todos_puente = False
+        elif cruce.get("es_ford_probable"):
+            cruces_con_vado += 1
+            cruces_vado_probable += 1
             parcial_todos_puente = False
         else:
             cruces_sin_evidencia += 1
@@ -1395,6 +1475,10 @@ def _evaluar_escuela_arista(
                     cruces_con_puente += 1
                 elif cruce["es_ford"]:
                     cruces_con_vado += 1
+                    cruces_vado_explicito += 1
+                elif cruce.get("es_ford_probable"):
+                    cruces_con_vado += 1
+                    cruces_vado_probable += 1
                 else:
                     cruces_sin_evidencia += 1
                 punto_x, punto_y = cruce["punto"]
@@ -1412,6 +1496,8 @@ def _evaluar_escuela_arista(
     resultado["cruces_agua_count"] = cruces_count
     resultado["cruces_agua_con_puente_count"] = cruces_con_puente
     resultado["cruces_agua_con_vado_count"] = cruces_con_vado
+    resultado["cruces_agua_con_vado_explicito_count"] = cruces_vado_explicito
+    resultado["cruces_agua_con_vado_probable_count"] = cruces_vado_probable
     resultado["cruces_agua_sin_evidencia_count"] = cruces_sin_evidencia
 
     if cruces_con_vado == 0:
@@ -1464,11 +1550,15 @@ def _evaluar_escuela_arista(
 
 
 def _aristas_inseguras(cruces_por_arista: dict) -> set:
-    """Aristas que contienen un `ford=yes` sin puente confirmado."""
+    """Aristas con vado explicito/probable y sin puente confirmado."""
     return {
         clave
         for clave, crucesarista in cruces_por_arista.items()
-        if any(not c["con_puente"] and c["es_ford"] for c in crucesarista)
+        if any(
+            not c["con_puente"]
+            and (c["es_ford"] or c.get("es_ford_probable"))
+            for c in crucesarista
+        )
     }
 
 
@@ -1552,6 +1642,8 @@ def calcular_metricas_escuela(
         "cruces_agua_count": None,
         "cruces_agua_con_puente_count": None,
         "cruces_agua_con_vado_count": None,
+        "cruces_agua_con_vado_explicito_count": None,
+        "cruces_agua_con_vado_probable_count": None,
         "cruces_agua_sin_evidencia_count": None,
         "tiene_alternativa_sin_cruce": None,
         "tiene_alternativa_pavimentada": None,
@@ -1588,6 +1680,8 @@ def calcular_metricas_escuela(
     tramos_longitud = []
     cruces_con_puente = 0
     cruces_con_vado = 0
+    cruces_vado_explicito = 0
+    cruces_vado_probable = 0
     cruces_sin_evidencia = 0
     ya_vistos_ruta: list = []
     for u, v in zip(ruta_cabecera[:-1], ruta_cabecera[1:]):
@@ -1604,6 +1698,10 @@ def calcular_metricas_escuela(
                     cruces_con_puente += 1
                 elif cruce["es_ford"]:
                     cruces_con_vado += 1
+                    cruces_vado_explicito += 1
+                elif cruce.get("es_ford_probable"):
+                    cruces_con_vado += 1
+                    cruces_vado_probable += 1
                 else:
                     cruces_sin_evidencia += 1
 
@@ -1614,12 +1712,13 @@ def calcular_metricas_escuela(
     resultado["cruces_agua_count"] = cruces_count
     resultado["cruces_agua_con_puente_count"] = cruces_con_puente
     resultado["cruces_agua_con_vado_count"] = cruces_con_vado
+    resultado["cruces_agua_con_vado_explicito_count"] = cruces_vado_explicito
+    resultado["cruces_agua_con_vado_probable_count"] = cruces_vado_probable
     resultado["cruces_agua_sin_evidencia_count"] = cruces_sin_evidencia
 
-    # Vias pavimentadas: nodos cuyo grado de arista principal no tiene
-    # tramo sin pavimentar directo; se usa la distancia a la cabecera como
-    # proxy documentado cuando no hay un catalogo separado de vias troncales.
-    resultado["distancia_via_pavimentada_m"] = resultado["distancia_cabecera_departamental_m"]
+    resultado["distancia_via_pavimentada_m"] = distancias_hasta_red_pavimentada(
+        grafo
+    ).get(nodo_escuela)
 
     if cruces_con_vado == 0:
         resultado["tiene_alternativa_sin_cruce"] = None
@@ -1654,6 +1753,8 @@ def _resultado_vacio() -> dict:
         "cruces_agua_count": None,
         "cruces_agua_con_puente_count": None,
         "cruces_agua_con_vado_count": None,
+        "cruces_agua_con_vado_explicito_count": None,
+        "cruces_agua_con_vado_probable_count": None,
         "cruces_agua_sin_evidencia_count": None,
         "tiene_alternativa_sin_cruce": None,
         "tiene_alternativa_pavimentada": None,
@@ -1674,6 +1775,7 @@ def calcular_metricas_departamento(
     geometrias_out: Optional[list] = None,
     indice_aristas: Optional[dict] = None,
     busqueda_destinos: Optional[dict] = None,
+    distancias_via_pavimentada: Optional[dict] = None,
 ) -> list:
     """Version batched de `calcular_metricas_escuela` para TODAS las escuelas
     de un mismo departamento (mismo `nodo_cabecera`).
@@ -1758,6 +1860,7 @@ def calcular_metricas_departamento(
             geometrias_out,
             indice_aristas,
             busqueda_destinos,
+            distancias_via_pavimentada,
         )
 
     lons = [e["lon"] for e in escuelas_depto]
@@ -1783,6 +1886,8 @@ def calcular_metricas_departamento(
             alcanzables_seguro = set(
                 nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
             )
+    if distancias_via_pavimentada is None:
+        distancias_via_pavimentada = distancias_hasta_red_pavimentada(grafo)
 
     resultados = []
     for escuela, nodo_escuela, dist_snap in zip(escuelas_depto, nodos_escuela, dists_snap):
@@ -1832,6 +1937,8 @@ def calcular_metricas_departamento(
         tramos_longitud = []
         cruces_con_puente = 0
         cruces_con_vado = 0
+        cruces_vado_explicito = 0
+        cruces_vado_probable = 0
         cruces_sin_evidencia = 0
         ya_vistos_ruta: list = []
         cruces_export: list = []
@@ -1849,6 +1956,10 @@ def calcular_metricas_departamento(
                         cruces_con_puente += 1
                     elif cruce["es_ford"]:
                         cruces_con_vado += 1
+                        cruces_vado_explicito += 1
+                    elif cruce.get("es_ford_probable"):
+                        cruces_con_vado += 1
+                        cruces_vado_probable += 1
                     else:
                         cruces_sin_evidencia += 1
                     if geometrias_out is not None:
@@ -1867,8 +1978,12 @@ def calcular_metricas_departamento(
         resultado["cruces_agua_count"] = cruces_count
         resultado["cruces_agua_con_puente_count"] = cruces_con_puente
         resultado["cruces_agua_con_vado_count"] = cruces_con_vado
+        resultado["cruces_agua_con_vado_explicito_count"] = cruces_vado_explicito
+        resultado["cruces_agua_con_vado_probable_count"] = cruces_vado_probable
         resultado["cruces_agua_sin_evidencia_count"] = cruces_sin_evidencia
-        resultado["distancia_via_pavimentada_m"] = resultado["distancia_cabecera_departamental_m"]
+        resultado["distancia_via_pavimentada_m"] = distancias_via_pavimentada.get(
+            nodo_escuela
+        )
 
         if cruces_con_vado == 0:
             resultado["tiene_alternativa_sin_cruce"] = None
@@ -1930,6 +2045,7 @@ def _calcular_metricas_departamento_por_arista(
     geometrias_out: Optional[list],
     indice_aristas: dict,
     busqueda_destinos: Optional[dict],
+    distancias_via_pavimentada: Optional[dict],
 ) -> list:
     """Camino N3-C de `calcular_metricas_departamento`: snap a la ARISTA mas
     cercana (una sola consulta vectorizada para todas las escuelas) y ruteo
@@ -1966,6 +2082,8 @@ def _calcular_metricas_departamento_por_arista(
             alcanzables_seguro = set(
                 nx.single_source_shortest_path_length(grafo_seguro_invertido, nodo_cabecera)
             )
+    if distancias_via_pavimentada is None:
+        distancias_via_pavimentada = distancias_hasta_red_pavimentada(grafo)
 
     resultados = []
     for escuela, snap in zip(escuelas_depto, snaps):
@@ -1992,6 +2110,7 @@ def _calcular_metricas_departamento_por_arista(
             nodo_cabecera,
             nombres_destino,
             alcanzables_pavimentado,
+            distancias_via_pavimentada,
         )
         resultados.append(resultado)
         if geometrias_out is not None:

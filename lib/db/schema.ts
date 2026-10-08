@@ -1130,6 +1130,8 @@ export const infraAislamientoOsm = pgTable('infra_aislamiento_osm', {
   crucesAguaCount: integer('cruces_agua_count'),
   crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
   crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
+  crucesAguaConVadoExplicitoCount: integer('cruces_agua_con_vado_explicito_count'),
+  crucesAguaConVadoProbableCount: integer('cruces_agua_con_vado_probable_count'),
   tieneAlternativaSinCruce: boolean('tiene_alternativa_sin_cruce'),
   tieneAlternativaPavimentada: boolean('tiene_alternativa_pavimentada'),
   indiceAislamiento: integer('indice_aislamiento'),
@@ -1166,7 +1168,7 @@ export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estat
 export type CruceAccesoOsm = {
   lon: number
   lat: number
-  clasificacion: 'puente' | 'vado' | 'sin_evidencia'
+  clasificacion: 'puente' | 'vado' | 'vado_probable' | 'sin_evidencia'
 }
 
 export type RutaGeoJson = {

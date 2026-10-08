@@ -129,6 +129,7 @@ describe('lineasAcceso', () => {
     ['sin cruces', [], undefined, 'Sin cruces de agua', null, false],
     ['solo puentes', [{ lon: 0, lat: 0, clasificacion: 'puente' }], { puente: 1, vado: 0, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 con puente', false],
     ['solo vados', [{ lon: 0, lat: 0, clasificacion: 'vado' }], { puente: 0, vado: 1, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 vado', true],
+    ['vado probable', [{ lon: 0, lat: 0, clasificacion: 'vado_probable' }], { puente: 0, vado: 1, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 vado', true],
     ['mixto sin resumen', [
       { lon: 0, lat: 0, clasificacion: 'vado' },
       { lon: 0, lat: 0, clasificacion: 'sin_evidencia' },

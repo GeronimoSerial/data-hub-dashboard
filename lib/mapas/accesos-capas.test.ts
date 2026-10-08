@@ -193,7 +193,7 @@ describe('construirRutaAcceso', () => {
 
 describe('construirCrucesAcceso', () => {
   it('asigna ícono y etiqueta por clasificación', () => {
-    const clasificaciones: ClasificacionCruce[] = ['puente', 'vado', 'sin_evidencia']
+    const clasificaciones: ClasificacionCruce[] = ['puente', 'vado', 'vado_probable', 'sin_evidencia']
     const resultado = construirCrucesAcceso({
       cueAnexo: 'A',
       disponible: true,
@@ -204,7 +204,7 @@ describe('construirCrucesAcceso', () => {
       })),
     })
 
-    expect(resultado.features).toHaveLength(3)
+    expect(resultado.features).toHaveLength(4)
     for (const [i, clasificacion] of clasificaciones.entries()) {
       expect(resultado.features[i].properties.clasificacion).toBe(clasificacion)
       expect(resultado.features[i].properties.icono).toBe(ID_ICONO_CRUCE[clasificacion])
@@ -335,8 +335,10 @@ describe('copias territoriales', () => {
     expect(textoMotivoSinRuta(null)).toBe(MOTIVO_SIN_RUTA_GENERICO)
   })
 
-  it('describe los tres tipos de cruce', () => {
-    expect(Object.keys(DESCRIPCIONES_CRUCE).sort()).toEqual(['puente', 'sin_evidencia', 'vado'])
+  it('describe los cuatro tipos de cruce', () => {
+    expect(Object.keys(DESCRIPCIONES_CRUCE).sort()).toEqual([
+      'puente', 'sin_evidencia', 'vado', 'vado_probable',
+    ])
   })
 
   it('no afirma que los datos confirmen la transitabilidad de hoy', () => {

@@ -306,11 +306,12 @@ class TestCalcularIndiceAislamiento:
     def test_puente_no_bloquea_el_indice_cero(self):
         # Los puentes informan un cruce, pero no cuentan como aislamiento.
         indice = calcular_indice_aislamiento(
-            distancia_via_pavimentada_m=2500,
+            distancia_via_pavimentada_m=1500,
             tramos_sin_pavimentar_count=1,
             cruces_agua_con_puente_count=1,
             cruces_agua_con_vado_count=0,
             tiene_alternativa_sin_cruce=True,
+            distancia_cabecera_departamental_m=2500,
         )
         assert indice == 0
 
@@ -363,19 +364,38 @@ class TestCalcularIndiceAislamiento:
     def test_umbrales_de_via_pavimentada_actualizados(self):
         assert UMBRAL_VIA_PAVIMENTADA_CERCANA_M == 10000
         assert UMBRAL_VIA_NO_ALCANZABLE_M == 30000
-        assert calcular_indice_aislamiento(8000, 0, 0, 0, True) == 0
+        assert calcular_indice_aislamiento(
+            2000, 0, 0, 0, True, distancia_cabecera_departamental_m=10000
+        ) == 0
+        assert calcular_indice_aislamiento(
+            2001, 0, 0, 0, True, distancia_cabecera_departamental_m=1000
+        ) == 1
+        assert calcular_indice_aislamiento(
+            1000, 0, 0, 0, True, distancia_cabecera_departamental_m=10001
+        ) == 1
         assert calcular_indice_aislamiento(25000, 0, 0, 0, True) == 1
         assert calcular_indice_aislamiento(30001, 0, 0, 0, True) == 3
 
+    def test_nivel_tres_por_distancia_a_localidad_no_a_pavimento(self):
+        assert calcular_indice_aislamiento(
+            500, 0, 0, 0, None, distancia_cabecera_departamental_m=30001
+        ) == 3
+        assert calcular_indice_aislamiento(
+            30001, 0, 0, 0, None, distancia_cabecera_departamental_m=9000
+        ) != 3
+
     def test_km_sin_pavimentar_controlan_niveles_cero_y_dos(self):
         base = dict(
-            distancia_via_pavimentada_m=5000,
+            distancia_via_pavimentada_m=1500,
             tramos_sin_pavimentar_count=0,
             cruces_agua_con_puente_count=0,
             cruces_agua_con_vado_count=0,
             tiene_alternativa_sin_cruce=False,
         )
-        assert calcular_indice_aislamiento(**base, tramos_sin_pavimentar_km=2.0) == 0
+        assert calcular_indice_aislamiento(
+            **base, tramos_sin_pavimentar_km=2.0,
+            distancia_cabecera_departamental_m=5000,
+        ) == 0
         assert calcular_indice_aislamiento(**base, tramos_sin_pavimentar_km=15.0) == 2
         assert calcular_indice_aislamiento(
             **{**base, "tiene_alternativa_sin_cruce": True},
@@ -564,7 +584,7 @@ class TestCalcularMetricasEscuela:
             "escuela",
             "cabecera",
             length=3000,
-            highway="unclassified",
+            highway="primary",
             geometry=LineString([(-58.90, -27.50), (-58.80, -27.45)]),
         )
         agua = [LineString([(-58.85, -29.0), (-58.85, 20.0)])]
@@ -807,9 +827,11 @@ class TestReproduccionBugTodosLosCrucesSonPuente:
             cruces_por_arista=cruces,
         )
         assert metricas["cruces_agua_con_puente_count"] == 0
-        assert metricas["cruces_agua_con_vado_count"] == 0
-        assert metricas["cruces_agua_sin_evidencia_count"] == 1
-        assert metricas["tiene_alternativa_sin_cruce"] is None
+        assert metricas["cruces_agua_con_vado_count"] == 1
+        assert metricas["cruces_agua_con_vado_explicito_count"] == 0
+        assert metricas["cruces_agua_con_vado_probable_count"] == 1
+        assert metricas["cruces_agua_sin_evidencia_count"] == 0
+        assert metricas["tiene_alternativa_sin_cruce"] is False
 
 
 class TestTieneFord:
@@ -1245,7 +1267,7 @@ def test_registro_geometria_emite_los_campos_aditivos():
         destino={"nombre": "Destino"}, distancia_destino_m=123.0,
     )
 
-    assert registro["version_job"] == "3"
+    assert registro["version_job"] == "4"
     assert registro["via_principal"]["nombre"] == "Ruta Provincial 13"
     assert registro["destino"] == {"nombre": "Destino"}
     assert registro["distancia_destino_m"] == 123.0
@@ -1382,12 +1404,13 @@ class TestCorrerSeleccionDeRed:
 
         assert llamadas_agua["n"] == 1
         nombres_csv = sorted(p.name for p in (tmp_path / "output").glob("*.csv"))
-        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
-        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres_csv
+        fecha_corrida = job.date.today().isoformat()
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-{fecha_corrida}.csv" in nombres_csv
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-{fecha_corrida}.csv" in nombres_csv
         salida = capsys.readouterr().out
         assert "extracto local detectado" in salida
         assert "capa de agua" in salida
-        assert "0 fords (nodos ford=yes)" in salida
+        assert "0 entidades ford=yes" in salida
 
     def test_salidas_versionadas_y_version_job(self, monkeypatch, tmp_path):
         """Las tres salidas del camino PBF llevan `-v{VERSION_JOB}-` y el campo
@@ -1410,25 +1433,26 @@ class TestCorrerSeleccionDeRed:
 
         output = tmp_path / "output"
         nombres = sorted(p.name for p in output.iterdir())
-        assert f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
-        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv" in nombres
-        assert f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz" in nombres
+        fecha_corrida = job.date.today().isoformat()
+        assert f"aislamiento_osm-v{job.VERSION_JOB}-{fecha_corrida}.csv" in nombres
+        assert f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-{fecha_corrida}.csv" in nombres
+        assert f"accesos_osm_geometria-v{job.VERSION_JOB}-{fecha_corrida}.ndjson.gz" in nombres
 
         with open(
-            output / f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv", encoding="utf-8"
+            output / f"aislamiento_osm-v{job.VERSION_JOB}-{fecha_corrida}.csv", encoding="utf-8"
         ) as f:
             filas = list(csv.DictReader(f))
         assert filas
         assert {fila["version_job"] for fila in filas} == {job.VERSION_JOB}
 
         with gzip.open(
-            output / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz",
+            output / f"accesos_osm_geometria-v{job.VERSION_JOB}-{fecha_corrida}.ndjson.gz",
             "rt",
             encoding="utf-8",
         ) as f:
             registros = [json.loads(line) for line in f]
         assert registros
-        assert job.VERSION_JOB == "3"
+        assert job.VERSION_JOB == "4"
         assert {registro["version_job"] for registro in registros} == {job.VERSION_JOB}
         assert all(
             {"via_principal", "destino", "distancia_destino_m"}.issubset(registro)
@@ -1436,7 +1460,7 @@ class TestCorrerSeleccionDeRed:
         )
         assert all(registro["via_principal"] is None for registro in registros)
         with open(
-            output / f"aislamiento_osm-v{job.VERSION_JOB}-2026-09-26.csv", encoding="utf-8"
+            output / f"aislamiento_osm-v{job.VERSION_JOB}-{fecha_corrida}.csv", encoding="utf-8"
         ) as archivo_csv:
             encabezados = next(csv.reader(archivo_csv))
         assert not {"via_principal", "destino", "distancia_destino_m"}.intersection(encabezados)
@@ -1480,7 +1504,8 @@ class TestCorrerSinRuta:
 
         job.correr(departamentos=["Capital"])
 
-        csv_path = tmp_path / "output" / f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-2026-09-26.csv"
+        fecha_corrida = job.date.today().isoformat()
+        csv_path = tmp_path / "output" / f"aislamiento_osm_sin_ruta-v{job.VERSION_JOB}-{fecha_corrida}.csv"
         assert csv_path.exists()
         with open(csv_path, encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -1497,7 +1522,7 @@ class TestCorrerSinRuta:
         assert float(fila1["via_a_red_principal_m"]) == 200.0
 
         # El NDJSON de geometria lleva el mismo motivo.
-        nd_path = tmp_path / "output" / f"accesos_osm_geometria-v{job.VERSION_JOB}-2026-09-26.ndjson.gz"
+        nd_path = tmp_path / "output" / f"accesos_osm_geometria-v{job.VERSION_JOB}-{fecha_corrida}.ndjson.gz"
         with gzip.open(nd_path, "rt", encoding="utf-8") as f:
             registros = {json.loads(line)["cue_anexo"]: json.loads(line) for line in f}
         assert registros["CUE-1"]["motivo_sin_geometria"] == MOTIVO_RED_NO_CONECTADA
@@ -1705,3 +1730,23 @@ class TestConstruirIndiceNoConectadasVectorizado:
         indice = construir_indice_no_conectadas(aristas)
         assert indice["clases"] == ["residential"]
         assert len(indice["geometrias"]) == 1
+
+
+def test_cruce_sin_ford_en_via_no_pavimentada_es_vado_probable():
+    assert clasificar_cruce({
+        "con_puente": False,
+        "es_ford": False,
+        "es_ford_probable": True,
+    }) == "vado_probable"
+
+
+def test_distancia_via_pavimentada_es_distancia_de_red_a_arista_pavimentada(monkeypatch):
+    grafo = nx.MultiDiGraph()
+    grafo.add_edge("E", "P", length=1500, highway="track")
+    grafo.add_edge("P", "L", length=5000, highway="primary")
+    _patch_nearest_nodes_departamento(monkeypatch, {(0.0, 0.0): ("E", 0.0)})
+
+    metricas = calcular_metricas_escuela(grafo, 0.0, 0.0, "L")
+
+    assert metricas["distancia_cabecera_departamental_m"] == 6500
+    assert metricas["distancia_via_pavimentada_m"] == 1500
