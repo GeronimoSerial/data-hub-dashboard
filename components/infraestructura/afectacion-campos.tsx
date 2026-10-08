@@ -197,8 +197,7 @@ export function CamposQuePaso({
                 checked={borrador.categoria === c}
                 onChange={() => {
                   if (c === borrador.categoria) return
-                  if (borrador.categoria === '') cambiarCategoria(c)
-                  else setCategoriaPendiente(c)
+                  setCategoriaPendiente(c)
                 }}
                 disabled={disabled}
                 label={CATEGORIA_META[c].label}
