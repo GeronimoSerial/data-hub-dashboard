@@ -255,13 +255,15 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas }: {
+export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas, corridaSeleccionada: corridaControlada, onCorridaChange }: {
   activo: boolean
   variable: VariableRadarUI
   escuelas?: EscuelaMapa[]
   resumen: ResumenRadarMeteo | null
   alertasResaltadas: AlertaRadar[]
   onVerAlertas: () => void
+  corridaSeleccionada?: string | null
+  onCorridaChange?: (fetchedAt: string | null) => void
 }) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -269,7 +271,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
   const [paso, setPaso] = useState<1 | 3>(3)
   const [point, setPoint] = useState<number | null>(null)
   const [retry, setRetry] = useState(0)
-  const [corridaSeleccionada, setCorridaSeleccionada] = useState<string | null>(null)
+  const [corridaInterna, setCorridaInterna] = useState<string | null>(null)
+  const corridaSeleccionada = corridaControlada !== undefined ? corridaControlada : corridaInterna
   const [rasterFrame, setRasterFrame] = useState<RasterFrame | null>(null)
   const [boundary, setBoundary] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null)
   const [geometriasAlerta, setGeometriasAlerta] = useState<{ clave: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
@@ -301,7 +304,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
   function elegirCorrida(fetchedAt: string | null) {
     setPlaying(false)
     setPoint(null)
-    setCorridaSeleccionada(fetchedAt)
+    if (onCorridaChange) onCorridaChange(fetchedAt)
+    else setCorridaInterna(fetchedAt)
   }
 
   const [ahoraMs] = useState(() => Date.now())
@@ -638,6 +642,7 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
           cueAnexo={cueEscuela}
           nombre={escuelaSeleccionada.nombre}
           onClose={() => setCueEscuela(null)}
+          asOf={corridaSeleccionada}
         />
       )}
       {escuelasVisibles.map((escuela) => escuela.lat !== null && escuela.lon !== null && (

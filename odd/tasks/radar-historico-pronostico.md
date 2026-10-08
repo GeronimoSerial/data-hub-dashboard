@@ -30,7 +30,7 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 - [x] T3 Hooks: `asOf` option in `use-radar-meteo.ts` (query + cache key) + new `use-corridas-radar-meteo.ts` + tests.
 - [x] T4 UI: run selector in `components/mapas/radar-meteo/radar-meteo.tsx` (past-run banner, back to "latest") + test.
 - [x] T5a Backend consistency: `asOf` in `resumen/route.ts` and `escuela/[cueAnexo]/route.ts` (+ tests). SMN alerts, ensemble and verification stay "current" (not historized). Authorized by user 2026-10-08.
-- [ ] T5b Frontend consistency: lift `corridaSeleccionada` from `RadarMeteo` to `map-infraestructura-page.tsx`, pass `asOf` to `useResumenRadarMeteo` and `escuela-card.tsx` fetch (+ tests).
+- [x] T5b Frontend consistency: lift `corridaSeleccionada` from `RadarMeteo` to `map-infraestructura-page.tsx`, pass `asOf` to `useResumenRadarMeteo` and `escuela-card.tsx` fetch (+ tests).
 
 ## Acceptance
 - With `asOf`, API returns the run in effect at that instant; without it, behavior is unchanged.
@@ -47,6 +47,8 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 - FINDING (gap): left panel KPIs, "Pronóstico por departamento" ranking and the per-school popup do NOT follow the selected run: `app/api/infraestructura/radar-meteo/resumen/route.ts:18` and `.../escuela/[cueAnexo]/route.ts:27` still call `obtenerUltimoRunRadarMeteo()`. Numbers were identical (13 deptos, Saladas 286,4 mm) for latest vs past run while the map differed.
 - Not validated: frame anchoring with real data (synthetic times display +2 h; artifact of fake data).
 - T5a (Haiku, 96k tokens): `asOf` in resumen + escuela routes (+8 tests). Parent re-ran `pnpm vitest run app/api/infraestructura/radar-meteo`: 4 files / 30 tests passed; Haiku reported tsc exit 0. Gap: zod import placed at the end of the import block (style only).
+- T5b (Haiku, 95.7k tokens): `useResumenRadarMeteo(activo, asOf)` (no ETag/sessionStorage when asOf), `EscuelaForecastCard` asOf prop, controlled-or-internal `corridaSeleccionada` in `RadarMeteo`, state lifted to `map-infraestructura-page.tsx` (+4 tests). Parent: radar + page + API tests 30 files / 241 passed (`--testTimeout=20000`), tsc 0, eslint 0 errors / 4 warnings identical to base HEAD. Known minor: left panel keeps the previous run's summary until the new one arrives.
+- Local demo now uses the 16 REAL prod runs (read-only SELECT, user-authorized 2026-10-08; no Open-Meteo calls). Real run JSON is ~1.4 MB each (the 0.6 MB figure was Postgres-compressed size).
 
 ## Next step
-Decide T5 (proposed): make `resumen` and `escuela/[cueAnexo]` accept `asOf` and pass it from `useResumenRadarMeteo`/popup, so the whole radar view is consistent. Then push/PR (user decision).
+Push branch and open PR into main (user authorized).

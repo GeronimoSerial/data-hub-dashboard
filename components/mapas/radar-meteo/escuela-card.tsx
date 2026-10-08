@@ -21,17 +21,20 @@ export function EscuelaForecastCard({
   cueAnexo,
   nombre,
   onClose,
+  asOf,
 }: {
   cueAnexo: string
   nombre: string
   onClose: () => void
+  asOf?: string | null
 }) {
   const [pronostico, setPronostico] = useState<PronosticoEscuela | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let cancelado = false
-    fetch(`/api/infraestructura/radar-meteo/escuela/${encodeURIComponent(cueAnexo)}`)
+    const query = asOf ? `?asOf=${encodeURIComponent(asOf)}` : ''
+    fetch(`/api/infraestructura/radar-meteo/escuela/${encodeURIComponent(cueAnexo)}${query}`)
       .then(async (response) => {
         const body = await response.json() as PronosticoEscuela & { error?: string }
         if (!response.ok) throw new Error(body.error ?? 'No se pudo cargar el pronóstico')
@@ -41,7 +44,7 @@ export function EscuelaForecastCard({
         if (!cancelado) setError(reason instanceof Error ? reason.message : 'No se pudo cargar el pronóstico')
       })
     return () => { cancelado = true }
-  }, [cueAnexo])
+  }, [cueAnexo, asOf])
 
   const lluviaMaxima48h = Math.max(0, ...(pronostico?.horas.map((hora) => hora.lluviaMm.valor ?? 0) ?? []))
   const escalaLluvia48h = Math.max(1, lluviaMaxima48h)

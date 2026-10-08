@@ -63,4 +63,17 @@ describe('tarjeta de pronóstico puntual', () => {
     await waitFor(() => expect(screen.getByText('Escuela Rural')).toBeInTheDocument())
     expect(screen.queryByText(/P≥25 mm en el departamento/)).not.toBeInTheDocument()
   })
+
+  it('pide el pronóstico de la corrida elegida con asOf', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ cueAnexo: '180000100', nombre: 'Escuela Rural', departamento: { nombre: 'Capital' }, horas: [], dias: [] }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const asOf = '2026-10-07T15:10:00.000Z'
+
+    render(<EscuelaForecastCard cueAnexo="180000100" nombre="Escuela Rural" asOf={asOf} onClose={() => undefined} />)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(`/api/infraestructura/radar-meteo/escuela/180000100?asOf=${encodeURIComponent(asOf)}`))
+  })
 })

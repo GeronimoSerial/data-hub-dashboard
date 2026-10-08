@@ -62,4 +62,32 @@ describe('useResumenRadarMeteo', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
   })
+
+  it('pide la corrida elegida con asOf sin ETag ni caché de sesión', async () => {
+    const resumenPasado = { runId: 'pasado', alertasSmn: [] }
+    const cacheLatest = JSON.stringify({ runId: 'latest' })
+    sessionStorage.setItem('radar-meteo-resumen-v1-etag', '"v1"')
+    sessionStorage.setItem('radar-meteo-resumen-v1-data', cacheLatest)
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(resumenPasado), { status: 200, headers: { ETag: '"v2"' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const asOf = '2026-10-07T15:10:00.000Z'
+
+    const { result } = renderHook(() => useResumenRadarMeteo(true, asOf))
+
+    await waitFor(() => expect(result.current.resumen).toEqual(resumenPasado))
+    expect(fetchMock).toHaveBeenCalledWith(`/api/infraestructura/radar-meteo/resumen?asOf=${encodeURIComponent(asOf)}`)
+    expect(sessionStorage.getItem('radar-meteo-resumen-v1-etag')).toBe('"v1"')
+    expect(sessionStorage.getItem('radar-meteo-resumen-v1-data')).toBe(cacheLatest)
+    expect(result.current.error).toBe(false)
+  })
+
+  it('informa error con asOf sin recurrir al resumen guardado', async () => {
+    sessionStorage.setItem('radar-meteo-resumen-v1-data', JSON.stringify({ runId: 'latest' }))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })))
+
+    const { result } = renderHook(() => useResumenRadarMeteo(true, '2026-10-07T15:10:00.000Z'))
+
+    await waitFor(() => expect(result.current.error).toBe(true))
+    expect(result.current.resumen).toBeNull()
+  })
 })

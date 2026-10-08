@@ -97,4 +97,26 @@ describe('RadarMeteo — historico de pronosticos publicados', () => {
     expect(screen.queryByRole('button', { name: 'Volver al último' })).not.toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Pronóstico publicado' })).toHaveValue('')
   })
+
+  it('usa la corrida controlada por el padre y avisa la corrida elegida', () => {
+    estado.corridas = [CORRIDA_NUEVA, CORRIDA_ANTERIOR]
+    const onCorridaChange = vi.fn()
+    render(
+      <RadarMeteo
+        activo
+        variable="lluvia"
+        resumen={null}
+        alertasResaltadas={[]}
+        onVerAlertas={() => undefined}
+        corridaSeleccionada={CORRIDA_ANTERIOR.fetchedAt}
+        onCorridaChange={onCorridaChange}
+      />,
+    )
+
+    expect(estado.llamadasRadar.at(-1)?.asOf).toBe(CORRIDA_ANTERIOR.fetchedAt)
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Pronóstico publicado' }), { target: { value: CORRIDA_NUEVA.fetchedAt } })
+
+    expect(onCorridaChange).toHaveBeenCalledWith(CORRIDA_NUEVA.fetchedAt)
+  })
 })
