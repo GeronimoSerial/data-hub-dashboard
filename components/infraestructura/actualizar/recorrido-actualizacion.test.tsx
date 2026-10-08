@@ -50,6 +50,7 @@ describe('RecorridoActualizacion', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
     expect(screen.getAllByRole('button', { name: 'Volver' })).toHaveLength(1)
     fireEvent.click(screen.getByRole('radio', { name: /^Afecta al establecimiento/ }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continuar' }))
     fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
     expect(screen.getByRole('radio', { name: 'No' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Sí, agregar una situación nueva' }))
