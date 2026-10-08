@@ -115,7 +115,7 @@ Route: same five classes, computed over the route samples (worst class along the
   RP-based class; update `lib/infraestructura/mapa/planificacion.ts` and the legend.
 - [x] **T10. Route risk.** Rewrite `nivelRiesgo` (`lib/infraestructura/mapa/acceso.ts`) on the route
   class; remove the "0 → Bajo" mapping.
-- [ ] **T11. Lagoon tag.** "Junto a laguna" tag in the school card and map, bare label, no explanation.
+- [x] **T11. Lagoon tag.** "Junto a laguna" tag in the school card and map, bare label, no explanation.
 - [ ] **T12. Methodology tab/FAQ.** Single place explaining sources, return periods, thresholds,
   limitations (no defenses, DEM vertical error, static not forecast).
 - Checks: `pnpm vitest run` on touched components, `pnpm lint`, `pnpm exec tsc --noEmit`, `pnpm build`;
@@ -171,3 +171,4 @@ sends fixes to another fresh Haiku.
   sin_riesgo; 1801166-00 route sin_riesgo (lagoon access not modelled). 242 passed. Still uncommitted.
 - 2026-10-08: local commits d5b1286 (Phase 1) and d5a34f6 (Phase 2) on feat/inundacion-v2-datos. No push/PR yet.
 - 2026-10-08: Phase 3 done. T7 ba0c48a (17 nullable columns). T8 importer updates v2 columns by cue_anexo (no row inserts); demo DB imported 2001/2001 both layers; vitest 32 passed, tsc ok.
+- 2026-10-08: T9 adca820, T10 525d691, T11 committed. Whole flood block gated by MOSTRAR_AGUA_ESTIMADA=false (82465d8); awaiting user decision. Pending: remove v1 depth text from ficha Detalle.

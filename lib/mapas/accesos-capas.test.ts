@@ -81,7 +81,7 @@ function territorio(opciones: {
             escuelas: Object.fromEntries(
               Object.entries(opciones.susceptibilidad).map(([cue, clase]) => [
                 cue,
-                { inundacionFluvialM: null, claseRio: clase },
+                { inundacionFluvialM: null, claseRio: clase, juntoLaguna: null },
               ]),
             ),
           },

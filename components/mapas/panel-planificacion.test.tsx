@@ -12,7 +12,7 @@ const escuelas: EscuelaMapaEnriquecida[] = [
 ]
 const territorio: TerritorioMapa = {
   aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 1, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false } } },
-  susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null }, '2': { inundacionFluvialM: 0.8, claseRio: null } } },
+  susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null, juntoLaguna: null }, '2': { inundacionFluvialM: 0.8, claseRio: null, juntoLaguna: null } } },
 }
 
 function props(overrides: Partial<React.ComponentProps<typeof PanelPlanificacion>> = {}) {

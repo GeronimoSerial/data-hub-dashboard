@@ -20,7 +20,7 @@ const territorioRiesgo: TerritorioMapa = {
   },
   susceptibilidad: {
     fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia',
-    escuelas: { a: { inundacionFluvialM: 1, claseRio: "alto" }, b: { inundacionFluvialM: 0.5, claseRio: "medio" }, c: { inundacionFluvialM: 0, claseRio: "sin_riesgo" } },
+    escuelas: { a: { inundacionFluvialM: 1, claseRio: "alto", juntoLaguna: null }, b: { inundacionFluvialM: 0.5, claseRio: "medio", juntoLaguna: null }, c: { inundacionFluvialM: 0, claseRio: "sin_riesgo", juntoLaguna: null } },
   },
 }
 

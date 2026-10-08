@@ -214,6 +214,21 @@ describe('construirTerritorioMapa', () => {
     expect(territorio.susceptibilidad?.escuelas.RARO.claseRio).toBeNull()
   })
 
+  it('expone junto_laguna booleano; null llega como null, nunca como false', () => {
+    const territorio = construirTerritorioMapa(
+      [],
+      [
+        filaSusceptibilidad({ cueAnexo: 'LAGUNA', versionJob: '1', fuente: 'physrisk', juntoLaguna: true }),
+        filaSusceptibilidad({ cueAnexo: 'SECA', versionJob: '1', fuente: 'physrisk', juntoLaguna: false }),
+        filaSusceptibilidad({ cueAnexo: 'NULO', versionJob: '1', fuente: 'physrisk', juntoLaguna: null }),
+      ],
+    )
+
+    expect(territorio.susceptibilidad?.escuelas.LAGUNA.juntoLaguna).toBe(true)
+    expect(territorio.susceptibilidad?.escuelas.SECA.juntoLaguna).toBe(false)
+    expect(territorio.susceptibilidad?.escuelas.NULO.juntoLaguna).toBeNull()
+  })
+
   it('expone los metadatos estáticos correctos', () => {
     const territorio = construirTerritorioMapa(
       [filaAislamiento({ cueAnexo: 'A', versionJob: '1' })],

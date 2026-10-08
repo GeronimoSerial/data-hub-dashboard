@@ -4,9 +4,12 @@ import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 import {
   DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
+  ETIQUETAS_INUNDACION,
   TEXTOS_ACCESOS,
+  claseInundacion,
   textoMotivoSinRuta,
   textoConPeriodo,
+  type ClaseInundacion,
 } from '@/lib/mapas/accesos-capas'
 import type {
   AislamientoEscuelaMapa,
@@ -80,11 +83,13 @@ function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
   return `Cruces de agua en el camino: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
 }
 
-// Línea visible de inundación: la profundidad estimada EN la escuela, no la de
-// un punto cercano. 0 m es "el modelo no estima agua ahí", nunca "0 = seca".
-function textoInundacion(profundidad: number): string {
-  if (!(profundidad > 0)) return 'Agua estimada en la escuela: ninguna según el modelo'
-  return `Agua estimada en la escuela: ${formatearMetros(profundidad)} m en una crecida muy poco frecuente (modelo, no es agua de hoy)`
+// Estilo del tag de clase de río, reutilizando los badges de globals.css.
+const BADGE_CLASE_INUNDACION: Record<ClaseInundacion, string> = {
+  alto: 'badge--danger',
+  medio: 'badge--warning',
+  bajo: 'badge--neutral',
+  sin_riesgo: 'badge--success',
+  sin_dato: 'badge--neutral',
 }
 
 function textoExposicionRuta(exposicion: ExposicionRutaRespuesta): string {
@@ -212,22 +217,29 @@ export function FichaAccesoTerritorial({
             )}
           </div>
 
+          {/* Bloque de inundación aislado: sólo tags. Clase de río (sin fila o
+              sin clase = "Sin dato") y, si aplica, "Junto a laguna". */}
           {MOSTRAR_AGUA_ESTIMADA && <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
             {susceptibilidad === null ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
                 Sin datos de agua estimada cargados.
               </p>
-            ) : filaSusceptibilidad === undefined ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-cobertura">
-                Agua estimada en la escuela: sin dato
-              </p>
-            ) : profundidad === null ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-valor">
-                Agua estimada en la escuela: sin dato
-              </p>
             ) : (
               <p data-testid="ficha-acceso-susceptibilidad-valor">
-                {textoInundacion(profundidad)}
+                <span
+                  className={`badge ${BADGE_CLASE_INUNDACION[claseInundacion(filaSusceptibilidad?.claseRio)]}`}
+                  data-testid="ficha-acceso-clase-rio"
+                >
+                  {ETIQUETAS_INUNDACION[claseInundacion(filaSusceptibilidad?.claseRio)]}
+                </span>
+                {filaSusceptibilidad?.juntoLaguna === true && (
+                  <>
+                    {' '}
+                    <span className="badge badge--neutral" data-testid="ficha-acceso-junto-laguna">
+                      Junto a laguna
+                    </span>
+                  </>
+                )}
               </p>
             )}
           </div>}

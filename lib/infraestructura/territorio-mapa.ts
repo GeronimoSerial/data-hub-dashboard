@@ -54,6 +54,8 @@ export interface SusceptibilidadEscuelaMapa {
   inundacionFluvialM: number | null
   // v2: clase de riesgo por crecida de río. null = sin dato.
   claseRio: 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato' | null
+  // v2: la escuela está junto a una laguna. null = sin dato (nunca se imputa false).
+  juntoLaguna: boolean | null
 }
 
 const CLASES_RIO_MAPA: ReadonlySet<string> = new Set(['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'])
@@ -245,6 +247,7 @@ export function construirTerritorioMapa(
         claseRio: fila.claseRio !== null && CLASES_RIO_MAPA.has(fila.claseRio)
           ? (fila.claseRio as SusceptibilidadEscuelaMapa['claseRio'])
           : null,
+        juntoLaguna: typeof fila.juntoLaguna === 'boolean' ? fila.juntoLaguna : null,
       }
     }
     susceptibilidad = {
