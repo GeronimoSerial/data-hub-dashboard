@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, lt, lte, ne, or } from 'drizzle-orm'
+import { and, desc, eq, gte, lt, lte, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { radarMeteoRun } from '@/lib/db/schema'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../riesgo/providers/cupo-om'
@@ -24,6 +24,15 @@ export async function obtenerRunRadarMeteoAsOf(asOf: Date, db: Db = getDb()) {
     .orderBy(desc(radarMeteoRun.fetchedAt))
     .limit(1)
   return fila ?? null
+}
+
+export async function listarRunsRadarMeteoRecientes(horas = 48, ahora = new Date(), db: Db = getDb()): Promise<Array<{ id: string; runAt: string; fetchedAt: string }>> {
+  const desde = new Date(ahora.getTime() - horas * 3_600_000).toISOString()
+  return db
+    .select({ id: radarMeteoRun.id, runAt: radarMeteoRun.runAt, fetchedAt: radarMeteoRun.fetchedAt })
+    .from(radarMeteoRun)
+    .where(and(eq(radarMeteoRun.status, 'completo'), gte(radarMeteoRun.fetchedAt, desde)))
+    .orderBy(desc(radarMeteoRun.fetchedAt))
 }
 
 function slotTresHoras(ahora: Date): { inicio: Date; clave: string } {

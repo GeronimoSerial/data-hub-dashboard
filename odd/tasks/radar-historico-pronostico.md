@@ -26,7 +26,7 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 
 ## Tasks
 - [x] T1 Backend asOf: `obtenerRunRadarMeteoAsOf` in `lib/infraestructura/radar-meteo/job-sync.ts` + `asOf` param in `app/api/infraestructura/radar-meteo/route.ts` + route tests. Route: delegated (writes 2+ files).
-- [ ] T2 Runs list: `listarRunsRadarMeteoRecientes` in `job-sync.ts` + `app/api/infraestructura/radar-meteo/corridas/route.ts` (id, runAt, fetchedAt for last 48 h, newest first) + tests.
+- [x] T2 Runs list: `listarRunsRadarMeteoRecientes` in `job-sync.ts` + `app/api/infraestructura/radar-meteo/corridas/route.ts` (id, runAt, fetchedAt for last 48 h, newest first) + tests.
 - [ ] T3 Hooks: `asOf` option in `use-radar-meteo.ts` (query + cache key) + new `use-corridas-radar-meteo.ts` + tests.
 - [ ] T4 UI: run selector in `components/mapas/radar-meteo/radar-meteo.tsx` (past-run banner, back to "latest") + test.
 
@@ -36,7 +36,9 @@ Let users view the radar-meteo forecast as it was published at a past instant, w
 - Existing radar tests still pass.
 
 ## Progress / evidence
+- T1 commit 3cdd4a8.
 - T1 (Haiku, 86k tokens): route + job-sync + 5 new tests. Parent re-ran `pnpm vitest run app/api/infraestructura/radar-meteo/route.test.ts`: 12 passed; Haiku reported `pnpm exec tsc --noEmit` exit 0. Note: ETag payload now carries `asOf: null` (one-time cache miss for existing clients, harmless). `obtenerRunRadarMeteoAsOf` SQL itself is only covered through mocks.
+- T2 (Haiku, 86k tokens): `listarRunsRadarMeteoRecientes` (selects id/runAt/fetchedAt only, never payload) + `corridas/route.ts` + 4 tests. Parent re-ran `pnpm vitest run app/api/infraestructura/radar-meteo`: 4 files / 23 tests passed; Haiku reported tsc exit 0. Gap: helper SQL/cutoff only covered via mocks.
 
 ## Next step
-T2.
+T3.
