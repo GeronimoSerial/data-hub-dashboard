@@ -302,7 +302,7 @@ describe('LeyendaAccesos — aislamiento', () => {
   it('no muestra textos de metodología o descargo', () => {
     renderLeyenda()
     expect(screen.queryByTestId('leyenda-aislamiento-ayuda')).not.toBeInTheDocument()
-    expect(screen.getByTestId('leyenda-accesos').textContent).not.toMatch(/pronóstico|período|modelo|fuente|metodología/i)
+    expect(screen.getByTestId('leyenda-accesos').textContent).not.toMatch(/pronóstico|período|modelo|fuente/i)
   })
 
   it('muestra carga, error y falta de datos importados', () => {
@@ -342,10 +342,13 @@ describe('LeyendaAccesos — inundación', () => {
     expect(screen.getByTestId('leyenda-inundacion-contenido')).toBeInTheDocument()
   })
 
-  it('no presenta metodología o datos de fuente', () => {
+  it('enlaza a la pestaña Metodología sin texto de metodología ni fuente', () => {
     renderLeyenda({ visibles: visibles(['inundacion']) })
+    const enlace = screen.getByRole('link', { name: 'Metodología' })
+    expect(enlace).toHaveAttribute('href', '#metodologia')
+    const bloque = screen.getByTestId('leyenda-inundacion')
+    expect(bloque.textContent).not.toMatch(/período de retorno|physrisk|corrida|pronóstico|modelo|fuente/i)
     expect(screen.queryByTestId('leyenda-inundacion-ayuda')).not.toBeInTheDocument()
-    expect(screen.queryByText(/período de retorno|physrisk|corrida|pronóstico|modelo/i)).not.toBeInTheDocument()
   })
 
   it('sin susceptibilidad importada dice que no hay datos de agua estimada', () => {

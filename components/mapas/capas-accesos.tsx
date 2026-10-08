@@ -262,9 +262,9 @@ function IconoSvg({ svg }: { svg: string }) {
   )
 }
 
-// Fila visible de la leyenda: ícono + nombre corto + conteo. La explicación en
-// lenguaje llano de cada fila vive en el `<details>` de ayuda del bloque, para
-// que la leyenda sea una tabla de conteos y no un muro de texto.
+// Fila visible de la leyenda: ícono + nombre corto + conteo. La leyenda es una
+// tabla de conteos; la explicación de la estimación vive en la pestaña
+// Metodología, a la que apunta el enlace de `BloqueInundacion`.
 function FilaConIcono({ svg, etiqueta, conteo }: { svg?: string; etiqueta: string; conteo: number }) {
   const styles = useOverlayStyles()
   return (
@@ -320,8 +320,8 @@ function BloqueAislamiento({
   )
 }
 
-// Ayuda de la leyenda de inundación: qué estima el modelo, qué NO es y qué
-// significan los conteos que no se dibujan. Cerrada por defecto.
+// Leyenda de inundación: conteos por clase y un enlace a la pestaña Metodología.
+// El enlace usa el hash que la página ya lee para elegir pestaña (#metodologia).
 function BloqueInundacion({
   territorio,
   resumen,
@@ -351,6 +351,9 @@ function BloqueInundacion({
           ))}
         </div>
       )}
+      <a href="#metodologia" data-testid="leyenda-inundacion-metodologia">
+        Metodología
+      </a>
     </div>
   )
 }

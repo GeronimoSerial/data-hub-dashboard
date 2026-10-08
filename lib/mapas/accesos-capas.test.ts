@@ -296,15 +296,10 @@ describe('textoConPeriodo', () => {
   })
 
   it('usa 100 cuando el dato no trae período de retorno', () => {
-    const conDefault = textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, null)
+    const conDefault = textoConPeriodo(TEXTOS_ACCESOS.subtituloInundacion, null)
     expect(conDefault).toContain('una vez cada 100 años')
     expect(conDefault).not.toContain('{periodo}')
-    expect(textoConPeriodo(TEXTOS_ACCESOS.queMideInundacion, undefined)).toBe(conDefault)
-  })
-
-  it('el texto de inundación aclara que es un modelo, no un registro de inundaciones', () => {
-    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('con el clima histórico')
-    expect(TEXTOS_ACCESOS.queMideInundacion).not.toContain('registros históricos')
+    expect(textoConPeriodo(TEXTOS_ACCESOS.subtituloInundacion, undefined)).toBe(conDefault)
   })
 
   it('el texto de sin cobertura descarta explícitamente leerlo como nivel 0', () => {
@@ -318,7 +313,6 @@ describe('textoConPeriodo', () => {
       const cantidad = texto.match(/\{periodo\}/g)?.length ?? 0
       expect(resultado.match(/250/g)?.length).toBe(cantidad)
     }
-    expect(TEXTOS_ACCESOS.queMideInundacion).toContain('{periodo}')
   })
 })
 
@@ -326,7 +320,7 @@ describe('copias territoriales', () => {
   it('explica cabecera y caminos principales con palabras claras', () => {
     const textos = [
       ...Object.entries(TEXTOS_ACCESOS)
-        .filter(([clave]) => !['queMideInundacion', 'queMideAcceso'].includes(clave))
+        .filter(([clave]) => clave !== 'queMideAcceso')
         .map(([, valor]) => valor),
       ...Object.values(MOTIVOS_SIN_RUTA),
       ...Object.values(DESCRIPCIONES_AISLAMIENTO).flatMap(({ nombre, detalle }) => [nombre, detalle]),

@@ -69,8 +69,8 @@ export function claseInundacion(claseRio: string | null | undefined): ClaseInund
 
 // Textos largos de los bloques de accesos. Los componentes de leyenda y ficha
 // los consumen tal cual; así el mismo concepto no se redacta dos veces.
-// Los textos largos NO se muestran siempre: leyenda y ficha los dejan dentro de
-// un `<details>` de ayuda (cerrado por defecto) para que lo visible sea corto.
+// Los textos largos NO se muestran siempre: la ficha los deja dentro de un
+// `<details>` de ayuda (cerrado por defecto) para que lo visible sea corto.
 // `{periodo}` se reemplaza con el período de retorno de los datos vía
 // `textoConPeriodo` (nunca se escribe el número a mano).
 export const TEXTOS_ACCESOS = {
@@ -86,10 +86,6 @@ export const TEXTOS_ACCESOS = {
   tituloInundacion: 'Agua estimada por crecida de río (en la escuela)',
   subtituloInundacion:
     'Metros de agua estimados en el punto de la escuela para una crecida que ocurre, en promedio, una vez cada {periodo} años.',
-  queMideInundacion:
-    'Un modelo calcula cuánta agua cubriría el punto donde está la escuela en una crecida de río muy poco frecuente (en promedio, una vez cada {periodo} años), con el clima histórico. No es el registro de una inundación que pasó ni un pronóstico. Fuente: WRI Aqueduct, vía OS-Climate physrisk.',
-  noRepresentaInundacion:
-    'Se calcula en el punto de la escuela: no muestra el río, no muestra el camino ni dice si hoy hay agua.',
   sinProfundidad: 'El modelo no estima agua en ese punto (0 m). Es un resultado del cálculo, no una garantía de que nunca se inunde.',
   sinCobertura:
     'Sin dato: esta escuela no está en los datos calculados, así que no se sabe su valor. No equivale a nivel 0 ni a "sin agua".',
