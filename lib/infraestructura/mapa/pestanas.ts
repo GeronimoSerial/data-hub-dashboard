@@ -14,7 +14,7 @@ export function resolverPestana(
   query: string,
   opciones: { radarHabilitado: boolean },
 ): PestanaMapa {
-  const crudo = hash.replace(/^#/, '')
+  const crudo = hash.replace(/^#/, '').split('/')[0]
   let pestana: PestanaMapa = (VALIDAS as readonly string[]).includes(crudo)
     ? (crudo as PestanaMapa)
     : Object.hasOwn(ALIAS, crudo)

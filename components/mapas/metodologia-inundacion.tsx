@@ -1,6 +1,16 @@
+'use client'
+
+import { useEffect } from 'react'
+
 // Metodología de la estimación de inundación (T12). Texto estático: es el único
 // lugar donde se explica el modelo; el mapa y las fichas sólo muestran etiquetas.
 export function MetodologiaInundacion() {
+  // `#metodologia/<id>` deep-links to a section once the tab is mounted.
+  useEffect(() => {
+    const seccion = window.location.hash.split('/')[1]
+    if (seccion) document.getElementById(seccion)?.scrollIntoView({ block: 'start' })
+  }, [])
+
   return (
     <article className="map-est" aria-labelledby="metodologia-inundacion-titulo" data-testid="metodologia-inundacion">
       <h2 id="metodologia-inundacion-titulo">Metodología: inundación</h2>
@@ -19,7 +29,7 @@ export function MetodologiaInundacion() {
         <li>Copernicus DEM GLO-30: altura del terreno, a 30 m.</li>
       </ul>
 
-      <h3>Clases por crecida de río</h3>
+      <h3 id="inundacion-clases-rio">Clases por crecida de río</h3>
       <p>Se usa el período de retorno más corto en el que el agua llega a la escuela, con una profundidad de al menos 0,15 m.</p>
       <ul>
         <li><b>Alto:</b> llega con una crecida de 10 años.</li>
@@ -36,13 +46,13 @@ export function MetodologiaInundacion() {
         eso se compara con la altura del terreno.
       </p>
 
-      <h3>Junto a laguna</h3>
+      <h3 id="inundacion-junto-laguna">Junto a laguna</h3>
       <p>
         Se marca cuando hay agua presente al menos el 25 % del tiempo dentro de 300 m de la escuela y el
         terreno de la escuela está hasta 6 m por encima de esa agua. Es una marca aparte de las clases de río.
       </p>
 
-      <h3>Ruta de acceso</h3>
+      <h3 id="inundacion-ruta-acceso">Ruta de acceso</h3>
       <p>
         Se toma la peor clase alcanzada a lo largo de al menos unos 270 m de la ruta (3 puntos cada 90 m).
         Usa las mismas clases que la escuela.

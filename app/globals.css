@@ -2839,6 +2839,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-width: 0;
 }
 
+.map-bloque-acceso__ayuda {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+}
+
+.map-bloque-acceso__ayuda:hover,
+.map-bloque-acceso__ayuda:focus-visible {
+  color: var(--ink);
+}
+
+.map-bloque-acceso__ayuda > svg {
+  width: 14px;
+  height: 14px;
+}
+
 .map-bloque-acceso__detalle {
   display: block;
   color: var(--ink-soft);

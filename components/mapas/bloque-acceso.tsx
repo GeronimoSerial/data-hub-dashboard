@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Route, School, TriangleAlert } from 'lucide-react'
+import { Check, CircleHelp, Route, School, TriangleAlert } from 'lucide-react'
 import { lineasAcceso, type EtiquetaRiesgoAcceso } from '@/lib/infraestructura/mapa/acceso'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
@@ -20,6 +20,19 @@ function textoRiesgo(sujeto: string, etiqueta: string): string {
   if (etiqueta === 'Sin ruta') return 'Sin camino calculado'
   if (etiqueta === 'Sin riesgo' || etiqueta === 'Sin dato') return `${etiqueta} de inundación en ${sujeto}`
   return `Riesgo ${etiqueta.toLowerCase()} de inundación en ${sujeto}`
+}
+
+function LinkMetodologia({ seccion }: { seccion: string }) {
+  return (
+    <a
+      className="map-bloque-acceso__ayuda"
+      href={`#metodologia/${seccion}`}
+      aria-label="Cómo se calcula"
+      title="Cómo se calcula"
+    >
+      <CircleHelp aria-hidden="true" />
+    </a>
+  )
 }
 
 function claseCss(etiqueta: string): string {
@@ -70,11 +83,13 @@ export function BloqueAcceso({
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-escuela">
           <School aria-hidden="true" />
           <span className={claseCss(etiquetaEscuela)}>{textoRiesgo('la escuela', etiquetaEscuela)}</span>
+          <LinkMetodologia seccion="inundacion-clases-rio" />
           {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">Junto a laguna</span>}
         </div>
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-riesgo">
           <Route aria-hidden="true" />
           <span className={claseCss(etiquetaCamino)}>{textoRiesgo('el camino', etiquetaCamino)}</span>
+          <LinkMetodologia seccion="inundacion-ruta-acceso" />
         </div>
       </div>
     </div>
