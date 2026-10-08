@@ -71,6 +71,13 @@
       "when": 1791198768905,
       "tag": "0009_acceso-via-principal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791491977067,
+      "tag": "0010_inundacion_v2_columnas",
+      "breakpoints": true
     }
   ]
 }

@@ -32,6 +32,9 @@ function filaSusceptibilidad(
   over: Partial<FilaSusceptibilidadEstatica> & { cueAnexo: string; versionJob: string },
 ): FilaSusceptibilidadEstatica {
   return {
+    claseRio: null, profundidadRp10M: null, profundidadRp100M: null, profundidadRp500M: null,
+    margenRp10M: null, margenRp100M: null, margenRp500M: null, juntoLaguna: null,
+    distanciaAguaM: null, alturaSobreAguaM: null, versionInundacion: null,
     peligroInundacionFluvial: null,
     peligroInundacionPluvial: null,
     peligroViento: null,

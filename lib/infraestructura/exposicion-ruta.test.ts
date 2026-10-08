@@ -5,6 +5,8 @@ import type { FilaExposicionRuta } from './exposicion-ruta'
 function fila(overrides: Partial<FilaExposicionRuta> = {}): FilaExposicionRuta {
   return {
     cueAnexo: 'CUE-1', versionJob: '1', estado: 'con_profundidad', motivoSinDato: null,
+    claseRuta: null, muestrasTotal: null, muestrasExpuestas: null, muestrasSinDato: null,
+    profundidadMaxRp10M: null, profundidadMaxRp100M: null, profundidadMaxRp500M: null,
     celdasTotal: 3, celdasConDato: 2, celdasConProfundidad: 1, profundidadMaxM: 0.4,
     cobertura: 2 / 3, periodoRetornoAnios: 100, resolucionArcsec: 30,
     escenario: 'historico', fuente: 'WRI Aqueduct v2', celdas: [

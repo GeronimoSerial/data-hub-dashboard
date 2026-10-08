@@ -104,7 +104,7 @@ Route: same five classes, computed over the route samples (worst class along the
 - Checks: `uv run pytest`; real run on control cases; v1 vs v2 route distribution.
 
 ### Phase 3 — DB and import
-- [ ] **T7. Migration.** Drizzle migration for school flood v2 and route exposure v2 columns;
+- [x] **T7. Migration.** Drizzle migration for school flood v2 and route exposure v2 columns;
   update `lib/db/schema.ts`. v1 columns kept until UI switch is verified, then dropped in a follow-up.
 - [ ] **T8. Import.** `scripts/importar-geo-static.mjs`: zod schema for contract v2 (school + route),
   upsert, tests in `scripts/importar-geo-static.test.ts`.
@@ -138,7 +138,7 @@ Runners: Python `cd services/geo-static && uv run pytest`; TS `pnpm vitest run <
 `pnpm exec tsc --noEmit`, `pnpm build`.
 
 ## Delivery
-Strategy: `ask-on-risk`. Forecast ~1300 authored lines (Phase 1 ~450, Phase 2 ~250, Phase 3 ~200,
+Strategy: `ask-on-risk`, chain = `feature-branch-chain` (user, 2026-10-08). Forecast ~1300 authored lines (Phase 1 ~450, Phase 2 ~250, Phase 3 ~200,
 Phase 4 ~400) → exceeds 400; chain strategy to be chosen before the first commit. Natural slices:
 Phase 1, Phase 2, Phase 3, Phase 4.
 
@@ -169,3 +169,4 @@ sends fixes to another fresh Haiku.
 - 2026-10-08: Phase 2 done. Route v2 (rule C + per-pixel margin): alto 677 / medio 75 / bajo 51 / sin_riesgo 1186 /
   sin_ruta 12 (`output/exposicion_ruta_inundacion-v2-2026-10-08.ndjson.gz`, 959 s). Controls: 1801164-00 route
   sin_riesgo; 1801166-00 route sin_riesgo (lagoon access not modelled). 242 passed. Still uncommitted.
+- 2026-10-08: local commits d5b1286 (Phase 1) and d5a34f6 (Phase 2) on feat/inundacion-v2-datos. No push/PR yet.
