@@ -111,7 +111,7 @@ Route: same five classes, computed over the route samples (worst class along the
 - Checks: `pnpm vitest run scripts/importar-geo-static.test.ts`, `pnpm exec tsc --noEmit`.
 
 ### Phase 4 — UI (isolated flood section)
-- [ ] **T9. Classification swap.** Replace `claseInundacion` (`lib/mapas/accesos-capas.ts`) with the
+- [x] **T9. Classification swap.** Replace `claseInundacion` (`lib/mapas/accesos-capas.ts`) with the
   RP-based class; update `lib/infraestructura/mapa/planificacion.ts` and the legend.
 - [ ] **T10. Route risk.** Rewrite `nivelRiesgo` (`lib/infraestructura/mapa/acceso.ts`) on the route
   class; remove the "0 → Bajo" mapping.

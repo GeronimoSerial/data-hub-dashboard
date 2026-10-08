@@ -31,7 +31,9 @@ function territorio(overrides: Partial<NonNullable<TerritorioMapa['aislamiento']
     susceptibilidad: {
       fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia',
       escuelas: {
-        a: { inundacionFluvialM: 1 }, b: { inundacionFluvialM: 0.5 }, c: { inundacionFluvialM: 0 },
+        a: { inundacionFluvialM: 1, claseRio: 'alto' },
+        b: { inundacionFluvialM: 0.5, claseRio: 'medio' },
+        c: { inundacionFluvialM: 0, claseRio: 'sin_riesgo' },
       },
     },
   }
@@ -42,11 +44,11 @@ describe('planificacion', () => {
     const t = territorio()
     const historial = [0, 1, 2, 3, 4, 5, 9]
     expect(historial.map((cantidad) => nivelPlanificacion({ cueAnexo: 'x', situacionesHistoricas: cantidad }, 'historial', { territorio: null }))).toEqual([0, 1, 1, 2, 2, 3, 3])
-    expect([0, 0.49, 0.5, 0.99, 1, null].map((valor, i) => nivelPlanificacion(
+    expect((['sin_riesgo', 'bajo', 'medio', 'alto', 'sin_dato', null] as const).map((clase, i) => nivelPlanificacion(
       { cueAnexo: `i${i}`, situacionesHistoricas: 0 }, 'inundacion', {
-        territorio: { ...t, susceptibilidad: { ...t.susceptibilidad!, escuelas: { [`i${i}`]: { inundacionFluvialM: valor } } } },
+        territorio: { ...t, susceptibilidad: { ...t.susceptibilidad!, escuelas: { [`i${i}`]: { inundacionFluvialM: null, claseRio: clase } } } },
       },
-    ))).toEqual([0, 1, 2, 2, 3, 0])
+    ))).toEqual([0, 1, 2, 3, 0, 0])
     expect(nivelPlanificacion({ cueAnexo: 'a', situacionesHistoricas: 0 }, 'aisladas', { territorio: t })).toBe(3)
     expect(nivelPlanificacion({ cueAnexo: 'b', situacionesHistoricas: 0 }, 'aisladas', { territorio: t })).toBe(0)
     expect(nivelPlanificacion({ cueAnexo: 'a', situacionesHistoricas: 0 }, 'aisladas', { territorio: null })).toBe(0)

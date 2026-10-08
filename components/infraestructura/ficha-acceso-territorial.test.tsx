@@ -78,7 +78,7 @@ function exposicion(overrides: Partial<ExposicionRutaRespuesta> = {}): Exposicio
 // montaje de los metadatos en cada test.
 const TERRITORIO_COMPLETO = territorioCon(
   { [CUE]: filaAislamiento({ nivel: 2, cruces: 2, conPuente: 1, sinPuente: 1 }) },
-  { [CUE]: { inundacionFluvialM: 0.7 } },
+  { [CUE]: { inundacionFluvialM: 0.7, claseRio: null } },
 )
 
 beforeEach(() => {
@@ -277,7 +277,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it.skip('0 m es "sin agua estimada", nunca "0,00 m"', () => {
-    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0, claseRio: null } }) })
 
     const valor = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
     expect(valor).toHaveTextContent('Agua estimada en la escuela: ninguna según el modelo')
@@ -289,7 +289,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
     [0.3, '0,30 m de agua estimada'],
     [0.7, '0,70 m de agua estimada'],
   ] as const)('formatea %s m como "%s"', (profundidad, esperado) => {
-    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: profundidad } }) })
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: profundidad, claseRio: null } }) })
 
     const agua = screen.getByTestId('ficha-acceso-susceptibilidad-valor')
     expect(agua).toHaveTextContent(
@@ -299,7 +299,7 @@ describe('FichaAccesoTerritorial - las tres líneas de siempre', () => {
   })
 
   it.skip('sin valor physrisk lo dice explícitamente y no imputa 0', () => {
-    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: null } }) })
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: null, claseRio: null } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-valor')).toHaveTextContent(
       'Agua estimada en la escuela: sin dato',
@@ -453,7 +453,7 @@ describe('FichaAccesoTerritorial - detalle secundario', () => {
   })
 
   it.skip('con 0 m explica en el detalle que el modelo no estima agua ahí', () => {
-    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0 } }) })
+    renderFicha({ territorio: territorioCon(null, { [CUE]: { inundacionFluvialM: 0, claseRio: null } }) })
 
     expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-profundidad')).toHaveTextContent(
       'El modelo no estima agua en ese punto (0 m).',

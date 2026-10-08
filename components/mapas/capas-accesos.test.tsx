@@ -111,7 +111,7 @@ const territorio = territorioCon({}, {}, {
 
 const resumen: ReturnType<typeof resumirCobertura> = {
   aislamiento: { 0: 5, 1: 3, 2: 2, 3: 1, sin_datos_red: 4, sin_cobertura: 7 },
-  inundacion: { sin_cobertura: 2, sin_profundidad: 3, baja: 4, media: 5, alta: 6 },
+  inundacion: { alto: 6, medio: 5, bajo: 4, sin_riesgo: 3, sin_dato: 2 },
   total: 27,
 }
 

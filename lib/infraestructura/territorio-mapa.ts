@@ -50,8 +50,13 @@ export interface AislamientoEscuelaMapa {
 }
 
 export interface SusceptibilidadEscuelaMapa {
+  // v1 (physrisk, profundidad en m). Sigue disponible para quien lo necesite.
   inundacionFluvialM: number | null
+  // v2: clase de riesgo por crecida de río. null = sin dato.
+  claseRio: 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato' | null
 }
+
+const CLASES_RIO_MAPA: ReadonlySet<string> = new Set(['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'])
 
 export interface TerritorioMapa {
   aislamiento: null | {
@@ -237,6 +242,9 @@ export function construirTerritorioMapa(
       escuelas[cueAnexo] = {
         inundacionFluvialM:
           fila.fuente === 'physrisk' ? fila.peligroInundacionFluvial : null,
+        claseRio: fila.claseRio !== null && CLASES_RIO_MAPA.has(fila.claseRio)
+          ? (fila.claseRio as SusceptibilidadEscuelaMapa['claseRio'])
+          : null,
       }
     }
     susceptibilidad = {

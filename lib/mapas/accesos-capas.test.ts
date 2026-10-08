@@ -30,6 +30,8 @@ import {
   type ClasificacionCruce,
 } from './accesos-capas'
 
+type ClaseRioPrueba = 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato'
+
 function escuela(
   cueAnexo: string,
   coords: { lat: number | null; lon: number | null } = { lat: -31.4, lon: -64.2 },
@@ -51,7 +53,7 @@ function filaAislamiento(nivel: NivelAislamientoMapa) {
 
 function territorio(opciones: {
   aislamiento?: Record<string, ReturnType<typeof filaAislamiento>>
-  susceptibilidad?: Record<string, number | null>
+  susceptibilidad?: Record<string, ClaseRioPrueba | null>
 }): TerritorioMapa {
   return {
     aislamiento:
@@ -77,9 +79,9 @@ function territorio(opciones: {
             fechaCorrida: '2026-01-01',
             licencia: 'CC-BY',
             escuelas: Object.fromEntries(
-              Object.entries(opciones.susceptibilidad).map(([cue, m]) => [
+              Object.entries(opciones.susceptibilidad).map(([cue, clase]) => [
                 cue,
-                { inundacionFluvialM: m },
+                { inundacionFluvialM: null, claseRio: clase },
               ]),
             ),
           },
@@ -87,12 +89,29 @@ function territorio(opciones: {
 }
 
 describe('claseInundacion', () => {
-  it('resuelve los límites de la clasificación', () => {
-    expect(claseInundacion(null)).toBe('sin_cobertura')
-    expect(claseInundacion(0)).toBe('sin_profundidad')
-    expect(claseInundacion(0.49)).toBe('baja')
-    expect(claseInundacion(0.5)).toBe('media')
-    expect(claseInundacion(1)).toBe('alta')
+  it('toma la clase guardada tal cual, con los cinco valores del dominio', () => {
+    expect(claseInundacion('alto')).toBe('alto')
+    expect(claseInundacion('medio')).toBe('medio')
+    expect(claseInundacion('bajo')).toBe('bajo')
+    expect(claseInundacion('sin_riesgo')).toBe('sin_riesgo')
+    expect(claseInundacion('sin_dato')).toBe('sin_dato')
+  })
+
+  it('null, ausente o fuera de dominio es Sin dato, nunca Bajo ni Sin riesgo', () => {
+    expect(claseInundacion(null)).toBe('sin_dato')
+    expect(claseInundacion(undefined)).toBe('sin_dato')
+    expect(claseInundacion('')).toBe('sin_dato')
+    expect(claseInundacion('desconocida')).toBe('sin_dato')
+  })
+
+  it('las etiquetas son sólo la palabra de la clase', () => {
+    expect(ETIQUETAS_INUNDACION).toEqual({
+      alto: 'Alto',
+      medio: 'Medio',
+      bajo: 'Bajo',
+      sin_riesgo: 'Sin riesgo',
+      sin_dato: 'Sin dato',
+    })
   })
 })
 
@@ -112,25 +131,25 @@ describe('constructores de puntos', () => {
     expect(puntos.features[0].geometry.coordinates).toEqual([-64.2, -31.4])
   })
 
-  it('construye la capa de inundación sólo con clase baja|media|alta', () => {
+  it('construye la capa de inundación sólo con clase alto|medio|bajo', () => {
     const escuelas = [
-      escuela('BAJA'),
-      escuela('SIN-PROF'),
-      escuela('SIN-COBERTURA'),
+      escuela('BAJO'),
+      escuela('SIN-RIESGO'),
+      escuela('SIN-DATO'),
+      escuela('SIN-FILA'),
       escuela('SIN-COORDS', { lat: null, lon: null }),
     ]
     const t = territorio({
-      susceptibilidad: { BAJA: 0.3, 'SIN-PROF': 0, 'SIN-COORDS': 2 },
+      susceptibilidad: { BAJO: 'bajo', 'SIN-RIESGO': 'sin_riesgo', 'SIN-DATO': null, 'SIN-COORDS': 'alto' },
     })
 
     const puntos = construirPuntosInundacion(escuelas, t)
     expect(puntos.features).toHaveLength(1)
     expect(puntos.features[0].properties).toMatchObject({
-      cueAnexo: 'BAJA',
-      clase: 'baja',
-      icono: ID_ICONO_INUNDACION.baja,
+      cueAnexo: 'BAJO',
+      clase: 'bajo',
+      icono: ID_ICONO_INUNDACION.bajo,
     })
-    expect(puntos.features[0].properties.profundidadM).toBe(0.3)
   })
 })
 
@@ -147,7 +166,7 @@ describe('resumirCobertura', () => {
         A: filaAislamiento(0),
         C: filaAislamiento('sin_datos_red'),
       },
-      susceptibilidad: { A: 0.2, B: 1.5, C: null },
+      susceptibilidad: { A: 'bajo', B: 'alto', C: null },
     })
 
     const resumen = resumirCobertura(escuelas, t)
@@ -158,11 +177,12 @@ describe('resumirCobertura', () => {
     // B (sin coords) y D no tienen fila de aislamiento.
     expect(resumen.aislamiento.sin_cobertura).toBe(2)
 
-    expect(resumen.inundacion.baja).toBe(1)
-    expect(resumen.inundacion.alta).toBe(1)
-    // C tiene fila con null y D no tiene fila: ambos cuentan sin cobertura.
-    expect(resumen.inundacion.sin_cobertura).toBe(2)
-    expect(resumen.inundacion.sin_profundidad).toBe(0)
+    expect(resumen.inundacion.bajo).toBe(1)
+    expect(resumen.inundacion.alto).toBe(1)
+    // C tiene fila con clase null y D no tiene fila: ambos cuentan sin dato.
+    expect(resumen.inundacion.sin_dato).toBe(2)
+    expect(resumen.inundacion.sin_riesgo).toBe(0)
+    expect(resumen.inundacion.medio).toBe(0)
   })
 })
 
@@ -347,11 +367,4 @@ describe('copias territoriales', () => {
     }
   })
 
-  it('usa etiquetas de profundidad en lenguaje llano', () => {
-    expect(ETIQUETAS_INUNDACION).toEqual({
-      baja: 'Menos de 0,5 m',
-      media: 'De 0,5 a 1 m',
-      alta: '1 m o más',
-    })
-  })
 })

@@ -24,12 +24,11 @@ import { construirSvgIcono } from './iconos-mapa'
 // Clases y paletas
 // ---------------------------------------------------------------------------
 
-export type ClaseInundacion =
-  | 'sin_cobertura'
-  | 'sin_profundidad'
-  | 'baja'
-  | 'media'
-  | 'alta'
+// Clase de riesgo por crecida de río (`clase_rio`, modelo v2 por período de
+// retorno). `sin_dato` cubre la falta de fila, el null y valores fuera de dominio.
+export type ClaseInundacion = 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato'
+
+export type ClaseInundacionVisible = Exclude<ClaseInundacion, 'sin_riesgo' | 'sin_dato'>
 
 export type ClasificacionCruce = CruceAccesoOsm['clasificacion']
 
@@ -45,22 +44,22 @@ export const PALETA_TONAL_AISLAMIENTO = {
 export const COLOR_AISLAMIENTO_SIN_DATOS = '#9ca3af'
 
 export const PALETA_TONAL_INUNDACION = {
-  baja: '#99f6e4',
-  media: '#14b8a6',
-  alta: '#115e59',
+  bajo: '#99f6e4',
+  medio: '#14b8a6',
+  alto: '#115e59',
 } as const
 
 export const COLOR_RUTA_ACCESO = '#6d28d9'
 
-// Clasificación de la profundidad histórica (m). `null` = sin cobertura
-// physrisk; `<= 0` = hay fila pero sin profundidad de inundación (nunca se
-// imputa 0 como "baja").
-export function claseInundacion(m: number | null): ClaseInundacion {
-  if (m === null) return 'sin_cobertura'
-  if (m <= 0) return 'sin_profundidad'
-  if (m < 0.5) return 'baja'
-  if (m < 1) return 'media'
-  return 'alta'
+// Clase de inundación tomada tal cual de `clase_rio`. `null`, ausente o fuera
+// de dominio es `sin_dato`: nunca se mapea a 'bajo' ni a 'sin_riesgo'.
+const CLASES_INUNDACION: ReadonlySet<string> = new Set<ClaseInundacion>([
+  'alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato',
+])
+
+export function claseInundacion(claseRio: string | null | undefined): ClaseInundacion {
+  if (claseRio === null || claseRio === undefined) return 'sin_dato'
+  return CLASES_INUNDACION.has(claseRio) ? (claseRio as ClaseInundacion) : 'sin_dato'
 }
 
 // ---------------------------------------------------------------------------
@@ -155,9 +154,11 @@ export const ETIQUETAS_AISLAMIENTO = {
 } as const
 
 export const ETIQUETAS_INUNDACION = {
-  baja: 'Menos de 0,5 m',
-  media: 'De 0,5 a 1 m',
-  alta: '1 m o más',
+  alto: 'Alto',
+  medio: 'Medio',
+  bajo: 'Bajo',
+  sin_riesgo: 'Sin riesgo',
+  sin_dato: 'Sin dato',
 } as const
 
 export const ETIQUETAS_CRUCE = {
@@ -207,9 +208,9 @@ export const ID_ICONO_AISLAMIENTO = {
 export const ID_ICONO_AISLAMIENTO_SIN_DATOS = 'infra-icono-aislamiento-sin-datos'
 
 export const ID_ICONO_INUNDACION = {
-  baja: 'infra-icono-inundacion-baja',
-  media: 'infra-icono-inundacion-media',
-  alta: 'infra-icono-inundacion-alta',
+  bajo: 'infra-icono-inundacion-baja',
+  medio: 'infra-icono-inundacion-media',
+  alto: 'infra-icono-inundacion-alta',
 } as const
 
 export const ID_ICONO_CRUCE = {
@@ -302,17 +303,17 @@ export const SVG_ICONO_AISLAMIENTO_SIN_DATOS = construirSvgIcono(
 
 export const SVG_ICONO_INUNDACION_BAJA = construirSvgIcono(
   PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.baja,
+  PALETA_TONAL_INUNDACION.bajo,
   '#1c1c1c',
 )
 export const SVG_ICONO_INUNDACION_MEDIA = construirSvgIcono(
   PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.media,
+  PALETA_TONAL_INUNDACION.medio,
   '#1c1c1c',
 )
 export const SVG_ICONO_INUNDACION_ALTA = construirSvgIcono(
   PATH_INUNDACION,
-  PALETA_TONAL_INUNDACION.alta,
+  PALETA_TONAL_INUNDACION.alto,
   '#ffffff',
 )
 
@@ -341,9 +342,9 @@ export const ICONOS_ACCESOS_MAPA: ReadonlyArray<{ id: string; svg: string }> = [
   { id: ID_ICONO_AISLAMIENTO[2], svg: SVG_ICONO_AISLAMIENTO_2 },
   { id: ID_ICONO_AISLAMIENTO[3], svg: SVG_ICONO_AISLAMIENTO_3 },
   { id: ID_ICONO_AISLAMIENTO_SIN_DATOS, svg: SVG_ICONO_AISLAMIENTO_SIN_DATOS },
-  { id: ID_ICONO_INUNDACION.baja, svg: SVG_ICONO_INUNDACION_BAJA },
-  { id: ID_ICONO_INUNDACION.media, svg: SVG_ICONO_INUNDACION_MEDIA },
-  { id: ID_ICONO_INUNDACION.alta, svg: SVG_ICONO_INUNDACION_ALTA },
+  { id: ID_ICONO_INUNDACION.bajo, svg: SVG_ICONO_INUNDACION_BAJA },
+  { id: ID_ICONO_INUNDACION.medio, svg: SVG_ICONO_INUNDACION_MEDIA },
+  { id: ID_ICONO_INUNDACION.alto, svg: SVG_ICONO_INUNDACION_ALTA },
   { id: ID_ICONO_CRUCE.puente, svg: SVG_ICONO_CRUCE_PUENTE },
   { id: ID_ICONO_CRUCE.vado, svg: SVG_ICONO_CRUCE_VADO },
   { id: ID_ICONO_CRUCE.sin_evidencia, svg: SVG_ICONO_CRUCE_SIN_EVIDENCIA },
@@ -361,8 +362,7 @@ export interface PuntoAislamientoProps {
 
 export interface PuntoInundacionProps {
   cueAnexo: string
-  profundidadM: number
-  clase: Exclude<ClaseInundacion, 'sin_cobertura' | 'sin_profundidad'>
+  clase: ClaseInundacionVisible
   icono: string
 }
 
@@ -381,13 +381,7 @@ export interface ResumenCobertura {
     sin_datos_red: number
     sin_cobertura: number
   }
-  inundacion: {
-    sin_cobertura: number
-    sin_profundidad: number
-    baja: number
-    media: number
-    alta: number
-  }
+  inundacion: Record<ClaseInundacion, number>
   total: number
 }
 
@@ -423,9 +417,8 @@ export function construirPuntosAislamiento(
   return { type: 'FeatureCollection', features }
 }
 
-// Un Point por escuela con coordenadas, fila de susceptibilidad y clase de
-// profundidad baja|media|alta. `sin_cobertura` y `sin_profundidad` no se
-// dibujan como puntos de inundación.
+// Un Point por escuela con coordenadas y `clase_rio` alto|medio|bajo. `sin_riesgo`
+// y `sin_dato` no se dibujan como puntos de inundación.
 export function construirPuntosInundacion(
   escuelas: EscuelaMapa[],
   territorio: TerritorioMapa | null,
@@ -438,17 +431,14 @@ export function construirPuntosInundacion(
     const fila = porCue[escuela.cueAnexo]
     if (fila === undefined) continue
 
-    const profundidadM = fila.inundacionFluvialM
-    if (profundidadM === null || profundidadM <= 0) continue
-    const clase = claseInundacion(profundidadM)
-    if (clase === 'sin_cobertura' || clase === 'sin_profundidad') continue
+    const clase = claseInundacion(fila.claseRio)
+    if (clase === 'sin_riesgo' || clase === 'sin_dato') continue
 
     features.push({
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [escuela.lon as number, escuela.lat as number] },
       properties: {
         cueAnexo: escuela.cueAnexo,
-        profundidadM,
         clase,
         icono: ID_ICONO_INUNDACION[clase],
       },
@@ -466,7 +456,7 @@ export function resumirCobertura(
 ): ResumenCobertura {
   const resumen: ResumenCobertura = {
     aislamiento: { 0: 0, 1: 0, 2: 0, 3: 0, sin_datos_red: 0, sin_cobertura: 0 },
-    inundacion: { sin_cobertura: 0, sin_profundidad: 0, baja: 0, media: 0, alta: 0 },
+    inundacion: { alto: 0, medio: 0, bajo: 0, sin_riesgo: 0, sin_dato: 0 },
     total: escuelas.length,
   }
 
@@ -484,9 +474,9 @@ export function resumirCobertura(
     }
 
     const filaInundacion = susceptibilidadPorCue[escuela.cueAnexo]
-    // Fila ausente y valor null colapsan en 'sin_cobertura': en ambos casos no
-    // hay dato de profundidad, nunca se imputa 0.
-    const clase = claseInundacion(filaInundacion?.inundacionFluvialM ?? null)
+    // Fila ausente y clase null colapsan en 'sin_dato': nunca se imputa 'bajo'
+    // ni 'sin_riesgo'.
+    const clase = claseInundacion(filaInundacion?.claseRio)
     resumen.inundacion[clase] += 1
   }
 

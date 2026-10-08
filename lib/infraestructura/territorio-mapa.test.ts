@@ -197,6 +197,23 @@ describe('construirTerritorioMapa', () => {
     expect(territorio.susceptibilidad?.escuelas.CON_DATA.inundacionFluvialM).toBe(0.8)
   })
 
+  it('expone clase_rio validada; null o fuera de dominio llega como null (sin dato)', () => {
+    const territorio = construirTerritorioMapa(
+      [],
+      [
+        filaSusceptibilidad({ cueAnexo: 'ALTO', versionJob: '1', fuente: 'physrisk', claseRio: 'alto' }),
+        filaSusceptibilidad({ cueAnexo: 'SIN_RIESGO', versionJob: '1', fuente: 'physrisk', claseRio: 'sin_riesgo' }),
+        filaSusceptibilidad({ cueAnexo: 'NULO', versionJob: '1', fuente: 'physrisk', claseRio: null }),
+        filaSusceptibilidad({ cueAnexo: 'RARO', versionJob: '1', fuente: 'physrisk', claseRio: 'desconocida' }),
+      ],
+    )
+
+    expect(territorio.susceptibilidad?.escuelas.ALTO.claseRio).toBe('alto')
+    expect(territorio.susceptibilidad?.escuelas.SIN_RIESGO.claseRio).toBe('sin_riesgo')
+    expect(territorio.susceptibilidad?.escuelas.NULO.claseRio).toBeNull()
+    expect(territorio.susceptibilidad?.escuelas.RARO.claseRio).toBeNull()
+  })
+
   it('expone los metadatos estáticos correctos', () => {
     const territorio = construirTerritorioMapa(
       [filaAislamiento({ cueAnexo: 'A', versionJob: '1' })],

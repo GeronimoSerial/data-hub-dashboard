@@ -48,11 +48,11 @@ export function nivelPlanificacion(
     return nivel === 0 || nivel === 1 || nivel === 2 || nivel === 3 ? nivel : 0
   }
 
-  const profundidad = datos.territorio?.susceptibilidad?.escuelas[escuela.cueAnexo]?.inundacionFluvialM
-  switch (claseInundacion(profundidad ?? null)) {
-    case 'baja': return 1
-    case 'media': return 2
-    case 'alta': return 3
+  const claseRio = datos.territorio?.susceptibilidad?.escuelas[escuela.cueAnexo]?.claseRio
+  switch (claseInundacion(claseRio)) {
+    case 'bajo': return 1
+    case 'medio': return 2
+    case 'alto': return 3
     default: return 0
   }
 }

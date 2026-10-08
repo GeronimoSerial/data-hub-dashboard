@@ -178,12 +178,12 @@ const ICONO_AISLAMIENTO: Record<(typeof NIVELES_AISLAMIENTO)[number], string> = 
   sin_datos_red: SVG_ICONO_AISLAMIENTO_SIN_DATOS,
 }
 
-const NIVELES_INUNDACION = ['baja', 'media', 'alta'] as const
+const NIVELES_INUNDACION = ['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'] as const
 
-const ICONO_INUNDACION: Record<(typeof NIVELES_INUNDACION)[number], string> = {
-  baja: SVG_ICONO_INUNDACION_BAJA,
-  media: SVG_ICONO_INUNDACION_MEDIA,
-  alta: SVG_ICONO_INUNDACION_ALTA,
+const ICONO_INUNDACION: Partial<Record<(typeof NIVELES_INUNDACION)[number], string>> = {
+  bajo: SVG_ICONO_INUNDACION_BAJA,
+  medio: SVG_ICONO_INUNDACION_MEDIA,
+  alto: SVG_ICONO_INUNDACION_ALTA,
 }
 
 type LeyendaAccesosProps = {
@@ -265,11 +265,11 @@ function IconoSvg({ svg }: { svg: string }) {
 // Fila visible de la leyenda: ícono + nombre corto + conteo. La explicación en
 // lenguaje llano de cada fila vive en el `<details>` de ayuda del bloque, para
 // que la leyenda sea una tabla de conteos y no un muro de texto.
-function FilaConIcono({ svg, etiqueta, conteo }: { svg: string; etiqueta: string; conteo: number }) {
+function FilaConIcono({ svg, etiqueta, conteo }: { svg?: string; etiqueta: string; conteo: number }) {
   const styles = useOverlayStyles()
   return (
     <div className={styles.legendItem}>
-      <IconoSvg svg={svg} />
+      {svg !== undefined && <IconoSvg svg={svg} />}
       <span>
         {etiqueta}: <b>{conteo}</b>
       </span>
@@ -349,17 +349,6 @@ function BloqueInundacion({
               conteo={resumen.inundacion[clase]}
             />
           ))}
-          <div className={styles.legendItem}>
-            <span>
-              Sin agua estimada (0 m):{' '}
-              <b>{resumen.inundacion.sin_profundidad}</b>
-            </span>
-          </div>
-          <div className={styles.legendItem}>
-            <span>
-              Sin dato (escuela fuera de los datos): <b>{resumen.inundacion.sin_cobertura}</b>
-            </span>
-          </div>
         </div>
       )}
     </div>
