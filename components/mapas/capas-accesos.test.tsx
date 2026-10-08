@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { CruceAccesoOsm } from '@/lib/db/schema'
-import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { COLOR_RUTA_ACCESO } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -93,11 +92,6 @@ const fcCruces = (): GeoJSON.FeatureCollection => ({
     },
   ],
 })
-
-const fcCeldas: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
-  type: 'FeatureCollection',
-  features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]] }, properties: { profundidadM: 0.5 } }],
-}
 
 const visibles = (activas: CapaAccesos[]): Record<CapaAccesos, boolean> => ({
   aislamiento: activas.includes('aislamiento'),
@@ -237,23 +231,10 @@ describe('CapasAccesosTerritoriales', () => {
     }
   })
 
-  it('monta celdas debajo de la ruta y solo con la ruta seleccionada visible', () => {
-    const { container, rerender } = render(
-      <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />,
-    )
-    const celdas = screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)
-    expect(celdas).toHaveAttribute('data-layer-type', 'fill')
-    expect(JSON.parse(celdas.getAttribute('data-paint')!)).toMatchObject({
-      'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
-      'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
-    })
-    expect(JSON.parse(screen.getByTestId('mock-layer-infra-celdas-exposicion-outline').getAttribute('data-paint')!)).toMatchObject({
-      'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
-      'line-width': 1.5,
-    })
-    expect(container.querySelector(`[data-testid="mock-layer-${CAPA_CELDAS_EXPOSICION_ID}"]`)?.parentElement?.nextElementSibling?.querySelector(`[data-testid="mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}"]`)).not.toBeNull()
-    rerender(<CapasAccesosTerritoriales {...base} ruta={null} celdasExposicion={fcCeldas} visibles={visibles([])} />)
-    expect(screen.queryByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).not.toBeInTheDocument()
+  it('no monta celdas de exposición sobre la ruta', () => {
+    const { container } = render(<CapasAccesosTerritoriales {...base} visibles={visibles([])} />)
+    expect(container.querySelector('[data-testid^="mock-layer-infra-celdas-exposicion"]')).toBeNull()
+    expect(screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_ID}`)).toBeInTheDocument()
   })
 
   it('monta los cruces con la ruta, permitiendo solapamiento', () => {

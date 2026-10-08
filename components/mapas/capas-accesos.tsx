@@ -22,7 +22,6 @@ import {
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
-import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, COLOR_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
 import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
@@ -82,7 +81,6 @@ type CapasAccesosTerritorialesProps = {
   puntosAislamiento: GeoJSON.FeatureCollection | null
   puntosInundacion: GeoJSON.FeatureCollection | null
   ruta: GeoJSON.FeatureCollection | null
-  celdasExposicion?: GeoJSON.FeatureCollection<GeoJSON.Polygon> | null
   cruces: GeoJSON.FeatureCollection | null
   visibles: Record<CapaAccesos, boolean>
   iconosListos: boolean
@@ -95,7 +93,6 @@ export function CapasAccesosTerritoriales({
   puntosAislamiento,
   puntosInundacion,
   ruta,
-  celdasExposicion = null,
   cruces,
   visibles,
   iconosListos,
@@ -114,20 +111,6 @@ export function CapasAccesosTerritoriales({
       {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && puntosInundacion !== null && iconosListos && (
         <Source id={FUENTE_INUNDACION_ID} type="geojson" data={puntosInundacion}>
           <Layer id={CAPA_INUNDACION_ID} type="symbol" layout={layoutPuntoTerritorial()} />
-        </Source>
-      )}
-
-      {ruta !== null && celdasExposicion !== null && (
-        <Source id="infra-celdas-exposicion-src" type="geojson" data={celdasExposicion}>
-          <Layer id={CAPA_CELDAS_EXPOSICION_ID} type="fill" paint={{
-            'fill-color': COLOR_CELDAS_EXPOSICION,
-            'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
-            'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
-          }} />
-          <Layer id="infra-celdas-exposicion-outline" type="line" layout={{ 'line-join': 'round' }} paint={{
-            'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
-            'line-width': 1.5,
-          }} />
         </Source>
       )}
 

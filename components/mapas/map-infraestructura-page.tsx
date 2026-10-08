@@ -91,7 +91,6 @@ import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
-import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
 import { cambioEstiloCargado } from '@/lib/infraestructura/mapa/estilo'
 import {
@@ -1095,10 +1094,6 @@ export default function MapInfraestructuraPage(props: {
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
-  const celdasExposicion = useMemo(
-    () => (exposicion?.cueAnexo === cueRuta ? construirCeldasExposicion(exposicion) : null),
-    [exposicion, cueRuta],
-  )
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1536,7 +1531,6 @@ export default function MapInfraestructuraPage(props: {
               puntosAislamiento={null}
               puntosInundacion={null}
               ruta={rutaGeojson}
-              celdasExposicion={celdasExposicion}
               cruces={crucesGeojson}
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
