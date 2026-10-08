@@ -50,8 +50,8 @@ describe('BloqueAcceso', () => {
     expect(screen.getByText('Camino de acceso · 1,1 km')).toBeInTheDocument()
     expect(screen.getByText('2 cruces de agua en el camino')).toBeInTheDocument()
     expect(screen.getByText('1 vado · 1 sin puente registrado')).toBeInTheDocument()
-    expect(screen.getByText('Escuela: Alto')).toBeInTheDocument()
-    expect(screen.getByText('Camino: Alto')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo alto de inundación en la escuela')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo alto de inundación en el camino')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-via').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-cruces').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-cruces-icono')).toHaveAttribute('data-icono', 'alerta')
@@ -67,8 +67,8 @@ describe('BloqueAcceso', () => {
       />,
     )
 
-    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Escuela: Alto')
-    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Camino: Sin riesgo')
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo alto de inundación en la escuela')
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin riesgo de inundación en el camino')
     expect(screen.queryByText(/Riesgo de corte/)).not.toBeInTheDocument()
   })
 
@@ -77,7 +77,7 @@ describe('BloqueAcceso', () => {
       <BloqueAcceso geometria={geometria} exposicion={null} claseEscuela="bajo" juntoLaguna />,
     )
 
-    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Escuela: Bajo')
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo bajo de inundación en la escuela')
     expect(screen.getByTestId('bloque-acceso-laguna')).toHaveTextContent(/^Junto a laguna$/)
   })
 
@@ -122,14 +122,14 @@ describe('BloqueAcceso', () => {
 
   it('muestra "Camino: Sin dato" cuando hay ruta pero no exposición', () => {
     render(<BloqueAcceso geometria={geometria} exposicion={null} />)
-    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Camino: Sin dato')
-    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Escuela: Sin dato')
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin dato de inundación en el camino')
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Sin dato de inundación en la escuela')
   })
 
   it('muestra "Camino: Sin ruta" cuando no hay recorrido', () => {
     render(<BloqueAcceso geometria={null} exposicion={null} claseEscuela="medio" />)
-    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Escuela: Medio')
-    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Camino: Sin ruta')
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo medio de inundación en la escuela')
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin camino calculado')
   })
 
   it.each([

@@ -16,6 +16,12 @@ interface BloqueAccesoProps {
   error?: boolean
 }
 
+function textoRiesgo(sujeto: string, etiqueta: string): string {
+  if (etiqueta === 'Sin ruta') return 'Sin camino calculado'
+  if (etiqueta === 'Sin riesgo' || etiqueta === 'Sin dato') return `${etiqueta} de inundación en ${sujeto}`
+  return `Riesgo ${etiqueta.toLowerCase()} de inundación en ${sujeto}`
+}
+
 function claseCss(etiqueta: string): string {
   return ['Alto', 'Medio', 'Bajo'].includes(etiqueta)
     ? `map-bloque-acceso__riesgo--${etiqueta.toLowerCase()}`
@@ -63,12 +69,12 @@ export function BloqueAcceso({
       <div className="map-bloque-acceso__inundacion" data-testid="bloque-acceso-inundacion">
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-escuela">
           <School aria-hidden="true" />
-          <span className={claseCss(etiquetaEscuela)}>Escuela: {etiquetaEscuela}</span>
+          <span className={claseCss(etiquetaEscuela)}>{textoRiesgo('la escuela', etiquetaEscuela)}</span>
           {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">Junto a laguna</span>}
         </div>
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-riesgo">
           <Route aria-hidden="true" />
-          <span className={claseCss(etiquetaCamino)}>Camino: {etiquetaCamino}</span>
+          <span className={claseCss(etiquetaCamino)}>{textoRiesgo('el camino', etiquetaCamino)}</span>
         </div>
       </div>
     </div>
