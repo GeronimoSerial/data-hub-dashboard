@@ -422,6 +422,10 @@ const RADAR_DATA = {
   kpis: { riesgoAltoTotal: 1, sinEvidenciaTotal: 2, accesoCondicionado: { escuelas: 3, matricula: 15 } },
 }
 
+vi.mock('@/lib/infraestructura/radar-meteo/use-corridas-radar-meteo', () => ({
+  useCorridasRadarMeteo: () => ({ data: null, loading: false, error: null }),
+}))
+
 vi.mock('@/lib/infraestructura/use-radar', () => ({
   useRadar: (filtros: unknown, activo: boolean) => {
     llamadasRadar.activos.push(activo)

@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
+import type { CorridaRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-corridas-radar-meteo'
 import { fechaRadar } from './escalas'
 
 export function LineaTiempoRadar({
@@ -13,6 +14,9 @@ export function LineaTiempoRadar({
   onPlayingChange,
   onSpeedChange,
   onPasoChange,
+  corridas = [],
+  corridaSeleccionada = null,
+  onCorridaChange,
 }: {
   times: string[]
   frame: number
@@ -23,6 +27,9 @@ export function LineaTiempoRadar({
   onPlayingChange: (playing: boolean | ((value: boolean) => boolean)) => void
   onSpeedChange: (speed: 1 | 2 | 4) => void
   onPasoChange: (paso: 1 | 3) => void
+  corridas?: CorridaRadarMeteo[]
+  corridaSeleccionada?: string | null
+  onCorridaChange?: (fetchedAt: string | null) => void
 }) {
   const current = times[frame]
   const label = current
@@ -41,6 +48,20 @@ export function LineaTiempoRadar({
             <button key={value} type="button" aria-pressed={speed === value} onClick={() => onSpeedChange(value)}>{value}×</button>
           ))}
         </span>
+        {corridas.length > 0 && onCorridaChange && (
+          <select
+            aria-label="Pronóstico publicado"
+            value={corridaSeleccionada ?? ''}
+            onChange={(event) => onCorridaChange(event.target.value || null)}
+          >
+            <option value="">Último pronóstico</option>
+            {corridas.map((corrida) => (
+              <option key={corrida.id} value={corrida.fetchedAt}>
+                {fechaRadar(corrida.fetchedAt, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '')}
+              </option>
+            ))}
+          </select>
+        )}
         <label>
           Paso
           <select value={paso} onChange={(event) => onPasoChange(Number(event.target.value) as 1 | 3)}>

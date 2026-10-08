@@ -2434,6 +2434,7 @@ time {
 .radar-meteo-timeline-actions { display:flex; align-items:center; gap:5px; }
 .radar-meteo-timeline-actions strong { margin-left:8px; font-variant-numeric:tabular-nums; }
 .radar-meteo-timeline-actions label { margin-left:auto; display:flex; align-items:center; gap:5px; }
+.radar-meteo-corrida button { color:inherit; background:transparent; border:1px solid #607783; border-radius:6px; padding:3px 8px; cursor:pointer; }
 .radar-meteo-timeline select { color:inherit; background:#152739; border:1px solid #40586d; border-radius:6px; padding:4px; }
 .radar-meteo-timeline input[type="range"] { width:100%; accent-color:#58c9e9; }
 .radar-meteo-days { position:relative; height:25px; color:#8fa6b7; font-size:9px; }
