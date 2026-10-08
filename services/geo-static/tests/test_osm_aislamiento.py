@@ -376,6 +376,14 @@ class TestCalcularIndiceAislamiento:
         assert calcular_indice_aislamiento(25000, 0, 0, 0, True) == 1
         assert calcular_indice_aislamiento(30001, 0, 0, 0, True) == 3
 
+    def test_caso_residual_sin_vado_ni_tramo_largo_es_nivel_uno(self):
+        assert calcular_indice_aislamiento(
+            6000, 3, 0, 0, None,
+            tramos_sin_pavimentar_km=4.0,
+            tiene_alternativa_pavimentada=False,
+            distancia_cabecera_departamental_m=6000,
+        ) == 1
+
     def test_nivel_tres_por_distancia_a_localidad_no_a_pavimento(self):
         assert calcular_indice_aislamiento(
             500, 0, 0, 0, None, distancia_cabecera_departamental_m=30001

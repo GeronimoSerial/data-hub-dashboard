@@ -570,11 +570,10 @@ def calcular_indice_aislamiento(
     if tiene_alternativa_sin_cruce:
         return 1
 
-    # Caso residual no cubierto explicitamente arriba (p. ej. cruces con
-    # puente sin alternativa documentada, o via lejana sin cruces): criterio
-    # conservador, se trata como aislamiento medio-alto en vez de asumir
-    # seguro, y queda documentado para revision de N1.
-    return 2
+    # Caso residual (sin vados ni tramo largo sin pavimentar, pero fuera del
+    # nivel 0): aislamiento bajo. El nivel 2 queda reservado a vados o a
+    # >= UMBRAL_KM_SIN_PAVIMENTAR_NIVEL2 sin alternativa pavimentada.
+    return 1
 
 
 def construir_red(bbox_norte: float, bbox_sur: float, bbox_este: float, bbox_oeste: float):
