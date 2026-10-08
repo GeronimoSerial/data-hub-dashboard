@@ -107,6 +107,7 @@ import {
   ETIQUETAS_CRUCE,
   DESCRIPCIONES_CRUCE,
   ICONOS_ACCESOS_MAPA,
+  claseInundacion,
   type ClasificacionCruce,
 } from '@/lib/mapas/accesos-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
@@ -1929,6 +1930,8 @@ export default function MapInfraestructuraPage(props: {
                   <BloqueAcceso
                     geometria={geometria}
                     exposicion={exposicion}
+                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
+                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
                     cargando={geometriaLoading || exposicionLoading}
                     error={Boolean(geometriaError)}
                   />
