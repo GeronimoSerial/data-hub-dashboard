@@ -8,7 +8,10 @@ export function MetodologiaInundacion() {
   // `#metodologia/<id>` deep-links to a section once the tab is mounted.
   useEffect(() => {
     const seccion = window.location.hash.split('/')[1]
-    if (seccion) document.getElementById(seccion)?.scrollIntoView({ block: 'start' })
+    const destino = seccion ? document.getElementById(seccion) : null
+    if (!destino) return
+    destino.scrollIntoView({ block: 'start' })
+    destino.classList.add('metodologia-seccion--destacada')
   }, [])
 
   return (

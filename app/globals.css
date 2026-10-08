@@ -5895,3 +5895,15 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .revisar-situacion > h3 .estado-actual-severidad,
 .entrada-actualizar__motivo .estado-actual-severidad { flex: none; }
+
+/* Section reached from a `#metodologia/<id>` deep link. */
+.metodologia-seccion--destacada {
+  scroll-margin-top: var(--s-4);
+  animation: metodologia-destacar 2.4s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes metodologia-destacar {
+  0%, 40% { background: color-mix(in srgb, var(--accent, #f5c542) 35%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent, #f5c542) 35%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
