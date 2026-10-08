@@ -4,7 +4,6 @@ export type CapasVisibles = {
   rutaAcceso: boolean
   crucesAgua: boolean
   escuelasAisladas: boolean
-  riesgoCorteInundacion: boolean
 }
 
 export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
@@ -13,7 +12,6 @@ export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
   rutaAcceso: true,
   crucesAgua: true,
   escuelasAisladas: false,
-  riesgoCorteInundacion: false,
 }
 
 export function visibilidadCapa(visible: boolean): 'visible' | 'none' {

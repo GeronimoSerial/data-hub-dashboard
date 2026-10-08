@@ -120,7 +120,7 @@ const cruces: CruceAccesoOsm[] = []
 function crearLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
   return (
     <LeyendaAccesos
-      visibles={visibles(['aislamiento', 'inundacion'])}
+      visibles={visibles(['aislamiento'])}
       territorio={territorio}
       territorioLoading={false}
       territorioError={null}
@@ -327,34 +327,6 @@ describe('LeyendaAccesos — aislamiento', () => {
     }))
     expect(screen.getByTestId('leyenda-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
-    )
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Leyenda — inundación
-// ---------------------------------------------------------------------------
-
-describe('LeyendaAccesos — inundación', () => {
-  it('muestra la leyenda de agua estimada con sus conteos por clase', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']) })
-    expect(screen.getByTestId('leyenda-inundacion')).toBeInTheDocument()
-    expect(screen.getByTestId('leyenda-inundacion-contenido')).toBeInTheDocument()
-  })
-
-  it('enlaza a la pestaña Metodología sin texto de metodología ni fuente', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']) })
-    const enlace = screen.getByRole('link', { name: 'Metodología' })
-    expect(enlace).toHaveAttribute('href', '#metodologia')
-    const bloque = screen.getByTestId('leyenda-inundacion')
-    expect(bloque.textContent).not.toMatch(/período de retorno|physrisk|corrida|pronóstico|modelo|fuente/i)
-    expect(screen.queryByTestId('leyenda-inundacion-ayuda')).not.toBeInTheDocument()
-  })
-
-  it('sin susceptibilidad importada dice que no hay datos de agua estimada', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']), territorio: null, resumen })
-    expect(screen.getByTestId('leyenda-inundacion-sin-datos')).toHaveTextContent(
-      'Sin datos de agua estimada cargados.',
     )
   })
 })

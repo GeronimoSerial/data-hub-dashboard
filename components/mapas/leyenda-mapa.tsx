@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { BookMinus, BookX, Check, ChevronDown, ChevronUp, Clock, DoorOpen, House } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
-import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
@@ -57,7 +57,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa) {
   }
 
   if (props.pestana === 'planificacion') {
-    const niveles = [3, 2, 1, 0] as const
+    const niveles = nivelesLeyendaPlanificacion(props.vista)
 
     return (
       <aside className="map-leyenda" aria-label="Referencias del mapa">

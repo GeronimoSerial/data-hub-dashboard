@@ -50,36 +50,32 @@ describe('PanelCapas', () => {
     expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, [clave]: false })
   })
 
-  it('muestra riesgo, exclusión mutua y escala cuando hay contexto territorial', async () => {
+  it('muestra sólo Escuelas aisladas en el grupo Riesgo y su escala cuando está activa', async () => {
     const cambios = vi.fn<(visibles: CapasVisibles) => void>()
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible />)
     const riesgo = screen.getByRole('group', { name: 'Riesgo' })
     const aisladas = within(riesgo).getByRole('switch', { name: 'Escuelas aisladas' })
-    const inundacion = within(riesgo).getByRole('switch', { name: 'Riesgo de corte por inundación' })
     expect(aisladas).not.toBeChecked()
-    expect(inundacion).not.toBeChecked()
+    expect(within(riesgo).getAllByRole('switch')).toHaveLength(1)
+    expect(screen.queryByText('Riesgo de corte por inundación')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Escala de riesgo')).not.toBeInTheDocument()
 
     await userEvent.click(aisladas)
-    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, escuelasAisladas: true, riesgoCorteInundacion: false })
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, escuelasAisladas: true })
     cleanup()
 
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, escuelasAisladas: true }} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible />)
-    await userEvent.click(screen.getByRole('switch', { name: 'Riesgo de corte por inundación' }))
-    expect(cambios).toHaveBeenLastCalledWith({ ...CAPAS_VISIBLES_DEFAULT, escuelasAisladas: false, riesgoCorteInundacion: true })
-    cleanup()
-
-    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, riesgoCorteInundacion: true }} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible />)
-    expect(screen.getByText('Se muestra una capa de riesgo a la vez.')).toBeInTheDocument()
-    expect(screen.getByText('Alto')).toBeInTheDocument()
-    expect(screen.getByText('Medio')).toBeInTheDocument()
-    expect(screen.getByText('Bajo')).toBeInTheDocument()
+    expect(screen.queryByText('Se muestra una capa de riesgo a la vez.')).not.toBeInTheDocument()
+    const escala = screen.getByLabelText('Escala de riesgo')
+    expect(within(escala).getByText('Alto')).toBeInTheDocument()
+    expect(within(escala).getByText('Medio')).toBeInTheDocument()
+    expect(within(escala).getByText('Bajo')).toBeInTheDocument()
   })
 
-  it('deshabilita las capas de riesgo si no hay contexto territorial', () => {
+  it('deshabilita la capa de riesgo si no hay contexto territorial', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} riesgoDisponible={false} />)
     const riesgo = screen.getByRole('group', { name: 'Riesgo' })
     expect(within(riesgo).getByRole('switch', { name: 'Escuelas aisladas' })).toHaveAttribute('aria-disabled', 'true')
-    expect(within(riesgo).getByRole('switch', { name: 'Riesgo de corte por inundación' })).toHaveAttribute('aria-disabled', 'true')
     expect(within(riesgo).getByText('Los datos territoriales no están disponibles.')).toBeInTheDocument()
   })
 })

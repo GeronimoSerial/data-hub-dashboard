@@ -83,6 +83,11 @@ export function textoPrioridad(item: EscuelaPrioridad, vista: VistaPlanificacion
   return `${cantidad} ${cantidad === 1 ? 'situación' : 'situaciones'}`
 }
 
+/** Niveles que la leyenda lista. Exposición a inundación muestra sólo Alto/Medio/Bajo: sin riesgo y sin dato no se dibujan ni se listan. */
+export function nivelesLeyendaPlanificacion(vista: VistaPlanificacion): readonly NivelPlanificacion[] {
+  return vista === 'inundacion' ? [3, 2, 1] : [3, 2, 1, 0]
+}
+
 export function colorNivelPlan(nivel: NivelPlanificacion): string {
   switch (nivel) {
     case 3: return colorSeveridad('Crítica')

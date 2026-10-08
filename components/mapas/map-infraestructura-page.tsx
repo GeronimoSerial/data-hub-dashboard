@@ -152,7 +152,7 @@ import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
-import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { puntosRiesgoSobreSituacion, soloConDato } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -822,24 +822,21 @@ export default function MapInfraestructuraPage(props: {
     vistaPlanificacion,
     territorio,
   ])
-  const puntosNivel = useMemo(
-    () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
-    [dataEscuelasMapaVisible, colorPorCue],
-  )
+  const puntosNivel = useMemo(() => {
+    const puntos = construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue)
+    // Exposición a inundación dibuja sólo Alto/Medio/Bajo; sin riesgo y sin dato quedan fuera.
+    return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDato(puntos) : puntos
+  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo
     && !esPlanificacion
-    && (capasVisibles.escuelasAisladas || capasVisibles.riesgoCorteInundacion)
+    && capasVisibles.escuelasAisladas
   const puntosRiesgo = useMemo(
     () => mostrarRiesgoSituacion
-      ? puntosRiesgoSobreSituacion(
-        dataEscuelasMapaVisible?.escuelas ?? [],
-        capasVisibles.escuelasAisladas ? 'aisladas' : 'inundacion',
-        territorio,
-      )
+      ? puntosRiesgoSobreSituacion(dataEscuelasMapaVisible?.escuelas ?? [], territorio)
       : construirPuntosNivel([], new Map()),
-    [mostrarRiesgoSituacion, capasVisibles.escuelasAisladas, capasVisibles.riesgoCorteInundacion, dataEscuelasMapaVisible, territorio],
+    [mostrarRiesgoSituacion, dataEscuelasMapaVisible, territorio],
   )
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo

@@ -3,6 +3,7 @@ import {
   colorNivelPlan,
   coloresPlanificacion,
   ETIQUETA_NIVEL_PLAN,
+  nivelesLeyendaPlanificacion,
   nivelPlanificacion,
   prioridadPlanificacion,
   textoPrioridad,
@@ -86,5 +87,11 @@ describe('planificacion', () => {
     expect([...colores.keys()]).toEqual(['a', 'b'])
     expect(new Set(niveles.map(colorNivelPlan)).size).toBe(4)
     expect(colores.has('c')).toBe(false)
+  })
+
+  it('la leyenda de Inundación no lista Nulo; las demás vistas sí', () => {
+    expect(nivelesLeyendaPlanificacion('inundacion')).toEqual([3, 2, 1])
+    expect(nivelesLeyendaPlanificacion('aisladas')).toEqual([3, 2, 1, 0])
+    expect(nivelesLeyendaPlanificacion('historial')).toEqual([3, 2, 1, 0])
   })
 })

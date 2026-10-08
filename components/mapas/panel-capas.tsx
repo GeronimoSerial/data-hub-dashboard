@@ -19,10 +19,7 @@ const NIVELES_RIESGO = [3, 2, 1] as const
 
 export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChange, haySeleccion, riesgoDisponible = false }: Props) {
   const cambiarCapa = (capa: keyof CapasVisibles, visible: boolean) => {
-    const siguiente = { ...capasVisibles, [capa]: visible }
-    if (visible && capa === 'escuelasAisladas') siguiente.riesgoCorteInundacion = false
-    if (visible && capa === 'riesgoCorteInundacion') siguiente.escuelasAisladas = false
-    onCapasVisiblesChange(siguiente)
+    onCapasVisiblesChange({ ...capasVisibles, [capa]: visible })
   }
 
   return (
@@ -72,25 +69,16 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
           label="Escuelas aisladas"
           disabled={!riesgoDisponible}
         />
-        <Switch
-          checked={capasVisibles.riesgoCorteInundacion}
-          onCheckedChange={(visible) => cambiarCapa('riesgoCorteInundacion', visible)}
-          label="Riesgo de corte por inundación"
-          disabled={!riesgoDisponible}
-        />
         {!riesgoDisponible && <p className="map-hint">Los datos territoriales no están disponibles.</p>}
-        {(capasVisibles.escuelasAisladas || capasVisibles.riesgoCorteInundacion) && (
-          <>
-            <p className="map-hint">Se muestra una capa de riesgo a la vez.</p>
-            <div className="map-capas__escala-riesgo" aria-label="Escala de riesgo">
-              {NIVELES_RIESGO.map((nivel) => (
-                <span className="map-leyenda__elemento" key={nivel}>
-                  <span className="map-leyenda__muestra map-capas__muestra-riesgo" style={{ backgroundColor: colorNivelPlan(nivel) }} />
-                  {ETIQUETA_NIVEL_PLAN[nivel]}
-                </span>
-              ))}
-            </div>
-          </>
+        {capasVisibles.escuelasAisladas && (
+          <div className="map-capas__escala-riesgo" aria-label="Escala de riesgo">
+            {NIVELES_RIESGO.map((nivel) => (
+              <span className="map-leyenda__elemento" key={nivel}>
+                <span className="map-leyenda__muestra map-capas__muestra-riesgo" style={{ backgroundColor: colorNivelPlan(nivel) }} />
+                {ETIQUETA_NIVEL_PLAN[nivel]}
+              </span>
+            ))}
+          </div>
         )}
       </section>
     </section>

@@ -13,15 +13,11 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
   ETIQUETAS_AISLAMIENTO,
-  ETIQUETAS_INUNDACION,
   SVG_ICONO_AISLAMIENTO_0,
   SVG_ICONO_AISLAMIENTO_1,
   SVG_ICONO_AISLAMIENTO_2,
   SVG_ICONO_AISLAMIENTO_3,
   SVG_ICONO_AISLAMIENTO_SIN_DATOS,
-  SVG_ICONO_INUNDACION_ALTA,
-  SVG_ICONO_INUNDACION_BAJA,
-  SVG_ICONO_INUNDACION_MEDIA,
   TEXTOS_ACCESOS,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
@@ -178,14 +174,6 @@ const ICONO_AISLAMIENTO: Record<(typeof NIVELES_AISLAMIENTO)[number], string> = 
   sin_datos_red: SVG_ICONO_AISLAMIENTO_SIN_DATOS,
 }
 
-const NIVELES_INUNDACION = ['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'] as const
-
-const ICONO_INUNDACION: Partial<Record<(typeof NIVELES_INUNDACION)[number], string>> = {
-  bajo: SVG_ICONO_INUNDACION_BAJA,
-  medio: SVG_ICONO_INUNDACION_MEDIA,
-  alto: SVG_ICONO_INUNDACION_ALTA,
-}
-
 type LeyendaAccesosProps = {
   visibles: Record<CapaAccesos, boolean>
   territorio: TerritorioMapa | null
@@ -203,7 +191,7 @@ export function LeyendaAccesos({
 }: LeyendaAccesosProps) {
   // contenedor). El hook se llama siempre, antes del early return.
   const styles = useOverlayStyles()
-  const hayBloqueTerritorio = visibles.aislamiento || visibles.inundacion
+  const hayBloqueTerritorio = visibles.aislamiento
   if (!hayBloqueTerritorio) {
     return null
   }
@@ -239,9 +227,6 @@ export function LeyendaAccesos({
       {visibles.aislamiento && territorioListo && (
         <BloqueAislamiento territorio={territorio} resumen={resumen} />
       )}
-      {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && territorioListo && (
-        <BloqueInundacion territorio={territorio} resumen={resumen} />
-      )}
     </section>
   )
 }
@@ -262,9 +247,7 @@ function IconoSvg({ svg }: { svg: string }) {
   )
 }
 
-// Fila visible de la leyenda: ícono + nombre corto + conteo. La leyenda es una
-// tabla de conteos; la explicación de la estimación vive en la pestaña
-// Metodología, a la que apunta el enlace de `BloqueInundacion`.
+// Fila visible de la leyenda: ícono + nombre corto + conteo.
 function FilaConIcono({ svg, etiqueta, conteo }: { svg?: string; etiqueta: string; conteo: number }) {
   const styles = useOverlayStyles()
   return (
@@ -316,44 +299,6 @@ function BloqueAislamiento({
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-// Leyenda de inundación: conteos por clase y un enlace a la pestaña Metodología.
-// El enlace usa el hash que la página ya lee para elegir pestaña (#metodologia).
-function BloqueInundacion({
-  territorio,
-  resumen,
-}: {
-  territorio: TerritorioMapa | null
-  resumen: ReturnType<typeof resumirCobertura> | null
-}) {
-  const styles = useOverlayStyles()
-  const sinDatos = territorio?.susceptibilidad == null || resumen === null
-
-  return (
-    <div className={styles.legendItemStack} data-testid="leyenda-inundacion">
-      <b>{TEXTOS_ACCESOS.tituloInundacion}</b>
-      {sinDatos ? (
-        <div className={styles.legendItemStack} data-testid="leyenda-inundacion-sin-datos">
-          <div className={styles.hint}>Sin datos de agua estimada cargados.</div>
-        </div>
-      ) : (
-        <div data-testid="leyenda-inundacion-contenido">
-          {NIVELES_INUNDACION.map((clase) => (
-            <FilaConIcono
-              key={clase}
-              svg={ICONO_INUNDACION[clase]}
-              etiqueta={ETIQUETAS_INUNDACION[clase]}
-              conteo={resumen.inundacion[clase]}
-            />
-          ))}
-        </div>
-      )}
-      <a href="#metodologia" data-testid="leyenda-inundacion-metodologia">
-        Metodología
-      </a>
     </div>
   )
 }
