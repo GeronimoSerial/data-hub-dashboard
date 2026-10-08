@@ -1,14 +1,25 @@
 import type { CruceAccesoOsm, RutaGeoJson } from '@/lib/db/schema'
-import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
+import type { ClaseRutaInundacion, ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
 import { ETIQUETAS_CRUCE } from '@/lib/mapas/accesos-capas'
+
+export type EtiquetaRiesgoAcceso = 'Alto' | 'Medio' | 'Bajo' | 'Sin riesgo' | 'Sin dato' | 'Sin ruta'
 
 export interface LineasAcceso {
   via: string | null
   cruces: string
   crucesDetalle: string | null
   crucesConRiesgo: boolean
-  riesgo: 'Bajo' | 'Medio' | 'Alto' | null
+  riesgo: EtiquetaRiesgoAcceso | null
+}
+
+const ETIQUETA_CLASE_RUTA: Record<ClaseRutaInundacion, EtiquetaRiesgoAcceso> = {
+  alto: 'Alto',
+  medio: 'Medio',
+  bajo: 'Bajo',
+  sin_riesgo: 'Sin riesgo',
+  sin_dato: 'Sin dato',
+  sin_ruta: 'Sin ruta',
 }
 
 const RADIO_TIERRA_KM = 6371.0088
@@ -85,12 +96,9 @@ function detalleCruces(resumen: ReturnType<typeof resumirCruces>): string | null
 }
 
 function nivelRiesgo(exposicion: ExposicionRutaRespuesta | null): LineasAcceso['riesgo'] {
-  if (exposicion?.estado === 'sin_profundidad') return 'Bajo'
-  if (exposicion?.estado !== 'con_profundidad') return null
-
-  const profundidad = exposicion.resumen.profundidadMaxM
-  if (profundidad === null || profundidad <= 0) return null
-  return profundidad >= 0.5 ? 'Alto' : 'Medio'
+  if (exposicion === null) return null
+  const clase = exposicion.claseRuta ?? null
+  return clase === null ? 'Sin dato' : ETIQUETA_CLASE_RUTA[clase]
 }
 
 export function lineasAcceso(

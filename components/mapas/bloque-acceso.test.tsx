@@ -21,11 +21,13 @@ const geometria: GeometriaAccesoRespuesta = {
 function exposicion(
   estado: ExposicionRutaRespuesta['estado'],
   profundidadMaxM: number | null,
+  claseRuta: ExposicionRutaRespuesta['claseRuta'] = null,
 ): ExposicionRutaRespuesta {
   return {
     cueAnexo: '1801605-04',
     disponible: true,
     estado,
+    claseRuta,
     versionJob: null,
     resumen: { celdasTotal: 0, celdasConDato: 0, celdasConProfundidad: 0, profundidadMaxM, cobertura: 0 },
     celdasAfectadas: [],
@@ -41,7 +43,7 @@ function exposicion(
 
 describe('BloqueAcceso', () => {
   it('muestra las tres líneas con el copy exacto y sus íconos', () => {
-    render(<BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.5)} />)
+    render(<BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.5, 'alto')} />)
 
     expect(screen.getByText('Camino de acceso · 1,1 km')).toBeInTheDocument()
     expect(screen.getByText('2 cruces de agua en el camino')).toBeInTheDocument()

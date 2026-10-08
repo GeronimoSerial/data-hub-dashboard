@@ -53,6 +53,14 @@ describe('construirRespuestaExposicion', () => {
     })
   })
 
+  it('expone claseRuta tal cual la fila y null cuando falta o es desconocida', () => {
+    expect(construirRespuestaExposicion('CUE-1', fila({ claseRuta: 'medio' })).claseRuta).toBe('medio')
+    expect(construirRespuestaExposicion('CUE-1', fila({ claseRuta: 'sin_ruta', estado: 'sin_ruta' })).claseRuta).toBe('sin_ruta')
+    expect(construirRespuestaExposicion('CUE-1', fila({ claseRuta: null })).claseRuta).toBeNull()
+    expect(construirRespuestaExposicion('CUE-1', fila({ claseRuta: 'desconocida' })).claseRuta).toBeNull()
+    expect(construirRespuestaExposicion('CUE-1', null).claseRuta).toBeNull()
+  })
+
   it('elige la version numerica mas nueva', () => {
     expect(ultimaExposicionDeCue([fila({ versionJob: '9' }), fila({ versionJob: '10' })])?.versionJob).toBe('10')
   })

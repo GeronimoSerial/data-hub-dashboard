@@ -4,11 +4,19 @@ import { infraExposicionRutaInundacion, type CeldaExposicionRuta } from '@/lib/d
 
 export type FilaExposicionRuta = typeof infraExposicionRutaInundacion.$inferSelect
 
+export const CLASES_RUTA_INUNDACION = ['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato', 'sin_ruta'] as const
+export type ClaseRutaInundacion = (typeof CLASES_RUTA_INUNDACION)[number]
+
+export function claseRutaDe(valor: string | null | undefined): ClaseRutaInundacion | null {
+  return CLASES_RUTA_INUNDACION.find((clase) => clase === valor) ?? null
+}
+
 export interface ExposicionRutaRespuesta {
   cueAnexo: string
   disponible: boolean
   motivoSinDato?: string
   estado?: 'sin_ruta' | 'sin_dato' | 'sin_profundidad' | 'con_profundidad'
+  claseRuta?: ClaseRutaInundacion | null
   versionJob: string | null
   resumen: {
     celdasTotal: number
@@ -43,6 +51,7 @@ export function construirRespuestaExposicion(
 ): ExposicionRutaRespuesta {
   const base = {
     cueAnexo,
+    claseRuta: claseRutaDe(fila?.claseRuta),
     versionJob: fila?.versionJob ?? null,
     resumen: {
       celdasTotal: fila?.celdasTotal ?? 0,
