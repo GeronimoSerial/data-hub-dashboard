@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, lt, ne, or } from 'drizzle-orm'
+import { and, desc, eq, lt, lte, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { radarMeteoRun } from '@/lib/db/schema'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../riesgo/providers/cupo-om'
@@ -13,6 +13,16 @@ type Db = ReturnType<typeof getDb>
 
 export async function obtenerUltimoRunRadarMeteo(db: Db = getDb()) {
   const [fila] = await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'completo')).orderBy(desc(radarMeteoRun.fetchedAt)).limit(1)
+  return fila ?? null
+}
+
+export async function obtenerRunRadarMeteoAsOf(asOf: Date, db: Db = getDb()) {
+  const [fila] = await db
+    .select()
+    .from(radarMeteoRun)
+    .where(and(eq(radarMeteoRun.status, 'completo'), lte(radarMeteoRun.fetchedAt, asOf.toISOString())))
+    .orderBy(desc(radarMeteoRun.fetchedAt))
+    .limit(1)
   return fila ?? null
 }
 

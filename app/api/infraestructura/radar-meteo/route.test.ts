@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ acceso: { ok: true, user: { id: 'test' } } as { ok: boolean; status?: number; user?: { id: string } }, enabled: true, run: null as unknown }))
 vi.mock('@/lib/infraestructura/acceso-lectura', () => ({ verificarAccesoLectura: vi.fn(async () => mocks.acceso) }))
 vi.mock('@/lib/infraestructura/riesgo/flags', () => ({ riskRadarEnabled: vi.fn(() => mocks.enabled) }))
-vi.mock('@/lib/infraestructura/radar-meteo/job-sync', () => ({ obtenerUltimoRunRadarMeteo: vi.fn(async () => mocks.run) }))
+vi.mock('@/lib/infraestructura/radar-meteo/job-sync', () => ({
+  obtenerUltimoRunRadarMeteo: vi.fn(async () => mocks.run),
+  obtenerRunRadarMeteoAsOf: vi.fn(async () => mocks.run),
+}))
 
 import { GET } from './route'
+import { obtenerRunRadarMeteoAsOf, obtenerUltimoRunRadarMeteo } from '@/lib/infraestructura/radar-meteo/job-sync'
 
 const times = Array.from({ length: 6 }, (_, i) => `2026-09-30T0${i}:00:00.000Z`)
 const baseRun = {
@@ -24,7 +28,44 @@ const baseRun = {
 function req(query = '', headers?: HeadersInit) { return new Request(`http://localhost/api/infraestructura/radar-meteo${query}`, { headers }) }
 
 describe('GET /api/infraestructura/radar-meteo', () => {
-  beforeEach(() => { mocks.acceso = { ok: true, user: { id: 'test' } }; mocks.enabled = true; mocks.run = baseRun })
+  beforeEach(() => {
+    mocks.acceso = { ok: true, user: { id: 'test' } }; mocks.enabled = true; mocks.run = baseRun
+    vi.mocked(obtenerUltimoRunRadarMeteo).mockClear()
+    vi.mocked(obtenerRunRadarMeteoAsOf).mockClear()
+  })
+
+  it('usa la corrida vigente en asOf y no la más reciente', async () => {
+    const asOf = '2026-09-30T05:00:00.000Z'
+    const body = await (await GET(req(`?asOf=${encodeURIComponent(asOf)}`))).json()
+    expect(obtenerRunRadarMeteoAsOf).toHaveBeenCalledWith(new Date(asOf))
+    expect(obtenerUltimoRunRadarMeteo).not.toHaveBeenCalled()
+    expect(body).toMatchObject({ runId: 'run-1', sinDatos: false })
+  })
+
+  it('no marca como desactualizada una corrida pasada con asOf', async () => {
+    const body = await (await GET(req('?asOf=2026-09-30T05:00:00.000Z'))).json()
+    expect(body.frescura).toBeNull()
+  })
+
+  it('rechaza asOf inválido con 400', async () => {
+    const response = await GET(req('?asOf=ayer'))
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: 'Parámetro inválido: asOf' })
+    expect(obtenerRunRadarMeteoAsOf).not.toHaveBeenCalled()
+  })
+
+  it('devuelve sinDatos con razón específica cuando no hay corrida hasta asOf', async () => {
+    mocks.run = null
+    const body = await (await GET(req('?asOf=2026-09-30T05:00:00.000Z'))).json()
+    expect(body).toMatchObject({ sinDatos: true, runId: null, razon: 'No hay pronóstico publicado hasta ese momento.' })
+  })
+
+  it('sin asOf usa la corrida más reciente y mantiene frescura', async () => {
+    const body = await (await GET(req())).json()
+    expect(obtenerUltimoRunRadarMeteo).toHaveBeenCalled()
+    expect(obtenerRunRadarMeteoAsOf).not.toHaveBeenCalled()
+    expect(body.frescura).toEqual({ edadMinutos: expect.any(Number), desactualizado: expect.any(Boolean) })
+  })
 
   it('aplica autenticación y flag', async () => {
     mocks.acceso = { ok: false, status: 401 }
