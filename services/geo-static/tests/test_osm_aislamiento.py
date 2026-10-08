@@ -2,7 +2,7 @@
 el grafo se construye a mano con networkx, sin osmnx.graph_from_bbox.
 
 G1-fix2: el bug corregido era que los cursos de agua (`waterway=river|
-stream|canal|drain`) NUNCA aparecen como atributo de una arista vial en OSM
+stream|canal`) NUNCA aparecen como atributo de una arista vial en OSM
 -- son entidades separadas. La version anterior de este modulo buscaba
 `datos_arista.get("waterway")` sobre las aristas del camino, que nunca
 encuentra nada real (`cruces_agua_count` daba siempre 0 sobre datos reales).
@@ -33,6 +33,9 @@ from geo_static.osm_aislamiento import (
     MOTIVO_RED_NO_CONECTADA,
     MOTIVO_SIN_VIA_CERCANA,
     TOLERANCIA_DEDUP_CRUCE_M,
+    UMBRAL_VIA_NO_ALCANZABLE_M,
+    UMBRAL_VIA_PAVIMENTADA_CERCANA_M,
+    WATERWAYS_CRUCE,
     _aristas_inseguras,
     _coordenadas_ruta,
     _es_tramo_sin_pavimentar,
@@ -300,9 +303,8 @@ def test_busqueda_destinos_se_calcula_una_vez_para_varios_departamentos(monkeypa
 
 
 class TestCalcularIndiceAislamiento:
-    def test_puente_con_alternativa_no_es_indice_cero(self):
-        # Contrato: 0 exige "sin cruces de agua"; con un cruce con puente y
-        # alternativa corresponde 1, nunca 0.
+    def test_puente_no_bloquea_el_indice_cero(self):
+        # Los puentes informan un cruce, pero no cuentan como aislamiento.
         indice = calcular_indice_aislamiento(
             distancia_via_pavimentada_m=2500,
             tramos_sin_pavimentar_count=1,
@@ -310,7 +312,7 @@ class TestCalcularIndiceAislamiento:
             cruces_agua_con_vado_count=0,
             tiene_alternativa_sin_cruce=True,
         )
-        assert indice == 1
+        assert indice == 0
 
     def test_vado_sin_alternativa_indice_maximo(self):
         indice = calcular_indice_aislamiento(
@@ -350,13 +352,55 @@ class TestCalcularIndiceAislamiento:
 
     def test_via_no_alcanzable_indice_maximo(self):
         indice = calcular_indice_aislamiento(
-            distancia_via_pavimentada_m=25000,
+            distancia_via_pavimentada_m=35000,
             tramos_sin_pavimentar_count=0,
             cruces_agua_con_puente_count=0,
             cruces_agua_con_vado_count=0,
             tiene_alternativa_sin_cruce=True,
         )
         assert indice == 3
+
+    def test_umbrales_de_via_pavimentada_actualizados(self):
+        assert UMBRAL_VIA_PAVIMENTADA_CERCANA_M == 10000
+        assert UMBRAL_VIA_NO_ALCANZABLE_M == 30000
+        assert calcular_indice_aislamiento(8000, 0, 0, 0, True) == 0
+        assert calcular_indice_aislamiento(25000, 0, 0, 0, True) == 1
+        assert calcular_indice_aislamiento(30001, 0, 0, 0, True) == 3
+
+    def test_km_sin_pavimentar_controlan_niveles_cero_y_dos(self):
+        base = dict(
+            distancia_via_pavimentada_m=5000,
+            tramos_sin_pavimentar_count=0,
+            cruces_agua_con_puente_count=0,
+            cruces_agua_con_vado_count=0,
+            tiene_alternativa_sin_cruce=False,
+        )
+        assert calcular_indice_aislamiento(**base, tramos_sin_pavimentar_km=2.0) == 0
+        assert calcular_indice_aislamiento(**base, tramos_sin_pavimentar_km=15.0) == 2
+        assert calcular_indice_aislamiento(
+            **{**base, "tiene_alternativa_sin_cruce": True},
+            tramos_sin_pavimentar_km=15.0,
+            tiene_alternativa_pavimentada=True,
+        ) == 1
+
+    def test_metricas_escuela_reporta_longitud_y_alternativa_sin_forzarla(self, monkeypatch):
+        grafo = grafo_juguete([
+            ("escuela", "destino", {"length": 2500, "highway": "track"}),
+        ])
+        grafo.add_node("escuela", x=0, y=0)
+        grafo.add_node("destino", x=0.02, y=0)
+        patch_nearest_nodes(monkeypatch, ("escuela", 0.0))
+        metricas = calcular_metricas_escuela(grafo, 0, 0, "destino")
+        assert metricas["tramos_sin_pavimentar_count"] == 1
+        assert metricas["tramos_sin_pavimentar_km"] == 1.5
+        assert metricas["tiene_alternativa_sin_cruce"] is None
+
+    @pytest.mark.parametrize("surface", ["compacted", "fine_gravel", "earth", "mud", "grass"])
+    def test_superficies_d4_sin_pavimentar(self, surface):
+        assert _es_tramo_sin_pavimentar({"surface": surface}) is True
+
+    def test_drain_no_es_un_cruce_relevante(self):
+        assert "drain" not in WATERWAYS_CRUCE
 
 
 # ---------------------------------------------------------------------------
@@ -466,7 +510,7 @@ class TestCalcularMetricasEscuela:
         assert metricas["cruces_agua_count"] == 1
         assert metricas["cruces_agua_con_puente_count"] == 1
         assert metricas["cruces_agua_con_vado_count"] == 0
-        assert metricas["tiene_alternativa_sin_cruce"] is True
+        assert metricas["tiene_alternativa_sin_cruce"] is None
 
     def test_sin_capa_de_agua_el_bug_viejo_no_reaparece_como_falso_cero(
         self, monkeypatch
@@ -495,6 +539,7 @@ class TestCalcularMetricasEscuela:
             cruces_por_arista=cruces,
         )
         assert metricas["cruces_agua_con_vado_count"] == 1
+        assert metricas["cruces_agua_sin_evidencia_count"] == 0
         assert metricas["tiene_alternativa_sin_cruce"] is False
         indice = calcular_indice_aislamiento(
             metricas["distancia_via_pavimentada_m"],
@@ -505,12 +550,10 @@ class TestCalcularMetricasEscuela:
         )
         assert indice == 3
 
-    def test_cruce_sin_puente_ni_ford_se_trata_como_vado_nunca_seguro(
+    def test_cruce_sin_puente_ni_ford_se_cuenta_como_desconocido_y_no_bloquea(
         self, monkeypatch
     ):
-        """Cruce detectado por geometria pero sin tag bridge ni ford (caso
-        'sin puente conocido'): nunca se asume seguro, se cuenta junto con
-        los vados confirmados (documentado en contrato-datos.md)."""
+        """Cruce sin evidencia explícita queda desconocido y no bloquea la ruta."""
         g = nx.MultiDiGraph()
         for nodo, x, y in [
             ("escuela", -58.90, -27.50),
@@ -534,8 +577,38 @@ class TestCalcularMetricasEscuela:
             cruces_por_arista=cruces,
         )
         assert metricas["cruces_agua_con_puente_count"] == 0
+        assert metricas["cruces_agua_con_vado_count"] == 0
+        assert metricas["cruces_agua_sin_evidencia_count"] == 1
+        assert metricas["cruces_agua_count"] == 1
+        assert metricas["tiene_alternativa_sin_cruce"] is None
+        indice = calcular_indice_aislamiento(
+            metricas["distancia_via_pavimentada_m"],
+            metricas["tramos_sin_pavimentar_count"],
+            metricas["cruces_agua_con_puente_count"],
+            metricas["cruces_agua_con_vado_count"],
+            metricas["tiene_alternativa_sin_cruce"],
+        )
+        assert indice == 0
+
+    def test_ford_yes_explicito_en_arista_si_cuenta_como_vado(self, monkeypatch):
+        g = nx.MultiDiGraph()
+        g.add_node("escuela", x=-58.90, y=-27.50)
+        g.add_node("cabecera", x=-58.80, y=-27.45)
+        g.add_edge(
+            "escuela", "cabecera", length=3000, highway="unclassified", ford="yes",
+            geometry=LineString([(-58.90, -27.50), (-58.80, -27.45)]),
+        )
+        agua = [LineString([(-58.85, -29.0), (-58.85, 20.0)])]
+        cruces = construir_cruces_por_arista(g, construir_arbol_agua(agua), agua)
+        patch_nearest_nodes(monkeypatch, ("escuela", 5.0))
+        metricas = calcular_metricas_escuela(
+            g, lat=-27.50, lon=-58.90, nodo_cabecera="cabecera", cruces_por_arista=cruces,
+        )
         assert metricas["cruces_agua_con_vado_count"] == 1
-        assert metricas["tiene_alternativa_sin_cruce"] is False
+        assert metricas["cruces_agua_sin_evidencia_count"] == 0
+
+    def test_ford_no_yes_no_se_confirma(self):
+        assert _tiene_ford({"ford": "designated"}, nx.MultiDiGraph(), "a", "b") is False
 
     def test_sin_cruce_de_agua_indice_cero_posible(self, monkeypatch):
         g = nx.MultiDiGraph()
@@ -664,6 +737,9 @@ class TestTienePuente:
     def test_tunnel_nan_de_pyrosm_no_es_culvert(self):
         assert _tiene_puente({"tunnel": NAN}) is False
 
+    def test_puente_no_es_arista_insegura(self):
+        assert _aristas_inseguras({("a", "b", 0): [{"con_puente": True, "es_ford": False}]}) == set()
+
 
 class TestPrimerValor:
     def test_nan_flotante_se_normaliza_a_none(self):
@@ -700,7 +776,7 @@ class TestReproduccionBugTodosLosCrucesSonPuente:
     tageados como `float('nan')`, nunca `None` ni clave ausente), un cruce
     de agua SIN tag de puente ni de vado se clasificaba como puente."""
 
-    def test_cruce_sin_tags_estilo_pyrosm_se_cuenta_como_vado_no_puente(self, monkeypatch):
+    def test_cruce_sin_tags_estilo_pyrosm_se_cuenta_como_desconocido(self, monkeypatch):
         g = nx.MultiDiGraph()
         for nodo, x, y in [
             ("escuela", -58.90, -27.50),
@@ -731,8 +807,9 @@ class TestReproduccionBugTodosLosCrucesSonPuente:
             cruces_por_arista=cruces,
         )
         assert metricas["cruces_agua_con_puente_count"] == 0
-        assert metricas["cruces_agua_con_vado_count"] == 1
-        assert metricas["tiene_alternativa_sin_cruce"] is False
+        assert metricas["cruces_agua_con_vado_count"] == 0
+        assert metricas["cruces_agua_sin_evidencia_count"] == 1
+        assert metricas["tiene_alternativa_sin_cruce"] is None
 
 
 class TestTieneFord:
@@ -935,7 +1012,7 @@ class TestCalcularMetricasDepartamentoEquivalencia:
         # Sanity: se ejercitaron las 4 categorias documentadas (nunca todas
         # "con puente", que era exactamente el bug de G1-fix2b).
         assert esperado[0]["cruces_agua_con_vado_count"] == 0
-        assert esperado[0]["tiene_alternativa_sin_cruce"] is True
+        assert esperado[0]["tiene_alternativa_sin_cruce"] is None
         assert esperado[1]["cruces_agua_con_vado_count"] == 1
         assert esperado[1]["tiene_alternativa_sin_cruce"] is False
         assert esperado[2]["cruces_agua_con_vado_count"] == 1
@@ -950,7 +1027,7 @@ class TestCalcularMetricasDepartamentoEquivalencia:
             )
             for m in esperado
         ]
-        assert indices == [1, 3, 2, 0]
+        assert indices == [0, 3, 2, 0]
 
     def test_lista_vacia_de_escuelas_devuelve_lista_vacia(self):
         g, agua = _grafo_multi_departamento_con_cabecera_compartida()
@@ -1524,12 +1601,17 @@ class TestExportarGeometria:
                 1 for c in geometria["cruces"] if c["clasificacion"] == CLASIFICACION_PUENTE
             )
             assert puentes == metricas["cruces_agua_con_puente_count"]
-            vados_o_sin_evidencia = sum(
+            vados = sum(
                 1
                 for c in geometria["cruces"]
-                if c["clasificacion"] in (CLASIFICACION_VADO, CLASIFICACION_SIN_EVIDENCIA)
+                if c["clasificacion"] == CLASIFICACION_VADO
             )
-            assert vados_o_sin_evidencia == metricas["cruces_agua_con_vado_count"]
+            sin_evidencia = sum(
+                1 for c in geometria["cruces"]
+                if c["clasificacion"] == CLASIFICACION_SIN_EVIDENCIA
+            )
+            assert vados == metricas["cruces_agua_con_vado_count"]
+            assert sin_evidencia == metricas["cruces_agua_sin_evidencia_count"]
         # La escuela A (unica con puente) ejercita la clasificacion "puente".
         assert any(
             c["clasificacion"] == CLASIFICACION_PUENTE for c in geometrias[0]["cruces"]

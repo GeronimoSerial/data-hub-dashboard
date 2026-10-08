@@ -71,6 +71,13 @@
       "when": 1791198768905,
       "tag": "0009_acceso-via-principal",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791492227889,
+      "tag": "0010_aislamiento-km-sin-pavimentar",
+      "breakpoints": true
     }
   ]
 }

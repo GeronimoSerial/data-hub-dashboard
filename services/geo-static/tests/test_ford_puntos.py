@@ -136,10 +136,11 @@ class TestConteoNoCambia:
             g, lat=A[1], lon=A[0], nodo_cabecera="cabecera", cruces_por_arista=con_ford
         )
 
-        # La clasificacion cambia (sin_evidencia -> vado) pero el conteo no:
-        # `cruces_agua_con_vado_count` cuenta ambas juntas (contrato N3).
-        assert metricas_sin["cruces_agua_con_vado_count"] == 1
+        # El cruce sin ford explícito queda desconocido; ford=yes lo confirma.
+        assert metricas_sin["cruces_agua_con_vado_count"] == 0
+        assert metricas_sin["cruces_agua_sin_evidencia_count"] == 1
         assert metricas_con["cruces_agua_con_vado_count"] == 1
+        assert metricas_con["cruces_agua_sin_evidencia_count"] == 0
         assert metricas_sin["cruces_agua_count"] == metricas_con["cruces_agua_count"] == 1
         assert clasificar_cruce(con_ford[("escuela", "cabecera", 0)][0]) == CLASIFICACION_VADO
 

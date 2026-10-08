@@ -76,7 +76,7 @@ const tablaFalsa = {
   versionJob: 'version_job',
 }
 
-const CABECERA_AISLAMIENTO = 'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia'
+const CABECERA_AISLAMIENTO = 'cue_anexo,distancia_via_pavimentada_m,distancia_cabecera_departamental_m,tramos_sin_pavimentar_count,tramos_sin_pavimentar_km,cruces_agua_count,cruces_agua_con_puente_count,cruces_agua_con_vado_count,tiene_alternativa_sin_cruce,tiene_alternativa_pavimentada,indice_aislamiento,motivo_sin_datos,snap_distancia_m,version_job,fecha_extracto_osm,licencia'
 const CABECERA_SUSCEPTIBILIDAD = 'cue_anexo,peligro_inundacion_fluvial,peligro_inundacion_pluvial,peligro_viento,peligro_calor,periodo_retorno_anios,fuente,version_job,fecha_corrida,licencia'
 
 let dir: string
@@ -113,7 +113,7 @@ async function rechazaCsv(
 describe('importarAislamiento', () => {
   it('parsea una fila valida y llama al upsert con los valores esperados', async () => {
     const path = escribirCsv('aislamiento.csv', CABECERA_AISLAMIENTO, [
-      '1801605-04,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      '1801605-04,1500.5,1500.5,2,3.0,0,0,0,1,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
     ])
 
     const { db, llamadas } = crearDbFalsa()
@@ -124,6 +124,8 @@ describe('importarAislamiento', () => {
     const fila = llamadas[0].valores as Record<string, unknown>
     expect(fila.cueAnexo).toBe('1801605-04')
     expect(fila.tieneAlternativaSinCruce).toBe(true)
+    expect(fila.tieneAlternativaPavimentada).toBe(true)
+    expect(fila.tramosSinPavimentarKm).toBe(3)
     expect(fila.motivoSinDatos).toBeNull()
     expect(fila.distanciaViaPavimentadaM).toBe(1500.5)
     expect(fila.indiceAislamiento).toBe(1)
@@ -132,7 +134,7 @@ describe('importarAislamiento', () => {
 
   it('convierte campos vacios a null y booleano en 0', async () => {
     const path = escribirCsv('aislamiento2.csv', CABECERA_AISLAMIENTO, [
-      '1801605-05,,,,,,,0,,sin_conexion_red,9000,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      '1801605-05,,,,,,,,0,,,sin_conexion_red,9000,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
     ])
 
     const { db, llamadas } = crearDbFalsa()
@@ -147,8 +149,8 @@ describe('importarAislamiento', () => {
 
   it('reporta una fila invalida sin abortar el resto del archivo', async () => {
     const path = escribirCsv('aislamiento3.csv', CABECERA_AISLAMIENTO, [
-      ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
-      '1801605-06,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      ',1500.5,1500.5,2,3.0,0,0,0,1,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      '1801605-06,1500.5,1500.5,2,3.0,0,0,0,1,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
     ])
 
     const { db, llamadas } = crearDbFalsa()
@@ -162,17 +164,17 @@ describe('importarAislamiento', () => {
     {
       titulo: 'rechaza indice_aislamiento no numerico sin llamar a la db',
       archivo: 'aislamiento-indice-invalido.csv',
-      fila: '1801605-07,1500.5,1500.5,2,0,0,0,1,no-es-numero,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      fila: '1801605-07,1500.5,1500.5,2,3.0,0,0,0,1,1,no-es-numero,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
     },
     {
       titulo: 'rechaza cue_anexo vacio sin llamar a la db',
       archivo: 'aislamiento-cue-vacio.csv',
-      fila: ',1500.5,1500.5,2,0,0,0,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
+      fila: ',1500.5,1500.5,2,3.0,0,0,0,1,1,1,,42.5,1,2026-09-26,"© OpenStreetMap contributors, ODbL"',
     },
     {
       titulo: 'rechaza fecha_extracto_osm con formato no ISO sin llamar a la db',
       archivo: 'aislamiento-fecha-invalida.csv',
-      fila: '1801605-08,1500.5,1500.5,2,0,0,0,1,1,,42.5,1,26-09-2026,"© OpenStreetMap contributors, ODbL"',
+      fila: '1801605-08,1500.5,1500.5,2,3.0,0,0,0,1,1,1,,42.5,1,26-09-2026,"© OpenStreetMap contributors, ODbL"',
     },
   ])('$titulo', async ({ archivo, fila }) => {
     await rechazaCsv(importarAislamiento, archivo, [fila])

@@ -92,10 +92,12 @@ CONTRATO_COLUMNAS = [
     "distancia_via_pavimentada_m",
     "distancia_cabecera_departamental_m",
     "tramos_sin_pavimentar_count",
+    "tramos_sin_pavimentar_km",
     "cruces_agua_count",
     "cruces_agua_con_puente_count",
     "cruces_agua_con_vado_count",
     "tiene_alternativa_sin_cruce",
+    "tiene_alternativa_pavimentada",
     "indice_aislamiento",
     "motivo_sin_datos",
     "snap_distancia_m",
@@ -301,6 +303,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         construir_cruces_por_arista,
         construir_geometrias_agua_y_fords_local,
         construir_grafo_seguro,
+        construir_grafo_pavimentado,
         construir_indice_aristas,
         construir_indice_no_conectadas,
         construir_red,
@@ -432,6 +435,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         # multi-destino en vez de un shortest_path/has_path por escuela.
         grafo_invertido = grafo.reverse(copy=False)
         grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
+        grafo_pavimentado_invertido = construir_grafo_pavimentado(grafo).reverse(copy=False)
 
         # Las localidades se buscan en toda la provincia, sin filtrar por
         # departamento. nearest_nodes vectoriza un unico snap para todas.
@@ -475,6 +479,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             grafo_invertido,
             {nodo: localidad["nombre"] for nodo, localidad in destinos_por_nodo.items()},
             grafo_seguro_invertido=grafo_seguro_invertido,
+            grafo_pavimentado_invertido=grafo_pavimentado_invertido,
         )
 
         registros_geometria: list[dict] = []
@@ -531,6 +536,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                         metricas["cruces_agua_con_puente_count"],
                         metricas["cruces_agua_con_vado_count"],
                         metricas["tiene_alternativa_sin_cruce"],
+                        tramos_sin_pavimentar_km=metricas["tramos_sin_pavimentar_km"],
+                        tiene_alternativa_pavimentada=metricas["tiene_alternativa_pavimentada"],
                     )
                     filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
                     registros_geometria.append(
@@ -654,6 +661,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     metricas["cruces_agua_con_puente_count"],
                     metricas["cruces_agua_con_vado_count"],
                     metricas["tiene_alternativa_sin_cruce"],
+                    tramos_sin_pavimentar_km=metricas["tramos_sin_pavimentar_km"],
+                    tiene_alternativa_pavimentada=metricas["tiene_alternativa_pavimentada"],
                 )
                 filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
 
