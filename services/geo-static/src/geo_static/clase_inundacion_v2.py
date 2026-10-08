@@ -24,6 +24,19 @@ CLASE_SIN_RIESGO = "sin_riesgo"
 CLASE_SIN_DATO = "sin_dato"
 
 
+def es_agua_permanente(profundidades: dict[int, float | None]) -> bool:
+    """True si RP10, RP100 y RP500 tienen la misma profundidad positiva.
+
+    Un rio real se profundiza al crecer el periodo de retorno. Una profundidad
+    identica en todos los periodos indica un cuerpo de agua permanente (laguna,
+    embalse) codificado con un valor fijo, no inundacion fluvial.
+    """
+    valores = [profundidades.get(rp) for rp in (RP_ALTO, RP_MEDIO, RP_BAJO)]
+    if any(valor is None or valor <= 0 for valor in valores):
+        return False
+    return max(valores) - min(valores) <= 1e-6
+
+
 def clasificar_rio(
     profundidades: dict[int, float | None],
     margenes: dict[int, float | None] | None = None,
@@ -32,6 +45,7 @@ def clasificar_rio(
 
     Reglas, en orden:
     - Si falta alguno de los tres periodos o es None: "sin_dato".
+    - Agua permanente (ver es_agua_permanente): "sin_riesgo".
     - Alcanza RP10: "alto".
     - Alcanza RP100: "medio".
     - Alcanza RP500: "bajo".
@@ -48,6 +62,12 @@ def clasificar_rio(
     periodos = (RP_ALTO, RP_MEDIO, RP_BAJO)
     if any(profundidades.get(rp) is None for rp in periodos):
         return CLASE_SIN_DATO
+
+    # Una profundidad fija e identica en RP10, RP100 y RP500 es un cuerpo de agua
+    # permanente (laguna, embalse), no un rio que crece con el periodo de retorno.
+    # Se descarta antes de los umbrales para que no cuente como riesgo alto.
+    if es_agua_permanente(profundidades):
+        return CLASE_SIN_RIESGO
 
     if _alcanza(profundidades, margenes, RP_ALTO):
         return CLASE_ALTO

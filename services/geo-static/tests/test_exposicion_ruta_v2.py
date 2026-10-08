@@ -15,7 +15,7 @@ from geo_static.exposicion_ruta_v2 import (
 # Transformada sintetica: pixeles de 0.001 grados, esquina superior izquierda (-59, -27).
 TRANSFORM = from_origin(-59.0, -27.0, 0.001, 0.001)
 
-ALTO = {10: 1.0, 100: 1.0, 500: 1.0}
+ALTO = {10: 1.5, 100: 1.2, 500: 1.0}
 MEDIO = {10: 0.0, 100: 0.5, 500: 1.0}
 BAJO = {10: 0.0, 100: 0.0, 500: 0.5}
 SIN_RIESGO = {10: 0.0, 100: 0.0, 500: 0.0}
@@ -242,3 +242,14 @@ def test_resumir_ruta_profundidad_max_none_sin_datos_en_ningun_pixel():
     assert resumen["profundidad_max_rp10_m"] is None
     assert resumen["profundidad_max_rp100_m"] is None
     assert resumen["profundidad_max_rp500_m"] is None
+
+
+def test_pixeles_de_agua_permanente_no_cuentan_como_expuestos():
+    agua_permanente = {10: 1.0, 100: 1.0, 500: 1.0}
+    pixeles = [agua_permanente] * 5 + [SIN_RIESGO]
+
+    resumen = resumir_exposicion_v2(pixeles)
+
+    assert resumen["clase_ruta"] == "sin_riesgo"
+    assert resumen["muestras_expuestas"] == 0
+    assert resumen["muestras_sin_dato"] == 0

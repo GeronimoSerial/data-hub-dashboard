@@ -1,6 +1,7 @@
 from geo_static.clase_inundacion_v2 import (
     UMBRAL_PROFUNDIDAD_M,
     clasificar_rio,
+    es_agua_permanente,
 )
 
 
@@ -63,3 +64,41 @@ def test_margen_no_eleva_periodo_que_no_alcanza_profundidad():
 
 def test_sin_margenes_comportamiento_original():
     assert clasificar_rio(_perfil(1.2, 2.0, 2.5), None) == "alto"
+
+
+def test_profundidad_constante_es_agua_permanente():
+    assert es_agua_permanente(_perfil(1.0, 1.0, 1.0)) is True
+
+
+def test_profundidad_creciente_no_es_agua_permanente():
+    assert es_agua_permanente(_perfil(1.0, 1.2, 1.5)) is False
+
+
+def test_profundidad_cero_o_negativa_no_es_agua_permanente():
+    assert es_agua_permanente(_perfil(0.0, 0.0, 0.0)) is False
+    assert es_agua_permanente(_perfil(-1.0, -1.0, -1.0)) is False
+
+
+def test_periodo_faltante_no_es_agua_permanente():
+    assert es_agua_permanente(_perfil(None, 1.0, 1.0)) is False
+    assert es_agua_permanente({10: 1.0, 100: 1.0}) is False
+
+
+def test_tolerancia_de_un_millonesimo_sigue_siendo_permanente():
+    assert es_agua_permanente(_perfil(1.0, 1.0 + 2e-7, 1.0 - 2e-7)) is True
+
+
+def test_constante_1m_es_sin_riesgo_y_no_alto():
+    assert clasificar_rio(_perfil(1.0, 1.0, 1.0)) == "sin_riesgo"
+
+
+def test_creciente_1_0_1_2_1_5_sigue_siendo_alto():
+    assert clasificar_rio(_perfil(1.0, 1.2, 1.5)) == "alto"
+
+
+def test_agua_permanente_no_depende_de_margenes():
+    assert clasificar_rio(_perfil(1.0, 1.0, 1.0), {10: -1.0, 100: -1.0, 500: -1.0}) == "sin_riesgo"
+
+
+def test_sin_dato_tiene_prioridad_sobre_agua_permanente():
+    assert clasificar_rio(_perfil(None, 1.0, 1.0)) == "sin_dato"

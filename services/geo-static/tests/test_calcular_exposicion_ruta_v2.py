@@ -29,7 +29,7 @@ class LectorMargenStub:
 
 
 def test_registro_ruta_con_alto_y_identificadores():
-    lector = LectorStub({10: 1.0, 100: 1.0, 500: 1.0})
+    lector = LectorStub({10: 1.5, 100: 1.2, 500: 1.0})
     margen = LectorMargenStub({10: -0.5, 100: -0.5, 500: -0.5})
     registro = construir_registro_ruta(
         {"cue_anexo": "1801164-00", "ruta": RUTA}, lector, margen, TRANSFORM, "2026-10-08", {}
@@ -46,7 +46,7 @@ def test_registro_ruta_con_alto_y_identificadores():
 
 
 def test_margen_positivo_no_deja_clasificar_como_alto():
-    lector = LectorStub({10: 1.0, 100: 1.0, 500: 1.0})
+    lector = LectorStub({10: 1.5, 100: 1.2, 500: 1.0})
     margen = LectorMargenStub({10: 2.0, 100: 2.0, 500: 2.0})
     registro = construir_registro_ruta(
         {"cue_anexo": "1801164-00", "ruta": RUTA}, lector, margen, TRANSFORM, "2026-10-08", {}
@@ -56,7 +56,7 @@ def test_margen_positivo_no_deja_clasificar_como_alto():
 
 
 def test_margenes_se_cachean_por_pixel_entre_escuelas():
-    lector = LectorStub({10: 1.0, 100: 1.0, 500: 1.0})
+    lector = LectorStub({10: 1.5, 100: 1.2, 500: 1.0})
     margen = LectorMargenStub({10: -0.5, 100: -0.5, 500: -0.5})
     cache: dict = {}
     escuela = {"cue_anexo": "1801164-00", "ruta": RUTA}
@@ -69,7 +69,7 @@ def test_margenes_se_cachean_por_pixel_entre_escuelas():
 
 
 def test_registro_sin_ruta_es_sin_ruta_y_conserva_motivo():
-    lector = LectorStub({10: 1.0, 100: 1.0, 500: 1.0})
+    lector = LectorStub({10: 1.5, 100: 1.2, 500: 1.0})
     margen = LectorMargenStub({10: -0.5, 100: -0.5, 500: -0.5})
     escuela = {"cue_anexo": "1800001-00", "ruta": None, "motivo_sin_geometria": "sin_via_osm_cercana"}
     registro = construir_registro_ruta(escuela, lector, margen, TRANSFORM, "2026-10-08", {})
