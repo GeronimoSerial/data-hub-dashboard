@@ -91,18 +91,18 @@ afterEach(() => {
 })
 
 describe('FichaAccesoTerritorial - estados', () => {
-  it('oculta los valores de agua estimada aunque existan datos', () => {
+  it('el agua estimada se muestra sólo como tags, sin metros ni línea de exposición', () => {
     renderFicha({ territorio: TERRITORIO_COMPLETO, exposicion: exposicion() })
-    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
-    expect(screen.queryByTestId('ficha-acceso-susceptibilidad')).not.toBeInTheDocument()
+    expect(screen.getByTestId('ficha-acceso-susceptibilidad-valor').textContent).not.toMatch(/\d\s?m\b/)
     expect(screen.queryByTestId('ficha-acceso-exposicion-ruta')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-exposicion-detalle')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-acceso-susceptibilidad-periodo')).not.toBeInTheDocument()
   })
 
   it('muestra el título y el estado de carga territorial', () => {
     renderFicha({ territorioLoading: true })
 
-    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino')
-    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('ficha-acceso-territorial')).toHaveTextContent('Acceso por camino y agua estimada')
     expect(screen.getByRole('status')).toHaveTextContent('Cargando datos territoriales…')
   })
 
@@ -120,7 +120,9 @@ describe('FichaAccesoTerritorial - estados', () => {
     expect(screen.getByTestId('ficha-acceso-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
     )
-    expect(screen.queryByTestId('ficha-acceso-susceptibilidad')).not.toBeInTheDocument()
+    expect(screen.getByTestId('ficha-acceso-susceptibilidad-sin-datos')).toHaveTextContent(
+      'Sin datos de agua estimada cargados.',
+    )
   })
 
   it('sin ninguna capa importada no ofrece un detalle vacío', () => {

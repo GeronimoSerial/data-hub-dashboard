@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 import type { SusceptibilidadEscuelaMapa } from '@/lib/infraestructura/territorio-mapa'
-
-// La capa de inundación está oculta por flag en producción. Estos tests la
-// prueban encendida, en un archivo propio para no alterar los de la ficha con
-// la flag apagada.
-vi.mock('@/lib/mapas/flags', () => ({ MOSTRAR_AGUA_ESTIMADA: true }))
 
 import { FichaAccesoTerritorial } from './ficha-acceso-territorial'
 

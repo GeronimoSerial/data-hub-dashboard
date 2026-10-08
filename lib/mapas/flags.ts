@@ -1,2 +1,2 @@
-// El usuario pidió ocultar esta capa mientras se prepara un rediseño de producto.
-export const MOSTRAR_AGUA_ESTIMADA = false
+// Capa de agua estimada visible otra vez, con el modelo de inundación v2 (clase de río y laguna).
+export const MOSTRAR_AGUA_ESTIMADA = true

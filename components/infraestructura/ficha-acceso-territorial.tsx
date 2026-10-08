@@ -8,7 +8,6 @@ import {
   TEXTOS_ACCESOS,
   claseInundacion,
   textoMotivoSinRuta,
-  textoConPeriodo,
   type ClaseInundacion,
 } from '@/lib/mapas/accesos-capas'
 import type {
@@ -48,11 +47,6 @@ export interface FichaAccesoTerritorialProps {
 
 const ID_TITULO = 'ficha-acceso-territorial-titulo'
 
-// Profundidad en metros con dos decimales y coma decimal (es-AR): 1.234 -> '1,23'.
-function formatearMetros(valor: number): string {
-  return valor.toFixed(2).replace('.', ',')
-}
-
 // Motivos de recorrido no disponible. Son continuaciones en minúscula de
 // "Sin recorrido para mostrar:", así que se leen como una sola frase. Un
 // motivo nuevo cae al texto genérico en vez de tragarse el dato. La fuente de
@@ -90,17 +84,6 @@ const BADGE_CLASE_INUNDACION: Record<ClaseInundacion, string> = {
   bajo: 'badge--neutral',
   sin_riesgo: 'badge--success',
   sin_dato: 'badge--neutral',
-}
-
-function textoExposicionRuta(exposicion: ExposicionRutaRespuesta): string {
-  if (!exposicion.disponible) return 'Agua estimada junto al camino: sin dato.'
-  const cobertura = exposicion.resumen.cobertura < 1
-    ? ` Dato en ${Math.round(exposicion.resumen.cobertura * 100)} % de la ruta.`
-    : ''
-  if (exposicion.estado === 'con_profundidad') {
-    return `Agua estimada junto al camino: ${exposicion.resumen.celdasConProfundidad} zonas de ~1 km (hasta ${formatearMetros(exposicion.resumen.profundidadMaxM ?? 0)} m).${cobertura}`
-  }
-  return `Agua estimada junto al camino: ninguna según el modelo.${cobertura}`
 }
 
 // Resumen de lo que el cálculo realmente dibujó. Sólo con geometría
@@ -149,22 +132,15 @@ export function FichaAccesoTerritorial({
   geometria,
   geometriaLoading,
   geometriaError,
-  exposicion,
-  exposicionLoading = false,
-  exposicionError = null,
   onVerRutaEnMapa,
 }: FichaAccesoTerritorialProps): JSX.Element {
   const aislamiento = territorio?.aislamiento ?? null
   const filaAislamiento = aislamiento?.escuelas[cueAnexo]
   const susceptibilidad = territorio?.susceptibilidad ?? null
   const filaSusceptibilidad = susceptibilidad?.escuelas[cueAnexo]
-  const profundidad = MOSTRAR_AGUA_ESTIMADA ? filaSusceptibilidad?.inundacionFluvialM ?? null : null
-  // El 0 m es "el modelo no estima agua en ese punto", no "se inundó 0 m": se
-  // cuenta como ausencia de agua estimada, nunca como nivel bajo.
-  const sinAguaEstimada = profundidad !== null && !(profundidad > 0)
-  // Sin ninguna de las dos capas no hay nada que detallar: alcanza con decir
-  // que no hay datos importados.
-  const hayDetalle = aislamiento !== null || (MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null) || (MOSTRAR_AGUA_ESTIMADA && exposicion != null)
+  // Sin datos de aislamiento no hay detalle que mostrar. La inundación no
+  // aporta detalle: en la ficha sólo se muestran tags.
+  const hayDetalle = aislamiento !== null
 
   return (
     <section
@@ -244,15 +220,6 @@ export function FichaAccesoTerritorial({
             )}
           </div>}
 
-          {MOSTRAR_AGUA_ESTIMADA && (exposicionLoading || exposicionError !== null || exposicion != null) && (
-            <p data-testid="ficha-acceso-exposicion-ruta">
-              {exposicionLoading
-                ? 'Agua estimada en el camino: cargando…'
-                : exposicionError !== null
-                  ? 'Agua estimada en el camino: sin dato.'
-                  : textoExposicionRuta(exposicion!)}
-            </p>
-          )}
           <p className="ficha-territorial__fuente">{TEXTOS_ACCESOS.detalleDatos}</p>
 
           {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
@@ -341,57 +308,6 @@ export function FichaAccesoTerritorial({
                     aislamiento.fechaExtractoOsm,
                     aislamiento.versionJob,
                   )}
-                </p>
-              )}
-
-              {MOSTRAR_AGUA_ESTIMADA && <p className="ficha-territorial__subtitulo">
-                <strong>Agua estimada en la escuela</strong>
-              </p>}
-              {MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null && (
-                <>
-                  <p data-testid="ficha-acceso-susceptibilidad-subtitulo">
-                    {textoConPeriodo(
-                      TEXTOS_ACCESOS.subtituloInundacion,
-                      susceptibilidad.periodoRetornoAnios,
-                    )}
-                  </p>
-                  <p data-testid="ficha-acceso-susceptibilidad-que-mide">
-                    {textoConPeriodo(
-                      TEXTOS_ACCESOS.queMideInundacion,
-                      susceptibilidad.periodoRetornoAnios,
-                    )}
-                  </p>
-                  <p data-testid="ficha-acceso-susceptibilidad-periodo">
-                    {textoConPeriodo(TEXTOS_ACCESOS.periodoEscenario, susceptibilidad.periodoRetornoAnios)}
-                  </p>
-                </>
-              )}
-              {exposicion != null && (
-                <p data-testid="ficha-acceso-exposicion-detalle">
-                  Resolución {exposicion.resolucionArcsec ?? 30} arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce · período de retorno {exposicion.periodoRetornoAnios ?? 100} años · escenario histórico · fuente WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0) · corrida {exposicion.fechaCorrida ?? 'sin fecha'}. No es un pronóstico, ni el estado del camino, ni el trazado de un río.
-                </p>
-              )}
-              {sinAguaEstimada && (
-                <p data-testid="ficha-acceso-susceptibilidad-sin-profundidad">
-                  {TEXTOS_ACCESOS.sinProfundidad}
-                </p>
-              )}
-              {(susceptibilidad === null ||
-                filaSusceptibilidad === undefined ||
-                profundidad === null) && (
-                <p data-testid="ficha-acceso-detalle-sin-cobertura">
-                  {TEXTOS_ACCESOS.sinCobertura}
-                </p>
-              )}
-              <p data-testid="ficha-acceso-susceptibilidad-no-representa">
-                {TEXTOS_ACCESOS.noRepresentaInundacion}
-              </p>
-              {susceptibilidad !== null && (
-                <p
-                  className="ficha-territorial__fuente"
-                  data-testid="ficha-acceso-susceptibilidad-fuente"
-                >
-                  Fuente: OS-Climate physrisk (Apache-2.0) · corrida {susceptibilidad.fechaCorrida}
                 </p>
               )}
 
