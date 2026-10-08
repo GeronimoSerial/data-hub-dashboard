@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, Route, ShieldAlert, TriangleAlert } from 'lucide-react'
+import { Check, Route, School, TriangleAlert } from 'lucide-react'
 import { lineasAcceso, type EtiquetaRiesgoAcceso } from '@/lib/infraestructura/mapa/acceso'
 import type { ExposicionRutaRespuesta } from '@/lib/infraestructura/exposicion-ruta'
 import type { GeometriaAccesoRespuesta } from '@/lib/infraestructura/territorio-mapa'
@@ -62,11 +62,12 @@ export function BloqueAcceso({
       )}
       <div className="map-bloque-acceso__inundacion" data-testid="bloque-acceso-inundacion">
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-escuela">
+          <School aria-hidden="true" />
           <span className={claseCss(etiquetaEscuela)}>Escuela: {etiquetaEscuela}</span>
           {juntoLaguna && <span className="badge badge--neutral" data-testid="bloque-acceso-laguna">Junto a laguna</span>}
         </div>
         <div className="map-bloque-acceso__fila" data-testid="bloque-acceso-riesgo">
-          <ShieldAlert aria-hidden="true" />
+          <Route aria-hidden="true" />
           <span className={claseCss(etiquetaCamino)}>Camino: {etiquetaCamino}</span>
         </div>
       </div>
