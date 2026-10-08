@@ -14,6 +14,9 @@
  *   node scripts/importar-geo-static.mjs --exposicion-ruta <path.ndjson.gz>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --susceptibilidad <s.csv>
  *   node scripts/importar-geo-static.mjs --aislamiento <a.csv> --geometria <g.ndjson.gz>
+ *   node scripts/importar-geo-static.mjs --inundacion-v2 <inundacion_v2.csv> --exposicion-ruta-v2 <ruta_v2.ndjson.gz>
+ * Las capas v2 solo actualizan sus columnas v2 en filas existentes (por cue_anexo);
+ * no tocan las columnas v1.
  * Si no se indican opciones, importa los archivos reconocidos en
  * GEO_STATIC_OUTPUT_DIR (por defecto services/geo-static/output junto al repo/script).
  */
@@ -21,7 +24,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { gunzipSync } from 'node:zlib'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
 import { registerTsResolver } from './lib/register-ts-resolver.mjs'
@@ -41,12 +44,14 @@ function parsearArgs(argv) {
     else if (argv[i] === '--susceptibilidad') args.susceptibilidad = argv[++i]
     else if (argv[i] === '--geometria') args.geometria = argv[++i]
     else if (argv[i] === '--exposicion-ruta') args.exposicionRuta = argv[++i]
+    else if (argv[i] === '--inundacion-v2') args.inundacionV2 = argv[++i]
+    else if (argv[i] === '--exposicion-ruta-v2') args.exposicionRutaV2 = argv[++i]
   }
   return args
 }
 
 /**
- * @typedef {{ aislamiento?: string, susceptibilidad?: string, geometria?: string, exposicionRuta?: string }} ArchivosGeoStatic
+ * @typedef {{ aislamiento?: string, susceptibilidad?: string, geometria?: string, exposicionRuta?: string, inundacionV2?: string, exposicionRutaV2?: string }} ArchivosGeoStatic
  */
 
 /**
@@ -60,13 +65,19 @@ export function descubrirArchivosGeoStatic(archivos, dir) {
   const aislamiento = ultimoQueCoincide(/^aislamiento_osm-v.*\.csv$/)
   const susceptibilidad = ultimoQueCoincide(/^susceptibilidad_estatica-v.*\.csv$/)
   const geometria = ultimoQueCoincide(/^accesos_osm_geometria-v.*\.ndjson\.gz$/)
-  const exposicionRuta = ultimoQueCoincide(/^exposicion_ruta_inundacion-v.*\.ndjson\.gz$/)
+  // v1 y v2 de ruta comparten prefijo: cada kind filtra su propia versión para que
+  // el más reciente lexicográfico de v2 no se importe como v1 (o al revés).
+  const exposicionRuta = ultimoQueCoincide(/^exposicion_ruta_inundacion-v1-.*\.ndjson\.gz$/)
+  const inundacionV2 = ultimoQueCoincide(/^inundacion_v2-v.*\.csv$/)
+  const exposicionRutaV2 = ultimoQueCoincide(/^exposicion_ruta_inundacion-v2-.*\.ndjson\.gz$/)
 
   return {
     ...(aislamiento ? { aislamiento: join(dir, aislamiento) } : {}),
     ...(susceptibilidad ? { susceptibilidad: join(dir, susceptibilidad) } : {}),
     ...(geometria ? { geometria: join(dir, geometria) } : {}),
     ...(exposicionRuta ? { exposicionRuta: join(dir, exposicionRuta) } : {}),
+    ...(inundacionV2 ? { inundacionV2: join(dir, inundacionV2) } : {}),
+    ...(exposicionRutaV2 ? { exposicionRutaV2: join(dir, exposicionRutaV2) } : {}),
   }
 }
 
@@ -331,7 +342,9 @@ const setGeometriaExcluido = {
 
 const TAMANO_LOTE_GEOMETRIA = 200
 
-async function importarNdjson(path, { db, tabla }, mapearFila, schemaFila, set, etiqueta) {
+/** Parsea y valida un NDJSON.gz fila por fila: devuelve las filas validas ya
+ * mapeadas y cuenta las invalidas sin abortar el archivo. */
+function parsearNdjson(path, mapearFila, schemaFila) {
   const lineas = leerNdjsonGz(path)
   let fallidas = 0
   const validas = []
@@ -359,6 +372,11 @@ async function importarNdjson(path, { db, tabla }, mapearFila, schemaFila, set, 
     }
     validas.push(parseo.data)
   }
+  return { lineas, validas, fallidas }
+}
+
+async function importarNdjson(path, { db, tabla }, mapearFila, schemaFila, set, etiqueta) {
+  const { lineas, validas, fallidas } = parsearNdjson(path, mapearFila, schemaFila)
 
   for (let i = 0; i < validas.length; i += TAMANO_LOTE_GEOMETRIA) {
     const lote = validas.slice(i, i + TAMANO_LOTE_GEOMETRIA)
@@ -454,15 +472,150 @@ export async function importarExposicionRuta(path, opts) {
   )
 }
 
+// ---------------------------------------------------------------------------
+// Capas v2 de inundación (JRC 90 m). Solo actualizan columnas v2 de filas que
+// ya existen (v1 importado), identificadas por cue_anexo. No crean filas: la
+// fila v1 aporta las columnas NOT NULL que la capa v2 no trae.
+// ---------------------------------------------------------------------------
+
+/** Booleano en texto del CSV v2 ('True'/'False'); vacio → null. Otro texto
+ * se deja como string para que el schema lo rechace. */
+const booleanoTextoONull = (v) => {
+  if (v === '' || v === undefined) return null
+  if (v === 'True') return true
+  if (v === 'False') return false
+  return v
+}
+
+/** Numero de un JSON: null/undefined/'' → null (Number(null) daría 0). */
+const numeroJsonONull = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+
+function mapearFilaInundacionV2(fila) {
+  return {
+    cueAnexo: fila.cue_anexo,
+    claseRio: vacioANull(fila.clase_rio),
+    profundidadRp10M: numeroONull(fila.profundidad_rp10_m),
+    profundidadRp100M: numeroONull(fila.profundidad_rp100_m),
+    profundidadRp500M: numeroONull(fila.profundidad_rp500_m),
+    margenRp10M: numeroONull(fila.margen_rp10_m),
+    margenRp100M: numeroONull(fila.margen_rp100_m),
+    margenRp500M: numeroONull(fila.margen_rp500_m),
+    juntoLaguna: booleanoTextoONull(fila.junto_laguna),
+    distanciaAguaM: numeroONull(fila.distancia_agua_m),
+    alturaSobreAguaM: numeroONull(fila.altura_sobre_agua_m),
+    versionInundacion: numeroONull(fila.version_job),
+  }
+}
+
+function mapearFilaExposicionRutaV2(fila) {
+  return {
+    cueAnexo: fila.cue_anexo,
+    claseRuta: vacioANull(fila.clase_ruta),
+    muestrasTotal: numeroJsonONull(fila.muestras_total),
+    muestrasExpuestas: numeroJsonONull(fila.muestras_expuestas),
+    muestrasSinDato: numeroJsonONull(fila.muestras_sin_dato),
+    profundidadMaxRp10M: numeroJsonONull(fila.profundidad_max_rp10_m),
+    profundidadMaxRp100M: numeroJsonONull(fila.profundidad_max_rp100_m),
+    profundidadMaxRp500M: numeroJsonONull(fila.profundidad_max_rp500_m),
+  }
+}
+
+const claseInundacionSchema = z.enum(['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'])
+const claseRutaSchema = z.enum(['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato', 'sin_ruta'])
+const profundidadV2Schema = z.number().finite().nonnegative().nullable()
+const enteroNoNegativoV2Schema = z.number().int().nonnegative().nullable()
+
+/** Columnas v2 de infra_susceptibilidad_estatica. versionInundacion = version_job del CSV. */
+const schemaFilaInundacionV2 = z.object({
+  cueAnexo: z.string().min(1, 'cue_anexo no puede estar vacio'),
+  claseRio: claseInundacionSchema.nullable(),
+  profundidadRp10M: profundidadV2Schema,
+  profundidadRp100M: profundidadV2Schema,
+  profundidadRp500M: profundidadV2Schema,
+  margenRp10M: z.number().finite().nullable(),
+  margenRp100M: z.number().finite().nullable(),
+  margenRp500M: z.number().finite().nullable(),
+  juntoLaguna: z.boolean().nullable(),
+  distanciaAguaM: z.number().finite().nonnegative().nullable(),
+  alturaSobreAguaM: z.number().finite().nullable(),
+  versionInundacion: z.number().int().nonnegative(),
+})
+
+/** Columnas v2 de infra_exposicion_ruta_inundacion. */
+const schemaFilaExposicionRutaV2 = z.object({
+  cueAnexo: z.string().min(1, 'cue_anexo no puede estar vacio'),
+  claseRuta: claseRutaSchema.nullable(),
+  muestrasTotal: enteroNoNegativoV2Schema,
+  muestrasExpuestas: enteroNoNegativoV2Schema,
+  muestrasSinDato: enteroNoNegativoV2Schema,
+  profundidadMaxRp10M: profundidadV2Schema,
+  profundidadMaxRp100M: profundidadV2Schema,
+  profundidadMaxRp500M: profundidadV2Schema,
+})
+
+/** Actualiza solo las columnas v2 de la fila existente con ese cue_anexo.
+ * Las filas sin fila v1 base se cuentan aparte (no se insertan). */
+async function actualizarV2(validas, { db, tabla }, etiqueta, procesadas, fallidas) {
+  let ok = 0
+  let sinFilaBase = 0
+  for (const { cueAnexo, ...columnasV2 } of validas) {
+    const actualizadas = await db
+      .update(tabla)
+      .set(columnasV2)
+      .where(eq(tabla.cueAnexo, cueAnexo))
+      .returning({ cueAnexo: tabla.cueAnexo })
+    if (actualizadas.length > 0) ok++
+    else sinFilaBase++
+  }
+  console.log(
+    `[importar-geo-static] ${etiqueta}: procesadas ${procesadas}, ok ${ok}, sin_fila_base ${sinFilaBase}, fallidas ${fallidas}`,
+  )
+  return { procesadas, ok, sinFilaBase, fallidas }
+}
+
+export async function importarInundacionV2(path, opts) {
+  const filas = leerCsv(path).map(mapearFilaInundacionV2)
+  const { validas, fallidas } = validarFilas(filas, schemaFilaInundacionV2)
+  return actualizarV2(validas, opts, 'inundacion-v2', filas.length, fallidas)
+}
+
+export async function importarExposicionRutaV2(path, opts) {
+  const { lineas, validas: mapeadasValidas, fallidas } = parsearNdjson(
+    path, mapearFilaExposicionRutaV2, schemaFilaExposicionRutaV2,
+  )
+  return actualizarV2(mapeadasValidas, opts, 'exposicion-ruta-v2', lineas.length, fallidas)
+}
+
+/** Valida filas ya mapeadas (CSV) con el mismo reporte de fallidas que v1. */
+function validarFilas(filas, schemaFila) {
+  const validas = []
+  let fallidas = 0
+  for (const fila of filas) {
+    const parseo = schemaFila.safeParse(fila)
+    if (!parseo.success) {
+      console.warn(
+        `[importar-geo-static] fila invalida (${fila.cueAnexo ?? '?'}): ${formatearIssues(parseo.error)}`,
+      )
+      fallidas++
+      continue
+    }
+    validas.push(parseo.data)
+  }
+  return { validas, fallidas }
+}
+
 async function main() {
   const args = parsearArgs(process.argv.slice(2))
-  if (!args.aislamiento && !args.susceptibilidad && !args.geometria && !args.exposicionRuta) {
+  const hayArchivos = (a) => Boolean(
+    a.aislamiento || a.susceptibilidad || a.geometria || a.exposicionRuta || a.inundacionV2 || a.exposicionRutaV2,
+  )
+  if (!hayArchivos(args)) {
     const archivos = existsSync(outputDir) ? readdirSync(outputDir) : []
     Object.assign(args, descubrirArchivosGeoStatic(archivos, outputDir))
   }
-  if (!args.aislamiento && !args.susceptibilidad && !args.geometria && !args.exposicionRuta) {
+  if (!hayArchivos(args)) {
     console.error(
-      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>]',
+      'Uso: node scripts/importar-geo-static.mjs --aislamiento <csv> [--susceptibilidad <csv>] [--geometria <ndjson.gz>] [--exposicion-ruta <ndjson.gz>] [--inundacion-v2 <csv>] [--exposicion-ruta-v2 <ndjson.gz>]',
     )
     process.exit(1)
   }
@@ -485,6 +638,13 @@ async function main() {
   }
   if (args.exposicionRuta) {
     await importarExposicionRuta(args.exposicionRuta, { db, tabla: infraExposicionRutaInundacion })
+  }
+  // v2 después de v1: necesitan la fila base (cue_anexo) ya importada.
+  if (args.inundacionV2) {
+    await importarInundacionV2(args.inundacionV2, { db, tabla: infraSusceptibilidadEstatica })
+  }
+  if (args.exposicionRutaV2) {
+    await importarExposicionRutaV2(args.exposicionRutaV2, { db, tabla: infraExposicionRutaInundacion })
   }
 }
 

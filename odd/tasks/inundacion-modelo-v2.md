@@ -106,7 +106,7 @@ Route: same five classes, computed over the route samples (worst class along the
 ### Phase 3 — DB and import
 - [x] **T7. Migration.** Drizzle migration for school flood v2 and route exposure v2 columns;
   update `lib/db/schema.ts`. v1 columns kept until UI switch is verified, then dropped in a follow-up.
-- [ ] **T8. Import.** `scripts/importar-geo-static.mjs`: zod schema for contract v2 (school + route),
+- [x] **T8. Import.** `scripts/importar-geo-static.mjs`: zod schema for contract v2 (school + route),
   upsert, tests in `scripts/importar-geo-static.test.ts`.
 - Checks: `pnpm vitest run scripts/importar-geo-static.test.ts`, `pnpm exec tsc --noEmit`.
 
@@ -170,3 +170,4 @@ sends fixes to another fresh Haiku.
   sin_ruta 12 (`output/exposicion_ruta_inundacion-v2-2026-10-08.ndjson.gz`, 959 s). Controls: 1801164-00 route
   sin_riesgo; 1801166-00 route sin_riesgo (lagoon access not modelled). 242 passed. Still uncommitted.
 - 2026-10-08: local commits d5b1286 (Phase 1) and d5a34f6 (Phase 2) on feat/inundacion-v2-datos. No push/PR yet.
+- 2026-10-08: Phase 3 done. T7 ba0c48a (17 nullable columns). T8 importer updates v2 columns by cue_anexo (no row inserts); demo DB imported 2001/2001 both layers; vitest 32 passed, tsc ok.

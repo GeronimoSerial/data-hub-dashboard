@@ -3,12 +3,17 @@ import { gzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { infraExposicionRutaInundacion, infraSusceptibilidadEstatica } from '../lib/db/schema'
 import {
   descubrirArchivosGeoStatic,
   importarAislamiento,
   importarSusceptibilidad,
   importarGeometria,
   importarExposicionRuta,
+  importarInundacionV2,
+  importarExposicionRutaV2,
 } from './importar-geo-static.mjs'
 
 describe('descubrirArchivosGeoStatic', () => {
@@ -34,6 +39,18 @@ describe('descubrirArchivosGeoStatic', () => {
 
   it('devuelve un objeto vacio cuando no hay archivos', () => {
     expect(descubrirArchivosGeoStatic([], '/salida')).toEqual({})
+  })
+
+  it('separa la exposicion de ruta v1 de la v2 y descubre la capa de inundacion v2', () => {
+    expect(descubrirArchivosGeoStatic([
+      'exposicion_ruta_inundacion-v1-2026-10-05.ndjson.gz',
+      'exposicion_ruta_inundacion-v2-2026-10-08.ndjson.gz',
+      'inundacion_v2-v1-2026-10-08.csv',
+    ], '/salida')).toEqual({
+      exposicionRuta: '/salida/exposicion_ruta_inundacion-v1-2026-10-05.ndjson.gz',
+      exposicionRutaV2: '/salida/exposicion_ruta_inundacion-v2-2026-10-08.ndjson.gz',
+      inundacionV2: '/salida/inundacion_v2-v1-2026-10-08.csv',
+    })
   })
 
   it('elige la versión lexicográficamente más reciente de cada capa', () => {
@@ -467,5 +484,151 @@ describe('importarExposicionRuta', () => {
     const resultado = await importarExposicionRuta(path, { db: db as never, tabla: tablaExposicionRutaFalsa as never })
     expect(resultado).toEqual({ procesadas: 2, ok: 0, fallidas: 2 })
     expect(llamadas).toHaveLength(0)
+  })
+})
+
+const CABECERA_INUNDACION_V2 = 'cue_anexo,clase_rio,profundidad_rp10_m,profundidad_rp20_m,profundidad_rp50_m,profundidad_rp75_m,profundidad_rp100_m,profundidad_rp200_m,profundidad_rp500_m,margen_rp10_m,margen_rp100_m,margen_rp500_m,junto_laguna,distancia_agua_m,altura_sobre_agua_m,version_job,fecha_corrida,fuente,licencia'
+const LICENCIA_JRC = '"JRC/CEMS-GLOFAS, sin restricciones de uso"'
+
+/** Fake de update: registra el set y la condición (SQL) de cada UPDATE, y
+ * devuelve filas solo para los cue_anexo que `existentes` declara. */
+function crearDbFalsaUpdate(existentes: Set<string>) {
+  const actualizaciones: Array<{ set: Record<string, unknown>; cue: unknown }> = []
+  const dialecto = new PgDialect()
+  const db = {
+    update(_tabla: unknown) {
+      return {
+        set(valores: Record<string, unknown>) {
+          return {
+            where(condicion: SQL) {
+              const { params } = dialecto.sqlToQuery(condicion)
+              const cue = params[0]
+              actualizaciones.push({ set: valores, cue })
+              const filas = existentes.has(String(cue)) ? [{ cueAnexo: String(cue) }] : []
+              return { returning: () => Promise.resolve(filas) }
+            },
+          }
+        },
+      }
+    },
+  }
+  return { db, actualizaciones }
+}
+
+const COLUMNAS_V1_SUSCEPTIBILIDAD = ['fuente', 'licencia', 'importadoEn', 'fechaCorrida', 'periodoRetornoAnios']
+
+describe('importarInundacionV2', () => {
+  it('parsea booleanos True/False, vacios a null y solo actualiza columnas v2 por cue_anexo', async () => {
+    const path = escribirCsv('inundacion-v2.csv', CABECERA_INUNDACION_V2, [
+      `1801605-04,sin_riesgo,0.0,0.0,0.0,0.0,0.0,0.0,0.0,8.06,4.83,3.12,False,217.67,16.36,1,2026-10-08,JRC,${LICENCIA_JRC}`,
+      `1800643-00,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,True,,,1,2026-10-08,JRC,${LICENCIA_JRC}`,
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set(['1801605-04', '1800643-00']))
+
+    const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
+
+    expect(resultado).toEqual({ procesadas: 2, ok: 2, sinFilaBase: 0, fallidas: 0 })
+    expect(actualizaciones).toHaveLength(2)
+    expect(actualizaciones[0].cue).toBe('1801605-04')
+    expect(actualizaciones[0].set.claseRio).toBe('sin_riesgo')
+    expect(actualizaciones[0].set.juntoLaguna).toBe(false)
+    expect(actualizaciones[0].set.distanciaAguaM).toBe(217.67)
+    expect(actualizaciones[0].set.versionInundacion).toBe(1)
+    expect(actualizaciones[1].set.claseRio).toBeNull()
+    expect(actualizaciones[1].set.margenRp10M).toBeNull()
+    expect(actualizaciones[1].set.distanciaAguaM).toBeNull()
+    expect(actualizaciones[1].set.alturaSobreAguaM).toBeNull()
+    expect(actualizaciones[1].set.juntoLaguna).toBe(true)
+    for (const { set } of actualizaciones) {
+      for (const columna of COLUMNAS_V1_SUSCEPTIBILIDAD) {
+        expect(set).not.toHaveProperty(columna)
+      }
+    }
+  })
+
+  it('rechaza una clase_rio fuera del dominio sin llamar a la db', async () => {
+    const path = escribirCsv('inundacion-v2-clase.csv', CABECERA_INUNDACION_V2, [
+      `1800908-02,critico,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,False,,,1,2026-10-08,JRC,${LICENCIA_JRC}`,
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set(['1800908-02']))
+
+    const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, sinFilaBase: 0, fallidas: 1 })
+    expect(actualizaciones).toHaveLength(0)
+  })
+
+  it('rechaza junto_laguna distinto de True/False y version_job vacio', async () => {
+    const path = escribirCsv('inundacion-v2-bool.csv', CABECERA_INUNDACION_V2, [
+      `1800908-03,sin_riesgo,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,1,,,1,2026-10-08,JRC,${LICENCIA_JRC}`,
+      `1800908-04,sin_riesgo,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,False,,,,2026-10-08,JRC,${LICENCIA_JRC}`,
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set(['1800908-03', '1800908-04']))
+
+    const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
+
+    expect(resultado).toEqual({ procesadas: 2, ok: 0, sinFilaBase: 0, fallidas: 2 })
+    expect(actualizaciones).toHaveLength(0)
+  })
+
+  it('cuenta como sin_fila_base las filas sin registro v1 y no las inserta', async () => {
+    const path = escribirCsv('inundacion-v2-sinbase.csv', CABECERA_INUNDACION_V2, [
+      `1800908-05,sin_riesgo,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,,False,,,1,2026-10-08,JRC,${LICENCIA_JRC}`,
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set())
+
+    const resultado = await importarInundacionV2(path, { db: db as never, tabla: infraSusceptibilidadEstatica })
+
+    expect(resultado).toEqual({ procesadas: 1, ok: 0, sinFilaBase: 1, fallidas: 0 })
+    expect(actualizaciones).toHaveLength(1)
+  })
+})
+
+describe('importarExposicionRutaV2', () => {
+  function filaRutaV2(overrides: Record<string, unknown> = {}) {
+    return {
+      cue_anexo: '1800001-00', version_job: 2, clase_ruta: 'alto', muestras_total: 408,
+      muestras_expuestas: 36, muestras_sin_dato: 0, profundidad_max_rp10_m: 1.0,
+      profundidad_max_rp100_m: 1.0, profundidad_max_rp500_m: 1.0, min_pixeles_expuestos: 3,
+      motivo_sin_dato: null, paso_muestreo_m: 90, fuente: 'JRC River Flood Hazard Maps v2.1',
+      fecha_corrida: '2026-10-08', ...overrides,
+    }
+  }
+
+  it('acepta las clases de ruta incluidas sin_ruta y sin_dato y conserva null como null', async () => {
+    const path = escribirNdjsonGz('ruta-v2.ndjson.gz', [
+      filaRutaV2(),
+      filaRutaV2({ cue_anexo: '1800002-00', clase_ruta: 'sin_dato', muestras_sin_dato: 408, muestras_expuestas: null }),
+      filaRutaV2({
+        cue_anexo: '1800003-00', clase_ruta: 'sin_ruta', muestras_total: null, muestras_expuestas: null,
+        muestras_sin_dato: null, profundidad_max_rp10_m: null, profundidad_max_rp100_m: null, profundidad_max_rp500_m: null,
+      }),
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set(['1800001-00', '1800002-00', '1800003-00']))
+
+    const resultado = await importarExposicionRutaV2(path, { db: db as never, tabla: infraExposicionRutaInundacion })
+
+    expect(resultado).toEqual({ procesadas: 3, ok: 3, sinFilaBase: 0, fallidas: 0 })
+    expect(actualizaciones.map((a) => a.cue)).toEqual(['1800001-00', '1800002-00', '1800003-00'])
+    expect(actualizaciones[0].set).toEqual({
+      claseRuta: 'alto', muestrasTotal: 408, muestrasExpuestas: 36, muestrasSinDato: 0,
+      profundidadMaxRp10M: 1, profundidadMaxRp100M: 1, profundidadMaxRp500M: 1,
+    })
+    expect(actualizaciones[2].set.claseRuta).toBe('sin_ruta')
+    expect(actualizaciones[2].set.muestrasTotal).toBeNull()
+    expect(actualizaciones[2].set.profundidadMaxRp10M).toBeNull()
+  })
+
+  it('rechaza una clase_ruta desconocida y muestras negativas sin llamar a la db', async () => {
+    const path = escribirNdjsonGz('ruta-v2-invalida.ndjson.gz', [
+      filaRutaV2({ clase_ruta: 'inundada' }),
+      filaRutaV2({ cue_anexo: '1800004-00', muestras_total: -1 }),
+    ])
+    const { db, actualizaciones } = crearDbFalsaUpdate(new Set(['1800001-00', '1800004-00']))
+
+    const resultado = await importarExposicionRutaV2(path, { db: db as never, tabla: infraExposicionRutaInundacion })
+
+    expect(resultado).toEqual({ procesadas: 2, ok: 0, sinFilaBase: 0, fallidas: 2 })
+    expect(actualizaciones).toHaveLength(0)
   })
 })
