@@ -9,7 +9,7 @@ import { resumir } from '@/lib/infraestructura/mapa/agregar'
 import { FILTROS_MAPA_VACIOS, type FiltrosMapa, type PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
 import { FiltrosChips } from '@/components/mapas/filtros-chips'
 import { PanelEstadisticas } from '@/components/mapas/panel-estadisticas'
-import { MetodologiaInundacion } from '@/components/mapas/metodologia-inundacion'
+import { MetodologiaMapa } from '@/components/mapas/metodologia/metodologia-mapa'
 import { useEscuelasMapa } from '@/lib/infraestructura/use-escuelas-mapa'
 import type { EscuelaMapaPadron } from '@/lib/infraestructura/parte-mapa'
 
@@ -175,7 +175,7 @@ export function InfraestructuraMapClient(props: {
             className="mapa-pestana-panel mapa-pestana-panel--scroll"
             data-testid="pestana-metodologia"
           >
-            <MetodologiaInundacion />
+            <MetodologiaMapa />
           </div>
         )}
 
