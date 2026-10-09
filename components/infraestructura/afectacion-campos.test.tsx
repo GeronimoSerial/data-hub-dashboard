@@ -127,14 +127,18 @@ describe('resumen de secciones', () => {
 })
 
 describe('confirmación de categoría', () => {
-  it('elige la primera categoría sin abrir la confirmación', () => {
+  it('pide confirmar ya en la primera elección de categoría', () => {
     const onChange = vi.fn()
     renderCamposQuePaso({ onChange })
 
     fireEvent.click(screen.getByRole('radio', { name: /Afecta al establecimiento/ }))
 
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onChange).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ categoria: 'establecimiento' }))
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('confirma cuando cambia una categoría elegida', () => {

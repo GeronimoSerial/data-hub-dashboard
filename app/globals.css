@@ -1203,6 +1203,9 @@ time {
   transition-duration: 150ms;
   transition-timing-function: ease;
 }
+/* El `display` de arriba pisa el [hidden] del UA: sin esto un botón con
+   `hidden` (p. ej. "Volver" en el primer paso) seguía visible. */
+.ui-button[hidden] { display: none; }
 .ui-button:active { scale: 0.96; }
 .ui-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
