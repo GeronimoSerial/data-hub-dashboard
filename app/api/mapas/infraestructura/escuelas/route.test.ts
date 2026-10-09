@@ -26,10 +26,10 @@ beforeAll(async () => {
   // central del batch verifica que el mapa siga mostrando todo el padrón
   // aunque no haya ningún parte reportado.
   await client.execute(
-    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('${CUE_ER}', NULL, 'Escuela ER', 'ER', 'Parana', -31.7, -60.5)`,
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('${CUE_ER}', NULL, 'Escuela ER', 'ER', 'Parana', -27.6, -58.6)`,
   )
   await client.execute(
-    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('${CUE_GCHU}', NULL, 'Escuela GCHU', 'GUALEGUAYCHU', 'Gualeguaychu', -33.0, -58.5)`,
+    `INSERT INTO ge.ge_localizacion (cue_anexo, cui, nombre, departamento, localidad, lat, lon) VALUES ('${CUE_GCHU}', NULL, 'Escuela GCHU', 'GUALEGUAYCHU', 'Gualeguaychu', -28.1, -57.1)`,
   )
 
   // ensureSeeded() (llamado por el route handler) da de alta el recurso
