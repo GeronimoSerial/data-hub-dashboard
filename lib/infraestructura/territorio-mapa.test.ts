@@ -14,10 +14,14 @@ function filaAislamiento(
     distanciaViaPavimentadaM: null,
     distanciaCabeceraDepartamentalM: null,
     tramosSinPavimentarCount: null,
+    tramosSinPavimentarKm: null,
     crucesAguaCount: null,
     crucesAguaConPuenteCount: null,
     crucesAguaConVadoCount: null,
+    crucesAguaConVadoExplicitoCount: null,
+    crucesAguaConVadoProbableCount: null,
     tieneAlternativaSinCruce: null,
+    tieneAlternativaPavimentada: null,
     indiceAislamiento: null,
     motivoSinDatos: null,
     snapDistanciaM: null,
@@ -32,6 +36,9 @@ function filaSusceptibilidad(
   over: Partial<FilaSusceptibilidadEstatica> & { cueAnexo: string; versionJob: string },
 ): FilaSusceptibilidadEstatica {
   return {
+    claseRio: null, profundidadRp10M: null, profundidadRp100M: null, profundidadRp500M: null,
+    margenRp10M: null, margenRp100M: null, margenRp500M: null, juntoLaguna: null,
+    distanciaAguaM: null, alturaSobreAguaM: null, versionInundacion: null,
     peligroInundacionFluvial: null,
     peligroInundacionPluvial: null,
     peligroViento: null,
@@ -194,6 +201,38 @@ describe('construirTerritorioMapa', () => {
     expect(territorio.susceptibilidad?.escuelas.CON_DATA.inundacionFluvialM).toBe(0.8)
   })
 
+  it('expone clase_rio validada; null o fuera de dominio llega como null (sin dato)', () => {
+    const territorio = construirTerritorioMapa(
+      [],
+      [
+        filaSusceptibilidad({ cueAnexo: 'ALTO', versionJob: '1', fuente: 'physrisk', claseRio: 'alto' }),
+        filaSusceptibilidad({ cueAnexo: 'SIN_RIESGO', versionJob: '1', fuente: 'physrisk', claseRio: 'sin_riesgo' }),
+        filaSusceptibilidad({ cueAnexo: 'NULO', versionJob: '1', fuente: 'physrisk', claseRio: null }),
+        filaSusceptibilidad({ cueAnexo: 'RARO', versionJob: '1', fuente: 'physrisk', claseRio: 'desconocida' }),
+      ],
+    )
+
+    expect(territorio.susceptibilidad?.escuelas.ALTO.claseRio).toBe('alto')
+    expect(territorio.susceptibilidad?.escuelas.SIN_RIESGO.claseRio).toBe('sin_riesgo')
+    expect(territorio.susceptibilidad?.escuelas.NULO.claseRio).toBeNull()
+    expect(territorio.susceptibilidad?.escuelas.RARO.claseRio).toBeNull()
+  })
+
+  it('expone junto_laguna booleano; null llega como null, nunca como false', () => {
+    const territorio = construirTerritorioMapa(
+      [],
+      [
+        filaSusceptibilidad({ cueAnexo: 'LAGUNA', versionJob: '1', fuente: 'physrisk', juntoLaguna: true }),
+        filaSusceptibilidad({ cueAnexo: 'SECA', versionJob: '1', fuente: 'physrisk', juntoLaguna: false }),
+        filaSusceptibilidad({ cueAnexo: 'NULO', versionJob: '1', fuente: 'physrisk', juntoLaguna: null }),
+      ],
+    )
+
+    expect(territorio.susceptibilidad?.escuelas.LAGUNA.juntoLaguna).toBe(true)
+    expect(territorio.susceptibilidad?.escuelas.SECA.juntoLaguna).toBe(false)
+    expect(territorio.susceptibilidad?.escuelas.NULO.juntoLaguna).toBeNull()
+  })
+
   it('expone los metadatos estáticos correctos', () => {
     const territorio = construirTerritorioMapa(
       [filaAislamiento({ cueAnexo: 'A', versionJob: '1' })],
@@ -262,6 +301,7 @@ describe('construirRespuestaGeometria', () => {
       { lon: -60.51, lat: -31.71, clasificacion: 'puente' as const },
       { lon: -60.52, lat: -31.72, clasificacion: 'puente' as const },
       { lon: -60.53, lat: -31.73, clasificacion: 'vado' as const },
+      { lon: -60.535, lat: -31.735, clasificacion: 'vado_probable' as const },
       { lon: -60.54, lat: -31.74, clasificacion: 'sin_evidencia' as const },
     ]
     const respuesta = construirRespuestaGeometria(
@@ -277,7 +317,7 @@ describe('construirRespuestaGeometria', () => {
       licencia: 'ODbL-1.0',
       ruta,
       cruces,
-      resumen: { puente: 2, vado: 1, sinEvidencia: 1 },
+      resumen: { puente: 2, vado: 2, sinEvidencia: 1 },
       viaPrincipal: null,
       destino: null,
       distanciaKm: null,

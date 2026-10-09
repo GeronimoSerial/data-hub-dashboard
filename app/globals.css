@@ -2842,6 +2842,22 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   min-width: 0;
 }
 
+.map-bloque-acceso__ayuda {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+}
+
+.map-bloque-acceso__ayuda:hover,
+.map-bloque-acceso__ayuda:focus-visible {
+  color: var(--ink);
+}
+
+.map-bloque-acceso__ayuda > svg {
+  width: 14px;
+  height: 14px;
+}
+
 .map-bloque-acceso__detalle {
   display: block;
   color: var(--ink-soft);
@@ -5140,6 +5156,12 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   flex: 1 1 auto;
   min-height: 0;
 }
+/* Fullscreen covers tabs, filters and map: keep the full height and a page background behind them. */
+.mapa-pestanas:fullscreen {
+  width: 100%;
+  height: 100%;
+  background: var(--page);
+}
 .mapa-pestanas-barra {
   display: flex;
   align-items: center;
@@ -5882,3 +5904,94 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 .revisar-situacion > h3 .estado-actual-severidad,
 .entrada-actualizar__motivo .estado-actual-severidad { flex: none; }
+
+/* Section reached from a `#metodologia/<id>` deep link. */
+.metodologia-seccion--destacada {
+  scroll-margin-top: var(--s-4);
+  animation: metodologia-destacar 2.4s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes metodologia-destacar {
+  0%, 40% { background: color-mix(in srgb, var(--accent, #f5c542) 35%, transparent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent, #f5c542) 35%, transparent); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+
+/* ── Metodología del mapa ─────────────────────────────────────────────
+   Long-form methodology tab with interactive simulators
+   (components/mapas/metodologia). Uses only site tokens, so light and dark
+   follow [data-theme]. */
+.metodologia { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: var(--s-7); width: min(100%, 76rem); margin: 0 auto; color: var(--ink); font-family: var(--font-body); line-height: 1.6; }
+.metodologia h1 { font-size: clamp(2rem, 4.5vw, 3.25rem); margin: 0 0 var(--s-4); }
+.metodologia h2 { font-size: clamp(1.625rem, 3vw, 2.25rem); margin: 0 0 var(--s-3); }
+.metodologia h3 { font-size: 1.25rem; margin: var(--s-6) 0 var(--s-2); }
+.metodologia h4 { margin: 0 0 var(--s-1); font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; text-transform: uppercase; }
+.metodologia p, .metodologia li { max-width: 72ch; }
+.metodologia a { color: var(--accent); }
+.metodologia section { padding: var(--s-7) 0; border-top: 1px solid var(--line); scroll-margin-top: var(--s-4); }
+.metodologia .toc { position: sticky; top: 0; align-self: start; padding: var(--s-2) 0; }
+.metodologia .toc .brand { margin: 0 0 var(--s-3) var(--s-3); font-family: var(--font-display); font-weight: 800; text-transform: uppercase; }
+.metodologia .toc ol { list-style: none; margin: 0; padding: 0; }
+.metodologia .toc a { display: block; padding: 6px var(--s-3); border-left: 3px solid var(--line); color: var(--ink-soft); font-size: var(--t-small); text-decoration: none; }
+.metodologia .toc a:hover { color: var(--ink); }
+.metodologia .toc a.on { border-color: var(--marker); color: var(--ink); font-weight: 600; }
+.metodologia__contenido { min-width: 0; }
+.metodologia__portada { padding: var(--s-2) 0 var(--s-6); }
+.metodologia .lead { max-width: 68ch; color: var(--ink-soft); font-size: 1.15rem; }
+.metodologia .question { margin: var(--s-2) 0 var(--s-5); padding: 4px 0 4px var(--s-4); border-left: 4px solid var(--marker); font-size: 1.2rem; font-weight: 600; }
+.metodologia .card { margin: var(--s-5) 0; padding: var(--s-5); border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
+.metodologia .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr)); gap: var(--s-5); }
+.metodologia .grid2 > .card { margin: 0; }
+.metodologia .models, .metodologia .sources { display: grid; gap: var(--s-3); margin: var(--s-5) 0; }
+.metodologia .models { grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr)); }
+.metodologia .sources { grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--s-2); }
+.metodologia .models a, .metodologia .sources a { display: block; padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--card); color: var(--ink); text-decoration: none; }
+.metodologia .models a:hover, .metodologia .sources a:hover { border-color: var(--accent); }
+.metodologia .models b { display: block; margin-bottom: 4px; font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; text-transform: uppercase; }
+.metodologia .sources b { display: block; font-size: 0.95rem; }
+.metodologia .models span, .metodologia .sources span { color: var(--ink-soft); font-size: var(--t-micro); }
+.metodologia table { width: 100%; border-collapse: collapse; font-size: var(--t-small); }
+.metodologia th, .metodologia td { padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.metodologia th { color: var(--ink-soft); font-size: var(--t-micro); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.metodologia .tablewrap { overflow-x: auto; }
+.metodologia__formula { margin: var(--s-4) 0; padding: var(--s-4); overflow-x: auto; border-radius: var(--r-md); background: var(--fill); }
+.metodologia .sim { margin: var(--s-5) 0; padding: var(--s-5); border: 1px solid var(--line); border-top: 4px solid var(--marker); border-radius: var(--r-lg); background: var(--card); }
+.metodologia .hint { margin: 0 0 var(--s-4); color: var(--ink-soft); font-size: var(--t-small); }
+.metodologia .ctrls { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--s-3) var(--s-5); }
+.metodologia .ctrl label { display: flex; justify-content: space-between; gap: var(--s-2); font-size: var(--t-small); }
+.metodologia .ctrl output, .metodologia .mono, .metodologia .big { font-variant-numeric: tabular-nums; }
+.metodologia input[type='range'] { width: 100%; accent-color: var(--accent); }
+.metodologia select { width: 100%; padding: 6px var(--s-2); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--page); color: var(--ink); font: inherit; }
+.metodologia .chk { display: flex !important; justify-content: flex-start !important; align-items: center; gap: var(--s-2); }
+.metodologia .result { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-4); margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px dashed var(--line); }
+.metodologia .badge { display: inline-flex; padding: var(--s-2) var(--s-4); border-radius: var(--r-pill); font-weight: 700; }
+.metodologia .big { font-family: var(--font-display); font-size: 2.25rem; font-weight: 800; line-height: 1; }
+.metodologia .why { color: var(--ink-soft); font-size: var(--t-small); }
+.metodologia .callout { margin: var(--s-5) 0; padding: var(--s-4) var(--s-5); border-radius: var(--r-md); background: var(--info-tint); }
+.metodologia .callout.warn { background: var(--warn-tint); }
+.metodologia svg { display: block; max-width: 100%; height: auto; }
+.metodologia canvas { display: block; }
+.metodologia .term { position: relative; border-bottom: 1px dotted var(--accent); cursor: help; }
+.metodologia .term:hover::after, .metodologia .term:focus::after { content: attr(data-def); position: absolute; top: 1.6em; left: 0; z-index: var(--z-tooltip); width: min(19rem, 80vw); padding: var(--s-2) var(--s-3); border-radius: var(--r-md); background: var(--ink); color: var(--page); font-size: var(--t-micro); font-weight: 400; line-height: 1.45; }
+.metodologia .steps { padding: 0; list-style: none; counter-reset: paso; }
+.metodologia .steps li { position: relative; padding: 0 0 var(--s-3) 2.75rem; counter-increment: paso; }
+.metodologia .steps li::before { content: counter(paso); position: absolute; top: 0; left: 0; display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%; background: var(--action); color: var(--page); font-size: var(--t-micro); font-weight: 700; }
+.metodologia .steps .regla--decide { font-weight: 700; }
+.metodologia .steps .regla--descartada { color: var(--ink-faint); text-decoration: line-through; }
+.metodologia .steps .regla--pendiente { color: var(--ink-faint); }
+.metodologia .bar { height: 10px; overflow: hidden; border-radius: 5px; background: var(--fill); }
+.metodologia .bar i { display: block; height: 100%; background: var(--accent); transition: width 0.25s; }
+.metodologia .wf { display: flex; flex-direction: column; gap: 6px; }
+.metodologia .wf .row { display: grid; grid-template-columns: 11rem 1fr 3rem; align-items: center; gap: var(--s-2); font-size: var(--t-small); }
+.metodologia .wf .pista { position: relative; height: 18px; }
+.metodologia .wf .seg { position: absolute; height: 18px; border-radius: var(--r-xs); transition: all 0.25s; }
+.metodologia dl.gloss dt { margin-top: var(--s-3); font-weight: 600; }
+.metodologia dl.gloss dd { margin: 2px 0 0; color: var(--ink-soft); }
+@media (max-width: 960px) {
+  .metodologia { grid-template-columns: 1fr; }
+  .metodologia .toc { display: none; }
+  .metodologia .wf .row { grid-template-columns: 7.5rem 1fr 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metodologia .bar i, .metodologia .wf .seg, .metodologia-seccion--destacada { transition: none; animation: none; }
+}

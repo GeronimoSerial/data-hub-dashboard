@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { construirPuntosNivel, puntosRiesgoSobreSituacion } from './puntos-nivel'
+import { construirPuntosNivel, puntosRiesgoSobreSituacion, soloConDato, soloConDatoOJuntoLaguna } from './puntos-nivel'
 import type { EscuelaMapaEnriquecida } from './tipos'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
 
@@ -20,7 +20,7 @@ const territorioRiesgo: TerritorioMapa = {
   },
   susceptibilidad: {
     fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia',
-    escuelas: { a: { inundacionFluvialM: 1 }, b: { inundacionFluvialM: 0.5 }, c: { inundacionFluvialM: 0 } },
+    escuelas: { a: { inundacionFluvialM: 1, claseRio: "alto", juntoLaguna: null }, b: { inundacionFluvialM: 0.5, claseRio: "medio", juntoLaguna: null }, c: { inundacionFluvialM: 0, claseRio: "sin_riesgo", juntoLaguna: null } },
   },
 }
 
@@ -50,12 +50,46 @@ describe('construirPuntosNivel', () => {
     ])
   })
 
-  it('devuelve sólo puntos con nivel territorial y respeta la vista', () => {
-    const aisladas = puntosRiesgoSobreSituacion(escuelasRiesgo, 'aisladas', territorioRiesgo)
-    const inundacion = puntosRiesgoSobreSituacion(escuelasRiesgo, 'inundacion', territorioRiesgo)
+  it('devuelve sólo puntos con nivel de aislamiento', () => {
+    const aisladas = puntosRiesgoSobreSituacion(escuelasRiesgo, territorioRiesgo)
     expect(aisladas.features.map(({ properties }) => properties.cueAnexo)).toEqual(['a', 'c'])
-    expect(inundacion.features.map(({ properties }) => properties.cueAnexo)).toEqual(['a', 'b'])
     expect(aisladas.features.every(({ properties }) => properties.conDato)).toBe(true)
-    expect(puntosRiesgoSobreSituacion(escuelasRiesgo, 'aisladas', null).features).toEqual([])
+    expect(puntosRiesgoSobreSituacion(escuelasRiesgo, null).features).toEqual([])
+  })
+
+  it('soloConDato descarta las escuelas sin color y conserva el orden', () => {
+    const puntos = construirPuntosNivel(
+      [{ cueAnexo: 'a', lat: -29, lon: -59 }, { cueAnexo: 'b', lat: -29, lon: -59 }, { cueAnexo: 'c', lat: -29, lon: -59 }],
+      new Map([['c', '#0f0'], ['a', '#f00']]),
+    )
+    expect(soloConDato(puntos).features.map(({ properties }) => properties.cueAnexo)).toEqual(['a', 'c'])
+  })
+
+  it('marca junto a laguna sin alterar el color del nivel de río', () => {
+    const puntos = construirPuntosNivel(
+      [{ cueAnexo: 'a', lat: -29, lon: -59 }, { cueAnexo: 'b', lat: -29, lon: -59 }],
+      new Map([['a', '#f00']]),
+      new Set(['a', 'b']),
+    )
+    expect(puntos.features.map(({ properties }) => [properties.color, properties.conDato, properties.juntoLaguna])).toEqual([
+      ['#f00', true, true],
+      [undefined, false, true],
+    ])
+    expect(construirPuntosNivel([{ cueAnexo: 'a', lat: -29, lon: -59 }], new Map()).features[0].properties.juntoLaguna).toBe(false)
+  })
+
+  it('soloConDatoOJuntoLaguna conserva nivel de río y laguna, y descarta sin dato sin laguna', () => {
+    const puntos = construirPuntosNivel(
+      [
+        { cueAnexo: 'rio', lat: -29, lon: -59 },
+        { cueAnexo: 'laguna', lat: -29, lon: -59 },
+        { cueAnexo: 'vacia', lat: -29, lon: -59 },
+        { cueAnexo: 'rio-laguna', lat: -29, lon: -59 },
+      ],
+      new Map([['rio', '#0f0'], ['rio-laguna', '#00f']]),
+      new Set(['laguna', 'rio-laguna']),
+    )
+    expect(soloConDatoOJuntoLaguna(puntos).features.map(({ properties }) => properties.cueAnexo)).toEqual(['rio', 'laguna', 'rio-laguna'])
+    expect(soloConDato(puntos).features.map(({ properties }) => properties.cueAnexo)).toEqual(['rio', 'rio-laguna'])
   })
 })

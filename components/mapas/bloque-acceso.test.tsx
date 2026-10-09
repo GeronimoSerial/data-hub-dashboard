@@ -21,11 +21,13 @@ const geometria: GeometriaAccesoRespuesta = {
 function exposicion(
   estado: ExposicionRutaRespuesta['estado'],
   profundidadMaxM: number | null,
+  claseRuta: ExposicionRutaRespuesta['claseRuta'] = null,
 ): ExposicionRutaRespuesta {
   return {
     cueAnexo: '1801605-04',
     disponible: true,
     estado,
+    claseRuta,
     versionJob: null,
     resumen: { celdasTotal: 0, celdasConDato: 0, celdasConProfundidad: 0, profundidadMaxM, cobertura: 0 },
     celdasAfectadas: [],
@@ -41,16 +43,42 @@ function exposicion(
 
 describe('BloqueAcceso', () => {
   it('muestra las tres líneas con el copy exacto y sus íconos', () => {
-    render(<BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.5)} />)
+    render(
+      <BloqueAcceso geometria={geometria} exposicion={exposicion('con_profundidad', 0.5, 'alto')} claseEscuela="alto" />,
+    )
 
     expect(screen.getByText('Camino de acceso · 1,1 km')).toBeInTheDocument()
     expect(screen.getByText('2 cruces de agua en el camino')).toBeInTheDocument()
     expect(screen.getByText('1 vado · 1 sin puente registrado')).toBeInTheDocument()
-    expect(screen.getByText('Riesgo de corte por inundación: Alto')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo alto de inundación en la escuela')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo alto de inundación en el camino')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-via').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-cruces').querySelector('svg')).toBeInTheDocument()
     expect(screen.getByTestId('bloque-acceso-cruces-icono')).toHaveAttribute('data-icono', 'alerta')
     expect(screen.getByTestId('bloque-acceso-riesgo').querySelector('svg')).toBeInTheDocument()
+  })
+
+  it('separa la clase de la escuela del riesgo del camino', () => {
+    render(
+      <BloqueAcceso
+        geometria={geometria}
+        exposicion={exposicion('con_profundidad', 0, 'sin_riesgo')}
+        claseEscuela="alto"
+      />,
+    )
+
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo alto de inundación en la escuela')
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin riesgo de inundación en el camino')
+    expect(screen.queryByText(/Riesgo de corte/)).not.toBeInTheDocument()
+  })
+
+  it('muestra "Junto a laguna" como tag junto a la escuela', () => {
+    render(
+      <BloqueAcceso geometria={geometria} exposicion={null} claseEscuela="bajo" juntoLaguna />,
+    )
+
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo bajo de inundación en la escuela')
+    expect(screen.getByTestId('bloque-acceso-laguna')).toHaveTextContent(/^Junto a laguna$/)
   })
 
   it('muestra la vía principal, el destino y la distancia informada', () => {
@@ -92,9 +120,16 @@ describe('BloqueAcceso', () => {
     expect(screen.getByText('Sin acceso calculado')).toBeInTheDocument()
   })
 
-  it('omite la línea de riesgo cuando no hay riesgo calculable', () => {
+  it('muestra "Camino: Sin dato" cuando hay ruta pero no exposición', () => {
     render(<BloqueAcceso geometria={geometria} exposicion={null} />)
-    expect(screen.queryByTestId('bloque-acceso-riesgo')).not.toBeInTheDocument()
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin dato de inundación en el camino')
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Sin dato de inundación en la escuela')
+  })
+
+  it('muestra "Camino: Sin ruta" cuando no hay recorrido', () => {
+    render(<BloqueAcceso geometria={null} exposicion={null} claseEscuela="medio" />)
+    expect(screen.getByTestId('bloque-acceso-escuela')).toHaveTextContent('Riesgo medio de inundación en la escuela')
+    expect(screen.getByTestId('bloque-acceso-riesgo')).toHaveTextContent('Sin camino calculado')
   })
 
   it.each([
@@ -103,5 +138,14 @@ describe('BloqueAcceso', () => {
   ] as const)('muestra el estado de %s', (_estado, props, texto) => {
     render(<BloqueAcceso geometria={null} exposicion={null} {...props} />)
     expect(screen.getByText(texto)).toBeInTheDocument()
+  })
+
+  it('enlaza cada riesgo a su sección de metodología', () => {
+    render(<BloqueAcceso geometria={null} exposicion={null} claseEscuela="alto" />)
+    const links = screen.getAllByRole('link', { name: 'Cómo se calcula' })
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '#metodologia/inundacion-clases-rio',
+      '#metodologia/inundacion-ruta-acceso',
+    ])
   })
 })

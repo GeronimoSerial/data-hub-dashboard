@@ -4,14 +4,13 @@ import { resolve } from 'node:path'
 import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa } from './capas'
 
 describe('capas opcionales del mapa', () => {
-  it('activa referencias por defecto y deja apagadas las capas de riesgo', () => {
+  it('activa referencias por defecto y deja apagada la capa de escuelas aisladas', () => {
     expect(CAPAS_VISIBLES_DEFAULT).toEqual({
       limitesDepartamentos: true,
       nombresDepartamentos: true,
       rutaAcceso: true,
       crucesAgua: true,
       escuelasAisladas: false,
-      riesgoCorteInundacion: false,
     })
   })
 

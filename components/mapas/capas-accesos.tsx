@@ -13,20 +13,15 @@ import { Layer, Source } from 'react-map-gl/maplibre'
 import {
   COLOR_RUTA_ACCESO,
   ETIQUETAS_AISLAMIENTO,
-  ETIQUETAS_INUNDACION,
   SVG_ICONO_AISLAMIENTO_0,
   SVG_ICONO_AISLAMIENTO_1,
   SVG_ICONO_AISLAMIENTO_2,
   SVG_ICONO_AISLAMIENTO_3,
   SVG_ICONO_AISLAMIENTO_SIN_DATOS,
-  SVG_ICONO_INUNDACION_ALTA,
-  SVG_ICONO_INUNDACION_BAJA,
-  SVG_ICONO_INUNDACION_MEDIA,
   TEXTOS_ACCESOS,
 } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import type { TerritorioMapa } from '@/lib/infraestructura/territorio-mapa'
-import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, COLOR_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import type { CapaAccesos } from '@/components/mapas/layer-control'
 import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
@@ -86,7 +81,6 @@ type CapasAccesosTerritorialesProps = {
   puntosAislamiento: GeoJSON.FeatureCollection | null
   puntosInundacion: GeoJSON.FeatureCollection | null
   ruta: GeoJSON.FeatureCollection | null
-  celdasExposicion?: GeoJSON.FeatureCollection<GeoJSON.Polygon> | null
   cruces: GeoJSON.FeatureCollection | null
   visibles: Record<CapaAccesos, boolean>
   iconosListos: boolean
@@ -99,7 +93,6 @@ export function CapasAccesosTerritoriales({
   puntosAislamiento,
   puntosInundacion,
   ruta,
-  celdasExposicion = null,
   cruces,
   visibles,
   iconosListos,
@@ -118,20 +111,6 @@ export function CapasAccesosTerritoriales({
       {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && puntosInundacion !== null && iconosListos && (
         <Source id={FUENTE_INUNDACION_ID} type="geojson" data={puntosInundacion}>
           <Layer id={CAPA_INUNDACION_ID} type="symbol" layout={layoutPuntoTerritorial()} />
-        </Source>
-      )}
-
-      {ruta !== null && celdasExposicion !== null && (
-        <Source id="infra-celdas-exposicion-src" type="geojson" data={celdasExposicion}>
-          <Layer id={CAPA_CELDAS_EXPOSICION_ID} type="fill" paint={{
-            'fill-color': COLOR_CELDAS_EXPOSICION,
-            'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
-            'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
-          }} />
-          <Layer id="infra-celdas-exposicion-outline" type="line" layout={{ 'line-join': 'round' }} paint={{
-            'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
-            'line-width': 1.5,
-          }} />
         </Source>
       )}
 
@@ -178,14 +157,6 @@ const ICONO_AISLAMIENTO: Record<(typeof NIVELES_AISLAMIENTO)[number], string> = 
   sin_datos_red: SVG_ICONO_AISLAMIENTO_SIN_DATOS,
 }
 
-const NIVELES_INUNDACION = ['baja', 'media', 'alta'] as const
-
-const ICONO_INUNDACION: Record<(typeof NIVELES_INUNDACION)[number], string> = {
-  baja: SVG_ICONO_INUNDACION_BAJA,
-  media: SVG_ICONO_INUNDACION_MEDIA,
-  alta: SVG_ICONO_INUNDACION_ALTA,
-}
-
 type LeyendaAccesosProps = {
   visibles: Record<CapaAccesos, boolean>
   territorio: TerritorioMapa | null
@@ -203,7 +174,7 @@ export function LeyendaAccesos({
 }: LeyendaAccesosProps) {
   // contenedor). El hook se llama siempre, antes del early return.
   const styles = useOverlayStyles()
-  const hayBloqueTerritorio = visibles.aislamiento || visibles.inundacion
+  const hayBloqueTerritorio = visibles.aislamiento
   if (!hayBloqueTerritorio) {
     return null
   }
@@ -239,9 +210,6 @@ export function LeyendaAccesos({
       {visibles.aislamiento && territorioListo && (
         <BloqueAislamiento territorio={territorio} resumen={resumen} />
       )}
-      {MOSTRAR_AGUA_ESTIMADA && visibles.inundacion && territorioListo && (
-        <BloqueInundacion territorio={territorio} resumen={resumen} />
-      )}
     </section>
   )
 }
@@ -262,14 +230,12 @@ function IconoSvg({ svg }: { svg: string }) {
   )
 }
 
-// Fila visible de la leyenda: ícono + nombre corto + conteo. La explicación en
-// lenguaje llano de cada fila vive en el `<details>` de ayuda del bloque, para
-// que la leyenda sea una tabla de conteos y no un muro de texto.
-function FilaConIcono({ svg, etiqueta, conteo }: { svg: string; etiqueta: string; conteo: number }) {
+// Fila visible de la leyenda: ícono + nombre corto + conteo.
+function FilaConIcono({ svg, etiqueta, conteo }: { svg?: string; etiqueta: string; conteo: number }) {
   const styles = useOverlayStyles()
   return (
     <div className={styles.legendItem}>
-      <IconoSvg svg={svg} />
+      {svg !== undefined && <IconoSvg svg={svg} />}
       <span>
         {etiqueta}: <b>{conteo}</b>
       </span>
@@ -312,52 +278,6 @@ function BloqueAislamiento({
           <div className={styles.legendItem}>
             <span>
               Sin dato (escuela fuera de los datos): <b>{resumen.aislamiento.sin_cobertura}</b>
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Ayuda de la leyenda de inundación: qué estima el modelo, qué NO es y qué
-// significan los conteos que no se dibujan. Cerrada por defecto.
-function BloqueInundacion({
-  territorio,
-  resumen,
-}: {
-  territorio: TerritorioMapa | null
-  resumen: ReturnType<typeof resumirCobertura> | null
-}) {
-  const styles = useOverlayStyles()
-  const sinDatos = territorio?.susceptibilidad == null || resumen === null
-
-  return (
-    <div className={styles.legendItemStack} data-testid="leyenda-inundacion">
-      <b>{TEXTOS_ACCESOS.tituloInundacion}</b>
-      {sinDatos ? (
-        <div className={styles.legendItemStack} data-testid="leyenda-inundacion-sin-datos">
-          <div className={styles.hint}>Sin datos de agua estimada cargados.</div>
-        </div>
-      ) : (
-        <div data-testid="leyenda-inundacion-contenido">
-          {NIVELES_INUNDACION.map((clase) => (
-            <FilaConIcono
-              key={clase}
-              svg={ICONO_INUNDACION[clase]}
-              etiqueta={ETIQUETAS_INUNDACION[clase]}
-              conteo={resumen.inundacion[clase]}
-            />
-          ))}
-          <div className={styles.legendItem}>
-            <span>
-              Sin agua estimada (0 m):{' '}
-              <b>{resumen.inundacion.sin_profundidad}</b>
-            </span>
-          </div>
-          <div className={styles.legendItem}>
-            <span>
-              Sin dato (escuela fuera de los datos): <b>{resumen.inundacion.sin_cobertura}</b>
             </span>
           </div>
         </div>

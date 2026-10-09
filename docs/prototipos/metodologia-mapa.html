@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metodología del mapa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root{
+  --bg:#f6f4ef; --surface:#fffdf8; --surface-2:#efece4; --ink:#1d2421; --muted:#5d6661; --line:#d9d4c7;
+  --accent:#1f6f6b; --accent-soft:#d6ebe8;
+  --water:#2f74b5; --water-soft:#cfe2f3; --ground:#9a7b52; --ground-soft:#eadcc6;
+  --l0:#4e9a6a; --l1:#c9a227; --l2:#d9772b; --l3:#b8362e; --nd:#8a8f8c;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#131715; --surface:#1b201e; --surface-2:#232a27; --ink:#e7ebe8; --muted:#9aa49f; --line:#323a36;
+  --accent:#5cc3b8; --accent-soft:#1f3a37; --water:#6aa8e3; --water-soft:#1c3247; --ground:#c7a77c; --ground-soft:#3a3124;
+  --l0:#6cc08a; --l1:#e2c04a; --l2:#ef9550; --l3:#e3645a; --nd:#7b817e; --shadow:none;}}
+:root[data-theme="dark"]{
+  --bg:#131715; --surface:#1b201e; --surface-2:#232a27; --ink:#e7ebe8; --muted:#9aa49f; --line:#323a36;
+  --accent:#5cc3b8; --accent-soft:#1f3a37; --water:#6aa8e3; --water-soft:#1c3247; --ground:#c7a77c; --ground-soft:#3a3124;
+  --l0:#6cc08a; --l1:#e2c04a; --l2:#ef9550; --l3:#e3645a; --nd:#7b817e; --shadow:none;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 "IBM Plex Sans",system-ui,sans-serif}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;line-height:1.2;font-weight:600}
+h1{font-size:clamp(2rem,5vw,3.2rem);margin:.2em 0 .3em}
+h2{font-size:clamp(1.5rem,3vw,2.1rem);margin:0 0 .4em}
+h3{font-size:1.2rem;margin:1.8em 0 .4em}
+a{color:var(--accent)}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:48px;max-width:1240px;margin:0 auto;padding:0 24px 80px}
+nav.toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:32px 0}
+nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:t}
+nav.toc li a{display:block;padding:6px 10px;border-left:2px solid var(--line);color:var(--muted);text-decoration:none;font-size:.92rem}
+nav.toc li a.on{border-color:var(--accent);color:var(--ink);font-weight:500}
+nav.toc .brand{font-family:Fraunces,serif;font-size:1.05rem;margin:0 0 16px 10px}
+main{min-width:0}
+header.hero{padding:56px 0 24px}
+.kicker{font:500 .78rem/1 "IBM Plex Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.lead{font-size:1.15rem;color:var(--muted);max-width:68ch}
+section{padding:40px 0;border-top:1px solid var(--line)}
+p,li{max-width:72ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);margin:20px 0}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.question{font-family:Fraunces,serif;font-size:1.25rem;border-left:4px solid var(--accent);padding:4px 0 4px 16px;margin:8px 0 20px}
+.tag{display:inline-block;font:500 .72rem/1 "IBM Plex Mono",monospace;padding:4px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-right:6px}
+table{border-collapse:collapse;width:100%;font-size:.94rem}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:.82rem;text-transform:uppercase;letter-spacing:.04em}
+.tablewrap{overflow-x:auto}
+.formula{background:var(--surface-2);border-radius:10px;padding:14px 16px;overflow-x:auto;margin:14px 0}
+.sim{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;margin:24px 0;box-shadow:var(--shadow)}
+.sim h4{margin:0 0 4px;font-family:Fraunces,serif;font-size:1.1rem}
+.sim .hint{color:var(--muted);font-size:.9rem;margin:0 0 16px}
+.ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px 24px}
+.ctrl label{display:flex;justify-content:space-between;font-size:.9rem;gap:8px}
+.ctrl output,.mono{font-family:"IBM Plex Mono",monospace}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{width:100%;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font:inherit}
+.chk{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.result{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-top:18px;padding-top:16px;border-top:1px dashed var(--line)}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;font-weight:600;color:#fff}
+.big{font:600 2rem/1 "IBM Plex Mono",monospace}
+.why{font-size:.9rem;color:var(--muted)}
+.callout{border-radius:12px;padding:14px 18px;background:var(--water-soft);margin:18px 0}
+.callout.warn{background:var(--ground-soft)}
+.pending{display:inline-block;font:500 .72rem/1.2 "IBM Plex Mono",monospace;padding:3px 7px;border-radius:6px;border:1px dashed var(--l2);color:var(--l2)}
+svg{max-width:100%;height:auto;display:block}
+svg text{font-family:"IBM Plex Sans",sans-serif;fill:var(--ink)}
+.term{border-bottom:1px dotted var(--accent);cursor:help;position:relative}
+.term:hover::after,.term:focus::after{content:attr(data-def);position:absolute;left:0;top:1.6em;z-index:5;width:min(300px,80vw);background:var(--ink);color:var(--bg);padding:10px 12px;border-radius:8px;font-size:.84rem;line-height:1.45;font-weight:400}
+.models{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin:24px 0}
+.models a{display:block;padding:16px;border-radius:12px;background:var(--surface);border:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.models a b{display:block;font-family:Fraunces,serif;font-size:1.05rem;margin-bottom:4px}
+.models a span{color:var(--muted);font-size:.88rem}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps li{counter-increment:s;position:relative;padding:0 0 14px 44px}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--bg);display:grid;place-items:center;font:600 .85rem "IBM Plex Mono",monospace}
+.bar{height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.wf{display:flex;flex-direction:column;gap:6px}
+.wf .row{display:grid;grid-template-columns:170px 1fr 48px;gap:10px;align-items:center;font-size:.88rem}
+.wf .seg{height:18px;border-radius:4px;transition:all .25s}
+.themebtn{position:fixed;right:16px;top:16px;z-index:10;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+dl.gloss dt{font-weight:600;margin-top:12px}
+dl.gloss dd{margin:2px 0 0;color:var(--muted)}
+@media (max-width:900px){.layout{grid-template-columns:1fr;padding:0 16px 60px}nav.toc{display:none}.wf .row{grid-template-columns:120px 1fr 40px}}
+</style>
+</head>
+<body>
+<button class="themebtn" id="themebtn" type="button" aria-label="Cambiar tema">◐ Tema</button>
+<div class="layout">
+<nav class="toc" aria-label="Contenido">
+  <div class="brand">Metodología</div>
+  <ol>
+    <li><a href="#inicio">Panorama</a></li>
+    <li><a href="#linaje">De la fuente al mapa</a></li>
+    <li><a href="#afectacion">1 · Afectación reportada</a></li>
+    <li><a href="#lluvia">2 · Peligro por lluvia</a></li>
+    <li><a href="#riesgo">3 · Riesgo estimado</a></li>
+    <li><a href="#aislamiento">4 · Aislamiento vial</a></li>
+    <li><a href="#acceso">5 · Riesgo de acceso</a></li>
+    <li><a href="#inundacion">6 · Inundación</a></li>
+    <li><a href="#limites">Límites e incertidumbre</a></li>
+    <li><a href="#glosario">Glosario</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero" id="inicio">
+  <div class="kicker">Mapa de infraestructura escolar · Metodología</div>
+  <h1>Cómo se calcula lo que muestra el mapa</h1>
+  <p class="lead">El mapa combina seis indicadores independientes: lo que reportan las escuelas, el peligro por lluvia, un riesgo estimado, el aislamiento vial, el riesgo de acceso y la exposición a inundación. Cada uno responde una pregunta distinta, usa fuentes propias y tiene límites concretos. Esta página explica cada uno con sus fórmulas, umbrales y ejemplos para que se puedan auditar.</p>
+  <div class="models">
+    <a href="#afectacion"><b>Afectación</b><span>¿Qué escuelas reportan daños hoy?</span></a>
+    <a href="#lluvia"><b>Peligro por lluvia</b><span>¿Llueve de forma excepcional sobre la zona?</span></a>
+    <a href="#riesgo"><b>Riesgo estimado</b><span>¿Qué tan probable es que la escuela se vea afectada?</span></a>
+    <a href="#aislamiento"><b>Aislamiento</b><span>¿Qué tan difícil es llegar por camino?</span></a>
+    <a href="#acceso"><b>Riesgo de acceso</b><span>¿Puede cortarse el camino a la escuela?</span></a>
+    <a href="#inundacion"><b>Inundación</b><span>¿Llegó históricamente el agua al lugar?</span></a>
+  </div>
+  <div class="callout warn"><b>Ningún indicador es una alerta oficial.</b> Son estimaciones para planificar y priorizar. Los umbrales provisorios se señalan explícitamente en cada sección.</div>
+</header>
+
+<section id="linaje">
+  <h2>De la fuente al mapa</h2>
+  <p>Cada fuente pasa por un proceso propio antes de llegar al mapa. Las líneas muestran qué datos alimentan a qué indicador.</p>
+  <div class="card">
+  <svg viewBox="0 0 900 420" role="img" aria-label="Diagrama de linaje de datos">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--muted)"/></marker></defs>
+    <g font-size="13">
+      <text x="20" y="24" font-weight="600" fill="var(--muted)">FUENTES</text>
+      <text x="350" y="24" font-weight="600" fill="var(--muted)">PROCESO</text>
+      <text x="680" y="24" font-weight="600" fill="var(--muted)">INDICADOR</text>
+    </g>
+    <g id="lin-src"></g>
+  </svg>
+  </div>
+  <p class="why">El padrón de escuelas (con coordenadas) es la base común: todo indicador se calcula para cada escuela del padrón, incluidas las que no reportan problemas.</p>
+</section>
+
+<section id="afectacion">
+  <span class="tag">Dato reportado</span>
+  <h2>1 · Afectación reportada</h2>
+  <p class="question">¿Qué escuelas tienen hoy un problema de infraestructura declarado?</p>
+  <h3>Fuente</h3>
+  <p>El <span class="term" tabindex="0" data-def="Formulario que completa la dirección de la escuela para declarar un problema de infraestructura, con severidad y vigencia.">parte</span> que carga la dirección de cada escuela. Es el único dato que se ingresa a mano. Un parte está <b>vigente</b> hasta que se lo da de baja.</p>
+  <h3>Método</h3>
+  <ol class="steps">
+    <li>Una escuela está <b>afectada</b> si tiene al menos un parte vigente; si no, figura como “sin afectación reportada”. No reportar no significa que no haya problemas.</li>
+    <li>La severidad se declara en una escala ordinal de cuatro niveles: Baja (se dicta clase con normalidad), Media, Alta (impide dictar clase en parte del edificio) y Crítica (impide el funcionamiento o hay riesgo para las personas).</li>
+    <li>Las escuelas sin coordenadas cuentan en el total del departamento pero no aparecen en el mapa.</li>
+    <li>Si un parte no se actualiza en más de <b>72 horas</b>, se marca como “sin actualizar”.</li>
+  </ol>
+  <h3>Totales por departamento</h3>
+  <div class="formula">$$\%\,\text{afectadas}_d=\frac{\text{afectadas}_d}{\text{escuelas del padrón}_d}\times 100$$</div>
+  <p>El porcentaje provincial se calcula sobre la suma de conteos y <b>no</b> como promedio de los porcentajes departamentales. La diferencia importa: un departamento chico con 50 % no pesa lo mismo que uno grande con 50 %.</p>
+  <div class="sim" id="sim-afect">
+    <h4>Simulador: porcentaje provincial</h4>
+    <p class="hint">Compará el cálculo correcto (sobre totales) con un promedio ingenuo de porcentajes.</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>Departamento A: escuelas <output id="a-n"></output></label><input type="range" id="a-n-r" min="5" max="400" value="300"></div>
+      <div class="ctrl"><label>Departamento A: afectadas <output id="a-k"></output></label><input type="range" id="a-k-r" min="0" max="400" value="15"></div>
+      <div class="ctrl"><label>Departamento B: escuelas <output id="b-n"></output></label><input type="range" id="b-n-r" min="5" max="400" value="20"></div>
+      <div class="ctrl"><label>Departamento B: afectadas <output id="b-k"></output></label><input type="range" id="b-k-r" min="0" max="400" value="12"></div>
+    </div>
+    <div class="result">
+      <div><div class="why">Provincia (correcto)</div><div class="big" id="af-ok"></div></div>
+      <div><div class="why">Promedio de porcentajes (incorrecto)</div><div class="big" style="color:var(--muted)" id="af-bad"></div></div>
+      <div class="why" id="af-why"></div>
+    </div>
+  </div>
+  <p class="why"><span class="pending">a confirmar</span> El listado agrupado redondea el porcentaje a entero y los totales lo muestran con un decimal; ambos deberían contar las mismas escuelas.</p>
+</section>
+
+<section id="lluvia">
+  <span class="tag">Pronóstico</span>
+  <h2>2 · Peligro por lluvia</h2>
+  <p class="question">¿La lluvia pronosticada es excepcional para ese lugar?</p>
+  <h3>Fuente</h3>
+  <p>Pronóstico de precipitación de Open-Meteo, actualizado cada 6 horas, por celda de grilla y para tres horizontes: 24, 72 y 240 horas. La referencia de “normal” es la <span class="term" tabindex="0" data-def="Distribución histórica de la lluvia en un lugar. Aquí se usan los percentiles 90, 95 y 99 de la serie ERA5.">climatología</span> de cada celda.</p>
+  <h3>Método</h3>
+  <p>Se compara la lluvia acumulada con los percentiles históricos de la celda. La comparación es estricta: igualar un percentil no lo supera.</p>
+  <div class="formula">$$\text{nivel}(mm)=\begin{cases}\text{rojo} & mm>P_{99}\\ \text{naranja} & mm>P_{95}\\ \text{amarillo} & mm>P_{90}\\ \text{verde} & \text{en otro caso}\end{cases}$$</div>
+  <p>Cuando hay pronóstico por <span class="term" tabindex="0" data-def="Conjunto de corridas del modelo con condiciones iniciales levemente distintas. Permite estimar la probabilidad de superar un umbral.">ensamble</span>, se usa la probabilidad de superar cada percentil: rojo si \(P(mm>P_{99})\ge 0{,}5\); naranja si \(P(mm>P_{95})\ge 0{,}5\); amarillo si \(P(mm>P_{95})>0{,}1\).</p>
+  <h3>Umbrales provisorios</h3>
+  <p>Mientras una celda no tiene climatología completa se usan umbrales fijos. Son una decisión de arranque, <b>no umbrales oficiales</b>, y bajan la confianza del resultado.</p>
+  <div class="card"><svg id="chart-umbrales" viewBox="0 0 640 260" role="img" aria-label="Umbrales provisorios por horizonte"></svg></div>
+  <div class="sim">
+    <h4>Simulador: nivel de peligro</h4>
+    <p class="hint">Elegí el horizonte y la lluvia acumulada. Los percentiles de ejemplo son ilustrativos; los umbrales provisorios son los reales.</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>Horizonte</label><select id="ll-h"><option value="24">24 horas</option><option value="72" selected>72 horas</option><option value="240">240 horas</option></select></div>
+      <div class="ctrl"><label>Lluvia acumulada <output id="ll-mm-o"></output></label><input type="range" id="ll-mm" min="0" max="320" value="100"></div>
+      <div class="ctrl"><label>Método</label><select id="ll-m"><option value="prov">Umbral provisorio</option><option value="pct">Percentiles (ejemplo: P90=60, P95=90, P99=140 mm)</option></select></div>
+    </div>
+    <div class="result"><span class="badge" id="ll-b"></span><span class="why" id="ll-why"></span></div>
+  </div>
+</section>
+
+<section id="riesgo">
+  <span class="tag">Índice compuesto</span>
+  <h2>3 · Riesgo estimado</h2>
+  <p class="question">Combinando peligro y vulnerabilidad, ¿qué tan expuesta está la escuela?</p>
+  <p>Se sigue el esquema clásico <b>riesgo = amenaza × vulnerabilidad</b>. Ambas dimensiones se expresan en una escala de 0 a 100 y el producto se reescala a 0–100.</p>
+  <div class="formula">$$R=\operatorname{round}\!\left(\frac{A\cdot V}{100}\right),\qquad A,V,R\in[0,100]$$</div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">Amenaza \(A\)</h3>
+      <table><tr><th>Componente</th><th>Peso</th><th>Escala</th></tr>
+      <tr><td>Peligro en la celda</td><td class="mono">0,5</td><td>verde 0 · amarillo 33 · naranja 66 · rojo 100</td></tr>
+      <tr><td>Caudal del río asociado</td><td class="mono">0,3</td><td>misma escala</td></tr>
+      <tr><td>Lluvia antecedente</td><td class="mono">0,2</td><td>\(\min(100,\ mm/150\cdot 100)\)</td></tr></table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Vulnerabilidad \(V\)</h3>
+      <table><tr><th>Componente</th><th>Peso</th><th>Escala</th></tr>
+      <tr><td>Historial de afectaciones (365 días)</td><td class="mono">0,7</td><td>promedio de tres términos saturados</td></tr>
+      <tr><td>Susceptibilidad física</td><td class="mono">0,3</td><td>promedio de indicadores × 100</td></tr></table>
+    </div>
+  </div>
+  <h3>Historial</h3>
+  <div class="formula">$$H=\frac{1}{3}\left[\min\!\left(100,\tfrac{n}{5}\cdot100\right)+\min\!\left(100,\tfrac{h}{720}\cdot100\right)+\min\!\left(100,\tfrac{c}{3}\cdot100\right)\right]$$</div>
+  <p>\(n\): cantidad de partes en el último año; \(h\): horas acumuladas con parte vigente (720 h = 30 días); \(c\): partes con acceso interrumpido. Cada término satura en 100.</p>
+  <h3>Datos faltantes: redistribución de pesos</h3>
+  <p>Un dato faltante <b>nunca</b> se reemplaza por cero. Su peso se reparte proporcionalmente entre los componentes presentes:</p>
+  <div class="formula">$$D=\sum_{i\in P}\frac{w_i}{\sum_{j\in P}w_j}\,x_i\qquad P=\{\text{componentes con dato}\}$$</div>
+  <p>A cambio, la <b>confianza</b> baja: alta sin faltantes, media con uno, baja con dos o más o sin evidencia de amenaza. Un umbral provisorio cuenta como faltante.</p>
+  <div class="sim" id="sim-riesgo">
+    <h4>Simulador: riesgo estimado</h4>
+    <p class="hint">Mové cada componente o desmarcalo para ver cómo se redistribuyen los pesos.</p>
+    <div class="ctrls">
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="r-pc-on" checked> Peligro en celda</label><select id="r-pc"><option value="0">verde (0)</option><option value="33">amarillo (33)</option><option value="66" selected>naranja (66)</option><option value="100">rojo (100)</option></select></div>
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="r-cq-on"> Caudal (si hay río asociado)</label><select id="r-cq"><option value="0">verde (0)</option><option value="33" selected>amarillo (33)</option><option value="66">naranja (66)</option><option value="100">rojo (100)</option></select></div>
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="r-ll-on" checked> Lluvia antecedente <output id="r-ll-o"></output></label><input type="range" id="r-ll" min="0" max="250" value="90"></div>
+      <div class="ctrl"><label>Partes en el año <output id="r-n-o"></output></label><input type="range" id="r-n" min="0" max="8" value="2"></div>
+      <div class="ctrl"><label>Horas con parte vigente <output id="r-h-o"></output></label><input type="range" id="r-h" min="0" max="1000" step="10" value="200"></div>
+      <div class="ctrl"><label>Partes con acceso interrumpido <output id="r-c-o"></output></label><input type="range" id="r-c" min="0" max="5" value="1"></div>
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="r-su-on" checked> Susceptibilidad <output id="r-su-o"></output></label><input type="range" id="r-su" min="0" max="100" value="40"></div>
+    </div>
+    <div class="result">
+      <div><div class="why">Amenaza</div><div class="big" id="r-A"></div></div>
+      <div><div class="why">Vulnerabilidad</div><div class="big" id="r-V"></div></div>
+      <div><div class="why">Riesgo</div><div class="big" id="r-R"></div></div>
+      <span class="badge" id="r-b"></span><span class="why" id="r-conf"></span>
+    </div>
+    <div id="r-weights" class="wf" style="margin-top:14px"></div>
+  </div>
+  <h3>Superficie de riesgo</h3>
+  <p>Como el riesgo es un producto, las curvas de nivel son hipérbolas: una amenaza muy alta con vulnerabilidad baja da el mismo riesgo que valores intermedios en ambas. El punto marca el caso del simulador.</p>
+  <div class="card"><canvas id="heat" width="560" height="420" style="width:100%;max-width:560px;height:auto" role="img" aria-label="Mapa de calor de riesgo según amenaza y vulnerabilidad"></canvas></div>
+  <table><tr><th>Riesgo</th><th>Nivel</th></tr><tr><td class="mono">0 – 24</td><td>bajo</td></tr><tr><td class="mono">25 – 49</td><td>moderado</td></tr><tr><td class="mono">50 – 74</td><td>alto</td></tr><tr><td class="mono">75 – 100</td><td>muy alto</td></tr></table>
+  <p class="why">La matrícula (exposición) se informa pero no entra en el cálculo. Versión del modelo: motor v0.2.</p>
+</section>
+
+<section id="aislamiento">
+  <span class="tag">Red vial · estático</span>
+  <h2>4 · Aislamiento vial</h2>
+  <p class="question">¿Qué tan difícil es llegar a la escuela por camino desde la red pavimentada?</p>
+  <h3>Fuente</h3>
+  <p>Red vial de <span class="term" tabindex="0" data-def="OpenStreetMap: cartografía colaborativa abierta. Incluye tipo de vía, superficie, puentes y vados.">OpenStreetMap</span>, extracto del 26/09/2026, con tipo de vía, superficie, puentes, vados y cursos de agua. Se recalcula cuando se actualiza el extracto (versión 4 del cálculo).</p>
+  <h3>Método</h3>
+  <ol class="steps">
+    <li>La red se convierte en un grafo. Cada tramo recibe un <b>costo</b> = longitud × factor según tipo de vía; los tramos de tierra o ripio (salvo huellas) multiplican el factor por 1,5.</li>
+    <li>Se busca la ruta de menor costo desde la escuela hasta la red pavimentada y hasta la localidad cabecera.</li>
+    <li>Sobre esa ruta se miden la distancia real, los kilómetros sin pavimentar (sin contar el último kilómetro urbano) y los cruces de agua.</li>
+    <li>Cada cruce de agua se clasifica como puente, vado (marcado en OSM o a menos de 25 m), <b>vado probable</b> (sin puente ni túnel, sobre camino de tierra) o sin evidencia.</li>
+    <li>Un árbol de decisión asigna un nivel de 0 a 3.</li>
+  </ol>
+  <div class="card"><svg id="chart-factor" viewBox="0 0 640 250" role="img" aria-label="Factor de costo por tipo de vía"></svg></div>
+  <div class="formula">$$\text{costo}=\text{longitud}\times f_{\text{vía}}\times\begin{cases}1{,}5 & \text{sin pavimentar (no huella)}\\1 & \text{en otro caso}\end{cases}$$</div>
+  <div class="card"><svg viewBox="0 0 860 220" role="img" aria-label="Esquema de ruta de la escuela a la red pavimentada">
+    <rect x="0" y="0" width="860" height="220" fill="var(--surface-2)" rx="10"/>
+    <path d="M330 0 C 350 70, 300 140, 340 220" stroke="var(--water)" stroke-width="14" fill="none" opacity=".55"/>
+    <text x="352" y="22" font-size="12" fill="var(--water)">arroyo</text>
+    <path d="M70 120 L 330 120" stroke="var(--ground)" stroke-width="6" stroke-dasharray="10 6"/>
+    <path d="M330 120 L 620 120" stroke="var(--ground)" stroke-width="6" stroke-dasharray="10 6"/>
+    <path d="M620 120 L 820 120" stroke="var(--ink)" stroke-width="8"/>
+    <circle cx="330" cy="120" r="11" fill="var(--l2)"/><text x="304" y="152" font-size="12">vado probable</text>
+    <rect x="52" y="102" width="36" height="36" rx="6" fill="var(--accent)"/><text x="40" y="160" font-size="12">escuela</text>
+    <text x="150" y="108" font-size="12" fill="var(--muted)">tierra · factor × 1,5</text>
+    <text x="660" y="108" font-size="12" fill="var(--muted)">ruta pavimentada</text>
+    <path d="M70 120 C 120 40, 560 30, 620 120" stroke="var(--muted)" stroke-width="3" fill="none" stroke-dasharray="3 5"/>
+    <text x="330" y="52" font-size="12" fill="var(--muted)">¿alternativa sin cruce?</text>
+  </svg></div>
+  <h3>Árbol de decisión</h3>
+  <p>Se evalúa en este orden; la primera regla que se cumple define el nivel.</p>
+  <div class="sim" id="sim-ais">
+    <h4>Simulador: nivel de aislamiento</h4>
+    <p class="hint">Cargá las medidas de la ruta. Se resalta la regla que decide.</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>Vados en la ruta <output id="i-v-o"></output></label><input type="range" id="i-v" min="0" max="4" value="0"></div>
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="i-alt"> Hay alternativa sin cruce de agua</label><label class="chk"><input type="checkbox" id="i-altp"> Hay alternativa pavimentada</label></div>
+      <div class="ctrl"><label>Distancia a red pavimentada <output id="i-dp-o"></output></label><input type="range" id="i-dp" min="0" max="40000" step="100" value="1500"></div>
+      <div class="ctrl"><label>Distancia a la localidad <output id="i-dl-o"></output></label><input type="range" id="i-dl" min="0" max="45000" step="100" value="8000"></div>
+      <div class="ctrl"><label>Km sin pavimentar <output id="i-km-o"></output></label><input type="range" id="i-km" min="0" max="30" step="0.5" value="1.5"></div>
+    </div>
+    <ol id="i-rules" class="steps" style="margin-top:16px"></ol>
+    <div class="result"><span class="badge" id="i-b"></span><span class="why" id="i-why"></span></div>
+  </div>
+  <p class="why">Si falta la información de tramos o cruces, el nivel queda sin dato. Sin dato nunca se interpreta como “nivel 0”.</p>
+</section>
+
+<section id="acceso">
+  <span class="tag">Índice aditivo</span>
+  <h2>5 · Riesgo de acceso</h2>
+  <p class="question">¿Qué probabilidad hay de que el camino a la escuela quede cortado?</p>
+  <p>Combina el aislamiento vial con el peligro actual y el historial. Es una dimensión separada: <b>no</b> se suma al riesgo estimado de la sección 3. Se parte de un puntaje base según el nivel de aislamiento y se suman agravantes, con tope en 100.</p>
+  <div class="formula">$$S=\min\!\Big(100,\ B(\text{nivel})+\sum_k a_k\Big)\qquad B=(0,\,20,\,45,\,70)$$</div>
+  <div class="sim" id="sim-acc">
+    <h4>Simulador: riesgo de acceso</h4>
+    <div class="ctrls">
+      <div class="ctrl"><label>Nivel de aislamiento</label><select id="c-n"><option value="0">0 · base 0</option><option value="1">1 · base 20</option><option value="2" selected>2 · base 45</option><option value="3">3 · base 70</option></select></div>
+      <div class="ctrl"><label class="chk"><input type="checkbox" id="c-cr" checked> Cruce de agua sin puente confirmado (+25)</label><label class="chk"><input type="checkbox" id="c-pa"> Peligro naranja o rojo (+25)</label><label class="chk"><input type="checkbox" id="c-hi"> Hubo acceso interrumpido (+15)</label></div>
+      <div class="ctrl"><label>Alternativa sin cruce</label><select id="c-al"><option value="si">Existe (+0)</option><option value="no">No existe (+15)</option><option value="nd" selected>Desconocida (+20)</option></select></div>
+    </div>
+    <div id="c-wf" class="wf" style="margin-top:16px"></div>
+    <div class="result"><div class="big" id="c-s"></div><span class="badge" id="c-b"></span></div>
+  </div>
+  <p>Un dato desconocido suma más que un “no” confirmado (+20 contra +15): <b>la falta de información nunca abarata el riesgo</b>. Si el aislamiento no tiene dato, el riesgo de acceso tampoco lo tiene.</p>
+  <p class="why"><span class="pending">a confirmar</span> El corte para “muy alto” (≥ 75) se supone igual al del riesgo estimado. Versión de la regla: acceso v1.</p>
+</section>
+
+<section id="inundacion">
+  <span class="tag">Peligro histórico · estático</span>
+  <h2>6 · Inundación</h2>
+  <p class="question">¿Hasta dónde llegó históricamente el agua de los ríos y lagunas cercanos?</p>
+  <h3>Fuentes</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Fuente</th><th>Qué aporta</th><th>Resolución</th></tr>
+    <tr><td>JRC Global River Flood Hazard Maps v2.1</td><td>Profundidad de crecida de río para períodos de retorno de 10, 100 y 500 años</td><td class="mono">~90 m</td></tr>
+    <tr><td>JRC Global Surface Water</td><td>Porcentaje del tiempo con agua presente (1984–2021)</td><td class="mono">30 m</td></tr>
+    <tr><td>Copernicus DEM GLO-30</td><td>Altura del terreno</td><td class="mono">30 m</td></tr>
+  </table></div>
+  <h3>Período de retorno</h3>
+  <p>Una crecida de <span class="term" tabindex="0" data-def="Tiempo medio entre dos eventos de igual o mayor magnitud. Una crecida de 100 años tiene 1 % de probabilidad de ocurrir en un año cualquiera.">período de retorno</span> \(T\) tiene probabilidad anual \(p=1/T\). La probabilidad de que ocurra al menos una vez en \(n\) años es:</p>
+  <div class="formula">$$P_n=1-\left(1-\tfrac{1}{T}\right)^{n}$$</div>
+  <div class="sim">
+    <h4>Calculadora: probabilidad en un horizonte</h4>
+    <div class="ctrls">
+      <div class="ctrl"><label>Período de retorno</label><select id="t-T"><option>10</option><option selected>100</option><option>500</option></select></div>
+      <div class="ctrl"><label>Años de vida útil <output id="t-n-o"></output></label><input type="range" id="t-n" min="1" max="100" value="50"></div>
+    </div>
+    <div class="result"><div class="big" id="t-p"></div><span class="why" id="t-why"></span></div>
+  </div>
+  <h3>Clase por crecida de río</h3>
+  <p>Un período “alcanza” la escuela si la profundidad modelada es de al menos <b>0,15 m</b> y el terreno queda por debajo del agua (margen negativo). Se toma el período más corto que alcanza:</p>
+  <div class="tablewrap"><table>
+    <tr><th>Clase</th><th>Condición</th><th>Probabilidad anual</th></tr>
+    <tr><td><b style="color:var(--l3)">Alto</b></td><td>alcanza con 10 años</td><td class="mono">≥ 10 %</td></tr>
+    <tr><td><b style="color:var(--l2)">Medio</b></td><td>alcanza con 100 años, no con 10</td><td class="mono">1 – 10 %</td></tr>
+    <tr><td><b style="color:var(--l1)">Bajo</b></td><td>sólo alcanza con 500 años</td><td class="mono">0,2 – 1 %</td></tr>
+    <tr><td><b style="color:var(--l0)">Sin riesgo</b></td><td>no alcanza ni con 500 años</td><td class="mono">&lt; 0,2 %</td></tr>
+    <tr><td><b style="color:var(--nd)">Sin dato</b></td><td>falta alguno de los tres períodos</td><td>—</td></tr>
+  </table></div>
+  <p>Si la profundidad es idéntica en los tres períodos se trata de agua permanente (laguna, embalse) y no de crecida: se clasifica como sin riesgo fluvial.</p>
+  <h3>Verificación de terreno (margen)</h3>
+  <p>Las capas de JRC no incluyen defensas como terraplenes o diques. Por eso se compara la altura de la escuela con el nivel del agua del río cercano más la crecida:</p>
+  <div class="formula">$$M_T=Z_{\text{escuela}}-\big(Z_{\text{río}}+\max d_T\big)$$</div>
+  <p>\(Z_{\text{escuela}}\): percentil 10 de la altura del terreno en 50 m alrededor de la escuela. \(Z_{\text{río}}\): percentil 10 de la altura de los píxeles de agua permanente (ocurrencia ≥ 90 %) en 2 km. \(\max d_T\): profundidad máxima de JRC en esos píxeles. El percentil 10 reduce el efecto de árboles y techos sobre el modelo de superficie.</p>
+  <div class="sim" id="sim-inu">
+    <h4>Simulador: corte transversal</h4>
+    <p class="hint">Movilizá la altura de la escuela y las profundidades. Si \(M_T\ge 0\), el período no cuenta aunque haya profundidad.</p>
+    <div class="ctrls">
+      <div class="ctrl"><label>Altura de la escuela sobre el río <output id="u-z-o"></output></label><input type="range" id="u-z" min="0" max="8" step="0.1" value="2.4"></div>
+      <div class="ctrl"><label>Profundidad en la escuela, 10 años <output id="u-d10-o"></output></label><input type="range" id="u-d10" min="0" max="3" step="0.05" value="0.1"></div>
+      <div class="ctrl"><label>Profundidad en la escuela, 100 años <output id="u-d100-o"></output></label><input type="range" id="u-d100" min="0" max="3" step="0.05" value="0.6"></div>
+      <div class="ctrl"><label>Profundidad en la escuela, 500 años <output id="u-d500-o"></output></label><input type="range" id="u-d500" min="0" max="3" step="0.05" value="1.2"></div>
+      <div class="ctrl"><label>Crecida máxima en el río, 10 / 100 / 500 años</label><div class="mono" style="font-size:.85rem">1,5 · 2,8 · 3,6 m (ejemplo)</div></div>
+    </div>
+    <svg id="u-svg" viewBox="0 0 760 260" role="img" aria-label="Corte transversal de río y escuela" style="margin-top:14px"></svg>
+    <div class="result"><span class="badge" id="u-b"></span><span class="why" id="u-why"></span></div>
+  </div>
+  <h3>Junto a laguna</h3>
+  <p>Marca aparte de la clase de río: se activa cuando hay agua presente al menos el <b>25 %</b> del tiempo dentro de <b>300 m</b> y el terreno de la escuela está a <b>6 m</b> o menos sobre esa agua.</p>
+  <h3>Ruta de acceso</h3>
+  <p>Se recorre la ruta calculada en la sección 4 y se toma la peor clase sostenida en al menos unos 270 m (3 puntos cada 90 m). Así un píxel aislado no define la clase de todo el camino.</p>
+</section>
+
+<section id="limites">
+  <h2>Límites e incertidumbre</h2>
+  <div class="grid2">
+    <div class="card"><h3 style="margin-top:0">Datos</h3><ul>
+      <li>OSM es colaborativo: puede faltar un puente o un vado, o el tipo de superficie.</li>
+      <li>El DEM incluye árboles y techos; su error vertical es de algunos metros.</li>
+      <li>JRC no modela defensas; la verificación de terreno sólo lo compensa en parte.</li>
+      <li>La afectación depende de que la escuela cargue el parte.</li>
+    </ul></div>
+    <div class="card"><h3 style="margin-top:0">Modelo</h3><ul>
+      <li>Pesos y umbrales del riesgo estimado no están calibrados con eventos observados.</li>
+      <li>Los umbrales provisorios de lluvia son de arranque, no oficiales.</li>
+      <li>Los accesos cortados por lagunas no se detectan en esta versión.</li>
+      <li>Inundación y aislamiento son estáticos: no cambian con el pronóstico.</li>
+    </ul></div>
+  </div>
+  <div class="tablewrap"><table>
+    <tr><th>Indicador</th><th>Versión</th><th>Actualización</th></tr>
+    <tr><td>Afectación</td><td>—</td><td>en tiempo real (cada parte)</td></tr>
+    <tr><td>Peligro por lluvia</td><td class="mono">umbrales provisorios v0.1</td><td>cada 6 h</td></tr>
+    <tr><td>Riesgo estimado</td><td class="mono">motor v0.2</td><td>con cada pronóstico</td></tr>
+    <tr><td>Aislamiento vial</td><td class="mono">v4 · OSM 26/09/2026</td><td>con cada extracto OSM</td></tr>
+    <tr><td>Riesgo de acceso</td><td class="mono">acceso v1</td><td>con cada pronóstico</td></tr>
+    <tr><td>Inundación</td><td class="mono">v2 · job 1</td><td>estático</td></tr>
+  </table></div>
+</section>
+
+<section id="glosario">
+  <h2>Glosario</h2>
+  <dl class="gloss">
+    <dt>Período de retorno</dt><dd>Tiempo medio entre eventos de igual o mayor magnitud; equivale a una probabilidad anual de 1/T.</dd>
+    <dt>Percentil P<sub>k</sub></dt><dd>Valor por debajo del cual queda el k % de las observaciones históricas.</dd>
+    <dt>Ensamble</dt><dd>Conjunto de corridas del pronóstico que permite estimar probabilidades.</dd>
+    <dt>DEM</dt><dd>Modelo digital de elevación: grilla de alturas del terreno.</dd>
+    <dt>Vado probable</dt><dd>Cruce de un curso de agua por camino de tierra sin puente ni túnel registrado.</dd>
+    <dt>Margen de terreno</dt><dd>Diferencia entre la altura de la escuela y el nivel de agua modelado; negativo significa que el agua la supera.</dd>
+    <dt>Redistribución de pesos</dt><dd>Cuando falta un componente, su peso se reparte entre los presentes en lugar de asumir cero.</dd>
+  </dl>
+</section>
+</main>
+</div>
+
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const NS='http://www.w3.org/2000/svg';
+const el=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const fmt=(x,d=0)=>x.toLocaleString('es-AR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const LV={bajo:'--l0',moderado:'--l1',alto:'--l2',muy_alto:'--l3'};
+const LVN={bajo:'Bajo',moderado:'Moderado',alto:'Alto',muy_alto:'Muy alto'};
+const nivel=s=>s<25?'bajo':s<50?'moderado':s<75?'alto':'muy_alto';
+function badge(b,text,v){b.textContent=text;b.style.background=css(v)}
+function bind(ids,fn){ids.forEach(i=>{const e=$(i);e&&e.addEventListener('input',fn);e&&e.addEventListener('change',fn)});fn()}
+
+// theme
+const root=document.documentElement;
+try{const t=localStorage.getItem('met-theme');if(t)root.dataset.theme=t}catch(e){}
+$('themebtn').onclick=()=>{const dark=root.dataset.theme?root.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;root.dataset.theme=dark?'light':'dark';try{localStorage.setItem('met-theme',root.dataset.theme)}catch(e){};redraw()};
+
+// lineage
+function lineage(){
+  const g=$('lin-src');g.innerHTML='';
+  const src=[['Parte de la escuela',60],['Padrón (Gestión Educativa)',105],['Open-Meteo pronóstico',150],['ERA5 climatología',195],['OpenStreetMap',260],['JRC crecidas de río',315],['JRC Surface Water',350],['Copernicus DEM',385]];
+  const pro=[['Partes vigentes',70],['Nivel por percentil',170],['Motor de riesgo',225],['Ruteo y árbol de decisión',275],['Clase y margen',345]];
+  const out=[['Afectación',70],['Peligro por lluvia',140],['Riesgo estimado',200],['Aislamiento vial',260],['Riesgo de acceso',300],['Inundación',350]];
+  const links=[[0,0],[1,0],[2,1],[3,1],[4,3],[5,4],[6,4],[7,4],[7,3]];
+  const links2=[[0,0],[1,1],[1,2],[2,2],[3,3],[3,4],[2,4],[4,5]];
+  links.forEach(([s,p])=>el('path',{d:`M230 ${src[s][1]} C 290 ${src[s][1]}, 290 ${pro[p][1]}, 345 ${pro[p][1]}`,stroke:css('--line'),'stroke-width':2,fill:'none','marker-end':'url(#ar)'},g));
+  links2.forEach(([p,o])=>el('path',{d:`M560 ${pro[p][1]} C 620 ${pro[p][1]}, 620 ${out[o][1]}, 675 ${out[o][1]}`,stroke:css('--accent'),'stroke-width':2,fill:'none',opacity:.6,'marker-end':'url(#ar)'},g));
+  const box=(x,y,w,txt,fill,stroke)=>{el('rect',{x,y:y-15,width:w,height:30,rx:8,fill,stroke,'stroke-width':1},g);const t=el('text',{x:x+10,y:y+5,'font-size':12.5},g);t.textContent=txt};
+  src.forEach(([t,y])=>box(20,y,210,t,css('--surface-2'),css('--line')));
+  pro.forEach(([t,y])=>box(345,y,215,t,css('--surface'),css('--line')));
+  out.forEach(([t,y])=>box(675,y,190,t,css('--accent-soft'),css('--accent')));
+}
+
+// afectación
+function afect(){
+  const an=+$('a-n-r').value,bn=+$('b-n-r').value;
+  $('a-k-r').max=an;$('b-k-r').max=bn;
+  const ak=Math.min(+$('a-k-r').value,an),bk=Math.min(+$('b-k-r').value,bn);
+  $('a-n').textContent=an;$('a-k').textContent=ak;$('b-n').textContent=bn;$('b-k').textContent=bk;
+  const ok=Math.round((ak+bk)/(an+bn)*1000)/10;
+  const bad=(ak/an+bk/bn)/2*100;
+  $('af-ok').textContent=fmt(ok,1)+' %';$('af-bad').textContent=fmt(bad,1)+' %';
+  $('af-why').textContent=`(${ak}+${bk}) / (${an}+${bn}) = ${fmt(ok,1)} %. El promedio de porcentajes sobrerrepresenta al departamento más chico.`;
+}
+
+// lluvia
+const PROV={24:[50,80,120],72:[80,120,180],240:[120,180,270]};
+function umbralesChart(){
+  const s=$('chart-umbrales');s.innerHTML='';
+  const W=640,H=260,x0=70,y0=220,max=300,sy=v=>y0-v/max*190;
+  [0,100,200,300].forEach(v=>{el('line',{x1:x0,x2:W-10,y1:sy(v),y2:sy(v),stroke:css('--line')},s);const t=el('text',{x:x0-10,y:sy(v)+4,'text-anchor':'end','font-size':11,fill:css('--muted')},s);t.textContent=v+' mm'});
+  const cols=['--l1','--l2','--l3'],names=['amarillo','naranja','rojo'];
+  Object.entries(PROV).forEach(([h,u],i)=>{const cx=x0+40+i*180;u.forEach((v,j)=>{el('rect',{x:cx+j*42,y:sy(v),width:34,height:y0-sy(v),rx:4,fill:css(cols[j])},s);const t=el('text',{x:cx+j*42+17,y:sy(v)-6,'text-anchor':'middle','font-size':11},s);t.textContent=v});const t=el('text',{x:cx+59,y:y0+22,'text-anchor':'middle','font-size':13,'font-weight':600},s);t.textContent=h+' h'});
+  names.forEach((n,j)=>{el('rect',{x:W-260+j*84,y:8,width:12,height:12,rx:3,fill:css(cols[j])},s);const t=el('text',{x:W-244+j*84,y:18,'font-size':12},s);t.textContent=n});
+  const t=el('text',{x:x0,y:16,'font-size':11,fill:css('--muted')},s);t.textContent='240 h = 72 h × 1,5';
+}
+function lluvia(){
+  const h=$('ll-h').value,mm=+$('ll-mm').value,m=$('ll-m').value;
+  $('ll-mm-o').textContent=mm+' mm';
+  const u=m==='prov'?PROV[h]:[60,90,140];
+  const lv=mm>u[2]?['Rojo','--l3']:mm>u[1]?['Naranja','--l2']:mm>u[0]?['Amarillo','--l1']:['Verde','--l0'];
+  badge($('ll-b'),lv[0],lv[1]);
+  $('ll-why').textContent=`Umbrales: ${u.join(' / ')} mm (amarillo / naranja / rojo).`+(m==='prov'?' Provisorio: la confianza baja un escalón.':'');
+}
+
+// riesgo
+let lastAV=[0,0];
+function cerrar(items){const p=items.filter(i=>i.on);const sw=p.reduce((a,i)=>a+i.w,0);if(!sw)return {v:null,p:[]};return {v:p.reduce((a,i)=>a+i.w/sw*i.x,0),p:p.map(i=>({...i,wn:i.w/sw}))}}
+function riesgo(){
+  const ll=+$('r-ll').value,n=+$('r-n').value,h=+$('r-h').value,c=+$('r-c').value,su=+$('r-su').value;
+  $('r-ll-o').textContent=ll+' mm';$('r-n-o').textContent=n;$('r-h-o').textContent=h+' h';$('r-c-o').textContent=c;$('r-su-o').textContent=su;
+  const A=cerrar([{n:'Peligro en celda',w:.5,x:+$('r-pc').value,on:$('r-pc-on').checked},{n:'Caudal',w:.3,x:+$('r-cq').value,on:$('r-cq-on').checked},{n:'Lluvia antecedente',w:.2,x:Math.min(100,ll/150*100),on:$('r-ll-on').checked}]);
+  const H=(Math.min(100,n/5*100)+Math.min(100,h/720*100)+Math.min(100,c/3*100))/3;
+  const V=cerrar([{n:'Historial',w:.7,x:H,on:true},{n:'Susceptibilidad',w:.3,x:su,on:$('r-su-on').checked}]);
+  const falt=['r-pc-on','r-cq-on','r-ll-on','r-su-on'].filter(i=>!$(i).checked).length;
+  $('r-A').textContent=A.v===null?'—':fmt(A.v);$('r-V').textContent=fmt(V.v);
+  if(A.v===null){$('r-R').textContent='—';badge($('r-b'),'Sin evidencia','--nd');$('r-conf').textContent='Confianza baja: no hay ningún dato de amenaza.'}
+  else{const R=Math.max(0,Math.min(100,Math.round(A.v*V.v/100)));$('r-R').textContent=R;const l=nivel(R);badge($('r-b'),LVN[l],LV[l]);
+    const conf=falt===0?'alta':falt<=1?'media':'baja';$('r-conf').textContent=`Confianza ${conf} (${falt} componente${falt===1?'':'s'} faltante${falt===1?'':'s'}).`}
+  lastAV=[A.v,V.v];
+  const wf=$('r-weights');wf.innerHTML='<div class="why">Pesos efectivos después de redistribuir</div>';
+  [...A.p.map(p=>({...p,d:'A'})),...V.p.map(p=>({...p,d:'V'}))].forEach(p=>{wf.insertAdjacentHTML('beforeend',`<div class="row"><span>${p.d} · ${p.n}</span><div class="bar"><i style="width:${p.wn*100}%"></i></div><span class="mono">${fmt(p.wn*100)}%</span></div>`)});
+  heat();
+}
+function heat(){
+  const c=$('heat'),x=c.getContext('2d'),W=c.width,H=c.height,p=44,w=W-p-10,h=H-p-10;
+  x.clearRect(0,0,W,H);
+  const cols=[css('--l0'),css('--l1'),css('--l2'),css('--l3')];
+  for(let i=0;i<100;i++)for(let j=0;j<100;j++){const r=Math.round(i*j/100);x.fillStyle=cols[r<25?0:r<50?1:r<75?2:3];x.globalAlpha=.25+.6*r/100;x.fillRect(p+i*w/100,10+h-(j+1)*h/100,w/100+1,h/100+1)}
+  x.globalAlpha=1;x.strokeStyle=css('--ink');x.lineWidth=1.2;
+  [25,50,75].forEach(k=>{x.beginPath();for(let a=k;a<=100;a+=.5){const v=k*100/a;if(v>100)continue;const px=p+a/100*w,py=10+h-v/100*h;a===k?x.moveTo(px,py):x.lineTo(px,py)}x.stroke()});
+  x.fillStyle=css('--ink');x.font='12px IBM Plex Sans';x.fillText('Amenaza →',p+w-70,H-12);x.save();x.translate(14,80);x.rotate(-Math.PI/2);x.fillText('Vulnerabilidad →',-60,0);x.restore();
+  [[25,'25'],[50,'50'],[75,'75']].forEach(([k,t])=>x.fillText('R='+t,p+w-46,10+h-k/100*h-4));
+  if(lastAV[0]!==null){x.beginPath();x.arc(p+lastAV[0]/100*w,10+h-lastAV[1]/100*h,8,0,7);x.fillStyle=css('--surface');x.fill();x.lineWidth=3;x.strokeStyle=css('--ink');x.stroke()}
+}
+
+// factor chart
+function factorChart(){
+  const s=$('chart-factor');s.innerHTML='';
+  const d=[['autopista / troncal / primaria',1],['secundaria',1.2],['terciaria',1.5],['vecinal / residencial',2],['huella / servicio',3],['tierra (×1,5) sobre vecinal',3]];
+  d.forEach(([n,v],i)=>{const y=14+i*38;const t=el('text',{x:0,y:y+15,'font-size':12.5},s);t.textContent=n;el('rect',{x:230,y,width:v/3*370,height:22,rx:4,fill:css(i===5?'--ground':'--accent'),opacity:i===5?.8:.25+v/4},s);const t2=el('text',{x:236+v/3*370,y:y+16,'font-size':12,'font-family':'IBM Plex Mono'},s);t2.textContent='× '+fmt(v,1)});
+}
+
+// aislamiento
+function ais(){
+  const v=+$('i-v').value,alt=$('i-alt').checked,altp=$('i-altp').checked,dp=+$('i-dp').value,dl=+$('i-dl').value,km=+$('i-km').value;
+  $('i-v-o').textContent=v;$('i-dp-o').textContent=fmt(dp/1000,1)+' km';$('i-dl-o').textContent=fmt(dl/1000,1)+' km';$('i-km-o').textContent=fmt(km,1)+' km';
+  const rules=[
+    ['Hay vados en la ruta → nivel 2 con alternativa sin cruce, nivel 3 sin ella',()=>v>0?(alt?2:3):null],
+    ['La localidad está a más de 30 km → nivel 3',()=>dl>30000?3:null],
+    ['15 km o más sin pavimentar y sin alternativa pavimentada → nivel 2',()=>km>=15&&!altp?2:null],
+    ['Pavimento a 2 km o menos, localidad a 10 km o menos y 2 km o menos sin pavimentar → nivel 0',()=>dp<=2000&&dl<=10000&&km<=2?0:null],
+    ['En cualquier otro caso → nivel 1',()=>1]];
+  let res=null,idx=-1;rules.forEach((r,i)=>{if(res===null){const x=r[1]();if(x!==null){res=x;idx=i}}});
+  $('i-rules').innerHTML=rules.map((r,i)=>`<li style="${i===idx?'font-weight:600;color:var(--ink)':i<idx?'color:var(--muted);text-decoration:line-through':'color:var(--muted)'}">${r[0]}</li>`).join('');
+  const c=['--l0','--l1','--l2','--l3'][res];badge($('i-b'),'Nivel '+res,c);
+  $('i-why').textContent=['Bien conectada.','Conexión con dificultades moderadas.','Acceso difícil o dependiente de un cruce.','Muy aislada.'][res];
+  const sel=$('c-n');if(sel)sel.value=String(res);acc();
+}
+
+// acceso
+function acc(){
+  const n=+$('c-n').value,base=[0,20,45,70][n];
+  const items=[['Base (nivel '+n+')',base,'--accent'],['Cruce sin puente confirmado',$('c-cr').checked?25:0,'--water'],['Peligro naranja o rojo',$('c-pa').checked?25:0,'--l2'],['Alternativa '+({si:'existe',no:'no existe',nd:'desconocida'})[$('c-al').value],({si:0,no:15,nd:20})[$('c-al').value],'--l1'],['Acceso interrumpido antes',$('c-hi').checked?15:0,'--l3']];
+  const raw=items.reduce((a,i)=>a+i[1],0),S=Math.min(100,raw);let acc0=0;
+  $('c-wf').innerHTML=items.map(([t,v,c])=>{const left=acc0;acc0+=v;return `<div class="row"><span>${t}</span><div style="position:relative;height:18px"><div class="seg" style="position:absolute;left:${Math.min(left,100)}%;width:${Math.max(0,Math.min(v,100-Math.min(left,100)))}%;background:var(${c})"></div></div><span class="mono">+${v}</span></div>`}).join('')+(raw>100?`<div class="why">Suma ${raw}, se recorta a 100.</div>`:'');
+  $('c-s').textContent=S;const l=nivel(S);badge($('c-b'),LVN[l],LV[l]);
+}
+
+// período de retorno
+function tret(){const T=+$('t-T').value,n=+$('t-n').value;$('t-n-o').textContent=n;const p=1-Math.pow(1-1/T,n);$('t-p').textContent=fmt(p*100,1)+' %';$('t-why').textContent=`Probabilidad de al menos una crecida de ${T} años en ${n} años.`}
+
+// inundación
+const RIO={10:1.5,100:2.8,500:3.6};
+function inu(){
+  const z=+$('u-z').value,d={10:+$('u-d10').value,100:+$('u-d100').value,500:+$('u-d500').value};
+  $('u-z-o').textContent=fmt(z,1)+' m';[10,100,500].forEach(t=>$('u-d'+t+'-o').textContent=fmt(d[t],2)+' m');
+  const M=t=>z-(0+RIO[t]);
+  const alc=t=>d[t]>=0.15&&M(t)<0;
+  let cls,c;const perm=d[10]>0&&d[10]===d[100]&&d[100]===d[500];
+  if(perm){cls='Sin riesgo (agua permanente)';c='--l0'}else if(alc(10)){cls='Alto';c='--l3'}else if(alc(100)){cls='Medio';c='--l2'}else if(alc(500)){cls='Bajo';c='--l1'}else{cls='Sin riesgo';c='--l0'}
+  badge($('u-b'),cls,c);
+  $('u-why').textContent=[10,100,500].map(t=>`${t} años: profundidad ${fmt(d[t],2)} m, margen ${fmt(M(t),1)} m → ${alc(t)?'alcanza':'no alcanza'}`).join(' · ');
+  const s=$('u-svg');s.innerHTML='';
+  const sy=v=>220-v*24,gx=[0,120,200,260,320,400,760];
+  el('rect',{x:0,y:0,width:760,height:260,fill:css('--surface-2'),rx:10},s);
+  [[500,'--water',.18],[100,'--water',.28],[10,'--water',.4]].forEach(([t,col,o])=>{el('rect',{x:0,y:sy(RIO[t]),width:760,height:220-sy(RIO[t]),fill:css(col),opacity:o},s);const tx=el('text',{x:8,y:sy(RIO[t])-4,'font-size':11,fill:css('--water')},s);tx.textContent=`nivel crecida ${t} años (+${fmt(RIO[t],1)} m)`});
+  const ground=`M0 260 L0 ${sy(z+1)} L120 ${sy(z)} L400 ${sy(z)} L470 ${sy(.6)} L520 ${sy(-.4)} L600 ${sy(-.4)} L650 ${sy(.6)} L760 ${sy(1.5)} L760 260 Z`;
+  el('path',{d:ground,fill:css('--ground-soft'),stroke:css('--ground'),'stroke-width':2},s);
+  el('rect',{x:520,y:sy(0),width:80,height:sy(-.4)-sy(0),fill:css('--water')},s);
+  const t1=el('text',{x:530,y:sy(-.4)+16,'font-size':11},s);t1.textContent='río';
+  el('rect',{x:230,y:sy(z)-34,width:46,height:34,fill:css('--accent'),rx:3},s);el('path',{d:`M224 ${sy(z)-34} L253 ${sy(z)-54} L282 ${sy(z)-34}Z`,fill:css('--accent')},s);
+  const t2=el('text',{x:226,y:sy(z)+18,'font-size':12,'font-weight':600},s);t2.textContent='escuela';
+  el('line',{x1:300,x2:300,y1:sy(0),y2:sy(z),stroke:css('--ink'),'stroke-dasharray':'3 3'},s);
+  const t3=el('text',{x:306,y:(sy(0)+sy(z))/2,'font-size':11},s);t3.textContent=`+${fmt(z,1)} m`;
+  el('line',{x1:0,x2:760,y1:sy(0),y2:sy(0),stroke:css('--water'),'stroke-width':1,'stroke-dasharray':'2 4'},s);
+}
+
+function redraw(){lineage();umbralesChart();factorChart();heat();inu()}
+bind(['a-n-r','a-k-r','b-n-r','b-k-r'],afect);
+bind(['ll-h','ll-mm','ll-m'],lluvia);
+bind(['r-pc','r-pc-on','r-cq','r-cq-on','r-ll','r-ll-on','r-n','r-h','r-c','r-su','r-su-on'],riesgo);
+bind(['c-n','c-cr','c-pa','c-hi','c-al'],acc);
+bind(['i-v','i-alt','i-altp','i-dp','i-dl','i-km'],ais);
+bind(['t-T','t-n'],tret);
+bind(['u-z','u-d10','u-d100','u-d500'],inu);
+redraw();
+
+// scrollspy
+const links=[...document.querySelectorAll('nav.toc a')];
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(l=>l.classList.toggle('on',l.getAttribute('href')==='#'+e.target.id))}}),{rootMargin:'-30% 0px -60% 0px'});
+document.querySelectorAll('header.hero, section').forEach(s=>io.observe(s));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',redraw);
+
+window.addEventListener('DOMContentLoaded',()=>{if(window.renderMathInElement)renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]})});
+})();
+</script>
+</body>
+</html>

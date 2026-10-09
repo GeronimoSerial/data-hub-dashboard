@@ -53,6 +53,8 @@ describe('GET /api/mapas/infraestructura/accesos/[cueAnexo]/exposicion-inundacio
     vi.mocked(verificarAccesoLectura).mockResolvedValue({ ok: true, user: usuario() })
     vi.mocked(obtenerExposicionRuta).mockResolvedValue({
       cueAnexo: 'CUE-1', versionJob: '1', estado: 'con_profundidad', motivoSinDato: null,
+      claseRuta: null, muestrasTotal: null, muestrasExpuestas: null, muestrasSinDato: null,
+      profundidadMaxRp10M: null, profundidadMaxRp100M: null, profundidadMaxRp500M: null,
       celdasTotal: 1, celdasConDato: 1, celdasConProfundidad: 1, profundidadMaxM: 0.2,
       cobertura: 1, periodoRetornoAnios: 100, resolucionArcsec: 30, escenario: 'historico',
       fuente: 'WRI Aqueduct v2', celdas: [{ lon: -60, lat: -31, profundidadM: 0.2 }],

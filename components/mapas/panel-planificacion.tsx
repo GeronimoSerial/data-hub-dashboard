@@ -4,11 +4,11 @@ import type { JSX } from 'react'
 import { Segmentado } from '@/components/mapas/segmentado'
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
+  colorPrioridad,
   ETIQUETA_VISTA,
   prioridadPlanificacion,
   textoPrioridad,
   VISTAS_PLANIFICACION,
-  colorNivelPlan,
 } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
@@ -55,7 +55,7 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
           {lista.length > 0 ? (
             <div className="map-sitact__lista">
               {lista.map((item) => {
-                const { escuela, nivel } = item
+                const { escuela } = item
                 const departamento = etiquetaDepartamento(escuela.departamento)
                 const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
                 return (
@@ -66,7 +66,7 @@ export function PanelPlanificacion(props: PanelPlanificacionProps): JSX.Element 
                     onClick={() => onSeleccionar(escuela.cueAnexo)}
                     aria-label={`${escuela.nombre}, ${departamento}`}
                   >
-                    <span className="map-sitact__franja" style={{ backgroundColor: colorNivelPlan(nivel) }} />
+                    <span className="map-sitact__franja" style={{ backgroundColor: colorPrioridad(item) }} />
                     <span className="map-sitact__contenido-fila">
                       <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                       <span className="map-sitact__meta">{departamento}{niveles}</span>

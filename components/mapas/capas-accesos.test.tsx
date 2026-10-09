@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { CruceAccesoOsm } from '@/lib/db/schema'
-import { CAPA_CELDAS_EXPOSICION_ID, COLOR_BORDE_CELDAS_EXPOSICION, OPACIDAD_CELDAS_EXPOSICION } from '@/lib/mapas/exposicion-ruta-capas'
 import { COLOR_RUTA_ACCESO } from '@/lib/mapas/accesos-capas'
 import type { resumirCobertura } from '@/lib/mapas/accesos-capas'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
@@ -94,11 +93,6 @@ const fcCruces = (): GeoJSON.FeatureCollection => ({
   ],
 })
 
-const fcCeldas: GeoJSON.FeatureCollection<GeoJSON.Polygon> = {
-  type: 'FeatureCollection',
-  features: [{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[-1, -1], [1, -1], [1, 1], [-1, 1], [-1, -1]]] }, properties: { profundidadM: 0.5 } }],
-}
-
 const visibles = (activas: CapaAccesos[]): Record<CapaAccesos, boolean> => ({
   aislamiento: activas.includes('aislamiento'),
   inundacion: activas.includes('inundacion'),
@@ -111,7 +105,7 @@ const territorio = territorioCon({}, {}, {
 
 const resumen: ReturnType<typeof resumirCobertura> = {
   aislamiento: { 0: 5, 1: 3, 2: 2, 3: 1, sin_datos_red: 4, sin_cobertura: 7 },
-  inundacion: { sin_cobertura: 2, sin_profundidad: 3, baja: 4, media: 5, alta: 6 },
+  inundacion: { alto: 6, medio: 5, bajo: 4, sin_riesgo: 3, sin_dato: 2 },
   total: 27,
 }
 
@@ -120,7 +114,7 @@ const cruces: CruceAccesoOsm[] = []
 function crearLeyenda(overrides: Partial<Parameters<typeof LeyendaAccesos>[0]> = {}) {
   return (
     <LeyendaAccesos
-      visibles={visibles(['aislamiento', 'inundacion'])}
+      visibles={visibles(['aislamiento'])}
       territorio={territorio}
       territorioLoading={false}
       territorioError={null}
@@ -189,7 +183,7 @@ describe('CapasAccesosTerritoriales', () => {
     expect(aislamiento.getAttribute('data-layout')).toContain('icono')
     expect(aislamiento.getAttribute('data-layout')).toContain('interpolate')
 
-    expect(screen.queryByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)).not.toBeInTheDocument()
+    expect(screen.getByTestId(`mock-layer-${CAPA_INUNDACION_ID}`)).toHaveAttribute('data-layer-type', 'symbol')
   })
 
   it('monta la ruta automáticamente cuando hay geometría, sin toggle', () => {
@@ -237,23 +231,10 @@ describe('CapasAccesosTerritoriales', () => {
     }
   })
 
-  it('monta celdas debajo de la ruta y solo con la ruta seleccionada visible', () => {
-    const { container, rerender } = render(
-      <CapasAccesosTerritoriales {...base} celdasExposicion={fcCeldas} visibles={visibles([])} />,
-    )
-    const celdas = screen.getByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)
-    expect(celdas).toHaveAttribute('data-layer-type', 'fill')
-    expect(JSON.parse(celdas.getAttribute('data-paint')!)).toMatchObject({
-      'fill-opacity': OPACIDAD_CELDAS_EXPOSICION,
-      'fill-outline-color': COLOR_BORDE_CELDAS_EXPOSICION,
-    })
-    expect(JSON.parse(screen.getByTestId('mock-layer-infra-celdas-exposicion-outline').getAttribute('data-paint')!)).toMatchObject({
-      'line-color': COLOR_BORDE_CELDAS_EXPOSICION,
-      'line-width': 1.5,
-    })
-    expect(container.querySelector(`[data-testid="mock-layer-${CAPA_CELDAS_EXPOSICION_ID}"]`)?.parentElement?.nextElementSibling?.querySelector(`[data-testid="mock-layer-${CAPA_RUTA_ACCESO_CASING_ID}"]`)).not.toBeNull()
-    rerender(<CapasAccesosTerritoriales {...base} ruta={null} celdasExposicion={fcCeldas} visibles={visibles([])} />)
-    expect(screen.queryByTestId(`mock-layer-${CAPA_CELDAS_EXPOSICION_ID}`)).not.toBeInTheDocument()
+  it('no monta celdas de exposición sobre la ruta', () => {
+    const { container } = render(<CapasAccesosTerritoriales {...base} visibles={visibles([])} />)
+    expect(container.querySelector('[data-testid^="mock-layer-infra-celdas-exposicion"]')).toBeNull()
+    expect(screen.getByTestId(`mock-layer-${CAPA_RUTA_ACCESO_ID}`)).toBeInTheDocument()
   })
 
   it('monta los cruces con la ruta, permitiendo solapamiento', () => {
@@ -302,7 +283,7 @@ describe('LeyendaAccesos — aislamiento', () => {
   it('no muestra textos de metodología o descargo', () => {
     renderLeyenda()
     expect(screen.queryByTestId('leyenda-aislamiento-ayuda')).not.toBeInTheDocument()
-    expect(screen.getByTestId('leyenda-accesos').textContent).not.toMatch(/pronóstico|período|modelo|fuente|metodología/i)
+    expect(screen.getByTestId('leyenda-accesos').textContent).not.toMatch(/pronóstico|período|modelo|fuente/i)
   })
 
   it('muestra carga, error y falta de datos importados', () => {
@@ -328,30 +309,6 @@ describe('LeyendaAccesos — aislamiento', () => {
     expect(screen.getByTestId('leyenda-aislamiento-sin-datos')).toHaveTextContent(
       'Sin datos de caminos cargados.',
     )
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Leyenda — inundación
-// ---------------------------------------------------------------------------
-
-describe('LeyendaAccesos — inundación', () => {
-  it('no muestra leyenda de agua estimada aunque esté activada en los datos', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']) })
-    expect(screen.queryByTestId('leyenda-inundacion')).not.toBeInTheDocument()
-    expect(screen.queryByText(/agua estimada/i)).not.toBeInTheDocument()
-  })
-
-  it('no presenta metodología o datos de fuente', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']) })
-    expect(screen.queryByTestId('leyenda-inundacion-ayuda')).not.toBeInTheDocument()
-    expect(screen.queryByText(/período de retorno|physrisk|corrida|pronóstico|modelo/i)).not.toBeInTheDocument()
-  })
-
-  it('no monta la capa de inundación cuando está desactivada', () => {
-    renderLeyenda({ visibles: visibles(['inundacion']), territorio: null, resumen })
-    expect(screen.queryByTestId('leyenda-inundacion-sin-datos')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('leyenda-inundacion')).not.toBeInTheDocument()
   })
 })
 
@@ -456,7 +413,7 @@ describe('bboxRuta', () => {
 // ---------------------------------------------------------------------------
 
 describe('AccesosLayerControl', () => {
-  it('oculta agua estimada y notifica el toggle de aislamiento', async () => {
+  it('muestra el toggle de agua estimada y notifica el toggle de aislamiento', async () => {
     const onChange = vi.fn()
     render(
       <AccesosLayerControl
@@ -465,7 +422,7 @@ describe('AccesosLayerControl', () => {
       />,
     )
     expect(screen.getByText('Capas territoriales')).toBeInTheDocument()
-    expect(screen.queryByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.inundacion })).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.inundacion })).not.toBeChecked()
     expect(screen.queryByRole('checkbox', { name: /camino y cruces/i })).not.toBeInTheDocument()
     expect(
       screen.getByRole('checkbox', { name: CAPAS_ACCESOS_LABELS.aislamiento }),

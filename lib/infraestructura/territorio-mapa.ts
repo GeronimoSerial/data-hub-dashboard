@@ -50,8 +50,15 @@ export interface AislamientoEscuelaMapa {
 }
 
 export interface SusceptibilidadEscuelaMapa {
+  // v1 (physrisk, profundidad en m). Sigue disponible para quien lo necesite.
   inundacionFluvialM: number | null
+  // v2: clase de riesgo por crecida de río. null = sin dato.
+  claseRio: 'alto' | 'medio' | 'bajo' | 'sin_riesgo' | 'sin_dato' | null
+  // v2: la escuela está junto a una laguna. null = sin dato (nunca se imputa false).
+  juntoLaguna: boolean | null
 }
+
+const CLASES_RIO_MAPA: ReadonlySet<string> = new Set(['alto', 'medio', 'bajo', 'sin_riesgo', 'sin_dato'])
 
 export interface TerritorioMapa {
   aislamiento: null | {
@@ -237,6 +244,10 @@ export function construirTerritorioMapa(
       escuelas[cueAnexo] = {
         inundacionFluvialM:
           fila.fuente === 'physrisk' ? fila.peligroInundacionFluvial : null,
+        claseRio: fila.claseRio !== null && CLASES_RIO_MAPA.has(fila.claseRio)
+          ? (fila.claseRio as SusceptibilidadEscuelaMapa['claseRio'])
+          : null,
+        juntoLaguna: typeof fila.juntoLaguna === 'boolean' ? fila.juntoLaguna : null,
       }
     }
     susceptibilidad = {
@@ -315,7 +326,7 @@ export function construirRespuestaGeometria(
   const resumen = { puente: 0, vado: 0, sinEvidencia: 0 }
   for (const cruce of fila.cruces) {
     if (cruce.clasificacion === 'puente') resumen.puente += 1
-    else if (cruce.clasificacion === 'vado') resumen.vado += 1
+    else if (cruce.clasificacion === 'vado' || cruce.clasificacion === 'vado_probable') resumen.vado += 1
     else resumen.sinEvidencia += 1
   }
 

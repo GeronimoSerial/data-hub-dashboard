@@ -667,7 +667,7 @@ type PropsRenderMapa = {
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   pestana: 'actual' | 'radar' | 'planificacion'
-  panel?: Exclude<PestanaMapa, 'estadisticas'>
+  panel?: Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
   visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
 }
@@ -1482,6 +1482,18 @@ describe('MapInfraestructuraPage — Planificación', () => {
       [CUE, colorSeveridad('Crítica'), true],
       [CUE_SIN_AFECTACION, undefined, false],
     ])
+  })
+
+  it('en Inundación no dibuja escuelas sin riesgo o sin dato y la leyenda no muestra Nulo', async () => {
+    await renderMapa({ mostrarEnlaceNominal: true, pestana: 'planificacion' })
+
+    await userEvent.click(within(screen.getByTestId('panel-planificacion')).getByRole('button', { name: 'Inundación' }))
+
+    const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
+    expect(JSON.parse(fuente.getAttribute('data-geojson') ?? '{}').features).toEqual([])
+    const leyenda = screen.getByRole('complementary', { name: 'Referencias del mapa' })
+    expect(within(leyenda).getByText('Exposición a inundación')).toBeInTheDocument()
+    expect(within(leyenda).queryByText('Nulo')).not.toBeInTheDocument()
   })
 
   it('abre la ficha desde Prioridad en el panel actual y no la conserva al cambiar de pestaña', async () => {

@@ -1126,10 +1126,14 @@ export const infraAislamientoOsm = pgTable('infra_aislamiento_osm', {
   distanciaViaPavimentadaM: real('distancia_via_pavimentada_m'),
   distanciaCabeceraDepartamentalM: real('distancia_cabecera_departamental_m'),
   tramosSinPavimentarCount: integer('tramos_sin_pavimentar_count'),
+  tramosSinPavimentarKm: real('tramos_sin_pavimentar_km'),
   crucesAguaCount: integer('cruces_agua_count'),
   crucesAguaConPuenteCount: integer('cruces_agua_con_puente_count'),
   crucesAguaConVadoCount: integer('cruces_agua_con_vado_count'),
+  crucesAguaConVadoExplicitoCount: integer('cruces_agua_con_vado_explicito_count'),
+  crucesAguaConVadoProbableCount: integer('cruces_agua_con_vado_probable_count'),
   tieneAlternativaSinCruce: boolean('tiene_alternativa_sin_cruce'),
+  tieneAlternativaPavimentada: boolean('tiene_alternativa_pavimentada'),
   indiceAislamiento: integer('indice_aislamiento'),
   motivoSinDatos: text('motivo_sin_datos'),
   snapDistanciaM: real('snap_distancia_m'),
@@ -1157,6 +1161,19 @@ export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estat
   fechaCorrida: text('fecha_corrida').notNull(),
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),
+  // Flood model v2 (JRC 90 m + lagoon proximity + terrain margin). All nullable:
+  // null means "no data", never "no flood". v1 columns above stay untouched.
+  claseRio: text('clase_rio'),
+  profundidadRp10M: real('profundidad_rp10_m'),
+  profundidadRp100M: real('profundidad_rp100_m'),
+  profundidadRp500M: real('profundidad_rp500_m'),
+  margenRp10M: real('margen_rp10_m'),
+  margenRp100M: real('margen_rp100_m'),
+  margenRp500M: real('margen_rp500_m'),
+  juntoLaguna: boolean('junto_laguna'),
+  distanciaAguaM: real('distancia_agua_m'),
+  alturaSobreAguaM: real('altura_sobre_agua_m'),
+  versionInundacion: integer('version_inundacion'),
 }, (t) => [
   primaryKey({ columns: [t.cueAnexo, t.versionJob] }),
 ])
@@ -1164,7 +1181,7 @@ export const infraSusceptibilidadEstatica = pgTable('infra_susceptibilidad_estat
 export type CruceAccesoOsm = {
   lon: number
   lat: number
-  clasificacion: 'puente' | 'vado' | 'sin_evidencia'
+  clasificacion: 'puente' | 'vado' | 'vado_probable' | 'sin_evidencia'
 }
 
 export type RutaGeoJson = {
@@ -1222,6 +1239,16 @@ export const infraExposicionRutaInundacion = pgTable('infra_exposicion_ruta_inun
   fechaCorrida: text('fecha_corrida').notNull(),
   licencia: text('licencia').notNull(),
   importadoEn: text('importado_en').notNull(),
+  // Flood model v2 route exposure (JRC 90 m, per-pixel terrain margin).
+  // Reuses versionJob as the version marker. All nullable: null means "no
+  // data"; sin_ruta / sin_dato are never rendered as depth 0.
+  claseRuta: text('clase_ruta'),
+  muestrasTotal: integer('muestras_total'),
+  muestrasExpuestas: integer('muestras_expuestas'),
+  muestrasSinDato: integer('muestras_sin_dato'),
+  profundidadMaxRp10M: real('profundidad_max_rp10_m'),
+  profundidadMaxRp100M: real('profundidad_max_rp100_m'),
+  profundidadMaxRp500M: real('profundidad_max_rp500_m'),
 }, (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })])
 // ============================================================
 // Fin bloque G1

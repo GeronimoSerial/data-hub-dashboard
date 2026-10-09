@@ -4,9 +4,11 @@ import { MOSTRAR_AGUA_ESTIMADA } from '@/lib/mapas/flags'
 import {
   DESCRIPCIONES_AISLAMIENTO,
   ETIQUETAS_AISLAMIENTO,
+  ETIQUETAS_INUNDACION,
   TEXTOS_ACCESOS,
+  claseInundacion,
   textoMotivoSinRuta,
-  textoConPeriodo,
+  type ClaseInundacion,
 } from '@/lib/mapas/accesos-capas'
 import type {
   AislamientoEscuelaMapa,
@@ -45,11 +47,6 @@ export interface FichaAccesoTerritorialProps {
 
 const ID_TITULO = 'ficha-acceso-territorial-titulo'
 
-// Profundidad en metros con dos decimales y coma decimal (es-AR): 1.234 -> '1,23'.
-function formatearMetros(valor: number): string {
-  return valor.toFixed(2).replace('.', ',')
-}
-
 // Motivos de recorrido no disponible. Son continuaciones en minúscula de
 // "Sin recorrido para mostrar:", así que se leen como una sola frase. Un
 // motivo nuevo cae al texto genérico en vez de tragarse el dato. La fuente de
@@ -80,22 +77,13 @@ function textoCruces(fila: AislamientoEscuelaMapa | undefined): string {
   return `Cruces de agua en el camino: ${fila.cruces} (${fila.sinPuente ?? 0} sin puente registrado)`
 }
 
-// Línea visible de inundación: la profundidad estimada EN la escuela, no la de
-// un punto cercano. 0 m es "el modelo no estima agua ahí", nunca "0 = seca".
-function textoInundacion(profundidad: number): string {
-  if (!(profundidad > 0)) return 'Agua estimada en la escuela: ninguna según el modelo'
-  return `Agua estimada en la escuela: ${formatearMetros(profundidad)} m en una crecida muy poco frecuente (modelo, no es agua de hoy)`
-}
-
-function textoExposicionRuta(exposicion: ExposicionRutaRespuesta): string {
-  if (!exposicion.disponible) return 'Agua estimada junto al camino: sin dato.'
-  const cobertura = exposicion.resumen.cobertura < 1
-    ? ` Dato en ${Math.round(exposicion.resumen.cobertura * 100)} % de la ruta.`
-    : ''
-  if (exposicion.estado === 'con_profundidad') {
-    return `Agua estimada junto al camino: ${exposicion.resumen.celdasConProfundidad} zonas de ~1 km (hasta ${formatearMetros(exposicion.resumen.profundidadMaxM ?? 0)} m).${cobertura}`
-  }
-  return `Agua estimada junto al camino: ninguna según el modelo.${cobertura}`
+// Estilo del tag de clase de río, reutilizando los badges de globals.css.
+const BADGE_CLASE_INUNDACION: Record<ClaseInundacion, string> = {
+  alto: 'badge--danger',
+  medio: 'badge--warning',
+  bajo: 'badge--neutral',
+  sin_riesgo: 'badge--success',
+  sin_dato: 'badge--neutral',
 }
 
 // Resumen de lo que el cálculo realmente dibujó. Sólo con geometría
@@ -144,22 +132,15 @@ export function FichaAccesoTerritorial({
   geometria,
   geometriaLoading,
   geometriaError,
-  exposicion,
-  exposicionLoading = false,
-  exposicionError = null,
   onVerRutaEnMapa,
 }: FichaAccesoTerritorialProps): JSX.Element {
   const aislamiento = territorio?.aislamiento ?? null
   const filaAislamiento = aislamiento?.escuelas[cueAnexo]
   const susceptibilidad = territorio?.susceptibilidad ?? null
   const filaSusceptibilidad = susceptibilidad?.escuelas[cueAnexo]
-  const profundidad = MOSTRAR_AGUA_ESTIMADA ? filaSusceptibilidad?.inundacionFluvialM ?? null : null
-  // El 0 m es "el modelo no estima agua en ese punto", no "se inundó 0 m": se
-  // cuenta como ausencia de agua estimada, nunca como nivel bajo.
-  const sinAguaEstimada = profundidad !== null && !(profundidad > 0)
-  // Sin ninguna de las dos capas no hay nada que detallar: alcanza con decir
-  // que no hay datos importados.
-  const hayDetalle = aislamiento !== null || (MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null) || (MOSTRAR_AGUA_ESTIMADA && exposicion != null)
+  // Sin datos de aislamiento no hay detalle que mostrar. La inundación no
+  // aporta detalle: en la ficha sólo se muestran tags.
+  const hayDetalle = aislamiento !== null
 
   return (
     <section
@@ -212,35 +193,33 @@ export function FichaAccesoTerritorial({
             )}
           </div>
 
+          {/* Bloque de inundación aislado: sólo tags. Clase de río (sin fila o
+              sin clase = "Sin dato") y, si aplica, "Junto a laguna". */}
           {MOSTRAR_AGUA_ESTIMADA && <div className="ficha-territorial__dato" data-testid="ficha-acceso-susceptibilidad">
             {susceptibilidad === null ? (
               <p data-testid="ficha-acceso-susceptibilidad-sin-datos">
                 Sin datos de agua estimada cargados.
               </p>
-            ) : filaSusceptibilidad === undefined ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-cobertura">
-                Agua estimada en la escuela: sin dato
-              </p>
-            ) : profundidad === null ? (
-              <p data-testid="ficha-acceso-susceptibilidad-sin-valor">
-                Agua estimada en la escuela: sin dato
-              </p>
             ) : (
               <p data-testid="ficha-acceso-susceptibilidad-valor">
-                {textoInundacion(profundidad)}
+                <span
+                  className={`badge ${BADGE_CLASE_INUNDACION[claseInundacion(filaSusceptibilidad?.claseRio)]}`}
+                  data-testid="ficha-acceso-clase-rio"
+                >
+                  {ETIQUETAS_INUNDACION[claseInundacion(filaSusceptibilidad?.claseRio)]}
+                </span>
+                {filaSusceptibilidad?.juntoLaguna === true && (
+                  <>
+                    {' '}
+                    <span className="badge badge--neutral" data-testid="ficha-acceso-junto-laguna">
+                      Junto a laguna
+                    </span>
+                  </>
+                )}
               </p>
             )}
           </div>}
 
-          {MOSTRAR_AGUA_ESTIMADA && (exposicionLoading || exposicionError !== null || exposicion != null) && (
-            <p data-testid="ficha-acceso-exposicion-ruta">
-              {exposicionLoading
-                ? 'Agua estimada en el camino: cargando…'
-                : exposicionError !== null
-                  ? 'Agua estimada en el camino: sin dato.'
-                  : textoExposicionRuta(exposicion!)}
-            </p>
-          )}
           <p className="ficha-territorial__fuente">{TEXTOS_ACCESOS.detalleDatos}</p>
 
           {/* Acción. El recorrido vive en el mapa, no en la ficha: el botón
@@ -329,57 +308,6 @@ export function FichaAccesoTerritorial({
                     aislamiento.fechaExtractoOsm,
                     aislamiento.versionJob,
                   )}
-                </p>
-              )}
-
-              {MOSTRAR_AGUA_ESTIMADA && <p className="ficha-territorial__subtitulo">
-                <strong>Agua estimada en la escuela</strong>
-              </p>}
-              {MOSTRAR_AGUA_ESTIMADA && susceptibilidad !== null && (
-                <>
-                  <p data-testid="ficha-acceso-susceptibilidad-subtitulo">
-                    {textoConPeriodo(
-                      TEXTOS_ACCESOS.subtituloInundacion,
-                      susceptibilidad.periodoRetornoAnios,
-                    )}
-                  </p>
-                  <p data-testid="ficha-acceso-susceptibilidad-que-mide">
-                    {textoConPeriodo(
-                      TEXTOS_ACCESOS.queMideInundacion,
-                      susceptibilidad.periodoRetornoAnios,
-                    )}
-                  </p>
-                  <p data-testid="ficha-acceso-susceptibilidad-periodo">
-                    {textoConPeriodo(TEXTOS_ACCESOS.periodoEscenario, susceptibilidad.periodoRetornoAnios)}
-                  </p>
-                </>
-              )}
-              {exposicion != null && (
-                <p data-testid="ficha-acceso-exposicion-detalle">
-                  Resolución {exposicion.resolucionArcsec ?? 30} arcsec (≈ 1 km): un valor por celda, no por tramo ni por cruce · período de retorno {exposicion.periodoRetornoAnios ?? 100} años · escenario histórico · fuente WRI Aqueduct v2 vía OS-Climate physrisk (Apache-2.0) · corrida {exposicion.fechaCorrida ?? 'sin fecha'}. No es un pronóstico, ni el estado del camino, ni el trazado de un río.
-                </p>
-              )}
-              {sinAguaEstimada && (
-                <p data-testid="ficha-acceso-susceptibilidad-sin-profundidad">
-                  {TEXTOS_ACCESOS.sinProfundidad}
-                </p>
-              )}
-              {(susceptibilidad === null ||
-                filaSusceptibilidad === undefined ||
-                profundidad === null) && (
-                <p data-testid="ficha-acceso-detalle-sin-cobertura">
-                  {TEXTOS_ACCESOS.sinCobertura}
-                </p>
-              )}
-              <p data-testid="ficha-acceso-susceptibilidad-no-representa">
-                {TEXTOS_ACCESOS.noRepresentaInundacion}
-              </p>
-              {susceptibilidad !== null && (
-                <p
-                  className="ficha-territorial__fuente"
-                  data-testid="ficha-acceso-susceptibilidad-fuente"
-                >
-                  Fuente: OS-Climate physrisk (Apache-2.0) · corrida {susceptibilidad.fechaCorrida}
                 </p>
               )}
 

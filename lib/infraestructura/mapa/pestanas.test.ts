@@ -25,6 +25,10 @@ describe('resolverPestana', () => {
     expect(resolverPestana('', '?modo=radar', { radarHabilitado: false })).toBe('actual')
   })
 
+  it('ignora la sección tras la barra (#metodologia/<id>)', () => {
+    expect(resolverPestana('#metodologia/inundacion-ruta-acceso', '', { radarHabilitado: true })).toBe('metodologia')
+  })
+
   it('el hash válido tiene prioridad sobre ?modo=radar', () => {
     expect(resolverPestana('#estadisticas', '?modo=radar', { radarHabilitado: true })).toBe('estadisticas')
   })

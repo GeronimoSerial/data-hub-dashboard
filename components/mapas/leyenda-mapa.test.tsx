@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, within } from '@testing-library/react'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
-import { colorNivelPlan, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
+import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 
 function colorCss(color: string): string {
@@ -83,14 +83,17 @@ describe('LeyendaMapa', () => {
       const muestras = Array.from(container.querySelectorAll('.map-leyenda__muestra')) as HTMLElement[]
 
       expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent(TITULO_LEYENDA_VISTA[vista])
-      expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual([
-        ETIQUETA_NIVEL_PLAN[3], ETIQUETA_NIVEL_PLAN[2], ETIQUETA_NIVEL_PLAN[1], ETIQUETA_NIVEL_PLAN[0],
-      ])
+      // Exposición a inundación no lista Nulo: sin riesgo y sin dato no se dibujan; sí "Junto a laguna".
+      const niveles = vista === 'inundacion' ? [3, 2, 1] as const : [3, 2, 1, 0] as const
+      const etiquetas = niveles.map((nivel) => ETIQUETA_NIVEL_PLAN[nivel])
+      expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual(
+        vista === 'inundacion' ? [...etiquetas, ETIQUETA_JUNTO_LAGUNA] : etiquetas,
+      )
       expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual([
-        colorCss(colorNivelPlan(3)), colorCss(colorNivelPlan(2)),
-        colorCss(colorNivelPlan(1)), '',
+        ...niveles.filter((nivel) => nivel > 0).map((nivel) => colorCss(colorNivelPlan(nivel))),
+        ...(vista === 'inundacion' ? [colorCss(COLOR_JUNTO_LAGUNA)] : ['']),
       ])
-      expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
+      if (vista !== 'inundacion') expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
       expect(container.querySelector('p')).toBeNull()
       unmount()
     }
