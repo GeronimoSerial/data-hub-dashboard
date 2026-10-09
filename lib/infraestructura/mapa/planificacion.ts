@@ -49,7 +49,8 @@ export function nivelPlanificacion(
 
   if (vista === 'aisladas') {
     const nivel = datos.territorio?.aislamiento?.escuelas[escuela.cueAnexo]?.nivel
-    return nivel === 0 || nivel === 1 || nivel === 2 || nivel === 3 ? nivel : 0
+    // Nulo y Bajo no se dibujan ni se listan: sólo Medio y Alto son escuelas aisladas.
+    return nivel === 2 || nivel === 3 ? nivel : 0
   }
 
   const claseRio = datos.territorio?.susceptibilidad?.escuelas[escuela.cueAnexo]?.claseRio
@@ -123,6 +124,7 @@ export function colorPrioridad(item: Pick<EscuelaPrioridad, 'nivel' | 'juntoLagu
 
 /** Niveles que la leyenda lista. Exposición a inundación muestra sólo Alto/Medio/Bajo: sin riesgo y sin dato no se dibujan ni se listan. */
 export function nivelesLeyendaPlanificacion(vista: VistaPlanificacion): readonly NivelPlanificacion[] {
+  if (vista === 'aisladas') return [3, 2]
   return vista === 'inundacion' ? [3, 2, 1] : [3, 2, 1, 0]
 }
 

@@ -83,17 +83,17 @@ describe('LeyendaMapa', () => {
       const muestras = Array.from(container.querySelectorAll('.map-leyenda__muestra')) as HTMLElement[]
 
       expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent(TITULO_LEYENDA_VISTA[vista])
-      // Exposición a inundación no lista Nulo: sin riesgo y sin dato no se dibujan; sí "Junto a laguna".
-      const niveles = vista === 'inundacion' ? [3, 2, 1] as const : [3, 2, 1, 0] as const
+      // Inundación no lista Nulo (sí "Junto a laguna"); Aisladas sólo lista Alto y Medio; Historial lista los cuatro.
+      const niveles = vista === 'inundacion' ? [3, 2, 1] as const : vista === 'aisladas' ? [3, 2] as const : [3, 2, 1, 0] as const
       const etiquetas = niveles.map((nivel) => ETIQUETA_NIVEL_PLAN[nivel])
       expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual(
         vista === 'inundacion' ? [...etiquetas, ETIQUETA_JUNTO_LAGUNA] : etiquetas,
       )
       expect(muestras.map((muestra) => muestra.style.backgroundColor)).toEqual([
         ...niveles.filter((nivel) => nivel > 0).map((nivel) => colorCss(colorNivelPlan(nivel))),
-        ...(vista === 'inundacion' ? [colorCss(COLOR_JUNTO_LAGUNA)] : ['']),
+        ...(vista === 'inundacion' ? [colorCss(COLOR_JUNTO_LAGUNA)] : vista === 'historial' ? [''] : []),
       ])
-      if (vista !== 'inundacion') expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
+      if (vista === 'historial') expect(muestras[3]).toHaveClass('map-leyenda__muestra--neutra')
       expect(container.querySelector('p')).toBeNull()
       unmount()
     }

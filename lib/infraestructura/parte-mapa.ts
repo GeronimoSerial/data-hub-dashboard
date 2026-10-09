@@ -107,6 +107,7 @@ export function calcularAlumnosAlcanzados(params: {
 // El umbral vive en umbrales.ts, un modulo sin importaciones de servidor:
 // el mapa lo necesita en runtime y este modulo arrastra node:fs via getDb.
 import { UMBRAL_SIN_ACTUALIZAR_HORAS } from './umbrales'
+import { ubicacionEnCorrientes } from './radar-meteo/departamentos'
 export { UMBRAL_SIN_ACTUALIZAR_HORAS }
 
 const resultadoVacio = { partes: [] as ParteMapa[], indicadores: indicadoresVacios() }
@@ -652,7 +653,9 @@ export async function listarEscuelasMapa(
   const sinUbicacion: EscuelasMapaResultado['sinUbicacion'] = []
 
   for (const fila of padron) {
-    if (fila.lat === null || fila.lon === null) {
+    // A coordinate outside the province is a padrón error: the school still
+    // counts in its department totals, but is not drawn on the map.
+    if (fila.lat === null || fila.lon === null || !ubicacionEnCorrientes(fila.lat, fila.lon)) {
       sinUbicacion.push({
         cueAnexo: fila.cueAnexo,
         nombre: fila.nombre,

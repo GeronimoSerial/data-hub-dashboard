@@ -50,9 +50,9 @@ describe('construirPuntosNivel', () => {
     ])
   })
 
-  it('devuelve sólo puntos con nivel de aislamiento', () => {
+  it('devuelve sólo puntos con nivel de aislamiento Medio o Alto', () => {
     const aisladas = puntosRiesgoSobreSituacion(escuelasRiesgo, territorioRiesgo)
-    expect(aisladas.features.map(({ properties }) => properties.cueAnexo)).toEqual(['a', 'c'])
+    expect(aisladas.features.map(({ properties }) => properties.cueAnexo)).toEqual(['a']) // b sin datos y c Bajo quedan ocultas
     expect(aisladas.features.every(({ properties }) => properties.conDato)).toBe(true)
     expect(puntosRiesgoSobreSituacion(escuelasRiesgo, null).features).toEqual([])
   })
