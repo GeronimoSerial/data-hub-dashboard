@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asignarCeldasADepartamentos, listarDepartamentos } from './departamentos'
+import { asignarCeldasADepartamentos, listarDepartamentos, ubicacionEnCorrientes } from './departamentos'
 import { generarGrilla } from './grilla'
 
 describe('asignarCeldasADepartamentos', () => {
@@ -20,5 +20,17 @@ describe('asignarCeldasADepartamentos', () => {
     const segunda = asignarCeldasADepartamentos(grilla)
     expect(segunda).toEqual(primera)
     expect(asignarCeldasADepartamentos([...grilla].reverse())).toEqual([...primera].reverse())
+  })
+})
+
+describe('ubicacionEnCorrientes', () => {
+  it('accepts points inside the province and just past its boundary', () => {
+    expect(ubicacionEnCorrientes(-27.4692, -58.8306)).toBe(true) // Corrientes capital
+    expect(ubicacionEnCorrientes(-27.57289, -56.71054)).toBe(true) // shore school, ~0.5 km out
+  })
+
+  it('rejects padrón coordinates far outside the province', () => {
+    expect(ubicacionEnCorrientes(-29.097614, -59.457138)).toBe(false) // 1800295-00
+    expect(ubicacionEnCorrientes(-27.367046, -59.457138)).toBe(false) // 1800303-00
   })
 })

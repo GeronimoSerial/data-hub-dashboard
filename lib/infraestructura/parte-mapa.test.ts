@@ -331,8 +331,8 @@ async function sembrarEscuelaPadron(params: {
 
 describe('listarEscuelasMapa', () => {
   it('sin afectaciones vigentes devuelve todo el padrón como sin_afectacion_reportada', async () => {
-    await sembrarEscuelaPadron({ cue: 'MAPA-A-1', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.1, lon: -58.1 })
-    await sembrarEscuelaPadron({ cue: 'MAPA-A-2', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.2, lon: -58.2 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-A-1', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.6, lon: -58.6 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-A-2', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: -27.7, lon: -58.7 })
     await sembrarEscuelaPadron({ cue: 'MAPA-A-3', departamento: 'MAPA-QUIMILI', localidad: 'MAPA-QUIMILI', lat: null, lon: null })
 
     const { escuelas, sinUbicacion, totalPadron } = await listarEscuelasMapa({ territorio: 'MAPA-QUIMILI' })
@@ -407,8 +407,8 @@ describe('listarEscuelasMapa', () => {
         cue: caso.cue,
         departamento: 'MAPA-FILTRO',
         localidad: 'MAPA-FILTRO',
-        lat: -30.1,
-        lon: -60.1,
+        lat: -28.6,
+        lon: -58.1,
       })
       const parteId = await crearParte(caso.cue)
       await crearAfectacion({
@@ -430,7 +430,7 @@ describe('listarEscuelasMapa', () => {
   })
 
   it('sin período vigente igual devuelve todo el padrón, nunca vacío', async () => {
-    await sembrarEscuelaPadron({ cue: 'MAPA-G-1', departamento: 'MAPA-SINPERIODO', localidad: 'MAPA-SINPERIODO', lat: -31.1, lon: -61.1 })
+    await sembrarEscuelaPadron({ cue: 'MAPA-G-1', departamento: 'MAPA-SINPERIODO', localidad: 'MAPA-SINPERIODO', lat: -28.1, lon: -57.1 })
     const parteId = await crearParte('MAPA-G-1')
     await crearAfectacion({ parteId, secciones: [] })
 
@@ -450,15 +450,15 @@ describe('listarEscuelasMapa', () => {
       cue: 'MAPA-H-1',
       departamento: 'MAPA-REDONDEO',
       localidad: 'MAPA-REDONDEO',
-      lat: 12.345678901234567,
-      lon: -54.321987654321098,
+      lat: -28.345678901234567,
+      lon: -58.321987654321098,
     })
 
     const { escuelas, sinUbicacion } = await listarEscuelasMapa({ territorio: 'MAPA-REDONDEO' })
 
     expect(escuelas).toHaveLength(1)
-    expect(escuelas[0].lat).toBe(12.34568)
-    expect(escuelas[0].lon).toBe(-54.32199)
+    expect(escuelas[0].lat).toBe(-28.34568)
+    expect(escuelas[0].lon).toBe(-58.32199)
     expect(sinUbicacion).toEqual([])
   })
 })
