@@ -73,7 +73,7 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     fn()
   }
 
-  // School structure shared by the community and service simulators.
+  // Example school used by the service-state simulator.
   const SECCIONES = [
     { id: 1, n: '1° A', t: 'm', k: 28 },
     { id: 2, n: '2° A', t: 'm', k: 25 },
@@ -82,36 +82,6 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     { id: 5, n: '2° B', t: 't', k: 27 },
     { id: 6, n: '3° B', t: 't', k: 24 },
   ]
-
-  let seccionElegida = 1
-  function escuela() {
-    const s = svg('esc-svg')
-    if (!s) return
-    el('rect', { x: 300, y: 8, width: 160, height: 34, rx: 6, fill: color('--accent') }, s)
-    rotulo(s, 380, 30, 'Escuela', { 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 700, fill: color('--page') })
-    const turnos: Array<[string, string, number]> = [['m', 'Turno mañana', 190], ['t', 'Turno tarde', 570]]
-    for (const [clave, nombre, x] of turnos) {
-      el('path', { d: `M380 42 L${x} 70`, stroke: color('--line'), 'stroke-width': 2 }, s)
-      el('rect', { x: x - 75, y: 70, width: 150, height: 28, rx: 6, fill: color('--fill'), stroke: color('--line') }, s)
-      rotulo(s, x, 89, nombre, { 'text-anchor': 'middle', 'font-size': 12.5 })
-      SECCIONES.filter((q) => q.t === clave).forEach((q, i) => {
-        const cx = x - 151 + i * 105
-        const activa = q.id === seccionElegida
-        el('path', { d: `M${x} 98 L${cx + 46} 122`, stroke: color('--line'), 'stroke-width': 1.5 }, s)
-        const g = el('g', { tabindex: 0, role: 'button', 'aria-label': `Sección ${q.n}`, style: 'cursor:pointer' }, s)
-        g.addEventListener('click', () => {
-          seccionElegida = q.id
-          escuela()
-        })
-        el('rect', { x: cx, y: 122, width: 92, height: 110, rx: 6, fill: color(activa ? '--accent-tint' : '--card'), stroke: color(activa ? '--accent' : '--line'), 'stroke-width': activa ? 2 : 1 }, g)
-        rotulo(g, cx + 46, 140, q.n, { 'text-anchor': 'middle', 'font-weight': 700 })
-        for (let a = 0; a < q.k; a++) el('circle', { cx: cx + 8 + (a % 8) * 11, cy: 154 + Math.floor(a / 8) * 11, r: 3.6, fill: color('--accent'), opacity: 0.75 }, g)
-      })
-    }
-    const q = SECCIONES.find((x) => x.id === seccionElegida) ?? SECCIONES[0]
-    const total = SECCIONES.reduce((a, x) => a + x.k, 0)
-    texto('esc-why', `Matrícula total: ${total} alumnos en ${SECCIONES.length} secciones. ${q.n} (turno ${q.t === 'm' ? 'mañana' : 'tarde'}): ${q.k} alumnos.`)
-  }
 
   // Service state: section > shift > school > normal.
   const declaradoPorSeccion = new Map<number, string>()
@@ -659,7 +629,6 @@ export function iniciarSimuladores(raiz: HTMLElement): () => void {
     linaje()
     graficoUmbrales()
     graficoFactores()
-    escuela()
     servicio()
     exposicion()
     cobertura()

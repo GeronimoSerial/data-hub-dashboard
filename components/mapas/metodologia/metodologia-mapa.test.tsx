@@ -13,7 +13,7 @@ describe('MetodologiaMapa', () => {
     render(<MetodologiaMapa />)
 
     for (const titulo of [
-      'La escuela y su comunidad',
+      'Trazabilidad de los datos',
       '1 · Continuidad pedagógica',
       'Lluvia observada desde el espacio',
       '3 · Riesgo estimado',

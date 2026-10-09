@@ -23,8 +23,7 @@ export function MetodologiaMapa() {
         <div className="brand">Metodología</div>
         <ol>
           <li><a href="#metodologia/inicio">Panorama</a></li>
-          <li><a href="#metodologia/comunidad">La escuela y su comunidad</a></li>
-          <li><a href="#metodologia/linaje">De la fuente al mapa</a></li>
+          <li><a href="#metodologia/linaje">Trazabilidad de los datos</a></li>
           <li><a href="#metodologia/afectacion">1 · Continuidad pedagógica</a></li>
           <li><a href="#metodologia/seguimiento">Seguimiento en el tiempo</a></li>
           <li><a href="#metodologia/lluvia">2 · Peligro por lluvia</a></li>
@@ -39,13 +38,8 @@ export function MetodologiaMapa() {
       </nav>
       <div className="metodologia__contenido">
       <header className="metodologia__portada" id="inicio">
-        <h1>Cada punto del mapa es una comunidad educativa</h1>
-        <p className="lead">Detrás de cada escuela hay alumnos que necesitan llegar y aprender, docentes que necesitan poder dar clase y un equipo directivo que sostiene el funcionamiento. El mapa reúne seis indicadores para responder una sola pregunta de fondo: <b>¿dónde está en juego el derecho a aprender, y qué tan pronto hay que actuar?</b></p>
-        <div className="stats">
-          <div><b>Alumno</b><span>Es la unidad de medida. Los impactos se cuentan en estudiantes con nombre y sección, no en edificios.</span></div>
-          <div><b>Sección</b><span>Es la unidad de decisión. Se suspende o se sostiene la clase sección por sección, turno por turno.</span></div>
-          <div><b>Directivo</b><span>Es la fuente primaria. Declara lo que observa en el dictado de clase, sin tener que estimar daños técnicos.</span></div>
-        </div>
+        <h1>ENOS · El Niño Oscilación del Sur 2026–2027</h1>
+        <p className="lead">Combinamos observación satelital, modelos de riesgo y los datos de gestión educativa de la provincia para anticipar dónde El Niño puede interrumpir las clases y priorizar la respuesta escuela por escuela. Esta página explica cada indicador del mapa: de dónde salen sus datos, cómo se calcula y cuáles son sus límites.</p>
         <div className="models">
           <a href="#metodologia/afectacion"><b>Continuidad pedagógica</b><span>¿Qué secciones no tienen clase y cuántos alumnos alcanza?</span></a>
           <a href="#metodologia/lluvia"><b>Peligro por lluvia</b><span>¿Llueve de forma excepcional sobre la zona?</span></a>
@@ -62,32 +56,13 @@ export function MetodologiaMapa() {
           <a href="#metodologia/lluvia"><b>ECMWF · ERA5</b><span>Climatología histórica de lluvia</span></a>
           <a href="#metodologia/lluvia"><b>Open-Meteo</b><span>Pronóstico de lluvia a 24, 72 y 240 horas</span></a>
           <a href="#metodologia/aislamiento"><b>OpenStreetMap</b><span>Red vial, puentes y vados</span></a>
-          <a href="#metodologia/comunidad"><b>Gestión Educativa</b><span>Padrón de escuelas, secciones y matrícula</span></a>
+          <a href="#metodologia/afectacion"><b>Gestión Educativa</b><span>Padrón de escuelas, secciones y matrícula</span></a>
         </div>
         <div className="callout warn"><b>Ningún indicador es una alerta oficial.</b> Son herramientas para que supervisión y ministerio prioricen recursos donde más días de clase están en riesgo.</div>
       </header>
 
-      <section id="comunidad">
-        <h2>La escuela y su comunidad</h2>
-        <p className="question">¿Quiénes están detrás de cada punto del mapa?</p>
-        <p>El sistema parte del padrón oficial de Gestión Educativa: cada establecimiento con su ubicación, sus turnos, sus secciones y la nómina de alumnos de cada sección en el corte vigente. Por eso puede contar estudiantes reales y no estimaciones por promedio.</p>
-        <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
-          <div className="card"><h3 style={{ marginTop: '0' }}>Alumnos</h3><p>Son quienes pierden días de clase. El sistema cuenta cuántos alumnos distintos quedan alcanzados por cada problema, sin duplicar a quien está en dos secciones afectadas. También registra los problemas propios del trayecto: anegamiento o accesos cortados que les impiden llegar.</p></div>
-          <div className="card"><h3 style={{ marginTop: '0' }}>Docentes</h3><p>Sin docentes no hay clase, aunque el edificio esté en condiciones. Por eso “inaccesibilidad de docentes” es un motivo propio de afectación del establecimiento, y el aislamiento vial mide el camino que recorren todos los días.</p></div>
-          <div className="card"><h3 style={{ marginTop: '0' }}>Equipo directivo</h3><p>Carga el parte y lo mantiene al día. Los criterios de severidad están escritos en términos de lo que puede observar: si se dicta clase, si asisten los alumnos. Recibe avisos cuando una carga parece inconsistente y pedidos de verificación cuando hace falta confirmar.</p></div>
-          <div className="card"><h3 style={{ marginTop: '0' }}>Supervisión y ministerio</h3><p>Leen el mapa para decidir: dónde mandar ayuda primero, qué caminos gestionar, qué escuelas acompañar. Cada indicador está diseñado para que ningún faltante de dato haga parecer segura a una escuela que no lo es.</p></div>
-        </div>
-        <div className="sim" id="sim-escuela">
-          <h4>Una escuela por dentro</h4>
-          <p className="hint">Escuela de ejemplo con dos turnos. Cada cuadro es una sección; los puntos, sus alumnos. Tocá una sección para ver su nómina.</p>
-          <svg id="esc-svg" viewBox="0 0 760 250" role="img" aria-label="Estructura de una escuela en turnos, secciones y alumnos"></svg>
-          <p className="why" id="esc-why">Matrícula total: 0 alumnos en 0 secciones.</p>
-        </div>
-      </section>
-
-
       <section id="linaje">
-        <h2>De la fuente al mapa</h2>
+        <h2>Trazabilidad de los datos</h2>
         <p>Cada fuente pasa por un proceso propio antes de llegar al mapa. Las líneas muestran qué datos alimentan a qué indicador.</p>
         <div className="card">
         <svg viewBox="0 0 900 440" role="img" aria-label="Diagrama de linaje de datos">
