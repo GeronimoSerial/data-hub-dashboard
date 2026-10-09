@@ -33,6 +33,8 @@ export function InfraestructuraMapClient(props: {
   seasonalEnabled?: boolean
 }) {
   const [tab, setTab] = React.useState<PestanaMapa>('actual')
+  // Fullscreen target: tabs, filters and map share this element, so all stay visible.
+  const contenedorPantallaCompleta = React.useRef<HTMLDivElement>(null)
   const seleccionarEscuelaRef = React.useRef<((escuela: EscuelaMapaPadron) => void) | null>(null)
   const registrarSeleccion = React.useCallback((fn: ((escuela: EscuelaMapaPadron) => void) | null) => {
     seleccionarEscuelaRef.current = fn
@@ -98,7 +100,7 @@ export function InfraestructuraMapClient(props: {
   }
 
   return (
-    <div className="mapa-pestanas">
+    <div className="mapa-pestanas" ref={contenedorPantallaCompleta}>
       <div className="mapa-pestanas-barra">
         <Tabs value={tab} onValueChange={onTab}>
           <TabsList>
@@ -126,6 +128,7 @@ export function InfraestructuraMapClient(props: {
           filtros={filtros}
           onChange={setFiltros}
           onSeleccionar={seleccionarEscuela}
+          contenedorPopovers={contenedorPantallaCompleta}
         />
       </div>
 
@@ -152,6 +155,7 @@ export function InfraestructuraMapClient(props: {
             visible={mapaVisible}
             escuelasMapa={escuelasMapa}
             onRegistrarSeleccion={registrarSeleccion}
+            contenedorPantallaCompleta={contenedorPantallaCompleta}
           />
         </div>
 

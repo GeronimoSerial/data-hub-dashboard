@@ -124,6 +124,21 @@ describe('FiltrosChips', () => {
     expect(posicionador).toHaveAttribute('data-side', 'bottom')
   })
 
+  it('abre el popover dentro del contenedor indicado, visible en pantalla completa', async () => {
+    function ContenedorDePrueba() {
+      const ref = React.useRef<HTMLDivElement>(null)
+      return (
+        <div ref={ref} data-testid="contenedor-pantalla-completa">
+          <FiltrosChips escuelas={padronEjemplo} filtros={FILTROS_MAPA_VACIOS} onChange={() => {}} contenedorPopovers={ref} />
+        </div>
+      )
+    }
+    render(<ContenedorDePrueba />)
+    await userEvent.setup().click(getChip('Departamento'))
+    const popup = screen.getByRole('dialog', { name: 'Departamento' })
+    expect(screen.getByTestId('contenedor-pantalla-completa')).toContainElement(popup)
+  })
+
   it('limita la altura del popover y permite desplazarse por sus opciones', () => {
     const css = readFileSync('app/globals.css', 'utf8')
     const reglaPopover = css.match(/\.filtros-popover\s*\{[^}]*\}/)?.[0]
