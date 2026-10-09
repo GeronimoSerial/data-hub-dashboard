@@ -36,7 +36,9 @@ export function horaActualizacion(iso: string, ahoraMs: number): string {
 
   const hoy = new Date(ahoraMs).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
   const dia = fecha.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
-  return hoy === dia ? `Hoy ${FORMATO_HORA.format(fecha)}` : FORMATO_FECHA.format(fecha)
+  if (hoy === dia) return `Hoy ${FORMATO_HORA.format(fecha)}`
+  // Shows today's date but keeps the last report date visible so stale data is not mistaken for current.
+  return `Hoy ${FORMATO_FECHA.format(new Date(ahoraMs))} · último parte ${FORMATO_FECHA.format(fecha)}`
 }
 
 function IconoClases({ estado }: { estado: EscuelaMapaEnriquecida['clases'] }) {
