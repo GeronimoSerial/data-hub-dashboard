@@ -58,7 +58,6 @@ export function MetodologiaMapa() {
           <a href="#metodologia/aislamiento"><b>OpenStreetMap</b><span>Red vial, puentes y vados</span></a>
           <a href="#metodologia/afectacion"><b>Gestión Educativa</b><span>Padrón de escuelas, secciones y matrícula</span></a>
         </div>
-        <div className="callout warn"><b>Ningún indicador es una alerta oficial.</b> Son herramientas para que supervisión y ministerio prioricen recursos donde más días de clase están en riesgo.</div>
       </header>
 
       <section id="linaje">
