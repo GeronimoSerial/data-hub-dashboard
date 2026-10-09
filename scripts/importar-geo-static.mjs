@@ -129,10 +129,14 @@ function mapearFilaAislamiento(fila) {
     distanciaViaPavimentadaM: numeroONull(fila.distancia_via_pavimentada_m),
     distanciaCabeceraDepartamentalM: numeroONull(fila.distancia_cabecera_departamental_m),
     tramosSinPavimentarCount: numeroONull(fila.tramos_sin_pavimentar_count),
+    tramosSinPavimentarKm: numeroONull(fila.tramos_sin_pavimentar_km),
     crucesAguaCount: numeroONull(fila.cruces_agua_count),
     crucesAguaConPuenteCount: numeroONull(fila.cruces_agua_con_puente_count),
     crucesAguaConVadoCount: numeroONull(fila.cruces_agua_con_vado_count),
+    crucesAguaConVadoExplicitoCount: numeroONull(fila.cruces_agua_con_vado_explicito_count),
+    crucesAguaConVadoProbableCount: numeroONull(fila.cruces_agua_con_vado_probable_count),
     tieneAlternativaSinCruce: booleanONull(fila.tiene_alternativa_sin_cruce),
+    tieneAlternativaPavimentada: booleanONull(fila.tiene_alternativa_pavimentada),
     indiceAislamiento: numeroONull(fila.indice_aislamiento),
     motivoSinDatos: vacioANull(fila.motivo_sin_datos),
     snapDistanciaM: numeroONull(fila.snap_distancia_m),
@@ -173,10 +177,14 @@ const schemaFilaAislamiento = z.object({
   distanciaViaPavimentadaM: numeroONullSchema,
   distanciaCabeceraDepartamentalM: numeroONullSchema,
   tramosSinPavimentarCount: numeroONullSchema,
+  tramosSinPavimentarKm: numeroONullSchema,
   crucesAguaCount: numeroONullSchema,
   crucesAguaConPuenteCount: numeroONullSchema,
   crucesAguaConVadoCount: numeroONullSchema,
+  crucesAguaConVadoExplicitoCount: numeroONullSchema,
+  crucesAguaConVadoProbableCount: numeroONullSchema,
   tieneAlternativaSinCruce: z.boolean().nullable(),
+  tieneAlternativaPavimentada: z.boolean().nullable(),
   indiceAislamiento: numeroONullSchema,
   motivoSinDatos: z.string().nullable(),
   snapDistanciaM: numeroONullSchema,
@@ -280,7 +288,7 @@ const rutaGeometriaSchema = z
 const cruceGeometriaSchema = z.object({
   lon: lonSchema,
   lat: latSchema,
-  clasificacion: z.enum(['puente', 'vado', 'sin_evidencia']),
+  clasificacion: z.enum(['puente', 'vado', 'vado_probable', 'sin_evidencia']),
 })
 
 const viaPrincipalObjetoSchema = z.object({

@@ -160,6 +160,7 @@ export const ETIQUETAS_INUNDACION = {
 export const ETIQUETAS_CRUCE = {
   puente: 'Puente',
   vado: 'Vado',
+  vado_probable: 'Vado probable',
   // OSM no tiene tag de puente en ese punto; NO confirma que no haya puente.
   sin_evidencia: 'Sin puente registrado',
 } as const
@@ -167,6 +168,7 @@ export const ETIQUETAS_CRUCE = {
 export const DESCRIPCIONES_CRUCE = {
   puente: 'Cruce de agua con puente cargado en el mapa.',
   vado: 'Cruce de agua a nivel del cauce, sin puente. No dice si hoy se puede pasar.',
+  vado_probable: 'Cruce sin tag ford=yes sobre una vía no pavimentada; se estima como vado para el índice.',
   sin_evidencia:
     'No hay puente cargado en el mapa en este cruce; puede existir sin estar cargado. No dice si hoy se puede pasar.',
 } as const
@@ -212,6 +214,7 @@ export const ID_ICONO_INUNDACION = {
 export const ID_ICONO_CRUCE = {
   puente: 'infra-icono-cruce-puente',
   vado: 'infra-icono-cruce-vado',
+  vado_probable: 'infra-icono-cruce-vado',
   sin_evidencia: 'infra-icono-cruce-sin-evidencia',
 } as const
 

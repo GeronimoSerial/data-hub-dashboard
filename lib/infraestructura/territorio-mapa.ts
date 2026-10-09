@@ -326,7 +326,7 @@ export function construirRespuestaGeometria(
   const resumen = { puente: 0, vado: 0, sinEvidencia: 0 }
   for (const cruce of fila.cruces) {
     if (cruce.clasificacion === 'puente') resumen.puente += 1
-    else if (cruce.clasificacion === 'vado') resumen.vado += 1
+    else if (cruce.clasificacion === 'vado' || cruce.clasificacion === 'vado_probable') resumen.vado += 1
     else resumen.sinEvidencia += 1
   }
 

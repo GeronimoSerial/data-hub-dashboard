@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
 } from 'react'
 import MapGL, {
   AttributionControl,
@@ -601,6 +602,8 @@ export default function MapInfraestructuraPage(props: {
   seasonalEnabled?: boolean
   visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
+  // Element that fullscreen should cover (tabs, filters and map). Defaults to the map shell.
+  contenedorPantallaCompleta?: RefObject<HTMLElement | null>
 }) {
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
@@ -2000,7 +2003,7 @@ export default function MapInfraestructuraPage(props: {
         </div>
       )}
 
-      {!radarActivo && <FullscreenButton targetRef={shellRef} />}
+      {!radarActivo && <FullscreenButton targetRef={props.contenedorPantallaCompleta ?? shellRef} />}
 
     </div>
   )

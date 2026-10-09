@@ -78,7 +78,7 @@ function resumirCruces(geometria: GeometriaAccesoRespuesta) {
   if (geometria.cruces !== undefined) {
     return geometria.cruces.reduce((resumen, cruce: CruceAccesoOsm) => {
       if (cruce.clasificacion === 'puente') resumen.puente += 1
-      else if (cruce.clasificacion === 'vado') resumen.vado += 1
+      else if (cruce.clasificacion === 'vado' || cruce.clasificacion === 'vado_probable') resumen.vado += 1
       else resumen.sinEvidencia += 1
       return resumen
     }, { puente: 0, vado: 0, sinEvidencia: 0 })

@@ -29,6 +29,9 @@ const registroSeleccion = vi.hoisted(() => ({
   escuelasSeleccionadas: [] as EscuelasMapaPadronResultado['escuelas'],
   hashesAlSeleccionar: [] as string[],
 }))
+const registroPantallaCompleta = vi.hoisted(() => ({
+  contenedor: null as React.RefObject<HTMLElement | null> | null,
+}))
 
 function chipPrincipal(nombre: string) {
   const chips = document.querySelector<HTMLElement>('.filtros-chips-principales')
@@ -43,7 +46,9 @@ vi.mock('@/components/mapas/map-infraestructura-page', () => ({
     visible?: boolean
     escuelasMapa: EscuelasMapaPadronResultado | null
     onRegistrarSeleccion?: (fn: ((escuela: EscuelasMapaPadronResultado['escuelas'][number]) => void) | null) => void
+    contenedorPantallaCompleta?: React.RefObject<HTMLElement | null>
   }): React.JSX.Element {
+    registroPantallaCompleta.contenedor = props.contenedorPantallaCompleta ?? null
     const [cueSeleccionado, setCueSeleccionado] = React.useState<string | null>(null)
     React.useEffect(() => {
       montajesMapa.total += 1
@@ -138,6 +143,15 @@ describe('InfraestructuraMapClient — pestañas sobre el mapa', () => {
 
     const pestaña = screen.getByRole('tab', { name: 'Situación actual' })
     expect(pestaña.querySelector('.map-sitact__pill')).toBeNull()
+  })
+
+  it('la pantalla completa abarca las pestañas, los filtros y el mapa', () => {
+    render(<InfraestructuraMapClient mostrarEnlaceNominal />)
+    const contenedor = registroPantallaCompleta.contenedor?.current
+    expect(contenedor).toBeTruthy()
+    expect(contenedor).toContainElement(screen.getByRole('tab', { name: /^Situación actual/ }))
+    expect(contenedor).toContainElement(screen.getByRole('button', { name: 'Buscar escuela o CUE' }))
+    expect(contenedor).toContainElement(screen.getByTestId('mock-mapa'))
   })
 
   it('mantiene las pestañas y los filtros en el mismo contenedor, con las pestañas primero', async () => {

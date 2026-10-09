@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Ref } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react'
 import { Popover } from '@base-ui/react/popover'
 import { ChevronDown, Clock, Search, SlidersHorizontal, X } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -124,6 +124,7 @@ function FiltroDesplegable({
   onChange,
   abierto,
   onAbiertoChange,
+  contenedorPopovers,
 }: {
   clave: ClaveFiltro
   escuelas: EscuelaMapaEnriquecida[]
@@ -131,6 +132,7 @@ function FiltroDesplegable({
   onChange: (filtros: FiltrosMapa) => void
   abierto: boolean
   onAbiertoChange: (abierto: boolean) => void
+  contenedorPopovers?: RefObject<HTMLElement | null>
 }) {
   const etiqueta = ETIQUETAS_FILTRO[clave]
   const seleccionados = valoresSeleccionados(filtros, clave)
@@ -160,7 +162,8 @@ function FiltroDesplegable({
           {textoChip}
           <ChevronDown aria-hidden="true" />
         </Popover.Trigger>
-        <Popover.Portal>
+        {/* Rendered inside the given container so the popover stays visible in fullscreen. */}
+        <Popover.Portal container={contenedorPopovers}>
           <Popover.Positioner className="filtros-popover-posicionador" side="bottom" align="start" sideOffset={4} collisionAvoidance={{ side: 'none', align: 'shift' }}>
             <Popover.Popup className="filtros-popover" aria-label={etiqueta} data-apertura="abajo">
               <OpcionesFiltro clave={clave} escuelas={escuelas} filtros={filtros} onChange={onChange} primerCheckbox={primerCheckbox} />
@@ -187,11 +190,13 @@ export function FiltrosChips({
   filtros,
   onChange,
   onSeleccionar,
+  contenedorPopovers,
 }: {
   escuelas: EscuelaMapaEnriquecida[]
   filtros: FiltrosMapa
   onChange: (filtros: FiltrosMapa) => void
   onSeleccionar?: (cueAnexo: string) => void
+  contenedorPopovers?: RefObject<HTMLElement | null>
 }) {
   const [popoverAbierto, setPopoverAbierto] = useState<{ grupo: 'principal' | 'medicion'; clave: ClaveFiltro } | null>(null)
   const [sugerenciasCerradas, setSugerenciasCerradas] = useState(false)
@@ -273,6 +278,7 @@ export function FiltrosChips({
         onChange={onChange}
         abierto={popoverAbierto?.grupo === grupo && popoverAbierto.clave === clave}
         onAbiertoChange={(abierto) => setPopoverAbierto(abierto ? { grupo, clave } : null)}
+        contenedorPopovers={contenedorPopovers}
       />
     )
   }
@@ -394,7 +400,8 @@ export function FiltrosChips({
             {etiquetaBotonMas}
             {cantidadActivosFuera > 0 ? <span className="filtros-chip__contador" aria-hidden="true">{cantidadActivosFuera}</span> : null}
           </Popover.Trigger>
-          <Popover.Portal>
+          {/* Same container as the chip popovers, so it also stays visible in fullscreen. */}
+          <Popover.Portal container={contenedorPopovers}>
             <Popover.Positioner className="map-filtros-mas-posicionador" side="bottom" align="end" sideOffset={4}>
               <Popover.Popup className="map-filtros-mas-panel" aria-label={etiquetaBotonMas}>
                 {CLAVES_DESPLEGABLES.slice(cantidadEnLinea).map(renderGrupoPanel)}
