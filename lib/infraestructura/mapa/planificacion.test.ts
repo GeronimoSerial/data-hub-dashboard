@@ -62,7 +62,7 @@ describe('planificacion', () => {
   it('ordena por nivel, luego por la métrica de la vista y finalmente por nombre', () => {
     const t = territorio()
     expect(prioridadPlanificacion(escuelas, 'historial', { territorio: t }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['b', 'a'])
-    expect(prioridadPlanificacion(escuelas, 'aisladas', { territorio: t }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'c'])
+    expect(prioridadPlanificacion(escuelas, 'aisladas', { territorio: t }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a']) // c es Bajo: oculta
     expect(prioridadPlanificacion(escuelas, 'inundacion', { territorio: t }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'b'])
     expect(ETIQUETA_NIVEL_PLAN[2]).toBe('Medio')
 
@@ -73,7 +73,7 @@ describe('planificacion', () => {
     ]
     expect(prioridadPlanificacion(empatadas, 'historial', { territorio: null }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'b', 'z'])
     expect(prioridadPlanificacion(empatadas, 'aisladas', {
-      territorio: { ...t, aislamiento: { ...t.aislamiento!, escuelas: Object.fromEntries(empatadas.map(({ cueAnexo }) => [cueAnexo, { nivel: 1, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }])) } },
+      territorio: { ...t, aislamiento: { ...t.aislamiento!, escuelas: Object.fromEntries(empatadas.map(({ cueAnexo }) => [cueAnexo, { nivel: 2, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }])) } },
     }).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'b', 'z'])
   })
 
@@ -116,7 +116,7 @@ describe('planificacion', () => {
     expect(juntoLagunaPlanificacion('c', 'historial', datos)).toBe(false)
     expect(juntoLagunaPlanificacion('c', 'inundacion', datos)).toBe(true)
     expect(juntoLagunaPlanificacion('a', 'inundacion', datos)).toBe(false)
-    expect(prioridadPlanificacion(escuelas, 'aisladas', datos).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a', 'c'])
+    expect(prioridadPlanificacion(escuelas, 'aisladas', datos).map(({ escuela }) => escuela.cueAnexo)).toEqual(['a'])
     expect(cuesJuntoLagunaPlanificacion(escuelas, 'inundacion', datos)).toEqual(new Set(['c']))
     expect(cuesJuntoLagunaPlanificacion(escuelas, 'historial', datos).size).toBe(0)
   })
@@ -129,9 +129,9 @@ describe('planificacion', () => {
     expect(colores.has('c')).toBe(false)
   })
 
-  it('la leyenda de Inundación no lista Nulo; las demás vistas sí', () => {
+  it('la leyenda de Inundación no lista Nulo, la de Aisladas sólo Alto y Medio; Historial lista todos', () => {
     expect(nivelesLeyendaPlanificacion('inundacion')).toEqual([3, 2, 1])
-    expect(nivelesLeyendaPlanificacion('aisladas')).toEqual([3, 2, 1, 0])
+    expect(nivelesLeyendaPlanificacion('aisladas')).toEqual([3, 2])
     expect(nivelesLeyendaPlanificacion('historial')).toEqual([3, 2, 1, 0])
   })
 })

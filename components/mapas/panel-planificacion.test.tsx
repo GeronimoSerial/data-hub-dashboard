@@ -11,7 +11,7 @@ const escuelas: EscuelaMapaEnriquecida[] = [
   { cueAnexo: '2', nombre: 'Escuela Dos', departamento: 'Bella Vista', localidad: 'Centro', lat: null, lon: null, niveles: ['Inicial'], alumnos: 40, gravedad: 0, categoriaPrincipal: null, clases: 'normal', apoyo: null, sinActualizar: false, ultimaNovedad: null, alumnosSinClases: 0, situacionesHistoricas: 5, solucionadasRecientes: 0 },
 ]
 const territorio: TerritorioMapa = {
-  aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 1, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false } } },
+  aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 2, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false } } },
   susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null, juntoLaguna: null }, '2': { inundacionFluvialM: 0.8, claseRio: null, juntoLaguna: null } } },
 }
 
