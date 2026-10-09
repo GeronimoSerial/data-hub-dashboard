@@ -146,7 +146,7 @@ class TestAristaLarga:
 
         assert metricas["snap_distancia_m"] == dist_perp
         assert metricas["distancia_cabecera_departamental_m"] == esperado
-        assert metricas["distancia_via_pavimentada_m"] == esperado
+        assert metricas["distancia_via_pavimentada_m"] == 0.0
 
         coords = geometrias[0]["ruta"]["coordinates"]
         # La ruta arranca en el punto de proyeccion, no en la escuela.

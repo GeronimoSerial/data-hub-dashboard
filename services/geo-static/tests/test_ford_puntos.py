@@ -71,6 +71,12 @@ def _cruces_con_ford(puntos_ford):
 
 
 class TestFordCercaClasificaVado:
+    def test_ford_way_como_geometria_confirma_cruce(self):
+        cruces = _cruces_con_ford([LineString([A, B])])
+        cruce = cruces[("escuela", "cabecera", 0)][0]
+        assert cruce["es_ford"] is True
+        assert clasificar_cruce(cruce) == CLASIFICACION_VADO
+
     def test_ford_a_5_m_es_vado(self):
         cruces = _cruces_con_ford([_ford_a_metros(5.0, 0.0)])
         cruce = cruces[("escuela", "cabecera", 0)][0]
@@ -136,16 +142,17 @@ class TestConteoNoCambia:
             g, lat=A[1], lon=A[0], nodo_cabecera="cabecera", cruces_por_arista=con_ford
         )
 
-        # La clasificacion cambia (sin_evidencia -> vado) pero el conteo no:
-        # `cruces_agua_con_vado_count` cuenta ambas juntas (contrato N3).
-        assert metricas_sin["cruces_agua_con_vado_count"] == 1
+        # El cruce sin ford explícito queda desconocido; ford=yes lo confirma.
+        assert metricas_sin["cruces_agua_con_vado_count"] == 0
+        assert metricas_sin["cruces_agua_sin_evidencia_count"] == 1
         assert metricas_con["cruces_agua_con_vado_count"] == 1
+        assert metricas_con["cruces_agua_sin_evidencia_count"] == 0
         assert metricas_sin["cruces_agua_count"] == metricas_con["cruces_agua_count"] == 1
         assert clasificar_cruce(con_ford[("escuela", "cabecera", 0)][0]) == CLASIFICACION_VADO
 
 
 class TestConstruirGeometriasAguaYFordsLocal:
-    """N3-G: cursos de agua y nodos `ford=yes` se leen en DOS llamadas, porque
+    """N3-G: cursos de agua y entidades `ford=yes` se leen en DOS llamadas, porque
     el filtro combinado multi-clave de pyrosm no devuelve los nodos."""
 
     def _fake_osm(self, monkeypatch, filas_agua, filas_ford):
@@ -214,7 +221,7 @@ class TestConstruirGeometriasAguaYFordsLocal:
             "osm_keys_to_keep": ["ford"],
             "filter_type": "keep",
             "keep_nodes": True,
-            "keep_ways": False,
+            "keep_ways": True,
             "keep_relations": False,
         }
         # Ambas lecturas usan el mismo objeto OSM (pyrosm cachea el pbf).
@@ -224,6 +231,18 @@ class TestConstruirGeometriasAguaYFordsLocal:
         assert registro["creados"][0].bounding_box == [4.0, 2.0, 3.0, 1.0]
         assert agua == [rio]
         assert fords == [ford]
+
+    def test_incluye_geometria_de_way_ford_yes(self, monkeypatch):
+        way_ford = LineString([A, B])
+        self._fake_osm(
+            monkeypatch,
+            [],
+            [self._fila_ford("yes", way_ford)],
+        )
+        _, fords = construir_geometrias_agua_y_fords_local(
+            "x.osm.pbf", bbox_norte=1.0, bbox_sur=2.0, bbox_este=3.0, bbox_oeste=4.0
+        )
+        assert fords == [way_ford]
 
     def test_separa_agua_fords_y_descarta_no_listados(self, monkeypatch):
         rio = LineString([(-58.90, -27.50), (-58.80, -27.45)])

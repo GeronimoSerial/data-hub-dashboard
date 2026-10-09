@@ -25,11 +25,13 @@ function geometria(
 function exposicion(
   estado: ExposicionRutaRespuesta['estado'],
   profundidadMaxM: number | null,
+  claseRuta: ExposicionRutaRespuesta['claseRuta'] = null,
 ): ExposicionRutaRespuesta {
   return {
     cueAnexo: '1801605-04',
     disponible: true,
     estado,
+    claseRuta,
     versionJob: null,
     resumen: {
       celdasTotal: 0,
@@ -129,6 +131,7 @@ describe('lineasAcceso', () => {
     ['sin cruces', [], undefined, 'Sin cruces de agua', null, false],
     ['solo puentes', [{ lon: 0, lat: 0, clasificacion: 'puente' }], { puente: 1, vado: 0, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 con puente', false],
     ['solo vados', [{ lon: 0, lat: 0, clasificacion: 'vado' }], { puente: 0, vado: 1, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 vado', true],
+    ['vado probable', [{ lon: 0, lat: 0, clasificacion: 'vado_probable' }], { puente: 0, vado: 1, sinEvidencia: 0 }, '1 cruce de agua en el camino', '1 vado', true],
     ['mixto sin resumen', [
       { lon: 0, lat: 0, clasificacion: 'vado' },
       { lon: 0, lat: 0, clasificacion: 'sin_evidencia' },
@@ -174,16 +177,29 @@ describe('lineasAcceso', () => {
     }
   })
 
+  it('sin exposición cargada no muestra riesgo', () => {
+    expect(lineasAcceso(geometria(), null)?.riesgo).toBeNull()
+  })
+
   it.each([
-    [null, null, null],
-    ['sin_ruta', 1, null],
-    ['sin_dato', 1, null],
-    ['sin_profundidad', null, 'Bajo'],
-    ['con_profundidad', 0, null],
-    ['con_profundidad', 0.49, 'Medio'],
-    ['con_profundidad', 0.5, 'Alto'],
-  ] as const)('clasifica el riesgo para estado %s y profundidad %s', (estado, profundidad, riesgo) => {
-    const dato = estado === null ? null : exposicion(estado, profundidad)
-    expect(lineasAcceso(geometria(), dato)?.riesgo).toBe(riesgo)
+    ['alto', 'Alto'],
+    ['medio', 'Medio'],
+    ['bajo', 'Bajo'],
+    ['sin_riesgo', 'Sin riesgo'],
+    ['sin_dato', 'Sin dato'],
+    ['sin_ruta', 'Sin ruta'],
+  ] as const)('muestra la etiqueta de la clase %s como "%s"', (clase, etiqueta) => {
+    expect(lineasAcceso(geometria(), exposicion('con_profundidad', 1, clase))?.riesgo).toBe(etiqueta)
+  })
+
+  it('clase null se muestra como Sin dato', () => {
+    expect(lineasAcceso(geometria(), exposicion('con_profundidad', 1, null))?.riesgo).toBe('Sin dato')
+  })
+
+  it('una fila antigua sin_profundidad sin clase no produce Bajo ni Sin riesgo', () => {
+    const riesgo = lineasAcceso(geometria(), exposicion('sin_profundidad', 0, null))?.riesgo
+    expect(riesgo).toBe('Sin dato')
+    expect(riesgo).not.toBe('Bajo')
+    expect(riesgo).not.toBe('Sin riesgo')
   })
 })

@@ -53,9 +53,10 @@ from geo_static.localidades import cargar_localidades_urbanas
 
 # v1 = snap a nodo, red 'drive' sin track/service, proxy de centroide como sede
 # departamental. v2 = red con track+service, sedes oficiales (Georef), gate de
-# coordenada, snap a arista, motivos verificables de sin-ruta, nodos ford.
+# coordenada, snap a arista, motivos verificables de sin-ruta, entidades ford.
 # v3 = via principal por metros en ruta y geometria alineada con el costo.
-VERSION_JOB = "3"
+# v4 = vados probables, distancia real a la red pavimentada y nivel 0 <= 2 km.
+VERSION_JOB = "4"
 LICENCIA_OSM = "© OpenStreetMap contributors, ODbL"
 
 # bbox aproximado de la provincia de Corrientes, Argentina (norte, sur, este, oeste).
@@ -92,10 +93,14 @@ CONTRATO_COLUMNAS = [
     "distancia_via_pavimentada_m",
     "distancia_cabecera_departamental_m",
     "tramos_sin_pavimentar_count",
+    "tramos_sin_pavimentar_km",
     "cruces_agua_count",
     "cruces_agua_con_puente_count",
     "cruces_agua_con_vado_count",
+    "cruces_agua_con_vado_explicito_count",
+    "cruces_agua_con_vado_probable_count",
     "tiene_alternativa_sin_cruce",
+    "tiene_alternativa_pavimentada",
     "indice_aislamiento",
     "motivo_sin_datos",
     "snap_distancia_m",
@@ -203,7 +208,7 @@ def _registro_geometria(
     }
 
 
-def _escribir_geometria_ndjson(registros: list[dict], fecha_extracto: str) -> Path:
+def _escribir_geometria_ndjson(registros: list[dict], fecha_corrida: str) -> Path:
     """Escribe los registros de geometria como NDJSON gzip versionado.
 
     Ordena por `cue_anexo` para un diff estable y usa `gzip.GzipFile(mtime=0)`
@@ -211,7 +216,7 @@ def _escribir_geometria_ndjson(registros: list[dict], fecha_extracto: str) -> Pa
     escribe a un `.tmp` y recien despues se renombra al path final.
     """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = OUTPUT_DIR / f"accesos_osm_geometria-v{VERSION_JOB}-{fecha_extracto}.ndjson.gz"
+    out_path = OUTPUT_DIR / f"accesos_osm_geometria-v{VERSION_JOB}-{fecha_corrida}.ndjson.gz"
     tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
 
     registros_ordenados = sorted(registros, key=lambda registro: registro["cue_anexo"])
@@ -239,6 +244,7 @@ def _escribir_csv_sin_ruta(
     info_sin_ruta: dict[str, dict],
     km_fuera: dict[str, float],
     fecha_extracto: str,
+    fecha_corrida: str | None = None,
 ) -> tuple[Path, list[dict]]:
     """Escribe el CSV de auditoria de escuelas SIN indice (N3-B).
 
@@ -283,7 +289,7 @@ def _escribir_csv_sin_ruta(
         )
     rows.sort(key=lambda row: row["cue_anexo"])
 
-    out_path = OUTPUT_DIR / f"aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha_extracto}.csv"
+    out_path = OUTPUT_DIR / f"aislamiento_osm_sin_ruta-v{VERSION_JOB}-{fecha_corrida or fecha_extracto}.csv"
     escribir_csv(out_path, COLUMNAS_SIN_RUTA, rows)
     return out_path, rows
 
@@ -301,6 +307,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         construir_cruces_por_arista,
         construir_geometrias_agua_y_fords_local,
         construir_grafo_seguro,
+        construir_grafo_pavimentado,
+        distancias_hasta_red_pavimentada,
         construir_indice_aristas,
         construir_indice_no_conectadas,
         construir_red,
@@ -308,6 +316,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         buscar_destinos_mas_cercanos,
     )
     import osmnx as ox
+
+    fecha_corrida = date.today().isoformat()
 
     t0 = time.monotonic()
     escuelas = cargar_padron()
@@ -412,15 +422,15 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         grafo_seguro = construir_grafo_seguro(grafo, cruces_por_arista)
         print(
             f"[calcular_aislamiento] capa de agua: {len(geometrias_agua)} cursos de agua, "
-            f"{len(puntos_ford)} fords (nodos ford=yes), "
+            f"{len(puntos_ford)} entidades ford=yes, "
             f"{len(cruces_por_arista)} aristas con cruce detectado, "
             f"{time.monotonic() - t_agua0:.1f}s",
             flush=True,
         )
         if len(puntos_ford) == 0:
             print(
-                "[calcular_aislamiento] ADVERTENCIA: 0 nodos ford=yes en el "
-                "extracto (el extracto de Corrientes 2026-09-26 tiene 263): "
+                "[calcular_aislamiento] ADVERTENCIA: 0 entidades ford=yes en el "
+                "extracto (el extracto de Corrientes 2026-09-26 tiene 213): "
                 "revisar la lectura de fords",
                 flush=True,
             )
@@ -432,6 +442,8 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
         # multi-destino en vez de un shortest_path/has_path por escuela.
         grafo_invertido = grafo.reverse(copy=False)
         grafo_seguro_invertido = grafo_seguro.reverse(copy=False)
+        grafo_pavimentado_invertido = construir_grafo_pavimentado(grafo).reverse(copy=False)
+        distancias_via_pavimentada = distancias_hasta_red_pavimentada(grafo)
 
         # Las localidades se buscan en toda la provincia, sin filtrar por
         # departamento. nearest_nodes vectoriza un unico snap para todas.
@@ -475,6 +487,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             grafo_invertido,
             {nodo: localidad["nombre"] for nodo, localidad in destinos_por_nodo.items()},
             grafo_seguro_invertido=grafo_seguro_invertido,
+            grafo_pavimentado_invertido=grafo_pavimentado_invertido,
         )
 
         registros_geometria: list[dict] = []
@@ -498,6 +511,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     geometrias_out=geometrias_depto,
                     indice_aristas=indice_aristas,
                     busqueda_destinos=busqueda_destinos,
+                    distancias_via_pavimentada=distancias_via_pavimentada,
                 )
                 for escuela, metricas, geometria in zip(
                     escuelas_depto, lista_metricas, geometrias_depto
@@ -531,6 +545,9 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                         metricas["cruces_agua_con_puente_count"],
                         metricas["cruces_agua_con_vado_count"],
                         metricas["tiene_alternativa_sin_cruce"],
+                        tramos_sin_pavimentar_km=metricas["tramos_sin_pavimentar_km"],
+                        tiene_alternativa_pavimentada=metricas["tiene_alternativa_pavimentada"],
+                        distancia_cabecera_departamental_m=metricas["distancia_cabecera_departamental_m"],
                     )
                     filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
                     registros_geometria.append(
@@ -579,7 +596,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
             )
 
-        ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_extracto)
+        ruta_geom_path = _escribir_geometria_ndjson(registros_geometria, fecha_corrida)
         con_ruta = sum(1 for r in registros_geometria if r["ruta"] is not None)
         cruces_por_clase = Counter(
             cruce["clasificacion"]
@@ -600,6 +617,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
             info_sin_ruta,
             km_fuera,
             fecha_extracto,
+            fecha_corrida,
         )
         motivos_sin_ruta = Counter(row["motivo_sin_datos"] for row in filas_sin_ruta)
         print(
@@ -654,6 +672,9 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                     metricas["cruces_agua_con_puente_count"],
                     metricas["cruces_agua_con_vado_count"],
                     metricas["tiene_alternativa_sin_cruce"],
+                    tramos_sin_pavimentar_km=metricas["tramos_sin_pavimentar_km"],
+                    tiene_alternativa_pavimentada=metricas["tiene_alternativa_pavimentada"],
+                    distancia_cabecera_departamental_m=metricas["distancia_cabecera_departamental_m"],
                 )
                 filas.append(_fila_escuela(escuela, metricas, indice, fecha_extracto))
 
@@ -673,7 +694,7 @@ def correr(limite_escuelas: int | None = None, departamentos: list[str] | None =
                 )
             )
 
-    out_path = OUTPUT_DIR / f"aislamiento_osm-v{VERSION_JOB}-{fecha_extracto}.csv"
+    out_path = OUTPUT_DIR / f"aislamiento_osm-v{VERSION_JOB}-{fecha_corrida}.csv"
     filas_finales = []
     for fila in filas:
         fila_final = {k: fila.get(k, "") for k in CONTRATO_COLUMNAS}

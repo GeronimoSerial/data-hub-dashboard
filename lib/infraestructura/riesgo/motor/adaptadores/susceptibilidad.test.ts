@@ -176,6 +176,11 @@ describe('ultimaFilaConservadoraPorCue', () => {
     const base = {
       cueAnexo: 'CUE-1',
       versionJob: 'v1',
+      claseRio: null, profundidadRp10M: null, profundidadRp100M: null, profundidadRp500M: null,
+      margenRp10M: null, margenRp100M: null, margenRp500M: null, juntoLaguna: null,
+      distanciaAguaM: null, alturaSobreAguaM: null, versionInundacion: null,
+      peligroInundacionFluvial: null, peligroInundacionPluvial: null, peligroViento: null,
+      peligroCalor: null, periodoRetornoAnios: 100,
       fuente: 'physrisk',
       fechaCorrida: '2026-01-01',
       licencia: 'Apache-2.0, OS-Climate physrisk',

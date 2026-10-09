@@ -1,6 +1,6 @@
 import type { ParteMapa } from '@/lib/infraestructura/parte-mapa'
 
-export type PestanaMapa = 'actual' | 'radar' | 'planificacion' | 'estadisticas' | 'capas'
+export type PestanaMapa = 'actual' | 'radar' | 'planificacion' | 'estadisticas' | 'capas' | 'metodologia'
 
 export type EstadoClases = 'normal' | 'parcial' | 'sin' | 'evacuado' | 'centro'
 export type ApoyoPedagogico = 'virtual' | 'cuadernillo' | 'ambos' | 'brinda' | 'no' | 'sin_dato' | null // null = no corresponde

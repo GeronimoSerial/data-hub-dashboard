@@ -12,7 +12,7 @@ const escuelas: EscuelaMapaEnriquecida[] = [
 ]
 const territorio: TerritorioMapa = {
   aislamiento: { fuente: 'OpenStreetMap', atribucion: '© OpenStreetMap contributors', licencia: 'licencia', fechaExtractoOsm: '2026-01-01', versionJob: '1', escuelas: { '1': { nivel: 1, cruces: 0, conPuente: 0, sinPuente: 0, alternativaSinCruce: true }, '2': { nivel: 3, cruces: 1, conPuente: 0, sinPuente: 1, alternativaSinCruce: false } } },
-  susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2 }, '2': { inundacionFluvialM: 0.8 } } },
+  susceptibilidad: { fuente: 'physrisk', indicador: 'inundacion_fluvial', escenario: 'historico', unidad: 'm', periodoRetornoAnios: 100, fechaCorrida: '2026-01-01', licencia: 'licencia', escuelas: { '1': { inundacionFluvialM: 0.2, claseRio: null, juntoLaguna: null }, '2': { inundacionFluvialM: 0.8, claseRio: null, juntoLaguna: null } } },
 }
 
 function props(overrides: Partial<React.ComponentProps<typeof PanelPlanificacion>> = {}) {
@@ -55,6 +55,22 @@ describe('PanelPlanificacion', () => {
     sinDatos.unmount()
     render(<PanelPlanificacion {...props({ escuelas: [] })} />)
     expect(screen.getByText('Ninguna escuela con prioridad para estos filtros.')).toBeInTheDocument()
+  })
+
+  it('en Inundación lista las escuelas junto a laguna con etiquetas simples', () => {
+    const conLaguna: TerritorioMapa = {
+      ...territorio,
+      susceptibilidad: { ...territorio.susceptibilidad!, escuelas: {
+        '1': { inundacionFluvialM: null, claseRio: null, juntoLaguna: true },
+        '2': { inundacionFluvialM: null, claseRio: 'medio', juntoLaguna: true },
+      } },
+    }
+    render(<PanelPlanificacion {...props({ vista: 'inundacion', territorio: conLaguna })} />)
+    const filas = screen.getAllByRole('button').filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual(['Escuela Dos, Bella Vista', 'Escuela Uno, Goya'])
+    expect(filas[0]).toHaveTextContent('Medio · Junto a laguna')
+    expect(filas[1]).toHaveTextContent('Junto a laguna')
+    expect(filas[1]).not.toHaveTextContent('Nulo')
   })
 
   it('no muestra estados del territorio en historial ni textos técnicos', () => {

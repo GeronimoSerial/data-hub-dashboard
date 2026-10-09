@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
 } from 'react'
 import MapGL, {
   AttributionControl,
@@ -91,7 +92,6 @@ import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
 import { useExposicionRuta } from '@/lib/infraestructura/use-exposicion-ruta'
-import { construirCeldasExposicion } from '@/lib/mapas/exposicion-ruta-capas'
 import { ultimaActualizacion } from '@/lib/infraestructura/mapa/agregar'
 import { cambioEstiloCargado } from '@/lib/infraestructura/mapa/estilo'
 import {
@@ -108,6 +108,7 @@ import {
   ETIQUETAS_CRUCE,
   DESCRIPCIONES_CRUCE,
   ICONOS_ACCESOS_MAPA,
+  claseInundacion,
   type ClasificacionCruce,
 } from '@/lib/mapas/accesos-capas'
 import { BASEMAPS, type BasemapId } from '@/lib/map-types'
@@ -149,10 +150,10 @@ export {
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
 import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { coloresPlanificacion, cuesJuntoLagunaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
-import { puntosRiesgoSobreSituacion } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
   ID_IMAGEN_CLUSTER_CENTRO_EVACUADOS,
@@ -594,13 +595,15 @@ function extraerEscuelasConCoordenadas(escuelas: EscuelaMapaPadron[]) {
 export default function MapInfraestructuraPage(props: {
   mostrarEnlaceNominal: boolean
   escuelasMapa: EscuelasMapaPadronResultado | null
-  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas'>
-  panel?: Exclude<PestanaMapa, 'estadisticas'>
+  pestana: Exclude<PestanaMapa, 'estadisticas' | 'capas' | 'metodologia'>
+  panel?: Exclude<PestanaMapa, 'estadisticas' | 'metodologia'>
   hazardContextEnabled?: boolean
   riskRadarEnabled?: boolean
   seasonalEnabled?: boolean
   visible?: boolean
   onRegistrarSeleccion?: (fn: ((escuela: EscuelaMapaPadron) => void) | null) => void
+  // Element that fullscreen should cover (tabs, filters and map). Defaults to the map shell.
+  contenedorPantallaCompleta?: RefObject<HTMLElement | null>
 }) {
   const panel = props.panel ?? props.pestana
   const panelLateral = panel === 'radar' && !(props.riskRadarEnabled ?? false) ? 'actual' : panel
@@ -822,24 +825,25 @@ export default function MapInfraestructuraPage(props: {
     vistaPlanificacion,
     territorio,
   ])
-  const puntosNivel = useMemo(
-    () => construirPuntosNivel(dataEscuelasMapaVisible?.escuelas ?? [], colorPorCue),
-    [dataEscuelasMapaVisible, colorPorCue],
-  )
+  const puntosNivel = useMemo(() => {
+    const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
+    const cuesLaguna = esPlanificacion
+      ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
+      : new Set<string>()
+    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
+    // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
+    return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
+  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo
     && !esPlanificacion
-    && (capasVisibles.escuelasAisladas || capasVisibles.riesgoCorteInundacion)
+    && capasVisibles.escuelasAisladas
   const puntosRiesgo = useMemo(
     () => mostrarRiesgoSituacion
-      ? puntosRiesgoSobreSituacion(
-        dataEscuelasMapaVisible?.escuelas ?? [],
-        capasVisibles.escuelasAisladas ? 'aisladas' : 'inundacion',
-        territorio,
-      )
+      ? puntosRiesgoSobreSituacion(dataEscuelasMapaVisible?.escuelas ?? [], territorio)
       : construirPuntosNivel([], new Map()),
-    [mostrarRiesgoSituacion, capasVisibles.escuelasAisladas, capasVisibles.riesgoCorteInundacion, dataEscuelasMapaVisible, territorio],
+    [mostrarRiesgoSituacion, dataEscuelasMapaVisible, territorio],
   )
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
@@ -1094,10 +1098,6 @@ export default function MapInfraestructuraPage(props: {
 
   const rutaGeojson = useMemo(() => construirRutaAcceso(geometria), [geometria])
   const crucesGeojson = useMemo(() => construirCrucesAcceso(geometria), [geometria])
-  const celdasExposicion = useMemo(
-    () => (exposicion?.cueAnexo === cueRuta ? construirCeldasExposicion(exposicion) : null),
-    [exposicion, cueRuta],
-  )
 
   // V2 (hallazgo 5): realce de foco. Cubre tanto la escuela elegida en el
   // buscador (`escuelaResaltada`) como la de la ficha abierta
@@ -1535,7 +1535,6 @@ export default function MapInfraestructuraPage(props: {
               puntosAislamiento={null}
               puntosInundacion={null}
               ruta={rutaGeojson}
-              celdasExposicion={celdasExposicion}
               cruces={crucesGeojson}
               visibles={CAPAS_ACCESOS_OCULTAS}
               iconosListos={iconosClusterListos}
@@ -1934,6 +1933,8 @@ export default function MapInfraestructuraPage(props: {
                   <BloqueAcceso
                     geometria={geometria}
                     exposicion={exposicion}
+                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
+                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
                     cargando={geometriaLoading || exposicionLoading}
                     error={Boolean(geometriaError)}
                   />
@@ -2002,7 +2003,7 @@ export default function MapInfraestructuraPage(props: {
         </div>
       )}
 
-      {!radarActivo && <FullscreenButton targetRef={shellRef} />}
+      {!radarActivo && <FullscreenButton targetRef={props.contenedorPantallaCompleta ?? shellRef} />}
 
     </div>
   )
