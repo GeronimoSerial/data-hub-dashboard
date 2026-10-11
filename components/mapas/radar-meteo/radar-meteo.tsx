@@ -6,11 +6,13 @@ import type { ImageSource, Map as MapLibreMap, RasterLayerSpecification } from '
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import { union } from '@turf/union'
 import { useRadarMeteo, type RespuestaRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-radar-meteo'
+import { useCorridasRadarMeteo, type CorridaRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-corridas-radar-meteo'
 import {
   colorGranizo,
   colorLluvia,
   colorProbabilidad,
   colorViento,
+  fechaRadar,
   indiceCercano,
   interpolarBilineal,
   pixelAGrilla,
@@ -253,13 +255,15 @@ function crearFlechasViento(data: RespuestaRadarMeteo, frame: number) {
   return { type: 'FeatureCollection' as const, features }
 }
 
-export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas }: {
+export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasResaltadas, onVerAlertas, corridaSeleccionada: corridaControlada, onCorridaChange }: {
   activo: boolean
   variable: VariableRadarUI
   escuelas?: EscuelaMapa[]
   resumen: ResumenRadarMeteo | null
   alertasResaltadas: AlertaRadar[]
   onVerAlertas: () => void
+  corridaSeleccionada?: string | null
+  onCorridaChange?: (fetchedAt: string | null) => void
 }) {
   const [frame, setFrame] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -267,6 +271,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
   const [paso, setPaso] = useState<1 | 3>(3)
   const [point, setPoint] = useState<number | null>(null)
   const [retry, setRetry] = useState(0)
+  const [corridaInterna, setCorridaInterna] = useState<string | null>(null)
+  const corridaSeleccionada = corridaControlada !== undefined ? corridaControlada : corridaInterna
   const [rasterFrame, setRasterFrame] = useState<RasterFrame | null>(null)
   const [boundary, setBoundary] = useState<FeatureCollection<Polygon | MultiPolygon> | null>(null)
   const [geometriasAlerta, setGeometriasAlerta] = useState<{ clave: string; datos: FeatureCollection<Polygon | MultiPolygon> } | null>(null)
@@ -289,8 +295,18 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
     activo,
     variables: variablesSolicitadas,
     paso,
+    asOf: corridaSeleccionada ?? undefined,
     refreshKey: retry,
   })
+  const { data: dataCorridas, loading: cargandoCorridas } = useCorridasRadarMeteo({ activo, refreshKey: retry })
+  const corridas: CorridaRadarMeteo[] = cargandoCorridas ? [] : dataCorridas?.corridas ?? []
+
+  function elegirCorrida(fetchedAt: string | null) {
+    setPlaying(false)
+    setPoint(null)
+    if (onCorridaChange) onCorridaChange(fetchedAt)
+    else setCorridaInterna(fetchedAt)
+  }
 
   const [ahoraMs] = useState(() => Date.now())
   const grupos = useMemo(() => agruparAlertas(resumen?.alertasSmn ?? [], ahoraMs), [resumen, ahoraMs])
@@ -347,9 +363,10 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
 
   useEffect(() => {
     if (times.length) {
-      queueMicrotask(() => setFrame(indiceCercano(times)))
+      const instante = corridaSeleccionada ? Date.parse(corridaSeleccionada) : undefined
+      queueMicrotask(() => setFrame(indiceCercano(times, instante)))
     }
-  }, [data?.runId, times])
+  }, [data?.runId, times, corridaSeleccionada])
 
   useEffect(() => {
     if (!playing || times.length < 2) {
@@ -625,6 +642,7 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
           cueAnexo={cueEscuela}
           nombre={escuelaSeleccionada.nombre}
           onClose={() => setCueEscuela(null)}
+          asOf={corridaSeleccionada}
         />
       )}
       {escuelasVisibles.map((escuela) => escuela.lat !== null && escuela.lon !== null && (
@@ -714,6 +732,11 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
         {error && <button type="button" className="radar-meteo-retry" onClick={() => setRetry((value) => value + 1)}>Reintentar pronóstico</button>}
       </div>}
 
+      {corridaSeleccionada && !loading && !error && <div className="radar-meteo-estado radar-meteo-corrida" role="status">
+        <span>Estás viendo el pronóstico publicado el {fechaRadar(corridaSeleccionada, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '')}</span>
+        <button type="button" onClick={() => elegirCorrida(null)}>Volver al último</button>
+      </div>}
+
       {debug && (
         <output className="radar-meteo-debug-readout" data-frame-matches={debugFrameMatches}>
           API {frame}/{frameTime} · raster {rasterFrame?.index ?? '—'}/{rasterFrame?.time ?? '—'}
@@ -740,6 +763,9 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
         onPlayingChange={setPlaying}
         onSpeedChange={setSpeed}
         onPasoChange={setPaso}
+        corridas={corridas}
+        corridaSeleccionada={corridaSeleccionada}
+        onCorridaChange={elegirCorrida}
       />
     </>
   )

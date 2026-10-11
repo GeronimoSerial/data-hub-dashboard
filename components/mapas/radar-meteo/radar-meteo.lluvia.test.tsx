@@ -18,6 +18,10 @@ vi.mock('@/lib/infraestructura/radar-meteo/use-radar-meteo', () => ({
   useRadarMeteo: () => ({ data: fixture, loading: false, error: null }),
 }))
 
+vi.mock('@/lib/infraestructura/radar-meteo/use-corridas-radar-meteo', () => ({
+  useCorridasRadarMeteo: () => ({ data: null, loading: false, error: null }),
+}))
+
 vi.mock('react-map-gl/maplibre', async () => {
   const React = await import('react')
   return {

@@ -22,13 +22,32 @@ export interface ResumenRadarMeteo {
 
 const cacheKey = 'radar-meteo-resumen-v1'
 
-export function useResumenRadarMeteo(activo: boolean): { resumen: ResumenRadarMeteo | null; error: boolean } {
+export function useResumenRadarMeteo(activo: boolean, asOf?: string | null): { resumen: ResumenRadarMeteo | null; error: boolean } {
   const [resumen, setResumen] = useState<ResumenRadarMeteo | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
     if (!activo) return
     let cancelado = false
+    if (asOf) {
+      // Past runs bypass the ETag cache so they never overwrite the cached latest summary.
+      fetch(`/api/infraestructura/radar-meteo/resumen?asOf=${encodeURIComponent(asOf)}`)
+        .then(async (response) => {
+          if (!response.ok) throw new Error('No se pudo cargar el resumen')
+          return await response.json() as ResumenRadarMeteo
+        })
+        .then((respuesta) => {
+          if (cancelado) return
+          setResumen(respuesta)
+          setError(false)
+        })
+        .catch(() => {
+          if (cancelado) return
+          setResumen(null)
+          setError(true)
+        })
+      return () => { cancelado = true }
+    }
     const etag = sessionStorage.getItem(`${cacheKey}-etag`)
     fetch('/api/infraestructura/radar-meteo/resumen', {
       headers: etag ? { 'If-None-Match': etag } : undefined,
@@ -47,7 +66,7 @@ export function useResumenRadarMeteo(activo: boolean): { resumen: ResumenRadarMe
       setError(!guardado)
     }).catch(() => { if (!cancelado) setError(true) })
     return () => { cancelado = true }
-  }, [activo])
+  }, [activo, asOf])
 
   return { resumen, error }
 }

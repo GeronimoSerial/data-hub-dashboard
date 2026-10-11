@@ -21,10 +21,10 @@ export interface RespuestaRadarMeteo {
   razon?: string
 }
 
-export function useRadarMeteo(opciones: { activo?: boolean; variables?: VariableRadar[]; desde?: string; hasta?: string; paso?: 1 | 3; refreshKey?: number } = {}) {
+export function useRadarMeteo(opciones: { activo?: boolean; variables?: VariableRadar[]; desde?: string; hasta?: string; paso?: 1 | 3; asOf?: string; refreshKey?: number } = {}) {
   const activo = opciones.activo ?? true
   const variables = useMemo(() => opciones.variables ?? [...VARIABLES_RADAR], [opciones.variables])
-  const filtros = useMemo(() => JSON.stringify({ variables, desde: opciones.desde, hasta: opciones.hasta, paso: opciones.paso ?? 1, refreshKey: opciones.refreshKey ?? 0 }), [variables, opciones.desde, opciones.hasta, opciones.paso, opciones.refreshKey])
+  const filtros = useMemo(() => JSON.stringify({ variables, desde: opciones.desde, hasta: opciones.hasta, paso: opciones.paso ?? 1, asOf: opciones.asOf, refreshKey: opciones.refreshKey ?? 0 }), [variables, opciones.desde, opciones.hasta, opciones.paso, opciones.asOf, opciones.refreshKey])
   return useFetchVigente<RespuestaRadarMeteo>({
     activo,
     clave: activo ? filtros : null,
@@ -34,6 +34,7 @@ export function useRadarMeteo(opciones: { activo?: boolean; variables?: Variable
       const params = new URLSearchParams({ variables: variables.join(','), paso: String(opciones.paso ?? 1) })
       if (opciones.desde) params.set('desde', opciones.desde)
       if (opciones.hasta) params.set('hasta', opciones.hasta)
+      if (opciones.asOf) params.set('asOf', opciones.asOf)
       const response = await fetch(`${RUTA}?${params}`, { signal, cache: 'no-store', headers: { Accept: 'application/json' } })
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       return await response.json() as RespuestaRadarMeteo

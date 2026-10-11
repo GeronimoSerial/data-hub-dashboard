@@ -695,7 +695,8 @@ export default function MapInfraestructuraPage(props: {
   // o con el flag apagado no hay fetch ni Source/Layer nuevos.
   const filtrosRadar = useMemo(() => ({ horizonte: horizonteSeleccionado }), [horizonteSeleccionado])
   const radarActivo = modoRadar
-  const { resumen: resumenRadar, error: resumenRadarError } = useResumenRadarMeteo(radarActivo)
+  const [corridaRadar, setCorridaRadar] = useState<string | null>(null)
+  const { resumen: resumenRadar, error: resumenRadarError } = useResumenRadarMeteo(radarActivo, corridaRadar)
   const [ahoraRadarMs] = useState(() => Date.now())
   const [claveAlertaRadar, setClaveAlertaRadar] = useState<string | null>(null)
   const gruposAlertasRadar = useMemo(
@@ -1773,6 +1774,8 @@ export default function MapInfraestructuraPage(props: {
             variable={variableRadar}
             escuelas={dataEscuelasMapa?.escuelas ?? []}
             resumen={resumenRadar}
+            corridaSeleccionada={corridaRadar}
+            onCorridaChange={setCorridaRadar}
             alertasResaltadas={alertasResaltadas}
             onVerAlertas={irAAlertasRadar}
           />

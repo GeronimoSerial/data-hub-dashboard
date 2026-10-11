@@ -2,7 +2,10 @@ import { z } from 'zod'
 import { ESPACIADO_GRILLA, GRID_VERSION } from '@/lib/infraestructura/radar-meteo/grilla'
 import { VARIABLES_RADAR, type VariableRadar } from '@/lib/infraestructura/radar-meteo/provider'
 import { categoriaGranizo, type EntradaGranizo } from '@/lib/infraestructura/radar-meteo/granizo'
-import { obtenerUltimoRunRadarMeteo } from '@/lib/infraestructura/radar-meteo/job-sync'
+import {
+  obtenerRunRadarMeteoAsOf,
+  obtenerUltimoRunRadarMeteo,
+} from '@/lib/infraestructura/radar-meteo/job-sync'
 import { respuestaAccesoDenegado } from '@/lib/infraestructura/respuesta-acceso-denegado'
 import { verificarAccesoLectura } from '@/lib/infraestructura/acceso-lectura'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
@@ -31,6 +34,7 @@ const querySchema = z.object({
   variables: variablesSchema.optional(),
   desde: fechaSchema.optional(),
   hasta: fechaSchema.optional(),
+  asOf: fechaSchema.optional(),
   paso: z.enum(['1', '3']).default('1'),
 })
 
@@ -74,6 +78,7 @@ export async function GET(request: Request) {
     variables: url.searchParams.get('variables') ?? undefined,
     desde: url.searchParams.get('desde') ?? undefined,
     hasta: url.searchParams.get('hasta') ?? undefined,
+    asOf: url.searchParams.get('asOf') ?? undefined,
     paso: url.searchParams.get('paso') ?? '1',
   })
   if (!parsed.success) {
@@ -91,11 +96,14 @@ export async function GET(request: Request) {
     return jsonError('Parámetro inválido: rango', 400)
   }
 
-  const run = await obtenerUltimoRunRadarMeteo()
+  const run = filtros.asOf
+    ? await obtenerRunRadarMeteoAsOf(new Date(filtros.asOf))
+    : await obtenerUltimoRunRadarMeteo()
   const parametros = JSON.stringify({
     variables: filtros.variables ?? [...VARIABLES_RADAR, 'granizo'],
     desde: filtros.desde ?? null,
     hasta: filtros.hasta ?? null,
+    asOf: filtros.asOf ?? null,
     paso: filtros.paso,
   })
   const etag = `W/"${Buffer.from(`${run?.id ?? 'sin-run'}:${parametros}`).toString('base64url')}"`
@@ -118,7 +126,9 @@ export async function GET(request: Request) {
         valores: {},
         frescura: null,
         sinDatos: true,
-        razon: 'Todavía no se cargó ningún pronóstico.',
+        razon: filtros.asOf
+          ? 'No hay pronóstico publicado hasta ese momento.'
+          : 'Todavía no se cargó ningún pronóstico.',
       },
       200,
       headers,
@@ -223,7 +233,7 @@ export async function GET(request: Request) {
       variables.map((variable) => [variable, variable === 'granizo' ? UNIDADES.granizo : run.units[variable] ?? UNIDADES[variable]]),
       ),
       valores,
-      frescura: { edadMinutos, desactualizado: edadMinutos > 420 },
+      frescura: filtros.asOf ? null : { edadMinutos, desactualizado: edadMinutos > 420 },
       sinDatos: false,
     },
     200,
