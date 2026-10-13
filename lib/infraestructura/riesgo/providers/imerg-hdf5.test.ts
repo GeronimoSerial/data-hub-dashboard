@@ -22,7 +22,9 @@ function calidadSintetica(lonIdx: number, latIdx: number): number {
   return lonIdx + latIdx
 }
 
-async function construirHdf5Sintetico(): Promise<Uint8Array> {
+async function construirHdf5Sintetico(
+  precipitacion: (lonIdx: number, latIdx: number) => number = precipitacionSintetica,
+): Promise<Uint8Array> {
   await ready
   const fs = FS as NonNullable<typeof FS>
   const directorio = mkdtempSync(join(tmpdir(), 'imerg-hdf5-test-'))
@@ -38,7 +40,7 @@ async function construirHdf5Sintetico(): Promise<Uint8Array> {
   for (let lonIdx = 0; lonIdx < LON_COMPLETA.length; lonIdx++) {
     for (let latIdx = 0; latIdx < LAT_COMPLETA.length; latIdx++) {
       const pos = lonIdx * LAT_COMPLETA.length + latIdx
-      precip[pos] = precipitacionSintetica(lonIdx, latIdx)
+      precip[pos] = precipitacion(lonIdx, latIdx)
       calidad[pos] = calidadSintetica(lonIdx, latIdx)
     }
   }
@@ -109,5 +111,14 @@ describe('parsearHdf5Imerg', () => {
     const parseado = await parsearHdf5Imerg(buffer, INDICES)
 
     expect(parseado.filas[1]?.valoresPorLat[1]).toBe(VALOR_NEGATIVO)
+  })
+
+  it('redondea la tasa a 5 decimales, igual que el texto ASCII', async () => {
+    const buffer = await construirHdf5Sintetico((lonIdx, latIdx) => (lonIdx + latIdx) / 3)
+
+    const parseado = await parsearHdf5Imerg(buffer, INDICES)
+
+    // precip(lon 0, lat 1) = 1/3 => 0.33333
+    expect(parseado.filas[0]?.valoresPorLat[0]).toBe(0.33333)
   })
 })

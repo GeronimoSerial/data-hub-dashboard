@@ -152,7 +152,8 @@ type FalloGranulo = { granuloIso: string; clase: ClaseFalloGranulo; status: numb
 
 function clasificarFalloGranulo(granulo: GranuloSatelital, error: unknown): FalloGranulo {
   const mensaje = error instanceof Error ? error.message : String(error)
-  const coincidencia = /^subset HTTP (\d{3})$/.exec(mensaje)
+  // `subset HTTP <status>` puede venir seguido de `; hdf5 ...` cuando hubo fallback.
+  const coincidencia = /^subset HTTP (\d{3})\b/.exec(mensaje)
   if (coincidencia === null) {
     return { granuloIso: granulo.inicioEn, clase: 'error', status: null }
   }

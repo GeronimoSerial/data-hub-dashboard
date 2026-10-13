@@ -72,6 +72,8 @@ function fetchConFixtures(
       }
       return new Response(fixtureAscii, { status: 200, headers: { 'content-type': 'text/plain' } })
     }
+    // Fallback HDF5 de un gránulo cuyo subset falla: GES DISC también caído.
+    if (url.endsWith('.HDF5')) return new Response('boom', { status: 500 })
     throw new Error(`URL inesperada en el test: ${url}`)
   })
 }
@@ -262,7 +264,8 @@ describe('ejecutarSyncImerg', () => {
         granulosFallidos: 1,
       },
     })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    // CMR + subset (500) + descarga HDF5 de fallback (500).
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
     expect(await contarObservaciones()).toBe(antes)
 
     const salud = await saludImerg()
@@ -508,11 +511,12 @@ describe('ejecutarSyncImerg', () => {
     })
 
     expect(resultado.ok).toBe(true)
-    // 1 CMR + presupuesto completo de subsets: no se desperdicia en los recientes.
-    expect(fetchImpl).toHaveBeenCalledTimes(1 + CONFIG_FUENTES.imergCmr.maxGranulosPorCorrida)
+    // Presupuesto completo de subsets: no se desperdicia en los recientes (cada
+    // subset fallido intenta además su descarga HDF5, por eso no se cuenta el total).
     const subsetsPedidos = fetchImpl.mock.calls
       .map((llamada) => String(llamada[0]))
       .filter((url) => url.includes('gesdisc.eosdis.nasa.gov/opendap/'))
+    expect(subsetsPedidos).toHaveLength(CONFIG_FUENTES.imergCmr.maxGranulosPorCorrida)
     // El más viejo (19) se pidió y persistió.
     const masViejo = entradas[19].inicioEn.slice(11).replace(/[-:.]/g, '')
     expect(subsetsPedidos.some((url) => url.includes(masViejo))).toBe(true)

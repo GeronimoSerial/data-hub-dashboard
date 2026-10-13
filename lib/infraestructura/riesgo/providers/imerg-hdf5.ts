@@ -30,17 +30,23 @@ function aArrayNumerico(datos: unknown): number[] {
 }
 
 // Devuelve filas por índice relativo de lon, con valores por lat (mismo orden que el ASCII).
+// Redondeo igual al texto ASCII de OPeNDAP (tasa 5 decimales, calidad 3), para
+// que ambos caminos guarden exactamente los mismos valores.
+const redondear = (valor: number, decimales: number): number =>
+  Math.round(valor * 10 ** decimales) / 10 ** decimales
+
 function filasDesdeSlice(
   valores: number[],
   cantidadLon: number,
   cantidadLat: number,
+  decimales: number,
 ): Array<{ lonIndiceRelativo: number; valoresPorLat: number[] }> {
   const filas: Array<{ lonIndiceRelativo: number; valoresPorLat: number[] }> = []
   for (let lonIndiceRelativo = 0; lonIndiceRelativo < cantidadLon; lonIndiceRelativo++) {
     const inicio = lonIndiceRelativo * cantidadLat
     filas.push({
       lonIndiceRelativo,
-      valoresPorLat: valores.slice(inicio, inicio + cantidadLat),
+      valoresPorLat: valores.slice(inicio, inicio + cantidadLat).map((v) => redondear(v, decimales)),
     })
   }
   return filas
@@ -96,8 +102,8 @@ export async function parsearHdf5Imerg(
     return {
       lat,
       lon,
-      filas: filasDesdeSlice(precipitacion, cantidadLon, cantidadLat),
-      filasCalidad: filasDesdeSlice(calidad, cantidadLon, cantidadLat),
+      filas: filasDesdeSlice(precipitacion, cantidadLon, cantidadLat, 5),
+      filasCalidad: filasDesdeSlice(calidad, cantidadLon, cantidadLat, 3),
     }
   } finally {
     archivo?.close()
