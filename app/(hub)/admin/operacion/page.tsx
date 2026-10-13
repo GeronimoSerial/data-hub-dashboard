@@ -166,6 +166,15 @@ export default async function OperacionSalud() {
 
       <section style={bloque}>
         <h2>Avance de climatología (cursor resumable de cupo)</h2>
+        <p style={{ marginTop: 0 }}>
+          Precipitación: {estado.climatologiaPrecipitacion.celdasUsables}/{estado.climatologiaPrecipitacion.celdasTotal} celdas
+          con ≥{estado.climatologiaPrecipitacion.minimoUsable} años · años acumulados{' '}
+          {estado.climatologiaPrecipitacion.aniosMin}–{estado.climatologiaPrecipitacion.aniosMax} (mediana{' '}
+          {estado.climatologiaPrecipitacion.aniosMediana}) de {estado.climatologiaPrecipitacion.aniosObjetivo}
+        </p>
+        <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem', marginTop: 0 }}>
+          Las celdas con menos de {estado.climatologiaPrecipitacion.minimoUsable} años siguen usando los umbrales provisorios.
+        </p>
         <p style={{ color: 'var(--ink-soft)', fontSize: '0.85rem', marginTop: 0 }}>
           El cálculo completo excede el cupo diario/mensual de Open-Meteo en una
           sola corrida: el timer diario avanza el cursor hasta el tope de cupo
