@@ -15,7 +15,7 @@ const fixture = readFileSync(
 
 describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
   it('declara la versión del catálogo', () => {
-    expect(CATALOGO_ESTACIONES_PREFECTURA_VERSION).toBe('estaciones-prefectura-v1')
+    expect(CATALOGO_ESTACIONES_PREFECTURA_VERSION).toBe('estaciones-prefectura-v2')
   })
 
   it('tiene estacionId e idHistorico únicos', () => {
@@ -58,12 +58,59 @@ describe('CATALOGO_ESTACIONES_PREFECTURA', () => {
     ])
   })
 
-  it('no guarda umbrales ni coordenadas en el catálogo', () => {
+  it('no guarda umbrales en el catálogo', () => {
     for (const entrada of CATALOGO_ESTACIONES_PREFECTURA) {
       expect(Object.keys(entrada).sort()).toEqual(
-        ['estacionId', 'idHistorico', 'nombrePna', 'rio', 'rol'],
+        ['coordenadas', 'estacionId', 'idHistorico', 'nombrePna', 'rio', 'rol'],
       )
     }
+  })
+})
+
+describe('coordenadas declaradas por PNA (v2, no verificadas)', () => {
+  const BBOX = { latMin: -31, latMax: -25, lonMin: -60, lonMax: -53 }
+  const conCoordenadas = CATALOGO_ESTACIONES_PREFECTURA.filter((e) => e.coordenadas !== null)
+
+  it('cada estación tiene coordenadas declaradas o null, nunca un valor ausente', () => {
+    for (const entrada of CATALOGO_ESTACIONES_PREFECTURA) {
+      expect(entrada.coordenadas === null || typeof entrada.coordenadas === 'object').toBe(true)
+    }
+  })
+
+  it('todas las coordenadas publicadas caen dentro del bounding box del NE argentino', () => {
+    expect(conCoordenadas.length).toBeGreaterThan(0)
+    for (const entrada of conCoordenadas) {
+      const { lat, lon } = entrada.coordenadas!
+      expect(lat).toBeGreaterThanOrEqual(BBOX.latMin)
+      expect(lat).toBeLessThanOrEqual(BBOX.latMax)
+      expect(lon).toBeGreaterThanOrEqual(BBOX.lonMin)
+      expect(lon).toBeLessThanOrEqual(BBOX.lonMax)
+    }
+  })
+
+  it('ninguna coordenada está marcada como verificada y todas vienen de mapa.php', () => {
+    for (const entrada of conCoordenadas) {
+      expect(entrada.coordenadas).toMatchObject({
+        fuente: 'pna-mapa.php',
+        consultadaEl: '2026-10-13',
+        verificada: false,
+      })
+    }
+  })
+
+  it('declara precisionDecimales como entero no negativo', () => {
+    for (const entrada of conCoordenadas) {
+      const p = entrada.coordenadas!.precisionDecimales
+      expect(Number.isInteger(p)).toBe(true)
+      expect(p).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  it('conserva los valores publicados de muestra', () => {
+    const libres = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.idHistorico === 610)
+    expect(libres?.coordenadas).toMatchObject({ lat: -29.721111, lon: -57.082222, verificada: false })
+    const itati = CATALOGO_ESTACIONES_PREFECTURA.find((e) => e.idHistorico === 110)
+    expect(itati?.coordenadas).toMatchObject({ lat: -27.27, lon: -58.24, verificada: false })
   })
 })
 
