@@ -1,5 +1,9 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { eq, or } from 'drizzle-orm'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth, radarMeteoRun } from '@/lib/db/schema'
@@ -106,5 +110,70 @@ describe('job de sincronización del radar meteorológico', () => {
     expect(warn).toHaveBeenCalledOnce()
     expect(warn.mock.calls[0]?.join(' ')).not.toContain('SQLITE_BUSY')
     warn.mockRestore()
+  })
+})
+
+describe('archivo de runs de radar antes de la purga', () => {
+  const claveArchivo = 'RADAR_ARCHIVO_DIR'
+  let previa: string | undefined
+  let raiz = ''
+
+  function insertarViejo(id: string, status: 'completo' | 'fallido') {
+    const viejo = '2026-08-20T00:00:00.000Z'
+    return getDb().insert(radarMeteoRun).values({
+      id, provider: 'open-meteo', model: 'best_match', gridVersion: 'corrientes-0.2-v1',
+      runAt: viejo, fetchedAt: viejo, forecastStart: '', forecastEnd: '', stepMinutes: 60,
+      units: {}, status, idempotencyKey: id, payload: { id },
+    })
+  }
+
+  beforeEach(() => {
+    previa = process.env[claveArchivo]
+    raiz = mkdtempSync(path.join(tmpdir(), 'radar-archivo-job-'))
+  })
+
+  afterEach(() => {
+    if (previa === undefined) delete process.env[claveArchivo]
+    else process.env[claveArchivo] = previa
+    rmSync(raiz, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('archiva las filas antes de purgarlas cuando RADAR_ARCHIVO_DIR está definida', async () => {
+    const dir = path.join(raiz, 'archivo')
+    process.env[claveArchivo] = dir
+    await insertarViejo('arch-completo', 'completo')
+    await insertarViejo('arch-fallido', 'fallido')
+    const resultado = await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-05T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const archivos = readdirSync(dir)
+    expect(archivos).toEqual([expect.stringMatching(/^radar_meteo_run_2026-08-20T00:00:00\.000Z_2026-08-20T00:00:00\.000Z\.ndjson\.gz$/)])
+    const filas = gunzipSync(readFileSync(path.join(dir, archivos[0]!))).toString('utf8').trim().split('\n').map((l) => JSON.parse(l))
+    expect(filas.map((f: { id: string }) => f.id).sort()).toEqual(['arch-completo', 'arch-fallido'])
+    const quedan = await getDb().select().from(radarMeteoRun).where(or(eq(radarMeteoRun.id, 'arch-completo'), eq(radarMeteoRun.id, 'arch-fallido')))
+    expect(quedan).toHaveLength(0)
+  })
+
+  it('si no puede archivar omite la purga y la sincronización igual se completa', async () => {
+    const bloqueo = path.join(raiz, 'no-es-dir')
+    writeFileSync(bloqueo, 'x')
+    process.env[claveArchivo] = bloqueo
+    await insertarViejo('fallo-archivo', 'completo')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resultado = await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-06T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const quedan = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, 'fallo-archivo'))
+    expect(quedan).toHaveLength(1)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.join(' ')).not.toContain(bloqueo)
+  })
+
+  it('sin RADAR_ARCHIVO_DIR purga como antes y no escribe archivos', async () => {
+    delete process.env[claveArchivo]
+    await insertarViejo('sin-archivo', 'completo')
+    await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-07T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    const quedan = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, 'sin-archivo'))
+    expect(quedan).toHaveLength(0)
+    expect(readdirSync(raiz)).toEqual([])
   })
 })
