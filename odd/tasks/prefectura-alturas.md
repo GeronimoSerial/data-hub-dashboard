@@ -21,7 +21,7 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - Excluir estaciones de caudal (m³/s): Caixa, Capanema, Guayra, Itaipú. `S/E` y `-` → null. Lecturas inconsistentes se marcan, no se descartan. No trasladar umbrales entre estaciones.
 - Dedup `(estacion_id, medida_en)`. Siguiente migración: `0013`.
 - Workers: una tarea atómica por vez, un solo writer. Checks: `pnpm exec vitest run <archivo>` por tarea; al cierre `pnpm exec tsc --noEmit` y `pnpm lint`.
-- RDD: off (global). Entrega: `ask-on-risk`; pronóstico ~900 líneas → se pregunta la cadena antes de superar ~400.
+- RDD: off (global). Entrega: `ask-on-risk` → cadena `stacked-to-main` (elegida por el usuario 2026-10-13). Slice 1 = T1 en `GeronimoSerial/prefectura-alturas` (4d128b1, 7f0b2d5). Slice 2 desde T2 en `GeronimoSerial/prefectura-alturas-s2`, apilada sobre slice 1.
 
 ## Checklist
 
@@ -48,4 +48,4 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 
 ## Próximo paso
 
-T2 (antes: elegir estrategia de cadena, conteo >400). Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
+T2 en slice 2. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
