@@ -1,59 +1,44 @@
-// Job de cálculo de climatología de precipitación (E2): recorre las celdas con
-// perfil geográfico válido, pide a Open-Meteo/ERA5 la serie histórica diaria de
-// cada una y persiste los percentiles p90/p95/p99 calculados en
-// `hazard_climatology`. No es un sync periódico de 6h: es un cálculo offline y
-// bajo demanda sobre una ventana histórica fija.
+// Job de descarga progresiva de precipitación para la climatología (E2): recorre
+// las celdas con perfil geográfico válido, planifica lotes (año, celdas ERA5)
+// que faltan en `hazard_precipitacion_serie` y los baja dentro del cupo diario
+// de Open-Meteo. Cada lote se guarda apenas llega, así un corte de cupo no pierde
+// lo ya descargado.
 //
-// Idempotencia en dos capas:
-// 1. `infra_job_run` (ver job-run.ts): la claveIdempotente combina
-//    período+versión, así recalcular el MISMO período y versión es una sola
-//    corrida, mientras que cambiar la versión permite recalcular sin pisar la
-//    anterior.
-// 2. `hazard_climatology_uidx`
-//    (geometryRef+variable+percentil+muestra+periodoDesde+periodoHasta+version):
-//    si se vuelven a calcular las mismas filas, el upsert actualiza
-//    valor/unidad/calculadoEn en vez de duplicar.
+// Idempotencia: `infra_job_run` (ver job-run.ts) usa la claveIdempotente
+// período+versión+fecha UTC, así que el job corre una vez por día para la misma
+// versión. Cada corrida retoma sólo los pares (celda ERA5, año) que faltan.
 //
-// Una celda caída NO tumba el job: se agrega a `celdasConError` y se sigue con
-// la próxima; el estado general queda completado.
+// Un corte por cupo (`MOTIVOS_CUPO_SIN_RED`) corta el loop y deja la corrida
+// 'completado': el progreso ya está guardado y la próxima corrida retoma.
+// Una celda caída NO tumba el job: se agrega a `celdasConError` y se sigue.
 //
-// CURSOR RESUMABLE (OM-cupo, ver docs/ejecucion-enos/OM-cupo/registro.md,
-// sección "Climatología de precipitación"): este job es MUY costoso en cupo
-// (30 años de historia × ~387 celdas), suficiente para agotar el cupo
-// MENSUAL en una sola corrida. En vez de mantener un cursor separado, se
-// reusa `hazard_climatology` como fuente de verdad de "qué celdas ya están
-// calculadas" para este período+version exacto (misma clave que el upsert de
-// abajo): antes de gastar cupo, se excluyen las celdas que YA tienen al
-// menos una fila persistida. Si la corrida se corta por `cupo_agotado`
-// (ventana larga: hora/día/mes) o `host_en_cooldown`, las celdas que no
-// llegaron a procesarse simplemente no quedan en `hazard_climatology`, así
-// que la PRÓXIMA corrida (mismo período+version) las detecta como
-// pendientes y retoma sin recomputar ni volver a gastar cupo en lo ya hecho.
-import { randomUUID } from 'node:crypto'
-import { and, eq, isNotNull, sql } from 'drizzle-orm'
+// TODO(T23b): recalcular percentiles y escribir `hazard_climatology` desde
+// `hazard_precipitacion_serie` con cobertura. El cálculo de umbrales se retiró de
+// este job porque ya no descarga el período completo de una vez.
+import { eq, isNotNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { conReintentoPorBloqueo } from '@/lib/db/reintento'
-import { hazardClimatology, infraGeoProfile } from '@/lib/db/schema'
+import { infraGeoProfile } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
+import { planificarDescargas, type CeldaPlanificable } from '../climatologia/planificador'
+import { aniosDescargadosPorCelda, guardarAnioSerie } from '../climatologia/serie-diaria'
 import {
-  calcularPercentilesPrecipitacion,
-  obtenerSeriesHistoricas,
+  agruparPuntosPorEra5,
+  descargarAnioPrecipitacion,
   type PuntoClimatologia,
 } from '../providers/climatologia'
-import { apiKeyDesdeEntorno, crearControladorCupo, MOTIVOS_CUPO_SIN_RED } from '../providers/cupo-om'
+import { apiKeyDesdeEntorno, crearControladorCupo, limiteVentana, MOTIVOS_CUPO_SIN_RED } from '../providers/cupo-om'
 
 export type ResultadoCalcularClimatologia = {
-  celdasProcesadas: number
-  filasInsertadas: number
+  /** Pares (celda ERA5, año) descargados y guardados en esta corrida. */
+  celdasAnioDescargadas: number
+  /** Requests a Open-Meteo hechas en esta corrida (incluye la que cortó por cupo). */
+  requests: number
+  /** geometryRef sin perfil válido o cuyo lote falló por motivo que no es cupo. */
   celdasConError: string[]
   /**
-   * `true` si la corrida se detuvo porque el cupo OM-cupo se agotó en una
-   * ventana larga (o el bucket entró en cooldown) antes de terminar todas
-   * las celdas pendientes — no una falla real de datos. El `infra_job_run`
-   * de esta corrida queda marcado 'fallido' (no 'completado') a propósito
-   * para que `adquirirLease` permita re-invocar el MISMO período+version en
-   * la próxima corrida (ver "CURSOR RESUMABLE" en la cabecera del archivo);
-   * si quedara 'completado', el lease bloquearía el reintento para siempre.
+   * `true` si el cupo se agotó (o el host entró en cooldown) antes de terminar
+   * los lotes planificados. No es una falla: la corrida queda 'completado' y la
+   * próxima retoma lo pendiente.
    */
   cortadoPorCupo: boolean
 }
@@ -62,27 +47,35 @@ const TIPO_JOB = 'calculo-climatologia'
 const DURACION_LEASE_MS = 10 * 60 * 1000
 const PERIODO_DESDE_DEFAULT = '1991-01-01'
 const PERIODO_HASTA_DEFAULT = '2020-12-31'
-const VERSION_DEFAULT = 'climatologia-v1'
+const VERSION_DEFAULT = 'climatologia-v2-progresiva'
+/**
+ * Peso máximo que este job gasta por corrida (unidades OM-cupo). El cupo
+ * gratuito de Open-Meteo es 10k diarios; el margen deja espacio para los demás
+ * jobs de Open-Meteo dentro del mismo día.
+ */
+const PESO_MAXIMO_POR_CORRIDA = 5000
+/** Variables pedidas por lote (sólo precipitación). Igual a CANTIDAD_VARIABLES_CLIMATOLOGIA del provider, que no se exporta. */
+const VARIABLES_CLIMATOLOGIA = 1
 
 export async function ejecutarCalculoClimatologia(params?: {
   ahora?: Date
   periodoDesde?: string
   periodoHasta?: string
   version?: string
-  obtenerSeries?: typeof obtenerSeriesHistoricas
+  descargarAnio?: typeof descargarAnioPrecipitacion
 }): Promise<
   | { ok: true; resultado: ResultadoCalcularClimatologia }
   | { ok: false; motivo: 'lease_no_disponible' }
 > {
   const db = getDb()
   const ahora = params?.ahora ?? new Date()
-  const ahoraIso = ahora.toISOString()
   const periodoDesde = params?.periodoDesde ?? PERIODO_DESDE_DEFAULT
   const periodoHasta = params?.periodoHasta ?? PERIODO_HASTA_DEFAULT
   const version = params?.version ?? VERSION_DEFAULT
-  const obtenerSeries = params?.obtenerSeries ?? obtenerSeriesHistoricas
+  const descargarAnio = params?.descargarAnio ?? descargarAnioPrecipitacion
 
-  const claveIdempotente = `${periodoDesde}_${periodoHasta}_${version}`
+  const fechaUtc = ahora.toISOString().slice(0, 10)
+  const claveIdempotente = `${periodoDesde}_${periodoHasta}_${version}_${fechaUtc}`
   const lease = await adquirirLease({
     tipo: TIPO_JOB,
     claveIdempotente,
@@ -103,11 +96,10 @@ export async function ejecutarCalculoClimatologia(params?: {
     return await ejecutarCuerpoDelJobClimatologia({
       db,
       ahora,
-      ahoraIso,
       periodoDesde,
       periodoHasta,
       version,
-      obtenerSeries,
+      descargarAnio,
       lease,
     })
   } catch (error) {
@@ -125,17 +117,16 @@ export async function ejecutarCalculoClimatologia(params?: {
 async function ejecutarCuerpoDelJobClimatologia(ctx: {
   db: ReturnType<typeof getDb>
   ahora: Date
-  ahoraIso: string
   periodoDesde: string
   periodoHasta: string
   version: string
-  obtenerSeries: typeof obtenerSeriesHistoricas
+  descargarAnio: typeof descargarAnioPrecipitacion
   lease: { adquirido: true; jobRunId: string; leaseOwner: string }
 }): Promise<
   | { ok: true; resultado: ResultadoCalcularClimatologia }
   | { ok: false; motivo: 'lease_no_disponible' }
 > {
-  const { db, ahora, ahoraIso, periodoDesde, periodoHasta, version, obtenerSeries, lease } = ctx
+  const { db, ahora, periodoDesde, periodoHasta, descargarAnio, lease } = ctx
 
   // selectDistinct ya entrega las celdas deduplicadas; el filtro de nulos
   // reafirma el tipo para el resto del bucle.
@@ -147,35 +138,9 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
     .map((fila) => fila.geometryRef)
     .filter((ref): ref is string => ref !== null)
 
-  // Cursor resumable (ver comentario de cabecera): celdas que YA tienen al
-  // menos una fila persistida para este período+version exacto no vuelven a
-  // gastar cupo. Cubre tanto una corrida previa completa como una cortada a
-  // mitad de camino por `cupo_agotado`/`host_en_cooldown`.
-  const filasYaCalculadas = await db
-    .selectDistinct({ geometryRef: hazardClimatology.geometryRef })
-    .from(hazardClimatology)
-    .where(
-      and(
-        eq(hazardClimatology.version, version),
-        eq(hazardClimatology.periodoDesde, periodoDesde),
-        eq(hazardClimatology.periodoHasta, periodoHasta),
-      ),
-    )
-  const celdasYaCalculadas = new Set(filasYaCalculadas.map((fila) => fila.geometryRef))
-  const celdasPendientes = celdas.filter((celda) => !celdasYaCalculadas.has(celda))
-
   const celdasConError: string[] = []
-  let celdasProcesadas = celdasYaCalculadas.size
-  let filasInsertadas = 0
-  let cortadoPorCupo = false
-  const apiKey = apiKeyDesdeEntorno()
-
-  // lat/lon por celda pendiente (una query por celda, sin costo de cupo: es
-  // lectura local de infra_geo_profile, no una llamada a Open-Meteo). Todos
-  // los perfiles de una misma celda comparten la coordenada redondeada;
-  // alcanza con el primero.
   const puntos: PuntoClimatologia[] = []
-  for (const celda of celdasPendientes) {
+  for (const celda of celdas) {
     const [perfil] = await db
       .select()
       .from(infraGeoProfile)
@@ -189,103 +154,85 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
     puntos.push({ geometryRef: celda, lat: perfil.lat, lon: perfil.lon })
   }
 
-  // Una sola pasada de red para TODAS las celdas pendientes: la
-  // deduplicación por celda ERA5 y el batching de 50 coordenadas viven
-  // adentro de `obtenerSeriesHistoricas` (ver providers/climatologia.ts). Si
-  // el cupo se agota en una ventana larga a mitad de las celdas pendientes,
-  // el provider ya marca las restantes con el mismo motivo en
-  // `erroresPorCelda` y corta su propio loop de lotes: no quedan escritas en
-  // `hazard_climatology`, así que el cursor resumable las retoma la próxima
-  // corrida.
-  if (puntos.length > 0) {
-    const resultado = await obtenerSeries({
-      puntos,
-      periodoDesde,
-      periodoHasta,
+  // Las celdas de descarga son las ERA5 (~0.25°): varios geometryRef de 0.1° caen
+  // en la misma celda y se bajan una sola vez.
+  const grupos = agruparPuntosPorEra5(puntos)
+  const miembrosPorCelda = new Map(grupos.map((grupo) => [grupo.claveEra5, grupo.miembros]))
+  const celdasEra5: CeldaPlanificable[] = grupos.map((grupo) => ({
+    celdaEra5: grupo.claveEra5,
+    lat: grupo.lat,
+    lon: grupo.lon,
+  }))
+
+  const aniosGuardados = await aniosDescargadosPorCelda(db)
+  const paresGuardados = new Set<string>()
+  for (const [celdaEra5, anios] of aniosGuardados) {
+    for (const anio of anios) paresGuardados.add(`${celdaEra5}:${anio}`)
+  }
+
+  const apiKey = apiKeyDesdeEntorno()
+  const apiKeyPresente = Boolean(apiKey)
+  const lotes = planificarDescargas({
+    celdas: celdasEra5,
+    aniosGuardados: paresGuardados,
+    anioDesde: Number(periodoDesde.slice(0, 4)),
+    anioHasta: Number(periodoHasta.slice(0, 4)),
+    pesoMaximoPorRequest: limiteVentana('minuto', apiKeyPresente),
+    pesoDisponible: PESO_MAXIMO_POR_CORRIDA,
+    variables: VARIABLES_CLIMATOLOGIA,
+  })
+
+  let celdasAnioDescargadas = 0
+  let requests = 0
+  let cortadoPorCupo = false
+
+  for (const lote of lotes) {
+    requests += 1
+    const resultado = await descargarAnio({
+      anio: lote.anio,
+      celdas: lote.celdas,
       apiKey,
       controladorCupoFactory: (peso) =>
-        crearControladorCupo({ host: 'archive-api', peso, apiKeyPresente: Boolean(apiKey), db }),
+        crearControladorCupo({ host: 'archive-api', peso, apiKeyPresente, db }),
     })
 
-    for (const punto of puntos) {
-      const serieDiaria = resultado.seriesPorCelda[punto.geometryRef]
-      const fallo = resultado.erroresPorCelda[punto.geometryRef]
-      if (fallo || serieDiaria === undefined) {
-        celdasConError.push(punto.geometryRef)
-        if (fallo && MOTIVOS_CUPO_SIN_RED.has(fallo.motivo)) cortadoPorCupo = true
-        continue
+    if (!resultado.ok) {
+      if (MOTIVOS_CUPO_SIN_RED.has(resultado.motivo)) {
+        cortadoPorCupo = true
+        break
       }
+      for (const celda of lote.celdas) {
+        celdasConError.push(...(miembrosPorCelda.get(celda.celdaEra5) ?? []))
+      }
+      continue
+    }
 
-      const filas = calcularPercentilesPrecipitacion({
-        geometryRef: punto.geometryRef,
-        valoresDiarios: serieDiaria,
-        periodoDesde,
-        periodoHasta,
+    // Se guarda cada par apenas llega: un corte en el lote siguiente no pierde esto.
+    for (const serie of resultado.series) {
+      const celda = lote.celdas.find((candidata) => candidata.celdaEra5 === serie.celdaEra5)
+      if (!celda) continue
+      await guardarAnioSerie(db, {
+        celdaEra5: serie.celdaEra5,
+        anio: lote.anio,
+        lat: celda.lat,
+        lon: celda.lon,
+        valores: serie.valores,
+        descargadoEn: ahora.toISOString(),
       })
-
-      for (const fila of filas) {
-        // Upsert único por fila: seguro de reintentar ante SQLITE_BUSY (job, no
-        // request path). El id generado en cada intento puede variar, pero no
-        // es la clave del conflicto (lo es geometryRef+variable+percentil+
-        // muestra+periodo+version), así que no afecta el resultado del upsert.
-        await conReintentoPorBloqueo(() =>
-          db
-            .insert(hazardClimatology)
-            .values({
-              id: randomUUID(),
-              geometryRef: fila.geometryRef,
-              variable: fila.variable,
-              percentil: fila.percentil,
-              muestra: fila.muestra,
-              valor: fila.valor,
-              unidad: fila.unidad,
-              periodoDesde: fila.periodoDesde,
-              periodoHasta: fila.periodoHasta,
-              version,
-              calculadoEn: ahoraIso,
-            })
-            .onConflictDoUpdate({
-              target: [
-                hazardClimatology.geometryRef,
-                hazardClimatology.variable,
-                hazardClimatology.percentil,
-                hazardClimatology.muestra,
-                hazardClimatology.periodoDesde,
-                hazardClimatology.periodoHasta,
-                hazardClimatology.version,
-              ],
-              set: {
-                valor: sql`excluded.valor`,
-                unidad: sql`excluded.unidad`,
-                calculadoEn: sql`excluded.calculado_en`,
-              },
-            }),
-        )
-      }
-
-      celdasProcesadas += 1
-      filasInsertadas += filas.length
+      celdasAnioDescargadas += 1
     }
   }
 
-  // Ver `cortadoPorCupo` en el tipo de retorno: si el cupo cortó el batch
-  // antes de terminar, el job-run queda 'fallido' A PROPÓSITO (no
-  // 'completado') para que `adquirirLease` permita retomar el MISMO
-  // período+version en la próxima corrida en vez de bloquearlo para
-  // siempre.
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
-    estado: cortadoPorCupo ? 'fallido' : 'completado',
-    contadores: { celdas: celdasProcesadas, filas: filasInsertadas },
-    errorSaneado: cortadoPorCupo
-      ? `cupo OM-cupo agotado: ${celdasConError.length} celda(s) pendientes, se retoman en la próxima corrida`
-      : undefined,
+    estado: 'completado',
+    contadores: { celdasAnioDescargadas, requests },
     ahora,
   })
 
   return {
     ok: true,
-    resultado: { celdasProcesadas, filasInsertadas, celdasConError, cortadoPorCupo },
+    resultado: { celdasAnioDescargadas, requests, celdasConError, cortadoPorCupo },
   }
 }
