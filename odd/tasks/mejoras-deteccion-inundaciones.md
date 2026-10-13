@@ -34,7 +34,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
 - [x] T10b: un job esperado cuya última corrida es `fallido` se reporta como `fallando` (no como al día)
 - [x] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
-- [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
+- [x] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
 - [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
 - [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
@@ -87,6 +87,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - T10b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 3 tests nuevos fallaban (`fallando` ausente, `errorSaneado` y `ultimaCompletadaEn` no expuestos); GREEN: `salud.test.ts` 15/15; el caso fallido viejo → `atrasado` ya pasaba y queda como guarda de regresión); precedencia `no_programado`/`sin_trazabilidad` > `sin_corridas` > `atrasado` > `fallando` > `ok`; `filas` acepta `estado` y `errorSaneado` opcionales (sin ellos se comporta como antes); `errorSaneado` sólo se rellena en `fallando` y viene de la última fila; `ultimaCompletadaEn` por job = última `completado` del tipo; checks: vitest `salud.test.ts` 15/15, vitest `--no-file-parallelism riesgo` 434 passed / 2 skipped, `tsc --noEmit` sin errores, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): report expected jobs whose last run failed`).
 - T11 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; runbook reescrito por entorno (Coolify en prod con 7 tareas y crons del brief; systemd sólo en staging con 4 timers activos y 3 deshabilitados); verificación: `rg` de IPs/hosts/secretos sin coincidencias, todos los crons de prod presentes; prettier no está configurado en el repo (no hay dependencia ni config; `pnpm exec prettier` no encontrado); cruce de cadencias contra `jobs-esperados.ts` consistente (sin inconsistencias); commit: ver git log (`docs(ops): align scheduler runbook with production Coolify tasks`).
 
+- T12 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos fallaban con `construirFilasDataset is not a function`; GREEN: 7/7); contrato de columnas en el encabezado del script: una fila por snapshot de run publicado (`instante` = `calculado_en`), `afectacionConfirmadaEnT` = reporte no retirado con `creada_en <= t`, `targetAfectacion24h/72h` = reporte con `creada_en` en (t, t+h], null si la ventana no llega a `ahora`, idEscuela = HMAC(sal, CUE) sin CUE en claro; `nivelPeligroDepartamento` y `lluviaObservadaMm` quedan null (supuesto: no hay fuente as-of conectada); cero reportes válido (targets false); el script ahora hace `ensureSeeded()` y el JSON es la última línea de stdout; checks: vitest export 7/7, `tsc --noEmit` ok, eslint sin errores (los dos archivos están en ignore del config, sin lint efectivo); commit: ver git log (`feat(scripts): implement de-identified dataset export query`).
+
 ## Siguiente paso
 
-T12.
+T13.
