@@ -56,6 +56,7 @@ import {
 } from './lotes'
 import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
+import { armarValoresAnio, diasDelAnio } from '../climatologia/serie-diaria'
 import { CONFIG_FUENTES } from './config-fuentes'
 import {
   apiKeyDesdeEntorno,
@@ -451,4 +452,64 @@ export async function obtenerSerieHistorica(params: {
   }
 
   return { ok: true, valoresDiarios: resultado.seriesPorCelda[geometryRef] ?? [] }
+}
+
+/**
+ * Descarga UN año calendario de precipitación diaria para un lote de celdas
+ * ERA5 en un único request (mismo URL builder, payload schema, parser,
+ * reintentos y controlador de cupo que `obtenerSeriesHistoricas`, pero sin
+ * partir en tramos: el llamador ya acota el lote por peso). Cada serie queda
+ * indexada por día del año (0 = 1 de enero), con `null` donde la API no dio
+ * dato (nunca se imputa 0), en el mismo formato que guarda
+ * `climatologia/serie-diaria.ts`.
+ */
+export async function descargarAnioPrecipitacion(params: {
+  anio: number
+  celdas: Array<{ celdaEra5: string; lat: number; lon: number }>
+  fetchImpl?: typeof fetch
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
+}): Promise<
+  | { ok: true; series: Array<{ celdaEra5: string; valores: Array<number | null> }> }
+  | { ok: false; motivo: string; detalle: string }
+> {
+  if (params.celdas.length === 0) return { ok: true, series: [] }
+
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
+  const apiKeyPresente = Boolean(apiKey)
+  const puntosLote: PuntoClimatologia[] = params.celdas.map((celda) => ({
+    geometryRef: celda.celdaEra5,
+    lat: celda.lat,
+    lon: celda.lon,
+  }))
+  const periodoDesde = `${params.anio}-01-01`
+  const periodoHasta = `${params.anio}-12-31`
+  const peso = pesoLlamada({
+    ubicaciones: puntosLote.length,
+    variables: CANTIDAD_VARIABLES_CLIMATOLOGIA,
+    dias: diasDelAnio(params.anio),
+  })
+  asegurarPesoAlcanzable({ peso, apiKeyPresente })
+
+  const cupo = params.controladorCupoFactory?.(peso)
+  const resultado = await ejecutarConReintentos<Array<z.infer<typeof payloadArchivoElementoSchema>>>({
+    url: construirUrlLote(puntosLote, periodoDesde, periodoHasta, apiKey),
+    fetchImpl: params.fetchImpl,
+    cupo,
+    parsearPayload: crearParserLote(payloadArchivoElementoSchema, puntosLote.length),
+  })
+
+  if (!resultado.ok) return { ok: false, motivo: resultado.motivo, detalle: resultado.detalle }
+
+  return {
+    ok: true,
+    series: params.celdas.map((celda, indice) => {
+      const payload = resultado.datos[indice].daily
+      return {
+        celdaEra5: celda.celdaEra5,
+        valores: armarValoresAnio(params.anio, payload.time, payload.precipitation_sum),
+      }
+    }),
+  }
 }

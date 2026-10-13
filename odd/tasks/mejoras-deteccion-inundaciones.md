@@ -51,7 +51,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
 - [x] T21 Climatología progresiva (almacenamiento): tabla con la serie diaria de precipitación por celda ERA5 y año (re-descarga idempotente) + columnas de cobertura en `hazard_climatology`
 - [x] T22a Planificador puro: dado celdas ERA5, años ya guardados y cupo disponible, devuelve los próximos (lote de celdas, año) en orden ancho-primero (años recientes 2020→1991 para todas las celdas)
-- [ ] T22b Proveedor: bajar un año de precipitación diaria para un lote de celdas (request ≤ límite de minuto) y devolver la serie por celda
+- [x] T22b Proveedor: bajar un año de precipitación diaria para un lote de celdas (request ≤ límite de minuto) y devolver la serie por celda
 - [ ] T22c Job: cablear planificador + proveedor + upsert por request; corte de cupo guarda progreso y no deja la corrida `fallido`
 - [ ] T23a Umbrales puros: percentiles desde la serie acumulada de una celda, sólo si tiene ≥ 10 años completos
 - [ ] T23b Job: recalcular y escribir `hazard_climatology` con cobertura; clave idempotente diaria; versión `climatologia-v2-progresiva`
@@ -131,6 +131,8 @@ Rama: `feat/amenaza-visible` desde `main` (4aa1882).
 - T21 — ruta: delegated direct; RED/GREEN observed (RED: `climatologia/serie-diaria.test.ts` no cargaba, módulo inexistente; GREEN: 5/5); tabla `hazard_precipitacion_serie` (PK `celda_era5`+`anio`, `valores` jsonb indexado por día del año con null = sin dato, `dias_con_dato`, `descargado_en`): ~132 celdas × 30 filas; columnas nullable `anios_cobertura`/`dias_cobertura` en `hazard_climatology`; migración `0014_precipitacion_serie.sql` generada con `drizzle-kit generate` y hecha idempotente (`IF NOT EXISTS`); upsert por PK = re-descarga idempotente; checks: vitest `climatologia` 5/5, vitest `lib/db` 49/49, `tsc --noEmit` ok, eslint limpio; commit: ver git log (`feat(riesgo): store daily precipitation series for progressive climatology`).
 
 - T22a — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `climatologia/planificador.test.ts` no cargaba, módulo inexistente; GREEN: 15/15 en `climatologia`, 10 casos nuevos del planificador); `planificarDescargas` en `climatologia/planificador.ts`, puro (sin DB ni red), orden ancho-primero 2020→1991, celdas ordenadas por `celdaEra5`, lotes hasta `pesoMaximoPorRequest` con el peso real del año (366 bisiesto), corte al agotar `pesoDisponible`; el peso replica `pesoLlamada` de `cupo-om.ts` sin importarla porque ese módulo arrastra la DB; checks: vitest `climatologia` 15/15, `tsc --noEmit` ok, eslint limpio; commit: ver git log (`feat(riesgo): plan progressive climatology downloads breadth-first`).
+
+- T22b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `descargarAnioPrecipitacion` inexistente, 4 casos nuevos fallan; GREEN: providers + climatologia 131 ok, 1 skip previo); `descargarAnioPrecipitacion` en `providers/climatologia.ts` hace un request por año para todo el lote de celdas, reutiliza `construirUrlLoteOpenMeteo`/`crearParserLote`/`ejecutarConReintentos`/controlador de cupo, indexa con `armarValoresAnio` de `climatologia/serie-diaria.ts` (null sin imputar, 365/366 días); checks: vitest `providers` + `climatologia` ok, `tsc --noEmit` ok, eslint limpio; commit: `feat(riesgo): download one year of precipitation for a lot of cells`.
 
 ## Verificación de cierre (2026-10-13, rama s5)
 
