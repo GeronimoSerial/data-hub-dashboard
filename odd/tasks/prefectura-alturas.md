@@ -28,7 +28,7 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - [x] T1 Parser puro `index.php` → lecturas (fixture HTML guardado, error de cambio de estructura, inconsistencias)
 - [x] T2 Catálogo versionado de estaciones PNA de Corrientes + aguas arriba (nombre PNA, id histórico, río, `estacionId`)
 - [x] T3 Tabla `hidro_lectura` + migración `0013`
-- [ ] T4 Cliente de descarga con User-Agent identificado y reintentos (429/5xx → degradado; estructura → no_disponible)
+- [x] T4 Cliente de descarga con User-Agent identificado y reintentos (429/5xx → degradado; estructura → no_disponible)
 - [ ] T5 Job `sync-prefectura-alturas`: lease horario, upsert, `publicarResultado`, salud de fuente
 - [ ] T6 Registro del job (`jobs.mjs`, `cadencias.ts`, `jobs-esperados.ts` con `habilitado:false`) + timer systemd + fila del runbook
 - [ ] T7 G-1a: coordenadas declaradas por PNA (`mapa.php`) en el catálogo con `verificada:false`
@@ -48,7 +48,8 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 
 - T2 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 25/25 en `hidrometria`; checks: vitest `hidrometria` 25/25 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 50b5522 (`feat(hidrometria): add versioned Prefectura station catalogue`). 21 estaciones (18 Corrientes + 3 contexto aguas arriba), nombres verificados contra la página en vivo; búsqueda por `idHistorico` con respaldo por nombre normalizado.
 - T3 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 30/30 en `hidrometria` (tests de DB ejecutados en PGlite en memoria); checks: vitest `hidrometria` 30/30 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok, sin drift en la migración; commit b911b04 (`feat(hidrometria): add hidro_lectura table and idempotent save`). `doublePrecision` para metros; `ON CONFLICT DO NOTHING` sobre `(estacion_id, medida_en)`; filas sin fecha se cuentan como `sinFecha`.
+- T4 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 40/40 en `hidrometria`; checks: vitest 40/40 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 11589f5 (`feat(hidrometria): add Prefectura download client with identified user agent`). No reutiliza `ejecutarConReintentos` (no admite headers, parsea JSON, sleep no inyectable); loop local con la misma política. UA sin email personal. Nota: las descargas de fixture de T1/T2 enviaron el email del usuario en el UA (informado al usuario).
 
 ## Próximo paso
 
-T4 en slice 3. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
+T5 en slice 3. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
