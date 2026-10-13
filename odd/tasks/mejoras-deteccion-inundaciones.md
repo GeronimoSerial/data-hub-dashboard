@@ -26,31 +26,36 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T3 I-6a: `cargarPronostico` (y variante por lote) filtra `corridaEn <= ahora`
 - [x] T4 I-6b/c: umbrales de climatología as-of + limpiar referencias a `replay/consulta.ts`
 - [x] T5 I-8a: salud de fuente en sync de radar-meteo
-- [ ] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
+- [x] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
 - [ ] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [ ] T8 I-5a: exportar corridas de radar antes de la purga
 - [ ] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
 - [ ] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
-- [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging)
+- [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
+- [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
+- [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
+- [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
+- [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
 ## Bloqueados (fuera de este ciclo)
 
 - I-2: usuario decidió borrar los partes de prueba de producción (2026-10-13); pendiente autorización operativa (alcance, respaldo, acceso).
-- Decisión del equipo (09): I-3 (Q4), F-1/F-4 (Q5, Q6), P-3 (Q3), V-3 (terminar o quitar export).
+- Desbloqueados por decisiones (próximo ciclo): I-3 + G-1 (Q4), F-1/F-4 (Q5, Q6).
 - Datos: G-4 (valor original de caudal de `parana-goya`), G-1 (coordenadas de estaciones).
 - Operativos: I-4, P-6, I-1c. Dependientes: G-2, F-2, F-3, V-1, V-2, M-1, I-7b/c.
 
 ## Decisiones del usuario (2026-10-13)
 
 - Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 desde T4 en `GeronimoSerial/refactor-s2`, apilada sobre slice 1.
-- I-2: borrar todo `infra_parte` y dependientes en producción, previo respaldo (dump). Ejecución pendiente de autorización operativa.
+- I-2: borrar todo `infra_parte` y dependientes en producción. **Ejecutado 2026-10-13** (SSH autorizado): respaldo `/root/backups/infra_parte_hub_prod_20261013T170619Z.dump` (4 tablas); conteos 76/129/135/139 → 0/0/0/0 en una transacción (cascada). Restaurar con `pg_restore --data-only`.
 - Q1: motor en producción solo tras I-6, I-7, G-3 e I-2 cerradas.
-- Q3: apagar climatologías en staging (operativo).
+- Q3: apagar climatologías en staging. **Ejecutado**: `enos-ops1-climatologia-{precipitacion,caudal}.timer` deshabilitados.
 - Q4: captura horaria de la tabla de Prefectura (revisar términos de uso antes) → desbloquea I-3, G-1.
 - Q5: vigencias provisorias de 05 como configuración editable.
 - Q6: eventos de medios entran como `pendiente`; publica un admin; fuentes oficiales se publican directo.
 - Q7: rotación de credenciales a cargo del usuario; entregar checklist + SQL de rol de solo lectura.
-- Q8: revertir timer IMERG en staging (operativo).
+- Q8: revertir timer IMERG en staging. **Ejecutado**: `enos-ops1-sync-imerg.timer` deshabilitado.
+- V-3: completar el export. G-4: el valor lo calcula el job, solo corregir el comentario.
 
 ## Progreso y evidencia
 
@@ -63,6 +68,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T5 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, sin fila en `hazard_source_health`; GREEN: `job-sync.test.ts` 5/5); provider `open-meteo-radar` (convención `open-meteo-<tipo>` de ensemble/seasonal), ttl 240 min (cron cada 3 h), licencia igual a la de ensemble; éxito → `ok`; excepción del proveedor → `no_disponible` con mensaje fijo `fallo al sincronizar radar meteorológico` (sin cuerpo de respuesta ni secretos); sin ruta de éxito parcial en este job (`obtenerPronosticoRadar` lanza al primer lote fallido), por eso `degradado` no es alcanzable y no se fabricó; purga intacta (T8); checks: vitest `radar-meteo` 73/73, vitest `riesgo/jobs` serial 51/51, `tsc --noEmit` ok, eslint ok (1 warning preexistente `import()` en el test); commit: ver git log (`feat(radar-meteo): record source health on sync`).
 
+- T6 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `smn-alertas.test.ts` 3 fallidos (ok, degradado, no_disponible) sin fila en `hazard_source_health`, 12 pasaban; GREEN: 15/15); provider `smn-alertas`, ttl 60 min (cron `7-59/15`); licencia `SMN CAP público — licencia no verificada` (no se encontró licencia documentada en el repo, no se inventó); `HttpSmnError` tipado con `status` → HTTP 429 → `degradado` con mensaje fijo `SMN limitó las consultas (HTTP 429)`; otros errores y `OrigenSmnBloqueadoError` → `no_disponible` con mensaje fijo `fallo al sincronizar alertas del SMN`; escritura de salud después de `publicarResultado` en las tres ramas; errores originales relanzados/devueltos igual que antes; checks: vitest `smn-alertas.test.ts` 15/15, vitest `radar-meteo` 76/76, `tsc --noEmit` ok, eslint ok en los dos archivos cambiados; commit: ver git log (`feat(smn): record source health on alerts sync`).
+
 ## Siguiente paso
 
-T6.
+T7.
