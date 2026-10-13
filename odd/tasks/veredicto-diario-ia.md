@@ -53,7 +53,7 @@ y pasar los eventos reportados de `lib/mapas/eventos-inundaciones.ts` al prop `e
 Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura de 2+ archivos no triviales.
 
 - [x] T1 (V-03) Migración `0015` + esquema drizzle `infra_veredicto_dia` y `infra_veredicto_enlace` + repositorio idempotente con `reemplazado_por`.
-- [ ] T2 (V-02, V-04) Celda → departamento y agregador de lluvia observada por departamento-día con cobertura.
+- [x] T2 (V-02, V-04) Celda → departamento y agregador de lluvia observada por departamento-día con cobertura.
 - [ ] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
 - [ ] T4 (V-07) Reglas deterministas `reglas-veredicto-v0.1` con traza.
 - [ ] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
@@ -70,3 +70,8 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   RED observado (import inexistente) → GREEN 8 tests; tsc y eslint limpios. Ajuste del coordinador: el índice
   `(fecha, ambito, inputs_hash)` pasa a no único para permitir volver a un hash anterior (A→B→A); la idempotencia
   la dan el chequeo del vigente y el índice parcial `infra_veredicto_dia_vigente_uidx`.
+- T2 (delegado; worker detenido al superar el tope de ~100k tokens, cierre inline del coordinador): `dia.ts`,
+  `celda-departamento.ts` (punto-en-polígono propio), `lluvia-observada.ts`. El worker dejó 35/37 en verde; el
+  coordinador corrigió el fixture (clave única `observado_en` repetida) y el lector de climatología (orden
+  descendente + mapeo de percentiles). GREEN 37 tests; tsc y eslint limpios. Unidad IMERG verificada: `mm/30min`
+  (`providers/imerg.ts:263`).
