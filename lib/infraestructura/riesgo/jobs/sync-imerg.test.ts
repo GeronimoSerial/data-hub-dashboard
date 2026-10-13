@@ -247,7 +247,14 @@ describe('ejecutarSyncImerg', () => {
       (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-26T03:30',
     )
     expect(run?.estado).toBe('completado')
-    expect(run?.contadores).toEqual({ celdasActualizadas: 0, granulosProcesados: 0, granulosFallidos: 1 })
+    expect(run?.contadores).toEqual({
+      celdasActualizadas: 0,
+      granulosProcesados: 0,
+      granulosFallidos: 1,
+      granulosNoPublicados: 0,
+      granulosConError: 1,
+    })
+    expect(run?.errorSaneado).toBe('2026-09-26T03:00:00.000Z: error 500')
     expect(run?.leaseOwner).toBeNull()
   })
 
@@ -365,6 +372,64 @@ describe('ejecutarSyncImerg', () => {
     const salud = await saludImerg()
     // El más reciente se procesó bien: la fuente se reporta 'ok'.
     expect(salud?.estado).toBe('ok')
+  })
+
+  it('motivo por gránulo: un 404 (no publicado) y un 500 (error) se cuentan por separado, se resumen sin tokens ni URLs y el más reciente 404 no degrada la fuente', async () => {
+    const noPublicado = '2026-09-26T22:30:00.000Z'
+    const conError = '2026-09-26T22:00:00.000Z'
+    const ok = '2026-09-26T21:00:00.000Z'
+    const cmr = cmrConEntradas([
+      { inicioEn: noPublicado, finEn: '2026-09-26T22:59:59.999Z' },
+      { inicioEn: conError, finEn: '2026-09-26T22:29:59.999Z' },
+      { inicioEn: ok, finEn: '2026-09-26T21:29:59.999Z' },
+    ])
+    const base = fetchConFixtures(cmr)
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes(noPublicado.replace(/[-:.]/g, ''))) {
+        return new Response('cuerpo no publicado', { status: 404 })
+      }
+      if (url.includes(conError.replace(/[-:.]/g, ''))) {
+        return new Response('boom', { status: 500 })
+      }
+      return base(input, init)
+    })
+
+    const resultado = await sync({
+      ahora: new Date('2026-09-26T23:05:00.000Z'), // bloque 23:00
+      fetchImpl: fetchImpl as unknown as FetchImpl,
+    })
+
+    expect(resultado).toEqual({
+      ok: true,
+      resultado: {
+        celdasActualizadas: CELDAS_ESPERADAS,
+        motivo: 'sincronizado',
+        granulosProcesados: 1,
+        granulosFallidos: 2,
+      },
+    })
+
+    const run = (await (await db()).select().from(infraJobRun)).find(
+      (fila) => fila.tipo === 'sync-hazard-imerg' && fila.claveIdempotente === '2026-09-26T23:00',
+    )
+    expect(run?.contadores).toEqual({
+      celdasActualizadas: CELDAS_ESPERADAS,
+      granulosProcesados: 1,
+      granulosFallidos: 2,
+      granulosNoPublicados: 1,
+      granulosConError: 1,
+    })
+    expect(run?.errorSaneado).toBe(
+      `${noPublicado}: no_publicado 404; ${conError}: error 500`,
+    )
+    expect(run?.errorSaneado).not.toMatch(/token-fake|Bearer|https?:\/\/|cuerpo no publicado/)
+    expect(run?.errorSaneado?.length ?? 0).toBeLessThanOrEqual(500)
+
+    // Un 404 en el más reciente no es una falla real de la fuente: `ok`.
+    const salud = await saludImerg()
+    expect(salud?.estado).toBe('ok')
+    expect(salud?.ultimoErrorSaneado).toBeNull()
   })
 
   it('backfill: acota el número de gránulos procesados por corrida al presupuesto documentado', async () => {

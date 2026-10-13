@@ -28,7 +28,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T5 I-8a: salud de fuente en sync de radar-meteo
 - [x] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
 - [x] T6b: un fallo al escribir la salud de fuente no altera el resultado de la corrida (radar y SMN)
-- [ ] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
+- [x] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [ ] T8 I-5a: exportar corridas de radar antes de la purga
 - [ ] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
 - [ ] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
@@ -73,6 +73,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T6b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `job-sync.test.ts` falla con insert duplicado de `radar_meteo_run` (pkey) y `fallido` extra tras fallo de salud; `smn-alertas.test.ts` reemitía el error `SQLITE_BUSY` hacia el llamador; GREEN: radar-meteo 78/78); escritura de salud envuelta en best-effort en radar (`.catch`) y SMN (`try/catch` en `registrarSaludSmn`), ambas con `console.warn` de mensaje fijo sin detalle del error; resultado, retorno y errores originales intactos; checks: vitest `radar-meteo` 78/78, vitest `--no-file-parallelism riesgo/jobs` 51/51, `tsc --noEmit` ok, eslint 0 errores en los cuatro archivos (warning `import()` preexistente en `job-sync.test.ts`); commit: ver git log (`fix(radar-meteo): keep run outcome when source health write fails`).
 
+- T7 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests fallaban, `contadores` sin `granulosNoPublicados`/`granulosConError` y sin `error_saneado`; GREEN: `sync-imerg.test.ts` 12/12); clasificación en el job: `subset HTTP 404` → `no_publicado`, otro status o error sin status → `error`; el adaptador no expone un "gránulo ausente" por gránulo (el listado CMR ya trae sólo gránulos existentes), así que `no_publicado` = HTTP 404 del subset; `errorSaneado` = `<granuloIso>: <clase> <status>; ...` acotado a 500 caracteres, sin cuerpo, URL ni token; salud: degrada sólo si falla el gránulo más reciente con clase `error` (un 404 del más reciente deja `ok`, igual que un fallo de backfill, sin cambiar la política de umbral); checks: vitest `sync-imerg.test.ts` 12/12, vitest `--no-file-parallelism riesgo/jobs` 52/52, `tsc --noEmit` ok, eslint limpio en los dos archivos; commit: ver git log (`feat(imerg): record failure reason per granule`).
+
 ## Siguiente paso
 
-T7.
+T8.
