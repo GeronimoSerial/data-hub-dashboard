@@ -35,7 +35,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T10b: un job esperado cuya última corrida es `fallido` se reporta como `fallando` (no como al día)
 - [x] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [x] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
-- [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
+- [x] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
 - [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
 - [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
@@ -89,6 +89,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T12 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos fallaban con `construirFilasDataset is not a function`; GREEN: 7/7); contrato de columnas en el encabezado del script: una fila por snapshot de run publicado (`instante` = `calculado_en`), `afectacionConfirmadaEnT` = reporte no retirado con `creada_en <= t`, `targetAfectacion24h/72h` = reporte con `creada_en` en (t, t+h], null si la ventana no llega a `ahora`, idEscuela = HMAC(sal, CUE) sin CUE en claro; `nivelPeligroDepartamento` y `lluviaObservadaMm` quedan null (supuesto: no hay fuente as-of conectada); cero reportes válido (targets false); el script ahora hace `ensureSeeded()` y el JSON es la última línea de stdout; checks: vitest export 7/7, `tsc --noEmit` ok, eslint sin errores (los dos archivos están en ignore del config, sin lint efectivo); commit: ver git log (`feat(scripts): implement de-identified dataset export query`).
 
+- T13 — ruta: delegated direct (Haiku); solo comentarios/docs; sin RED/GREEN (no hay comportamiento nuevo); `parana-goya` ya no lleva el caudal hardcodeado y remite a `climatologia-caudal` / `hazard_climatology`; `docs/DEPLOY.md` describe el export real (una fila por snapshot, `idEscuela` HMAC, targets 24h/72h desde `infra_afectacion`, dos columnas `null`); la cabecera de `export-desidentificado.ts` apunta a `docs/DEPLOY.md`; sin tocar coordenadas ni código. Pendiente: `puntos-rio.ts:43` (Corrientes, caudal 17740.9 m³/s) tiene la misma cifra sin verificar; no se modificó. checks: vitest `puntos-rio.test.ts` 5/5, `tsc --noEmit` ok; commit: ver git log (`docs(riesgo): drop unverified parana-goya flow and fix stale export docs`).
+
 ## Siguiente paso
 
-T13.
+T14.

@@ -56,7 +56,8 @@ export const PUNTOS_RIO: readonly PuntoRio[] = [
     localidad: 'Goya',
     lat: -29.0382,
     lon: -59.2649,
-    criterio: 'Barrido sobre el centro de la localidad; caudal máximo 17740.9 m³/s (2026-09-26).',
+    criterio:
+      'Barrido sobre el centro de la localidad. Los umbrales de caudal no están hardcodeados: los calcula el job `climatologia-caudal` (lib/infraestructura/riesgo/jobs/calcular-climatologia-caudal.ts) y los guarda en `hazard_climatology`.',
   },
   {
     id: 'parana-esquina',
