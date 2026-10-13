@@ -36,7 +36,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [x] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [x] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
-- [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
+- [x] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
 - [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
 ## Bloqueados (fuera de este ciclo)
@@ -91,6 +91,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T13 — ruta: delegated direct (Haiku); solo comentarios/docs; sin RED/GREEN (no hay comportamiento nuevo); `parana-goya` ya no lleva el caudal hardcodeado y remite a `climatologia-caudal` / `hazard_climatology`; `docs/DEPLOY.md` describe el export real (una fila por snapshot, `idEscuela` HMAC, targets 24h/72h desde `infra_afectacion`, dos columnas `null`); la cabecera de `export-desidentificado.ts` apunta a `docs/DEPLOY.md`; sin tocar coordenadas ni código. Pendiente: `puntos-rio.ts:43` (Corrientes, caudal 17740.9 m³/s) tiene la misma cifra sin verificar; no se modificó. checks: vitest `puntos-rio.test.ts` 5/5, `tsc --noEmit` ok; commit: ver git log (`docs(riesgo): drop unverified parana-goya flow and fix stale export docs`).
 
+- T14 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos de guardia fallaban (`status` 0 con NODE_ENV=production y con URL `_prod`, sin rechazo); GREEN: `seed-demo-partes.test.ts` 6/6); guardia tras el gate DEMO_OK y antes de cualquier import de DB: refusa si `NODE_ENV=production` o si el nombre de base/host de `DATABASE_URL` contiene "prod" (sin imprimir la URL); override sólo con `--permitir-produccion` + `CONFIRMAR_SEED_PRODUCCION=si`, con un solo factor sale con código 1 y sin escribir (verificado: no se crea `DATA_DIR/pg`); aplica también a `--limpiar`; documentado en la cabecera del script. Sin exportar función pura: el script tiene efectos al cargar, así que los casos se cubren por spawn (el test de guardia no necesita DB). Otros inserts de reportes: sólo `lib/infraestructura/test-utils/parte-fixtures.ts` (helper de test vía drizzle, no es script); ningún otro script de `scripts/` inserta en `infra_parte`/`infra_afectacion`; no se modificaron. checks: vitest `seed-demo-partes.test.ts` 6/6, `tsc --noEmit` ok; commit: ver git log (`fix(scripts): refuse to seed demo reports into production`).
+
 ## Siguiente paso
 
-T14.
+T15.
