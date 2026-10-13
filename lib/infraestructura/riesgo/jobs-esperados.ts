@@ -51,12 +51,11 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: false },
   { nombre: 'episodios-derivados', tipo: 'episodios-derivados-v0', intervaloMinutos: 60, habilitado: false },
   { nombre: 'sync-seasonal', tipo: 'sync-hazard-seasonal', intervaloMinutos: 1440, habilitado: false },
-  // Pendiente de programar en Coolify (acción del usuario). Hasta entonces
-  // `no_programado`, no alarma.
+  // Coolify Scheduled Task `17 * * * *` in production since 2026-10-13.
   {
     nombre: 'sync-prefectura-alturas',
     tipo: 'sync-prefectura-alturas',
     intervaloMinutos: 60,
-    habilitado: false,
+    habilitado: true,
   },
 ]
