@@ -77,6 +77,7 @@ import {
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
+import { CapaEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
   CapasAccesosTerritoriales,
@@ -1859,15 +1860,16 @@ export default function MapInfraestructuraPage(props: {
           </Fragment>
           <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} />
           <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
+          <CapaEventosReportados visible={capasVisibles.eventosReportados} />
         </MapGL>
       </div>
 
       {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal

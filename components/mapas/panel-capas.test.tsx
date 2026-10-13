@@ -125,3 +125,20 @@ describe('PanelCapas', () => {
     expect(within(riesgo).getByText('Los datos territoriales no están disponibles.')).toBeInTheDocument()
   })
 })
+
+describe('PanelCapas · eventos reportados', () => {
+  it('muestra el interruptor de eventos reportados activo dentro de Situación actual', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+
+    const grupo = screen.getByRole('group', { name: 'Situación actual' })
+    expect(within(grupo).getByRole('switch', { name: 'Eventos reportados (últimos días)' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('apaga la capa de eventos reportados al desactivar su interruptor', async () => {
+    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Eventos reportados (últimos días)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, eventosReportados: false })
+  })
+})

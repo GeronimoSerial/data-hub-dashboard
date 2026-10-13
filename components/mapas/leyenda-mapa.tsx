@@ -44,6 +44,32 @@ function LeyendaAlturaRios() {
   )
 }
 
+const CONFIANZA_EVENTOS = [
+  { confianza: 'alta', etiqueta: 'Confianza alta', color: '#7c2d12' },
+  { confianza: 'media', etiqueta: 'Confianza media', color: '#c2410c' },
+  { confianza: 'baja', etiqueta: 'Confianza baja', color: '#fdba74' },
+] as const
+
+function LeyendaEventosReportados() {
+  return (
+    <aside className="map-leyenda" aria-label="Eventos reportados">
+      <b className="map-leyenda__titulo">Eventos reportados</b>
+      <ul className="map-leyenda__fila">
+        {CONFIANZA_EVENTOS.map(({ confianza, etiqueta, color }) => (
+          <li className="map-leyenda__elemento" key={confianza}>
+            <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, transform: 'rotate(45deg)', backgroundColor: color, border: '2px solid #ffffff' }} />
+            <span>{etiqueta}</span>
+          </li>
+        ))}
+        <li className="map-leyenda__elemento">
+          <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, transform: 'rotate(45deg)', border: '2px dashed #374151' }} />
+          <span>Ubicado sólo a nivel de departamento</span>
+        </li>
+      </ul>
+    </aside>
+  )
+}
+
 const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
   day: '2-digit',
   month: '2-digit',
@@ -76,10 +102,11 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   )
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; lluviaObservada?: MetaLluviaObservada | null }) {
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; lluviaObservada?: MetaLluviaObservada | null }) {
   return (
     <>
       {props.estacionesRio && <LeyendaAlturaRios />}
+      {props.eventosReportados && <LeyendaEventosReportados />}
       {props.lluviaObservada && <LeyendaLluviaObservada meta={props.lluviaObservada} />}
       <LeyendaPestana {...props} />
     </>

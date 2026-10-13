@@ -150,3 +150,22 @@ describe('LeyendaMapa', () => {
     expect(container).toBeEmptyDOMElement()
   })
 })
+
+describe('LeyendaMapa · eventos reportados', () => {
+  it('muestra la escala de confianza y la muestra punteada de ubicación por departamento cuando la capa está visible', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados />)
+
+    const leyenda = within(container)
+    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Confianza alta')).toBeTruthy()
+    expect(leyenda.getByText('Confianza media')).toBeTruthy()
+    expect(leyenda.getByText('Confianza baja')).toBeTruthy()
+    expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
+  })
+
+  it('no muestra la leyenda de eventos reportados cuando la capa está apagada', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" eventosReportados={false} />)
+
+    expect(within(container).queryByText('Eventos reportados')).toBeNull()
+  })
+})
