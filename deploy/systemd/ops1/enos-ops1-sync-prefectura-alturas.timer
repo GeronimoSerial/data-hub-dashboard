@@ -1,0 +1,11 @@
+[Unit]
+Description=Timer OPS1 ENOS: sync-prefectura-alturas (cada hora, minuto 17)
+
+[Timer]
+OnCalendar=*:17
+Persistent=true
+RandomizedDelaySec=60
+Unit=enos-ops1@sync-prefectura-alturas.service
+
+[Install]
+WantedBy=timers.target

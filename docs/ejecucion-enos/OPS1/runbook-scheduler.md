@@ -26,6 +26,8 @@ Los seis jobs no programados en producción (`calcular-riesgo`,
 `episodios-derivados`, `sync-seasonal`) se mantienen fuera del scheduler por
 decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
 `jobs-esperados.ts` con `habilitado: false` y el estado `no_programado`.
+`sync-prefectura-alturas` sigue el mismo criterio: declarado con
+`habilitado: false` hasta que el usuario configure su tarea en Coolify.
 
 ## Producción (Coolify)
 
@@ -40,6 +42,7 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | sync-imerg | `5 * * * *` | 300 s | `sync-hazard-imerg` | creado 2026-10-13 |
 | climatologia-caudal | `41 6 1 * *` | 1200 s | `calcular-hazard-climatologia-caudal` | mensual, cursor resumable; creado 2026-10-13 |
 | climatologia-precipitacion | `43 6 1 * *` | 1200 s | `calculo-climatologia` | mensual, cursor resumable; creado 2026-10-13 |
+| sync-prefectura-alturas | pendiente de configurar por el usuario en Coolify (sugerido `17 * * * *`) | pendiente | `sync-prefectura-alturas` | cada hora; no programado todavía. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
 
 La zona horaria de las expresiones cron no está registrada en este runbook;
 confirmarla en la configuración de Coolify antes de comparar con los horarios UTC
@@ -62,6 +65,7 @@ Unidades en `deploy/systemd/ops1/`. Estado en staging al 2026-10-13:
 | `enos-ops1-sync-imerg.timer` | deshabilitado | `*-*-* *:00:00` | sync-imerg (instalado por error; revertido) |
 | `enos-ops1-climatologia-precipitacion.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-precipitacion (cuota Open-Meteo compartida con producción) |
 | `enos-ops1-climatologia-caudal.timer` | deshabilitado | `*-*-01 06:40:00` | climatologia-caudal (cuota Open-Meteo compartida con producción) |
+| `enos-ops1-sync-prefectura-alturas.timer` | no habilitado (no instalado en el host) | `*:17` | sync-prefectura-alturas; el archivo está en el repo, pendiente de decisión |
 
 Los demás timers del repo (`calcular-riesgo`, `situacion-corte`,
 `briefing-ia`, `episodios-derivados`, `geo-perfiles`, `asociacion-rio`,
@@ -178,7 +182,7 @@ entorno del contenedor o deshabilitando la tarea en Coolify.
 `scripts/jobs.mjs` sigue el contrato de `scripts/job-diagnostico.mjs`, más un código propio:
 
 - **`0`** — corrió y publicó, **o** no hizo nada porque el job ya estaba `completado`, tenía un lease vigente, o `ENOS_JOBS_ENABLED=false`. Si el motivo fue el flag, revisar el `WARN` (¿pausa deliberada o apagado por error?).
-- **`1`** — excepción no manejada (fallo real). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
+- **`1`** — excepción no manejada, o resultado `fallido` de `sync-prefectura-alturas` (fallo real). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
 - **`2`** — nombre de job desconocido. Error de la tarea o unidad (nombre mal escrito), no del job.
 - **`3`** — el job perdió el lease antes de publicar: otro proceso lo recuperó por vencimiento. Tratarlo como problema de **scheduling/solapamiento**. Causa típica: intervalo menor a la duración del lease o del job.
 
@@ -299,6 +303,7 @@ Referencia de `OnCalendar` en UTC de las unidades de `deploy/systemd/ops1/`. Par
 | sync-radar-meteo | 3h | `*-*-* 00/3:12:00` | `enos-ops1-sync-radar-meteo.timer` |
 | verificar-radar-meteo | diario | `*-*-* 11:30:00` | `enos-ops1-verificar-radar-meteo.timer` |
 | sync-smn-alertas | 15 min | `*:07/15` | `enos-ops1-sync-smn-alertas.timer` |
+| sync-prefectura-alturas | 1 h | `*:17` | `enos-ops1-sync-prefectura-alturas.timer` (no habilitado) |
 | sync-radar-ensemble | 6h | `*-*-* 03,09,15,21:40:00` | `enos-ops1-sync-radar-ensemble.timer` |
 | sync-pronostico-caudal | 6h | `*-*-* 08,14,20,02:00:00` | `enos-ops1-sync-pronostico-caudal.timer` |
 | sync-ensemble | 6h | `*-*-* 08,14,20,02:00:00` | `enos-ops1-sync-ensemble.timer` |
