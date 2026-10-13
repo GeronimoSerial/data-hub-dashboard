@@ -47,7 +47,9 @@ describe('TRAMOS_PREFECTURA', () => {
     for (const tramo of aprobados) {
       expect(tramo.aprobadoPor, tramo.tramoId).toBe('GeronimoSerial')
       expect(tramo.aprobadoEl, tramo.tramoId).toBe('2026-10-13')
-      expect(tramo.localidades, tramo.tramoId).toHaveLength(1)
+      // Port localities only, plus Riachuelo approved under Corrientes (2026-10-13).
+      const esperadas = tramo.tramoId === 'parana-corrientes' ? 2 : 1
+      expect(tramo.localidades, tramo.tramoId).toHaveLength(esperadas)
       expect(tramo.propuestoPor, tramo.tramoId).toBe('asistente')
     }
   })
@@ -106,6 +108,10 @@ describe('estacionParaLocalidad', () => {
       estacionId: 'pna-paso-de-los-libres',
     })
     expect(estacionParaLocalidad('ITUZAINGO')).toMatchObject({ estacionId: 'pna-ituzaingo' })
+  })
+
+  it('Riachuelo queda aprobada en el tramo de Corrientes', () => {
+    expect(estacionParaLocalidad('RIACHUELO')).toMatchObject({ estacionId: 'pna-corrientes' })
   })
 
   it('no resuelve Colonia Liebig ni por defecto ni como propuesta', () => {

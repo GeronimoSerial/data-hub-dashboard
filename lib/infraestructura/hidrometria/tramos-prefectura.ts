@@ -109,8 +109,9 @@ export const TRAMOS_PREFECTURA: readonly TramoPrefectura[] = [
     tramoId: 'parana-corrientes',
     rio: 'parana',
     estacionId: 'pna-corrientes',
-    localidades: ['CORRIENTES'],
-    justificacion: 'La ciudad de Corrientes está sobre el Paraná y la estación de Prefectura está en la misma localidad.',
+    localidades: ['CORRIENTES', 'RIACHUELO'],
+    justificacion:
+      'La ciudad de Corrientes está sobre el Paraná y la estación de Prefectura está en la misma localidad. Riachuelo (Capital) se asigna a Corrientes por decisión del usuario del 2026-10-13, aunque sus escuelas quedan a 16,9 km de la estación.',
     estado: 'aprobada',
     propuestoPor: 'asistente',
     ...APROBACION,
@@ -271,7 +272,6 @@ export const TRAMOS_PREFECTURA: readonly TramoPrefectura[] = [
 // El motivo trae la distancia medida a la estación más cercana (proxy, ver arriba).
 export const LOCALIDADES_DUDOSAS: readonly LocalidadDudosa[] = [
   { localidad: 'GOBERNADOR VIRASORO', departamento: 'SANTO TOME', motivo: 'Mediana de 41 escuelas a 39,9 km de la estación Garruchos (coordenadas PNA sin verificar); supera el umbral de 15 km.' },
-  { localidad: 'RIACHUELO', departamento: 'CAPITAL', motivo: 'Mediana de 8 escuelas a 16,9 km de la estación Corrientes (coordenadas PNA sin verificar); supera el umbral de 15 km.' },
   { localidad: 'COSTA DE EMPEDRADO', departamento: 'EMPEDRADO', motivo: 'Mediana de 2 escuelas a 37,4 km de la estación Empedrado (coordenadas PNA sin verificar); supera el umbral de 15 km.' },
   { localidad: 'PUNTA IFRAN', departamento: 'GOYA', motivo: 'Mediana de 6 escuelas a 27,6 km de la estación Goya (coordenadas PNA sin verificar); supera el umbral de 15 km.' },
   { localidad: 'SAN CARLOS', departamento: 'ITUZAINGO', motivo: 'Mediana de 7 escuelas a 53,7 km de la estación Garruchos (coordenadas PNA sin verificar); supera el umbral de 15 km.' },

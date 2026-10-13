@@ -46,4 +46,4 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 
 ## Próximo paso
 
-Push/PR por decisión del usuario. Pendiente: decidir La Cruz (Sección Quintas) como tramo aparte o parte de La Cruz; aprobar o descartar las 5 propuestas por distancia.
+Riachuelo aprobada en el tramo de Corrientes (usuario, 2026-10-13). Las 5 propuestas por distancia (incluida La Cruz, Sección Quintas) y las 7 dudosas quedan para aprobar después. Usuario autorizó push y PR.
