@@ -5,6 +5,13 @@ import { getDb } from '@/lib/db'
 import { hazardSourceHealth, radarMeteoRun } from '@/lib/db/schema'
 import type { LoteRadar } from './provider'
 import { VARIABLES_RADAR } from './provider'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import type * as SaludFuente from '../riesgo/jobs/salud-fuente'
+
+vi.mock('../riesgo/jobs/salud-fuente', async (importOriginal) => {
+  const real = await importOriginal<typeof SaludFuente>()
+  return { ...real, actualizarSaludFuente: vi.fn(real.actualizarSaludFuente) }
+})
 
 usarDbTemporal('radar-meteo-job-')
 
@@ -84,5 +91,20 @@ describe('job de sincronización del radar meteorológico', () => {
     expect(salud?.estado).toBe('no_disponible')
     expect(salud?.ultimoErrorSaneado).toBe('fallo al sincronizar radar meteorológico')
     expect(salud?.ultimoErrorSaneado).not.toContain('SECRETO')
+  })
+
+  it('un fallo al escribir la salud tras un run exitoso no altera el resultado ni crea un run fallido', async () => {
+    const ahora = new Date('2026-10-01T18:00:00Z')
+    const fallidosAntes = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))
+    vi.mocked(actualizarSaludFuente).mockRejectedValueOnce(new Error('SQLITE_BUSY tabla hazard_source_health'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resultado = await ejecutarSyncRadarMeteo({ ahora, celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const [run] = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, resultado.runId!))
+    expect(run?.status).toBe('completo')
+    expect(await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))).toHaveLength(fallidosAntes.length)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.join(' ')).not.toContain('SQLITE_BUSY')
+    warn.mockRestore()
   })
 })

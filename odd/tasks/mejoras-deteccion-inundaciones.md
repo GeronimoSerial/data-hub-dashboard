@@ -27,6 +27,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T4 I-6b/c: umbrales de climatología as-of + limpiar referencias a `replay/consulta.ts`
 - [x] T5 I-8a: salud de fuente en sync de radar-meteo
 - [x] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
+- [x] T6b: un fallo al escribir la salud de fuente no altera el resultado de la corrida (radar y SMN)
 - [ ] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [ ] T8 I-5a: exportar corridas de radar antes de la purga
 - [ ] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
@@ -69,6 +70,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - T5 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, sin fila en `hazard_source_health`; GREEN: `job-sync.test.ts` 5/5); provider `open-meteo-radar` (convención `open-meteo-<tipo>` de ensemble/seasonal), ttl 240 min (cron cada 3 h), licencia igual a la de ensemble; éxito → `ok`; excepción del proveedor → `no_disponible` con mensaje fijo `fallo al sincronizar radar meteorológico` (sin cuerpo de respuesta ni secretos); sin ruta de éxito parcial en este job (`obtenerPronosticoRadar` lanza al primer lote fallido), por eso `degradado` no es alcanzable y no se fabricó; purga intacta (T8); checks: vitest `radar-meteo` 73/73, vitest `riesgo/jobs` serial 51/51, `tsc --noEmit` ok, eslint ok (1 warning preexistente `import()` en el test); commit: ver git log (`feat(radar-meteo): record source health on sync`).
 
 - T6 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `smn-alertas.test.ts` 3 fallidos (ok, degradado, no_disponible) sin fila en `hazard_source_health`, 12 pasaban; GREEN: 15/15); provider `smn-alertas`, ttl 60 min (cron `7-59/15`); licencia `SMN CAP público — licencia no verificada` (no se encontró licencia documentada en el repo, no se inventó); `HttpSmnError` tipado con `status` → HTTP 429 → `degradado` con mensaje fijo `SMN limitó las consultas (HTTP 429)`; otros errores y `OrigenSmnBloqueadoError` → `no_disponible` con mensaje fijo `fallo al sincronizar alertas del SMN`; escritura de salud después de `publicarResultado` en las tres ramas; errores originales relanzados/devueltos igual que antes; checks: vitest `smn-alertas.test.ts` 15/15, vitest `radar-meteo` 76/76, `tsc --noEmit` ok, eslint ok en los dos archivos cambiados; commit: ver git log (`feat(smn): record source health on alerts sync`).
+
+- T6b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `job-sync.test.ts` falla con insert duplicado de `radar_meteo_run` (pkey) y `fallido` extra tras fallo de salud; `smn-alertas.test.ts` reemitía el error `SQLITE_BUSY` hacia el llamador; GREEN: radar-meteo 78/78); escritura de salud envuelta en best-effort en radar (`.catch`) y SMN (`try/catch` en `registrarSaludSmn`), ambas con `console.warn` de mensaje fijo sin detalle del error; resultado, retorno y errores originales intactos; checks: vitest `radar-meteo` 78/78, vitest `--no-file-parallelism riesgo/jobs` 51/51, `tsc --noEmit` ok, eslint 0 errores en los cuatro archivos (warning `import()` preexistente en `job-sync.test.ts`); commit: ver git log (`fix(radar-meteo): keep run outcome when source health write fails`).
 
 ## Siguiente paso
 

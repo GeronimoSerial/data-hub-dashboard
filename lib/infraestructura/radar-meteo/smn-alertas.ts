@@ -457,19 +457,24 @@ async function guardarAlertas(
   return guardadas
 }
 
+// Best-effort: a failed health write must never change the sync outcome.
 async function registrarSaludSmn(
   estado: 'ok' | 'degradado' | 'no_disponible',
   ultimoErrorSaneado: string | null,
   ahora: Date,
 ) {
-  await actualizarSaludFuente(getDb(), {
-    provider: PROVIDER_SALUD,
-    ttlMinutos: TTL_SALUD_MINUTOS,
-    licencia: LICENCIA_SALUD,
-    estado,
-    ultimoErrorSaneado,
-    ahoraIso: ahora.toISOString(),
-  })
+  try {
+    await actualizarSaludFuente(getDb(), {
+      provider: PROVIDER_SALUD,
+      ttlMinutos: TTL_SALUD_MINUTOS,
+      licencia: LICENCIA_SALUD,
+      estado,
+      ultimoErrorSaneado,
+      ahoraIso: ahora.toISOString(),
+    })
+  } catch {
+    console.warn('[smn-alertas] no se pudo registrar la salud de la fuente')
+  }
 }
 
 export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fetch } = {}) {

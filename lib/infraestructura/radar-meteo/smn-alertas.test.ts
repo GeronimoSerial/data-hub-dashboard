@@ -4,7 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { hazardSourceHealth, infraJobRun, smnAlerta } from '@/lib/db/schema'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import type * as SaludFuente from '../riesgo/jobs/salud-fuente'
 import { alertasSmnActivas, departamentosIntersectados, extraerUrlsCAP, parsearCAP, parsearXmlSeguro, planificarMensajeCAP, severidadCAPEnEspanol, syncSmnAlertas } from './smn-alertas'
+
+vi.mock('../riesgo/jobs/salud-fuente', async (importOriginal) => {
+  const real = await importOriginal<typeof SaludFuente>()
+  return { ...real, actualizarSaludFuente: vi.fn(real.actualizarSaludFuente) }
+})
 const base='docs/radar-meteo/muestras/'
 usarDbTemporal('smn-alertas-')
 describe('ingesta CAP del SMN',()=>{
@@ -61,5 +68,17 @@ describe('ingesta CAP del SMN',()=>{
    expect(salud?.ultimoErrorSaneado).toBe('fallo al sincronizar alertas del SMN')
    expect(salud?.ultimoErrorSaneado).not.toContain('SECRETO')
  })
- it('lista alertas no canceladas vigentes y próximas, sin vencidas, y deduplica por identifier',async()=>{const db=getDb(),baseRow={sender:'smn',sent:'2026-09-30T00:00:00Z',onset:'2026-09-30T00:00:00Z',event:'Tormentas',severity:'Moderate',departamentos:[],poligonos:[],raw:'<alert/>',fetchedAt:'2026-09-30T00:00:00Z'};await db.insert(smnAlerta).values([{id:'vigente',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:false},{id:'offset',...baseRow,onset:'2026-09-30T08:00:00-03:00',expires:'2026-09-30T10:00:00-03:00',cancelada:false},{id:'vencida',...baseRow,expires:'2026-09-29T00:00:00Z',cancelada:false},{id:'cancelada',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:true},{id:'proxima',...baseRow,onset:'2026-10-01T21:00:00-03:00',expires:'2026-10-02T09:00:00-03:00',cancelada:false}]);await db.insert(smnAlerta).values({id:'vigente',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:false}).onConflictDoUpdate({target:smnAlerta.id,set:{headline:'actualizada'}});const rows=await alertasSmnActivas(new Date('2026-09-30T12:00:00Z'));expect(rows.map(x=>x.id).sort()).toEqual(['conservada','offset','proxima','vigente']);expect(rows.slice(-2).map(x=>x.id)).toEqual(['proxima','conservada']);expect(await db.select().from(smnAlerta)).toHaveLength(6)})
+ it('un fallo al escribir la salud tras un sync exitoso no altera el resultado ni crea un run fallido', async () => {
+  const fallidosAntes = (await getDb().select().from(infraJobRun)).filter((x) => x.estado === 'fallido')
+  vi.mocked(actualizarSaludFuente).mockRejectedValueOnce(new Error('SQLITE_BUSY tabla hazard_source_health'))
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const fetchImpl = vi.fn(async () => new Response('<rss><channel></channel></rss>', { status: 200, headers: { 'content-type': 'application/xml' } }))
+  const resultado = await syncSmnAlertas({ ahora: new Date('2026-11-01T06:00:00Z'), fetchImpl })
+  expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+  expect((await getDb().select().from(infraJobRun)).filter((x) => x.estado === 'fallido')).toHaveLength(fallidosAntes.length)
+  expect(warn).toHaveBeenCalledOnce()
+  expect(warn.mock.calls[0]?.join(' ')).not.toContain('SQLITE_BUSY')
+  warn.mockRestore()
+})
+it('lista alertas no canceladas vigentes y próximas, sin vencidas, y deduplica por identifier',async()=>{const db=getDb(),baseRow={sender:'smn',sent:'2026-09-30T00:00:00Z',onset:'2026-09-30T00:00:00Z',event:'Tormentas',severity:'Moderate',departamentos:[],poligonos:[],raw:'<alert/>',fetchedAt:'2026-09-30T00:00:00Z'};await db.insert(smnAlerta).values([{id:'vigente',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:false},{id:'offset',...baseRow,onset:'2026-09-30T08:00:00-03:00',expires:'2026-09-30T10:00:00-03:00',cancelada:false},{id:'vencida',...baseRow,expires:'2026-09-29T00:00:00Z',cancelada:false},{id:'cancelada',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:true},{id:'proxima',...baseRow,onset:'2026-10-01T21:00:00-03:00',expires:'2026-10-02T09:00:00-03:00',cancelada:false}]);await db.insert(smnAlerta).values({id:'vigente',...baseRow,expires:'2026-10-01T00:00:00Z',cancelada:false}).onConflictDoUpdate({target:smnAlerta.id,set:{headline:'actualizada'}});const rows=await alertasSmnActivas(new Date('2026-09-30T12:00:00Z'));expect(rows.map(x=>x.id).sort()).toEqual(['conservada','offset','proxima','vigente']);expect(rows.slice(-2).map(x=>x.id)).toEqual(['proxima','conservada']);expect(await db.select().from(smnAlerta)).toHaveLength(6)})
 })

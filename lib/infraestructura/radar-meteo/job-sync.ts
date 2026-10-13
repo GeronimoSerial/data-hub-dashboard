@@ -29,6 +29,11 @@ function slotTresHoras(ahora: Date): { inicio: Date; clave: string } {
   return { inicio, clave: inicio.toISOString().slice(0, 13) }
 }
 
+// La salud de fuente es best-effort: su fallo nunca cambia el resultado del run.
+function avisarSaludNoRegistrada() {
+  console.warn('[radar-meteo] no se pudo registrar la salud de la fuente')
+}
+
 function combinar(lotes: LoteRadar[]): LoteRadar {
   const base = lotes[0]
   if (!base || lotes.some((l) => l.times.join() !== base.times.join())) throw new Error('Los lotes no comparten los mismos tiempos')
@@ -66,7 +71,7 @@ export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: Re
       ),
     )
     await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'completado', contadores: { celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal }, ahora })
-    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'ok', ultimoErrorSaneado: null, ahoraIso: ahora.toISOString() })
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'ok', ultimoErrorSaneado: null, ahoraIso: ahora.toISOString() }).catch(avisarSaludNoRegistrada)
     return { ejecutado: true, celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal, runId: id, estado: 'completo' as const }
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : String(error)
@@ -75,7 +80,7 @@ export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: Re
     else await db.insert(radarMeteoRun).values({ id, ...datos })
     await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado: ERROR_SANEADO, ahora })
     // Sin respuesta del proveedor ni su cuerpo: el mensaje persistido es fijo.
-    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'no_disponible', ultimoErrorSaneado: ERROR_SANEADO, ahoraIso: ahora.toISOString() })
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'no_disponible', ultimoErrorSaneado: ERROR_SANEADO, ahoraIso: ahora.toISOString() }).catch(avisarSaludNoRegistrada)
     throw error
   }
 }
