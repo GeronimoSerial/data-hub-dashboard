@@ -47,7 +47,13 @@
 // ~0.25°, nunca un error de cupo (nunca se subestima el peso real de una
 // request ya agrupada).
 import { z } from 'zod'
-import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import {
+  agruparEnLotes,
+  construirUrlLoteOpenMeteo,
+  crearParserLote,
+  diasMaximosPorTramo,
+  partirPeriodoEnTramos,
+} from './lotes'
 import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
 import { CONFIG_FUENTES } from './config-fuentes'
@@ -245,51 +251,10 @@ const payloadArchivoElementoSchema = z
 /** Pocas celdas ERA5 por request: mantiene el peso de cada tramo bajo incluso con 30 años de historia. */
 export const TAMANO_LOTE_COORDENADAS = CONFIG_FUENTES.climatologia.tamanoLote
 
-/** Margen adicional (sobre el 80% operativo ya aplicado por `limiteVentana`) para dejar lugar a los syncs de 6h y sync-seasonal que comparten el mismo minuto/bucket. */
-const MARGEN_SEGURIDAD_TRAMO = 0.5
+// `diasMaximosPorTramo` y `partirPeriodoEnTramos` viven en `lotes.ts` (los
+// comparte la climatología de caudal); se re-exportan para no romper imports.
+export { diasMaximosPorTramo, partirPeriodoEnTramos } from './lotes'
 
-/**
- * Días máximos de un tramo de período para que un lote de `celdasPorLote`
- * celdas quede, con margen, muy por debajo de `limiteMinuto`. Devuelve al
- * menos 1 (nunca 0 ni negativo): si ni 1 día alcanza (sólo posible con un
- * `limiteMinuto` mal configurado a casi 0), `asegurarPesoAlcanzable` corta
- * con un error explícito antes de intentar la request, en vez de partir en
- * tramos de 0 días.
- */
-export function diasMaximosPorTramo(params: {
-  celdasPorLote: number
-  variables: number
-  limiteMinuto: number
-}): number {
-  const factorVariables = Math.max(1, params.variables / 10)
-  const presupuesto = params.limiteMinuto * MARGEN_SEGURIDAD_TRAMO
-  const diasMax = Math.floor((presupuesto / (params.celdasPorLote * factorVariables)) * 14)
-  return Math.max(1, diasMax)
-}
-
-/** Parte [desde, hasta] (fechas `YYYY-MM-DD` inclusive) en tramos contiguos de a lo sumo `diasPorTramo` días. */
-export function partirPeriodoEnTramos(
-  desde: string,
-  hasta: string,
-  diasPorTramo: number,
-): Array<{ desde: string; hasta: string }> {
-  const msPorDia = 86_400_000
-  const inicio = Date.parse(`${desde}T00:00:00Z`)
-  const fin = Date.parse(`${hasta}T00:00:00Z`)
-  const tramos: Array<{ desde: string; hasta: string }> = []
-  let cursor = inicio
-  while (cursor <= fin) {
-    const finTramo = Math.min(cursor + (diasPorTramo - 1) * msPorDia, fin)
-    tramos.push({
-      desde: new Date(cursor).toISOString().slice(0, 10),
-      hasta: new Date(finTramo).toISOString().slice(0, 10),
-    })
-    cursor = finTramo + msPorDia
-  }
-  return tramos
-}
-
-/** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 export type PuntoClimatologia = { geometryRef: string; lat: number; lon: number }
 
 export type ResultadoSeriesHistoricas = {

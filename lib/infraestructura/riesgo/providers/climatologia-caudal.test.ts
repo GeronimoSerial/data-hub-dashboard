@@ -7,6 +7,7 @@ import {
 import type { HazardClimatologiaCaudalPunto } from './climatologia-caudal'
 import type { PuntoRio } from '../puntos-rio'
 import { fetchOk } from './__fixtures__/fetch'
+import { limiteVentana } from './cupo-om'
 
 // Serie sintética conocida: 10 días con caudal 0 + 10 días con caudal
 // {1..9, 100}. Se pasa desordenada a propósito para probar el orden interno.
@@ -173,5 +174,88 @@ describe('obtenerSeriesHistoricasCaudal', () => {
     expect(seriesPorPunto[`p-${TAMANO_LOTE_COORDENADAS_CAUDAL - 1}`]).toEqual([
       TAMANO_LOTE_COORDENADAS_CAUDAL - 1,
     ])
+  }, 15_000)
+
+  // T16a: en producción (2026-10-13) los 8 puntos de río fallaban con
+  // `cupo_minuto_agotado` porque se pedían en UNA request de 10 años
+  // (peso ≈ 8 × 3653/14 ≈ 2087, muy por encima del límite de minuto).
+  it('8 puntos × 10 años: ninguna request supera el límite de minuto y las series se concatenan por tramo', async () => {
+    const limiteMinuto = limiteVentana('minuto', false)
+    const puntos = Array.from({ length: 8 }, (_, i) => puntoFake(`p-${i}`, -27, -58 + i))
+    const pesos: number[] = []
+    const controladorCupoFactory = (peso: number) => {
+      pesos.push(peso)
+      return {
+        reservar: async () => ({ ok: true as const, esperoMs: 0 }),
+        registrar429: async () => {},
+      }
+    }
+    const tramosPedidos: Array<{ desde: string; hasta: string }> = []
+    const fetchImpl = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      const desde = u.searchParams.get('start_date') as string
+      const hasta = u.searchParams.get('end_date') as string
+      tramosPedidos.push({ desde, hasta })
+      const longitudes = (u.searchParams.get('longitude') ?? '').split(',')
+      return new Response(
+        JSON.stringify(
+          longitudes.map(() => ({ daily: { time: [desde], river_discharge: [tramosPedidos.length] } })),
+        ),
+        { status: 200 },
+      )
+    })
+
+    const { seriesPorPunto, erroresPorPunto } = await obtenerSeriesHistoricasCaudal({
+      puntos,
+      periodoDesde: '2015-01-01',
+      periodoHasta: '2024-12-31',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: '',
+      controladorCupoFactory,
+    })
+
+    expect(erroresPorPunto).toEqual({})
+    expect(pesos.length).toBeGreaterThan(1)
+    for (const peso of pesos) expect(peso).toBeLessThanOrEqual(limiteMinuto)
+    // Cubre el período completo sin huecos ni superposición.
+    expect(tramosPedidos[0].desde).toBe('2015-01-01')
+    expect(tramosPedidos[tramosPedidos.length - 1].hasta).toBe('2024-12-31')
+    for (let i = 1; i < tramosPedidos.length; i++) {
+      const anterior = Date.parse(`${tramosPedidos[i - 1].hasta}T00:00:00Z`)
+      expect(Date.parse(`${tramosPedidos[i].desde}T00:00:00Z`) - anterior).toBe(86_400_000)
+    }
+    const esperada = Array.from({ length: tramosPedidos.length }, (_, i) => i + 1)
+    for (const punto of puntos) expect(seriesPorPunto[punto.id]).toEqual(esperada)
+  })
+
+  it('un tramo caído a mitad de un lote no deja datos parciales: todos sus puntos quedan con error', async () => {
+    const puntos = Array.from({ length: 8 }, (_, i) => puntoFake(`p-${i}`, -27, -58 + i))
+    let llamadas = 0
+    let fechaQueFalla: string | undefined
+    const fetchImpl = vi.fn(async (url: string) => {
+      const u = new URL(url)
+      const desde = u.searchParams.get('start_date') as string
+      llamadas++
+      // El 2do tramo distinto falla siempre (agota los reintentos internos).
+      if (fechaQueFalla === undefined && llamadas === 2) fechaQueFalla = desde
+      if (desde === fechaQueFalla) return new Response('boom', { status: 500 })
+      const longitudes = (u.searchParams.get('longitude') ?? '').split(',')
+      return new Response(
+        JSON.stringify(longitudes.map(() => ({ daily: { time: [desde], river_discharge: [1] } }))),
+        { status: 200 },
+      )
+    })
+
+    const { seriesPorPunto, erroresPorPunto } = await obtenerSeriesHistoricasCaudal({
+      puntos,
+      periodoDesde: '2015-01-01',
+      periodoHasta: '2024-12-31',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKey: '',
+    })
+
+    expect(fechaQueFalla).toBeDefined()
+    expect(seriesPorPunto).toEqual({})
+    for (const punto of puntos) expect(erroresPorPunto[punto.id]?.motivo).toBe('http_error')
   }, 15_000)
 })
