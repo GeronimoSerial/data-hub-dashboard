@@ -1,5 +1,6 @@
 export type CapasVisibles = {
   estacionesRio: boolean
+  lluviaObservada: boolean
   limitesDepartamentos: boolean
   nombresDepartamentos: boolean
   rutaAcceso: boolean
@@ -9,6 +10,7 @@ export type CapasVisibles = {
 
 export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
   estacionesRio: true,
+  lluviaObservada: true,
   limitesDepartamentos: true,
   nombresDepartamentos: true,
   rutaAcceso: true,

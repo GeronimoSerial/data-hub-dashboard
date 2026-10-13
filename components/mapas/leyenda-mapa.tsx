@@ -9,6 +9,7 @@ import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type Hori
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { COLOR_ESTADO_ALTURA, etiquetaEstadoAltura } from '@/components/mapas/capa-estaciones-rio'
+import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -43,10 +44,43 @@ function LeyendaAlturaRios() {
   )
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean }) {
+const FORMATO_CORTE_LLUVIA = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'America/Argentina/Buenos_Aires',
+})
+
+function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
+  const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
+  return (
+    <aside className="map-leyenda" aria-label="Lluvia observada">
+      <b className="map-leyenda__titulo">Lluvia observada {meta.horas} h</b>
+      <ul className="map-leyenda__fila">
+        {CLASES_LLUVIA.map((clase) => (
+          <li className="map-leyenda__elemento" key={clase.desde}>
+            <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: clase.color }} />
+            <span>{clase.etiqueta}</span>
+          </li>
+        ))}
+        <li className="map-leyenda__elemento">
+          <span aria-hidden="true" className="map-leyenda__muestra" style={{ border: '1px dashed #6b7280', backgroundColor: 'transparent' }} />
+          <span>Ventana incompleta (cobertura &lt; 80 %)</span>
+        </li>
+      </ul>
+      <small>Hasta: {hasta ?? 'Sin dato'}</small>
+      <small>Satélite: estimación, no medición en tierra</small>
+    </aside>
+  )
+}
+
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; lluviaObservada?: MetaLluviaObservada | null }) {
   return (
     <>
       {props.estacionesRio && <LeyendaAlturaRios />}
+      {props.lluviaObservada && <LeyendaLluviaObservada meta={props.lluviaObservada} />}
       <LeyendaPestana {...props} />
     </>
   )

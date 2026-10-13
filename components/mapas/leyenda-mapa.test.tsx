@@ -30,6 +30,33 @@ function colorCss(color: string): string {
   return muestra.style.backgroundColor
 }
 
+describe('LeyendaMapa · lluvia observada', () => {
+  it('muestra la escala IMERG, la ventana incompleta y la fecha de corte en hora argentina', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72 }} />)
+
+    const leyenda = within(container)
+    expect(leyenda.getByText('Lluvia observada 72 h')).toBeTruthy()
+    expect(leyenda.getByText('10–25 mm')).toBeTruthy()
+    expect(leyenda.getByText('200 mm o más')).toBeTruthy()
+    expect(leyenda.getByText('Ventana incompleta (cobertura < 80 %)')).toBeTruthy()
+    expect(leyenda.getByText(/Hasta: 13\/10\/2026/)).toBeTruthy()
+    expect(leyenda.getByText(/Satélite: estimación, no medición en tierra/)).toBeTruthy()
+  })
+
+  it('indica sin dato cuando no hay fecha de corte', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24 }} />)
+
+    expect(within(container).getByText('Lluvia observada 24 h')).toBeTruthy()
+    expect(within(container).getByText(/Sin dato/)).toBeTruthy()
+  })
+
+  it('no muestra la leyenda de lluvia cuando la capa está apagada', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={null} />)
+
+    expect(within(container).queryByText(/Lluvia observada \d+ h/)).toBeNull()
+  })
+})
+
 describe('LeyendaMapa', () => {
   it('muestra gravedad colapsada y despliega símbolos al activarlo', () => {
     const { container } = render(<LeyendaMapa pestana="actual" />)

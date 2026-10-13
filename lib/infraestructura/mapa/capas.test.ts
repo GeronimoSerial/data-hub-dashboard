@@ -4,9 +4,10 @@ import { resolve } from 'node:path'
 import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa } from './capas'
 
 describe('capas opcionales del mapa', () => {
-  it('activa referencias y estaciones del río por defecto y deja apagada la capa de escuelas aisladas', () => {
+  it('activa referencias, estaciones del río y lluvia observada por defecto y deja apagada la capa de escuelas aisladas', () => {
     expect(CAPAS_VISIBLES_DEFAULT).toEqual({
       estacionesRio: true,
+      lluviaObservada: true,
       limitesDepartamentos: true,
       nombresDepartamentos: true,
       rutaAcceso: true,

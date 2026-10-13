@@ -77,6 +77,7 @@ import {
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
+import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
@@ -614,6 +615,8 @@ export default function MapInfraestructuraPage(props: {
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
+  const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
+  const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -1854,16 +1857,17 @@ export default function MapInfraestructuraPage(props: {
           ))}
 
           </Fragment>
+          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} />
           <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
         </MapGL>
       </div>
 
       {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} />
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal
@@ -1997,6 +2001,8 @@ export default function MapInfraestructuraPage(props: {
                 }}
                 capasVisibles={capasVisibles}
                 onCapasVisiblesChange={setCapasVisibles}
+                horasLluvia={horasLluvia}
+                onHorasLluviaChange={setHorasLluvia}
                 haySeleccion={seleccionCue !== null}
                 riesgoDisponible={contextoTerritorial}
               />
