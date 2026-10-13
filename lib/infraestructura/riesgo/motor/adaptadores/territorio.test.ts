@@ -32,6 +32,13 @@ const CUE_LEJOS = '1800002-00'
 // Perfil sin coordenadas: motivoExclusion no nulo, queda fuera de
 // listarCuesConPerfil.
 const CUE_SIN_COORDENADAS = '1800003-00'
+// Escuela a ~0.2° al este de "parana-bella-vista" (-28.3069, -59.1387): ~20 km
+// geodésicos, dentro del radio de 40 km.
+const CUE_ESTE_CERCA = '1800004-00'
+// Escuela a 0.5° al este de "parana-bella-vista" a latitud -28: ~49 km
+// geodésicos (0.5° × 111.19 km × cos 28°), fuera de 40 km. En grados quedaba a
+// 0.5° < 0.75° y se asociaba por error; con haversine no debe asociarse.
+const CUE_ESTE_LEJOS = '1800005-00'
 
 const FILAS = [
   {
@@ -58,6 +65,22 @@ const FILAS = [
     lat: null,
     lon: null,
   },
+  {
+    cueAnexo: CUE_ESTE_CERCA,
+    nombre: 'Escuela Este Cercana',
+    departamento: 'BELLA VISTA',
+    localidad: 'BELLA VISTA',
+    lat: -28.3069,
+    lon: -58.9387,
+  },
+  {
+    cueAnexo: CUE_ESTE_LEJOS,
+    nombre: 'Escuela Este Lejana',
+    departamento: 'BELLA VISTA',
+    localidad: 'BELLA VISTA',
+    lat: -28.3069,
+    lon: -58.6387,
+  },
 ]
 
 describe('crearAdapterTerritorio', () => {
@@ -73,13 +96,44 @@ describe('crearAdapterTerritorio', () => {
     expect(perfil?.puntoRioId).toBe('parana-corrientes-paso-patria')
   })
 
-  it('deja puntoRioId en null cuando la escuela supera el umbral de 0.75°', async () => {
+  it('deja puntoRioId en null cuando la escuela supera los 40 km', async () => {
     const { crearAdapterTerritorio } = await import('./territorio')
     const perfil = await crearAdapterTerritorio().obtenerPerfil(CUE_LEJOS)
 
     expect(perfil).not.toBeNull()
     expect(perfil?.motivoExclusion).toBeNull()
     expect(perfil?.puntoRioId).toBeNull()
+  })
+
+  it('no asocia una escuela a 0.5° al este (~49 km) aunque en grados esté bajo 0.75°', async () => {
+    const { crearAdapterTerritorio } = await import('./territorio')
+    const perfil = await crearAdapterTerritorio().obtenerPerfil(CUE_ESTE_LEJOS)
+
+    expect(perfil).not.toBeNull()
+    expect(perfil?.puntoRioId).toBeNull()
+  })
+
+  it('asocia una escuela a ~20 km del punto de río dentro del radio de 40 km', async () => {
+    const { crearAdapterTerritorio } = await import('./territorio')
+    const perfil = await crearAdapterTerritorio().obtenerPerfil(CUE_ESTE_CERCA)
+
+    expect(perfil).not.toBeNull()
+    expect(perfil?.puntoRioId).toBe('parana-bella-vista')
+  })
+
+  it('coincide con elegirPuntoRioMasCercano(40 km) para las mismas coordenadas', async () => {
+    const { crearAdapterTerritorio } = await import('./territorio')
+    const { elegirPuntoRioMasCercano, RADIO_MAXIMO_KM_DEFAULT } = await import('../../rio-asociacion')
+    const { PUNTOS_RIO } = await import('../../puntos-rio')
+
+    for (const fila of FILAS) {
+      if (fila.lat === null || fila.lon === null) continue
+      const esperado =
+        elegirPuntoRioMasCercano(fila.lat, fila.lon, RADIO_MAXIMO_KM_DEFAULT, PUNTOS_RIO)
+          ?.puntoRioId ?? null
+      const perfil = await crearAdapterTerritorio().obtenerPerfil(fila.cueAnexo)
+      expect(perfil?.puntoRioId, fila.cueAnexo).toBe(esperado)
+    }
   })
 
   it('devuelve null para un cueAnexo inexistente', async () => {
@@ -91,7 +145,9 @@ describe('crearAdapterTerritorio', () => {
   it('lista sólo los CUE con perfil válido (motivoExclusion null)', async () => {
     const { crearAdapterTerritorio } = await import('./territorio')
     const cues = await crearAdapterTerritorio().listarCuesConPerfil()
-    expect([...cues].sort()).toEqual([CUE_CERCA, CUE_LEJOS].sort())
+    expect([...cues].sort()).toEqual(
+      [CUE_CERCA, CUE_LEJOS, CUE_ESTE_CERCA, CUE_ESTE_LEJOS].sort(),
+    )
     expect(cues).not.toContain(CUE_SIN_COORDENADAS)
   })
 })

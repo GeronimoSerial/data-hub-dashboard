@@ -27,8 +27,15 @@
 //
 // No se renueva el lease: son sólo 8 puntos y una única pasada de red, muy por
 // debajo de la duración del lease. Un punto caído NO tumba el job: se agrega a
-// `puntosConError` y se sigue con el próximo; el estado general queda
-// completado.
+// `puntosConError` y se sigue con el próximo.
+//
+// Estado final (P-1, evitar éxito sin datos):
+// - Si ningún punto se procesa, `infra_job_run` queda 'fallido' con
+//   `errorSaneado` = "<puntoId>: <motivo>" por cada punto. Al quedar 'fallido'
+//   la misma clave es reintentable.
+// - Si al menos un punto se procesa pero algunos fallan, queda 'completado' con
+//   `contadores.puntosConError` (cantidad) y `errorSaneado` con el resumen por
+//   punto (acotado a 500 caracteres).
 import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
@@ -53,6 +60,7 @@ const DURACION_LEASE_MS = 10 * 60 * 1000
 const PERIODO_DESDE_DEFAULT = '2015-01-01'
 const PERIODO_HASTA_DEFAULT = '2024-12-31'
 const VERSION_DEFAULT = 'caudal-climatologia-v0.1'
+const LARGO_MAX_ERROR = 500
 
 export async function ejecutarCalculoClimatologiaCaudal(params?: {
   ahora?: Date
@@ -140,13 +148,16 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
   })
 
   const puntosConError: string[] = []
+  const resumenErrores: string[] = []
   let puntosProcesados = 0
   let filasInsertadas = 0
 
   for (const punto of PUNTOS_RIO) {
     const serie = seriesPorPunto[punto.id]
-    if (erroresPorPunto[punto.id] || serie === undefined) {
+    const fallo = erroresPorPunto[punto.id]
+    if (fallo || serie === undefined) {
       puntosConError.push(punto.id)
+      resumenErrores.push(`${punto.id}: ${fallo?.motivo ?? 'sin_serie'}`)
       continue
     }
 
@@ -201,11 +212,24 @@ async function ejecutarCuerpoDelJobClimatologiaCaudal(ctx: {
     filasInsertadas += filas.length
   }
 
+  const contadores = {
+    puntos: puntosProcesados,
+    filas: filasInsertadas,
+    puntosConError: puntosConError.length,
+  }
+  const errorSaneado =
+    resumenErrores.length > 0 ? resumenErrores.join('; ').slice(0, LARGO_MAX_ERROR) : undefined
+
+  // Ningún punto procesado = la corrida no produjo nada: queda 'fallido' para
+  // que la misma clave siga siendo reintentable. Con fallas parciales queda
+  // 'completado' pero con `contadores.puntosConError` y `errorSaneado`.
+  const sinPuntosProcesados = PUNTOS_RIO.length > 0 && puntosProcesados === 0
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
-    estado: 'completado',
-    contadores: { puntos: puntosProcesados, filas: filasInsertadas },
+    estado: sinPuntosProcesados ? 'fallido' : 'completado',
+    contadores,
+    errorSaneado,
     ahora,
   })
 
