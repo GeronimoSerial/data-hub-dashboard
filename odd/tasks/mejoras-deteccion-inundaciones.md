@@ -25,7 +25,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T2 G-3: distancia geodésica (haversine, 40 km) en `motor/adaptadores/territorio.ts`
 - [x] T3 I-6a: `cargarPronostico` (y variante por lote) filtra `corridaEn <= ahora`
 - [x] T4 I-6b/c: umbrales de climatología as-of + limpiar referencias a `replay/consulta.ts`
-- [ ] T5 I-8a: salud de fuente en sync de radar-meteo
+- [x] T5 I-8a: salud de fuente en sync de radar-meteo
 - [ ] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
 - [ ] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [ ] T8 I-5a: exportar corridas de radar antes de la purga
@@ -61,6 +61,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - T3 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, `obtenerNivelCaudal` y lote devolvían la corrida posterior a `ahora`; GREEN: `nivel.test.ts` 45/45); `ahora` se filtra con `corridaEn <= ahora` (`corrida_en` en `hazard_forecast`) en `cargarPronostico` y `cargarPronosticosPorLote`; sin `ahora` se conserva el comportamiento actual; climatología sin cambios (T4); checks: vitest `nivel.test.ts` 45/45, vitest `riesgo` serial 417 passed / 2 skipped (en paralelo hubo timeouts de hook de DB, ajenos al cambio), `tsc --noEmit` ok, eslint ok; commit: ver git log (`fix(riesgo): make flow forecast lookup as-of`).
 - T4 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, con `ahora` entre dos versiones de climatología devolvían los umbrales nuevos en vez de los viejos; GREEN: `nivel.test.ts` + `sync-imerg.test.ts` 58/58); `calculadoEn` (text, `hazard_climatology`) es el instante as-of: con `ahora` sólo cuentan filas `calculadoEn <= ahora` en `cargarUmbralesClimatologia` y `cargarUmbralesPorLote`, sin `ahora` sin cambios; `corridaVigente` renombrado a `emitidoHastaAhora`; fixture de un test as-of previo ajustado a una climatología calculada antes de `ahora` (aserción intacta); referencias a `replay/consulta.ts` (inexistente) reemplazadas en nivel.ts y sync-imerg.ts; checks: vitest `nivel.test.ts` + `sync-imerg.test.ts` 58/58, vitest `riesgo` serial 419 passed / 2 skipped, `tsc --noEmit` ok, eslint ok (3 archivos); commit: ver git log (`fix(riesgo): make climatology thresholds as-of`).
 
+- T5 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, sin fila en `hazard_source_health`; GREEN: `job-sync.test.ts` 5/5); provider `open-meteo-radar` (convención `open-meteo-<tipo>` de ensemble/seasonal), ttl 240 min (cron cada 3 h), licencia igual a la de ensemble; éxito → `ok`; excepción del proveedor → `no_disponible` con mensaje fijo `fallo al sincronizar radar meteorológico` (sin cuerpo de respuesta ni secretos); sin ruta de éxito parcial en este job (`obtenerPronosticoRadar` lanza al primer lote fallido), por eso `degradado` no es alcanzable y no se fabricó; purga intacta (T8); checks: vitest `radar-meteo` 73/73, vitest `riesgo/jobs` serial 51/51, `tsc --noEmit` ok, eslint ok (1 warning preexistente `import()` en el test); commit: ver git log (`feat(radar-meteo): record source health on sync`).
+
 ## Siguiente paso
 
-T5.
+T6.

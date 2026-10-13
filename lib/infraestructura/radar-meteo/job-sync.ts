@@ -4,11 +4,17 @@ import { getDb } from '@/lib/db'
 import { radarMeteoRun } from '@/lib/db/schema'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../riesgo/providers/cupo-om'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
 import { generarGrilla, GRID_VERSION } from './grilla'
 import { obtenerPronosticoRadar, type LoteRadar } from './provider'
 
 const TIPO_JOB = 'sync-radar-meteo'
 const DURACION_LEASE_MS = 20 * 60 * 1000
+// Cron cada 3 h (ver slotTresHoras): el TTL acompaña esa cadencia.
+const PROVIDER_SALUD = 'open-meteo-radar'
+const TTL_SALUD_MINUTOS = 240
+const LICENCIA_SALUD = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
+const ERROR_SANEADO = 'fallo al sincronizar radar meteorológico'
 type Db = ReturnType<typeof getDb>
 
 export async function obtenerUltimoRunRadarMeteo(db: Db = getDb()) {
@@ -60,13 +66,16 @@ export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: Re
       ),
     )
     await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'completado', contadores: { celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal }, ahora })
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'ok', ultimoErrorSaneado: null, ahoraIso: ahora.toISOString() })
     return { ejecutado: true, celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal, runId: id, estado: 'completo' as const }
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : String(error)
     const datos = { provider: 'open-meteo', model: 'best_match', gridVersion: GRID_VERSION, runAt: inicio.toISOString(), fetchedAt: ahora.toISOString(), forecastStart: '', forecastEnd: '', stepMinutes: 60, units: {}, status: 'fallido', idempotencyKey, payload: { error: mensaje.slice(0, 300) } }
     if (existente) await db.update(radarMeteoRun).set(datos).where(eq(radarMeteoRun.id, id))
     else await db.insert(radarMeteoRun).values({ id, ...datos })
-    await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado: 'fallo al sincronizar radar meteorológico', ahora })
+    await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado: ERROR_SANEADO, ahora })
+    // Sin respuesta del proveedor ni su cuerpo: el mensaje persistido es fijo.
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'no_disponible', ultimoErrorSaneado: ERROR_SANEADO, ahoraIso: ahora.toISOString() })
     throw error
   }
 }
