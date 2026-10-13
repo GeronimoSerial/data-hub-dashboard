@@ -847,7 +847,7 @@ export default function MapInfraestructuraPage(props: {
   )
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
-  // listener vive mientras alguno está abierto (mismo patrón que `FichaParteModal`).
+  // listener vive mientras alguno está abierto.
   useEffect(() => {
     if (!clusterInfoClic && !cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {

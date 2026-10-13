@@ -10,6 +10,12 @@ import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 
+vi.mock('@/components/infraestructura/ficha-territorial', () => ({
+  FichaTerritorial: ({ cueAnexo }: { cueAnexo: string }) => (
+    <div data-testid="ficha-territorial-mock">{cueAnexo}</div>
+  ),
+}))
+
 const escuela: EscuelaMapaEnriquecida = {
   cueAnexo: '180000123-00', nombre: 'Escuela N.º 123', departamento: 'CAPITAL', localidad: 'Corrientes',
   lat: null, lon: null, niveles: ['Inicial', 'Primario'], alumnos: 1234, gravedad: 3,
@@ -84,6 +90,16 @@ describe('FichaEscuelaPanel', () => {
       color: TINTA_POR_SEVERIDAD[severidad],
       backgroundColor: colorSeveridad(severidad),
     })
+  })
+
+  it('muestra la ficha de peligro hidrometeorológico de la escuela seleccionada', async () => {
+    instalarFetch()
+    renderFicha()
+
+    const seccion = screen.getByRole('heading', { name: 'Peligro hidrometeorológico' }).closest('section')
+    expect(seccion).not.toBeNull()
+    expect(seccion).toContainElement(screen.getByTestId('ficha-territorial-mock'))
+    expect(screen.getByTestId('ficha-territorial-mock')).toHaveTextContent(escuela.cueAnexo)
   })
 
   it('muestra gravedad, cabecera, chips y los bloques desplegables', async () => {

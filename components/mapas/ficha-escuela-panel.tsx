@@ -14,6 +14,7 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
+import { FichaTerritorial } from '@/components/infraestructura/ficha-territorial'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 
@@ -230,6 +231,11 @@ export function FichaEscuelaPanel({
             </>
           )}
         </Desplegable>
+
+        <section className="map-ficha-escuela__situacion">
+          <h3>Peligro hidrometeorológico</h3>
+          <FichaTerritorial cueAnexo={escuela.cueAnexo} />
+        </section>
       </div>
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
