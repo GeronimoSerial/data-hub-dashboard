@@ -29,6 +29,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@electric-sql/pglite@0.5.8)(@libsql/client@0.17.4)(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)
+      h5wasm:
+        specifier: 0.10.3
+        version: 0.10.3
       katex:
         specifier: 0.16.22
         version: 0.16.22
@@ -2599,6 +2602,9 @@ packages:
   gopd@1.2.0:
     resolution: {integrity: sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==}
     engines: {node: '>= 0.4'}
+
+  h5wasm@0.10.3:
+    resolution: {integrity: sha512-W4Jy5ExtX/VNbyD8GdOBckDuj6AL16TemppVNxZsV3rJZEWCv2sxlCzOttZLer3zkMttbDYsWHl0qt1z3Bln+Q==}
 
   has-bigints@1.1.0:
     resolution: {integrity: sha512-R3pbpkcIqv2Pm3dUwgjclDRVmWpTJW2DcMzcIhEXEx1oh/CEMObMm3KLmRJOdvhM7o4uQBnwr8pzRK2sJWIqfg==}
@@ -6111,6 +6117,8 @@ snapshots:
       gopd: 1.2.0
 
   gopd@1.2.0: {}
+
+  h5wasm@0.10.3: {}
 
   has-bigints@1.1.0: {}
 
