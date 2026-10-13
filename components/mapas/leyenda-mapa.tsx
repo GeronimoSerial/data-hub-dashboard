@@ -8,6 +8,7 @@ import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIV
 import { colorRiesgo, ETIQUETA_HORIZONTE_MOTOR, ETIQUETA_NIVEL_RIESGO, type HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
+import { COLOR_ESTADO_ALTURA, etiquetaEstadoAltura } from '@/components/mapas/capa-estaciones-rio'
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -24,7 +25,34 @@ const ESTADOS_LEYENDA = [
   { Icono: Check, etiqueta: 'Solucionada recientemente' },
 ] as const
 
-export function LeyendaMapa(props: PropsLeyendaMapa) {
+const ESTADOS_ALTURA_RIO = ['evacuacion', 'alerta', 'normal', 'sin_dato'] as const
+
+function LeyendaAlturaRios() {
+  return (
+    <aside className="map-leyenda" aria-label="Altura de ríos">
+      <b className="map-leyenda__titulo">Altura de ríos</b>
+      <ul className="map-leyenda__fila">
+        {ESTADOS_ALTURA_RIO.map((estado) => (
+          <li className="map-leyenda__elemento" key={estado}>
+            <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: COLOR_ESTADO_ALTURA[estado] }} />
+            <span>{etiquetaEstadoAltura(estado)}</span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}
+
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean }) {
+  return (
+    <>
+      {props.estacionesRio && <LeyendaAlturaRios />}
+      <LeyendaPestana {...props} />
+    </>
+  )
+}
+
+function LeyendaPestana(props: PropsLeyendaMapa) {
   if (props.pestana === 'estadisticas') return null
 
   if (props.pestana === 'radar') {

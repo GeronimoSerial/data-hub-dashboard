@@ -5,6 +5,25 @@ import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import { colorRiesgo } from '@/lib/infraestructura/mapa/radar'
 
+describe('LeyendaMapa · altura de ríos', () => {
+  it('muestra la escala de altura de ríos en cualquier pestaña cuando la capa está visible', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" estacionesRio />)
+
+    const leyenda = within(container)
+    expect(leyenda.getByText('Altura de ríos')).toBeTruthy()
+    expect(leyenda.getByText('Evacuación')).toBeTruthy()
+    expect(leyenda.getByText('Alerta')).toBeTruthy()
+    expect(leyenda.getByText('Normal')).toBeTruthy()
+    expect(leyenda.getByText('Sin dato')).toBeTruthy()
+  })
+
+  it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" estacionesRio={false} />)
+
+    expect(within(container).queryByText('Altura de ríos')).toBeNull()
+  })
+})
+
 function colorCss(color: string): string {
   const muestra = document.createElement('span')
   muestra.style.backgroundColor = color

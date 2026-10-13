@@ -76,6 +76,7 @@ import {
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
+import { CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
@@ -1853,15 +1854,16 @@ export default function MapInfraestructuraPage(props: {
           ))}
 
           </Fragment>
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
         </MapGL>
       </div>
 
       {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} />
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} />
       ) : null}
 
       <AlcanceNominalModal

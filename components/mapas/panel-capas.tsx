@@ -24,6 +24,14 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
 
   return (
     <section className="map-sitact" aria-label="Capas">
+      <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-situacion-titulo">
+        <h3 id="map-capas-situacion-titulo" className="map-sitact__titulo-seccion">Situación actual</h3>
+        <Switch
+          checked={capasVisibles.estacionesRio}
+          onCheckedChange={(visible) => cambiarCapa('estacionesRio', visible)}
+          label="Estaciones de Prefectura (altura de ríos)"
+        />
+      </section>
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-mapa-base-titulo">
         <h3 id="map-capas-mapa-base-titulo" className="map-sitact__titulo-seccion">Mapa base</h3>
         <RadioGroup value={value} onValueChange={(next) => onChange(next as BasemapId)}>

@@ -6,6 +6,23 @@ import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import { CAPAS_VISIBLES_DEFAULT, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import { PanelCapas } from './panel-capas'
 
+describe('PanelCapas · Situación actual', () => {
+  it('muestra el grupo "Situación actual" con la capa de estaciones del río activa', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+
+    expect(screen.getByRole('group', { name: 'Situación actual' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Estaciones de Prefectura (altura de ríos)' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('apaga la capa de estaciones del río al desactivar su interruptor', async () => {
+    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Estaciones de Prefectura (altura de ríos)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, estacionesRio: false })
+  })
+})
+
 afterEach(cleanup)
 
 describe('PanelCapas', () => {
