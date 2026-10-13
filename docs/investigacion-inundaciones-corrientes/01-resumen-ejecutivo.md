@@ -12,7 +12,7 @@ Lo que el sistema sí tenía: 61 corridas completas de pronóstico meteorológic
 
 ## Hechos respaldados (evidencia pública)
 
-19 eventos, 62 evidencias (59 públicas, 46 con URL), 17 avisos. Tras la verificación de URL del 2026-10-13 bajó la confianza de 5 eventos y subió la de 1 (ver [09](09-preguntas-limitaciones.md#pasada-de-verificación-de-url-2026-10-13)). Los más relevantes:
+25 eventos, 72 evidencias (69 públicas, 56 con URL), 17 avisos (incluye la actualización de 72 h de la tarde del 13/10, al final de esta sección). Tras la verificación de URL del 2026-10-13 bajó la confianza de 5 eventos y subió la de 1 (ver [09](09-preguntas-limitaciones.md#pasada-de-verificación-de-url-2026-10-13)). Los más relevantes:
 
 | Evento | Hecho | Confianza | Estado al corte |
 |---|---|---|---|
@@ -30,14 +30,31 @@ Lo que el sistema sí tenía: 61 corridas completas de pronóstico meteorológic
 | EV-20261012-002 | Goya: 20 mm el 12/10, sin impactos mencionados (municipio) | media | ocurrido |
 | EV-20261013-002 | Paraná en Corrientes, Itatí, Bella Vista, Goya y Esquina: en ascenso o estacionario, **bajo alerta** (Prefectura 13/10) | alta | vigente según último reporte |
 
+### Actualización 72 h (10-13/10; consulta posterior a las 18:00 del 13/10)
+
+No se hallaron acumulados de lluvia medidos ni anegamientos urbanos por lluvia en el período, salvo Goya, con 20 mm el 12/10 (EV-20261012-002). Las afectaciones nuevas se deben a la crecida de los ríos.
+
+| Evento | Hecho | Confianza | Estado al corte |
+|---|---|---|---|
+| EV-20261012-001 | Ituzaingó: el Paraná **superó la cota de evacuación**: 4,03 m creciendo (Prefectura 13/10 18:00; evacuación 4,00). No se informan evacuaciones en la zona urbana | alta | vigente según último reporte |
+| EV-20261013-009 | Ituzaingó: bajo agua la bajada de la calle 7, las cercanías del barrio Mil Viviendas, la playa Soró y los muelles (El Libertador 13/10, fuente única) | media | vigente según último reporte |
+| EV-20261013-010 | Itatí: el río superó la costanera y cubrió paradores y playas; las autoridades se reunieron de urgencia. Prefectura marca 6,07 m, bajo el umbral de alerta de 6,80 | media | vigente según último reporte |
+| EV-20261013-008 | Empedrado: unos 200 vecinos se autoevacuaron (cifra sin atribución), hay parajes anegados y caminos cortados (sin nombres) y casi mil cabezas de ganado esperan traslado; el intendente informa 4,86 m | media | vigente según último reporte |
+| EV-20261013-007 | Defensa Civil provincial: **67 evacuados y autoevacuados**, principalmente en Isla Apipé y Paso de los Libres (director B. Lovinson, 13/10 10:45). La cifra no se suma a las locales | media | vigente según último reporte |
+| EV-20261013-004 | Río Uruguay en alerta según Prefectura (13/10): Alvear 10,36, La Cruz 10,32, Yapeyú 9,87 y Bonpland 9,32 m. En Bonpland, Prefectura y la prensa (8,32 m) difieren en 1 m, sin resolver. La confianza sube de baja a alta | alta | vigente según último reporte |
+| EV-20261013-011, EV-20261012-006 | Alvear: el agua avanza sobre zonas bajas, todavía sin evacuados. La Cruz: Defensa Civil municipal se reunió el 12/10 | baja | vigente / ocurrido |
+| EV-20261013-001, EV-20261013-002, EV-20261013-003 | Paso de los Libres en 9,33 m (evacuación, creciendo). Paraná y Uruguay en ascenso en Corrientes (5,43), Paso de la Patria (5,58), Bella Vista, Goya, Esquina, Santo Tomé (11,18, a 0,32 m de la alerta) y Garruchos, todos **bajo alerta** | alta | vigente según último reporte |
+
+Isla Apipé (EV-20261011-001) suma «más de 10 familias» y 35 personas asistidas (El Libertador 13/10). Perfil (12/10) confirma la apertura de 18 compuertas en Yacyretá (EV-20261011-002). Sigue sin aparecer ninguna fuente sobre escuelas, suspensión de clases o rutas cortadas con nombre.
+
 Cifras **no utilizables** como conteo de Corrientes: «más de 400 personas afectadas» (cifra sin fuente identificada, no verificada: TN no localizada; la nota de Cadena 3 del 10/10 no la contiene; solo la repiten copias sin atribución). «Goya superó su marca histórica» contradice a Prefectura (4,71 m, bajo alerta).
 
 ## Alcance territorial
 
 Matriz completa en [cobertura-busqueda.csv](02-registro/cobertura-busqueda.csv).
 
-- **Con evidencia (9 de 25 departamentos):** Capital, Curuzú Cuatiá, Empedrado (solo emergencia hídrica preventiva, Res. 431/2026 con URL verificada, confianza media), General Alvear, Goya, Ituzaingó, Monte Caseros, Paso de los Libres, San Martín.
-- **Sin resultados, cobertura insuficiente (16):** el resto. Santo Tomé, Bella Vista, Esquina e Itatí tienen lecturas de Prefectura bajo alerta, pero ninguna afectación publicada.
+- **Con evidencia (10 de 25 departamentos):** Capital, Curuzú Cuatiá, Empedrado (emergencia hídrica, Res. 431/2026, y autoevacuaciones informadas el 13/10), General Alvear, Goya, Itatí (costanera anegada, 13/10), Ituzaingó, Monte Caseros, Paso de los Libres, San Martín.
+- **Sin resultados, cobertura insuficiente (15):** el resto. Santo Tomé, Bella Vista, Esquina y San Cosme (Paso de la Patria) tienen lecturas de Prefectura bajo alerta, pero ninguna afectación publicada.
 - **Evidencia negativa explícita:** ninguna a escala departamental. En Capital la única negativa explícita es «sin anegamientos» la mañana del 8/10.
 - **Sesgo de cobertura:** la primera búsqueda estándar no devolvió medios nacionales (TN, Crónica, Infobae, MDZ); aparecieron en una segunda ronda dirigida. La ausencia de resultados no prueba ausencia de hechos.
 

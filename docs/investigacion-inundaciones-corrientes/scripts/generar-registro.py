@@ -4,6 +4,8 @@ import csv, json, os, re
 # Uso: python3 docs/investigacion-inundaciones-corrientes/scripts/generar-registro.py
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "02-registro")
 CONSULTA = "2026-10-13 (12:00-12:45 ART)"
+# Actualización de 72 h (lluvias y crecidas 10-13/10), hecha después de la lectura de Prefectura de las 18:00.
+CONSULTA2 = "2026-10-13 (después de 18:00 ART; actualización 72 h)"
 
 def w(name, header, rows):
     with open(os.path.join(OUT, name), "w", newline="", encoding="utf-8") as f:
@@ -161,6 +163,130 @@ E = [
   "2026-10-12/13", "", "", "2026-10-13", "", CONSULTA, "vigente_segun_ultimo_reporte", "EVD-052", "EVD-052",
   "no aplica", "muy baja", "nota única atribuida a la Municipalidad, no localizada en la verificación de URL (EVD-052)", "", "EV-20261007-001;EV-20261013-001", "", "ninguno"],
 ]
+
+# ---------------------------------------------------------------- actualización 72 h (2026-10-10..13)
+# Nuevos hechos hallados en la búsqueda de la tarde del 13/10 (EVD-061..070) y actualizaciones de
+# eventos existentes. Las actualizaciones agregan evidencias y lecturas; no borran cifras previas.
+E += [
+ ["EV-20261013-007", "evento_publico", "crecida fluvial", "evacuados y autoevacuados (cifra provincial consolidada)",
+  "Ituzaingó;Paso de los Libres", "Isla Apipé;Paso de los Libres", "no informado", "río Paraná;río Uruguay", "Paraná;Uruguay",
+  "provincia de Corrientes (Isla Apipé y Paso de los Libres según la fuente)", *SINGEO,
+  "2026-10-07 (aprox.)", "", "cifra acumulada informada el 13/10 por la mañana",
+  "2026-10-13 10:45", "", CONSULTA2, "vigente_segun_ultimo_reporte", "EVD-062", "EVD-062",
+  "67 personas evacuadas o autoevacuadas en la provincia, principalmente en Isla Apipé y Paso de los Libres (director de Defensa Civil de Corrientes, B. Lovinson)",
+  "media", "nota fechada (Canal 12 Misiones, 13/10 10:45, firmada) con cita textual del director provincial de Defensa Civil; comunicado oficial no abierto",
+  "no se desagrega por localidad; las cifras locales (Paso de los Libres 31-37; Isla Apipé 23-55 según la nota) no se suman; 'más de 400 personas afectadas' (EVD-065, sin fuente) es otra magnitud no verificada",
+  "EV-20261007-001;EV-20261011-001", "no incluye los ~200 autoevacuados de Empedrado informados el mismo día (EV-20261013-008); el criterio de conteo no se informa", "ninguno"],
+ ["EV-20261013-008", "evento_publico", "crecida fluvial", "autoevacuación de vecinos; anegamientos y caminos cortados en parajes; hacienda en zonas afectadas",
+  "Empedrado", "Empedrado", "parajes cercanos (no nombrados)", "río Paraná", "Paraná",
+  "Empedrado y parajes cercanos (sin nombres)", *SINGEO,
+  "2026-10-12/13 (aprox.)", "", "autoevacuaciones informadas el 13/10, tras la emergencia hídrica del 12/10",
+  "2026-10-13", "", CONSULTA2, "vigente_segun_ultimo_reporte", "EVD-063;EVD-064;EVD-065", "EVD-065",
+  "más de 200 / alrededor de 200 autoevacuados; río 4,86 m según el intendente F. Echeverría (EVD-065, sin hora ni estación); 'ronda los 5 metros' (EVD-063); casi mil cabezas de ganado a la espera de traslado (EVD-063)",
+  "media", "tres notas del 13/10 con URL verificada coinciden; la altura se atribuye al intendente; la cifra de autoevacuados no se atribuye a un organismo; Prefectura no publica estación Empedrado en la tabla consultada",
+  "4,86 m (intendente) vs 'ronda los 5 metros' (EVD-063); autoevacuados 'más de 200' vs 'alrededor de 200'",
+  "EV-20261012-004;EV-20261013-007", "parajes y caminos no nombrados; no se informa si hay albergues ni escuelas involucradas; posible copia entre EVD-063 y EVD-065 (mismo medio)", "ninguno"],
+ ["EV-20261013-009", "evento_publico", "crecida fluvial", "anegamiento de zonas bajas costeras (calles, playa, muelles)",
+  "Ituzaingó", "Ituzaingó", "bajada de la calle 7; cercanías del al barrio Mil Viviendas; Playa Soró; La Escala", "río Paraná", "Paraná",
+  "costa urbana de Ituzaingó (lugares nombrados en EVD-066)", *SINGEO,
+  "2026-10-12/13", "", "subida rápida 'en unas cuatro horas' según la nota del 13/10",
+  "2026-10-13", "", CONSULTA2, "vigente_segun_ultimo_reporte", "EVD-066", "EVD-066",
+  "puerto 3,45 m en ascenso (sin hora) según la nota; Prefectura 4,03 m 13/10 18:00 EVACUACION CRECE (EVD-061)",
+  "media", "nota local fechada con URL verificada y fotos; sin autor; fuente única para los lugares anegados",
+  "", "EV-20261012-001;EV-20261011-002", "no se informan viviendas afectadas ni evacuaciones en la zona urbana; geometría de barrio y calles no digitalizada", "ninguno"],
+ ["EV-20261013-010", "evento_publico", "crecida fluvial", "río sobre la línea de la costanera; paradores y playas bajo agua",
+  "Itatí", "Itatí", "costanera; paradores y playas", "río Paraná", "Paraná",
+  "costanera de Itatí", *SINGEO,
+  "2026-10-13 (aprox.)", "", "lectura 'hoy' en nota del 13/10",
+  "2026-10-13", "", CONSULTA2, "vigente_segun_ultimo_reporte", "EVD-066", "EVD-066",
+  "puerto 6,07 m (alerta 6,80); Prefectura 6,07 m CRECE 13/10 12:00 (EVD-061); reunión urgente de autoridades",
+  "media", "nota local fechada con URL verificada; altura concordante con Prefectura; fuente única para la afectación",
+  "el anegamiento de la costanera ocurre con el río bajo el umbral de alerta de Prefectura: no es contradictorio, pero muestra que el umbral no cubre esta afectación", "EV-20261013-002",
+  "sin viviendas ni evacuados informados; autoridades de la reunión no identificadas", "ninguno"],
+ ["EV-20261013-011", "evento_publico", "crecida fluvial", "acumulación de agua en zonas bajas de la costa; familias preparándose para evacuar (sin evacuados)",
+  "General Alvear", "Alvear", "zonas bajas de la costa (sin barrio)", "río Uruguay", "Uruguay",
+  "costa de Alvear", *SINGEO,
+  "2026-10-13 (aprox.)", "", "", "2026-10-13 13:22", "", CONSULTA2, "vigente_segun_ultimo_reporte", "EVD-068", "EVD-068",
+  "sin evacuados al momento; Prefectura 10,36 m ALERTA CRECE 13/10 18:00 (EVD-061)",
+  "baja", "nota única que reproduce cobertura de TN, sin atribución a un organismo ni barrio",
+  "un tuit citado por EVD-065 habla de 'comercios y vecinos evacuados' en Alvear (no oficial, no usado)", "EV-20261010-001;EV-20261013-004",
+  "", "ninguno"],
+ ["EV-20261012-006", "medida_administrativa", "preventivo (crecida)", "reunión de la Junta Municipal de Defensa Civil para coordinar prevención y protección de familias vulnerables",
+  "San Martín", "La Cruz", "zonas costeras de mayor vulnerabilidad (sin nombres)", "río Uruguay", "Uruguay", "municipio de La Cruz", *SINGEO,
+  "2026-10-12", "", "reunión del lunes 12/10", "2026-10-13", "", CONSULTA2, "ocurrido", "EVD-067", "EVD-067",
+  "no aplica", "baja", "nota única sin autor (El Libertador 13/10, URL verificada); acta o comunicado municipal no consultados",
+  "", "EV-20261013-004", "no prueba afectación: es una medida preventiva", "ninguno"],
+]
+
+_ie = {n: i for i, n in enumerate(EH)}
+ACT72 = {
+ "EV-20261012-001": dict(
+  tipo_afectacion="nivel sobre la cota de evacuación (13/10 18:00); playas sin uso; evacuaciones en Isla Apipé (ver EV-20261011-001); anegamientos costeros (EV-20261013-009)",
+  intervalo_nota="sobre alerta el 13/10 12:00 (3,62 m) y sobre evacuación el 13/10 18:00 (4,03 m), según Prefectura",
+  ultima_actualizacion="2026-10-13 18:00 (EVD-061)", consulta=CONSULTA2,
+  evidencias="EVD-001;EVD-013;EVD-014;EVD-015;EVD-029;EVD-061;EVD-066;EVD-069", fuente_principal="EVD-061",
+  mediciones="Prefectura 4,03 m 13/10 18:00 EVACUACION CRECE, +0,10 (alerta 3,50; evacuación 4,00) (EVD-061); Prefectura 3,62 m 13/10 12:00 ALERTA CRECE (EVD-001); El Libertador 3,45 m en ascenso (13/10, sin hora); Perfil 2,95 m (12/10, sin hora); El Territorio 3,35 m tarde del 12/10; Corrienteshoy 2,45 m sin hora; El Litoral 10/10 2,45 m",
+  contradicciones="3,35 m (El Territorio, 12/10 tarde) vs 2,45 m (Corrienteshoy, 12/10 sin hora, posiblemente lectura anterior) vs 3,10 m (Crónica, publicada 13/10 10:44, hora de lectura no indicada) vs 3,62 m (Prefectura 13/10 12:00) vs 4,03 m (Prefectura 13/10 18:00): serie ascendente, no contradictoria en tendencia; pronóstico EBY 3,0-3,6 m y 3,60-4,20 m en el mismo artículo; Perfil 12/10 (EVD-069) estimaba que el pico se estabilizaría por debajo de 4 m, umbral de evacuaciones masivas en la zona urbana: superado el 13/10 18:00",
+  eventos_relacionados="EV-20261011-001;EV-20261011-002;EV-20261013-009;AV-007;AV-008",
+  limitaciones="tabla de Prefectura solo conserva última lectura; al corte no se informan evacuaciones en la zona urbana pese a superar 4,00 m"),
+ "EV-20261013-001": dict(
+  ultima_actualizacion="2026-10-13 14:00 (EVD-061)", consulta=CONSULTA2,
+  evidencias="EVD-001;EVD-016;EVD-019;EVD-029;EVD-036;EVD-051;EVD-061;EVD-067;EVD-068",
+  mediciones="Prefectura 9,33 m 13/10 14:00 EVACUACION CRECE, +0,02 (alerta 7,50; evacuación 8,50) (EVD-061); Prefectura 9,31 m 13/10 12:00 EVACUACION ESTAC. (EVD-001); El Libertador 9,31 m estacionario (13/10, EVD-067); La Nueva/TN 9,28 m (13/10, EVD-068); Noticiero 9: 9,26 m (12/10 por la mañana, sin atribución); Diario Época: 9,14 m (12/10, INA)"),
+ "EV-20261007-001": dict(
+  ultima_actualizacion="2026-10-13", consulta=CONSULTA2,
+  evidencias="EVD-002;EVD-028;EVD-032;EVD-033;EVD-034;EVD-035;EVD-031;EVD-047;EVD-048;EVD-049;EVD-050;EVD-051;EVD-064;EVD-067;EVD-068;EVD-070",
+  contradicciones="cifras de evacuados 13 / 25 / 31 / 37 en fechas y fuentes distintas: NO se suman; probable actualización progresiva; 31 atribuido a Defensa Civil PdL, 37 a la Municipalidad; la nota de Cadena 3 del 12/10 que repetía 25 y 8,81 m no se localizó (EVD-050) y El Liberal 12/10 16:53 repite los mismos datos (EVD-070, grupo G3); el 13/10 las notas dan 'más de 30' (EVD-067) y 31 (EVD-064, EVD-068): sin cifra nueva; Defensa Civil provincial da 67 para toda la provincia (EV-20261013-007)",
+  eventos_relacionados="EV-20261013-001 (nivel oficial);EV-20261012-003;EV-20261013-007"),
+ "EV-20261013-002": dict(
+  departamento="Capital;Itatí;San Cosme;Bella Vista;Goya;Esquina", localidad="Corrientes;Itatí;Paso de la Patria;Bella Vista;Goya;Esquina",
+  intervalo_nota="lecturas 10:00-18:00 del 13/10", consulta=CONSULTA2,
+  evidencias="EVD-001;EVD-012;EVD-055;EVD-061", fuente_principal="EVD-061",
+  mediciones="Prefectura 13/10 (EVD-061): Corrientes 5,43 CRECE 18:00 (6,50/7,00); Itatí 6,07 CRECE 12:00 (6,80/7,50); Paso de la Patria 5,58 CRECE 12:00 (6,50/7,00); Bella Vista 5,06 CRECE 12:00 (6,00/6,40); Goya 4,72 CRECE 12:00 (5,20/5,70); Esquina 4,06 CRECE 12:00 (5,00/5,40). Lectura anterior (EVD-001, 10:00-12:00): Corrientes 5,38; Bella Vista 5,05; Goya 4,71 ESTAC.",
+  contradicciones="pronóstico INA citado por prensa: Corrientes 5,70 m para el 13/10 (AV-006) vs lectura 5,43 m el 13/10 18:00; nota de Perfil del 12/10 (EVD-055, Miguel Campos) dice que Goya superó su marca histórica con 4,59 m, en contradicción con Prefectura 13/10 (4,72, bajo alerta 5,20); afirmación sin atribución a un organismo, confianza baja; notas del 13/10 citan lecturas anteriores para Corrientes (5,27 m EVD-064; 4,98 m EVD-065) y Paso de la Patria (5,46 m EVD-066)",
+  eventos_relacionados="AV-006;EV-20261013-010",
+  limitaciones="no es afectación; se registra para evaluar anticipación y estado; Itatí muestra afectación costera bajo el umbral de alerta (EV-20261013-010)"),
+ "EV-20261013-003": dict(
+  departamento="Santo Tomé;Monte Caseros", localidad="Santo Tomé;Garruchos;Monte Caseros;Mocoretá", consulta=CONSULTA2,
+  evidencias="EVD-001;EVD-019;EVD-061;EVD-067", fuente_principal="EVD-061",
+  mediciones="Prefectura 13/10 12:00 (EVD-061): Santo Tomé 11,18 CRECE (11,50/12,50); Garruchos 11,12 CRECE (12,00/14,00); Monte Caseros 7,05 ESTAC. (7,50/8,50). Mocoretá 7,84 m estacionario bajo alerta (solo El Libertador 13/10, EVD-067, sin fuente; no figura en la tabla consultada). Prensa 12/10 no verificada: Santo Tomé 10,52; Garruchos 10,62; Monte Caseros 7,10 m (no hallado en ninguna nota abierta; 7Páginas 6,25 m solo en resultados de búsqueda)",
+  contradicciones="EVD-019 (no verificado) afirmaba que Alvear, La Cruz, Yapeyú y Bonpland superaron alerta: la tabla de Prefectura del 13/10 18:00 lo confirma para esas cuatro estaciones (EV-20261013-004)",
+  limitaciones="no es afectación; Garruchos y Santo Tomé están en el departamento Santo Tomé; Mocoretá en Monte Caseros; Santo Tomé a 0,32 m de su alerta"),
+ "EV-20261013-004": dict(
+  intervalo_nota="lecturas del 12/10 (Prefectura vía prensa) y del 13/10 14:00-18:00 (tabla de Prefectura consultada)",
+  ultima_actualizacion="2026-10-13 18:00 (EVD-061)", consulta=CONSULTA2,
+  evidencias="EVD-038;EVD-048;EVD-029;EVD-019;EVD-061;EVD-067", fuente_principal="EVD-061",
+  mediciones="Prefectura 13/10 (EVD-061): Alvear 10,36 ALERTA CRECE 18:00 (alerta 9,50; evacuación 11,00); La Cruz 10,32 ALERTA CRECE 14:00 (9,50/11,50); Yapeyú 9,87 ALERTA ESTAC. 14:00 (9,50/10,50); Bonpland 9,32 ALERTA CRECE 14:00, variación +1,00 (7,90/10,80). El Libertador 13/10 (EVD-067, sin hora ni fuente): Alvear 10,28; La Cruz 10,30; Yapeyú 9,87; Bonpland 8,32 ESTAC. 9/10 (EVD-048): La Cruz 9,91; Yapeyú 9,60; Bonpland 8,02 m. 12/10 (EVD-038, cifras solo en resúmenes de buscador): Alvear 10,10; La Cruz 10,06; Yapeyú 9,74; Bonpland 8,31 m",
+  confianza="alta", justificacion_confianza="tabla oficial de Prefectura consultada directamente el 13/10 después de las 18:00 (EVD-061); prensa concordante salvo Bonpland",
+  contradicciones="Bonpland 9,32 m con variación +1,00 m (Prefectura 13/10 14:00) vs 8,32 m estacionario (El Libertador 13/10) y 8,31 m (12/10): diferencia de exactamente 1 m, posible error de carga en la tabla; no se resuelve. Umbral de La Cruz: la tabla de Prefectura da alerta 9,50 y evacuación 11,50 (resuelve la diferencia 9,50 vs 11,50 registrada antes: son umbrales distintos)",
+  eventos_relacionados="EV-20261013-001;EV-20261013-003;EV-20261012-006;EV-20261013-011",
+  limitaciones="Bonpland pertenece al departamento Paso de los Libres; Yapeyú y La Cruz al departamento San Martín; ninguna estación está sobre su cota de evacuación al corte"),
+ "EV-20261011-001": dict(
+  ultima_actualizacion="2026-10-13", consulta=CONSULTA2,
+  evidencias="EVD-014;EVD-046;EVD-057;EVD-066;EVD-069",
+  mediciones="9 familias / 23 personas evacuadas (EVD-014, cuerpo); titular 'más de 10' familias; 9 familias / 27 personas asistidas, confirmado por el municipio de San Antonio de Apipé (Perfil 12/10, EVD-069); más de 10 familias evacuadas y al menos 35 personas asistidas; 10 ganaderos y 24 familiares afectados (El Libertador 13/10, EVD-066)",
+  justificacion_confianza="corresponsalía local con cifras; Perfil 12/10 (URL verificada) cita la confirmación municipal; El Libertador 13/10 actualiza; Defensa Civil provincial menciona la isla en su total de 67 (EV-20261013-007)",
+  eventos_relacionados="EV-20261012-001;EV-20261011-002;EV-20261013-007",
+  limitaciones="cifras crecientes no conciliadas (23 / 27 / 35 personas); no se sabe si continúan evacuadas; erosión de costa informada (EVD-066)"),
+ "EV-20261011-002": dict(
+  ultima_actualizacion="2026-10-13 (EVD-066)", consulta=CONSULTA2,
+  evidencias="EVD-013;EVD-016;EVD-017;EVD-041;EVD-066;EVD-069",
+  mediciones="afluente ~28.000 m3/s con aumento previsto a 32.000 m3/s (EVD-016, no re-verificada); erogaciones proyectadas de 29.000-32.000 m3/s (El Libertador 13/10, EVD-066); 40% sobre el promedio (EVD-041, Infobae/EFE 13/10, verificado); apertura de 18 compuertas del vertedero principal (Perfil 12/10, EVD-069, URL verificada)",
+  justificacion_confianza="cuatro notas regionales coinciden en la apertura; cifras atribuidas a EBY sin comunicado original abierto; Perfil 12/10 sostiene las 18 compuertas",
+  contradicciones="28.000-32.000 m3/s (EVD-016) vs 29.000-32.000 m3/s (EVD-066): rangos de pronóstico, no contradictorios; '18 compuertas' no figura en EVD-041 pero sí en Perfil 12/10 (EVD-069)"),
+ "EV-20261012-004": dict(
+  ultima_actualizacion="2026-10-13", consulta=CONSULTA2, evidencias="EVD-043;EVD-063;EVD-065",
+  justificacion_confianza="nota de El Monterizo 12/10 con URL verificada cita la Resolución 431/2026 (EVD-043); notas del 13/10 (EVD-063, EVD-065) indican que fue firmada el 12/10; boletín municipal no consultado",
+  eventos_relacionados="EV-20261013-008",
+  limitaciones="la resolución es preventiva; la afectación posterior se registra aparte (EV-20261013-008)"),
+ "EV-20261012-005": dict(
+  limitaciones="medida preventiva; no implica anegamiento urbano; un titular lateral de El Libertador del 13/10 menciona el cierre de una segunda playa en la capital, sin nota abierta (no registrado como evento)"),
+}
+for r in E:
+    for k, val in ACT72.get(r[0], {}).items():
+        r[_ie[k]] = val
+assert set(ACT72) <= {r[0] for r in E}
+assert len({r[0] for r in E}) == len(E), "IDs de evento duplicados"
 w("eventos.csv", EH, E)
 
 # ---------------------------------------------------------------- evidencias
@@ -347,6 +473,64 @@ V = [
   "más de 400 evacuados si el río supera 12,5 m en Concordia", "fuera de Corrientes", "EVD-030 (contradicción)", "investigador r3 (no re-verificado)", "baja", "escenario, no hecho"],
  ["EVD-060", "prensa_cita_oficial", "Examedia; Corrientes Hoy", "EBY (citada)", "(notas 12-13/10 paso Ituzaingó-Ayolas)", "", "2026-10-12..17", "2026-10-12/13", "", CONSULTA, "abierta (r3)", "", "sí (EBY)",
   "afluente ~26.300-28.000 m3/s", "Ituzaingó", "EV-20261013-005", "investigador r3 (no re-verificado)", "media", "inicio del cierre 12 o 13/10 según nota"],
+ # ---- actualización 72 h (consultas de la tarde del 13/10; fragmentos cotejados con el texto descargado)
+ ["EVD-061", "oficial_medicion", "Prefectura Naval Argentina", "Prefectura Naval Argentina", "Altura de los ríos",
+  "https://contenidosweb.prefecturanaval.gob.ar/alturas/index.php", "2026-10-13 12:00-18:00 (por estación)", "2026-10-13 (por lectura)", "",
+  CONSULTA2, "abierta", "EVACUACION CRECE (celda de estado, Ituzaingó 13/OCT/26 1800)", "no",
+  "Ituzaingó 4,03 EVACUACION CRECE 18:00 (3,50/4,00); Iguazú 30,80 EVACUACION CRECE 18:00 (25/28); Corrientes 5,43 CRECE 18:00; Itatí 6,07; Paso de la Patria 5,58; Bella Vista 5,06; Goya 4,72; Esquina 4,06 (12:00, CRECE); Santo Tomé 11,18 CRECE; Garruchos 11,12 CRECE; Monte Caseros 7,05 ESTAC. (12:00); Alvear 10,36 ALERTA CRECE (18:00); La Cruz 10,32 ALERTA CRECE; Yapeyú 9,87 ALERTA ESTAC.; Paso de los Libres 9,33 EVACUACION CRECE; Bonpland 9,32 ALERTA CRECE, variación 1,00 (14:00); Concordia 11,16 ALERTA BAJA (18:00)",
+  "Ituzaingó;Capital;Itatí;San Cosme;Bella Vista;Goya;Esquina;Santo Tomé;Monte Caseros;General Alvear;San Martín;Paso de los Libres",
+  "", "verificada_url (consulta directa de la tabla)", "alta",
+  "tabla de última lectura: no conserva histórico; horas de lectura distintas por estación; la estación figura como 'BOMPLAND'; Bonpland con variación +1,00 m contradice prensa (posible error de carga)"],
+ ["EVD-062", "prensa_cita_oficial", "Canal 12 Misiones", "Carlos Báez; cita a Bruno Lovinson (director de Defensa Civil de Corrientes)",
+  "Preocupación en Corrientes por la crecida de los ríos: casi 70 personas fueron evacuadas",
+  "https://www.canal12misiones.com/nacionales/crecida-rio-parana-corrientes", "2026-10-07..13", "2026-10-13 10:45", "", CONSULTA2, "abierta",
+  "hasta el momento la cantidad de evacuados llega a 67 personas", "sí (Defensa Civil provincial, declaración)",
+  "67 evacuados y autoevacuados (provincia); Paso de los Libres 8,81 m y Monte Caseros 7,10 m (lecturas anteriores, sin hora)", "Ituzaingó;Paso de los Libres",
+  "", "verificada_url", "media", "la declaración dice 'Isla Pipé' (Isla Apipé); las lecturas de río del artículo están desactualizadas respecto de Prefectura"],
+ ["EVD-063", "prensa", "El Monterizo", "El Monterizo (sin autor individual)", "Empedrado en emergencia: el Paraná cerca de los 5 metros y un operativo que ya empezó",
+  "https://elmonterizo.com/empedrado-en-emergencia-el-parana-cerca-de-los-5-metros-y-un-operativo-que-ya-empezo", "2026-10-12/13", "2026-10-13 (sin hora)", "", CONSULTA2, "abierta",
+  "más de 200 vecinos se autoevacuaron por sus propios medios y casi mil cabezas de ganado permanecen en zonas comprometidas", "en parte (Resolución 431/2026)",
+  "río 'ronda los 5 metros' (sin estación); >200 autoevacuados; ~1.000 cabezas de ganado", "Empedrado", "", "verificada_url", "media",
+  "cifra de autoevacuados sin atribución a un organismo; parajes y caminos cortados no nombrados"],
+ ["EVD-064", "prensa", "Nueva Mirada (Corrientes)", "no indicado", "Hay 200 autoevacuados en Empedrado y más de 30 evacuados en Libres",
+  "https://nuevamiradacorrientes.com/news/hay-200-autoevacuados-en-empedrado-y-mas-de-30-evacuados-en-libres", "2026-10-12/13", "2026-10-13 (sin hora)", "", CONSULTA2,
+  "abierta (certificado TLS inválido; texto descargado)",
+  "alrededor de 200 personas decidieron autoevacuarse porque el agua empezó a llegar a sus hogares", "en parte ('información oficial' para Paso de los Libres)",
+  "Empedrado ~200 autoevacuados, 4,86 m; Paso de los Libres 9,14 m, 31 evacuados; Corrientes 5,27 m", "Empedrado;Paso de los Libres;Capital",
+  "", "verificada_url", "media", "lecturas sin hora, anteriores a la tabla de Prefectura del 13/10; dice que el paso Ituzaingó-Ayolas cierra desde el lunes 12 (Perfil: desde el 13)"],
+ ["EVD-065", "prensa", "El Monterizo", "El Monterizo (sin autor individual); cita al intendente de Empedrado F. Echeverría e INA",
+  "El Paraná no da tregua en el NEA: los números que encendieron todas las alarmas",
+  "https://elmonterizo.com/el-parana-no-da-tregua-en-el-nea-los-numeros-que-encendieron-todas-las-alarmas", "2026-10-12/13", "2026-10-13 (sin hora)", "", CONSULTA2, "abierta",
+  "el intendente Fernando Echeverría informó una altura de 4,86 metros", "en parte (intendente; INA)",
+  "Empedrado 4,86 m y >200 autoevacuados; Corrientes 4,98 m; 'más de 400 personas' afectadas en Corrientes (sin fuente); Paso de los Libres 9,26 m; Monte Caseros 7,10 m",
+  "Empedrado;Capital;Goya;Paso de los Libres;Monte Caseros;General Alvear", "", "verificada_url", "media",
+  "'más de 400 personas' sin fuente (misma cifra no verificada que EVD-030); lo de Alvear proviene de un tuit; mismo medio que EVD-063 (no son confirmaciones independientes)"],
+ ["EVD-066", "prensa", "Diario El Libertador", "no indicado (fotos 'gentileza')", "Crecida del río Paraná: la apertura de Yacyretá complica a las localidades costeras",
+  "https://www.diarioellibertador.com.ar/crecida-rio-parana-apertura-yacyreta-impacto-localidades-costeras-corrientes/", "2026-10-12/13", "2026-10-13 (sin hora)", "", CONSULTA2, "abierta",
+  "la bajada de la calle 7, las cercanías del barrio Mil Viviendas y la playa Soró quedaron sumergidos", "en parte (EBY; Prefectura)",
+  "Ituzaingó 3,45 m; erogaciones 29.000-32.000 m3/s; Isla Apipé >10 familias evacuadas, 35 asistidas; Itatí 6,07 m; Paso de la Patria 5,46 m",
+  "Ituzaingó;Itatí;San Cosme", "", "verificada_url", "media", "lecturas sin hora; titular lateral sobre una segunda playa cerrada en la capital no abierto"],
+ ["EVD-067", "prensa_cita_oficial", "Diario El Libertador", "no indicado; cita el reporte hidrométrico de Prefectura", "Efecto El Niño en Corrientes: Paso de los Libres ya supera los 30 evacuados y el río no da tregua",
+  "https://www.diarioellibertador.com.ar/crecida-rio-uruguay-paso-de-los-libres-evacuados-informe-prefectura/", "2026-10-07..13", "2026-10-13 (sin hora)", "", CONSULTA2, "abierta",
+  "más de 30 personas evacuadas desde el pasado martes 7", "en parte (Prefectura)",
+  "Paso de los Libres 9,31 m ESTAC.; Santo Tomé 11,16; Garruchos 11,12; Alvear 10,28; La Cruz 10,30; Yapeyú 9,87; Bonpland 8,32; Monte Caseros 7,05; Mocoretá 7,84 (alerta 10,30, evacuación 12,00); reunión de Defensa Civil de La Cruz 12/10",
+  "Paso de los Libres;Santo Tomé;General Alvear;San Martín;Monte Caseros", "", "verificada_url", "media",
+  "Bonpland 8,32 m difiere en 1,00 m de la tabla de Prefectura (EVD-061); lecturas sin hora"],
+ ["EVD-068", "prensa", "La Nueva (Bahía Blanca)", "Redacción de La Nueva (reproduce TN)", "El Litoral sigue en alerta por la llegada de El Niño: inundaciones, calles cortadas y familias evacuadas",
+  "http://www.lanueva.com/nota/2026-10-13-13-16-0-el-litoral-sigue-en-alerta-por-la-llegada-de-el-nino-inundaciones-calles-cortadas-y-familias-evacuadas", "2026-10-13", "2026-10-13 13:22", "", CONSULTA2, "abierta",
+  "En Alvear todavía no hay evacuados, pero el agua avanza sobre las zonas más bajas.", "no (reproduce TN)",
+  "Paso de los Libres 9,28 m; 31 evacuados", "Paso de los Libres;General Alvear", "", "verificada_url", "baja",
+  "copia de cobertura de TN (TN no accesible para la herramienta); sin atribución a organismo"],
+ ["EVD-069", "prensa", "Perfil (NEA)", "no indicado; cita municipio de San Antonio de Apipé, Prefectura y EBY", "Crecida del río Paraná: abrieron las compuertas de Yacyretá y hay evacuados en Apipé",
+  "https://www.perfil.com/noticias/nea/crecida-del-rio-parana-abrieron-las-compuertas-de-yacyreta-y-hay-evacuados-en-apipe.phtml", "2026-10-11/12", "2026-10-12 11:38 (relativa: 'Ayer 11:38' leída el 13/10)", "", CONSULTA2, "abierta",
+  "ordenó la apertura de 18 compuertas de su vertedero principal", "en parte (EBY; municipio; Prefectura)",
+  "Isla Apipé 9 familias / 27 personas; Ituzaingó 2,95 m (sin hora); umbral de evacuaciones masivas 4 m", "Ituzaingó", "", "verificada_url", "media",
+  "fecha de publicación inferida de la marca relativa"],
+ ["EVD-070", "prensa", "El Liberal (Santiago del Estero)", "sin autor", "Inundaciones en Entre Ríos y Corrientes: evacuados por la crecida de los ríos",
+  "https://www.elliberal.com.ar/nota/94588/2026/10/inundaciones-en-entre-rios-y-corrientes--evacuados-por-la-crecida-de-los-rios", "2026-10-12", "2026-10-12 16:53", "", CONSULTA2, "abierta",
+  "el río trepó hasta los 8,81 metros, sobrepasando la marca de evacuación fijada en 8,50 metros", "sin atribución",
+  "Paso de los Libres 8,81 m, 25 evacuados; Monte Caseros 7,10 m; 'más de 400 personas afectadas' (región, sin desagregar)", "Paso de los Libres;Monte Caseros;General Alvear",
+  "", "verificada_url", "baja", "grupo G3: repite datos desactualizados del 8/10; no aporta cifra nueva"],
  ["EVD-101", "datos_sistema", "Snapshot de radar_meteo_run (base productiva, solo lectura)", "sistema (Open-Meteo, grilla 0,2°)", "61 corridas 2026-10-06..2026-10-13", "", "2026-10-06 a 2026-10-13",
   "", "", "2026-10-13 12:30", "snapshot local exportado", "", "no", "pronóstico; no observación", "provincial (grilla lat -30,8..-27,2; lon -59,6..-55,6)", "ver 04-matriz",
   "orquestador", "alta", "purga a 14 días; sin cobertura de cuencas altas"],
@@ -664,9 +848,42 @@ C = [
  ["fuente_inaccesible", "INA reportes PDF", "pendiente de verificación", "", "", "hidraulica.gob.ar / alerta.ina.gob.ar", "PDF como imagen; portal vacío", "valores INA solo vía prensa"],
  ["fuente_inaccesible", "conclusion.com.ar", "pendiente de verificación", "", "", "conclusion.com.ar", "HTTP 403", ""],
  ["sesgo_cobertura", "medios nacionales (TN, Crónica, Infobae, etc.)", "pendiente de verificación", "", "", "barrido estándar inicial", "", "el primer barrido no los devolvió; incorporados en ronda r3 (EVD-029/030, EVD-047..060). Clarín, La Nación (Corrientes), Página/12, NA, TV Pública, Mitre, El Destape, A24 no aparecieron: no es prueba de ausencia"],
- ["tema", "educación (escuelas como albergue, suspensión de clases)", SR, "", "suspensión de clases; escuelas evacuados; Ministerio de Educación", "prensa; mec.gob.ar", "", "ninguna fuente de la ventana lo confirma; albergues informados: RIMte 5 / Ejército. No es evidencia negativa"],
- ["tema", "rutas, puentes, agua potable", SR, "", "rutas nacionales y provinciales; Vialidad", "prensa", "", "sin búsqueda específica por ruta en r3"],
+ ["tema", "educación (escuelas como albergue, suspensión de clases)", SR, "", "suspensión de clases; escuelas evacuados; Ministerio de Educación", "prensa; mec.gob.ar", "", "ninguna fuente de la ventana lo confirma; albergues informados: RIMte 5 / Ejército. No es evidencia negativa; 72 h: nueva búsqueda sin resultados (ninguna nota del 10-13/10 menciona escuelas, clases suspendidas ni escuelas como albergue)"],
+ ["tema", "rutas, puentes, agua potable", SR, "", "rutas nacionales y provinciales; Vialidad", "prensa", "", "sin búsqueda específica por ruta en r3; 72 h: búsqueda de RN 12/14 y Vialidad sin resultados de la ventana; solo caminos cortados sin nombre en Empedrado (EVD-063)"],
  ["fuente_no_consultada", "Defensa Civil Corrientes; ICAA; Vialidad Nacional/Provincial; Ministerio de Educación; EBY; CTM", "pendiente de verificación", "", "", "sin URL verificada", "", "no aparecieron en resultados con fecha en la ventana"],
+]
+# Actualización 72 h (tarde del 13/10): ~20 consultas más (WebSearch/WebFetch y descarga directa) por departamento,
+# lluvia 10-13/10, rutas, escuelas y Defensa Civil. Se agrega la nota "72 h:" y, si hay hechos nuevos, los eventos.
+COB72 = {
+ "Capital": (None, None, "72 h: sin anegamientos ni mm medidos 10-13/10 hallados; Prefectura 5,43 m CRECE 13/10 18:00; titular lateral de una segunda playa cerrada sin nota abierta"),
+ "Empedrado": (CE, "EV-20261012-004;EV-20261013-008", "72 h: ~200 autoevacuados, parajes anegados y caminos cortados sin nombres (EVD-063..065); 4,86 m según el intendente"),
+ "Esquina": (None, None, "72 h: sin resultados de la ventana; Prefectura 4,06 m CRECE bajo alerta"),
+ "General Alvear": (None, "EV-20261013-004;EV-20261010-001;EV-20261013-011", "72 h: Prefectura 10,36 m ALERTA CRECE; agua en zonas bajas sin evacuados (EVD-068, baja)"),
+ "Goya": (None, None, "72 h: sin afectaciones nuevas halladas; Prefectura 4,72 m CRECE bajo alerta; pronóstico INA 5,50 m para el 20/10 solo vía prensa"),
+ "Bella Vista": (None, None, "72 h: sin resultados de la ventana; Prefectura 5,06 m CRECE"),
+ "Itatí": (CE, "EV-20261013-010", "72 h: río sobre la costanera, paradores y playas bajo agua, reunión urgente (EVD-066); Prefectura 6,07 m bajo alerta 6,80"),
+ "Ituzaingó": (None, "EV-20261011-001;EV-20261011-002;EV-20261012-001;EV-20261013-005;EV-20261013-007;EV-20261013-009", "72 h: Prefectura 4,03 m EVACUACION 13/10 18:00; anegamiento costero urbano (calle 7, Mil Viviendas, playa Soró); sin evacuaciones urbanas informadas"),
+ "Lavalle": (None, None, "72 h: sin resultados de la ventana"),
+ "Mercedes": (None, None, "72 h: sin resultados de la ventana (lluvia, arroyos)"),
+ "Curuzú Cuatiá": (None, None, "72 h: sin lluvias ni daños nuevos 10-13/10 hallados; solo pronósticos"),
+ "Monte Caseros": (None, None, "72 h: Prefectura 7,05 m ESTAC.; Mocoretá 7,84 m ESTAC. solo en prensa (EVD-067)"),
+ "Paso de los Libres": (None, "EV-20261007-001;EV-20261012-003;EV-20261013-001;EV-20261013-006;EV-20261013-007", "72 h: Prefectura 9,33 m EVACUACION CRECE 13/10 14:00; evacuados 'más de 30' / 31 (sin cifra nueva); Bonpland 9,32 vs 8,32 m sin resolver"),
+ "Saladas": (None, None, "72 h: sin resultados de la ventana"),
+ "San Cosme": (None, None, "72 h: Prefectura Paso de la Patria 5,58 m CRECE bajo alerta (EV-20261013-002, medición); obras de defensa costera en Bahía Punta Mitre (EVD-066), sin afectación informada"),
+ "San Martín": (None, "EV-20261013-004;EV-20261012-006", "72 h: Prefectura La Cruz 10,32 y Yapeyú 9,87 m en alerta; reunión de Defensa Civil de La Cruz 12/10"),
+ "San Roque": (None, None, "72 h: sin resultados de la ventana"),
+ "Santo Tomé": (None, None, "72 h: Prefectura 11,18 m CRECE, a 0,32 m de la alerta; sin afectación informada"),
+}
+_ct = {r[1]: r for r in C if r[0] == "departamento"}
+assert set(COB72) <= set(_ct), set(COB72) - set(_ct)
+for dep, (st, ev, nota) in COB72.items():
+    r = _ct[dep]
+    if st: r[2] = st
+    if ev: r[3] = ev
+    r[7] = (r[7] + "; " if r[7] else "") + nota
+C += [
+ ["tema", "lluvia 10-13/10 (acumulados medidos)", SR, "EV-20261012-002", "milímetros por localidad 10-13/10; anegamientos por lluvia; SMN alertas 12-13/10", "prensa local y nacional; municipios", "SMN web (HTTP 402)",
+  "72 h: el único acumulado medido hallado es Goya 20 mm hasta las 20:00 del 12/10 (EVD-018); no se hallaron notas de anegamientos urbanos por lluvia ni alertas SMN fechadas 12-13/10. Las afectaciones de la ventana son por crecida de los ríos, no por lluvia local. No es evidencia negativa"],
 ]
 w("cobertura-busqueda.csv", CH, C)
 

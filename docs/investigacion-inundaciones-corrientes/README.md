@@ -6,7 +6,7 @@ Investigación con evidencias, auditoría del sistema de mapas de infraestructur
 |---|---|
 | Ventana investigada | desde el miércoles 7 de octubre de 2026 hasta el corte (ampliada por el equipo el 2026-10-13; originalmente desde el 8/10). Lo anterior al 7/10 queda como contexto o excluido |
 | Corte de investigación | 2026-10-13 ~12:45 (America/Argentina/Buenos_Aires) |
-| Novedades posteriores al corte | no aplica: la sesión se ejecutó el mismo día del corte original pedido (13 oct) |
+| Novedades posteriores al corte | actualización de 72 h (lluvias y crecidas 10-13/10) con consulta posterior a las 18:00 del 13/10: eventos EV-20261012-006 y EV-20261013-007..011, evidencias EVD-061..070 y lecturas de Prefectura de las 12:00-18:00; marcada como `CONSULTA2` en el generador |
 | Datos operativos | base productiva (acceso de solo lectura provisto por el equipo), consulta 2026-10-13 ~12:30 ART, transacción de solo lectura; configuración de la app de producción (flags y tareas programadas) observada 2026-10-13 ~13:20–13:45 ART |
 
 ## Índice
