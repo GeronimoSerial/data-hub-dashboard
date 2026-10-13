@@ -42,6 +42,11 @@ Ejemplo del registro buscado:
 | D4 | Formato | Por día, un **nivel** (`sin_senal` / `vigilancia` / `alerta` / `severo`, más `sin_dato` si la cobertura es insuficiente) decidido por **reglas deterministas**. La IA solo escribe 2–3 oraciones y cita cada cifra con enlace a su fuente. |
 | D5 | Insumos | Los datos medidos (lluvia, ríos, pronóstico) fijan el nivel. Los eventos reportados (prensa, Defensa Civil, municipios) se muestran **aparte** como "confirmado en terreno", con su confianza, y **nunca** suben ni bajan el nivel (así siguen sirviendo para evaluar el sistema). |
 | D6 | Audiencia | Operadores: modal abierto desde el mapa (grupo "Situación actual"), línea de tiempo por día, clic en departamento centra el mapa. Autoridades: versión exportable no técnica (PDF o enlace) generada desde el **mismo** veredicto guardado. |
+| D7 | Cadencia | Cada 6 h + cierre de día. |
+| D8 | Exportación para autoridades | Enlace de solo lectura + descarga en PDF. |
+| D9 | Vigencia del enlace | Sin login; vence **a diario a las 23:59** (hora local, `America/Argentina/Buenos_Aires`). Se planifica revocación y la vista de enlace vencido. |
+| D10 | Relación con E8 | El veredicto **reemplaza** al briefing E8 (no se usa en la práctica): reutiliza su código (proveedor, esquema zod, trazabilidad, plantilla de fallback, presupuesto) y, una vez publicado el veredicto, se retiran el job horario E8 y `BriefingPanel`. Un único presupuesto de IA, propiedad del veredicto. |
+| D11 | Calibración | Umbrales calibrados contra eventos reales (crecida oct-2026 = desarrollo; próximo evento = evaluación). Hasta tener métricas, se publica marcado **"en calibración"**. |
 
 ## 5. Piezas existentes a reutilizar
 
@@ -60,7 +65,7 @@ Ejemplo del registro buscado:
 | Job | `job.ts`, `cadencias.ts:37`, `scripts/jobs.mjs:361-365`, timer `deploy/systemd/ops1/enos-ops1-briefing-ia.timer` | Lease en `infra_job_run`, cadencia horaria, a `*:30` UTC. |
 | UI | `components/infraestructura/briefing-panel.tsx`, `situacion-client.tsx:237-261, 348-360` | Render IA vs plantilla, flag `AI_BRIEFING_ENABLED`. |
 
-**Propuesta:** extraer del pipeline E8 un núcleo genérico (proveedor, presupuesto, validador parametrizado por lista de métricas y lista de términos prohibidos, auditoría de fallback) y montar el veredicto como **segundo consumidor**. No copiar archivos.
+**Propuesta (D10):** el veredicto **reemplaza** a E8. Se extrae del pipeline E8 un núcleo genérico (proveedor, presupuesto, validador parametrizado por lista de métricas y de términos prohibidos, auditoría de fallback) que pasa a ser propiedad del veredicto. No se copian archivos. Tras publicar el veredicto se retiran el job `briefing-ia` (`cadencias.ts:37`, timer `enos-ops1-briefing-ia.timer`, `scripts/jobs.mjs:361-365`), `BriefingPanel` y su uso en `situacion-client.tsx`, y las rutas `app/api/infraestructura/briefings/*`. La tabla `infra_briefing` se conserva como histórico de solo lectura.
 
 > ⚠️ **Conflicto a resolver:** la lista de términos prohibidos de E8 (`validar.ts:129-177`) bloquea `alerta`, `evacuación` y `SMN`. El veredicto necesita citar "nivel de evacuación de Prefectura" y "aviso amarillo del SMN" cuando son datos medidos. Se requiere una lista propia del veredicto (ver §8.4), no relajar la de E8.
 
@@ -75,8 +80,8 @@ Ejemplo del registro buscado:
 | Climatología de caudal | `hazard_climatology`, `caudal_diario`, 2015–2024, m³/s | Punto de río | Diaria |
 | Pronóstico de caudal GloFAS | `hazard_forecast` (`schema.ts:605`), variable `caudal` | Punto de río, paso 1/3/6 h | 6 h |
 | Prob. de excedencia (ensamble) | `hazard_ensemble_prob` (`schema.ts:831`), `precipitacion_24h`, `probabilidad_p95` / `p99` | Celda, 51 miembros | 6 h |
-| Pronóstico de lluvia determinista | `hazard_forecast` (variable de lluvia: **a verificar**) | Celda | **a verificar** |
-| Avisos SMN | `smn_alerta` (`schema.ts:1332`), `departamentos` jsonb, `nivel_sat`, `onset`/`expires` | Por aviso y departamento | **a verificar** (sin entrada en `cadencias.ts`) |
+| Pronóstico de lluvia determinista | Adaptador `providers/ecmwf.ts:80` (`precipitacion`, horario, proveedor `open-meteo-ecmwf`) | Celda | **Sin job programado** (verificado: no hay entrada en `cadencias.ts` ni timer) |
+| Avisos SMN | `smn_alerta` (`schema.ts:1332`), `departamentos` jsonb, `nivel_sat`, `onset`/`expires` | Por aviso y departamento | 15 min (`enos-ops1-sync-smn-alertas.timer`, `scripts/jobs.mjs:280`); no figura en `cadencias.ts` |
 | Riesgo / situación | `infra_risk_snapshot`, `infra_situacion_corte` (`schema.ts:743, 1083`) | Escuela / corte horario | 6 h / 60 min |
 | Salud de fuentes | `hazard_source_health` (`schema.ts:695`) | Por proveedor | — |
 | Georreferencia | `ge.ge_localizacion` vía `riesgo/geo-perfil.ts:63`; polígonos `lib/mapas/departamentos.ts:17` | Escuela / departamento | Diaria |
@@ -103,7 +108,7 @@ Definiciones:
 
 - **Día** = día civil ART (UTC−3), `[00:00, 24:00)`. Todos los agregados se calculan sobre esa ventana convertida a UTC.
 - **Ámbito** = `provincia` o `departamento:<id>` (id normalizado con `lib/mapas/normalizar-departamento.ts`).
-- **Aguas arriba** = cuencas fuera de la provincia que alimentan Paraná/Uruguay (Misiones, sur de Brasil, Paraguay). Sus métricas son de contexto: nunca fijan el nivel de un departamento por sí solas, pero sí se citan. Delimitación exacta: **a definir** (P-3).
+- **Aguas arriba** = recuadro (bbox) de las cuencas altas de Uruguay, Paraná e Iguazú fuera de la provincia (Misiones, sur de Brasil, este de Paraguay). Requiere ampliar la ingesta IMERG a ese bbox (S-3). Sus métricas son de contexto: nunca fijan el nivel de un departamento, pero sí se citan.
 
 ### 6.1 Lluvia observada (días pasados y hoy)
 
@@ -134,7 +139,7 @@ Mapeo estación → departamento: vía `tramos-prefectura.ts` (solo tramos `apro
 | `caudal.<punto>.pico_m3s` + fecha | Máximo de `hazard_forecast` (`caudal`) de la última corrida, por día válido |
 | `caudal.<punto>.percentil` | Pico frente a p90/p95/p99 de `caudal_diario` del mismo punto |
 | `lluvia.ens.prob_p95` / `prob_p99` | Máximo por departamento de `hazard_ensemble_prob` para el día válido (24 h) |
-| `lluvia.pron_24h.max_mm` | Pronóstico determinista por día (**a verificar** fuente/tabla) |
+| `lluvia.pron_24h.max_mm` | Pronóstico determinista ECMWF por día. Requiere un job nuevo que persista `providers/ecmwf.ts` en `hazard_forecast` (V-06b); hasta entonces la señal futura de lluvia usa solo el ensamble (S-7) |
 | `smn.<aviso>.nivel` | Peor `nivel_sat` vigente que se solape con el día y el departamento en `smn_alerta` (excluye `cancelada`) |
 
 Regla `sin_dato` de pronóstico: corrida más reciente con antigüedad > 2 cadencias (`estaAtrasado` en `cadencias.ts`).
@@ -167,6 +172,7 @@ Reglas generales:
 - **Departamentos con señal (D1):** nivel ≥ `vigilancia` o estación ribereña en `alerta`/`evacuacion`.
 - **Eventos reportados:** nunca entran a estas reglas (D5).
 - Versionado: `reglas-veredicto-v0.1`, guardado en cada fila.
+- **En calibración (D11):** mientras `version_reglas` no tenga métricas de evaluación publicadas, cada veredicto (modal, enlace y PDF) muestra la marca "en calibración". La marca se quita solo cuando V-17 registra las métricas del conjunto de desarrollo y se congela la versión.
 
 ## 8. Rol de la IA y salvaguardas
 
@@ -233,7 +239,9 @@ Supuestos: ~2.500 tokens de entrada y ~300 de salida por ámbito-día; tarifas a
 | Día (4 corridas + cierre) | ≤ 5 corridas | ≤ 0,035 |
 | Mes | ≤ 30 días | ≤ ~1 |
 
-Cabe en `E8_PRESUPUESTO_USD_MES = 5` compartido con E8, pero la **reserva previa** de 0,01 USD por llamada (35 llamadas = 0,35 USD reservados por corrida) puede rechazar llamadas por presupuesto aunque el costo real sea bajo. Opciones: presupuesto separado (`VEREDICTO_PRESUPUESTO_USD_MES`) y reserva por llamada de 0,002 USD, o una sola llamada por corrida con todos los ámbitos-día (P-2).
+Supuesto S-2: **una sola llamada por corrida** con todos los ámbitos-día que cambiaron (salida: lista de `{fecha, ambito, frases}`), validada por ámbito-día; un ámbito que falla validación cae a plantilla sin invalidar los demás. Eso baja a ≤ 5 llamadas por día (~3.000–8.000 tokens de entrada cada una), con costo del mismo orden (≤ ~1 USD/mes).
+
+Presupuesto único (D10): el veredicto hereda `infra_briefing_presupuesto_mes` y su mecánica de reserva. Se renombran las variables a `VEREDICTO_PRESUPUESTO_USD_MES` (por defecto 5) y `VEREDICTO_COSTO_MAXIMO_USD_LLAMADA` (por defecto 0,02, por la llamada más grande), aceptando las `E8_*` como alias durante la transición.
 
 ## 9. Persistencia
 
@@ -274,6 +282,7 @@ Opcional: `infra_veredicto_evento_vinculo` (evento reportado ↔ fecha/departame
 
 ## 10. Job y cadencia
 
+- Cadencia (D7): cada 6 h + cierre de día.
 - Nombre: `veredicto-diario` en `NombreJob` y `CADENCIAS` (360 min), con lease en `infra_job_run` (`tipo: 'veredicto-diario-v0'`, clave `fecha-corrida`).
 - Horario: `00:45, 06:45, 12:45, 18:45` UTC, después de `sync-pronostico-caudal`/`sync-ensemble` y de `calcular-riesgo`. Más un **cierre de día** a las 03:30 UTC (00:30 ART del día siguiente + margen IMERG) que marca `cerrado` el día anterior.
 - Timer systemd nuevo en `deploy/systemd/ops1/` y entrada en `scripts/jobs.mjs`, con flag propio (`AI_VEREDICTO_ENABLED`).
@@ -283,12 +292,12 @@ Opcional: `infra_veredicto_evento_vinculo` (evento reportado ↔ fecha/departame
 | Fuente | Latencia típica | Efecto |
 |--------|-----------------|--------|
 | IMERG Early | ~4 h | "Hoy" siempre parcial; el día se cierra a las 03:30 UTC del día siguiente |
-| IMERG Late / Final | ~14 h / ~3,5 meses | Revisión opcional (no ingerido hoy: **a verificar**); generaría nueva versión del día |
+| IMERG Late / Final | ~14 h / ~3,5 meses | No se ingiere hoy. Revisión de días cerrados en fase posterior (S-8, V-19); genera nueva versión del día |
 | Prefectura | horas, irregular | Si falta, `sin_dato` en ríos y nota de fuente ausente |
 | GloFAS / ensamble | 6 h | El veredicto futuro cambia con cada corrida |
-| SMN | minutos–horas | Cadencia de sync **a verificar** |
+| SMN | minutos | Sync cada 15 min |
 
-Ventana de observados: 7 días hacia atrás (a confirmar, P-4).
+Ventana de observados: 7 días hacia atrás (S-4).
 
 ## 11. Interfaz
 
@@ -322,16 +331,28 @@ Apertura: botón "Veredicto diario" en el grupo "Situación actual" del panel de
 - Clic en un día de la línea de tiempo: cambia el detalle; la lluvia IMERG del mapa se sincroniza a esa fecha (requiere modo "as-of" en `observado-grilla`, **a verificar**).
 - Estados vacíos/parciales: "Sin veredicto todavía para este día", "Día en curso: datos parciales (IMERG hasta HH:MM)", "Sin dato: cobertura insuficiente", "Generado por reglas (IA no disponible)".
 
-### 11.2 Exportación para autoridades
+### 11.2 Exportación para autoridades (D8, D9)
 
-- Misma fila persistida; vista `/veredicto/[fecha]` (enlace) y PDF imprimible desde esa vista.
-- Registro no técnico: sin percentiles ni códigos; niveles con nombre y color; texto IA (o plantilla); departamentos con señal; fuentes citadas al pie con fecha y hora; leyenda fija "No es un aviso oficial. Consulte SMN, Prefectura y Defensa Civil."
-- Muestra la versión y `generado_en`, de modo que dos exportaciones del mismo día son distinguibles.
+- Desde el modal, "Exportar" crea un **enlace de solo lectura** `/veredicto/compartido/<token>` y ofrece **descargar PDF**. Ambos leen la misma fila persistida.
+- PDF renderizado en servidor (S-5) a partir de la misma vista, para que sea idéntico entre navegadores.
+- Registro no técnico: sin percentiles ni códigos; niveles con nombre y color; texto IA (o plantilla); departamentos con señal; fuentes citadas al pie con fecha y hora; marca "en calibración" si corresponde (D11); leyenda fija "No es un aviso oficial. Consulte SMN, Prefectura y Defensa Civil."
+- Muestra versión y `generado_en`; el enlace siempre muestra la **versión vigente** del rango compartido (no una copia congelada), y el PDF registra la versión exportada.
+
+**Enlace sin login (D9):**
+
+| Aspecto | Diseño |
+|---------|--------|
+| Token | Aleatorio de 256 bits; se guarda solo su hash (SHA-256) en `infra_veredicto_enlace` (`id`, `token_hash`, `rango_fechas`, `creado_por`, `creado_en`, `vence_en`, `revocado_en`, `revocado_por`) |
+| Vencimiento | `vence_en` = 23:59:59 del día de creación en `America/Argentina/Buenos_Aires`; validado en servidor en cada pedido |
+| Revocación | Botón "Revocar enlaces de hoy" en el modal (operador autenticado); pone `revocado_en`. Efecto inmediato |
+| Enlace vencido o revocado | HTTP 410 con página sin datos: "Este enlace venció el DD/MM a las 23:59 (o fue revocado). Solicite un enlace nuevo al equipo operativo." No muestra nivel, texto ni fechas del contenido |
+| Exposición | `noindex`, sin cookies, limitación de tasa por IP, auditoría de accesos (fecha, hash de IP) |
 
 ## 12. Evaluación
 
 Base: `docs/investigacion-inundaciones-corrientes/08-evaluacion.md` (rama `docs/investigacion-inundaciones`).
 
+- **Calibración (D11):** los umbrales de §7 se ajustan solo con el conjunto de desarrollo; se publica "en calibración" hasta tener métricas.
 - **Conjunto de desarrollo:** crecida de octubre 2026 (2026-10-07 a 2026-10-13): 8 positivos validados, 1 negativo verificado (EV-20261008-002), mediciones bajo umbral (EV-20261013-002/003), 16 departamentos desconocidos.
 - **Conjunto de evaluación:** el próximo evento; umbrales congelados (`version_reglas`) antes de que ocurra.
 - **Métricas por departamento-día:**
@@ -349,7 +370,8 @@ Base: `docs/investigacion-inundaciones-corrientes/08-evaluacion.md` (rama `docs/
 - Rama `GeronimoSerial/mapa-peligro-visible` fusionada (grupo "Situación actual", `estado-altura.ts`, `observado-grilla.ts`, carga de eventos).
 - IMERG estable: backfill retroactivo y tasa de fallas de gránulos (I-4, P-2 del plan de mejoras; L2c–L2e de la rama hermana).
 - Tabla celda → departamento (V-02).
-- Ruta de sincronización de SMN con cadencia declarada.
+- Job nuevo de pronóstico determinista ECMWF (V-06b) para la señal de lluvia futura.
+- Ampliación de la ingesta IMERG al bbox aguas arriba (V-04b).
 - Capa de eventos en la app (I-4) para mostrar "confirmado en terreno" fuera del CSV manual.
 
 ## 14. Riesgos
@@ -362,21 +384,32 @@ Base: `docs/investigacion-inundaciones-corrientes/08-evaluacion.md` (rama `docs/
 | Caídas de OPeNDAP / proveedores | `sin_dato` explícito; nunca rellenar con cero |
 | Desalineación mapa ↔ veredicto | Reutilizar las mismas funciones de clasificación y agregación |
 | Confusión con avisos oficiales | Leyenda fija; vocabulario controlado; sin órdenes operativas |
-| Costo por reservas | Presupuesto y reserva propios (§8.6) |
+| Costo por reservas | Una llamada por corrida y reserva ajustada (§8.6) |
+| Enlace filtrado | Vencimiento diario, revocación, sin datos en la página vencida |
+| Retirar E8 rompe dependencias | Retiro en tarea propia (V-18) tras verificar que nada más lee `infra_briefing` |
 | Sesgo de cobertura de eventos (Paso de los Libres, Ituzaingó) | Declararlo en la evaluación; no usar ausencia de noticia como negativo |
 
-## 15. Preguntas abiertas
+## 15. Supuestos adoptados y preguntas abiertas
+
+### 15.1 Supuestos adoptados
+
+| ID | Supuesto adoptado | Motivo |
+|----|-------------------|--------|
+| S-1 | Un único presupuesto de IA, propiedad del veredicto | Decisión D10: E8 se retira |
+| S-2 | Una sola llamada por corrida con todos los ámbitos-día que cambiaron | Menos llamadas y reservas; el modelo ve el contexto provincial completo |
+| S-3 | Ingerir IMERG sobre el bbox de las cuencas altas Uruguay/Paraná/Iguazú | Es la única forma de citar lluvia aguas arriba con la misma fuente |
+| S-4 | 7 días observados | Cubre una crecida típica sin sobrecargar la línea de tiempo |
+| S-5 | PDF renderizado en servidor | Resultado idéntico entre navegadores y archivable |
+| S-6 | Enlace sin login con token hasheado, vencimiento diario y revocación | D9; reduce el daño si el enlace se reenvía |
+| S-7 | Lluvia futura solo por ensamble hasta que exista el job ECMWF determinista | Verificado: `providers/ecmwf.ts` no tiene job programado |
+| S-8 | Revisión de días cerrados con IMERG Late/Final en fase posterior | No se ingiere hoy y no bloquea la primera versión |
+
+### 15.2 Preguntas abiertas (decisión de negocio)
 
 | ID | Pregunta |
 |----|----------|
-| P-1 | ¿El presupuesto del veredicto se comparte con E8 o es propio? |
-| P-2 | ¿Una llamada por ámbito-día o una sola llamada por corrida con todos los ámbitos? |
-| P-3 | ¿Qué cuencas o celdas definen "aguas arriba" y desde qué fuente (IMERG fuera de la provincia: ¿se ingiere?) — **a verificar**. |
-| P-4 | ¿Cuántos días observados mostrar (7 propuesto)? |
-| P-5 | ¿PDF generado en servidor o impresión del navegador desde la vista enlace? |
-| P-6 | ¿Quién puede ver y compartir el enlace para autoridades (público con token vs. sesión)? |
-| P-7 | ¿Fuente del pronóstico determinista de lluvia por día y cadencia de sync de SMN? — **a verificar**. |
-| P-8 | ¿Se ingiere IMERG Late/Final para revisar días cerrados? |
+| P-1 | ¿Quién en el equipo operativo puede crear y revocar enlaces para autoridades, y a quién se envían? |
+| P-2 | ¿Se acepta retirar E8 sin período de convivencia, o se requiere una semana con ambos visibles? |
 
 ## 16. Tareas propuestas (plan, no archivo ODD)
 
@@ -389,15 +422,20 @@ Tamaños: S ≤ 150 líneas, M ≤ 400, L > 400 (orientativo).
 | V-03 | 0 · Base | Migración `infra_veredicto_dia` + repositorio idempotente con `reemplazado_por` | M | — |
 | V-04 | 1 · Métricas | Agregador de lluvia observada por departamento-día con cobertura | M | V-02, rama hermana |
 | V-05 | 1 · Métricas | Agregador de ríos por día (estado máx., tendencia, margen) vía tramos aprobados | S | rama hermana |
-| V-06 | 1 · Métricas | Agregador de pronóstico (GloFAS vs climatología, ensamble, SMN) por día válido | M | P-7 |
+| V-04b | 1 · Métricas | Ampliar ingesta IMERG al bbox aguas arriba + métricas `aguas_arriba.*` | M | rama hermana |
+| V-06 | 1 · Métricas | Agregador de pronóstico (GloFAS vs climatología, ensamble, SMN) por día válido | M | — |
+| V-06b | 1 · Métricas | Job que persista el pronóstico determinista ECMWF (`providers/ecmwf.ts`) y su métrica diaria | M | — |
 | V-07 | 1 · Métricas | Reglas deterministas `reglas-veredicto-v0.1` con traza (funciones puras + tests) | M | V-04..V-06 |
 | V-08 | 2 · IA | Prompt, esquema zod, lista de prohibidos propia, plantilla de fallback | M | V-01, V-07 |
-| V-09 | 2 · IA | Orquestador por corrida con `inputs_hash` y presupuesto | M | V-03, V-08, P-1, P-2 |
+| V-09 | 2 · IA | Orquestador por corrida (una llamada, todos los ámbitos-día cambiados) con `inputs_hash` y presupuesto único | M | V-03, V-08 |
 | V-10 | 2 · Job | Job `veredicto-diario` + cierre de día, cadencia, timer, flag | S | V-09 |
 | V-11 | 3 · UI | API de lectura (vigente por rango de fechas, historial de versiones) | S | V-03 |
 | V-12 | 3 · UI | Modal: línea de tiempo, detalle, departamentos, fuentes ausentes | M | V-11 |
 | V-13 | 3 · UI | Interacción con el mapa (centrar departamento, sincronizar fecha) | M | V-12 |
 | V-14 | 3 · UI | Sección "confirmado en terreno" desde la capa de eventos | S | V-12, I-4 |
-| V-15 | 4 · Export | Vista enlace no técnica + PDF | M | V-11, P-5, P-6 |
+| V-15 | 4 · Export | Vista no técnica + PDF en servidor | M | V-11 |
+| V-15b | 4 · Export | Enlaces con token: tabla, vencimiento diario 23:59 ART, revocación, página 410 | M | V-15, P-1 |
 | V-16 | 5 · Evaluación | Reproducir crecida oct-2026 (backfill), medir métricas, calibrar umbrales v0.2 | M | V-10 |
 | V-17 | 5 · Evaluación | Congelar reglas y documentar protocolo para el próximo evento | S | V-16 |
+| V-18 | 6 · Retiro E8 | Retirar job `briefing-ia` (cadencia, timer, `jobs.mjs`), `BriefingPanel`, rutas `briefings/*` y flag `AI_BRIEFING_ENABLED`; conservar `infra_briefing` como histórico | S | V-12 publicado, P-2 |
+| V-19 | 7 · Revisión | Ingerir IMERG Late/Final y regenerar días cerrados como nueva versión | M | V-10 |
