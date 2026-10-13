@@ -48,7 +48,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 ## Decisiones del usuario (2026-10-13)
 
-- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 = T8-T10 en `GeronimoSerial/refactor-s3` (e455c5b, eb6d977, 4f83ec7; ~440 líneas). Slice 4 desde T10b en `GeronimoSerial/refactor-s4`.
+- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 = T8-T10 en `GeronimoSerial/refactor-s3` (e455c5b, eb6d977, 4f83ec7; ~440 líneas). Slice 4 = T10b + T11 en `GeronimoSerial/refactor-s4` (9d18406, 4a3fbb8; ~660 líneas, mayoría reescritura del runbook). Slice 5 = T12-T15 en `GeronimoSerial/refactor-s5` (a5aa6a8, b764aae, 112ddbb, 003d234; ~740 líneas).
 - Pendiente del usuario: agregar `RADAR_ARCHIVO_DIR` a `.env.example` (permisos bloquean `.env*`) y en Coolify con volumen persistente.
 - Licencia SMN: uso no comercial con atribución según el usuario (dijo CC BY 2.0, que no restringe uso comercial); registrada como CC BY-NC, pendiente de fuente oficial.
 - I-2: borrar todo `infra_parte` y dependientes en producción. **Ejecutado 2026-10-13** (SSH autorizado): respaldo `/root/backups/infra_parte_hub_prod_20261013T170619Z.dump` (4 tablas); conteos 76/129/135/139 → 0/0/0/0 en una transacción (cascada). Restaurar con `pg_restore --data-only`.
@@ -95,6 +95,12 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T15 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; verificación: `rg` de IP/host/usuario/UUID sobre los dos archivos tocados sin coincidencias (sobre `docs/` completo hay coincidencias preexistentes fuera de este cambio, en `docs/DEPLOY.md` y muestras CAP/reportes; no se tocaron); ubicación: `docs/rotacion-credenciales-2026-10.md` junto a `docs/rotacion-clave-nominal.md` (no existía `docs/ops/`); link agregado en la sección "Credenciales de red por job" del runbook; commit: ver git log (`docs(ops): add credential rotation checklist and read-only audit role`).
 
+## Verificación de cierre (2026-10-13, rama s5)
+
+- `pnpm exec vitest run --no-file-parallelism`: 331/332 archivos, 3032 tests ok, 25 omitidos. Única falla: `scripts/backup-postgres.test.ts` por `spawn podman ENOENT` (entorno sin podman; archivo no tocado).
+- `pnpm lint`: 0 errores, 14 warnings. `pnpm exec tsc --noEmit`: ok.
+- Escaneo de secretos de la sesión en el árbol y en `git log -p main..HEAD`: sin coincidencias.
+
 ## Siguiente paso
 
-cierre (resumen y PRs).
+Abrir los 5 PRs encadenados (decisión del usuario). Pendientes del usuario: rotar credenciales (`docs/rotacion-credenciales-2026-10.md`), `RADAR_ARCHIVO_DIR` en `.env.example` y Coolify, confirmar zona horaria y comando de las tareas de Coolify, limpiar hostnames/UUIDs preexistentes en `docs/DEPLOY.md`. Próximo ciclo: I-3 + G-1 (Prefectura horaria), F-1/F-4 con cola de revisión admin, I-7b/c, y P-6 (programar motor) cuando P-5 esté mergeado.
