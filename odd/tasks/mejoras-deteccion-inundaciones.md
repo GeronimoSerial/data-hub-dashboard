@@ -23,7 +23,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - [x] T1 P-1: `calcular-climatologia-caudal` publica `fallido` con error por punto si 0 procesados; fallas parciales quedan en `contadores`/`errorSaneado`
 - [x] T2 G-3: distancia geodésica (haversine, 40 km) en `motor/adaptadores/territorio.ts`
-- [ ] T3 I-6a: `cargarPronostico` (y variante por lote) filtra `corridaEn <= ahora`
+- [x] T3 I-6a: `cargarPronostico` (y variante por lote) filtra `corridaEn <= ahora`
 - [ ] T4 I-6b/c: umbrales de climatología as-of + limpiar referencias a `replay/consulta.ts`
 - [ ] T5 I-8a: salud de fuente en sync de radar-meteo
 - [ ] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
@@ -46,7 +46,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T1 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, `completado` en vez de `fallido` y `contadores` sin `puntosConError`; GREEN: 6/6); checks: vitest caudal 6/6, vitest `riesgo/jobs` 51/51, `tsc --noEmit` ok, eslint ok; commit: 3e3a758 (`fix(riesgo): mark climatologia-caudal run fallido when no point is processed`).
 - T2 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, la escuela a 0.5° al este (~49 km) se asociaba a `parana-bella-vista`; GREEN: territorio + rio-asociacion 14/14, `riesgo` completo 415 passed / 2 skipped); reutiliza `elegirPuntoRioMasCercano` (40 km) de `rio-asociacion.ts`, sin haversine duplicado; checks: vitest territorio + rio-asociacion 14/14, vitest `riesgo` 415 passed, `tsc --noEmit` ok, eslint ok; commit: ver git log (`fix(riesgo): use geodesic distance in territory adapter`).
+- T3 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, `obtenerNivelCaudal` y lote devolvían la corrida posterior a `ahora`; GREEN: `nivel.test.ts` 45/45); `ahora` se filtra con `corridaEn <= ahora` (`corrida_en` en `hazard_forecast`) en `cargarPronostico` y `cargarPronosticosPorLote`; sin `ahora` se conserva el comportamiento actual; climatología sin cambios (T4); checks: vitest `nivel.test.ts` 45/45, vitest `riesgo` serial 417 passed / 2 skipped (en paralelo hubo timeouts de hook de DB, ajenos al cambio), `tsc --noEmit` ok, eslint ok; commit: ver git log (`fix(riesgo): make flow forecast lookup as-of`).
 
 ## Siguiente paso
 
-T3.
+T4.

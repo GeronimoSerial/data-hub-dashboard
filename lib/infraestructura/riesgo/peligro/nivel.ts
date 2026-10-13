@@ -176,12 +176,22 @@ function elegirMasRecienteYHorizonte<T extends FilaConHorizonte>(
   })
 }
 
+/**
+ * Consulta as-of: sólo cuentan las corridas emitidas en `ahora` o antes. Sin
+ * `ahora` (lectura del momento actual) toda corrida es vigente.
+ */
+function corridaVigente(corridaEn: string, ahora: Date | undefined): boolean {
+  if (ahora === undefined) return true
+  return Date.parse(corridaEn) <= ahora.getTime()
+}
+
 async function cargarPronostico(
   db: Db,
   geometryRef: string,
   variable: 'precipitacion' | 'caudal',
   objetivo: number | 'menor',
   toleranciaHoras?: number,
+  ahora?: Date,
 ): Promise<{ valor: number; corridaEn: string; validoEn: string; horizonteHoras: number } | null> {
   const filas = await db
     .select({
@@ -192,7 +202,10 @@ async function cargarPronostico(
     })
     .from(hazardForecast)
     .where(and(eq(hazardForecast.geometryRef, geometryRef), eq(hazardForecast.variable, variable)))
-  const fila = elegirMasRecienteYHorizonte(filas, objetivo)
+  const fila = elegirMasRecienteYHorizonte(
+    filas.filter((f) => corridaVigente(f.corridaEn, ahora)),
+    objetivo,
+  )
   if (fila === null) return null
   // La tolerancia sólo aplica a un horizonte numérico puntual (ej. 240h); con
   // objetivo 'menor' (el caudal "actual") no hay una distancia que tolerar.
@@ -304,6 +317,7 @@ async function cargarPronosticosPorLote(
   db: Db,
   geometryRefs: string[],
   variable: 'precipitacion' | 'caudal',
+  ahora?: Date,
 ): Promise<Map<string, FilaPronostico[]>> {
   const porCelda = new Map<string, FilaPronostico[]>()
   if (geometryRefs.length === 0) return porCelda
@@ -320,6 +334,7 @@ async function cargarPronosticosPorLote(
       and(inArray(hazardForecast.geometryRef, geometryRefs), eq(hazardForecast.variable, variable)),
     )
   for (const fila of filas) {
+    if (!corridaVigente(fila.corridaEn, ahora)) continue
     const lista = porCelda.get(fila.geometryRef)
     if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
@@ -546,6 +561,7 @@ export async function obtenerNivelesPeligro(opts?: {
     db,
     geometryRefs,
     VARIABLE_PRONOSTICO_PRECIPITACION,
+    opts?.ahora,
   )
   const umbralesPorCelda = await cargarUmbralesPorLote(
     db,
@@ -581,19 +597,25 @@ export async function obtenerNivelesPeligro(opts?: {
  * ausencia de dato se modela como el objeto entero ausente y nunca como un
  * nivel 'sin_dato' dentro del objeto.
  *
- * `ahora` no filtra la consulta (rige el pronóstico más reciente disponible);
- * se conserva en la firma por simetría con obtenerNivelesPeligro y para
- * trazabilidad del llamador.
+ * `ahora` (opcional) fija la consulta as-of: sólo cuentan las corridas con
+ * `corridaEn <= ahora`, así un replay no usa pronósticos emitidos después. Sin
+ * `ahora` rige el pronóstico más reciente disponible.
  */
 export async function obtenerNivelCaudal(
   puntoId: string,
   opts?: { ahora?: Date },
 ): Promise<NivelCaudalPunto | null> {
-  void opts?.ahora
   const db = getDb()
 
   // El "caudal actual" es el horizonte más chico de la corrida más reciente.
-  const pronostico = await cargarPronostico(db, puntoId, VARIABLE_PRONOSTICO_CAUDAL, 'menor')
+  const pronostico = await cargarPronostico(
+    db,
+    puntoId,
+    VARIABLE_PRONOSTICO_CAUDAL,
+    'menor',
+    undefined,
+    opts?.ahora,
+  )
   const umbrales = await cargarUmbralesClimatologia(db, puntoId, VARIABLE_CLIMATOLOGIA_CAUDAL)
   if (pronostico === null || umbrales === null) return null
 

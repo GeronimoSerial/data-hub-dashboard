@@ -849,6 +849,74 @@ describe('obtenerNivelCaudal', () => {
   })
 })
 
+describe('consultas de pronóstico as-of (ahora)', () => {
+  const CORRIDA_A = '2026-09-25T00:00:00.000Z'
+  const CORRIDA_B = '2026-09-26T00:00:00.000Z'
+  const AHORA_ENTRE = new Date('2026-09-25T12:00:00.000Z')
+
+  it('obtenerNivelCaudal con ahora usa la corrida vigente en ese momento, no una posterior', async () => {
+    await insertarClimatologia(db, 'punto-asof', 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
+    await db.insert(hazardForecast).values([
+      filaPronostico({
+        geometryRef: 'punto-asof',
+        variable: 'caudal',
+        corridaEn: CORRIDA_A,
+        validoEn: '2026-09-25T06:00:00.000Z',
+        horizonteHoras: 6,
+        valor: 150,
+      }),
+      filaPronostico({
+        geometryRef: 'punto-asof',
+        variable: 'caudal',
+        corridaEn: CORRIDA_B,
+        validoEn: '2026-09-26T06:00:00.000Z',
+        horizonteHoras: 6,
+        valor: 10,
+      }),
+    ])
+
+    expect(await obtenerNivelCaudal('punto-asof', { ahora: AHORA_ENTRE })).toMatchObject({
+      nivel: 'rojo',
+      emitidoEn: CORRIDA_A,
+    })
+    expect(await obtenerNivelCaudal('punto-asof')).toMatchObject({
+      nivel: 'verde',
+      emitidoEn: CORRIDA_B,
+    })
+  })
+
+  it('obtenerNivelesPeligro (lote) con ahora usa la corrida vigente en ese momento', async () => {
+    await db.insert(hazardForecast).values([
+      filaPronostico({
+        geometryRef: 'celda-asof',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_A,
+        validoEn: '2026-09-26T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 10,
+      }),
+      filaPronostico({
+        geometryRef: 'celda-asof',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_B,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 200,
+      }),
+    ])
+
+    const conAhora = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-asof'],
+      horizontes: [24],
+      ahora: AHORA_ENTRE,
+    })
+    expect(conAhora[0]).toMatchObject({ geometryRef: 'celda-asof', emitidoEn: CORRIDA_A })
+
+    const sinAhora = await obtenerNivelesPeligro({ geometryRefs: ['celda-asof'], horizontes: [24] })
+    expect(sinAhora[0]).toMatchObject({ geometryRef: 'celda-asof', emitidoEn: CORRIDA_B })
+  })
+})
+
 describe('agregarNivelPorDepartamento', () => {
   function nivelCelda(geometryRef: string, nivel: 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato') {
     return {
