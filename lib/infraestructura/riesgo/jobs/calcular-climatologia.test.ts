@@ -1,11 +1,11 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
-import { hazardPrecipitacionSerie, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
+import { hazardClimatology, hazardPrecipitacionSerie, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import type { ejecutarCalculoClimatologia as EjecutarCalculoClimatologia } from './calcular-climatologia'
 import { agruparPuntosPorEra5, type descargarAnioPrecipitacion } from '../providers/climatologia'
-import { guardarAnioSerie } from '../climatologia/serie-diaria'
+import { diasDelAnio, guardarAnioSerie } from '../climatologia/serie-diaria'
 
 usarDbTemporal('calcular-climatologia-')
 
@@ -80,7 +80,7 @@ describe('ejecutarCalculoClimatologia (descarga progresiva)', () => {
 
     expect(resultado).toEqual({
       ok: true,
-      resultado: { celdasAnioDescargadas: 2, requests: 2, celdasConError: [], cortadoPorCupo: true },
+      resultado: { celdasAnioDescargadas: 2, requests: 2, celdasConUmbral: 0, celdasConError: [], cortadoPorCupo: true },
     })
 
     // El primer lote (año más reciente, ambas celdas) quedó guardado y el corte no lo borró.
@@ -127,7 +127,7 @@ describe('ejecutarCalculoClimatologia (descarga progresiva)', () => {
 
     expect(resultado).toEqual({
       ok: true,
-      resultado: { celdasAnioDescargadas: 58, requests: 29, celdasConError: [], cortadoPorCupo: false },
+      resultado: { celdasAnioDescargadas: 58, requests: 29, celdasConUmbral: 0, celdasConError: [], cortadoPorCupo: false },
     })
     expect(llamadas.map((llamada) => llamada.anio)).not.toContain(2020)
     expect(llamadas[0].anio).toBe(2019)
@@ -161,7 +161,13 @@ describe('ejecutarCalculoClimatologia (descarga progresiva)', () => {
 
     expect(resultado).toEqual({
       ok: true,
-      resultado: { celdasAnioDescargadas: 58, requests: 30, celdasConError: [CELDA_A, CELDA_B], cortadoPorCupo: false },
+      resultado: {
+        celdasAnioDescargadas: 58,
+        requests: 30,
+        celdasConUmbral: 0,
+        celdasConError: [CELDA_A, CELDA_B],
+        cortadoPorCupo: false,
+      },
     })
   })
 
@@ -188,5 +194,90 @@ describe('ejecutarCalculoClimatologia (descarga progresiva)', () => {
 
     expect(fila?.estado).toBe('fallido')
     expect(fila?.leaseOwner).toBeNull()
+  })
+})
+
+describe('umbrales progresivos desde años acumulados (T23b)', () => {
+  const AHORA_UMBRALES = new Date('2026-10-21T12:00:00.000Z')
+  const DESDE_10_ANIOS = '2011-01-01'
+  const HASTA_10_ANIOS = '2020-12-31'
+
+  beforeEach(async () => {
+    await getDb().delete(hazardClimatology)
+  })
+
+  async function guardarAniosCelda(grupo: ReturnType<typeof celdasEra5>[number], anios: number[]) {
+    for (const anio of anios) {
+      await guardarAnioSerie(getDb(), {
+        celdaEra5: grupo.claveEra5,
+        anio,
+        lat: grupo.lat,
+        lon: grupo.lon,
+        valores: Array.from({ length: diasDelAnio(anio) }, (_, dia) => (dia % 7) + 1),
+        descargadoEn: AHORA_UMBRALES.toISOString(),
+      })
+    }
+  }
+
+  const DIEZ_ANIOS = Array.from({ length: 10 }, (_, i) => 2011 + i)
+
+  it('con 10 años completos escribe umbrales con cobertura para cada geometryRef del grupo', async () => {
+    const [grupoA, grupoB] = celdasEra5()
+    await guardarAniosCelda(grupoA, DIEZ_ANIOS)
+    await guardarAniosCelda(grupoB, DIEZ_ANIOS)
+    const descargarAnio = vi.fn<DescargarAnioPrecipitacion>(async () => ({
+      ok: false,
+      motivo: 'cupo_agotado',
+      detalle: 'fake: cupo agotado',
+    }))
+
+    const resultado = await ejecutarCalculoClimatologia({
+      ahora: AHORA_UMBRALES,
+      periodoDesde: DESDE_10_ANIOS,
+      periodoHasta: HASTA_10_ANIOS,
+      descargarAnio,
+    })
+
+    expect(resultado).toMatchObject({ ok: true, resultado: { celdasConUmbral: 2 } })
+    const filas = await getDb().select().from(hazardClimatology)
+    expect(new Set(filas.map((fila) => fila.geometryRef))).toEqual(new Set([CELDA_A, CELDA_B]))
+    for (const celda of [CELDA_A, CELDA_B]) {
+      const delCelda = filas.filter((fila) => fila.geometryRef === celda)
+      expect(new Set(delCelda.map((fila) => fila.percentil))).toEqual(new Set(['p90', 'p95', 'p99']))
+    }
+    expect(
+      filas.every(
+        (fila) =>
+          fila.aniosCobertura === 10 &&
+          (fila.diasCobertura ?? 0) > 0 &&
+          fila.version === 'climatologia-v2-progresiva' &&
+          fila.periodoDesde === DESDE_10_ANIOS &&
+          fila.periodoHasta === HASTA_10_ANIOS &&
+          fila.calculadoEn === AHORA_UMBRALES.toISOString(),
+      ),
+    ).toBe(true)
+  })
+
+  it('con 9 años completos no escribe nada para esa celda', async () => {
+    const [grupoA, grupoB] = celdasEra5()
+    await guardarAniosCelda(grupoA, DIEZ_ANIOS)
+    await guardarAniosCelda(grupoB, DIEZ_ANIOS.slice(1))
+    const descargarAnio = vi.fn<DescargarAnioPrecipitacion>(async () => ({
+      ok: false,
+      motivo: 'cupo_agotado',
+      detalle: 'fake: cupo agotado',
+    }))
+
+    // Fecha UTC distinta: la clave diaria del lease no admite dos corridas el mismo día.
+    const resultado = await ejecutarCalculoClimatologia({
+      ahora: new Date('2026-10-22T12:00:00.000Z'),
+      periodoDesde: DESDE_10_ANIOS,
+      periodoHasta: HASTA_10_ANIOS,
+      descargarAnio,
+    })
+
+    expect(resultado).toMatchObject({ ok: true, resultado: { celdasConUmbral: 1 } })
+    const filas = await getDb().select().from(hazardClimatology)
+    expect(new Set(filas.map((fila) => fila.geometryRef))).toEqual(new Set([CELDA_A]))
   })
 })

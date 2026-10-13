@@ -12,15 +12,17 @@
 // 'completado': el progreso ya está guardado y la próxima corrida retoma.
 // Una celda caída NO tumba el job: se agrega a `celdasConError` y se sigue.
 //
-// TODO(T23b): recalcular percentiles y escribir `hazard_climatology` desde
-// `hazard_precipitacion_serie` con cobertura. El cálculo de umbrales se retiró de
-// este job porque ya no descarga el período completo de una vez.
-import { eq, isNotNull } from 'drizzle-orm'
+// Al terminar las descargas, cada celda ERA5 con al menos 10 años completos
+// guardados recalcula sus percentiles y escribe `hazard_climatology` con cobertura
+// para cada geometryRef del grupo. Las filas anteriores no se borran (historial as-of).
+import { randomUUID } from 'node:crypto'
+import { eq, isNotNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { infraGeoProfile } from '@/lib/db/schema'
+import { hazardClimatology, infraGeoProfile } from '@/lib/db/schema'
 import { adquirirLease, publicarResultado } from '../job-run'
 import { planificarDescargas, type CeldaPlanificable } from '../climatologia/planificador'
-import { aniosDescargadosPorCelda, guardarAnioSerie } from '../climatologia/serie-diaria'
+import { aniosDescargadosPorCelda, cargarSerieCelda, guardarAnioSerie } from '../climatologia/serie-diaria'
+import { calcularUmbralesAcumulados } from '../climatologia/umbrales'
 import {
   agruparPuntosPorEra5,
   descargarAnioPrecipitacion,
@@ -33,6 +35,8 @@ export type ResultadoCalcularClimatologia = {
   celdasAnioDescargadas: number
   /** Requests a Open-Meteo hechas en esta corrida (incluye la que cortó por cupo). */
   requests: number
+  /** Celdas ERA5 con >= 10 años completos cuyos umbrales progresivos se escribieron. */
+  celdasConUmbral: number
   /** geometryRef sin perfil válido o cuyo lote falló por motivo que no es cupo. */
   celdasConError: string[]
   /**
@@ -223,16 +227,68 @@ async function ejecutarCuerpoDelJobClimatologia(ctx: {
     }
   }
 
+  // Umbrales progresivos: se usan los años guardados de cada celda ERA5, también
+  // tras un corte por cupo. Con menos de 10 años completos la celda no escribe nada.
+  const ahoraIso = ahora.toISOString()
+  let celdasConUmbral = 0
+  for (const grupo of grupos) {
+    const anios = await cargarSerieCelda(db, grupo.claveEra5)
+    const umbrales = calcularUmbralesAcumulados({ geometryRef: grupo.miembros[0], anios })
+    if (!umbrales) continue
+
+    const filas = grupo.miembros.flatMap((geometryRef) =>
+      umbrales.puntos.map((punto) => ({
+        id: randomUUID(),
+        geometryRef,
+        variable: punto.variable,
+        percentil: punto.percentil,
+        muestra: punto.muestra,
+        valor: punto.valor,
+        unidad: punto.unidad,
+        periodoDesde: umbrales.periodoDesde,
+        periodoHasta: umbrales.periodoHasta,
+        version: ctx.version,
+        calculadoEn: ahoraIso,
+        aniosCobertura: umbrales.aniosCobertura,
+        diasCobertura: umbrales.diasCobertura,
+      })),
+    )
+    if (filas.length === 0) continue
+
+    await db
+      .insert(hazardClimatology)
+      .values(filas)
+      .onConflictDoUpdate({
+        target: [
+          hazardClimatology.geometryRef,
+          hazardClimatology.variable,
+          hazardClimatology.percentil,
+          hazardClimatology.muestra,
+          hazardClimatology.periodoDesde,
+          hazardClimatology.periodoHasta,
+          hazardClimatology.version,
+        ],
+        set: {
+          valor: sql`excluded.valor`,
+          unidad: sql`excluded.unidad`,
+          calculadoEn: sql`excluded.calculado_en`,
+          aniosCobertura: sql`excluded.anios_cobertura`,
+          diasCobertura: sql`excluded.dias_cobertura`,
+        },
+      })
+    celdasConUmbral += 1
+  }
+
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
     estado: 'completado',
-    contadores: { celdasAnioDescargadas, requests },
+    contadores: { celdasAnioDescargadas, requests, celdasConUmbral },
     ahora,
   })
 
   return {
     ok: true,
-    resultado: { celdasAnioDescargadas, requests, celdasConError, cortadoPorCupo },
+    resultado: { celdasAnioDescargadas, requests, celdasConUmbral, celdasConError, cortadoPorCupo },
   }
 }
