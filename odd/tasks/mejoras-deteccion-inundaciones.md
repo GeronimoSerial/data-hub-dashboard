@@ -37,7 +37,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [x] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
 - [x] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
-- [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
+- [x] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
 ## Bloqueados (fuera de este ciclo)
 
@@ -93,6 +93,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T14 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos de guardia fallaban (`status` 0 con NODE_ENV=production y con URL `_prod`, sin rechazo); GREEN: `seed-demo-partes.test.ts` 6/6); guardia tras el gate DEMO_OK y antes de cualquier import de DB: refusa si `NODE_ENV=production` o si el nombre de base/host de `DATABASE_URL` contiene "prod" (sin imprimir la URL); override sólo con `--permitir-produccion` + `CONFIRMAR_SEED_PRODUCCION=si`, con un solo factor sale con código 1 y sin escribir (verificado: no se crea `DATA_DIR/pg`); aplica también a `--limpiar`; documentado en la cabecera del script. Sin exportar función pura: el script tiene efectos al cargar, así que los casos se cubren por spawn (el test de guardia no necesita DB). Otros inserts de reportes: sólo `lib/infraestructura/test-utils/parte-fixtures.ts` (helper de test vía drizzle, no es script); ningún otro script de `scripts/` inserta en `infra_parte`/`infra_afectacion`; no se modificaron. checks: vitest `seed-demo-partes.test.ts` 6/6, `tsc --noEmit` ok; commit: ver git log (`fix(scripts): refuse to seed demo reports into production`).
 
+- T15 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; verificación: `rg` de IP/host/usuario/UUID sobre los dos archivos tocados sin coincidencias (sobre `docs/` completo hay coincidencias preexistentes fuera de este cambio, en `docs/DEPLOY.md` y muestras CAP/reportes; no se tocaron); ubicación: `docs/rotacion-credenciales-2026-10.md` junto a `docs/rotacion-clave-nominal.md` (no existía `docs/ops/`); link agregado en la sección "Credenciales de red por job" del runbook; commit: ver git log (`docs(ops): add credential rotation checklist and read-only audit role`).
+
 ## Siguiente paso
 
-T15.
+cierre (resumen y PRs).

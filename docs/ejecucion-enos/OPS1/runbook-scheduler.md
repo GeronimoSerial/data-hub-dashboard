@@ -222,6 +222,8 @@ La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 - `briefing-ia` requiere `OPENROUTER_API_KEY`.
 - `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
 
+Procedimiento de rotación de credenciales expuestas (octubre 2026): ver [rotacion-credenciales-2026-10.md](../../rotacion-credenciales-2026-10.md).
+
 ## Renovación de la credencial de Earthdata (vence 2026-11-26)
 
 `sync-imerg` usa `EARTHDATA_TOKEN` para autenticar contra NASA CMR/OPeNDAP. Antes del vencimiento:
