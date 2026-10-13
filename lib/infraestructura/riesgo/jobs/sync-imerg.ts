@@ -313,6 +313,22 @@ async function procesarGranulo(
   return await persistirObservaciones(db, unicos, ingeridoEn)
 }
 
+/**
+ * Elige los gránulos a procesar en una corrida. Primero el más reciente (mantiene
+ * la frescura y la señal de salud), y el resto del presupuesto con los más viejos
+ * faltantes: así un gránulo reciente que falla siempre no bloquea el backfill.
+ */
+export function seleccionarGranulosAProcesar<T extends { inicioEn: string }>(
+  faltantes: readonly T[],
+  presupuesto: number,
+): T[] {
+  if (faltantes.length === 0 || presupuesto <= 0) return []
+  const porInicio = (a: T, b: T) => Date.parse(a.inicioEn) - Date.parse(b.inicioEn)
+  const masReciente = [...faltantes].sort(porInicio).at(-1) as T
+  const resto = faltantes.filter((g) => g !== masReciente).sort(porInicio)
+  return [masReciente, ...resto].slice(0, presupuesto)
+}
+
 export async function ejecutarSyncImerg(params?: {
   ahora?: Date
   fetchImpl?: typeof fetch
@@ -442,8 +458,8 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   }
 
   // 2. Descartar los gránulos ya ingeridos (por `observadoEn`) y acotar el
-  // resto al presupuesto de la corrida, priorizando los más recientes
-  // (`granulos` ya viene ordenado por CMR del más nuevo al más viejo).
+  // resto al presupuesto de la corrida: el más reciente primero y el resto del
+  // presupuesto con los más viejos faltantes (ver `seleccionarGranulosAProcesar`).
   const yaIngeridos = await obtenerObservadosEnExistentes(
     db,
     desdeVentana.toISOString(),
@@ -451,7 +467,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   )
   const faltantes = granulos.filter((g) => !yaIngeridos.has(g.inicioEn))
   const granuloMasReciente = granulos[0]
-  const aProcesar = faltantes.slice(0, MAX_GRANULOS_A_PROCESAR_POR_CORRIDA)
+  const aProcesar = seleccionarGranulosAProcesar(faltantes, MAX_GRANULOS_A_PROCESAR_POR_CORRIDA)
 
   if (aProcesar.length === 0) {
     // Ya está todo al día (incluido el gránulo más reciente): no hay red que
