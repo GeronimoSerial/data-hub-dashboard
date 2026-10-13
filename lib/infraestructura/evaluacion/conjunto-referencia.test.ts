@@ -11,7 +11,7 @@ const dentroDeVentana = (iso: string) =>
 
 describe('CONJUNTO_REFERENCIA', () => {
   it('declara la versión del conjunto', () => {
-    expect(CONJUNTO_REFERENCIA_VERSION).toBe('conjunto-referencia-2026-10-v1')
+    expect(CONJUNTO_REFERENCIA_VERSION).toBe('conjunto-referencia-2026-10-v2')
   })
 
   it('tiene ids únicos', () => {
@@ -19,7 +19,7 @@ describe('CONJUNTO_REFERENCIA', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('usa los positivos listados en 08-evaluacion.md', () => {
+  it('usa los 7 positivos de afectación real (sin medidas preventivas)', () => {
     const positivos = CONJUNTO_REFERENCIA.filter((caso) => caso.clase === 'positivo')
       .map((caso) => caso.id)
       .sort()
@@ -32,8 +32,13 @@ describe('CONJUNTO_REFERENCIA', () => {
       'EV-20261011-002',
       'EV-20261012-001',
       'EV-20261013-001',
-      'EV-20261013-005',
     ])
+  })
+
+  it('excluye las medidas preventivas EV-20261012-004 y EV-20261013-005 del conjunto', () => {
+    const ids = CONJUNTO_REFERENCIA.map((caso) => caso.id)
+    expect(ids).not.toContain('EV-20261013-005')
+    expect(ids).not.toContain('EV-20261012-004')
   })
 
   it('usa el negativo y las mediciones bajo umbral de 08-evaluacion.md', () => {

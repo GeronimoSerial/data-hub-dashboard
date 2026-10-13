@@ -13,11 +13,22 @@
  * - Production database rows (partes) and any non-real provenance are excluded.
  * - Unknown cases are not a scoring class and are not listed here.
  *
+ * Rule for positives: a positive is an affectation that happened (flooding,
+ * damage, evacuation of people, cut of service). Preventive measures taken by
+ * operators as a precaution (closures, pre-emptive evacuations, gate operations
+ * without reported impact) are excluded. Excluded as preventive measures:
+ * EV-20261012-004 and EV-20261013-005.
+ *
+ * Scope of the set: only high and medium confidence cases are listed. 08-evaluacion.md
+ * says "11 positivos", which is stale: it lists 8, and 8 minus the preventive
+ * EV-20261013-005 gives 7. The three low-confidence cases (EV-20261008-004,
+ * EV-20261012-005 and EV-20261013-004) are not in this set.
+ *
  * Timestamps: the CSV uses ART (UTC-3, no DST). Values with only a date or an
  * approximate date are kept as null; they are never turned into a fabricated time.
  */
 
-export const CONJUNTO_REFERENCIA_VERSION = 'conjunto-referencia-2026-10-v1'
+export const CONJUNTO_REFERENCIA_VERSION = 'conjunto-referencia-2026-10-v2'
 
 export type ClaseCaso = 'positivo' | 'negativo' | 'bajo_umbral'
 
@@ -112,16 +123,6 @@ export const CONJUNTO_REFERENCIA: readonly CasoReferencia[] = [
     nivelTerritorial: 'localidad',
     confianza: 'alta',
     descripcion: 'Nivel sobre cota de evacuación en el puerto de Paso de los Libres según Prefectura',
-  },
-  {
-    id: 'EV-20261013-005',
-    clase: 'positivo',
-    inicio: null,
-    primeraPublicacion: null,
-    territorio: 'Ituzaingó',
-    nivelTerritorial: 'localidad',
-    confianza: 'media',
-    descripcion: 'Cierre anunciado del paso internacional Ituzaingó-Ayolas por medida preventiva de la EBY',
   },
   {
     id: 'EV-20261008-002',
