@@ -21,13 +21,13 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - Excluir estaciones de caudal (m³/s): Caixa, Capanema, Guayra, Itaipú. `S/E` y `-` → null. Lecturas inconsistentes se marcan, no se descartan. No trasladar umbrales entre estaciones.
 - Dedup `(estacion_id, medida_en)`. Siguiente migración: `0013`.
 - Workers: una tarea atómica por vez, un solo writer. Checks: `pnpm exec vitest run <archivo>` por tarea; al cierre `pnpm exec tsc --noEmit` y `pnpm lint`.
-- RDD: off (global). Entrega: `ask-on-risk` → cadena `stacked-to-main` (elegida por el usuario 2026-10-13). Slice 1 = T1 en `GeronimoSerial/prefectura-alturas` (4d128b1, 7f0b2d5). Slice 2 desde T2 en `GeronimoSerial/prefectura-alturas-s2`, apilada sobre slice 1.
+- RDD: off (global). Entrega: `ask-on-risk` → cadena `stacked-to-main` (elegida por el usuario 2026-10-13). Slice 1 = T1 en `GeronimoSerial/prefectura-alturas` (4d128b1, 7f0b2d5). Slice 2 = T2-T3 en `GeronimoSerial/prefectura-alturas-s2` (50b5522, b911b04; ~490 líneas sin snapshot generado), apilada sobre slice 1. Slice 3 desde T4 en `GeronimoSerial/prefectura-alturas-s3`.
 
 ## Checklist
 
 - [x] T1 Parser puro `index.php` → lecturas (fixture HTML guardado, error de cambio de estructura, inconsistencias)
 - [x] T2 Catálogo versionado de estaciones PNA de Corrientes + aguas arriba (nombre PNA, id histórico, río, `estacionId`)
-- [ ] T3 Tabla `hidro_lectura` + migración `0013`
+- [x] T3 Tabla `hidro_lectura` + migración `0013`
 - [ ] T4 Cliente de descarga con User-Agent identificado y reintentos (429/5xx → degradado; estructura → no_disponible)
 - [ ] T5 Job `sync-prefectura-alturas`: lease horario, upsert, `publicarResultado`, salud de fuente
 - [ ] T6 Registro del job (`jobs.mjs`, `cadencias.ts`, `jobs-esperados.ts` con `habilitado:false`) + timer systemd + fila del runbook
@@ -47,7 +47,8 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - T1 — ruta: delegated direct (Haiku); RED (import fallaba, módulo inexistente) / GREEN 14/14; checks: vitest parser 14/14 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 4d128b1 (`feat(hidrometria): parse Prefectura river heights table`), ~650 líneas (192 de fixture). Hallazgos: clase `table table-hover fpTable`; `<th>` sin `data-label` → columnas por posición tras validar los 13 encabezados; Caixa se publica `CAXIA (BRASIL)`; estado `S/E.` con punto.
 
 - T2 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 25/25 en `hidrometria`; checks: vitest `hidrometria` 25/25 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 50b5522 (`feat(hidrometria): add versioned Prefectura station catalogue`). 21 estaciones (18 Corrientes + 3 contexto aguas arriba), nombres verificados contra la página en vivo; búsqueda por `idHistorico` con respaldo por nombre normalizado.
+- T3 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 30/30 en `hidrometria` (tests de DB ejecutados en PGlite en memoria); checks: vitest `hidrometria` 30/30 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok, sin drift en la migración; commit b911b04 (`feat(hidrometria): add hidro_lectura table and idempotent save`). `doublePrecision` para metros; `ON CONFLICT DO NOTHING` sobre `(estacion_id, medida_en)`; filas sin fecha se cuentan como `sinFecha`.
 
 ## Próximo paso
 
-T3 en slice 2. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
+T4 en slice 3. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
