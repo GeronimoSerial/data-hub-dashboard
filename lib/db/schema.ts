@@ -650,6 +650,10 @@ export const hazardClimatology = pgTable(
     periodoHasta: text('periodo_hasta').notNull(),
     version: text('version').notNull(),
     calculadoEn: text('calculado_en').notNull(),
+    // Cobertura real de la climatología progresiva de precipitación (null en
+    // filas previas y en caudal): años completos y días con dato usados.
+    aniosCobertura: integer('anios_cobertura'),
+    diasCobertura: integer('dias_cobertura'),
   },
   (t) => [
     uniqueIndex('hazard_climatology_uidx').on(
@@ -663,6 +667,25 @@ export const hazardClimatology = pgTable(
     ),
     index('hazard_climatology_geometry_ref_idx').on(t.geometryRef),
   ],
+)
+
+// Serie diaria de precipitación ERA5 descargada para la climatología
+// progresiva: una fila por celda ERA5 nativa (~0.25°) y año calendario. El
+// año es la unidad de descarga, así que re-bajar el mismo año hace upsert
+// sobre la misma fila. `valores[i]` es el día i del año (0 = 1 de enero);
+// null = ERA5 no devolvió dato ese día (nunca se imputa 0 mm).
+export const hazardPrecipitacionSerie = pgTable(
+  'hazard_precipitacion_serie',
+  {
+    celdaEra5: text('celda_era5').notNull(),
+    anio: integer('anio').notNull(),
+    lat: real('lat').notNull(),
+    lon: real('lon').notNull(),
+    valores: jsonb('valores').$type<Array<number | null>>().notNull(),
+    diasConDato: integer('dias_con_dato').notNull(),
+    descargadoEn: text('descargado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.celdaEra5, t.anio] })],
 )
 
 // Salud por proveedor de amenazas: cuándo tuvo éxito y cuándo se intentó por

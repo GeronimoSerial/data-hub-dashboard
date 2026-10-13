@@ -99,6 +99,13 @@
       "when": 1791918352157,
       "tag": "0013_nivel_amenaza",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791921858620,
+      "tag": "0014_precipitacion_serie",
+      "breakpoints": true
     }
   ]
 }
