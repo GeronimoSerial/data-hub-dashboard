@@ -41,15 +41,18 @@ y pasar los eventos reportados de `lib/mapas/eventos-inundaciones.ts` al prop `e
 ## Checks
 
 - `npx vitest run <archivos del task>` por tarea; `npx tsc --noEmit -p .` al cierre de cada tarea.
-- Línea base: la suite completa ya tiene fallas previas (lista en el scratchpad de la sesión; p. ej.
-  `scripts/jobs.migracion-legacy.test.ts`, `scripts/backup-postgres.test.ts`). Solo cuentan fallas nuevas.
+- Limitación ambiental conocida: la suite completa de vitest se cuelga en esta máquina (workers al ~97 % de CPU
+  por más de 20 min). No se corre localmente; se usa `timeout 300 npx vitest run <archivos relacionados>` (o
+  `--changed origin/main`) + typecheck + lint. La suite completa corre en CI.
+- Fallas previas observadas en archivos relacionados: `scripts/jobs.migracion-legacy.test.ts` (caso briefing-ia).
+  Solo cuentan fallas nuevas.
 - E2E: Postgres 18 local descartable con el dump `prod-20261013T2313Z-post-imerg.dump` (nunca prod).
 
 ## Tareas
 
 Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura de 2+ archivos no triviales.
 
-- [ ] T1 (V-03) Migración `0015` + esquema drizzle `infra_veredicto_dia` y `infra_veredicto_enlace` + repositorio idempotente con `reemplazado_por`.
+- [x] T1 (V-03) Migración `0015` + esquema drizzle `infra_veredicto_dia` y `infra_veredicto_enlace` + repositorio idempotente con `reemplazado_por`.
 - [ ] T2 (V-02, V-04) Celda → departamento y agregador de lluvia observada por departamento-día con cobertura.
 - [ ] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
 - [ ] T4 (V-07) Reglas deterministas `reglas-veredicto-v0.1` con traza.
@@ -63,4 +66,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 
 ## Progreso y evidencia
 
-(se completa por tarea: commit, checks observados)
+- T1 (delegado, writer Haiku): tablas `infra_veredicto_dia` / `infra_veredicto_enlace`, migración `0015`, repositorio.
+  RED observado (import inexistente) → GREEN 8 tests; tsc y eslint limpios. Ajuste del coordinador: el índice
+  `(fecha, ambito, inputs_hash)` pasa a no único para permitir volver a un hash anterior (A→B→A); la idempotencia
+  la dan el chequeo del vigente y el índice parcial `infra_veredicto_dia_vigente_uidx`.
