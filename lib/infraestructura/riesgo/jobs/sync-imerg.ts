@@ -68,9 +68,8 @@ const TTL_MINUTOS = 60
 const LICENCIA = 'NASA GPM IMERG — GES DISC, cuenta NASA Earthdata requerida'
 
 const PROVIDER = 'nasa-imerg'
-// E7b: exportada (cambio aditivo) para que el replay
-// (lib/infraestructura/replay/consulta.ts) consulte hazard_observation con el
-// mismo literal de `variable`, sin duplicarlo a mano.
+// Exportada (cambio aditivo) para que cualquier consulta de hazard_observation
+// use el mismo literal de `variable`, sin duplicarlo a mano.
 export const VARIABLE_OBSERVADA = 'precipitacion_observada_satelital'
 const LARGO_MAX_ERROR = 300
 

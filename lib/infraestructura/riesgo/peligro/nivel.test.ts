@@ -855,7 +855,18 @@ describe('consultas de pronóstico as-of (ahora)', () => {
   const AHORA_ENTRE = new Date('2026-09-25T12:00:00.000Z')
 
   it('obtenerNivelCaudal con ahora usa la corrida vigente en ese momento, no una posterior', async () => {
-    await insertarClimatologia(db, 'punto-asof', 'caudal_diario', { p90: 50, p95: 100, p99: 140 })
+    // Climatología calculada antes de AHORA_ENTRE: con `ahora` debe seguir vigente.
+    await db.insert(hazardClimatology).values(
+      (['p90', 'p95', 'p99'] as const).map((percentil, indice) =>
+        filaClimatologia({
+          geometryRef: 'punto-asof',
+          variable: 'caudal_diario',
+          percentil,
+          valor: [50, 100, 140][indice],
+          calculadoEn: '2026-09-01T00:00:00.000Z',
+        }),
+      ),
+    )
     await db.insert(hazardForecast).values([
       filaPronostico({
         geometryRef: 'punto-asof',
@@ -914,6 +925,91 @@ describe('consultas de pronóstico as-of (ahora)', () => {
 
     const sinAhora = await obtenerNivelesPeligro({ geometryRefs: ['celda-asof'], horizontes: [24] })
     expect(sinAhora[0]).toMatchObject({ geometryRef: 'celda-asof', emitidoEn: CORRIDA_B })
+  })
+
+  describe('umbrales de climatología as-of (ahora)', () => {
+    const CALCULO_VIEJO = '2026-09-20T00:00:00.000Z'
+    const CALCULO_NUEVO = '2026-09-28T00:00:00.000Z'
+
+    // Dos versiones de climatología para la misma celda/variable/periodo: la
+    // vieja (v1) fue calculada antes de AHORA_ENTRE y la nueva (v2) después.
+    async function insertarVersionesClimatologia(
+      geometryRef: string,
+      variable: 'precipitacion_diaria' | 'caudal_diario',
+    ): Promise<void> {
+      const percentiles = ['p90', 'p95', 'p99'] as const
+      const umbralesViejos = { p90: 50, p95: 100, p99: 140 }
+      const umbralesNuevos = { p90: 10, p95: 20, p99: 30 }
+      const filas = [
+        ...percentiles.map((percentil) => ({
+          ...filaClimatologia({
+            geometryRef,
+            variable,
+            percentil,
+            valor: umbralesViejos[percentil],
+            calculadoEn: CALCULO_VIEJO,
+          }),
+          version: 'climatologia-v1',
+        })),
+        ...percentiles.map((percentil) => ({
+          ...filaClimatologia({
+            geometryRef,
+            variable,
+            percentil,
+            valor: umbralesNuevos[percentil],
+            calculadoEn: CALCULO_NUEVO,
+          }),
+          version: 'climatologia-v2',
+        })),
+      ]
+      await db.insert(hazardClimatology).values(filas)
+    }
+
+    it('obtenerNivelCaudal con ahora usa los umbrales calculados hasta ese momento', async () => {
+      await insertarVersionesClimatologia('punto-clim-asof', 'caudal_diario')
+      await db.insert(hazardForecast).values([
+        filaPronostico({
+          geometryRef: 'punto-clim-asof',
+          variable: 'caudal',
+          corridaEn: CORRIDA_A,
+          validoEn: '2026-09-25T06:00:00.000Z',
+          horizonteHoras: 6,
+          valor: 25,
+        }),
+      ])
+
+      expect(await obtenerNivelCaudal('punto-clim-asof', { ahora: AHORA_ENTRE })).toMatchObject({
+        nivel: 'verde',
+      })
+      expect(await obtenerNivelCaudal('punto-clim-asof')).toMatchObject({ nivel: 'naranja' })
+    })
+
+    it('obtenerNivelesPeligro (lote) con ahora usa los umbrales calculados hasta ese momento', async () => {
+      await insertarVersionesClimatologia('celda-clim-asof', 'precipitacion_diaria')
+      await db.insert(hazardForecast).values([
+        filaPronostico({
+          geometryRef: 'celda-clim-asof',
+          variable: 'precipitacion',
+          corridaEn: CORRIDA_A,
+          validoEn: '2026-09-26T00:00:00.000Z',
+          horizonteHoras: 24,
+          valor: 25,
+        }),
+      ])
+
+      const conAhora = await obtenerNivelesPeligro({
+        geometryRefs: ['celda-clim-asof'],
+        horizontes: [24],
+        ahora: AHORA_ENTRE,
+      })
+      expect(conAhora[0]).toMatchObject({ geometryRef: 'celda-clim-asof', nivel: 'verde' })
+
+      const sinAhora = await obtenerNivelesPeligro({
+        geometryRefs: ['celda-clim-asof'],
+        horizontes: [24],
+      })
+      expect(sinAhora[0]).toMatchObject({ geometryRef: 'celda-clim-asof', nivel: 'naranja' })
+    })
   })
 })
 
