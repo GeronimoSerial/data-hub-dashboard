@@ -18,7 +18,7 @@ Fuente de verdad de la lista de jobs y sus estados esperados:
 
 | Entorno | Mecanismo | Jobs programados | Notas |
 |---|---|---|---|
-| Producción | Coolify Scheduled Tasks | 7 (tabla "Producción") | `sync-imerg` y ambas climatologías creadas el 2026-10-13. Flags: ver abajo. |
+| Producción | Coolify Scheduled Tasks | 8 (tabla "Producción") | `sync-imerg`, ambas climatologías y `sync-prefectura-alturas` creadas el 2026-10-13. Flags: ver abajo. |
 | Staging | Timers systemd `enos-ops1-*` | 4 activos; 3 deshabilitados (tabla "Staging") | Corre la app de staging contra la base de staging. |
 
 Los seis jobs no programados en producción (`calcular-riesgo`,
@@ -26,8 +26,8 @@ Los seis jobs no programados en producción (`calcular-riesgo`,
 `episodios-derivados`, `sync-seasonal`) se mantienen fuera del scheduler por
 decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
 `jobs-esperados.ts` con `habilitado: false` y el estado `no_programado`.
-`sync-prefectura-alturas` sigue el mismo criterio: declarado con
-`habilitado: false` hasta que el usuario configure su tarea en Coolify.
+`sync-prefectura-alturas` está programado en Coolify desde el 2026-10-13 y
+figura con `habilitado: true`.
 
 ## Producción (Coolify)
 
@@ -42,7 +42,7 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | sync-imerg | `5 * * * *` | 300 s | `sync-hazard-imerg` | creado 2026-10-13 |
 | climatologia-caudal | `41 6 1 * *` | 1200 s | `calcular-hazard-climatologia-caudal` | mensual, cursor resumable; creado 2026-10-13 |
 | climatologia-precipitacion | `43 6 1 * *` | 1200 s | `calculo-climatologia` | mensual, cursor resumable; creado 2026-10-13 |
-| sync-prefectura-alturas | pendiente de configurar por el usuario en Coolify (sugerido `17 * * * *`) | pendiente | `sync-prefectura-alturas` | cada hora; no programado todavía. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
+| sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
 
 La zona horaria de las expresiones cron no está registrada en este runbook;
 confirmarla en la configuración de Coolify antes de comparar con los horarios UTC

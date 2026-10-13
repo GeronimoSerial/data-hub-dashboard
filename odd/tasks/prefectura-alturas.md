@@ -53,6 +53,14 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - T6 — ruta: delegated direct (Haiku); RED 8 tests / GREEN 108/108 (jobs, cadencias, salud, hidrometria); checks: `tsc --noEmit` ok, `pnpm lint` ok (14 warnings preexistentes), jobs+cadencias re-ejecutados por el padre; commit becdd95 (`feat(jobs): register hourly Prefectura heights sync`). `fallido` → exit 1 solo para este job; `habilitado:false` → `no_programado`; timer `*:17` sin habilitar; runbook con fila pendiente en Coolify (`17 * * * *`). Hallazgo fuera de alcance: `sync-smn-alertas` devuelve `fallido` y sale con 0.
 - T7 — ruta: delegated direct (Haiku); RED 8 / GREEN 51/51 en `hidrometria`; checks: `tsc --noEmit` ok, eslint ok; commit d7854df (`feat(hidrometria): add publisher-declared station coordinates`). Catálogo `estaciones-prefectura-v2`: 21/21 estaciones con coordenadas de `mapa.php`, `verificada:false`; Corrientes, Goya e Itatí publicadas con 2 decimales (~1 km).
 
+## Entrega (2026-10-13)
+
+- #101-#104 mergeados a `main`; release #105 (`f8dc2c6`) a prod, smoke 8/8.
+- Corrida manual en prod falló: Node strip-only (usado por `scripts/jobs.mjs`) rechaza parameter properties. El mismo defecto en `HttpSmnError` tenía `sync-smn-alertas` caído desde el release #100 (última corrida 18:07 UTC). Fix #106 + `erasableSyntaxOnly` en `tsconfig.json`; release #107 (`690933d`), smoke 8/8.
+- Corrida manual en prod: `sync-prefectura-alturas` completado (87 filas, 21 estaciones del catálogo, 21 insertadas, 0 inconsistentes); `sync-smn-alertas` completado; salud de ambas fuentes `ok`.
+- Coolify Scheduled Task id 19 `sync-prefectura-alturas`, `17 * * * *`, timeout 300 s (autorizado por el usuario, vía SSH). `habilitado: true` en `jobs-esperados.ts`.
+- La huella SSH del host cambió; el usuario ordenó reemplazarla sin verificación por otro canal.
+
 ## Próximo paso
 
-Cierre local: `tsc --noEmit` ok, `pnpm lint` ok (0 errores, 14 warnings preexistentes); suite completa de vitest local no terminó en 10 min (corrida interrumpida, coincidió con un cambio de rama ajeno en el worktree) → gate de suite completa = CI de cada PR. Usuario autorizó (2026-10-13) mergear la cadena hasta prod. #101 y #102 mergeados. GitGuardian marcó como secreto un texto de prueba en el test de T4 (falso positivo); por decisión del usuario se reescribieron s3 y s4 (texto reemplazado) con force-push; los SHAs de T4-T7 arriba son los nuevos. Pendiente usuario: programar en Coolify (`17 * * * *`) y luego `habilitado:true`; decisiones G-1b. Espejo Engram pendiente.
+Decisiones G-1b (tramos, verificación de coordenadas); F-1 con el caso Paso de los Libres. Espejo Engram pendiente.
