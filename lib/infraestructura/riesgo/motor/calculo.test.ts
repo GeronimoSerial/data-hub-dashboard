@@ -460,6 +460,58 @@ describe('calcularRiesgoEscuela', () => {
     expect(factorAcceso?.contribucion).toBe(0)
     expect(factorAcceso?.peso).toBe(0)
   })
+
+  it('T-AMN1: amenaza alta con vulnerabilidad 0 => scoreRiesgo bajo, pero scoreAmenaza y nivelAmenaza altos', async () => {
+    const escenario: EscenarioFake = {
+      ...escenarioBase(),
+      peligro: { [GEOM]: [celda('rojo')] },
+      caudal: { [RIO]: caudal('rojo') },
+      lluvia24h: { [GEOM]: LLUVIA_72H_SATURACION_MM },
+      susceptibilidad: { [CUE]: susceptibilidadDe([0, 0]) },
+      historial: {
+        [CUE]: {
+          cueAnexo: CUE,
+          cantidadConfirmadas: 0,
+          duracionTotalHoras: 0,
+          accesoInterrumpidoCantidad: 0,
+          antecedentes: [],
+        },
+      },
+    }
+
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
+
+    expect(resultado.scoreVulnerabilidad).toBe(0)
+    expect(resultado.scoreRiesgo).toBe(0)
+    expect(resultado.nivelRiesgo).toBe('bajo')
+    expect(resultado.scoreAmenaza).toBe(100)
+    expect(resultado.nivelAmenaza).toBe('muy_alto')
+  })
+
+  it('T-AMN2: en un caso normal scoreRiesgo sigue siendo amenaza x vulnerabilidad / 100 y nivelAmenaza usa el mismo mapeo de nivel', async () => {
+    const resultado = await calcular({ puertos: crearPuertosFake(escenarioBase()) })
+
+    expect(resultado.scoreAmenaza).not.toBeNull()
+    expect(resultado.scoreVulnerabilidad).not.toBeNull()
+    expect(resultado.scoreRiesgo).toBe(
+      Math.round(((resultado.scoreAmenaza ?? 0) * (resultado.scoreVulnerabilidad ?? 0)) / 100),
+    )
+    expect(resultado.nivelAmenaza).not.toBeNull()
+  })
+
+  it('T-AMN3: sin amenaza presente => scoreAmenaza y nivelAmenaza null', async () => {
+    const escenario: EscenarioFake = {
+      ...escenarioBase(),
+      territorio: { [CUE]: perfilValido({ puntoRioId: null }) },
+      peligro: { [GEOM]: [celda('sin_dato')] },
+      lluvia24h: { [GEOM]: null },
+    }
+
+    const resultado = await calcular({ puertos: crearPuertosFake(escenario) })
+
+    expect(resultado.scoreAmenaza).toBeNull()
+    expect(resultado.nivelAmenaza).toBeNull()
+  })
 })
 
 /*

@@ -30,7 +30,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T6b: un fallo al escribir la salud de fuente no altera el resultado de la corrida (radar y SMN)
 - [x] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [x] T8 I-5a: exportar corridas de radar antes de la purga
-- [ ] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
+- [x] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
 - [ ] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
 - [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
@@ -78,6 +78,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T8 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `archivo.test.ts` sin módulo y 2 tests de `job-sync.test.ts` fallaban: sin archivo y con purga sin archivar; GREEN: radar-meteo 84/84); `archivarRuns` (`archivo.ts`) escribe NDJSON gzip a `.tmp` y renombra tras flush, crea el directorio recursivamente; con `RADAR_ARCHIVO_DIR` se archivan las filas a purgar y se borran por id sólo tras archivar; si el archivo falla se omite la purga y se avisa con mensaje fijo (la sincronización completa igual); sin la variable la purga es la de siempre; `.env.example` existe pero no se pudo leer ni editar (acceso denegado en esta sesión), la variable queda pendiente de documentar ahí; checks: vitest radar-meteo 84/84, `tsc --noEmit` ok, eslint 0 errores (warning `import()` preexistente en `job-sync.test.ts`); commit: ver git log (`feat(radar-meteo): archive runs before purge`).
 
+- T9 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `calculo.test.ts` T-AMN1 y T-AMN3 fallaban, `nivelAmenaza` undefined; GREEN: motor 62/62, tests de tipos sin cambios de fixtures); `scoreAmenaza` y `nivelAmenaza` (mismo `clasificarNivel` que `nivelRiesgo`, null si no hay amenaza) en `ResultadoRiesgoEscuela`; `scoreRiesgo`, pesos y umbrales intactos; sólo `calculo.ts` construye el tipo, así que el campo requerido no rompió fixtures; persistencia y consumidores sin tocar (I-7b/c); checks: vitest motor 62/62, vitest `--no-file-parallelism riesgo` 423 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): expose hazard score separately from priority`).
+
 ## Siguiente paso
 
-T9.
+T10.
