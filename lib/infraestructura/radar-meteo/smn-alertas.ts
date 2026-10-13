@@ -26,8 +26,9 @@ const DURACION_LEASE_MS = 10 * 60 * 1000
 // Cron cada 15 min (`7-59/15 * * * *`): el TTL acompaña esa cadencia.
 const PROVIDER_SALUD = 'smn-alertas'
 const TTL_SALUD_MINUTOS = 60
-// Licencia no verificada contra los términos del SMN: no inventar una.
-const LICENCIA_SALUD = 'SMN CAP público — licencia no verificada'
+// Uso abierto no comercial con atribución, según el equipo (2026-10-13);
+// pendiente de confirmar contra los términos oficiales del SMN.
+const LICENCIA_SALUD = 'SMN CAP — uso no comercial con atribución (CC BY-NC)'
 const ERROR_SALUD_NO_DISPONIBLE = 'fallo al sincronizar alertas del SMN'
 const ERROR_SALUD_LIMITE = 'SMN limitó las consultas (HTTP 429)'
 
