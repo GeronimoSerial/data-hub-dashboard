@@ -26,7 +26,7 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 ## Checklist
 
 - [x] T1 Parser puro `index.php` → lecturas (fixture HTML guardado, error de cambio de estructura, inconsistencias)
-- [ ] T2 Catálogo versionado de estaciones PNA de Corrientes + aguas arriba (nombre PNA, id histórico, río, `estacionId`)
+- [x] T2 Catálogo versionado de estaciones PNA de Corrientes + aguas arriba (nombre PNA, id histórico, río, `estacionId`)
 - [ ] T3 Tabla `hidro_lectura` + migración `0013`
 - [ ] T4 Cliente de descarga con User-Agent identificado y reintentos (429/5xx → degradado; estructura → no_disponible)
 - [ ] T5 Job `sync-prefectura-alturas`: lease horario, upsert, `publicarResultado`, salud de fuente
@@ -46,6 +46,8 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 
 - T1 — ruta: delegated direct (Haiku); RED (import fallaba, módulo inexistente) / GREEN 14/14; checks: vitest parser 14/14 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 4d128b1 (`feat(hidrometria): parse Prefectura river heights table`), ~650 líneas (192 de fixture). Hallazgos: clase `table table-hover fpTable`; `<th>` sin `data-label` → columnas por posición tras validar los 13 encabezados; Caixa se publica `CAXIA (BRASIL)`; estado `S/E.` con punto.
 
+- T2 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 25/25 en `hidrometria`; checks: vitest `hidrometria` 25/25 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 50b5522 (`feat(hidrometria): add versioned Prefectura station catalogue`). 21 estaciones (18 Corrientes + 3 contexto aguas arriba), nombres verificados contra la página en vivo; búsqueda por `idHistorico` con respaldo por nombre normalizado.
+
 ## Próximo paso
 
-T2 en slice 2. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
+T3 en slice 2. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
