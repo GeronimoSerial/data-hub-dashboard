@@ -62,7 +62,7 @@ describe('syncPrefecturaAlturas', () => {
     expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
     const filas = await db.select().from(hidroLectura)
     expect(filas.length).toBeGreaterThan(0)
-    expect(filas.every((f) => f.catalogoVersion === 'estaciones-prefectura-v1')).toBe(true)
+    expect(filas.every((f) => f.catalogoVersion === 'estaciones-prefectura-v2')).toBe(true)
     expect(filas.every((f) => f.capturadaEn === AHORA.toISOString())).toBe(true)
 
     const [job] = await db.select().from(infraJobRun)

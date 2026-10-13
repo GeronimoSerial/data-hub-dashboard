@@ -176,6 +176,13 @@ describe('evaluarJobsEsperados — jobs declarados vs. corridas registradas', ()
     expect(conCorridaVieja[0]?.estado).toBe('no_programado')
   })
 
+  it('sync-prefectura-alturas figura declarado horario y deshabilitado, sin alarma', () => {
+    const entrada = JOBS_ESPERADOS.find((job) => job.nombre === 'sync-prefectura-alturas')
+    expect(entrada).toMatchObject({ intervaloMinutos: 60, habilitado: false })
+    const [job] = evaluarJobsEsperados({ filas: [], ahora, esperados: entrada ? [entrada] : [] })
+    expect(job?.estado).toBe('no_programado')
+  })
+
   it('marca como sin_trazabilidad un job que no escribe infra_job_run', () => {
     const sinTipo = { ...esperado, tipo: null }
     const [job] = evaluarJobsEsperados({ filas: [], ahora, esperados: [sinTipo] })

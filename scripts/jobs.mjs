@@ -46,6 +46,7 @@ const NOMBRES_VALIDOS = [
   'sync-seasonal',
   'situacion-corte',
   'briefing-ia',
+  'sync-prefectura-alturas',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -282,6 +283,16 @@ async function correrSyncSmnAlertas() {
   return syncSmnAlertas()
 }
 
+// El job gestiona su propio lease por hora UTC y devuelve un resultado en lugar
+// de lanzar en fallas controladas: codigoSalida traduce `fallido` a exit 1.
+async function correrSyncPrefecturaAlturas() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-prefectura-alturas')
+  const { syncPrefecturaAlturas } = await import(
+    '../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts'
+  )
+  return syncPrefecturaAlturas()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -405,6 +416,8 @@ export async function correrJob(nombre, opts) {
       return correrSituacionCorte(opts)
     case 'briefing-ia':
       return correrBriefingIA()
+    case 'sync-prefectura-alturas':
+      return correrSyncPrefecturaAlturas()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -415,6 +428,11 @@ export function codigoSalida(nombreJob, resultado) {
 
   // Falla real de negocio: el job corrió pero no había cobertura suficiente.
   if (motivo === 'cobertura_insuficiente') return 1
+
+  // Falla controlada devuelta como resultado (no lanzada). Limitado a este job:
+  // otros jobs que devuelven `estado: 'fallido'` (p. ej. sync-smn-alertas) hoy
+  // salen con 0 y no se cambian en este cambio.
+  if (nombreJob === 'sync-prefectura-alturas' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3
