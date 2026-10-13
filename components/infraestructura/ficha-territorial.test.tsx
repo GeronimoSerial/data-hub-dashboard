@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { FichaTerritorial } from './ficha-territorial'
 
 const CUE = '1801605-04'
@@ -95,6 +95,19 @@ function observadoSatelital(overrides: Record<string, unknown> = {}) {
 function urlPeligro(fetchMock: ReturnType<typeof stubFetch>): string {
   const llamada = fetchMock.mock.calls.find(([input]) => String(input).includes('/peligro?'))
   return llamada ? String(llamada[0]) : ''
+}
+
+function climatologia(variable: string, percentil: 'p90' | 'p95' | 'p99', valor: number, unidad: string) {
+  return {
+    geometryRef: GEOMETRY_REF,
+    variable,
+    percentil,
+    muestra: 30,
+    valor,
+    unidad,
+    periodoDesde: '1991-01-01',
+    periodoHasta: '2020-12-31',
+  }
 }
 
 interface Handlers {
@@ -526,5 +539,54 @@ describe('FichaTerritorial', () => {
     await screen.findByTestId('ficha-territorial-datos')
     expect(screen.queryByTestId('ficha-territorial-estado-edificio')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-territorial-riesgo-acceso')).not.toBeInTheDocument()
+  })
+
+  it('muestra "Umbrales climatológicos" con P90, P95 y P99 de la variable, junto al pronóstico actual del horizonte más corto', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [punto('precipitacion', 36, 20, 'mm'), punto('precipitacion', 12, 8, 'mm')],
+          climatologia: [
+            climatologia('precipitacion', 'p90', 15, 'mm'),
+            climatologia('precipitacion', 'p95', 22.5, 'mm'),
+            climatologia('precipitacion', 'p99', 40, 'mm'),
+          ],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    const bloque = await screen.findByTestId('ficha-territorial-umbrales')
+    expect(bloque).toHaveTextContent('Umbrales climatológicos')
+    expect(bloque).toHaveTextContent('P90')
+    expect(bloque).toHaveTextContent('P95')
+    expect(bloque).toHaveTextContent('P99')
+    expect(bloque).toHaveTextContent('15 mm')
+    expect(bloque).toHaveTextContent('22.5 mm')
+    expect(bloque).toHaveTextContent('40 mm')
+    // Pronóstico actual = horizonte más corto (12 h -> 8 mm), no el de 36 h.
+    expect(bloque).toHaveTextContent('Pronóstico actual: 8 mm')
+    expect(bloque).not.toHaveTextContent('20 mm')
+    expect(bloque).toHaveTextContent(
+      'Umbrales de referencia relativos a la climatología local; no son probabilidades.',
+    )
+  })
+
+  it('muestra "Sin dato" para una variable sin climatología, nunca "Bajo"', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          pronostico: [punto('rafagas', 12, 45, 'km/h')],
+          climatologia: [climatologia('precipitacion', 'p90', 15, 'mm')],
+        }),
+    })
+
+    render(<FichaTerritorial cueAnexo={CUE} />)
+
+    const bloque = await screen.findByTestId('ficha-territorial-umbrales')
+    const filaRafagas = within(bloque).getByTestId('ficha-territorial-umbral-rafagas')
+    expect(filaRafagas).toHaveTextContent('Sin dato')
+    expect(filaRafagas).not.toHaveTextContent('Bajo')
+    expect(bloque).not.toHaveTextContent(/\bBajo\b/)
   })
 })

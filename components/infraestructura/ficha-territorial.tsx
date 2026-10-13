@@ -98,9 +98,20 @@ interface ObservadoAcumulado {
   masRecienteEn: string | null
 }
 
+interface ClimatologiaPeligro {
+  geometryRef: string
+  variable: string
+  percentil: 'p90' | 'p95' | 'p99'
+  muestra: number
+  valor: number
+  unidad: string
+  periodoDesde: string
+  periodoHasta: string
+}
+
 interface RespuestaPeligro {
   pronostico?: PuntoPronostico[]
-  climatologia?: unknown[]
+  climatologia?: ClimatologiaPeligro[]
   niveles?: NivelHorizonte[]
   caudal?: CaudalPeligro | null
   observado?: ObservadoPeligro[]
@@ -137,6 +148,12 @@ const HORIZONTE_MAX_HORAS = 72
 // Todos los proveedores de pronóstico que alimentan esta ficha comparten el
 // prefijo; la frescura de cualquiera de ellos invalida el dato mostrado.
 const PREFIJO_PROVIDER_PRONOSTICO = 'open-meteo'
+
+const VARIABLES_UMBRAL = [
+  { variable: 'precipitacion', etiqueta: 'Precipitación' },
+  { variable: 'rafagas', etiqueta: 'Ráfagas' },
+  { variable: 'caudal', etiqueta: 'Caudal' },
+] as const
 
 /**
  * Traduce el `motivoExclusion` que devuelve el perfil a lenguaje claro. Si el
@@ -364,6 +381,30 @@ export function FichaTerritorial({
         )
       : null
 
+  // --- Umbrales climatológicos por variable (referencia, no probabilidad) ---
+  // Una variable sin climatología muestra "Sin dato" por percentil; nunca se
+  // infiere un nivel "Bajo" a partir de la ausencia de umbrales.
+  const umbralesPorVariable = VARIABLES_UMBRAL.flatMap(({ variable, etiqueta }) => {
+    const delVariable = puntos.filter((punto) => punto.variable === variable)
+    if (delVariable.length === 0) return []
+    const actual = delVariable.reduce((proximo, punto) =>
+      punto.horizonteHoras < proximo.horizonteHoras ? punto : proximo,
+    )
+    const climVariable = (peligro.climatologia ?? []).filter((fila) => fila.variable === variable)
+    const umbral = (percentil: ClimatologiaPeligro['percentil']) =>
+      climVariable.find((fila) => fila.percentil === percentil) ?? null
+    return [
+      {
+        variable,
+        etiqueta,
+        actual,
+        p90: umbral('p90'),
+        p95: umbral('p95'),
+        p99: umbral('p99'),
+      },
+    ]
+  })
+
   const proveedores = [...new Set(puntos.map((punto) => punto.provider))]
   const corridaMasReciente = puntos
     .map((punto) => punto.corridaEn ?? punto.validoEn ?? null)
@@ -511,6 +552,42 @@ export function FichaTerritorial({
               {antiguedad ? ` · ${antiguedad}` : ''}
             </p>
           )}
+        </div>
+      )}
+
+      {umbralesPorVariable.length > 0 && (
+        <div className="ficha-territorial__umbrales" data-testid="ficha-territorial-umbrales">
+          <p className="ficha-territorial__subtitulo">
+            <strong>Umbrales climatológicos</strong>
+          </p>
+          {umbralesPorVariable.map((fila) => (
+            <div
+              key={fila.variable}
+              className="ficha-territorial__umbral"
+              data-testid={`ficha-territorial-umbral-${fila.variable}`}
+            >
+              <p className="ficha-territorial__dato">
+                {fila.etiqueta} · Pronóstico actual: {formatearValor(fila.actual.valor)} {fila.actual.unidad}
+              </p>
+              <dl className="ficha-territorial__umbral-lista">
+                {(
+                  [
+                    ['P90', fila.p90],
+                    ['P95', fila.p95],
+                    ['P99', fila.p99],
+                  ] as const
+                ).map(([etiqueta, umbral]) => (
+                  <div key={etiqueta} className="ficha-territorial__umbral-item">
+                    <dt>{etiqueta}</dt>
+                    <dd>{umbral ? `${formatearValor(umbral.valor)} ${umbral.unidad}` : 'Sin dato'}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+          <p className="ficha-territorial__fuente">
+            Umbrales de referencia relativos a la climatología local; no son probabilidades.
+          </p>
         </div>
       )}
 
