@@ -3,6 +3,7 @@ import { getDb } from '@/lib/db'
 import { smnAlerta } from '@/lib/db/schema'
 import { listarDepartamentos, VERSION_GEOGRAFIA } from './departamentos'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
 
 export type NodoXml = {
   nombre: string
@@ -22,11 +23,26 @@ const TAMANO_RAW_MAXIMO = 50_000
 const RSS_URL = 'https://ssl.smn.gob.ar/CAP/AR.php'
 const TIPO_JOB = 'sync-smn-alertas'
 const DURACION_LEASE_MS = 10 * 60 * 1000
+// Cron cada 15 min (`7-59/15 * * * *`): el TTL acompaña esa cadencia.
+const PROVIDER_SALUD = 'smn-alertas'
+const TTL_SALUD_MINUTOS = 60
+// Uso abierto no comercial con atribución, según el equipo (2026-10-13);
+// pendiente de confirmar contra los términos oficiales del SMN.
+const LICENCIA_SALUD = 'SMN CAP — uso no comercial con atribución (CC BY-NC)'
+const ERROR_SALUD_NO_DISPONIBLE = 'fallo al sincronizar alertas del SMN'
+const ERROR_SALUD_LIMITE = 'SMN limitó las consultas (HTTP 429)'
 
 export class OrigenSmnBloqueadoError extends Error {
   constructor(url: string) {
     super(`El origen SMN devolvió HTML en lugar de XML (${url}); no se actualizaron alertas.`)
     this.name = 'OrigenSmnBloqueadoError'
+  }
+}
+
+export class HttpSmnError extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP ${status}`)
+    this.name = 'HttpSmnError'
   }
 }
 
@@ -329,7 +345,7 @@ async function descargarXml(
       if (esPaginaHtml(contenido, respuesta.headers.get('content-type'))) {
         throw new OrigenSmnBloqueadoError(url)
       }
-      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`)
+      if (!respuesta.ok) throw new HttpSmnError(respuesta.status)
       return contenido
     } catch (error) {
       if (error instanceof OrigenSmnBloqueadoError || intento === 2) throw error
@@ -442,6 +458,26 @@ async function guardarAlertas(
   return guardadas
 }
 
+// Best-effort: a failed health write must never change the sync outcome.
+async function registrarSaludSmn(
+  estado: 'ok' | 'degradado' | 'no_disponible',
+  ultimoErrorSaneado: string | null,
+  ahora: Date,
+) {
+  try {
+    await actualizarSaludFuente(getDb(), {
+      provider: PROVIDER_SALUD,
+      ttlMinutos: TTL_SALUD_MINUTOS,
+      licencia: LICENCIA_SALUD,
+      estado,
+      ultimoErrorSaneado,
+      ahoraIso: ahora.toISOString(),
+    })
+  } catch {
+    console.warn('[smn-alertas] no se pudo registrar la salud de la fuente')
+  }
+}
+
 export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fetch } = {}) {
   const ahora = opts.ahora ?? new Date()
   const fetchImpl = opts.fetchImpl ?? fetch
@@ -466,6 +502,7 @@ export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fe
       contadores: { procesadas: resultado.alertas.length, guardadas },
       ahora,
     })
+    await registrarSaludSmn('ok', null, ahora)
     return { ejecutado: true, estado: 'completo' as const, procesadas: resultado.alertas.length, guardadas }
   } catch (error) {
     if (error instanceof OrigenSmnBloqueadoError) {
@@ -476,6 +513,8 @@ export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fe
         errorSaneado: `bloqueado_por_origen: ${error.message}`,
         ahora,
       })
+      // Mensaje fijo: el cuerpo HTML del origen nunca se persiste.
+      await registrarSaludSmn('no_disponible', ERROR_SALUD_NO_DISPONIBLE, ahora)
       return { ejecutado: false, estado: 'bloqueado_por_origen' as const, mensaje: error.message }
     }
 
@@ -486,6 +525,11 @@ export async function syncSmnAlertas(opts: { ahora?: Date; fetchImpl?: typeof fe
       errorSaneado: error instanceof Error ? error.message.slice(0, 250) : 'Fallo en la descarga CAP',
       ahora,
     })
+    if (error instanceof HttpSmnError && error.status === 429) {
+      await registrarSaludSmn('degradado', ERROR_SALUD_LIMITE, ahora)
+    } else {
+      await registrarSaludSmn('no_disponible', ERROR_SALUD_NO_DISPONIBLE, ahora)
+    }
     throw error
   }
 }

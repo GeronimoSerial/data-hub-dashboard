@@ -2,9 +2,16 @@ import { eq, or } from 'drizzle-orm'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
-import { radarMeteoRun } from '@/lib/db/schema'
+import { hazardSourceHealth, radarMeteoRun } from '@/lib/db/schema'
 import type { LoteRadar } from './provider'
 import { VARIABLES_RADAR } from './provider'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import type * as SaludFuente from '../riesgo/jobs/salud-fuente'
+
+vi.mock('../riesgo/jobs/salud-fuente', async (importOriginal) => {
+  const real = await importOriginal<typeof SaludFuente>()
+  return { ...real, actualizarSaludFuente: vi.fn(real.actualizarSaludFuente) }
+})
 
 usarDbTemporal('radar-meteo-job-')
 
@@ -67,5 +74,37 @@ describe('job de sincronización del radar meteorológico', () => {
     const obsoletos = await db.select().from(radarMeteoRun).where(or(eq(radarMeteoRun.id, 'run-viejo'), eq(radarMeteoRun.id, 'run-fallido-viejo')))
     expect(obsoletos).toHaveLength(0)
     expect(await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.id, publicado.runId!))).toHaveLength(1)
+  })
+
+  it('registra salud de fuente ok tras una sincronización exitosa', async () => {
+    await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-01T06:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, 'open-meteo-radar'))
+    expect(salud?.estado).toBe('ok')
+    expect(salud?.ultimoErrorSaneado).toBeNull()
+    expect(salud?.ttlMinutos).toBe(240)
+  })
+
+  it('registra salud no_disponible con error saneado cuando el proveedor falla', async () => {
+    const fallar = vi.fn(async () => { throw new Error('HTTP 500 apikey=SECRETO-123 cuerpo: <html>') })
+    await expect(ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-01T12:00:00Z'), celdas: [], obtener: fallar })).rejects.toThrow('apikey=SECRETO-123')
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, 'open-meteo-radar'))
+    expect(salud?.estado).toBe('no_disponible')
+    expect(salud?.ultimoErrorSaneado).toBe('fallo al sincronizar radar meteorológico')
+    expect(salud?.ultimoErrorSaneado).not.toContain('SECRETO')
+  })
+
+  it('un fallo al escribir la salud tras un run exitoso no altera el resultado ni crea un run fallido', async () => {
+    const ahora = new Date('2026-10-01T18:00:00Z')
+    const fallidosAntes = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))
+    vi.mocked(actualizarSaludFuente).mockRejectedValueOnce(new Error('SQLITE_BUSY tabla hazard_source_health'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resultado = await ejecutarSyncRadarMeteo({ ahora, celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const [run] = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, resultado.runId!))
+    expect(run?.status).toBe('completo')
+    expect(await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))).toHaveLength(fallidosAntes.length)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.join(' ')).not.toContain('SQLITE_BUSY')
+    warn.mockRestore()
   })
 })

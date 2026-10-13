@@ -53,9 +53,8 @@ export const VERSION_REGLA_PELIGRO = 'peligro-v0.2'
 // Nombres de `variable`/`muestra` tal como los escriben los jobs de ingesta
 // (providers/ensemble.ts, ecmwf.ts, flood.ts, climatologia*.ts). La consulta
 // es por igualdad exacta: no inventar variantes de mayúsculas ni de número.
-// E7b: exportadas (cambio aditivo, sin tocar valores) para que el replay
-// (lib/infraestructura/replay/consulta.ts) arme la MISMA consulta as-of sin
-// duplicar los literales de `variable`/`muestra` a mano.
+// Exportadas (cambio aditivo, sin tocar valores) para que cualquier lectura
+// as-of reutilice estos literales de `variable`/`muestra` sin duplicarlos a mano.
 export const VARIABLE_ENSEMBLE = 'precipitacion_24h'
 export const VARIABLE_PRONOSTICO_PRECIPITACION = 'precipitacion'
 export const VARIABLE_CLIMATOLOGIA_PRECIPITACION = 'precipitacion_diaria'
@@ -177,12 +176,13 @@ function elegirMasRecienteYHorizonte<T extends FilaConHorizonte>(
 }
 
 /**
- * Consulta as-of: sólo cuentan las corridas emitidas en `ahora` o antes. Sin
- * `ahora` (lectura del momento actual) toda corrida es vigente.
+ * Consulta as-of: sólo cuentan las filas emitidas o calculadas en `ahora` o
+ * antes (`corridaEn` de pronósticos, `calculadoEn` de climatología). Sin `ahora`
+ * (lectura del momento actual) toda fila es vigente.
  */
-function corridaVigente(corridaEn: string, ahora: Date | undefined): boolean {
+function emitidoHastaAhora(emitidoEn: string, ahora: Date | undefined): boolean {
   if (ahora === undefined) return true
-  return Date.parse(corridaEn) <= ahora.getTime()
+  return Date.parse(emitidoEn) <= ahora.getTime()
 }
 
 async function cargarPronostico(
@@ -203,7 +203,7 @@ async function cargarPronostico(
     .from(hazardForecast)
     .where(and(eq(hazardForecast.geometryRef, geometryRef), eq(hazardForecast.variable, variable)))
   const fila = elegirMasRecienteYHorizonte(
-    filas.filter((f) => corridaVigente(f.corridaEn, ahora)),
+    filas.filter((f) => emitidoHastaAhora(f.corridaEn, ahora)),
     objetivo,
   )
   if (fila === null) return null
@@ -223,18 +223,22 @@ async function cargarPronostico(
  * Los tres percentiles de la climatología más reciente de una celda/punto.
  * "Más reciente" se resuelve por periodoHasta y luego version descendente,
  * quedándose con la primera fila de cada percentil (mismo criterio que
- * sync-ensemble.ts). Si falta cualquier percentil devuelve null: una
- * climatología parcial no alcanza para decidir un nivel.
+ * sync-ensemble.ts). Con `ahora` sólo cuentan las filas con `calculadoEn <=
+ * ahora`, así la climatología vigente es la que existía en ese momento. Si
+ * falta cualquier percentil devuelve null: una climatología parcial no alcanza
+ * para decidir un nivel.
  */
 async function cargarUmbralesClimatologia(
   db: Db,
   geometryRef: string,
   variable: 'precipitacion_diaria' | 'caudal_diario',
+  ahora?: Date,
 ): Promise<{ p90: number; p95: number; p99: number } | null> {
   const filas = await db
     .select({
       percentil: hazardClimatology.percentil,
       valor: hazardClimatology.valor,
+      calculadoEn: hazardClimatology.calculadoEn,
     })
     .from(hazardClimatology)
     .where(
@@ -249,6 +253,7 @@ async function cargarUmbralesClimatologia(
 
   const porPercentil = new Map<string, number>()
   for (const fila of filas) {
+    if (!emitidoHastaAhora(fila.calculadoEn, ahora)) continue
     if (!porPercentil.has(fila.percentil)) porPercentil.set(fila.percentil, fila.valor)
   }
   const p90 = porPercentil.get('p90')
@@ -334,7 +339,7 @@ async function cargarPronosticosPorLote(
       and(inArray(hazardForecast.geometryRef, geometryRefs), eq(hazardForecast.variable, variable)),
     )
   for (const fila of filas) {
-    if (!corridaVigente(fila.corridaEn, ahora)) continue
+    if (!emitidoHastaAhora(fila.corridaEn, ahora)) continue
     const lista = porCelda.get(fila.geometryRef)
     if (lista === undefined) porCelda.set(fila.geometryRef, [fila])
     else lista.push(fila)
@@ -346,6 +351,7 @@ async function cargarUmbralesPorLote(
   db: Db,
   geometryRefs: string[],
   variable: 'precipitacion_diaria' | 'caudal_diario',
+  ahora?: Date,
 ): Promise<Map<string, { p90: number; p95: number; p99: number } | null>> {
   const porCelda = new Map<string, { p90: number; p95: number; p99: number } | null>()
   if (geometryRefs.length === 0) return porCelda
@@ -354,6 +360,7 @@ async function cargarUmbralesPorLote(
       geometryRef: hazardClimatology.geometryRef,
       percentil: hazardClimatology.percentil,
       valor: hazardClimatology.valor,
+      calculadoEn: hazardClimatology.calculadoEn,
     })
     .from(hazardClimatology)
     .where(
@@ -371,6 +378,7 @@ async function cargarUmbralesPorLote(
   // celda por celda.
   const porPercentilPorCelda = new Map<string, Map<string, number>>()
   for (const fila of filas) {
+    if (!emitidoHastaAhora(fila.calculadoEn, ahora)) continue
     let porPercentil = porPercentilPorCelda.get(fila.geometryRef)
     if (porPercentil === undefined) {
       porPercentil = new Map<string, number>()
@@ -567,6 +575,7 @@ export async function obtenerNivelesPeligro(opts?: {
     db,
     geometryRefs,
     VARIABLE_CLIMATOLOGIA_PRECIPITACION,
+    opts?.ahora,
   )
 
   const celdas: NivelPeligroCelda[] = []
@@ -598,8 +607,9 @@ export async function obtenerNivelesPeligro(opts?: {
  * nivel 'sin_dato' dentro del objeto.
  *
  * `ahora` (opcional) fija la consulta as-of: sólo cuentan las corridas con
- * `corridaEn <= ahora`, así un replay no usa pronósticos emitidos después. Sin
- * `ahora` rige el pronóstico más reciente disponible.
+ * `corridaEn <= ahora` y la climatología con `calculadoEn <= ahora`, así una
+ * lectura histórica no usa pronósticos ni umbrales emitidos después. Sin `ahora`
+ * rige el pronóstico y la climatología más recientes disponibles.
  */
 export async function obtenerNivelCaudal(
   puntoId: string,
@@ -616,7 +626,12 @@ export async function obtenerNivelCaudal(
     undefined,
     opts?.ahora,
   )
-  const umbrales = await cargarUmbralesClimatologia(db, puntoId, VARIABLE_CLIMATOLOGIA_CAUDAL)
+  const umbrales = await cargarUmbralesClimatologia(
+    db,
+    puntoId,
+    VARIABLE_CLIMATOLOGIA_CAUDAL,
+    opts?.ahora,
+  )
   if (pronostico === null || umbrales === null) return null
 
   // nivelDesdeDeterministico es genérica: compara magnitudes, así que el
