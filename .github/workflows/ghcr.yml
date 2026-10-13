@@ -108,10 +108,17 @@ jobs:
           attempt=0
           status=""
           while [ "$attempt" -lt "$max_attempts" ]; do
-            http_code=$(curl -sS -o deployment.json -w '%{http_code}' \
+            # A transient network error (e.g. curl exit 56, connection reset)
+            # must not fail the job: count it as an attempt and poll again.
+            if ! http_code=$(curl -sS -o deployment.json -w '%{http_code}' \
               -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
               -H "Accept: application/json" \
-              "${COOLIFY_URL}/api/v1/deployments/${deployment_uuid}")
+              "${COOLIFY_URL}/api/v1/deployments/${deployment_uuid}"); then
+              echo "::warning::Could not reach Coolify (attempt $((attempt + 1))/${max_attempts}); retrying."
+              attempt=$((attempt + 1))
+              sleep 10
+              continue
+            fi
             if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
               echo "::warning::COOLIFY_TOKEN cannot read deployments (HTTP ${http_code}); not waiting for the result."
               exit 0

@@ -48,6 +48,7 @@ const itemsFields = {
   scoreRiesgo: infraRiskSnapshot.scoreRiesgo,
   nivelRiesgo: infraRiskSnapshot.nivelRiesgo,
   scoreAmenaza: infraRiskSnapshot.scoreAmenaza,
+  nivelAmenaza: infraRiskSnapshot.nivelAmenaza,
   scoreVulnerabilidad: infraRiskSnapshot.scoreVulnerabilidad,
   confianza: infraRiskSnapshot.confianza,
   scoreRiesgoAcceso: infraRiskSnapshot.scoreRiesgoAcceso,
@@ -288,6 +289,7 @@ export async function GET(request: Request) {
       cueAnexo: infraRiskSnapshot.cueAnexo,
       horizonteHoras: infraRiskSnapshot.horizonteHoras,
       nivelRiesgo: infraRiskSnapshot.nivelRiesgo,
+      nivelAmenaza: infraRiskSnapshot.nivelAmenaza,
       confianza: infraRiskSnapshot.confianza,
       nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
       exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
@@ -306,6 +308,8 @@ export async function GET(request: Request) {
     cueAnexo: snapshot.cueAnexo,
     horizonteHoras: snapshot.horizonteHoras,
     nivelRiesgo: snapshot.nivelRiesgo,
+    // Amenaza sola (I-7): visible aunque la prioridad quede atenuada.
+    nivelAmenaza: snapshot.nivelAmenaza,
     confianza: snapshot.confianza,
     nivelRiesgoAcceso: snapshot.nivelRiesgoAcceso,
   }))

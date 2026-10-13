@@ -8,7 +8,7 @@ import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } fr
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
   colorRiesgo,
-  escuelasPorRiesgo,
+  escuelasEnRadar,
   ETIQUETA_HORIZONTE_MOTOR,
   ETIQUETA_NIVEL_RIESGO,
   resumirRiesgo,
@@ -25,8 +25,12 @@ export interface PanelRadarProps {
   onHorizonte: (horizonte: HorizonteMotor) => void
   variable: VariableRadarUI
   onVariable: (variable: VariableRadarUI) => void
-  /** Puntos del radar (todo el universo). null mientras no llegaron. */
-  puntos: ReadonlyArray<{ cueAnexo: string; horizonteHoras: number; nivelRiesgo: string | null }> | null
+  /**
+   * Puntos del radar (todo el universo). null mientras no llegaron.
+   * `nivelRiesgo` es la prioridad educativa; `nivelAmenaza` es la amenaza
+   * sola (I-7), que se muestra aparte porque la prioridad la atenúa.
+   */
+  puntos: ReadonlyArray<{ cueAnexo: string; horizonteHoras: number; nivelRiesgo: string | null; nivelAmenaza?: string | null }> | null
   /** Escuelas del padrón con los filtros compartidos ya aplicados. */
   escuelas: EscuelaMapaEnriquecida[]
   cargando: boolean
@@ -62,8 +66,10 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
     deshabilitada: hayMotor && !disponibles.includes(valor),
     titulo: 'Sin datos para este horizonte',
   }))
-  const lista = puntos === null ? [] : escuelasPorRiesgo(puntos, escuelas, horizonte)
-    .filter(({ nivel }) => nivel === 'muy_alto' || nivel === 'alto' || nivel === 'moderado')
+  // Prioridad moderada o más, o amenaza alta/muy alta aunque la prioridad sea
+  // baja: misma regla que colorea la capa del mapa (`escuelasEnRadar`).
+  // Amenaza null = sin dato: no se muestra.
+  const lista = puntos === null ? [] : escuelasEnRadar(puntos, escuelas, horizonte)
   const resumen = resumirRiesgo(lista)
 
   return (
@@ -109,7 +115,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                 <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
                 {lista.length > 0 ? (
                   <div className="map-sitact__lista">
-                    {lista.map(({ escuela, nivel }) => {
+                    {lista.map(({ escuela, nivel, amenaza }) => {
                       const departamento = etiquetaDepartamento(escuela.departamento)
                       const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
                       return (
@@ -124,8 +130,15 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                           <span className="map-sitact__contenido-fila">
                             <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                             <span className="map-sitact__meta">{departamento}{niveles}</span>
+                            <span className="map-sitact__chips">
+                              <span className="map-sitact__pill map-sitact__pill--neutro">Prioridad: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                              {amenaza && (
+                                <span className={`map-sitact__pill ${amenaza === 'alto' || amenaza === 'muy_alto' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--neutro'}`}>
+                                  Amenaza: {ETIQUETA_NIVEL_RIESGO[amenaza]}
+                                </span>
+                              )}
+                            </span>
                           </span>
-                          <span className="map-sitact__cuando">{ETIQUETA_NIVEL_RIESGO[nivel]}</span>
                         </button>
                       )
                     })}

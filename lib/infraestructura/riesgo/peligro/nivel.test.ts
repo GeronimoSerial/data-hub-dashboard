@@ -1010,6 +1010,60 @@ describe('consultas de pronóstico as-of (ahora)', () => {
       })
       expect(sinAhora[0]).toMatchObject({ geometryRef: 'celda-clim-asof', nivel: 'naranja' })
     })
+
+    it('con igual periodoHasta y versión (progresiva) gana la fila calculada más recientemente', async () => {
+      const versionProgresiva = 'climatologia-v2-progresiva'
+      const filasPorPeriodo = (
+        geometryRef: string,
+        variable: 'precipitacion_diaria' | 'caudal_diario',
+        periodoDesde: string,
+        calculadoEn: string,
+        umbrales: { p90: number; p95: number; p99: number },
+      ) =>
+        (['p90', 'p95', 'p99'] as const).map((percentil) => ({
+          ...filaClimatologia({ geometryRef, variable, percentil, valor: umbrales[percentil], calculadoEn }),
+          periodoDesde,
+          version: versionProgresiva,
+        }))
+      // La fila vieja se inserta primero: sin desempate por calculadoEn gana por orden de inserción.
+      for (const variable of ['precipitacion_diaria', 'caudal_diario'] as const) {
+        const geometryRef = variable === 'caudal_diario' ? 'punto-progresivo' : 'celda-progresiva'
+        await db.insert(hazardClimatology).values([
+          ...filasPorPeriodo(geometryRef, variable, '1991-01-01', '2026-09-20T00:00:00.000Z', {
+            p90: 50,
+            p95: 100,
+            p99: 140,
+          }),
+          ...filasPorPeriodo(geometryRef, variable, '1995-01-01', '2026-09-28T00:00:00.000Z', {
+            p90: 10,
+            p95: 20,
+            p99: 30,
+          }),
+        ])
+      }
+      await db.insert(hazardForecast).values([
+        filaPronostico({
+          geometryRef: 'celda-progresiva',
+          variable: 'precipitacion',
+          corridaEn: CORRIDA_A,
+          validoEn: '2026-09-26T00:00:00.000Z',
+          horizonteHoras: 24,
+          valor: 25,
+        }),
+        filaPronostico({
+          geometryRef: 'punto-progresivo',
+          variable: 'caudal',
+          corridaEn: CORRIDA_A,
+          validoEn: '2026-09-25T06:00:00.000Z',
+          horizonteHoras: 6,
+          valor: 25,
+        }),
+      ])
+
+      const [lote] = await obtenerNivelesPeligro({ geometryRefs: ['celda-progresiva'], horizontes: [24] })
+      expect(lote).toMatchObject({ geometryRef: 'celda-progresiva', nivel: 'naranja' })
+      expect(await obtenerNivelCaudal('punto-progresivo')).toMatchObject({ nivel: 'naranja' })
+    })
   })
 })
 

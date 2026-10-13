@@ -150,6 +150,16 @@ describe('GET /api/infraestructura/riesgo', () => {
     expect(body.items.some((i: { snapshotId: string }) => i.snapshotId === 's6')).toBe(false)
   })
 
+  it('expone la amenaza (score y nivel) por separado de la prioridad', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const body = await (await GET(req())).json()
+    const porId = new Map(
+      body.items.map((i: { snapshotId: string }) => [i.snapshotId, i]),
+    )
+    expect(porId.get('s1')).toMatchObject({ nivelRiesgo: 'muy_alto', scoreAmenaza: 70, nivelAmenaza: 'alto' })
+    expect(porId.get('s3')).toMatchObject({ scoreAmenaza: null, nivelAmenaza: null })
+  })
+
   it('filtra por horizonte', async () => {
     mockAcceso({ ok: true, user: USER })
     const res = await GET(req('?horizonte=24'))

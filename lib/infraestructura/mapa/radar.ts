@@ -79,12 +79,52 @@ export function colorRiesgo(nivel: NivelRiesgo): string {
   }
 }
 
+type PuntoRadar = {
+  cueAnexo: string
+  horizonteHoras: number
+  nivelRiesgo: string | null
+  nivelAmenaza?: string | null
+}
+
+export interface EscuelaEnRadar extends EscuelaEnRiesgo {
+  /** Amenaza en el horizonte elegido; null = sin dato. */
+  amenaza: NivelRiesgo | null
+}
+
+/**
+ * Escuelas que muestra el radar (lista del panel y capa del mapa): prioridad
+ * moderada o más, o amenaza alta o muy alta aunque la prioridad sea baja (la
+ * prioridad atenúa la amenaza y la ocultaría). Conserva el orden de
+ * `escuelasPorRiesgo`, así esas escuelas quedan al final.
+ */
+export function escuelasEnRadar(
+  puntos: ReadonlyArray<PuntoRadar>,
+  escuelas: EscuelaMapaEnriquecida[],
+  horizonte: HorizonteMotor,
+): EscuelaEnRadar[] {
+  const amenazaPorCue = new Map(
+    puntos
+      .filter((punto) => punto.horizonteHoras === horizonte)
+      .map((punto) => [punto.cueAnexo, nivelRiesgo(punto.nivelAmenaza ?? null)]),
+  )
+  return escuelasPorRiesgo(puntos, escuelas, horizonte)
+    .map((item) => ({ ...item, amenaza: amenazaPorCue.get(item.escuela.cueAnexo) ?? null }))
+    .filter(({ nivel, amenaza }) => nivel !== 'bajo' || amenaza === 'alto' || amenaza === 'muy_alto')
+}
+
+/**
+ * Color de cada escuela visible en la capa radar: el de su prioridad; si la
+ * prioridad es baja (sólo visible por amenaza alta/muy alta), el que esa
+ * amenaza tendría como prioridad.
+ */
 export function coloresRadar(
-  puntos: ReadonlyArray<{ cueAnexo: string; horizonteHoras: number; nivelRiesgo: string | null }>,
+  puntos: ReadonlyArray<PuntoRadar>,
   escuelas: EscuelaMapaEnriquecida[],
   horizonte: HorizonteMotor,
 ): Map<string, string> {
-  return new Map(escuelasPorRiesgo(puntos, escuelas, horizonte)
-    .filter(({ nivel }) => nivel !== 'bajo')
-    .map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]))
+  return new Map(escuelasEnRadar(puntos, escuelas, horizonte)
+    .map(({ escuela, nivel, amenaza }) => [
+      escuela.cueAnexo,
+      colorRiesgo(nivel === 'bajo' && amenaza ? amenaza : nivel),
+    ]))
 }

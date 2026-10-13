@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   agruparPuntosPorEra5,
   calcularPercentilesPrecipitacion,
+  descargarAnioPrecipitacion,
   diasMaximosPorTramo,
   estimarCostoClimatologia,
   obtenerSerieHistorica,
@@ -541,5 +542,109 @@ describe('obtenerSeriesHistoricas: resultado idéntico al enfoque celda-por-celd
     expect(resultado.seriesPorCelda['celda-1']).toEqual(esperado)
     expect(resultado.seriesPorCelda['celda-2']).toEqual(esperado)
     expect(resultado.seriesPorCelda['celda-1']).toEqual(resultado.seriesPorCelda['celda-2'])
+  })
+})
+
+describe('descargarAnioPrecipitacion (un año, un request por lote de celdas)', () => {
+  const celdas = [
+    { celdaEra5: '-27.5_-58.75', lat: -27.5, lon: -58.75 },
+    { celdaEra5: '-27.25_-58.5', lat: -27.25, lon: -58.5 },
+  ]
+
+  it('hace un solo request con el año completo y las coordenadas de todas las celdas', async () => {
+    const fetchImpl = fetchJsonPorUrl(() => [
+      { daily: { time: ['2021-01-01'], precipitation_sum: [1] } },
+      { daily: { time: ['2021-01-01'], precipitation_sum: [2] } },
+    ])
+
+    await descargarAnioPrecipitacion({
+      anio: 2021,
+      celdas,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    const url = new URL(fetchImpl.mock.calls[0][0] as unknown as string)
+    expect(url.searchParams.get('start_date')).toBe('2021-01-01')
+    expect(url.searchParams.get('end_date')).toBe('2021-12-31')
+    expect(url.searchParams.get('latitude')).toBe('-27.5,-27.25')
+    expect(url.searchParams.get('longitude')).toBe('-58.75,-58.5')
+    expect(url.searchParams.get('daily')).toBe('precipitation_sum')
+  })
+
+  it('mapea cada valor a su día del año (0 = 1 de enero) y conserva los null sin imputar 0', async () => {
+    const fetchImpl = fetchJsonPorUrl(() => [
+      {
+        daily: {
+          time: ['2021-01-01', '2021-01-02', '2021-12-31'],
+          precipitation_sum: [0, null, 5],
+        },
+      },
+      {
+        daily: {
+          time: ['2021-01-01', '2021-01-02', '2021-12-31'],
+          precipitation_sum: [3, 4, null],
+        },
+      },
+    ])
+
+    const resultado = await descargarAnioPrecipitacion({
+      anio: 2021,
+      celdas,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    const porCelda = Object.fromEntries(resultado.series.map((s) => [s.celdaEra5, s.valores]))
+    const celdaA = porCelda['-27.5_-58.75']
+    const celdaB = porCelda['-27.25_-58.5']
+    expect(celdaA).toHaveLength(365)
+    expect(celdaA[0]).toBe(0)
+    expect(celdaA[1]).toBeNull()
+    expect(celdaA[364]).toBe(5)
+    expect(celdaA[2]).toBeNull()
+    expect(celdaB[0]).toBe(3)
+    expect(celdaB[1]).toBe(4)
+    expect(celdaB[364]).toBeNull()
+  })
+
+  it('un año bisiesto devuelve 366 días y el 29 de febrero cae en el índice 59', async () => {
+    const fetchImpl = fetchJsonPorUrl(() => [
+      { daily: { time: ['2024-02-29', '2024-03-01'], precipitation_sum: [7, null] } },
+      { daily: { time: ['2024-02-29', '2024-03-01'], precipitation_sum: [1, 2] } },
+    ])
+
+    const resultado = await descargarAnioPrecipitacion({
+      anio: 2024,
+      celdas,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    const celdaA = resultado.series[0].valores
+    expect(celdaA).toHaveLength(366)
+    expect(celdaA[59]).toBe(7)
+    expect(celdaA[60]).toBeNull()
+  })
+
+  it('propaga un fallo de cupo como ok:false con el mismo motivo, sin llegar a la red', async () => {
+    const fetchImpl = vi.fn(async () => new Response('[]', { status: 200 }))
+    const controladorCupoFactory = () => ({
+      reservar: async () => ({ ok: false as const, motivo: 'cupo_agotado' as const, ventana: 'dia' as const, detalle: 'fake: dia agotado' }),
+      registrar429: async () => {},
+    })
+
+    const resultado = await descargarAnioPrecipitacion({
+      anio: 2021,
+      celdas,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      controladorCupoFactory,
+    })
+
+    expect(resultado.ok).toBe(false)
+    if (!resultado.ok) expect(resultado.motivo).toBe('cupo_agotado')
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 })

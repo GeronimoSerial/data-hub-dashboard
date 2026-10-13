@@ -5,16 +5,17 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
 import { infraJobRun } from '@/lib/db/schema'
 import { JOBS_ESPERADOS } from './jobs-esperados'
-import type { EstadoJobRun, obtenerEstadoOperativo as ObtenerEstadoOperativoFn, evaluarJobsEsperados as EvaluarJobsEsperadosFn } from './salud'
+import type { EstadoJobRun, obtenerEstadoOperativo as ObtenerEstadoOperativoFn, evaluarJobsEsperados as EvaluarJobsEsperadosFn, resumirCoberturaClimatologia as ResumirCoberturaFn } from './salud'
 
 usarDbTemporal('salud-')
 
 beforeAll(async () => {
-  ;({ obtenerEstadoOperativo, evaluarJobsEsperados } = await import('./salud'))
+  ;({ obtenerEstadoOperativo, evaluarJobsEsperados, resumirCoberturaClimatologia } = await import('./salud'))
 })
 
 let obtenerEstadoOperativo: typeof ObtenerEstadoOperativoFn
 let evaluarJobsEsperados: typeof EvaluarJobsEsperadosFn
+let resumirCoberturaClimatologia: typeof ResumirCoberturaFn
 
 // getDb() memoiza la conexión a nivel de módulo, así que DATA_DIR debe
 // setearse ANTES del primer getDb(); mismo patrón que job-run.test.ts.
@@ -34,6 +35,50 @@ async function buscarJob(tipo: string): Promise<EstadoJobRun | undefined> {
   const estado = await obtenerEstadoOperativo()
   return estado.jobs.find((job) => job.tipo === tipo)
 }
+
+describe('resumirCoberturaClimatologia', () => {
+  it('sin celdas devuelve ceros', () => {
+    expect(resumirCoberturaClimatologia(new Map(), 0)).toEqual({
+      celdasTotal: 0,
+      celdasUsables: 0,
+      aniosMin: 0,
+      aniosMediana: 0,
+      aniosMax: 0,
+      aniosObjetivo: 30,
+      minimoUsable: 10,
+    })
+  })
+
+  it('resume mínimo, mediana, máximo y celdas usables de una mezcla', () => {
+    const aniosPorCelda = new Map([
+      ['a', 5],
+      ['b', 10],
+      ['c', 30],
+      ['d', 12],
+    ])
+    expect(resumirCoberturaClimatologia(aniosPorCelda, 4)).toEqual({
+      celdasTotal: 4,
+      celdasUsables: 3,
+      aniosMin: 5,
+      aniosMediana: 11,
+      aniosMax: 30,
+      aniosObjetivo: 30,
+      minimoUsable: 10,
+    })
+  })
+
+  it('celdas ausentes del mapa cuentan como 0 años', () => {
+    expect(resumirCoberturaClimatologia(new Map([['a', 12]]), 3)).toEqual({
+      celdasTotal: 3,
+      celdasUsables: 1,
+      aniosMin: 0,
+      aniosMediana: 0,
+      aniosMax: 12,
+      aniosObjetivo: 30,
+      minimoUsable: 10,
+    })
+  })
+})
 
 describe('obtenerEstadoOperativo — flags.enosJobsEnabled', () => {
   const previo = process.env.ENOS_JOBS_ENABLED
