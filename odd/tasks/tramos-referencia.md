@@ -38,6 +38,12 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 - T3 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f2-avisos-hidrologicos.md`. Único canal legible verificado: reporte diario HTML del INA; API del INA por probar.
 - T4 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f3-lluvia-superficie.md`. Sin feed abierto verificado; OGIMET accesible; SMN y SIGA no se pudieron abrir.
 
+## Decisiones del usuario (2026-10-13)
+
+- G-1: Colonia Liebig fuera (no ribereña). Las 18 localidades con estación en su propio puerto, aprobadas (`aprobadoPor: GeronimoSerial`, 2026-10-13). Dudosas → propuesta por distancia de escuelas a la estación (≤ 15 km; proxy, coordenadas PNA sin verificar): Ensenadita, Ramada Paso, Puerto Boca, Apipé Grande, La Cruz (Sección Quintas) propuestas; 8 siguen dudosas con su distancia. Commit c58bfcd (`tramos-prefectura-v2`).
+- V-1: positivos = afectación ocurrida, alta o media confianza; medidas preventivas excluidas (EV-20261012-004, EV-20261013-005) → 7 positivos. El "11 positivos" de `08-evaluacion.md` está desactualizado (pendiente corregir en el doc de investigación). Commit f33845a (`conjunto-referencia-2026-10-v2`).
+- Checks: vitest `hidrometria` + `evaluacion` 87/87 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok. Ningún nombre de localidad aprobada o propuesta es ambiguo entre departamentos de Corrientes en el padrón.
+
 ## Próximo paso
 
-Revisión humana: aprobar tramos de G-1b, reconciliar 11 vs 8 positivos y la regla de medidas preventivas en V-1. Luego push/PR por decisión del usuario.
+Push/PR por decisión del usuario. Pendiente: decidir La Cruz (Sección Quintas) como tramo aparte o parte de La Cruz; aprobar o descartar las 5 propuestas por distancia.
