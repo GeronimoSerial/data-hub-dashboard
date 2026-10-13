@@ -105,6 +105,97 @@ describe('ejecutarCalculoClimatologiaCaudal', () => {
     expect(filas).toHaveLength(PUNTOS_RIO.length * 3 + (PUNTOS_RIO.length - 1) * 3)
   })
 
+  // Regresión P-1: antes del fix, una corrida donde ningún punto se procesó
+  // quedaba 'completado' con 0 filas y sin error guardado, y bloqueaba el
+  // reintento de la misma clave. Ahora queda 'fallido' con el error por punto.
+  it('si ningún punto se procesa, el job-run queda fallido con el error por punto y es reintentable', async () => {
+    const periodoDesde = '2003-01-01'
+    const periodoHasta = '2012-12-31'
+    const version = 'caudal-climatologia-v0.4-todos-fallan'
+    const seriesTodasCaidas: typeof ObtenerSeriesHistoricasCaudal = async ({ puntos }) => {
+      const erroresPorPunto: Record<string, { motivo: string; detalle: string }> = {}
+      for (const punto of puntos) {
+        erroresPorPunto[punto.id] = { motivo: 'sin_datos', detalle: 'fake: todos caídos' }
+      }
+      return { seriesPorPunto: {}, erroresPorPunto }
+    }
+
+    const resultado = await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSeries: seriesTodasCaidas,
+    })
+    expect(resultado).toEqual({
+      ok: true,
+      resultado: {
+        puntosProcesados: 0,
+        filasInsertadas: 0,
+        puntosConError: PUNTOS_RIO.map((punto) => punto.id),
+      },
+    })
+
+    const { eq } = await import('drizzle-orm')
+    const clave = `${periodoDesde}_${periodoHasta}_${version}`
+    const [fila] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, clave))
+
+    expect(fila?.estado).toBe('fallido')
+    expect(fila?.leaseOwner).toBeNull()
+    expect(fila?.errorSaneado).toBeTruthy()
+    for (const punto of PUNTOS_RIO) {
+      expect(fila?.errorSaneado).toContain(punto.id)
+    }
+
+    // Al quedar 'fallido' la misma clave vuelve a adquirir lease.
+    const reintento = await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSeries: seriesOkFake(),
+    })
+    expect(reintento).toEqual({
+      ok: true,
+      resultado: {
+        puntosProcesados: PUNTOS_RIO.length,
+        filasInsertadas: PUNTOS_RIO.length * 3,
+        puntosConError: [],
+      },
+    })
+  })
+
+  // Regresión P-1 (parcial): una falla de algunos puntos sigue siendo
+  // 'completado' pero deja constancia en `contadores` y `errorSaneado`.
+  it('una falla parcial queda completado con contadores.puntosConError y errorSaneado', async () => {
+    const periodoDesde = '2004-01-01'
+    const periodoHasta = '2013-12-31'
+    const version = 'caudal-climatologia-v0.5-parcial'
+
+    await ejecutarCalculoClimatologiaCaudal({
+      periodoDesde,
+      periodoHasta,
+      version,
+      obtenerSeries: seriesConPuntoCaidoFake(),
+    })
+
+    const { eq } = await import('drizzle-orm')
+    const clave = `${periodoDesde}_${periodoHasta}_${version}`
+    const [fila] = await getDb()
+      .select()
+      .from(infraJobRun)
+      .where(eq(infraJobRun.claveIdempotente, clave))
+
+    expect(fila?.estado).toBe('completado')
+    expect(fila?.contadores).toEqual({
+      puntos: PUNTOS_RIO.length - 1,
+      filas: (PUNTOS_RIO.length - 1) * 3,
+      puntosConError: 1,
+    })
+    expect(fila?.errorSaneado).toContain(PUNTO_CAIDO)
+  })
+
   // Regresión: antes del fix, una excepción posterior a adquirir el lease
   // (no un error por punto reportado por el provider, sino un throw real)
   // escapaba sin publicar resultado y `infra_job_run` quedaba 'en_progreso'

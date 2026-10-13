@@ -1,10 +1,21 @@
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { gunzipSync } from 'node:zlib'
 import { eq, or } from 'drizzle-orm'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
-import { radarMeteoRun } from '@/lib/db/schema'
+import { hazardSourceHealth, radarMeteoRun } from '@/lib/db/schema'
 import type { LoteRadar } from './provider'
 import { VARIABLES_RADAR } from './provider'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import type * as SaludFuente from '../riesgo/jobs/salud-fuente'
+
+vi.mock('../riesgo/jobs/salud-fuente', async (importOriginal) => {
+  const real = await importOriginal<typeof SaludFuente>()
+  return { ...real, actualizarSaludFuente: vi.fn(real.actualizarSaludFuente) }
+})
 
 usarDbTemporal('radar-meteo-job-')
 
@@ -67,5 +78,102 @@ describe('job de sincronización del radar meteorológico', () => {
     const obsoletos = await db.select().from(radarMeteoRun).where(or(eq(radarMeteoRun.id, 'run-viejo'), eq(radarMeteoRun.id, 'run-fallido-viejo')))
     expect(obsoletos).toHaveLength(0)
     expect(await db.select().from(radarMeteoRun).where(eq(radarMeteoRun.id, publicado.runId!))).toHaveLength(1)
+  })
+
+  it('registra salud de fuente ok tras una sincronización exitosa', async () => {
+    await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-01T06:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, 'open-meteo-radar'))
+    expect(salud?.estado).toBe('ok')
+    expect(salud?.ultimoErrorSaneado).toBeNull()
+    expect(salud?.ttlMinutos).toBe(240)
+  })
+
+  it('registra salud no_disponible con error saneado cuando el proveedor falla', async () => {
+    const fallar = vi.fn(async () => { throw new Error('HTTP 500 apikey=SECRETO-123 cuerpo: <html>') })
+    await expect(ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-01T12:00:00Z'), celdas: [], obtener: fallar })).rejects.toThrow('apikey=SECRETO-123')
+    const [salud] = await getDb().select().from(hazardSourceHealth).where(eq(hazardSourceHealth.provider, 'open-meteo-radar'))
+    expect(salud?.estado).toBe('no_disponible')
+    expect(salud?.ultimoErrorSaneado).toBe('fallo al sincronizar radar meteorológico')
+    expect(salud?.ultimoErrorSaneado).not.toContain('SECRETO')
+  })
+
+  it('un fallo al escribir la salud tras un run exitoso no altera el resultado ni crea un run fallido', async () => {
+    const ahora = new Date('2026-10-01T18:00:00Z')
+    const fallidosAntes = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))
+    vi.mocked(actualizarSaludFuente).mockRejectedValueOnce(new Error('SQLITE_BUSY tabla hazard_source_health'))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resultado = await ejecutarSyncRadarMeteo({ ahora, celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const [run] = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, resultado.runId!))
+    expect(run?.status).toBe('completo')
+    expect(await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.status, 'fallido'))).toHaveLength(fallidosAntes.length)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.join(' ')).not.toContain('SQLITE_BUSY')
+    warn.mockRestore()
+  })
+})
+
+describe('archivo de runs de radar antes de la purga', () => {
+  const claveArchivo = 'RADAR_ARCHIVO_DIR'
+  let previa: string | undefined
+  let raiz = ''
+
+  function insertarViejo(id: string, status: 'completo' | 'fallido') {
+    const viejo = '2026-08-20T00:00:00.000Z'
+    return getDb().insert(radarMeteoRun).values({
+      id, provider: 'open-meteo', model: 'best_match', gridVersion: 'corrientes-0.2-v1',
+      runAt: viejo, fetchedAt: viejo, forecastStart: '', forecastEnd: '', stepMinutes: 60,
+      units: {}, status, idempotencyKey: id, payload: { id },
+    })
+  }
+
+  beforeEach(() => {
+    previa = process.env[claveArchivo]
+    raiz = mkdtempSync(path.join(tmpdir(), 'radar-archivo-job-'))
+  })
+
+  afterEach(() => {
+    if (previa === undefined) delete process.env[claveArchivo]
+    else process.env[claveArchivo] = previa
+    rmSync(raiz, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('archiva las filas antes de purgarlas cuando RADAR_ARCHIVO_DIR está definida', async () => {
+    const dir = path.join(raiz, 'archivo')
+    process.env[claveArchivo] = dir
+    await insertarViejo('arch-completo', 'completo')
+    await insertarViejo('arch-fallido', 'fallido')
+    const resultado = await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-05T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const archivos = readdirSync(dir)
+    expect(archivos).toEqual([expect.stringMatching(/^radar_meteo_run_2026-08-20T00:00:00\.000Z_2026-08-20T00:00:00\.000Z\.ndjson\.gz$/)])
+    const filas = gunzipSync(readFileSync(path.join(dir, archivos[0]!))).toString('utf8').trim().split('\n').map((l) => JSON.parse(l))
+    expect(filas.map((f: { id: string }) => f.id).sort()).toEqual(['arch-completo', 'arch-fallido'])
+    const quedan = await getDb().select().from(radarMeteoRun).where(or(eq(radarMeteoRun.id, 'arch-completo'), eq(radarMeteoRun.id, 'arch-fallido')))
+    expect(quedan).toHaveLength(0)
+  })
+
+  it('si no puede archivar omite la purga y la sincronización igual se completa', async () => {
+    const bloqueo = path.join(raiz, 'no-es-dir')
+    writeFileSync(bloqueo, 'x')
+    process.env[claveArchivo] = bloqueo
+    await insertarViejo('fallo-archivo', 'completo')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const resultado = await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-06T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    expect(resultado).toMatchObject({ ejecutado: true, estado: 'completo' })
+    const quedan = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, 'fallo-archivo'))
+    expect(quedan).toHaveLength(1)
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn.mock.calls[0]?.join(' ')).not.toContain(bloqueo)
+  })
+
+  it('sin RADAR_ARCHIVO_DIR purga como antes y no escribe archivos', async () => {
+    delete process.env[claveArchivo]
+    await insertarViejo('sin-archivo', 'completo')
+    await ejecutarSyncRadarMeteo({ ahora: new Date('2026-10-07T04:00:00Z'), celdas: [], obtener: pronosticoFake() })
+    const quedan = await getDb().select().from(radarMeteoRun).where(eq(radarMeteoRun.id, 'sin-archivo'))
+    expect(quedan).toHaveLength(0)
+    expect(readdirSync(raiz)).toEqual([])
   })
 })

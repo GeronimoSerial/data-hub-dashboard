@@ -48,6 +48,10 @@ export interface ResultadoRiesgoEscuela {
   scoreRiesgo: number | null
   nivelRiesgo: NivelRiesgo | null
   scoreAmenaza: number | null
+  // Amenaza sola (0..100) y su nivel con el MISMO mapeo que nivelRiesgo. Se
+  // exponen aparte para que una amenaza alta no desaparezca cuando la
+  // vulnerabilidad es 0 (scoreRiesgo = amenaza x vulnerabilidad / 100).
+  nivelAmenaza: NivelRiesgo | null
   scoreVulnerabilidad: number | null
   confianza: Confianza
   factores: FactorRiesgo[]

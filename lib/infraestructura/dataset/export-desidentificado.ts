@@ -144,7 +144,7 @@ export function escribirDatasetCsv(
  * Sal local del hash de desidentificación, resuelta del entorno. Se exige
  * explícita a propósito: un dataset "desidentificado" con una sal fija
  * hardcodeada en el repo no desidentifica nada frente a quien lee el código
- * fuente. Documentado en docs/ejecucion-enos/E7b/registro.md.
+ * fuente. Documentado en docs/DEPLOY.md (sección de exportación desidentificada).
  */
 export function resolverSalDataset(): string {
   const sal = process.env.DATASET_SALT_E7B

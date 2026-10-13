@@ -68,11 +68,11 @@ const TTL_MINUTOS = 60
 const LICENCIA = 'NASA GPM IMERG — GES DISC, cuenta NASA Earthdata requerida'
 
 const PROVIDER = 'nasa-imerg'
-// E7b: exportada (cambio aditivo) para que el replay
-// (lib/infraestructura/replay/consulta.ts) consulte hazard_observation con el
-// mismo literal de `variable`, sin duplicarlo a mano.
+// Exportada (cambio aditivo) para que cualquier consulta de hazard_observation
+// use el mismo literal de `variable`, sin duplicarlo a mano.
 export const VARIABLE_OBSERVADA = 'precipitacion_observada_satelital'
 const LARGO_MAX_ERROR = 300
+const LARGO_MAX_RESUMEN_FALLOS = 500
 
 // Mismo bug de clase que sync-pronostico-caudal.ts (ver su comentario junto a
 // `TAMANO_CHUNK_INSERCION`): un único `insert(...).values(hugeArray)` hace que
@@ -141,6 +141,37 @@ function sanearError(error: unknown, token: string): string {
   const bruto = error instanceof Error ? error.message : String(error)
   const sinToken = token.length > 0 ? bruto.split(token).join('[REDACTED]') : bruto
   return sinToken.slice(0, LARGO_MAX_ERROR)
+}
+
+// Motivo por gránulo fallido (P-2). Sólo se persisten la clase, el HTTP status
+// y el sello del gránulo: nunca el cuerpo de respuesta, la URL ni headers. El
+// adaptador sólo lanza `subset HTTP <status>` (sin URL ni token), así que el
+// status se lee de ese mensaje fijo y cualquier otro error queda como `error`.
+type ClaseFalloGranulo = 'no_publicado' | 'error'
+type FalloGranulo = { granuloIso: string; clase: ClaseFalloGranulo; status: number | null }
+
+function clasificarFalloGranulo(granulo: GranuloSatelital, error: unknown): FalloGranulo {
+  const mensaje = error instanceof Error ? error.message : String(error)
+  const coincidencia = /^subset HTTP (\d{3})$/.exec(mensaje)
+  if (coincidencia === null) {
+    return { granuloIso: granulo.inicioEn, clase: 'error', status: null }
+  }
+  const status = Number(coincidencia[1])
+  return {
+    granuloIso: granulo.inicioEn,
+    clase: status === 404 ? 'no_publicado' : 'error',
+    status,
+  }
+}
+
+// Resumen acotado para `infra_job_run.error_saneado`: `<granuloIso>: <clase> <status>`.
+function resumirFallosGranulos(fallos: FalloGranulo[]): string | null {
+  if (fallos.length === 0) return null
+  const partes = fallos.map((fallo) => {
+    const detalle = fallo.status === null ? fallo.clase : `${fallo.clase} ${fallo.status}`
+    return `${fallo.granuloIso}: ${detalle}`
+  })
+  return partes.join('; ').slice(0, LARGO_MAX_RESUMEN_FALLOS)
 }
 
 async function actualizarSalud(
@@ -443,6 +474,8 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   let granulosProcesados = 0
   let granulosFallidos = 0
   let errorMasRecienteSaneado: string | null = null
+  let claseMasReciente: ClaseFalloGranulo | null = null
+  const fallos: FalloGranulo[] = []
 
   for (const granulo of aProcesar) {
     try {
@@ -451,24 +484,46 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
     } catch (error) {
       granulosFallidos += 1
       const saneado = sanearError(error, token)
+      const fallo = clasificarFalloGranulo(granulo, error)
+      fallos.push(fallo)
       // Si el que falla es el gránulo más reciente, es lo que antes se
       // reportaba como el estado de salud de la fuente: se conserva ese
       // mensaje aunque haya backfill exitoso alrededor.
-      if (granulo.inicioEn === granuloMasReciente.inicioEn) errorMasRecienteSaneado = saneado
+      if (granulo.inicioEn === granuloMasReciente.inicioEn) {
+        errorMasRecienteSaneado = saneado
+        claseMasReciente = fallo.clase
+      }
     }
   }
 
   // El gránulo más reciente manda el estado de salud: si falló (o directamente
   // no estaba entre los `aProcesar`, cosa que no puede pasar salvo que ya
   // estuviera ingerido), la fuente se reporta degradada aunque el backfill de
-  // gránulos viejos haya sido parcialmente exitoso.
+  // gránulos viejos haya sido parcialmente exitoso. Un gránulo no publicado
+  // (404) todavía no es una falla de la fuente: es latencia de publicación, así
+  // que sólo degrada un error real.
   const fallóElMasReciente = errorMasRecienteSaneado !== null
-  await actualizarSalud(db, fallóElMasReciente ? 'degradado' : 'ok', errorMasRecienteSaneado, ahoraIso)
+  const degradaFuente = fallóElMasReciente && claseMasReciente === 'error'
+  await actualizarSalud(
+    db,
+    degradaFuente ? 'degradado' : 'ok',
+    degradaFuente ? errorMasRecienteSaneado : null,
+    ahoraIso,
+  )
+  const granulosNoPublicados = fallos.filter((fallo) => fallo.clase === 'no_publicado').length
+  const granulosConError = fallos.length - granulosNoPublicados
   await publicarResultado({
     jobRunId: lease.jobRunId,
     leaseOwner: lease.leaseOwner,
     estado: 'completado',
-    contadores: { celdasActualizadas, granulosProcesados, granulosFallidos },
+    contadores: {
+      celdasActualizadas,
+      granulosProcesados,
+      granulosFallidos,
+      granulosNoPublicados,
+      granulosConError,
+    },
+    errorSaneado: resumirFallosGranulos(fallos) ?? undefined,
     ahora,
   })
 

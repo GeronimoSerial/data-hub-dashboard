@@ -1,14 +1,21 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, lt, ne, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { radarMeteoRun } from '@/lib/db/schema'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../riesgo/providers/cupo-om'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
+import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import { archivarRuns } from './archivo'
 import { generarGrilla, GRID_VERSION } from './grilla'
 import { obtenerPronosticoRadar, type LoteRadar } from './provider'
 
 const TIPO_JOB = 'sync-radar-meteo'
 const DURACION_LEASE_MS = 20 * 60 * 1000
+// Cron cada 3 h (ver slotTresHoras): el TTL acompaña esa cadencia.
+const PROVIDER_SALUD = 'open-meteo-radar'
+const TTL_SALUD_MINUTOS = 240
+const LICENCIA_SALUD = 'CC-BY 4.0 no comercial — Open-Meteo + ECMWF, nivel gratuito'
+const ERROR_SANEADO = 'fallo al sincronizar radar meteorológico'
 type Db = ReturnType<typeof getDb>
 
 export async function obtenerUltimoRunRadarMeteo(db: Db = getDb()) {
@@ -21,6 +28,35 @@ function slotTresHoras(ahora: Date): { inicio: Date; clave: string } {
   inicio.setUTCMinutes(0, 0, 0)
   inicio.setUTCHours(Math.floor(inicio.getUTCHours() / 3) * 3)
   return { inicio, clave: inicio.toISOString().slice(0, 13) }
+}
+
+// La salud de fuente es best-effort: su fallo nunca cambia el resultado del run.
+function avisarSaludNoRegistrada() {
+  console.warn('[radar-meteo] no se pudo registrar la salud de la fuente')
+}
+
+// Sin RADAR_ARCHIVO_DIR la purga es la de siempre (sin archivo). Con ella, las filas se archivan
+// antes de borrarse; si el archivo no se puede escribir se omite la purga para no perder datos.
+// El fallo de archivo nunca altera el resultado de la sincronización.
+async function purgarRunsAntiguos(db: Db, ahora: Date, ultimoCompletoId: string) {
+  const condicion = and(
+    lt(radarMeteoRun.fetchedAt, new Date(ahora.getTime() - 14 * 86400000).toISOString()),
+    or(ne(radarMeteoRun.status, 'completo'), ne(radarMeteoRun.id, ultimoCompletoId)),
+  )
+  const dirArchivo = process.env.RADAR_ARCHIVO_DIR
+  if (!dirArchivo) {
+    await db.delete(radarMeteoRun).where(condicion)
+    return
+  }
+  const aPurgar = await db.select().from(radarMeteoRun).where(condicion)
+  if (aPurgar.length === 0) return
+  try {
+    await archivarRuns(dirArchivo, aPurgar)
+  } catch {
+    console.warn('[radar-meteo] no se pudo archivar runs antes de la purga; purga omitida')
+    return
+  }
+  await db.delete(radarMeteoRun).where(inArray(radarMeteoRun.id, aPurgar.map((fila) => fila.id)))
 }
 
 function combinar(lotes: LoteRadar[]): LoteRadar {
@@ -53,20 +89,18 @@ export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: Re
       .where(eq(radarMeteoRun.status, 'completo'))
       .orderBy(desc(radarMeteoRun.fetchedAt))
       .limit(1)
-    await db.delete(radarMeteoRun).where(
-      and(
-        lt(radarMeteoRun.fetchedAt, new Date(ahora.getTime() - 14 * 86400000).toISOString()),
-        or(ne(radarMeteoRun.status, 'completo'), ne(radarMeteoRun.id, ultimoCompleto.id)),
-      ),
-    )
+    await purgarRunsAntiguos(db, ahora, ultimoCompleto.id)
     await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'completado', contadores: { celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal }, ahora })
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'ok', ultimoErrorSaneado: null, ahoraIso: ahora.toISOString() }).catch(avisarSaludNoRegistrada)
     return { ejecutado: true, celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal, runId: id, estado: 'completo' as const }
   } catch (error) {
     const mensaje = error instanceof Error ? error.message : String(error)
     const datos = { provider: 'open-meteo', model: 'best_match', gridVersion: GRID_VERSION, runAt: inicio.toISOString(), fetchedAt: ahora.toISOString(), forecastStart: '', forecastEnd: '', stepMinutes: 60, units: {}, status: 'fallido', idempotencyKey, payload: { error: mensaje.slice(0, 300) } }
     if (existente) await db.update(radarMeteoRun).set(datos).where(eq(radarMeteoRun.id, id))
     else await db.insert(radarMeteoRun).values({ id, ...datos })
-    await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado: 'fallo al sincronizar radar meteorológico', ahora })
+    await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'fallido', errorSaneado: ERROR_SANEADO, ahora })
+    // Sin respuesta del proveedor ni su cuerpo: el mensaje persistido es fijo.
+    await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'no_disponible', ultimoErrorSaneado: ERROR_SANEADO, ahoraIso: ahora.toISOString() }).catch(avisarSaludNoRegistrada)
     throw error
   }
 }
