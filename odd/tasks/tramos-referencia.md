@@ -24,15 +24,19 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 
 ## Checklist
 
-- [ ] T1 G-1b: tramos versionados por río (estación → localidades, justificación, `estado`) + `estacionParaLocalidad` que solo usa tramos aprobados
+- [x] T1 G-1b: tramos versionados por río (estación → localidades, justificación, `estado`) + `estacionParaLocalidad` que solo usa tramos aprobados
 - [ ] T2 V-1: conjunto de referencia versionado (positivos, negativos, bajo umbral) + métricas puras de cobertura, precisión y demora
-- [ ] T3 F-2: informe de canales legibles de avisos hidrológicos (INA, EBY, CARU/CTM)
-- [ ] T4 F-3: informe de estaciones de lluvia en superficie con acceso abierto
+- [x] T3 F-2: informe de canales legibles de avisos hidrológicos (INA, EBY, CARU/CTM)
+- [x] T4 F-3: informe de estaciones de lluvia en superficie con acceso abierto
 
 ## Progreso y evidencia
 
 (Por tarea: ruta, checks observados, commit.)
 
+- T1 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 64/64 en `hidrometria`; checks: vitest 64/64 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 4b0e231 (`feat(hidrometria): propose river stretches for Prefectura stations`). 18 tramos, todos `propuesta`; 13 localidades dudosas sin asignar (razones del worker, sin fuente). A revisar primero: Colonia Liebig (probablemente no ribereña). Sin conexión al motor ni al mapa.
+- T3 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f2-avisos-hidrologicos.md`. Único canal legible verificado: reporte diario HTML del INA; API del INA por probar.
+- T4 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f3-lluvia-superficie.md`. Sin feed abierto verificado; OGIMET accesible; SMN y SIGA no se pudieron abrir.
+
 ## Próximo paso
 
-T1 (writer), T3 y T4 (investigación en paralelo).
+T2 V-1.
