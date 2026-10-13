@@ -97,6 +97,26 @@ describe('PanelRadar', () => {
     expect(screen.getAllByText('Escuela Moderada')).toHaveLength(1)
   })
 
+  it('muestra la amenaza junto a la prioridad educativa, sin mezclarlas', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '100' && punto.horizonteHoras === 72
+        ? { ...punto, nivelAmenaza: 'muy_alto' }
+        : punto.cueAnexo === '200' && punto.horizonteHoras === 72
+          ? { ...punto, nivelAmenaza: null }
+          : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+
+    const moderada = screen.getByRole('button', { name: 'Escuela Moderada, General Alvear' })
+    expect(within(moderada).getByText('Prioridad: Moderado')).toBeInTheDocument()
+    expect(within(moderada).getByText('Amenaza: Muy alto')).toBeInTheDocument()
+
+    // Sin dato de amenaza no se inventa un nivel: sólo queda la prioridad.
+    const alta = screen.getByRole('button', { name: 'Escuela Alta, Bella Vista' })
+    expect(within(alta).getByText('Prioridad: Alto')).toBeInTheDocument()
+    expect(within(alta).queryByText(/Amenaza/)).not.toBeInTheDocument()
+  })
+
   it('actualiza números y lista cuando cambia el horizonte', () => {
     const { rerender } = render(<PanelRadar {...props()} />)
     rerender(<PanelRadar {...props({ horizonte: 24 })} />)

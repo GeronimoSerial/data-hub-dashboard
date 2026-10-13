@@ -44,7 +44,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [ ] T16 Ops: correr `climatologia-caudal` y `climatologia-precipitacion` en prod con el código nuevo y revisar errores por punto
 - [x] T17 I-7b: persistir `nivelAmenaza`/`scoreAmenaza` en el snapshot de riesgo (schema + migración + `calcular-riesgo`)
 - [x] T18 I-7c (API): exponer la amenaza en las rutas de riesgo/radar
-- [ ] T19 I-7c (UI): mostrar la amenaza en el mapa junto a la prioridad educativa
+- [x] T19 I-7c (UI): mostrar la amenaza en el mapa junto a la prioridad educativa
 - [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
 
 Rama: `feat/amenaza-visible` desde `main` (4aa1882).
@@ -108,6 +108,8 @@ Rama: `feat/amenaza-visible` desde `main` (4aa1882).
 - T17 — ruta: delegated direct; RED/GREEN observed (RED: `calcular-riesgo.test.ts` T1 fallaba, `nivelAmenaza` undefined en los snapshots; GREEN: 5/5); columna nullable `nivel_amenaza` en `infra_risk_snapshot` (migración `0013_nivel_amenaza.sql` generada con `drizzle-kit generate`, sin otro diff de schema, y hecha idempotente con `IF NOT EXISTS` como 0012); `calcular-riesgo` persiste `nivelAmenaza`; `scoreAmenaza` ya se persistía (verificado en el mismo test: no null con evidencia, null sin ella); checks: vitest `--no-file-parallelism riesgo/jobs lib/db` 101/101, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): persist hazard level in risk snapshot`).
 
 - T18 — ruta: delegated direct; RED/GREEN observed (RED: 5 tests fallaban en rutas `riesgo`, `riesgo/[snapshotId]` y `radar` sin `nivelAmenaza`; GREEN: 53/53); campos aditivos: `nivelAmenaza` junto a `scoreAmenaza` (que ya se exponía) en los items de `riesgo` y `radar` y en el snapshot de `riesgo/[snapshotId]`; `nivelAmenaza` también en `radar.puntos` (la lista del panel del mapa lee `puntos`, no `items`); tipos de cliente `RadarEscuela`/`RadarPunto` con `nivelAmenaza?` opcional; fixture `motor-api.ts` con `nivelAmenaza` coherente con `scoreAmenaza`; `situacion/consulta.ts` no lo usan estas rutas, sin tocar; checks: vitest `--no-file-parallelism` rutas riesgo/radar 53/53, `tsc --noEmit` ok, eslint limpio; commit: ver git log (`feat(riesgo): expose hazard level in risk and radar APIs`).
+
+- T19 — ruta: delegated direct; RED/GREEN observed (RED: `panel-radar.test.tsx` nuevo caso fallaba sin "Prioridad: …"/"Amenaza: …"; GREEN: 13/13); en el panel Radar del mapa ("Escuelas en riesgo", `components/mapas/panel-radar.tsx`) cada fila muestra dos pills: `Prioridad: <nivel>` (neutra, lo que antes era el texto suelto a la derecha) y `Amenaza: <nivel>` (aviso si alto/muy alto, neutra si no); amenaza null = no se muestra pill (no se inventa nivel); la lista sigue filtrada por prioridad (moderado o más), así que una escuela con amenaza alta y prioridad baja todavía no aparece: queda como decisión de producto; la ficha y `admin/riesgo` no se tocaron (la ficha no muestra riesgo; `app/(hub)/admin/riesgo` fuera del alcance de edición); checks: vitest `panel-radar` + `map-infraestructura-page` 109/109, `tsc --noEmit` ok, eslint limpio; commit: ver git log (`feat(mapa): show hazard level next to educational priority`).
 
 ## Verificación de cierre (2026-10-13, rama s5)
 
