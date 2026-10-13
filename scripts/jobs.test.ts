@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
   correrJobBriefingIA: vi.fn(),
+  syncPrefecturaAlturas: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
@@ -56,6 +57,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/calcular-riesgo.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
   correrJobEpisodiosDerivados: mocks.correrJobEpisodiosDerivados,
+}))
+vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts', () => ({
+  syncPrefecturaAlturas: mocks.syncPrefecturaAlturas,
 }))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
@@ -184,6 +188,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['calcular-riesgo', 'calcularYPublicarRiesgo'],
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
     ['situacion-corte', 'generarCorte'],
+    ['sync-prefectura-alturas', 'syncPrefecturaAlturas'],
   ]
 
   it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {
@@ -293,6 +298,41 @@ describe('briefing-ia — lease interno (jobs.mjs sólo lo invoca)', () => {
     expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
     expect(mocks.correrJobBriefingIA).not.toHaveBeenCalled()
     expect(mocks.ensureSeeded).not.toHaveBeenCalled()
+  })
+})
+
+describe('sync-prefectura-alturas — despacho y códigos de salida', () => {
+  it('despacha al job sin opciones y devuelve su resultado', async () => {
+    const esperado = { ejecutado: true, estado: 'completo', contadores: { insertadas: 3 } }
+    mocks.syncPrefecturaAlturas.mockResolvedValue(esperado)
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('sync-prefectura-alturas')
+
+    expect(mocks.syncPrefecturaAlturas).toHaveBeenCalledTimes(1)
+    expect(resultado).toEqual(esperado)
+    expect(codigoSalida('sync-prefectura-alturas', resultado)).toBe(0)
+  })
+
+  it('un resultado fallido se devuelve sin lanzar y el proceso sale con exit 1', async () => {
+    const fallido = { ejecutado: false, estado: 'fallido', mensaje: 'HTTP 503' }
+    mocks.syncPrefecturaAlturas.mockResolvedValue(fallido)
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('sync-prefectura-alturas')
+
+    expect(resultado).toEqual(fallido)
+    expect(codigoSalida('sync-prefectura-alturas', resultado)).toBe(1)
+  })
+
+  it('un lease ya tomado (omitido) sale con exit 0 por ser idempotente', async () => {
+    const omitido = { ejecutado: false, estado: 'omitido' }
+    mocks.syncPrefecturaAlturas.mockResolvedValue(omitido)
+    const { correrJob, codigoSalida } = await import('./jobs.mjs')
+
+    const resultado = await correrJob('sync-prefectura-alturas')
+
+    expect(codigoSalida('sync-prefectura-alturas', resultado)).toBe(0)
   })
 })
 

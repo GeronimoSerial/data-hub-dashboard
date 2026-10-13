@@ -19,6 +19,8 @@ const CASOS_ATRASO: ReadonlyArray<[string, NombreJob, number | null, boolean]> =
   ['marca atrasado sync-imerg con corrida hace 150 minutos', 'sync-imerg', 150, true],
   ['no marca atrasado situacion-corte con corrida hace 90 minutos (cadencia horaria)', 'situacion-corte', 90, false],
   ['marca atrasado situacion-corte con corrida hace 150 minutos', 'situacion-corte', 150, true],
+  ['no marca atrasado sync-prefectura-alturas con corrida hace 90 minutos (cadencia horaria)', 'sync-prefectura-alturas', 90, false],
+  ['marca atrasado sync-prefectura-alturas con corrida hace 150 minutos', 'sync-prefectura-alturas', 150, true],
 ]
 
 describe('estaAtrasado', () => {
@@ -119,5 +121,6 @@ describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['episodios-derivados-v0']).toBe('episodios-derivados')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['situacion-corte-v1']).toBe('situacion-corte')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['geo-perfiles']).toBe('geo-perfiles')
+    expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-prefectura-alturas']).toBe('sync-prefectura-alturas')
   })
 })
