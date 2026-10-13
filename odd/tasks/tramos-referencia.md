@@ -46,4 +46,4 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 
 ## Próximo paso
 
-Riachuelo aprobada en el tramo de Corrientes (usuario, 2026-10-13). Las 5 propuestas por distancia (incluida La Cruz, Sección Quintas) y las 7 dudosas quedan para aprobar después. Usuario autorizó push y PR.
+Riachuelo aprobada en el tramo de Corrientes (usuario, 2026-10-13). Las 5 propuestas por distancia (Ensenadita, Ramada Paso, Puerto Boca, Apipé Grande, La Cruz Sección Quintas) aprobadas por el usuario el 2026-10-13; las 7 dudosas quedan para después. Usuario autorizó push y PR.

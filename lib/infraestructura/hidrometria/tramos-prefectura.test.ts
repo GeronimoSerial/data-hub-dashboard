@@ -19,16 +19,25 @@ const localidadesCorrientes = new Set(
 )
 
 const aprobados = TRAMOS_PREFECTURA.filter((t) => t.estado === 'aprobada')
-const propuestas = TRAMOS_PREFECTURA.filter((t) => t.estado === 'propuesta')
+// Localities first proposed by distance and approved by the user on 2026-10-13.
+const TRAMOS_POR_DISTANCIA = [
+  'parana-ituzaingo-apipe-grande',
+  'parana-itati-ramada-paso',
+  'parana-paso-de-la-patria-ensenadita',
+  'parana-goya-puerto-boca',
+  'uruguay-la-cruz-quintas',
+]
+const porDistancia = TRAMOS_PREFECTURA.filter((t) => TRAMOS_POR_DISTANCIA.includes(t.tramoId))
+const dePuerto = TRAMOS_PREFECTURA.filter((t) => !TRAMOS_POR_DISTANCIA.includes(t.tramoId))
 
 describe('TRAMOS_PREFECTURA', () => {
   it('declara la versión de los tramos', () => {
     expect(TRAMOS_PREFECTURA_VERSION).toBe('tramos-prefectura-v2')
   })
 
-  it('tiene exactamente un tramo aprobado por estación de Corrientes del catálogo', () => {
+  it('tiene exactamente un tramo de puerto por estación de Corrientes del catálogo', () => {
     const estacionesCorrientes = CATALOGO_ESTACIONES_PREFECTURA.filter((e) => e.rol === 'corrientes')
-    const estacionIds = aprobados.map((t) => t.estacionId)
+    const estacionIds = dePuerto.map((t) => t.estacionId)
     expect(new Set(estacionIds).size).toBe(estacionIds.length)
     expect(estacionIds.sort()).toEqual(estacionesCorrientes.map((e) => e.estacionId).sort())
   })
@@ -42,8 +51,10 @@ describe('TRAMOS_PREFECTURA', () => {
     }
   })
 
-  it('los 18 tramos de puerto quedan aprobados por GeronimoSerial el 2026-10-13', () => {
-    expect(aprobados).toHaveLength(18)
+  it('todos los tramos quedan aprobados por GeronimoSerial el 2026-10-13', () => {
+    expect(aprobados).toHaveLength(TRAMOS_PREFECTURA.length)
+    expect(dePuerto).toHaveLength(18)
+    expect(porDistancia).toHaveLength(5)
     for (const tramo of aprobados) {
       expect(tramo.aprobadoPor, tramo.tramoId).toBe('GeronimoSerial')
       expect(tramo.aprobadoEl, tramo.tramoId).toBe('2026-10-13')
@@ -54,12 +65,8 @@ describe('TRAMOS_PREFECTURA', () => {
     }
   })
 
-  it('las propuestas del asistente no tienen aprobación y citan la distancia medida', () => {
-    expect(propuestas.length).toBeGreaterThan(0)
-    for (const tramo of propuestas) {
-      expect(tramo.propuestoPor, tramo.tramoId).toBe('asistente')
-      expect(tramo.aprobadoPor, tramo.tramoId).toBeUndefined()
-      expect(tramo.aprobadoEl, tramo.tramoId).toBeUndefined()
+  it('los tramos por distancia citan la distancia medida', () => {
+    for (const tramo of porDistancia) {
       expect(tramo.justificacion, tramo.tramoId).toMatch(/\d+,\d km/)
       expect(tramo.justificacion, tramo.tramoId).toContain('coordenadas PNA sin verificar')
     }
@@ -119,11 +126,13 @@ describe('estacionParaLocalidad', () => {
     expect(estacionParaLocalidad('COLONIA LIEBIG', { incluirPropuestas: true })).toBeNull()
   })
 
-  it('no devuelve propuestas por defecto y sí con incluirPropuestas', () => {
-    expect(estacionParaLocalidad('RAMADA PASO')).toBeNull()
-    expect(estacionParaLocalidad('RAMADA PASO', { incluirPropuestas: true })).toMatchObject({
-      estacionId: 'pna-itati',
-      estado: 'propuesta',
+  it('resuelve por defecto las localidades aprobadas por distancia', () => {
+    expect(estacionParaLocalidad('RAMADA PASO')).toMatchObject({ estacionId: 'pna-itati', estado: 'aprobada' })
+    expect(estacionParaLocalidad('ENSENADITA')).toMatchObject({ estacionId: 'pna-paso-de-la-patria' })
+    expect(estacionParaLocalidad('PUERTO BOCA')).toMatchObject({ estacionId: 'pna-goya' })
+    expect(estacionParaLocalidad('APIPE GRANDE')).toMatchObject({ estacionId: 'pna-ituzaingo' })
+    expect(estacionParaLocalidad('LA CRUZ (Sección Quintas - Zona Rural)')).toMatchObject({
+      estacionId: 'pna-la-cruz',
     })
   })
 
