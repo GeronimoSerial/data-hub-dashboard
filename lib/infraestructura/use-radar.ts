@@ -63,6 +63,9 @@ export interface RadarEscuela {
   scoreRiesgo: number | null
   nivelRiesgo: string | null
   scoreAmenaza: number | null
+  // Nivel de la amenaza sola (I-7), separado de la prioridad educativa
+  // (`nivelRiesgo`). Opcional para no romper fixtures previos.
+  nivelAmenaza?: string | null
   scoreVulnerabilidad: number | null
   confianza: string
   // Dimensión SEPARADA "riesgo de acceso" (ver motor/riesgo-acceso.ts): nunca
@@ -81,6 +84,8 @@ export interface RadarPunto {
   cueAnexo: string
   horizonteHoras: number
   nivelRiesgo: string | null
+  // Ver RadarEscuela.nivelAmenaza. Opcional para no romper fixtures previos.
+  nivelAmenaza?: string | null
   confianza: string
   nivelRiesgoAcceso: string | null
 }

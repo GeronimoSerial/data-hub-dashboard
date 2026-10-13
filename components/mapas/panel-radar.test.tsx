@@ -97,6 +97,58 @@ describe('PanelRadar', () => {
     expect(screen.getAllByText('Escuela Moderada')).toHaveLength(1)
   })
 
+  it('muestra la amenaza junto a la prioridad educativa, sin mezclarlas', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '100' && punto.horizonteHoras === 72
+        ? { ...punto, nivelAmenaza: 'muy_alto' }
+        : punto.cueAnexo === '200' && punto.horizonteHoras === 72
+          ? { ...punto, nivelAmenaza: null }
+          : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+
+    const moderada = screen.getByRole('button', { name: 'Escuela Moderada, General Alvear' })
+    expect(within(moderada).getByText('Prioridad: Moderado')).toBeInTheDocument()
+    expect(within(moderada).getByText('Amenaza: Muy alto')).toBeInTheDocument()
+
+    // Sin dato de amenaza no se inventa un nivel: sólo queda la prioridad.
+    const alta = screen.getByRole('button', { name: 'Escuela Alta, Bella Vista' })
+    expect(within(alta).getByText('Prioridad: Alto')).toBeInTheDocument()
+    expect(within(alta).queryByText(/Amenaza/)).not.toBeInTheDocument()
+  })
+
+  it('lista una escuela de prioridad baja cuando su amenaza es alta o muy alta, al final y sin sumarla a los KPIs', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '400' && punto.horizonteHoras === 72
+        ? { ...punto, nivelAmenaza: 'alto' }
+        : punto.cueAnexo === '100' && punto.horizonteHoras === 72
+          ? { ...punto, nivelAmenaza: 'bajo' }
+          : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+
+    const filas = screen.getAllByRole('button', { name: /Escuela/ }).filter((boton) => boton.className.includes('map-sitact__fila'))
+    expect(filas.map((fila) => fila.getAttribute('aria-label'))).toEqual([
+      'Escuela Muy Alta, Goya',
+      'Escuela Alta, Bella Vista',
+      'Escuela Moderada, General Alvear',
+      'Escuela Baja, Ituzaingó',
+    ])
+    expect(within(filas[3]).getByText('Prioridad: Bajo')).toBeInTheDocument()
+    expect(within(filas[3]).getByText('Amenaza: Alto')).toBeInTheDocument()
+    // Los KPIs siguen contando sólo la prioridad educativa alta o muy alta.
+    expect(screen.getByText('Riesgo alto o muy alto').previousElementSibling).toHaveTextContent('2')
+  })
+
+  it('no lista una escuela de prioridad baja con amenaza moderada o sin dato', () => {
+    const conAmenaza = puntos.map((punto) =>
+      punto.cueAnexo === '400' && punto.horizonteHoras === 72 ? { ...punto, nivelAmenaza: 'moderado' } : punto,
+    )
+    render(<PanelRadar {...props({ puntos: conAmenaza })} />)
+
+    expect(screen.queryByText('Escuela Baja')).not.toBeInTheDocument()
+  })
+
   it('actualiza números y lista cuando cambia el horizonte', () => {
     const { rerender } = render(<PanelRadar {...props()} />)
     rerender(<PanelRadar {...props({ horizonte: 24 })} />)

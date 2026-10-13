@@ -11,7 +11,7 @@
 // - `calcularPercentilesCaudal`: función pura, sin red, testeable con series
 //   sintéticas conocidas.
 // - `obtenerSeriesHistoricasCaudal`: arma la solicitud real por LOTES de
-//   coordenadas, valida el payload con Zod y descarta los días sin dato
+//   coordenadas y tramos de período, valida el payload con Zod y descarta los días sin dato
 //   (null) en vez de imputarlos como 0 m³/s.
 //
 // Verificado en vivo el 2026-09-26: el endpoint de pronóstico de inundación
@@ -19,11 +19,23 @@
 // con `river_discharge` en vez de `precipitation_sum` y soporte de múltiples
 // coordenadas separadas por coma en una sola request.
 import { z } from 'zod'
-import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import {
+  agruparEnLotes,
+  construirUrlLoteOpenMeteo,
+  crearParserLote,
+  diasMaximosPorTramo,
+  partirPeriodoEnTramos,
+} from './lotes'
 import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
 import { CONFIG_FUENTES } from './config-fuentes'
-import { apiKeyDesdeEntorno, pesoLlamada } from './cupo-om'
+import {
+  apiKeyDesdeEntorno,
+  asegurarPesoAlcanzable,
+  limiteVentana,
+  MOTIVOS_CUPO_SIN_RED,
+  pesoLlamada,
+} from './cupo-om'
 import type { ControladorCupoOM } from './cupo-om'
 import type { HazardClimatologiaPunto } from '../tipos-hazard'
 import type { PuntoRio } from '../puntos-rio'
@@ -104,10 +116,9 @@ const payloadCaudalElementoSchema = z
   })
 
 // 50 coordenadas por request: misma decisión que ERA5, URLs acotadas. Con los
-// 8 puntos actuales de `PUNTOS_RIO` todo entra en un único lote (1 request).
+// 8 puntos actuales de `PUNTOS_RIO` todo entra en un único lote.
 export const TAMANO_LOTE_COORDENADAS_CAUDAL = CONFIG_FUENTES.climatologiaCaudal.tamanoLote
 
-/** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 export type ResultadoSeriesHistoricasCaudal = {
   /** Serie diaria (sin nulls) por id de punto; sólo de los que respondieron. */
   seriesPorPunto: Record<string, number[]>
@@ -131,16 +142,21 @@ function construirUrlLote(
 }
 
 /**
- * Valida el payload de un lote. Acepta objeto suelto (una coordenada) o array
- * (varias) y exige que la cantidad coincida con las coordenadas enviadas: si
- * no, el lote entero cae como `payload_invalido` en vez de quedar desalineado.
- */
-/**
- * Obtiene la serie histórica diaria de caudal de VARIOS puntos de río en una
- * sola pasada, consultando por lotes de `TAMANO_LOTE_COORDENADAS_CAUDAL`.
- * Open-Meteo devuelve un array en el mismo orden que las coordenadas enviadas,
- * así que el parseo empareja por índice. Un lote caído no tumba a los demás:
- * sus puntos quedan en `erroresPorPunto` y el resto devuelve datos.
+ * Obtiene la serie histórica diaria de caudal de VARIOS puntos de río,
+ * consultando por lotes de `TAMANO_LOTE_COORDENADAS_CAUDAL`. Open-Meteo
+ * devuelve un array en el mismo orden que las coordenadas enviadas, así que el
+ * parseo empareja por índice. Un lote caído no tumba a los demás: sus puntos
+ * quedan en `erroresPorPunto` y el resto devuelve datos.
+ *
+ * Troceo por período (T16a, mismo mecanismo que `climatologia.ts`): pedir los
+ * 10 años de un lote en UNA request pesa `puntos × días/14` (8 puntos ≈ 2087),
+ * por encima del límite de la ventana de minuto, que se evalúa completo por
+ * request: falla siempre con `cupo_minuto_agotado`. Cada lote pide el período
+ * en tramos dimensionados contra el límite vigente (`diasMaximosPorTramo` con
+ * el tamaño REAL del lote) y concatena las series en memoria; sólo si TODOS
+ * los tramos responden ok se asignan las series del lote, así nunca queda un
+ * punto con historia parcial. Un motivo "sin red" (guarda de cupo) corta el
+ * resto de los lotes y les registra el mismo error.
  */
 export async function obtenerSeriesHistoricasCaudal(params: {
   puntos: readonly PuntoRio[]
@@ -154,38 +170,69 @@ export async function obtenerSeriesHistoricasCaudal(params: {
   const seriesPorPunto: Record<string, number[]> = {}
   const erroresPorPunto: Record<string, { motivo: string; detalle: string }> = {}
   const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
-  const dias = diasEntreFechas(params.periodoDesde, params.periodoHasta)
+  const apiKeyPresente = Boolean(apiKey)
+  const limiteMinuto = limiteVentana('minuto', apiKeyPresente)
 
   const lotes = agruparEnLotes(params.puntos, TAMANO_LOTE_COORDENADAS_CAUDAL)
 
-  for (const lote of lotes) {
-    const peso = pesoLlamada({
-      ubicaciones: lote.length,
-      variables: CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA,
-      dias,
-    })
-    const cupo = params.controladorCupoFactory?.(peso)
-    const resultado = await ejecutarConReintentos<
-      Array<z.infer<typeof payloadCaudalElementoSchema>>
-    >({
-      url: construirUrlLote(lote, params.periodoDesde, params.periodoHasta, apiKey),
-      fetchImpl: params.fetchImpl,
-      cupo,
-      parsearPayload: crearParserLote(payloadCaudalElementoSchema, lote.length),
-    })
+  for (let indiceLote = 0; indiceLote < lotes.length; indiceLote++) {
+    const lote = lotes[indiceLote]
+    const tramos = partirPeriodoEnTramos(
+      params.periodoDesde,
+      params.periodoHasta,
+      diasMaximosPorTramo({
+        celdasPorLote: lote.length,
+        variables: CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA,
+        limiteMinuto,
+      }),
+    )
+    const seriesLote: number[][] = lote.map(() => [])
+    let falloLote: { motivo: string; detalle: string } | undefined
 
-    if (!resultado.ok) {
-      const fallo = { motivo: resultado.motivo, detalle: resultado.detalle }
-      for (const punto of lote) {
-        erroresPorPunto[punto.id] = fallo
+    for (const tramo of tramos) {
+      const peso = pesoLlamada({
+        ubicaciones: lote.length,
+        variables: CANTIDAD_VARIABLES_CAUDAL_CLIMATOLOGIA,
+        dias: diasEntreFechas(tramo.desde, tramo.hasta),
+      })
+      // Con `diasMaximosPorTramo` no debería pasar nunca; el check explícito
+      // evita depender en silencio de esa cuenta si cambia el margen/límite.
+      asegurarPesoAlcanzable({ peso, apiKeyPresente })
+
+      const cupo = params.controladorCupoFactory?.(peso)
+      const resultado = await ejecutarConReintentos<
+        Array<z.infer<typeof payloadCaudalElementoSchema>>
+      >({
+        url: construirUrlLote(lote, tramo.desde, tramo.hasta, apiKey),
+        fetchImpl: params.fetchImpl,
+        cupo,
+        parsearPayload: crearParserLote(payloadCaudalElementoSchema, lote.length),
+      })
+
+      if (!resultado.ok) {
+        falloLote = { motivo: resultado.motivo, detalle: resultado.detalle }
+        break
       }
+
+      lote.forEach((_, indice) => {
+        seriesLote[indice].push(
+          ...resultado.datos[indice].daily.river_discharge.filter(
+            (valor): valor is number => valor !== null,
+          ),
+        )
+      })
+    }
+
+    if (falloLote) {
+      const sinRed = MOTIVOS_CUPO_SIN_RED.has(falloLote.motivo)
+      const afectados = sinRed ? lotes.slice(indiceLote).flat() : lote
+      for (const punto of afectados) erroresPorPunto[punto.id] = falloLote
+      if (sinRed) break
       continue
     }
 
     lote.forEach((punto, indice) => {
-      seriesPorPunto[punto.id] = resultado.datos[indice].daily.river_discharge.filter(
-        (valor): valor is number => valor !== null,
-      )
+      seriesPorPunto[punto.id] = seriesLote[indice]
     })
   }
 
