@@ -34,10 +34,10 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
 - [x] T10b: un job esperado cuya última corrida es `fallido` se reporta como `fallando` (no como al día)
 - [x] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
-- [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
-- [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
-- [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
-- [ ] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
+- [x] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
+- [x] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
+- [x] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
+- [x] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
 ## Bloqueados (fuera de este ciclo)
 
@@ -48,7 +48,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 ## Decisiones del usuario (2026-10-13)
 
-- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 = T8-T10 en `GeronimoSerial/refactor-s3` (e455c5b, eb6d977, 4f83ec7; ~440 líneas). Slice 4 desde T10b en `GeronimoSerial/refactor-s4`.
+- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 = T8-T10 en `GeronimoSerial/refactor-s3` (e455c5b, eb6d977, 4f83ec7; ~440 líneas). Slice 4 = T10b + T11 en `GeronimoSerial/refactor-s4` (9d18406, 4a3fbb8; ~660 líneas, mayoría reescritura del runbook). Slice 5 = T12-T15 en `GeronimoSerial/refactor-s5` (a5aa6a8, b764aae, 112ddbb, 003d234; ~740 líneas).
 - Pendiente del usuario: agregar `RADAR_ARCHIVO_DIR` a `.env.example` (permisos bloquean `.env*`) y en Coolify con volumen persistente.
 - Licencia SMN: uso no comercial con atribución según el usuario (dijo CC BY 2.0, que no restringe uso comercial); registrada como CC BY-NC, pendiente de fuente oficial.
 - I-2: borrar todo `infra_parte` y dependientes en producción. **Ejecutado 2026-10-13** (SSH autorizado): respaldo `/root/backups/infra_parte_hub_prod_20261013T170619Z.dump` (4 tablas); conteos 76/129/135/139 → 0/0/0/0 en una transacción (cascada). Restaurar con `pg_restore --data-only`.
@@ -87,6 +87,20 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - T10b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 3 tests nuevos fallaban (`fallando` ausente, `errorSaneado` y `ultimaCompletadaEn` no expuestos); GREEN: `salud.test.ts` 15/15; el caso fallido viejo → `atrasado` ya pasaba y queda como guarda de regresión); precedencia `no_programado`/`sin_trazabilidad` > `sin_corridas` > `atrasado` > `fallando` > `ok`; `filas` acepta `estado` y `errorSaneado` opcionales (sin ellos se comporta como antes); `errorSaneado` sólo se rellena en `fallando` y viene de la última fila; `ultimaCompletadaEn` por job = última `completado` del tipo; checks: vitest `salud.test.ts` 15/15, vitest `--no-file-parallelism riesgo` 434 passed / 2 skipped, `tsc --noEmit` sin errores, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): report expected jobs whose last run failed`).
 - T11 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; runbook reescrito por entorno (Coolify en prod con 7 tareas y crons del brief; systemd sólo en staging con 4 timers activos y 3 deshabilitados); verificación: `rg` de IPs/hosts/secretos sin coincidencias, todos los crons de prod presentes; prettier no está configurado en el repo (no hay dependencia ni config; `pnpm exec prettier` no encontrado); cruce de cadencias contra `jobs-esperados.ts` consistente (sin inconsistencias); commit: ver git log (`docs(ops): align scheduler runbook with production Coolify tasks`).
 
+- T12 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos fallaban con `construirFilasDataset is not a function`; GREEN: 7/7); contrato de columnas en el encabezado del script: una fila por snapshot de run publicado (`instante` = `calculado_en`), `afectacionConfirmadaEnT` = reporte no retirado con `creada_en <= t`, `targetAfectacion24h/72h` = reporte con `creada_en` en (t, t+h], null si la ventana no llega a `ahora`, idEscuela = HMAC(sal, CUE) sin CUE en claro; `nivelPeligroDepartamento` y `lluviaObservadaMm` quedan null (supuesto: no hay fuente as-of conectada); cero reportes válido (targets false); el script ahora hace `ensureSeeded()` y el JSON es la última línea de stdout; checks: vitest export 7/7, `tsc --noEmit` ok, eslint sin errores (los dos archivos están en ignore del config, sin lint efectivo); commit: ver git log (`feat(scripts): implement de-identified dataset export query`).
+
+- T13 — ruta: delegated direct (Haiku); solo comentarios/docs; sin RED/GREEN (no hay comportamiento nuevo); `parana-goya` ya no lleva el caudal hardcodeado y remite a `climatologia-caudal` / `hazard_climatology`; `docs/DEPLOY.md` describe el export real (una fila por snapshot, `idEscuela` HMAC, targets 24h/72h desde `infra_afectacion`, dos columnas `null`); la cabecera de `export-desidentificado.ts` apunta a `docs/DEPLOY.md`; sin tocar coordenadas ni código. Pendiente: `puntos-rio.ts:43` (Corrientes, caudal 17740.9 m³/s) tiene la misma cifra sin verificar; no se modificó. checks: vitest `puntos-rio.test.ts` 5/5, `tsc --noEmit` ok; commit: ver git log (`docs(riesgo): drop unverified parana-goya flow and fix stale export docs`).
+
+- T14 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos de guardia fallaban (`status` 0 con NODE_ENV=production y con URL `_prod`, sin rechazo); GREEN: `seed-demo-partes.test.ts` 6/6); guardia tras el gate DEMO_OK y antes de cualquier import de DB: refusa si `NODE_ENV=production` o si el nombre de base/host de `DATABASE_URL` contiene "prod" (sin imprimir la URL); override sólo con `--permitir-produccion` + `CONFIRMAR_SEED_PRODUCCION=si`, con un solo factor sale con código 1 y sin escribir (verificado: no se crea `DATA_DIR/pg`); aplica también a `--limpiar`; documentado en la cabecera del script. Sin exportar función pura: el script tiene efectos al cargar, así que los casos se cubren por spawn (el test de guardia no necesita DB). Otros inserts de reportes: sólo `lib/infraestructura/test-utils/parte-fixtures.ts` (helper de test vía drizzle, no es script); ningún otro script de `scripts/` inserta en `infra_parte`/`infra_afectacion`; no se modificaron. checks: vitest `seed-demo-partes.test.ts` 6/6, `tsc --noEmit` ok; commit: ver git log (`fix(scripts): refuse to seed demo reports into production`).
+
+- T15 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; verificación: `rg` de IP/host/usuario/UUID sobre los dos archivos tocados sin coincidencias (sobre `docs/` completo hay coincidencias preexistentes fuera de este cambio, en `docs/DEPLOY.md` y muestras CAP/reportes; no se tocaron); ubicación: `docs/rotacion-credenciales-2026-10.md` junto a `docs/rotacion-clave-nominal.md` (no existía `docs/ops/`); link agregado en la sección "Credenciales de red por job" del runbook; commit: ver git log (`docs(ops): add credential rotation checklist and read-only audit role`).
+
+## Verificación de cierre (2026-10-13, rama s5)
+
+- `pnpm exec vitest run --no-file-parallelism`: 331/332 archivos, 3032 tests ok, 25 omitidos. Única falla: `scripts/backup-postgres.test.ts` por `spawn podman ENOENT` (entorno sin podman; archivo no tocado).
+- `pnpm lint`: 0 errores, 14 warnings. `pnpm exec tsc --noEmit`: ok.
+- Escaneo de secretos de la sesión en el árbol y en `git log -p main..HEAD`: sin coincidencias.
+
 ## Siguiente paso
 
-T12.
+Abrir los 5 PRs encadenados (decisión del usuario). Pendientes del usuario: rotar credenciales (`docs/rotacion-credenciales-2026-10.md`), `RADAR_ARCHIVO_DIR` en `.env.example` y Coolify, confirmar zona horaria y comando de las tareas de Coolify, limpiar hostnames/UUIDs preexistentes en `docs/DEPLOY.md`. Próximo ciclo: I-3 + G-1 (Prefectura horaria), F-1/F-4 con cola de revisión admin, I-7b/c, y P-6 (programar motor) cuando P-5 esté mergeado.

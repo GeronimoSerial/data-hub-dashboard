@@ -218,7 +218,9 @@ Exportación bajo demanda de dataset desidentificado:
 docker exec -e DATASET_SALT_E7B=<SAL> <CONTENEDOR> node scripts/exportar-dataset-desidentificado.mjs [--out <RUTA>]
 ```
 
-El archivo queda en `DATA_DIR/dataset-replay-e7b/<version>_<fecha>.csv`. Sin `DATASET_SALT_E7B` el proceso sale con error claro; actualmente el módulo de dominio aún no construye filas desde la base y el resultado es solo encabezado (el script lo advierte).
+El archivo queda en `DATA_DIR/dataset-replay-e7b/<version>_<fecha>.csv`. Sin `DATASET_SALT_E7B` el proceso sale con error claro.
+
+El CSV tiene una fila por snapshot de run publicado. `idEscuela` es HMAC-SHA256(sal, CUE), sin CUE en claro. `targetAfectacion24h` y `targetAfectacion72h` salen de `infra_afectacion` (reportes creados en (t, t+h]) y quedan `null` si la ventana aún no llegó a la fecha de corte. `nivelPeligroDepartamento` y `lluviaObservadaMm` quedan siempre `null` por ahora, porque no hay fuente as-of conectada. Sin snapshots publicados el resultado es solo encabezado y el script lo advierte.
 
 Al instalar timers, reemplazar `<CONTENEDOR>` por el nombre/ID real mostrado por `docker ps`, por ejemplo con `sed` sobre el unit antes de `systemctl daemon-reload`, o mediante `systemctl edit enos-ops1@.service` con un drop-in. Consultar `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
 

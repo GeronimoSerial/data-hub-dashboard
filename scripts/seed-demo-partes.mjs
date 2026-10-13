@@ -29,6 +29,17 @@
  * El gate corre apenas después de process.loadEnvFile(), antes de importar
  * cualquier módulo de infraestructura/DB.
  *
+ * Guardia de producción (T14, I-2): además del gate anterior, el script se
+ * niega a escribir si detecta un destino de producción, antes de abrir
+ * ninguna base:
+ *   - NODE_ENV=production, o
+ *   - DATABASE_URL cuyo nombre de base o host contiene "prod" (sin imprimir la URL).
+ * El override existe sólo con DOS factores a la vez, deliberados:
+ *   - el flag --permitir-produccion, y
+ *   - CONFIRMAR_SEED_PRODUCCION=si
+ * Con un solo factor el script sale con código 1. El override no reemplaza
+ * al gate DEMO_OK/DATA_DIR. Aplica también a --limpiar.
+ *
  * Idempotencia: todo lo que este script escribe es identificable sin
  * ambigüedad y se borra antes de reinsertar en cada corrida:
  *   - schema principal: ids de texto con prefijo 'demo-' (infra_parte, infra_afectacion,
@@ -71,6 +82,52 @@ if (process.env.DEMO_OK !== '1' || !process.env.DATA_DIR) {
   )
   process.exit(1)
 }
+
+// --- Guardia de producción (antes de importar/abrir cualquier DB) ---------
+// Ver comentario de cabecera. Nunca imprime DATABASE_URL.
+function destinoEsProduccion(databaseUrl) {
+  if (!databaseUrl) return false
+  try {
+    const url = new URL(databaseUrl)
+    const nombreBase = decodeURIComponent(url.pathname.replace(/^\//, ''))
+    return /prod/i.test(nombreBase) || /prod/i.test(url.hostname)
+  } catch {
+    // URL no parseable: se evalúa el texto crudo, sin mostrarlo.
+    return /prod/i.test(databaseUrl)
+  }
+}
+
+function evaluarGuardiaProduccion(env, argv) {
+  const esProduccion = env.NODE_ENV === 'production' || destinoEsProduccion(env.DATABASE_URL)
+  if (!esProduccion) return { permitido: true }
+
+  const flag = argv.includes('--permitir-produccion')
+  const confirmacion = env.CONFIRMAR_SEED_PRODUCCION === 'si'
+  if (flag && confirmacion) {
+    return {
+      permitido: true,
+      advertencia: 'ADVERTENCIA: override de producción activo (--permitir-produccion + CONFIRMAR_SEED_PRODUCCION=si). Se escribirán datos FICTICIOS en un destino de producción.',
+    }
+  }
+  const faltan = [
+    flag ? null : '--permitir-produccion',
+    confirmacion ? null : 'CONFIRMAR_SEED_PRODUCCION=si',
+  ].filter(Boolean)
+  return {
+    permitido: false,
+    motivo:
+      'Destino de producción detectado (NODE_ENV=production o DATABASE_URL con nombre/host de producción). ' +
+      'Este script no escribe en producción. Para un override deliberado se requieren ambos factores; ' +
+      `faltan: ${faltan.join(' y ')}.`,
+  }
+}
+
+const guardiaProduccion = evaluarGuardiaProduccion(process.env, process.argv)
+if (!guardiaProduccion.permitido) {
+  console.error(guardiaProduccion.motivo)
+  process.exit(1)
+}
+if (guardiaProduccion.advertencia) console.error(guardiaProduccion.advertencia)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
