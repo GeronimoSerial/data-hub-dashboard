@@ -17,12 +17,12 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - Sin cambios de pesos ni umbrales sin datos de calibración.
 - Workers: Haiku, una tarea atómica por vez, un solo writer.
 - Checks: `pnpm exec vitest run <archivo>` por tarea; al cierre de cada tarea `pnpm exec tsc --noEmit` y `pnpm lint`.
-- RDD: off (global). Estrategia de entrega: `ask-on-risk` (pronóstico ~1000 líneas: preguntar estrategia de cadena antes de superar ~400).
+- RDD: off (global). Estrategia de entrega: `ask-on-risk` → cadena `stacked-to-main` (elegida por el usuario 2026-10-13); slices de ~400 líneas, registrar commits por PR.
 
 ## Checklist
 
 - [x] T1 P-1: `calcular-climatologia-caudal` publica `fallido` con error por punto si 0 procesados; fallas parciales quedan en `contadores`/`errorSaneado`
-- [ ] T2 G-3: distancia geodésica (haversine, 40 km) en `motor/adaptadores/territorio.ts`
+- [x] T2 G-3: distancia geodésica (haversine, 40 km) en `motor/adaptadores/territorio.ts`
 - [ ] T3 I-6a: `cargarPronostico` (y variante por lote) filtra `corridaEn <= ahora`
 - [ ] T4 I-6b/c: umbrales de climatología as-of + limpiar referencias a `replay/consulta.ts`
 - [ ] T5 I-8a: salud de fuente en sync de radar-meteo
@@ -35,7 +35,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 ## Bloqueados (fuera de este ciclo)
 
-- Decisión del equipo (09): I-2 (Q2), I-3 (Q4), F-1/F-4 (Q5, Q6), P-3 (Q3), V-3 (terminar o quitar export).
+- I-2: usuario decidió borrar los partes de prueba de producción (2026-10-13); pendiente autorización operativa (alcance, respaldo, acceso).
+- Decisión del equipo (09): I-3 (Q4), F-1/F-4 (Q5, Q6), P-3 (Q3), V-3 (terminar o quitar export).
 - Datos: G-4 (valor original de caudal de `parana-goya`), G-1 (coordenadas de estaciones).
 - Operativos: I-4, P-6, I-1c. Dependientes: G-2, F-2, F-3, V-1, V-2, M-1, I-7b/c.
 
@@ -43,8 +44,9 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 (Por tarea: ruta, checks observados, commit.)
 
-- T1 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, `completado` en vez de `fallido` y `contadores` sin `puntosConError`; GREEN: 6/6); checks: vitest caudal 6/6, vitest `riesgo/jobs` 51/51, `tsc --noEmit` ok, eslint ok; commit: ver git log (`fix(riesgo): mark climatologia-caudal run fallido when no point is processed`).
+- T1 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, `completado` en vez de `fallido` y `contadores` sin `puntosConError`; GREEN: 6/6); checks: vitest caudal 6/6, vitest `riesgo/jobs` 51/51, `tsc --noEmit` ok, eslint ok; commit: 3e3a758 (`fix(riesgo): mark climatologia-caudal run fallido when no point is processed`).
+- T2 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests nuevos fallaban, la escuela a 0.5° al este (~49 km) se asociaba a `parana-bella-vista`; GREEN: territorio + rio-asociacion 14/14, `riesgo` completo 415 passed / 2 skipped); reutiliza `elegirPuntoRioMasCercano` (40 km) de `rio-asociacion.ts`, sin haversine duplicado; checks: vitest territorio + rio-asociacion 14/14, vitest `riesgo` 415 passed, `tsc --noEmit` ok, eslint ok; commit: ver git log (`fix(riesgo): use geodesic distance in territory adapter`).
 
 ## Siguiente paso
 
-T2.
+T3.
