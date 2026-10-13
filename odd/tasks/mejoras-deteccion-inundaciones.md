@@ -32,7 +32,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T8 I-5a: exportar corridas de radar antes de la purga
 - [x] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
 - [x] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
-- [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
+- [x] T10b: un job esperado cuya última corrida es `fallido` se reporta como `fallando` (no como al día)
+- [x] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
 - [ ] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
@@ -47,7 +48,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 ## Decisiones del usuario (2026-10-13)
 
-- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 desde T8 en `GeronimoSerial/refactor-s3`.
+- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 = T8-T10 en `GeronimoSerial/refactor-s3` (e455c5b, eb6d977, 4f83ec7; ~440 líneas). Slice 4 desde T10b en `GeronimoSerial/refactor-s4`.
+- Pendiente del usuario: agregar `RADAR_ARCHIVO_DIR` a `.env.example` (permisos bloquean `.env*`) y en Coolify con volumen persistente.
 - Licencia SMN: uso no comercial con atribución según el usuario (dijo CC BY 2.0, que no restringe uso comercial); registrada como CC BY-NC, pendiente de fuente oficial.
 - I-2: borrar todo `infra_parte` y dependientes en producción. **Ejecutado 2026-10-13** (SSH autorizado): respaldo `/root/backups/infra_parte_hub_prod_20261013T170619Z.dump` (4 tablas); conteos 76/129/135/139 → 0/0/0/0 en una transacción (cascada). Restaurar con `pg_restore --data-only`.
 - Q1: motor en producción solo tras I-6, I-7, G-3 e I-2 cerradas.
@@ -82,6 +84,9 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T10 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: suite `salud.test.ts` no carga, falta `riesgo/jobs-esperados.ts`; GREEN: `salud.test.ts` 11/11 con 6 casos nuevos: `sin_corridas`, `atrasado` a 2×+1 min, `ok` a 2×−1 min, fila más reciente aunque fallida, `no_programado`, `sin_trazabilidad`, y nombres de la lista presentes en `NOMBRES_VALIDOS` de `scripts/jobs.mjs`); `jobs-esperados.ts` declara 13 jobs con `TOLERANCIA_ATRASO_JOB = 2`; `evaluarJobsEsperados` (puro) se expone en `obtenerEstadoOperativo` como `jobsEsperados` (campo nuevo, API y UI sin cambios). Hallazgos: (a) `infra_job_run.tipo` no coincide con el nombre de despacho para 9 de 13 jobs (p. ej. `sync-imerg` → `sync-hazard-imerg`, `climatologia-caudal` → `calcular-hazard-climatologia-caudal`), la lista guarda ambos; (b) `verificar-radar-meteo` no llama a `adquirirLease`, así que no escribe `infra_job_run`: queda como `sin_trazabilidad` (no como falso `sin_corridas` permanente); (c) intervalos de los deshabilitados tomados de `CADENCIAS` en `cadencias.ts`, porque el brief no los fijó; (d) `atrasado` usa la última fila de cualquier estado, según el brief; `ultimaCompletadaEn` no se usa aquí; checks: vitest `salud.test.ts` 11/11, vitest `--no-file-parallelism riesgo` 430 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): flag expected jobs that never ran or are late`).
 
+- T10b — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 3 tests nuevos fallaban (`fallando` ausente, `errorSaneado` y `ultimaCompletadaEn` no expuestos); GREEN: `salud.test.ts` 15/15; el caso fallido viejo → `atrasado` ya pasaba y queda como guarda de regresión); precedencia `no_programado`/`sin_trazabilidad` > `sin_corridas` > `atrasado` > `fallando` > `ok`; `filas` acepta `estado` y `errorSaneado` opcionales (sin ellos se comporta como antes); `errorSaneado` sólo se rellena en `fallando` y viene de la última fila; `ultimaCompletadaEn` por job = última `completado` del tipo; checks: vitest `salud.test.ts` 15/15, vitest `--no-file-parallelism riesgo` 434 passed / 2 skipped, `tsc --noEmit` sin errores, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): report expected jobs whose last run failed`).
+- T11 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; runbook reescrito por entorno (Coolify en prod con 7 tareas y crons del brief; systemd sólo en staging con 4 timers activos y 3 deshabilitados); verificación: `rg` de IPs/hosts/secretos sin coincidencias, todos los crons de prod presentes; prettier no está configurado en el repo (no hay dependencia ni config; `pnpm exec prettier` no encontrado); cruce de cadencias contra `jobs-esperados.ts` consistente (sin inconsistencias); commit: ver git log (`docs(ops): align scheduler runbook with production Coolify tasks`).
+
 ## Siguiente paso
 
-T11.
+T12.

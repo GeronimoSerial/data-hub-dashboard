@@ -125,6 +125,44 @@ describe('evaluarJobsEsperados — jobs declarados vs. corridas registradas', ()
     expect(job?.ultimaCorridaEn).toBe(filas[1]?.actualizadaEn)
   })
 
+  it('marca como fallando un job cuya última corrida es fallida y reciente', () => {
+    const filas = [
+      { tipo: 'sync-hazard-imerg', actualizadaEn: hace(10), estado: 'fallido', errorSaneado: 'HTTP 503' },
+    ]
+    const [job] = evaluarJobsEsperados({ filas, ahora, esperados: [esperado] })
+    expect(job?.estado).toBe('fallando')
+    expect(job?.ultimaCorridaEn).toBe(filas[0]?.actualizadaEn)
+    expect(job?.errorSaneado).toBe('HTTP 503')
+    expect(job?.ultimaCompletadaEn).toBeNull()
+  })
+
+  it('marca como ok un job cuya corrida completada es posterior a un fallido anterior', () => {
+    const filas = [
+      { tipo: 'sync-hazard-imerg', actualizadaEn: hace(30), estado: 'fallido' },
+      { tipo: 'sync-hazard-imerg', actualizadaEn: hace(10), estado: 'completado' },
+    ]
+    const [job] = evaluarJobsEsperados({ filas, ahora, esperados: [esperado] })
+    expect(job?.estado).toBe('ok')
+    expect(job?.errorSaneado).toBeNull()
+    expect(job?.ultimaCompletadaEn).toBe(filas[1]?.actualizadaEn)
+  })
+
+  it('marca como atrasado un job cuyo último fallido es mayor que 2× el intervalo', () => {
+    const filas = [{ tipo: 'sync-hazard-imerg', actualizadaEn: hace(2 * 60 + 1), estado: 'fallido' }]
+    const [job] = evaluarJobsEsperados({ filas, ahora, esperados: [esperado] })
+    expect(job?.estado).toBe('atrasado')
+  })
+
+  it('apunta ultimaCompletadaEn a la última completada aunque la más reciente falle', () => {
+    const filas = [
+      { tipo: 'sync-hazard-imerg', actualizadaEn: hace(90), estado: 'completado' },
+      { tipo: 'sync-hazard-imerg', actualizadaEn: hace(10), estado: 'fallido' },
+    ]
+    const [job] = evaluarJobsEsperados({ filas, ahora, esperados: [esperado] })
+    expect(job?.estado).toBe('fallando')
+    expect(job?.ultimaCompletadaEn).toBe(filas[0]?.actualizadaEn)
+  })
+
   it('marca como no_programado un job deshabilitado, con o sin corridas', () => {
     const deshabilitado = { ...esperado, habilitado: false }
     const sinCorridas = evaluarJobsEsperados({ filas: [], ahora, esperados: [deshabilitado] })
