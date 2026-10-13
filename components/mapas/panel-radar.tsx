@@ -67,15 +67,22 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
     deshabilitada: hayMotor && !disponibles.includes(valor),
     titulo: 'Sin datos para este horizonte',
   }))
-  const lista = puntos === null ? [] : escuelasPorRiesgo(puntos, escuelas, horizonte)
-    .filter(({ nivel }) => nivel === 'muy_alto' || nivel === 'alto' || nivel === 'moderado')
-  const resumen = resumirRiesgo(lista)
   // Amenaza por escuela en el horizonte elegido (null = sin dato: no se muestra).
   const amenazaPorCue = new Map(
     (puntos ?? [])
       .filter((punto) => punto.horizonteHoras === horizonte)
       .map((punto) => [punto.cueAnexo, nivelRiesgo(punto.nivelAmenaza ?? null)]),
   )
+  // Se lista con prioridad moderada o más, o con amenaza alta o muy alta aunque
+  // la prioridad sea baja (la prioridad atenúa la amenaza y la ocultaría). El
+  // orden sigue siendo el de la prioridad, así esas escuelas quedan al final.
+  const lista = puntos === null ? [] : escuelasPorRiesgo(puntos, escuelas, horizonte)
+    .filter(({ escuela, nivel }) => {
+      if (nivel !== 'bajo') return true
+      const amenaza = amenazaPorCue.get(escuela.cueAnexo)
+      return amenaza === 'alto' || amenaza === 'muy_alto'
+    })
+  const resumen = resumirRiesgo(lista)
 
   return (
     <section className="map-sitact" aria-label="Radar" data-testid="panel-radar">
