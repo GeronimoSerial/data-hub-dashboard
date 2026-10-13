@@ -1,0 +1,1 @@
+ALTER TABLE "infra_risk_snapshot" ADD COLUMN IF NOT EXISTS "nivel_amenaza" text;

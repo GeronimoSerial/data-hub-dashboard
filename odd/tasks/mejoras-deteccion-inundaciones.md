@@ -42,7 +42,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 ## Ciclo 2 (2026-10-13, autorizado por el usuario): amenaza visible + climatología + motor
 
 - [ ] T16 Ops: correr `climatologia-caudal` y `climatologia-precipitacion` en prod con el código nuevo y revisar errores por punto
-- [ ] T17 I-7b: persistir `nivelAmenaza`/`scoreAmenaza` en el snapshot de riesgo (schema + migración + `calcular-riesgo`)
+- [x] T17 I-7b: persistir `nivelAmenaza`/`scoreAmenaza` en el snapshot de riesgo (schema + migración + `calcular-riesgo`)
 - [ ] T18 I-7c (API): exponer la amenaza en las rutas de riesgo/radar
 - [ ] T19 I-7c (UI): mostrar la amenaza en el mapa junto a la prioridad educativa
 - [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
@@ -104,6 +104,8 @@ Rama: `feat/amenaza-visible` desde `main` (4aa1882).
 - T14 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 4 tests nuevos de guardia fallaban (`status` 0 con NODE_ENV=production y con URL `_prod`, sin rechazo); GREEN: `seed-demo-partes.test.ts` 6/6); guardia tras el gate DEMO_OK y antes de cualquier import de DB: refusa si `NODE_ENV=production` o si el nombre de base/host de `DATABASE_URL` contiene "prod" (sin imprimir la URL); override sólo con `--permitir-produccion` + `CONFIRMAR_SEED_PRODUCCION=si`, con un solo factor sale con código 1 y sin escribir (verificado: no se crea `DATA_DIR/pg`); aplica también a `--limpiar`; documentado en la cabecera del script. Sin exportar función pura: el script tiene efectos al cargar, así que los casos se cubren por spawn (el test de guardia no necesita DB). Otros inserts de reportes: sólo `lib/infraestructura/test-utils/parte-fixtures.ts` (helper de test vía drizzle, no es script); ningún otro script de `scripts/` inserta en `infra_parte`/`infra_afectacion`; no se modificaron. checks: vitest `seed-demo-partes.test.ts` 6/6, `tsc --noEmit` ok; commit: ver git log (`fix(scripts): refuse to seed demo reports into production`).
 
 - T15 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; verificación: `rg` de IP/host/usuario/UUID sobre los dos archivos tocados sin coincidencias (sobre `docs/` completo hay coincidencias preexistentes fuera de este cambio, en `docs/DEPLOY.md` y muestras CAP/reportes; no se tocaron); ubicación: `docs/rotacion-credenciales-2026-10.md` junto a `docs/rotacion-clave-nominal.md` (no existía `docs/ops/`); link agregado en la sección "Credenciales de red por job" del runbook; commit: ver git log (`docs(ops): add credential rotation checklist and read-only audit role`).
+
+- T17 — ruta: delegated direct; RED/GREEN observed (RED: `calcular-riesgo.test.ts` T1 fallaba, `nivelAmenaza` undefined en los snapshots; GREEN: 5/5); columna nullable `nivel_amenaza` en `infra_risk_snapshot` (migración `0013_nivel_amenaza.sql` generada con `drizzle-kit generate`, sin otro diff de schema, y hecha idempotente con `IF NOT EXISTS` como 0012); `calcular-riesgo` persiste `nivelAmenaza`; `scoreAmenaza` ya se persistía (verificado en el mismo test: no null con evidencia, null sin ella); checks: vitest `--no-file-parallelism riesgo/jobs lib/db` 101/101, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): persist hazard level in risk snapshot`).
 
 ## Verificación de cierre (2026-10-13, rama s5)
 

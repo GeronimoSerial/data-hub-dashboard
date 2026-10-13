@@ -732,6 +732,10 @@ export const infraRiskSnapshot = pgTable(
     // 'bajo' | 'moderado' | 'alto' | 'muy_alto'.
     nivelRiesgo: text('nivel_riesgo'),
     scoreAmenaza: real('score_amenaza'),
+    // Nivel de la amenaza sola (mismos umbrales que nivelRiesgo), visible aunque
+    // la prioridad educativa quede atenuada por baja vulnerabilidad.
+    // 'bajo' | 'moderado' | 'alto' | 'muy_alto' (null = sin evidencia de amenaza).
+    nivelAmenaza: text('nivel_amenaza'),
     scoreVulnerabilidad: real('score_vulnerabilidad'),
     // 'baja' | 'media' | 'alta'.
     confianza: text('confianza').notNull(),
