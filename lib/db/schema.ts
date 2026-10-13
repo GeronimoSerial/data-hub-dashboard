@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { pgTable, text, integer, bigint, boolean, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
+import { pgTable, text, integer, bigint, boolean, doublePrecision, jsonb, real, primaryKey, index, uniqueIndex, timestamp } from 'drizzle-orm/pg-core'
 
 export const niveles = pgTable('niveles', {
   id: text('id').primaryKey(),
@@ -886,6 +886,37 @@ export const hazardObservation = pgTable(
     ),
     index('hazard_observation_geometry_ref_idx').on(t.geometryRef),
   ],
+)
+
+// Alturas hidrométricas publicadas por Prefectura Naval Argentina (I-3). Una fila
+// por estación y instante de medida; `medida_en` es ISO UTC. La unicidad
+// (estacion_id, medida_en) también cubre las consultas de serie temporal por
+// estación, así que no hace falta un índice descendente aparte. Una lectura ya
+// guardada nunca se sobrescribe. `motivos_inconsistencia` es jsonb (array de
+// strings, como `aplica_a` en `tipos`). `hash_original` es el sha256 de la fila
+// normalizada de origen.
+export const hidroLectura = pgTable(
+  'hidro_lectura',
+  {
+    id: text('id').primaryKey(),
+    estacionId: text('estacion_id').notNull(),
+    fuente: text('fuente').notNull().default('prefectura'),
+    lecturaM: doublePrecision('lectura_m'),
+    variacionM: doublePrecision('variacion_m'),
+    periodoHoras: integer('periodo_horas'),
+    medidaEn: text('medida_en').notNull(),
+    estadoPublicado: text('estado_publicado').notNull(),
+    lecturaAnteriorM: doublePrecision('lectura_anterior_m'),
+    medidaAnteriorEn: text('medida_anterior_en'),
+    alertaM: doublePrecision('alerta_m'),
+    evacuacionM: doublePrecision('evacuacion_m'),
+    inconsistente: boolean('inconsistente').notNull().default(false),
+    motivosInconsistencia: jsonb('motivos_inconsistencia').$type<string[]>().notNull(),
+    hashOriginal: text('hash_original').notNull(),
+    catalogoVersion: text('catalogo_version').notNull(),
+    capturadaEn: text('capturada_en').notNull(),
+  },
+  (t) => [uniqueIndex('hidro_lectura_estacion_medida_uidx').on(t.estacionId, t.medidaEn)],
 )
 
 // E7a: episodios derivados (calculados automáticamente)

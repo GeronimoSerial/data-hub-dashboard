@@ -1,5 +1,5 @@
 {
-  "id": "cf16d83a-d4a9-4ad7-8364-24c67fa49d1c",
+  "id": "df9c35ad-3acb-43a0-a106-04a9982b9955",
   "prevId": "6b02a64b-7609-45cf-af82-5a6cd53ec5e5",
   "version": "7",
   "dialect": "postgresql",
@@ -974,6 +974,145 @@
         }
       },
       "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.hidro_lectura": {
+      "name": "hidro_lectura",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "estacion_id": {
+          "name": "estacion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fuente": {
+          "name": "fuente",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'prefectura'"
+        },
+        "lectura_m": {
+          "name": "lectura_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "variacion_m": {
+          "name": "variacion_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "periodo_horas": {
+          "name": "periodo_horas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medida_en": {
+          "name": "medida_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado_publicado": {
+          "name": "estado_publicado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lectura_anterior_m": {
+          "name": "lectura_anterior_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medida_anterior_en": {
+          "name": "medida_anterior_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "alerta_m": {
+          "name": "alerta_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evacuacion_m": {
+          "name": "evacuacion_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inconsistente": {
+          "name": "inconsistente",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "motivos_inconsistencia": {
+          "name": "motivos_inconsistencia",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hash_original": {
+          "name": "hash_original",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catalogo_version": {
+          "name": "catalogo_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capturada_en": {
+          "name": "capturada_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "hidro_lectura_estacion_medida_uidx": {
+          "name": "hidro_lectura_estacion_medida_uidx",
+          "columns": [
+            {
+              "expression": "estacion_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "medida_en",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -3035,12 +3174,6 @@
         "score_amenaza": {
           "name": "score_amenaza",
           "type": "real",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "nivel_amenaza": {
-          "name": "nivel_amenaza",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },

@@ -14,6 +14,7 @@ export type NombreJob =
   | 'sync-seasonal'
   | 'situacion-corte'
   | 'briefing-ia'
+  | 'sync-prefectura-alturas'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -66,6 +67,11 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Climatología de caudal (diario, avanza por cursor resumable de cupo)',
   },
+  // Alturas horarias de Prefectura (PNA); la fuente publica una tabla por hora.
+  'sync-prefectura-alturas': {
+    minutos: 60,
+    descripcion: 'Sincroniza alturas hidrométricas de Prefectura Naval Argentina (cada hora)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -86,6 +92,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-hazard-seasonal': 'sync-seasonal',
   'situacion-corte-v1': 'situacion-corte',
   'briefing-ia-v0': 'briefing-ia',
+  'sync-prefectura-alturas': 'sync-prefectura-alturas',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
