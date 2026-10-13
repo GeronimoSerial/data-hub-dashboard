@@ -50,9 +50,13 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T19c I-7d (mapa): la capa radar colorea las escuelas de prioridad baja con amenaza alta/muy alta
 - [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
 - [x] T21 Climatología progresiva (almacenamiento): tabla con la serie diaria de precipitación por celda ERA5 y año (re-descarga idempotente) + columnas de cobertura en `hazard_climatology`
-- [ ] T22 Climatología progresiva (descarga): cada corrida baja, dentro del cupo, el próximo año faltante para todas las celdas (años recientes primero) y persiste cada request al instante; un corte de cupo no deja la corrida `fallido`
-- [ ] T23 Climatología progresiva (umbrales): recalcular percentiles desde todos los días acumulados; sólo se escriben filas usables con ≥ 10 años completos; clave idempotente diaria y versión `climatologia-v2-progresiva`
-- [ ] T24 Climatología progresiva (visibilidad): cobertura (celdas con ≥ 10 años / total, años min/mediana/máx de 30) en la API de salud operativa y en `/admin/operacion`
+- [ ] T22a Planificador puro: dado celdas ERA5, años ya guardados y cupo disponible, devuelve los próximos (lote de celdas, año) en orden ancho-primero (años recientes 2020→1991 para todas las celdas)
+- [ ] T22b Proveedor: bajar un año de precipitación diaria para un lote de celdas (request ≤ límite de minuto) y devolver la serie por celda
+- [ ] T22c Job: cablear planificador + proveedor + upsert por request; corte de cupo guarda progreso y no deja la corrida `fallido`
+- [ ] T23a Umbrales puros: percentiles desde la serie acumulada de una celda, sólo si tiene ≥ 10 años completos
+- [ ] T23b Job: recalcular y escribir `hazard_climatology` con cobertura; clave idempotente diaria; versión `climatologia-v2-progresiva`
+- [ ] T24a API: cobertura (celdas con ≥ 10 años / total, años min/mediana/máx de 30) en la salud operativa
+- [ ] T24b UI: bloque de cobertura en `/admin/operacion`
 
 Rama: `feat/amenaza-visible` desde `main` (4aa1882).
 
