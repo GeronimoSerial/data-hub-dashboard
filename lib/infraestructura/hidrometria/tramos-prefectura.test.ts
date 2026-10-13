@@ -18,14 +18,17 @@ const localidadesCorrientes = new Set(
   padron.filter((e) => e.cue_anexo.startsWith('18')).map((e) => e.localidad),
 )
 
+const aprobados = TRAMOS_PREFECTURA.filter((t) => t.estado === 'aprobada')
+const propuestas = TRAMOS_PREFECTURA.filter((t) => t.estado === 'propuesta')
+
 describe('TRAMOS_PREFECTURA', () => {
   it('declara la versión de los tramos', () => {
-    expect(TRAMOS_PREFECTURA_VERSION).toBe('tramos-prefectura-v1')
+    expect(TRAMOS_PREFECTURA_VERSION).toBe('tramos-prefectura-v2')
   })
 
-  it('tiene exactamente un tramo por estación de Corrientes del catálogo', () => {
+  it('tiene exactamente un tramo aprobado por estación de Corrientes del catálogo', () => {
     const estacionesCorrientes = CATALOGO_ESTACIONES_PREFECTURA.filter((e) => e.rol === 'corrientes')
-    const estacionIds = TRAMOS_PREFECTURA.map((t) => t.estacionId)
+    const estacionIds = aprobados.map((t) => t.estacionId)
     expect(new Set(estacionIds).size).toBe(estacionIds.length)
     expect(estacionIds.sort()).toEqual(estacionesCorrientes.map((e) => e.estacionId).sort())
   })
@@ -39,10 +42,24 @@ describe('TRAMOS_PREFECTURA', () => {
     }
   })
 
-  it('todos los tramos quedan en estado propuesta y propuestos por el asistente', () => {
-    for (const tramo of TRAMOS_PREFECTURA) {
-      expect(tramo.estado).toBe('propuesta')
-      expect(tramo.propuestoPor).toBe('asistente')
+  it('los 18 tramos de puerto quedan aprobados por GeronimoSerial el 2026-10-13', () => {
+    expect(aprobados).toHaveLength(18)
+    for (const tramo of aprobados) {
+      expect(tramo.aprobadoPor, tramo.tramoId).toBe('GeronimoSerial')
+      expect(tramo.aprobadoEl, tramo.tramoId).toBe('2026-10-13')
+      expect(tramo.localidades, tramo.tramoId).toHaveLength(1)
+      expect(tramo.propuestoPor, tramo.tramoId).toBe('asistente')
+    }
+  })
+
+  it('las propuestas del asistente no tienen aprobación y citan la distancia medida', () => {
+    expect(propuestas.length).toBeGreaterThan(0)
+    for (const tramo of propuestas) {
+      expect(tramo.propuestoPor, tramo.tramoId).toBe('asistente')
+      expect(tramo.aprobadoPor, tramo.tramoId).toBeUndefined()
+      expect(tramo.aprobadoEl, tramo.tramoId).toBeUndefined()
+      expect(tramo.justificacion, tramo.tramoId).toMatch(/\d+,\d km/)
+      expect(tramo.justificacion, tramo.tramoId).toContain('coordenadas PNA sin verificar')
     }
   })
 
@@ -66,40 +83,47 @@ describe('TRAMOS_PREFECTURA', () => {
     }
   })
 
-  it('las localidades dudosas traen motivo y no están en ningún tramo', () => {
+  it('el tramo de Ituzaingó no incluye Colonia Liebig', () => {
+    const ituzaingo = TRAMOS_PREFECTURA.find((t) => t.tramoId === 'parana-ituzaingo')
+    expect(ituzaingo?.localidades).toEqual(['ITUZAINGO'])
+    expect(ituzaingo?.justificacion).not.toContain('Liebig')
+  })
+
+  it('las localidades dudosas traen motivo con distancia medida y no están en ningún tramo', () => {
     const enTramos = new Set(TRAMOS_PREFECTURA.flatMap((t) => t.localidades))
     for (const dudosa of LOCALIDADES_DUDOSAS) {
       expect(dudosa.motivo.trim(), dudosa.localidad).not.toBe('')
+      expect(dudosa.motivo, dudosa.localidad).toMatch(/\d+,\d km/)
       expect(enTramos.has(dudosa.localidad), dudosa.localidad).toBe(false)
     }
   })
 })
 
 describe('estacionParaLocalidad', () => {
-  it('no devuelve nada por defecto mientras no haya tramos aprobados', () => {
-    expect(estacionParaLocalidad('ITATI')).toBeNull()
-    expect(estacionParaLocalidad('PASO DE LOS LIBRES')).toBeNull()
-  })
-
-  it('resuelve Itatí a pna-itati solo con incluirPropuestas', () => {
-    expect(estacionParaLocalidad('ITATI', { incluirPropuestas: true })).toMatchObject({
-      estacionId: 'pna-itati',
+  it('resuelve tramos aprobados por defecto', () => {
+    expect(estacionParaLocalidad('ITATI')).toMatchObject({ estacionId: 'pna-itati' })
+    expect(estacionParaLocalidad('PASO DE LOS LIBRES')).toMatchObject({
+      estacionId: 'pna-paso-de-los-libres',
     })
+    expect(estacionParaLocalidad('ITUZAINGO')).toMatchObject({ estacionId: 'pna-ituzaingo' })
   })
 
-  it('resuelve Paso de los Libres a pna-paso-de-los-libres con incluirPropuestas', () => {
-    expect(
-      estacionParaLocalidad('PASO DE LOS LIBRES', { incluirPropuestas: true }),
-    ).toMatchObject({ estacionId: 'pna-paso-de-los-libres' })
+  it('no resuelve Colonia Liebig ni por defecto ni como propuesta', () => {
+    expect(estacionParaLocalidad('COLONIA LIEBIG')).toBeNull()
+    expect(estacionParaLocalidad('COLONIA LIEBIG', { incluirPropuestas: true })).toBeNull()
+  })
+
+  it('no devuelve propuestas por defecto y sí con incluirPropuestas', () => {
+    expect(estacionParaLocalidad('RAMADA PASO')).toBeNull()
+    expect(estacionParaLocalidad('RAMADA PASO', { incluirPropuestas: true })).toMatchObject({
+      estacionId: 'pna-itati',
+      estado: 'propuesta',
+    })
   })
 
   it('normaliza acentos, mayúsculas y espacios', () => {
-    expect(estacionParaLocalidad('  itatí ', { incluirPropuestas: true })).toMatchObject({
-      estacionId: 'pna-itati',
-    })
-    expect(estacionParaLocalidad('Ita Ibaté', { incluirPropuestas: true })).toMatchObject({
-      estacionId: 'pna-ita-ibate',
-    })
+    expect(estacionParaLocalidad('  itatí ')).toMatchObject({ estacionId: 'pna-itati' })
+    expect(estacionParaLocalidad('Ita Ibaté')).toMatchObject({ estacionId: 'pna-ita-ibate' })
   })
 
   it('devuelve null para localidades sin tramo', () => {
