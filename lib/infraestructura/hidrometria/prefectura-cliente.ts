@@ -38,24 +38,31 @@ export type ParametrosDescargaPrefectura = {
   esperar?: (ms: number) => Promise<void>
 }
 
+// Fields are assigned explicitly: Node's strip-only TypeScript mode (used by
+// scripts/jobs.mjs in production) rejects constructor parameter properties.
 export class HttpPrefecturaError extends Error {
-  constructor(
-    readonly status: number,
-    readonly retryAfterMs?: number,
-  ) {
+  readonly status: number
+  readonly retryAfterMs?: number
+
+  constructor(status: number, retryAfterMs?: number) {
     super(`HTTP ${status}`)
     this.name = 'HttpPrefecturaError'
+    this.status = status
+    this.retryAfterMs = retryAfterMs
   }
 }
 
 export class ErrorRedPrefectura extends Error {
-  constructor(readonly motivo: 'timeout' | 'red') {
+  readonly motivo: 'timeout' | 'red'
+
+  constructor(motivo: 'timeout' | 'red') {
     super(
       motivo === 'timeout'
         ? 'timeout al consultar la tabla de alturas de Prefectura'
         : 'error de red al consultar la tabla de alturas de Prefectura',
     )
     this.name = 'ErrorRedPrefectura'
+    this.motivo = motivo
   }
 }
 

@@ -39,10 +39,15 @@ export class OrigenSmnBloqueadoError extends Error {
   }
 }
 
+// Fields are assigned explicitly: Node's strip-only TypeScript mode (used by
+// scripts/jobs.mjs in production) rejects constructor parameter properties.
 export class HttpSmnError extends Error {
-  constructor(readonly status: number) {
+  readonly status: number
+
+  constructor(status: number) {
     super(`HTTP ${status}`)
     this.name = 'HttpSmnError'
+    this.status = status
   }
 }
 
