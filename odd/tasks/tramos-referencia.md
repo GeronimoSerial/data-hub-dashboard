@@ -25,7 +25,7 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 ## Checklist
 
 - [x] T1 G-1b: tramos versionados por río (estación → localidades, justificación, `estado`) + `estacionParaLocalidad` que solo usa tramos aprobados
-- [ ] T2 V-1: conjunto de referencia versionado (positivos, negativos, bajo umbral) + métricas puras de cobertura, precisión y demora
+- [x] T2 V-1: conjunto de referencia versionado (positivos, negativos, bajo umbral) + métricas puras de cobertura, precisión y demora
 - [x] T3 F-2: informe de canales legibles de avisos hidrológicos (INA, EBY, CARU/CTM)
 - [x] T4 F-3: informe de estaciones de lluvia en superficie con acceso abierto
 
@@ -34,9 +34,10 @@ Código, pruebas y docs en `GeronimoSerial/tramos-referencia` (desde `origin/mai
 (Por tarea: ruta, checks observados, commit.)
 
 - T1 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 64/64 en `hidrometria`; checks: vitest 64/64 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 4b0e231 (`feat(hidrometria): propose river stretches for Prefectura stations`). 18 tramos, todos `propuesta`; 13 localidades dudosas sin asignar (razones del worker, sin fuente). A revisar primero: Colonia Liebig (probablemente no ribereña). Sin conexión al motor ni al mapa.
+- T2 — ruta: delegated direct (Haiku); RED (módulos inexistentes) / GREEN 20/20 en `evaluacion` (re-ejecutado por el padre); `tsc --noEmit` ok, eslint ok; commit 9c753b0 (`feat(evaluacion): add versioned reference set and detection metrics`). 8 positivos, 1 negativo, 2 bajo umbral. Hallazgos: 08 dice "11 positivos" pero lista 8; casi ningún `inicio` tiene hora (se guarda null, sin demora desde inicio); EV-20261013-005 (cierre preventivo) entra como positivo mientras EV-20261012-004 se excluye por la misma razón.
 - T3 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f2-avisos-hidrologicos.md`. Único canal legible verificado: reporte diario HTML del INA; API del INA por probar.
 - T4 — ruta: investigación delegada (Haiku, solo lectura); informe `docs/fuentes/f3-lluvia-superficie.md`. Sin feed abierto verificado; OGIMET accesible; SMN y SIGA no se pudieron abrir.
 
 ## Próximo paso
 
-T2 V-1.
+Revisión humana: aprobar tramos de G-1b, reconciliar 11 vs 8 positivos y la regla de medidas preventivas en V-1. Luego push/PR por decisión del usuario.
