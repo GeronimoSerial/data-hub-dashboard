@@ -43,7 +43,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - [ ] T16 Ops: correr `climatologia-caudal` y `climatologia-precipitacion` en prod con el código nuevo y revisar errores por punto
 - [x] T17 I-7b: persistir `nivelAmenaza`/`scoreAmenaza` en el snapshot de riesgo (schema + migración + `calcular-riesgo`)
-- [ ] T18 I-7c (API): exponer la amenaza en las rutas de riesgo/radar
+- [x] T18 I-7c (API): exponer la amenaza en las rutas de riesgo/radar
 - [ ] T19 I-7c (UI): mostrar la amenaza en el mapa junto a la prioridad educativa
 - [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
 
@@ -106,6 +106,8 @@ Rama: `feat/amenaza-visible` desde `main` (4aa1882).
 - T15 — ruta: delegated direct (Haiku); doc pasivo, lectura estructural; verificación: `rg` de IP/host/usuario/UUID sobre los dos archivos tocados sin coincidencias (sobre `docs/` completo hay coincidencias preexistentes fuera de este cambio, en `docs/DEPLOY.md` y muestras CAP/reportes; no se tocaron); ubicación: `docs/rotacion-credenciales-2026-10.md` junto a `docs/rotacion-clave-nominal.md` (no existía `docs/ops/`); link agregado en la sección "Credenciales de red por job" del runbook; commit: ver git log (`docs(ops): add credential rotation checklist and read-only audit role`).
 
 - T17 — ruta: delegated direct; RED/GREEN observed (RED: `calcular-riesgo.test.ts` T1 fallaba, `nivelAmenaza` undefined en los snapshots; GREEN: 5/5); columna nullable `nivel_amenaza` en `infra_risk_snapshot` (migración `0013_nivel_amenaza.sql` generada con `drizzle-kit generate`, sin otro diff de schema, y hecha idempotente con `IF NOT EXISTS` como 0012); `calcular-riesgo` persiste `nivelAmenaza`; `scoreAmenaza` ya se persistía (verificado en el mismo test: no null con evidencia, null sin ella); checks: vitest `--no-file-parallelism riesgo/jobs lib/db` 101/101, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): persist hazard level in risk snapshot`).
+
+- T18 — ruta: delegated direct; RED/GREEN observed (RED: 5 tests fallaban en rutas `riesgo`, `riesgo/[snapshotId]` y `radar` sin `nivelAmenaza`; GREEN: 53/53); campos aditivos: `nivelAmenaza` junto a `scoreAmenaza` (que ya se exponía) en los items de `riesgo` y `radar` y en el snapshot de `riesgo/[snapshotId]`; `nivelAmenaza` también en `radar.puntos` (la lista del panel del mapa lee `puntos`, no `items`); tipos de cliente `RadarEscuela`/`RadarPunto` con `nivelAmenaza?` opcional; fixture `motor-api.ts` con `nivelAmenaza` coherente con `scoreAmenaza`; `situacion/consulta.ts` no lo usan estas rutas, sin tocar; checks: vitest `--no-file-parallelism` rutas riesgo/radar 53/53, `tsc --noEmit` ok, eslint limpio; commit: ver git log (`feat(riesgo): expose hazard level in risk and radar APIs`).
 
 ## Verificación de cierre (2026-10-13, rama s5)
 

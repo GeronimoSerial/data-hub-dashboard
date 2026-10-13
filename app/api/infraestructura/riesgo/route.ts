@@ -35,6 +35,7 @@ const itemsFields = {
   scoreRiesgo: infraRiskSnapshot.scoreRiesgo,
   nivelRiesgo: infraRiskSnapshot.nivelRiesgo,
   scoreAmenaza: infraRiskSnapshot.scoreAmenaza,
+  nivelAmenaza: infraRiskSnapshot.nivelAmenaza,
   scoreVulnerabilidad: infraRiskSnapshot.scoreVulnerabilidad,
   confianza: infraRiskSnapshot.confianza,
   exposicionMatricula: infraRiskSnapshot.exposicionMatricula,

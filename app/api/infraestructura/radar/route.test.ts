@@ -163,6 +163,7 @@ const ITEM_KEYS = [
   'exposicionMatricula',
   'exposicionSecciones',
   'horizonteHoras',
+  'nivelAmenaza',
   'nivelRiesgo',
   'nivelRiesgoAcceso',
   'scoreAmenaza',
@@ -446,6 +447,19 @@ describe('GET /api/infraestructura/radar', () => {
     ])
   })
 
+  it('cada punto lleva el nivel de amenaza separado de la prioridad', async () => {
+    mockAcceso({ ok: true, user: USER })
+    const body = await (await GET(req('?horizonte=24'))).json()
+
+    const porCue = new Map(
+      body.puntos.map((p: { cueAnexo: string }) => [p.cueAnexo, p]),
+    )
+    expect(porCue.get('1000000-01')).toMatchObject({ nivelRiesgo: 'muy_alto', nivelAmenaza: 'alto' })
+    expect(porCue.get('1000000-03')).toMatchObject({ nivelRiesgo: null, nivelAmenaza: null })
+    const item = body.escuelas.items.find((i: { snapshotId: string }) => i.snapshotId === 's1')
+    expect(item).toMatchObject({ scoreAmenaza: 70, nivelAmenaza: 'alto' })
+  })
+
   it('acota puntos al mismo filtro de horizonte que el universo de escuelas', async () => {
     mockAcceso({ ok: true, user: USER })
     const body = await (await GET(req('?horizonte=24&pageSize=1'))).json()
@@ -467,6 +481,7 @@ describe('GET /api/infraestructura/radar', () => {
         cueAnexo: '1000000-03',
         horizonteHoras: 24,
         nivelRiesgo: null,
+        nivelAmenaza: null,
         confianza: 'baja',
         nivelRiesgoAcceso: null,
       },
