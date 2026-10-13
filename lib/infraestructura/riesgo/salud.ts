@@ -4,6 +4,7 @@ import { getDb } from '@/lib/db'
 import { infraJobRun } from '@/lib/db/schema'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
 import { aiBriefingEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
+import { JOBS_ESPERADOS, TOLERANCIA_ATRASO_JOB, type JobEsperado } from './jobs-esperados'
 
 export type EstadoJobRun = {
   tipo: string
@@ -31,7 +32,59 @@ export type EstadoOperativo = {
     enosJobsEnabled: boolean
   }
   jobs: EstadoJobRun[]
+  jobsEsperados: JobEsperadoEvaluado[]
   generadoEn: string
+}
+
+// `ok`: corrida dentro de la tolerancia. `sin_corridas`: esperado y nunca corrió.
+// `atrasado`: la última corrida es más vieja que intervalo × TOLERANCIA_ATRASO_JOB.
+// `no_programado`: declarado pero deshabilitado (pendiente P-5), no es alarma.
+// `sin_trazabilidad`: el job no escribe infra_job_run, no se puede verificar.
+export type EstadoJobEsperado = 'ok' | 'sin_corridas' | 'atrasado' | 'no_programado' | 'sin_trazabilidad'
+
+export type JobEsperadoEvaluado = {
+  nombre: string
+  tipo: string | null
+  habilitado: boolean
+  intervaloMinutos: number
+  estado: EstadoJobEsperado
+  ultimaCorridaEn: string | null
+}
+
+// Evalúa cada job declarado contra la fila más reciente de su `tipo` (cualquier
+// estado: una corrida fallida igual muestra que el job corrió).
+export function evaluarJobsEsperados(params: {
+  filas: ReadonlyArray<{ tipo: string; actualizadaEn: string }>
+  ahora: Date
+  esperados?: readonly JobEsperado[]
+}): JobEsperadoEvaluado[] {
+  const { filas, ahora, esperados = JOBS_ESPERADOS } = params
+
+  const ultimaPorTipo = new Map<string, { ms: number; actualizadaEn: string }>()
+  for (const fila of filas) {
+    const ms = Date.parse(fila.actualizadaEn)
+    const previa = ultimaPorTipo.get(fila.tipo)
+    if (previa === undefined || ms > previa.ms) {
+      ultimaPorTipo.set(fila.tipo, { ms, actualizadaEn: fila.actualizadaEn })
+    }
+  }
+
+  return esperados.map((job) => {
+    const ultima = job.tipo === null ? undefined : ultimaPorTipo.get(job.tipo)
+    const base = {
+      nombre: job.nombre,
+      tipo: job.tipo,
+      habilitado: job.habilitado,
+      intervaloMinutos: job.intervaloMinutos,
+      ultimaCorridaEn: ultima?.actualizadaEn ?? null,
+    }
+    if (!job.habilitado) return { ...base, estado: 'no_programado' }
+    if (job.tipo === null) return { ...base, estado: 'sin_trazabilidad' }
+    if (ultima === undefined) return { ...base, estado: 'sin_corridas' }
+    const limiteMs = job.intervaloMinutos * 60_000 * TOLERANCIA_ATRASO_JOB
+    const atrasado = ahora.getTime() - ultima.ms > limiteMs
+    return { ...base, estado: atrasado ? 'atrasado' : 'ok' }
+  })
 }
 
 export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
@@ -85,6 +138,10 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
       enosJobsEnabled: enosJobsEnabled(),
     },
     jobs,
+    jobsEsperados: evaluarJobsEsperados({
+      filas: filas.map((fila) => ({ tipo: fila.tipo, actualizadaEn: fila.actualizadaEn })),
+      ahora,
+    }),
     generadoEn: ahora.toISOString(),
   }
 }

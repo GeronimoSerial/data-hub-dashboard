@@ -31,7 +31,7 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
 - [x] T8 I-5a: exportar corridas de radar antes de la purga
 - [x] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
-- [ ] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
+- [x] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
 - [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
@@ -80,6 +80,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T9 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `calculo.test.ts` T-AMN1 y T-AMN3 fallaban, `nivelAmenaza` undefined; GREEN: motor 62/62, tests de tipos sin cambios de fixtures); `scoreAmenaza` y `nivelAmenaza` (mismo `clasificarNivel` que `nivelRiesgo`, null si no hay amenaza) en `ResultadoRiesgoEscuela`; `scoreRiesgo`, pesos y umbrales intactos; sólo `calculo.ts` construye el tipo, así que el campo requerido no rompió fixtures; persistencia y consumidores sin tocar (I-7b/c); checks: vitest motor 62/62, vitest `--no-file-parallelism riesgo` 423 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): expose hazard score separately from priority`).
 
+- T10 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: suite `salud.test.ts` no carga, falta `riesgo/jobs-esperados.ts`; GREEN: `salud.test.ts` 11/11 con 6 casos nuevos: `sin_corridas`, `atrasado` a 2×+1 min, `ok` a 2×−1 min, fila más reciente aunque fallida, `no_programado`, `sin_trazabilidad`, y nombres de la lista presentes en `NOMBRES_VALIDOS` de `scripts/jobs.mjs`); `jobs-esperados.ts` declara 13 jobs con `TOLERANCIA_ATRASO_JOB = 2`; `evaluarJobsEsperados` (puro) se expone en `obtenerEstadoOperativo` como `jobsEsperados` (campo nuevo, API y UI sin cambios). Hallazgos: (a) `infra_job_run.tipo` no coincide con el nombre de despacho para 9 de 13 jobs (p. ej. `sync-imerg` → `sync-hazard-imerg`, `climatologia-caudal` → `calcular-hazard-climatologia-caudal`), la lista guarda ambos; (b) `verificar-radar-meteo` no llama a `adquirirLease`, así que no escribe `infra_job_run`: queda como `sin_trazabilidad` (no como falso `sin_corridas` permanente); (c) intervalos de los deshabilitados tomados de `CADENCIAS` en `cadencias.ts`, porque el brief no los fijó; (d) `atrasado` usa la última fila de cualquier estado, según el brief; `ultimaCompletadaEn` no se usa aquí; checks: vitest `salud.test.ts` 11/11, vitest `--no-file-parallelism riesgo` 430 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): flag expected jobs that never ran or are late`).
+
 ## Siguiente paso
 
-T10.
+T11.
