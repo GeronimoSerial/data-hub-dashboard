@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
-import { and, desc, eq, lt, ne, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { radarMeteoRun } from '@/lib/db/schema'
 import { apiKeyDesdeEntorno, crearControladorCupo } from '../riesgo/providers/cupo-om'
 import { adquirirLease, publicarResultado } from '../riesgo/job-run'
 import { actualizarSaludFuente } from '../riesgo/jobs/salud-fuente'
+import { archivarRuns } from './archivo'
 import { generarGrilla, GRID_VERSION } from './grilla'
 import { obtenerPronosticoRadar, type LoteRadar } from './provider'
 
@@ -32,6 +33,30 @@ function slotTresHoras(ahora: Date): { inicio: Date; clave: string } {
 // La salud de fuente es best-effort: su fallo nunca cambia el resultado del run.
 function avisarSaludNoRegistrada() {
   console.warn('[radar-meteo] no se pudo registrar la salud de la fuente')
+}
+
+// Sin RADAR_ARCHIVO_DIR la purga es la de siempre (sin archivo). Con ella, las filas se archivan
+// antes de borrarse; si el archivo no se puede escribir se omite la purga para no perder datos.
+// El fallo de archivo nunca altera el resultado de la sincronización.
+async function purgarRunsAntiguos(db: Db, ahora: Date, ultimoCompletoId: string) {
+  const condicion = and(
+    lt(radarMeteoRun.fetchedAt, new Date(ahora.getTime() - 14 * 86400000).toISOString()),
+    or(ne(radarMeteoRun.status, 'completo'), ne(radarMeteoRun.id, ultimoCompletoId)),
+  )
+  const dirArchivo = process.env.RADAR_ARCHIVO_DIR
+  if (!dirArchivo) {
+    await db.delete(radarMeteoRun).where(condicion)
+    return
+  }
+  const aPurgar = await db.select().from(radarMeteoRun).where(condicion)
+  if (aPurgar.length === 0) return
+  try {
+    await archivarRuns(dirArchivo, aPurgar)
+  } catch {
+    console.warn('[radar-meteo] no se pudo archivar runs antes de la purga; purga omitida')
+    return
+  }
+  await db.delete(radarMeteoRun).where(inArray(radarMeteoRun.id, aPurgar.map((fila) => fila.id)))
 }
 
 function combinar(lotes: LoteRadar[]): LoteRadar {
@@ -64,12 +89,7 @@ export async function ejecutarSyncRadarMeteo(params: { ahora?: Date; celdas?: Re
       .where(eq(radarMeteoRun.status, 'completo'))
       .orderBy(desc(radarMeteoRun.fetchedAt))
       .limit(1)
-    await db.delete(radarMeteoRun).where(
-      and(
-        lt(radarMeteoRun.fetchedAt, new Date(ahora.getTime() - 14 * 86400000).toISOString()),
-        or(ne(radarMeteoRun.status, 'completo'), ne(radarMeteoRun.id, ultimoCompleto.id)),
-      ),
-    )
+    await purgarRunsAntiguos(db, ahora, ultimoCompleto.id)
     await publicarResultado({ jobRunId: lease.jobRunId, leaseOwner: lease.leaseOwner, estado: 'completado', contadores: { celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal }, ahora })
     await actualizarSaludFuente(db, { provider: PROVIDER_SALUD, ttlMinutos: TTL_SALUD_MINUTOS, licencia: LICENCIA_SALUD, estado: 'ok', ultimoErrorSaneado: null, ahoraIso: ahora.toISOString() }).catch(avisarSaludNoRegistrada)
     return { ejecutado: true, celdas: celdas.length, lotes: resultado.lotes.length, pesoTotal: resultado.pesoTotal, runId: id, estado: 'completo' as const }

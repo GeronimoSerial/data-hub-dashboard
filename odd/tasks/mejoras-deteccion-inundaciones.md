@@ -29,9 +29,9 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T6 I-8b: salud de fuente en sync SMN (429 → degradado)
 - [x] T6b: un fallo al escribir la salud de fuente no altera el resultado de la corrida (radar y SMN)
 - [x] T7 P-2: motivo por gránulo IMERG fallido (no publicado vs error)
-- [ ] T8 I-5a: exportar corridas de radar antes de la purga
-- [ ] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
-- [ ] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
+- [x] T8 I-5a: exportar corridas de radar antes de la purga
+- [x] T9 I-7a: exponer amenaza separada de la prioridad en el motor (sin cambiar pesos)
+- [x] T10 I-1b: lista de jobs esperados en `riesgo/salud.ts`
 - [ ] T11 P-4: runbook del scheduler por entorno (Coolify en prod, systemd en staging; reflejar timers de staging apagados el 2026-10-13)
 - [ ] T12 V-3: completar `scripts/exportar-dataset-desidentificado.mjs` con la consulta real y su test
 - [ ] T13 G-4: quitar el caudal hardcodeado del comentario de `parana-goya` (`puntos-rio.ts:59`); los umbrales los calcula `climatologia-caudal`
@@ -47,7 +47,8 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 ## Decisiones del usuario (2026-10-13)
 
-- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 desde T4 en `GeronimoSerial/refactor-s2`, apilada sobre slice 1.
+- Entrega: `stacked-to-main`. Slice 1 = T1-T3 en `GeronimoSerial/refactor` (3e3a758, 25e3046, 054ccbe; ~371 líneas). Slice 2 = T4-T7 + licencia SMN en `GeronimoSerial/refactor-s2` (9c5dd62, 3a1be2d, 9105ad8, ee844f5, 10254bc, fbef7cd; ~473 líneas), apilada sobre slice 1. Slice 3 desde T8 en `GeronimoSerial/refactor-s3`.
+- Licencia SMN: uso no comercial con atribución según el usuario (dijo CC BY 2.0, que no restringe uso comercial); registrada como CC BY-NC, pendiente de fuente oficial.
 - I-2: borrar todo `infra_parte` y dependientes en producción. **Ejecutado 2026-10-13** (SSH autorizado): respaldo `/root/backups/infra_parte_hub_prod_20261013T170619Z.dump` (4 tablas); conteos 76/129/135/139 → 0/0/0/0 en una transacción (cascada). Restaurar con `pg_restore --data-only`.
 - Q1: motor en producción solo tras I-6, I-7, G-3 e I-2 cerradas.
 - Q3: apagar climatologías en staging. **Ejecutado**: `enos-ops1-climatologia-{precipitacion,caudal}.timer` deshabilitados.
@@ -75,6 +76,12 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 
 - T7 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: 2 tests fallaban, `contadores` sin `granulosNoPublicados`/`granulosConError` y sin `error_saneado`; GREEN: `sync-imerg.test.ts` 12/12); clasificación en el job: `subset HTTP 404` → `no_publicado`, otro status o error sin status → `error`; el adaptador no expone un "gránulo ausente" por gránulo (el listado CMR ya trae sólo gránulos existentes), así que `no_publicado` = HTTP 404 del subset; `errorSaneado` = `<granuloIso>: <clase> <status>; ...` acotado a 500 caracteres, sin cuerpo, URL ni token; salud: degrada sólo si falla el gránulo más reciente con clase `error` (un 404 del más reciente deja `ok`, igual que un fallo de backfill, sin cambiar la política de umbral); checks: vitest `sync-imerg.test.ts` 12/12, vitest `--no-file-parallelism riesgo/jobs` 52/52, `tsc --noEmit` ok, eslint limpio en los dos archivos; commit: ver git log (`feat(imerg): record failure reason per granule`).
 
+- T8 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `archivo.test.ts` sin módulo y 2 tests de `job-sync.test.ts` fallaban: sin archivo y con purga sin archivar; GREEN: radar-meteo 84/84); `archivarRuns` (`archivo.ts`) escribe NDJSON gzip a `.tmp` y renombra tras flush, crea el directorio recursivamente; con `RADAR_ARCHIVO_DIR` se archivan las filas a purgar y se borran por id sólo tras archivar; si el archivo falla se omite la purga y se avisa con mensaje fijo (la sincronización completa igual); sin la variable la purga es la de siempre; `.env.example` existe pero no se pudo leer ni editar (acceso denegado en esta sesión), la variable queda pendiente de documentar ahí; checks: vitest radar-meteo 84/84, `tsc --noEmit` ok, eslint 0 errores (warning `import()` preexistente en `job-sync.test.ts`); commit: ver git log (`feat(radar-meteo): archive runs before purge`).
+
+- T9 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: `calculo.test.ts` T-AMN1 y T-AMN3 fallaban, `nivelAmenaza` undefined; GREEN: motor 62/62, tests de tipos sin cambios de fixtures); `scoreAmenaza` y `nivelAmenaza` (mismo `clasificarNivel` que `nivelRiesgo`, null si no hay amenaza) en `ResultadoRiesgoEscuela`; `scoreRiesgo`, pesos y umbrales intactos; sólo `calculo.ts` construye el tipo, así que el campo requerido no rompió fixtures; persistencia y consumidores sin tocar (I-7b/c); checks: vitest motor 62/62, vitest `--no-file-parallelism riesgo` 423 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): expose hazard score separately from priority`).
+
+- T10 — ruta: delegated direct (Haiku); RED/GREEN observed (RED: suite `salud.test.ts` no carga, falta `riesgo/jobs-esperados.ts`; GREEN: `salud.test.ts` 11/11 con 6 casos nuevos: `sin_corridas`, `atrasado` a 2×+1 min, `ok` a 2×−1 min, fila más reciente aunque fallida, `no_programado`, `sin_trazabilidad`, y nombres de la lista presentes en `NOMBRES_VALIDOS` de `scripts/jobs.mjs`); `jobs-esperados.ts` declara 13 jobs con `TOLERANCIA_ATRASO_JOB = 2`; `evaluarJobsEsperados` (puro) se expone en `obtenerEstadoOperativo` como `jobsEsperados` (campo nuevo, API y UI sin cambios). Hallazgos: (a) `infra_job_run.tipo` no coincide con el nombre de despacho para 9 de 13 jobs (p. ej. `sync-imerg` → `sync-hazard-imerg`, `climatologia-caudal` → `calcular-hazard-climatologia-caudal`), la lista guarda ambos; (b) `verificar-radar-meteo` no llama a `adquirirLease`, así que no escribe `infra_job_run`: queda como `sin_trazabilidad` (no como falso `sin_corridas` permanente); (c) intervalos de los deshabilitados tomados de `CADENCIAS` en `cadencias.ts`, porque el brief no los fijó; (d) `atrasado` usa la última fila de cualquier estado, según el brief; `ultimaCompletadaEn` no se usa aquí; checks: vitest `salud.test.ts` 11/11, vitest `--no-file-parallelism riesgo` 430 passed / 2 skipped, `tsc --noEmit` ok, eslint limpio en los tres archivos; commit: ver git log (`feat(riesgo): flag expected jobs that never ran or are late`).
+
 ## Siguiente paso
 
-T8.
+T11.
