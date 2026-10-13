@@ -37,10 +37,17 @@ export type EstadoOperativo = {
 }
 
 // `ok`: corrida dentro de la tolerancia. `sin_corridas`: esperado y nunca corrió.
-// `atrasado`: la última corrida es más vieja que intervalo × TOLERANCIA_ATRASO_JOB.
-// `no_programado`: declarado pero deshabilitado (pendiente P-5), no es alarma.
-// `sin_trazabilidad`: el job no escribe infra_job_run, no se puede verificar.
-export type EstadoJobEsperado = 'ok' | 'sin_corridas' | 'atrasado' | 'no_programado' | 'sin_trazabilidad'
+// `atrasado`: la última corrida (de cualquier estado) es más vieja que
+// intervalo × TOLERANCIA_ATRASO_JOB. `fallando`: la última corrida está `fallido`
+// y no es atrasada. `no_programado`: declarado pero deshabilitado (pendiente P-5),
+// no es alarma. `sin_trazabilidad`: el job no escribe infra_job_run.
+export type EstadoJobEsperado =
+  | 'ok'
+  | 'sin_corridas'
+  | 'atrasado'
+  | 'fallando'
+  | 'no_programado'
+  | 'sin_trazabilidad'
 
 export type JobEsperadoEvaluado = {
   nombre: string
@@ -49,23 +56,41 @@ export type JobEsperadoEvaluado = {
   intervaloMinutos: number
   estado: EstadoJobEsperado
   ultimaCorridaEn: string | null
+  // Sólo en `fallando`: error saneado de la última corrida, si lo tiene.
+  errorSaneado: string | null
+  // Última corrida `completado` del tipo, para ver cuánto hace que no anda.
+  ultimaCompletadaEn: string | null
+}
+
+export type FilaEvaluable = {
+  tipo: string
+  actualizadaEn: string
+  estado?: string
+  errorSaneado?: string | null
 }
 
 // Evalúa cada job declarado contra la fila más reciente de su `tipo` (cualquier
-// estado: una corrida fallida igual muestra que el job corrió).
+// estado para `atrasado`; si esa fila es `fallido` pasa a `fallando`).
 export function evaluarJobsEsperados(params: {
-  filas: ReadonlyArray<{ tipo: string; actualizadaEn: string }>
+  filas: ReadonlyArray<FilaEvaluable>
   ahora: Date
   esperados?: readonly JobEsperado[]
 }): JobEsperadoEvaluado[] {
   const { filas, ahora, esperados = JOBS_ESPERADOS } = params
 
-  const ultimaPorTipo = new Map<string, { ms: number; actualizadaEn: string }>()
+  const ultimaPorTipo = new Map<string, { ms: number; fila: FilaEvaluable }>()
+  const ultimaCompletadaPorTipo = new Map<string, string>()
   for (const fila of filas) {
     const ms = Date.parse(fila.actualizadaEn)
     const previa = ultimaPorTipo.get(fila.tipo)
     if (previa === undefined || ms > previa.ms) {
-      ultimaPorTipo.set(fila.tipo, { ms, actualizadaEn: fila.actualizadaEn })
+      ultimaPorTipo.set(fila.tipo, { ms, fila })
+    }
+    if (fila.estado === 'completado') {
+      const previaCompletada = ultimaCompletadaPorTipo.get(fila.tipo)
+      if (previaCompletada === undefined || ms > Date.parse(previaCompletada)) {
+        ultimaCompletadaPorTipo.set(fila.tipo, fila.actualizadaEn)
+      }
     }
   }
 
@@ -76,14 +101,19 @@ export function evaluarJobsEsperados(params: {
       tipo: job.tipo,
       habilitado: job.habilitado,
       intervaloMinutos: job.intervaloMinutos,
-      ultimaCorridaEn: ultima?.actualizadaEn ?? null,
+      ultimaCorridaEn: ultima?.fila.actualizadaEn ?? null,
+      errorSaneado: null,
+      ultimaCompletadaEn: job.tipo === null ? null : (ultimaCompletadaPorTipo.get(job.tipo) ?? null),
     }
     if (!job.habilitado) return { ...base, estado: 'no_programado' }
     if (job.tipo === null) return { ...base, estado: 'sin_trazabilidad' }
     if (ultima === undefined) return { ...base, estado: 'sin_corridas' }
     const limiteMs = job.intervaloMinutos * 60_000 * TOLERANCIA_ATRASO_JOB
-    const atrasado = ahora.getTime() - ultima.ms > limiteMs
-    return { ...base, estado: atrasado ? 'atrasado' : 'ok' }
+    if (ahora.getTime() - ultima.ms > limiteMs) return { ...base, estado: 'atrasado' }
+    if (ultima.fila.estado === 'fallido') {
+      return { ...base, estado: 'fallando', errorSaneado: ultima.fila.errorSaneado ?? null }
+    }
+    return { ...base, estado: 'ok' }
   })
 }
 
@@ -139,7 +169,12 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
     },
     jobs,
     jobsEsperados: evaluarJobsEsperados({
-      filas: filas.map((fila) => ({ tipo: fila.tipo, actualizadaEn: fila.actualizadaEn })),
+      filas: filas.map((fila) => ({
+        tipo: fila.tipo,
+        actualizadaEn: fila.actualizadaEn,
+        estado: fila.estado,
+        errorSaneado: fila.errorSaneado,
+      })),
       ahora,
     }),
     generadoEn: ahora.toISOString(),

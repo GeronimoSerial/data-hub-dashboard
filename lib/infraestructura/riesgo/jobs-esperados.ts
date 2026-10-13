@@ -1,6 +1,7 @@
 // Lista declarada de jobs batch OPS1 y su estado esperado. La usa salud.ts para
 // detectar un job que debía correr y nunca corrió (`sin_corridas`), que quedó
-// atrasado (`atrasado`) o que no está programado por decisión (`no_programado`).
+// atrasado (`atrasado`), cuya última corrida falló (`fallando`) o que no está
+// programado por decisión (`no_programado`).
 //
 // `nombre` es el nombre de despacho de scripts/jobs.mjs (NOMBRES_VALIDOS).
 // `tipo` es la clave con la que el job escribe `infra_job_run`; no coincide con
