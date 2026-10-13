@@ -39,6 +39,16 @@ Código, pruebas y docs del repo en la rama `GeronimoSerial/refactor`. Commits p
 - [x] T14 I-2 (código): impedir que `scripts/seed-demo-partes.mjs` corra contra producción
 - [x] T15 Q7: checklist de rotación de credenciales + SQL de rol de solo lectura en `docs/`
 
+## Ciclo 2 (2026-10-13, autorizado por el usuario): amenaza visible + climatología + motor
+
+- [ ] T16 Ops: correr `climatologia-caudal` y `climatologia-precipitacion` en prod con el código nuevo y revisar errores por punto
+- [ ] T17 I-7b: persistir `nivelAmenaza`/`scoreAmenaza` en el snapshot de riesgo (schema + migración + `calcular-riesgo`)
+- [ ] T18 I-7c (API): exponer la amenaza en las rutas de riesgo/radar
+- [ ] T19 I-7c (UI): mostrar la amenaza en el mapa junto a la prioridad educativa
+- [ ] T20 P-6: crear tareas Coolify para `calcular-riesgo`, `sync-pronostico-caudal`, `sync-ensemble`, `situacion-corte` tras el deploy de T17-T19
+
+Rama: `feat/amenaza-visible` desde `main` (4aa1882).
+
 ## Bloqueados (fuera de este ciclo)
 
 - I-2: usuario decidió borrar los partes de prueba de producción (2026-10-13); pendiente autorización operativa (alcance, respaldo, acceso).
