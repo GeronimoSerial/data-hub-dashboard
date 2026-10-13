@@ -75,6 +75,7 @@ export async function GET(_request: Request, ctx: Ctx) {
         scoreRiesgo: snapshot.scoreRiesgo,
         nivelRiesgo: snapshot.nivelRiesgo,
         scoreAmenaza: snapshot.scoreAmenaza,
+        nivelAmenaza: snapshot.nivelAmenaza,
         scoreVulnerabilidad: snapshot.scoreVulnerabilidad,
         confianza: snapshot.confianza,
         exposicionMatricula: snapshot.exposicionMatricula,

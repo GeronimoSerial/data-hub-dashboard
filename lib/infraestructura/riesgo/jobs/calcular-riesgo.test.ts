@@ -110,6 +110,18 @@ describe('calcularYPublicarRiesgo', () => {
       .where(eq(infraRiskSnapshot.runId, resultado.runId))
     expect(snapshots).toHaveLength(9)
 
+    // I-7b: la amenaza se persiste por separado de la prioridad. Con evidencia
+    // de amenaza, score y nivel van juntos; sin evidencia (C), ambos null.
+    for (const snapshot of snapshots) {
+      if (snapshot.cueAnexo === CUE_C) {
+        expect(snapshot.scoreAmenaza).toBeNull()
+        expect(snapshot.nivelAmenaza).toBeNull()
+      } else {
+        expect(snapshot.scoreAmenaza).not.toBeNull()
+        expect(['bajo', 'moderado', 'alto', 'muy_alto']).toContain(snapshot.nivelAmenaza)
+      }
+    }
+
     const idsDelRun = new Set(snapshots.map((snapshot) => snapshot.id))
     const factores = await db.select().from(infraRiskFactor)
     const factoresPorSnapshot = new Map<string, number>()

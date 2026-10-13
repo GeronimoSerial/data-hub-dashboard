@@ -306,6 +306,7 @@ export async function calcularYPublicarRiesgo(params?: {
             scoreRiesgo: resultado.scoreRiesgo,
             nivelRiesgo: resultado.nivelRiesgo,
             scoreAmenaza: resultado.scoreAmenaza,
+            nivelAmenaza: resultado.nivelAmenaza,
             scoreVulnerabilidad: resultado.scoreVulnerabilidad,
             confianza: resultado.confianza,
             scoreRiesgoAcceso: resultado.riesgoAcceso.score,

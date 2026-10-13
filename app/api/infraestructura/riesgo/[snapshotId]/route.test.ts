@@ -81,6 +81,7 @@ async function sembrarFixture() {
     scoreRiesgo: 80,
     nivelRiesgo: 'muy_alto',
     scoreAmenaza: 70,
+    nivelAmenaza: 'alto',
     scoreVulnerabilidad: 60,
     confianza: 'alta',
     exposicionMatricula: 100,
@@ -216,6 +217,8 @@ describe('GET /api/infraestructura/riesgo/[snapshotId]', () => {
     expect(body.snapshot.evidenciaValida).toBe(true)
     expect(body.snapshot.scoreRiesgo).toBe(80)
     expect(body.snapshot.nivelRiesgo).toBe('muy_alto')
+    expect(body.snapshot.scoreAmenaza).toBe(70)
+    expect(body.snapshot.nivelAmenaza).toBe('alto')
     expect(body.snapshot.confianza).toBe('alta')
     expect(body.snapshot.calculadoEn).toBe('2026-01-02T00:00:00Z')
     expect(body.snapshot.validoHasta).toBe('2026-01-03T00:00:00Z')

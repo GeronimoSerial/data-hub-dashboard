@@ -221,7 +221,8 @@ async function cargarPronostico(
 
 /**
  * Los tres percentiles de la climatología más reciente de una celda/punto.
- * "Más reciente" se resuelve por periodoHasta y luego version descendente,
+ * "Más reciente" se resuelve por periodoHasta, version y calculadoEn descendentes
+ * (el desempate por calculadoEn elige la climatología progresiva más nueva),
  * quedándose con la primera fila de cada percentil (mismo criterio que
  * sync-ensemble.ts). Con `ahora` sólo cuentan las filas con `calculadoEn <=
  * ahora`, así la climatología vigente es la que existía en ese momento. Si
@@ -249,7 +250,11 @@ async function cargarUmbralesClimatologia(
         inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
       ),
     )
-    .orderBy(desc(hazardClimatology.periodoHasta), desc(hazardClimatology.version))
+    .orderBy(
+      desc(hazardClimatology.periodoHasta),
+      desc(hazardClimatology.version),
+      desc(hazardClimatology.calculadoEn),
+    )
 
   const porPercentil = new Map<string, number>()
   for (const fila of filas) {
@@ -371,7 +376,11 @@ async function cargarUmbralesPorLote(
         inArray(hazardClimatology.percentil, [...PERCENTILES_CLIMATOLOGIA]),
       ),
     )
-    .orderBy(desc(hazardClimatology.periodoHasta), desc(hazardClimatology.version))
+    .orderBy(
+      desc(hazardClimatology.periodoHasta),
+      desc(hazardClimatology.version),
+      desc(hazardClimatology.calculadoEn),
+    )
 
   // El orderBy global ordena TODAS las filas del lote; dentro de cada celda la
   // primera aparición por percentil es la más reciente, igual que la consulta

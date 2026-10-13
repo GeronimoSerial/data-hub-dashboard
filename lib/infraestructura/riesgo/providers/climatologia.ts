@@ -47,9 +47,16 @@
 // ~0.25°, nunca un error de cupo (nunca se subestima el peso real de una
 // request ya agrupada).
 import { z } from 'zod'
-import { agruparEnLotes, construirUrlLoteOpenMeteo, crearParserLote } from './lotes'
+import {
+  agruparEnLotes,
+  construirUrlLoteOpenMeteo,
+  crearParserLote,
+  diasMaximosPorTramo,
+  partirPeriodoEnTramos,
+} from './lotes'
 import { calcularPercentil, diasEntreFechas } from './estadistica'
 import { ejecutarConReintentos } from './cliente-http'
+import { armarValoresAnio, diasDelAnio } from '../climatologia/serie-diaria'
 import { CONFIG_FUENTES } from './config-fuentes'
 import {
   apiKeyDesdeEntorno,
@@ -245,51 +252,10 @@ const payloadArchivoElementoSchema = z
 /** Pocas celdas ERA5 por request: mantiene el peso de cada tramo bajo incluso con 30 años de historia. */
 export const TAMANO_LOTE_COORDENADAS = CONFIG_FUENTES.climatologia.tamanoLote
 
-/** Margen adicional (sobre el 80% operativo ya aplicado por `limiteVentana`) para dejar lugar a los syncs de 6h y sync-seasonal que comparten el mismo minuto/bucket. */
-const MARGEN_SEGURIDAD_TRAMO = 0.5
+// `diasMaximosPorTramo` y `partirPeriodoEnTramos` viven en `lotes.ts` (los
+// comparte la climatología de caudal); se re-exportan para no romper imports.
+export { diasMaximosPorTramo, partirPeriodoEnTramos } from './lotes'
 
-/**
- * Días máximos de un tramo de período para que un lote de `celdasPorLote`
- * celdas quede, con margen, muy por debajo de `limiteMinuto`. Devuelve al
- * menos 1 (nunca 0 ni negativo): si ni 1 día alcanza (sólo posible con un
- * `limiteMinuto` mal configurado a casi 0), `asegurarPesoAlcanzable` corta
- * con un error explícito antes de intentar la request, en vez de partir en
- * tramos de 0 días.
- */
-export function diasMaximosPorTramo(params: {
-  celdasPorLote: number
-  variables: number
-  limiteMinuto: number
-}): number {
-  const factorVariables = Math.max(1, params.variables / 10)
-  const presupuesto = params.limiteMinuto * MARGEN_SEGURIDAD_TRAMO
-  const diasMax = Math.floor((presupuesto / (params.celdasPorLote * factorVariables)) * 14)
-  return Math.max(1, diasMax)
-}
-
-/** Parte [desde, hasta] (fechas `YYYY-MM-DD` inclusive) en tramos contiguos de a lo sumo `diasPorTramo` días. */
-export function partirPeriodoEnTramos(
-  desde: string,
-  hasta: string,
-  diasPorTramo: number,
-): Array<{ desde: string; hasta: string }> {
-  const msPorDia = 86_400_000
-  const inicio = Date.parse(`${desde}T00:00:00Z`)
-  const fin = Date.parse(`${hasta}T00:00:00Z`)
-  const tramos: Array<{ desde: string; hasta: string }> = []
-  let cursor = inicio
-  while (cursor <= fin) {
-    const finTramo = Math.min(cursor + (diasPorTramo - 1) * msPorDia, fin)
-    tramos.push({
-      desde: new Date(cursor).toISOString().slice(0, 10),
-      hasta: new Date(finTramo).toISOString().slice(0, 10),
-    })
-    cursor = finTramo + msPorDia
-  }
-  return tramos
-}
-
-/** Parte un array en lotes contiguos de `tamano` sin reordenar. */
 export type PuntoClimatologia = { geometryRef: string; lat: number; lon: number }
 
 export type ResultadoSeriesHistoricas = {
@@ -486,4 +452,64 @@ export async function obtenerSerieHistorica(params: {
   }
 
   return { ok: true, valoresDiarios: resultado.seriesPorCelda[geometryRef] ?? [] }
+}
+
+/**
+ * Descarga UN año calendario de precipitación diaria para un lote de celdas
+ * ERA5 en un único request (mismo URL builder, payload schema, parser,
+ * reintentos y controlador de cupo que `obtenerSeriesHistoricas`, pero sin
+ * partir en tramos: el llamador ya acota el lote por peso). Cada serie queda
+ * indexada por día del año (0 = 1 de enero), con `null` donde la API no dio
+ * dato (nunca se imputa 0), en el mismo formato que guarda
+ * `climatologia/serie-diaria.ts`.
+ */
+export async function descargarAnioPrecipitacion(params: {
+  anio: number
+  celdas: Array<{ celdaEra5: string; lat: number; lon: number }>
+  fetchImpl?: typeof fetch
+  apiKey?: string
+  /** OM-cupo (opt-in): ver el mismo parámetro en providers/ecmwf.ts. */
+  controladorCupoFactory?: (peso: number) => ControladorCupoOM
+}): Promise<
+  | { ok: true; series: Array<{ celdaEra5: string; valores: Array<number | null> }> }
+  | { ok: false; motivo: string; detalle: string }
+> {
+  if (params.celdas.length === 0) return { ok: true, series: [] }
+
+  const apiKey = params.apiKey ?? apiKeyDesdeEntorno()
+  const apiKeyPresente = Boolean(apiKey)
+  const puntosLote: PuntoClimatologia[] = params.celdas.map((celda) => ({
+    geometryRef: celda.celdaEra5,
+    lat: celda.lat,
+    lon: celda.lon,
+  }))
+  const periodoDesde = `${params.anio}-01-01`
+  const periodoHasta = `${params.anio}-12-31`
+  const peso = pesoLlamada({
+    ubicaciones: puntosLote.length,
+    variables: CANTIDAD_VARIABLES_CLIMATOLOGIA,
+    dias: diasDelAnio(params.anio),
+  })
+  asegurarPesoAlcanzable({ peso, apiKeyPresente })
+
+  const cupo = params.controladorCupoFactory?.(peso)
+  const resultado = await ejecutarConReintentos<Array<z.infer<typeof payloadArchivoElementoSchema>>>({
+    url: construirUrlLote(puntosLote, periodoDesde, periodoHasta, apiKey),
+    fetchImpl: params.fetchImpl,
+    cupo,
+    parsearPayload: crearParserLote(payloadArchivoElementoSchema, puntosLote.length),
+  })
+
+  if (!resultado.ok) return { ok: false, motivo: resultado.motivo, detalle: resultado.detalle }
+
+  return {
+    ok: true,
+    series: params.celdas.map((celda, indice) => {
+      const payload = resultado.datos[indice].daily
+      return {
+        celdaEra5: celda.celdaEra5,
+        valores: armarValoresAnio(params.anio, payload.time, payload.precipitation_sum),
+      }
+    }),
+  }
 }
