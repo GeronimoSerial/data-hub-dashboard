@@ -30,7 +30,7 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - [x] T3 Tabla `hidro_lectura` + migración `0013`
 - [x] T4 Cliente de descarga con User-Agent identificado y reintentos (429/5xx → degradado; estructura → no_disponible)
 - [x] T5 Job `sync-prefectura-alturas`: lease horario, upsert, `publicarResultado`, salud de fuente
-- [ ] T6 Registro del job (`jobs.mjs`, `cadencias.ts`, `jobs-esperados.ts` con `habilitado:false`) + timer systemd + fila del runbook
+- [x] T6 Registro del job (`jobs.mjs`, `cadencias.ts`, `jobs-esperados.ts` con `habilitado:false`) + timer systemd + fila del runbook
 - [ ] T7 G-1a: coordenadas declaradas por PNA (`mapa.php`) en el catálogo con `verificada:false`
 
 ## Bloqueados / decisiones abiertas
@@ -50,7 +50,8 @@ Código, pruebas y docs en la rama `GeronimoSerial/prefectura-alturas` (desde `o
 - T3 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 30/30 en `hidrometria` (tests de DB ejecutados en PGlite en memoria); checks: vitest `hidrometria` 30/30 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok, sin drift en la migración; commit b911b04 (`feat(hidrometria): add hidro_lectura table and idempotent save`). `doublePrecision` para metros; `ON CONFLICT DO NOTHING` sobre `(estacion_id, medida_en)`; filas sin fecha se cuentan como `sinFecha`.
 - T4 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 40/40 en `hidrometria`; checks: vitest 40/40 (re-ejecutado por el padre), `tsc --noEmit` ok, eslint ok; commit 11589f5 (`feat(hidrometria): add Prefectura download client with identified user agent`). No reutiliza `ejecutarConReintentos` (no admite headers, parsea JSON, sleep no inyectable); loop local con la misma política. UA sin email personal. Nota: las descargas de fixture de T1/T2 enviaron el email del usuario en el UA (informado al usuario).
 - T5 — ruta: delegated direct (Haiku); RED (import fallaba) / GREEN 46/46 en `hidrometria`; checks: vitest `hidrometria` 46/46 (re-ejecutado por el padre), `job-run.test.ts` 11 passed / 1 skipped (requiere `DATABASE_URL_TEST`), `tsc --noEmit` ok, eslint ok; commit a9c9121 (`feat(hidrometria): add hourly Prefectura heights sync job`). Lease por hora UTC; segunda corrida en la misma hora → `omitido`; 0 estaciones del catálogo → `fallido`; mensajes fijos en `errorSaneado`. El job devuelve resultado sin relanzar en fallas controladas: T6 debe mapear `fallido` a código de salida ≠ 0 en `jobs.mjs`.
+- T6 — ruta: delegated direct (Haiku); RED 8 tests / GREEN 108/108 (jobs, cadencias, salud, hidrometria); checks: `tsc --noEmit` ok, `pnpm lint` ok (14 warnings preexistentes), jobs+cadencias re-ejecutados por el padre; commit 62f9939 (`feat(jobs): register hourly Prefectura heights sync`). `fallido` → exit 1 solo para este job; `habilitado:false` → `no_programado`; timer `*:17` sin habilitar; runbook con fila pendiente en Coolify (`17 * * * *`). Hallazgo fuera de alcance: `sync-smn-alertas` devuelve `fallido` y sale con 0.
 
 ## Próximo paso
 
-T6 en slice 4. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
+T7 en slice 4. Espejo Engram `odd/prefectura-alturas/tasks`: pendiente (sesiones de runtime ambiguas).
