@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EscuelaMapaEnriquecida } from './tipos'
-import { colorRiesgo, coloresRadar, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
+import { colorRiesgo, coloresRadar, escuelasEnRadar, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
 import type { NivelRiesgo } from './radar'
 
 function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquecida {
@@ -70,6 +70,51 @@ describe('coloresRadar', () => {
     const colores = coloresRadar(puntos, padrón, 24)
     expect([...colores.keys()]).toEqual(['muy-alto-muchos', 'alto-muchos', 'alto-pocos', 'moderado'])
     expect(colores.has('bajo')).toBe(false)
+  })
+
+  it('colorea por amenaza las escuelas de prioridad baja con amenaza alta o muy alta en el horizonte', () => {
+    const padrónAmenaza = [
+      ...padrón,
+      escuela({ cueAnexo: 'bajo-amenaza-alta', nombre: 'Zeta' }),
+      escuela({ cueAnexo: 'bajo-amenaza-muy-alta', nombre: 'Eta' }),
+      escuela({ cueAnexo: 'bajo-amenaza-moderada', nombre: 'Theta' }),
+      escuela({ cueAnexo: 'bajo-amenaza-otro-horizonte', nombre: 'Iota' }),
+    ]
+    const puntosAmenaza = [
+      ...puntos.map((punto) => ({ ...punto, nivelAmenaza: punto.cueAnexo === 'moderado' ? 'bajo' : null })),
+      { cueAnexo: 'bajo-amenaza-alta', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: 'alto' },
+      { cueAnexo: 'bajo-amenaza-muy-alta', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: 'muy_alto' },
+      { cueAnexo: 'bajo-amenaza-moderada', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: 'moderado' },
+      { cueAnexo: 'bajo-amenaza-otro-horizonte', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: null },
+      { cueAnexo: 'bajo-amenaza-otro-horizonte', horizonteHoras: 72, nivelRiesgo: 'bajo', nivelAmenaza: 'muy_alto' },
+    ]
+
+    const colores = coloresRadar(puntosAmenaza, padrónAmenaza, 24)
+
+    expect(colores.get('bajo-amenaza-alta')).toBe(colorRiesgo('alto'))
+    expect(colores.get('bajo-amenaza-muy-alta')).toBe(colorRiesgo('muy_alto'))
+    expect(colores.has('bajo-amenaza-moderada')).toBe(false)
+    expect(colores.has('bajo-amenaza-otro-horizonte')).toBe(false)
+    expect(colores.has('bajo')).toBe(false)
+    // Las escuelas ya visibles conservan el color de su prioridad.
+    expect(colores.get('moderado')).toBe(colorRiesgo('moderado'))
+    expect(colores.get('muy-alto-muchos')).toBe(colorRiesgo('muy_alto'))
+  })
+})
+
+describe('escuelasEnRadar', () => {
+  it('incluye prioridad moderada o más y prioridad baja sólo con amenaza alta o muy alta', () => {
+    const resultado = escuelasEnRadar([
+      { cueAnexo: 'a', horizonteHoras: 24, nivelRiesgo: 'moderado', nivelAmenaza: null },
+      { cueAnexo: 'b', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: 'alto' },
+      { cueAnexo: 'c', horizonteHoras: 24, nivelRiesgo: 'bajo', nivelAmenaza: 'moderado' },
+      { cueAnexo: 'd', horizonteHoras: 24, nivelRiesgo: 'bajo' },
+    ], [escuela({ cueAnexo: 'a' }), escuela({ cueAnexo: 'b' }), escuela({ cueAnexo: 'c' }), escuela({ cueAnexo: 'd' })], 24)
+
+    expect(resultado.map(({ escuela: e, nivel, amenaza }) => [e.cueAnexo, nivel, amenaza])).toEqual([
+      ['a', 'moderado', null],
+      ['b', 'bajo', 'alto'],
+    ])
   })
 })
 

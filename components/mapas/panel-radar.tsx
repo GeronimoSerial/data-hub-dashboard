@@ -8,10 +8,9 @@ import { ETIQUETAS_VARIABLE_RADAR, VARIABLES_RADAR_UI, type VariableRadarUI } fr
 import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import {
   colorRiesgo,
-  escuelasPorRiesgo,
+  escuelasEnRadar,
   ETIQUETA_HORIZONTE_MOTOR,
   ETIQUETA_NIVEL_RIESGO,
-  nivelRiesgo,
   resumirRiesgo,
 } from '@/lib/infraestructura/mapa/radar'
 import { pronosticoPorHorizonte } from '@/lib/infraestructura/radar-meteo/pronostico-horizonte'
@@ -67,21 +66,10 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
     deshabilitada: hayMotor && !disponibles.includes(valor),
     titulo: 'Sin datos para este horizonte',
   }))
-  // Amenaza por escuela en el horizonte elegido (null = sin dato: no se muestra).
-  const amenazaPorCue = new Map(
-    (puntos ?? [])
-      .filter((punto) => punto.horizonteHoras === horizonte)
-      .map((punto) => [punto.cueAnexo, nivelRiesgo(punto.nivelAmenaza ?? null)]),
-  )
-  // Se lista con prioridad moderada o más, o con amenaza alta o muy alta aunque
-  // la prioridad sea baja (la prioridad atenúa la amenaza y la ocultaría). El
-  // orden sigue siendo el de la prioridad, así esas escuelas quedan al final.
-  const lista = puntos === null ? [] : escuelasPorRiesgo(puntos, escuelas, horizonte)
-    .filter(({ escuela, nivel }) => {
-      if (nivel !== 'bajo') return true
-      const amenaza = amenazaPorCue.get(escuela.cueAnexo)
-      return amenaza === 'alto' || amenaza === 'muy_alto'
-    })
+  // Prioridad moderada o más, o amenaza alta/muy alta aunque la prioridad sea
+  // baja: misma regla que colorea la capa del mapa (`escuelasEnRadar`).
+  // Amenaza null = sin dato: no se muestra.
+  const lista = puntos === null ? [] : escuelasEnRadar(puntos, escuelas, horizonte)
   const resumen = resumirRiesgo(lista)
 
   return (
@@ -127,8 +115,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                 <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
                 {lista.length > 0 ? (
                   <div className="map-sitact__lista">
-                    {lista.map(({ escuela, nivel }) => {
-                      const amenaza = amenazaPorCue.get(escuela.cueAnexo) ?? null
+                    {lista.map(({ escuela, nivel, amenaza }) => {
                       const departamento = etiquetaDepartamento(escuela.departamento)
                       const niveles = escuela.niveles.length > 0 ? ` · ${escuela.niveles.join(', ')}` : ''
                       return (
