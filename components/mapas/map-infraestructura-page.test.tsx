@@ -10,6 +10,7 @@ import { colorNivelPlan } from '@/lib/infraestructura/mapa/planificacion'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import type { EscuelaMapaPadron, EscuelasMapaPadronResultado, ParteMapa } from '@/lib/infraestructura/parte-mapa'
 import type { PestanaMapa } from '@/lib/infraestructura/mapa/tipos'
+import { CLAVE_CAPAS_VISIBLES } from '@/lib/infraestructura/mapa/capas'
 import { crearParteMapa } from '@/components/test-utils/parte-mapa'
 import { territorioCon } from '@/components/test-utils/territorio-mapa'
 
@@ -1159,7 +1160,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
   })
 
   it('fuera de Radar, la capa Escuelas en riesgo hoy encendida dibuja sólo moderado o más y el clic abre la ficha', async () => {
-    window.localStorage.setItem('mapa-infraestructura:capas-visibles', JSON.stringify({ escuelasEnRiesgo: true }))
+    window.localStorage.setItem(CLAVE_CAPAS_VISIBLES, JSON.stringify({ escuelasEnRiesgo: true }))
     try {
       const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
 
@@ -1177,7 +1178,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
       vista.rerender({ pestana: 'radar' })
       expect(screen.queryByTestId('mock-source-infra-riesgo-hoy-src')).not.toBeInTheDocument()
     } finally {
-      window.localStorage.removeItem('mapa-infraestructura:capas-visibles')
+      window.localStorage.removeItem(CLAVE_CAPAS_VISIBLES)
     }
   })
 
