@@ -113,19 +113,21 @@ describe('CapaEventosReportados', () => {
     const { container } = render(<CapaEventosReportados visible />)
     await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' })
 
-    // EV-1 and EV-2 both resolve to Bonpland; EV-3 is elsewhere and keeps no offset.
+    // EV-1 and EV-2 both resolve to Bonpland; EV-3 is elsewhere. No marker may sit at [0,0],
+    // so a station centred on an event stays clickable.
     const marcadores = Array.from(container.querySelectorAll('[data-testid="marker"]')).map((m) => m.getAttribute('data-offset'))
     expect(marcadores[0]).not.toBe(marcadores[1])
-    expect(marcadores[2]).toBe(JSON.stringify([0, 0]))
+    expect(marcadores[0]).not.toBe(JSON.stringify([0, 0]))
+    expect(marcadores[2]).not.toBe(JSON.stringify([0, 0]))
   })
 
   it('marca con borde punteado los eventos ubicados sólo a nivel de departamento', async () => {
     render(<CapaEventosReportados visible />)
 
     const departamento = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres' })
-    expect(departamento.style.border).toContain('dashed')
+    expect(departamento.className).toContain('map-marcador-evento--departamento')
     const localidad = screen.getByRole('button', { name: 'Evento Evacuados en Bonpland' })
-    expect(localidad.style.border).toContain('solid')
+    expect(localidad.className).not.toContain('map-marcador-evento--departamento')
   })
 
   it('muestra el popup del evento seleccionado con fuente, fechas y estado', async () => {

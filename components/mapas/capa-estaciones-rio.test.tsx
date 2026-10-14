@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { CapaEstacionesRio, etiquetaEstadoAltura, COLOR_ESTADO_ALTURA } from './capa-estaciones-rio'
+import { CapaEstacionesRio, etiquetaEstadoAltura, COLOR_ESTADO_ALTURA, formatearFechaLocal } from './capa-estaciones-rio'
 
 vi.mock('react-map-gl/maplibre', () => ({
   Marker: ({ children }: { children: React.ReactNode }) => <div data-testid="marker">{children}</div>,
@@ -105,5 +105,15 @@ describe('helpers de estado de altura', () => {
       normal: '#15803d',
       sin_dato: '#9ca3af',
     })
+  })
+})
+
+describe('formatearFechaLocal', () => {
+  it('convierte ISO UTC a hora local de Buenos Aires', () => {
+    expect(formatearFechaLocal('2026-10-13T17:00:00.000Z')).toBe('13/10 14:00')
+  })
+
+  it('devuelve el texto libre sin cambios', () => {
+    expect(formatearFechaLocal('2026-10-06 (aprox.)')).toBe('2026-10-06 (aprox.)')
   })
 })

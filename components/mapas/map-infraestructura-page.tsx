@@ -1859,8 +1859,8 @@ export default function MapInfraestructuraPage(props: {
 
           </Fragment>
           <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} />
-          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
           <CapaEventosReportados visible={capasVisibles.eventosReportados} />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
         </MapGL>
       </div>
 

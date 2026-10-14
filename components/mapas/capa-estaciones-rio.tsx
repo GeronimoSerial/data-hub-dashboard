@@ -60,6 +60,27 @@ export function etiquetaEstadoAltura(estado: EstadoAltura): string {
   return ETIQUETA_ESTADO[estado]
 }
 
+const FORMATO_FECHA_LOCAL = new Intl.DateTimeFormat('es-AR', {
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+  timeZone: 'America/Argentina/Buenos_Aires',
+})
+
+/**
+ * Formats ISO-8601 timestamps as local Buenos Aires time ("13/10 14:00").
+ * Non-ISO free text (e.g. "2026-10-06 (aprox.)") is returned unchanged.
+ */
+export function formatearFechaLocal(valor: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(valor)) return valor
+  const fecha = new Date(valor)
+  if (Number.isNaN(fecha.getTime())) return valor
+  const partes = Object.fromEntries(FORMATO_FECHA_LOCAL.formatToParts(fecha).map((p) => [p.type, p.value]))
+  return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
+}
+
 function formatoMetros(valor: number | null | undefined): string {
   return valor == null ? 'Sin dato' : `${valor.toFixed(2).replace('.', ',')} m`
 }
@@ -94,20 +115,13 @@ export function CapaEstacionesRio({ visible }: { visible: boolean }) {
       {estaciones.map((estacion) => {
         const etiqueta = etiquetaEstadoAltura(estacion.estado)
         return (
-          <Marker key={estacion.estacionId} longitude={estacion.lon} latitude={estacion.lat} anchor="center">
+          <Marker key={estacion.estacionId} className="map-marker-estacion" longitude={estacion.lon} latitude={estacion.lat} anchor="center">
             <button
               type="button"
               aria-label={`Estación ${estacion.nombre}: ${etiqueta}`}
               onClick={() => setSeleccionada(estacion.estacionId)}
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: '50%',
-                background: COLOR_ESTADO_ALTURA[estacion.estado],
-                border: estacion.estado === 'sin_dato' ? '2px dashed #4b5563' : '2px solid #ffffff',
-                cursor: 'pointer',
-                padding: 0,
-              }}
+              className={`map-marcador-estacion${estacion.estado === 'sin_dato' ? ' map-marcador-estacion--sin-dato' : ''}`}
+              style={{ background: COLOR_ESTADO_ALTURA[estacion.estado] }}
             />
           </Marker>
         )
@@ -120,18 +134,20 @@ export function CapaEstacionesRio({ visible }: { visible: boolean }) {
           onClose={() => setSeleccionada(null)}
           closeOnClick={false}
         >
-          <div style={{ fontSize: 12, lineHeight: 1.4 }}>
-            <b>{activa.nombre}</b> · {ETIQUETA_RIO[activa.rio]}
-            <div>Altura: {activa.lectura ? formatoMetros(activa.lectura.lecturaM) : 'Sin dato'}</div>
-            <div>Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</div>
-            <div>
+          <div className="map-popup">
+            <p className="map-popup-title">{activa.nombre}</p>
+            <p className="map-popup-row">{ETIQUETA_RIO[activa.rio]}</p>
+            <hr className="map-popup-rule" />
+            <p className="map-popup-row">Altura: {activa.lectura ? formatoMetros(activa.lectura.lecturaM) : 'Sin dato'}</p>
+            <p className="map-popup-row">Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</p>
+            <p className="map-popup-row">
               Alerta: {formatoMetros(activa.lectura?.alertaM)} · Evacuación: {formatoMetros(activa.lectura?.evacuacionM)}
-            </div>
-            {activa.lectura && <div>Medida: {activa.lectura.medidaEn}</div>}
-            {activa.lectura?.inconsistente && <div>Lectura marcada como inconsistente</div>}
-            <small>
-              Fuente: Prefectura Naval Argentina. Ubicación declarada por el publicador (no verificada).
-            </small>
+            </p>
+            {activa.lectura && <p className="map-popup-row">Medida: {formatearFechaLocal(activa.lectura.medidaEn)}</p>}
+            {activa.lectura?.inconsistente && <p className="map-popup-row">Lectura marcada como inconsistente</p>}
+            <p className="map-popup-muted">
+              <small>Fuente: Prefectura Naval Argentina. Ubicación declarada por el publicador (no verificada).</small>
+            </p>
           </div>
         </Popup>
       )}

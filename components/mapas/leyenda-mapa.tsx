@@ -57,12 +57,12 @@ function LeyendaEventosReportados() {
       <ul className="map-leyenda__fila">
         {CONFIANZA_EVENTOS.map(({ confianza, etiqueta, color }) => (
           <li className="map-leyenda__elemento" key={confianza}>
-            <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, transform: 'rotate(45deg)', backgroundColor: color, border: '2px solid #ffffff' }} />
+            <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--rombo" style={{ backgroundColor: color }} />
             <span>{etiqueta}</span>
           </li>
         ))}
         <li className="map-leyenda__elemento">
-          <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, transform: 'rotate(45deg)', border: '2px dashed #374151' }} />
+          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--rombo map-leyenda__muestra--punteada" />
           <span>Ubicado sólo a nivel de departamento</span>
         </li>
       </ul>
@@ -92,7 +92,7 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
           </li>
         ))}
         <li className="map-leyenda__elemento">
-          <span aria-hidden="true" className="map-leyenda__muestra" style={{ border: '1px dashed #6b7280', backgroundColor: 'transparent' }} />
+          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--punteada" />
           <span>Ventana incompleta (cobertura &lt; 80 %)</span>
         </li>
       </ul>

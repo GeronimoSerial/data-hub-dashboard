@@ -13,6 +13,7 @@ import {
 } from '@/lib/mapas/eventos-inundaciones'
 import { DEPARTAMENTOS_URL } from '@/lib/mapas/departamentos'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
+import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 
 const LOCALIDADES_URL = '/data/localities.geojson'
 const DESPLAZAMIENTO_PX = 8
@@ -93,13 +94,15 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
   useEffect(() => () => controladorRef.current?.abort(), [])
 
   // Events placed on the same coordinates are spread horizontally so each marker stays clickable.
+  // Offsets start at one step (never [0,0]) and alternate sides: +1, -2, +3, ... steps.
   const desplazamientos = useMemo(() => {
     const porPunto = new Map<string, number>()
     return eventos.map((evento) => {
       const clave = evento.geometry.coordinates.join(',')
       const indice = porPunto.get(clave) ?? 0
       porPunto.set(clave, indice + 1)
-      return indice * DESPLAZAMIENTO_PX
+      const signo = indice % 2 === 0 ? 1 : -1
+      return signo * (indice + 1) * DESPLAZAMIENTO_PX
     })
   }, [eventos])
 
@@ -115,20 +118,13 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
         const color = COLOR_CONFIANZA[String(propiedades.confianza)] ?? COLOR_SIN_CONFIANZA
         const soloDepartamento = propiedades.precisionMostrada === 'departamento'
         return (
-          <Marker key={`${propiedades.id_evento}-${indice}`} longitude={lon} latitude={lat} anchor="center" offset={[desplazamientos[indice], 0]}>
+          <Marker key={`${propiedades.id_evento}-${indice}`} className="map-marker-evento" longitude={lon} latitude={lat} anchor="center" offset={[desplazamientos[indice], 0]}>
             <button
               type="button"
               aria-label={`Evento ${texto(propiedades.tipo_afectacion)} en ${propiedades.lugar}`}
               onClick={() => setSeleccionado(indice)}
-              style={{
-                width: 12,
-                height: 12,
-                transform: 'rotate(45deg)',
-                background: color,
-                border: soloDepartamento ? '2px dashed #374151' : '2px solid #ffffff',
-                cursor: 'pointer',
-                padding: 0,
-              }}
+              className={`map-marcador-evento${soloDepartamento ? ' map-marcador-evento--departamento' : ''}`}
+              style={{ background: color }}
             />
           </Marker>
         )
@@ -141,23 +137,26 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
           onClose={() => setSeleccionado(null)}
           closeOnClick={false}
         >
-          <div style={{ fontSize: 12, lineHeight: 1.4 }}>
-            <b>{`${texto(p.tipo_fenomeno)} — ${texto(p.tipo_afectacion)}`}</b>
-            <div>{`Lugar: ${p.lugar} (${texto(p.departamento)})`}</div>
-            <div>{`Ubicación aproximada a nivel de ${p.precisionMostrada}${p.multiLugar ? ' · el evento menciona varios lugares' : ''}`}</div>
-            <div>{`Inicio: ${texto(p.inicio_evento)}`}</div>
-            <div>{`Última actualización: ${texto(p.ultima_actualizacion)}`}</div>
-            <div>{`Estado: ${texto(p.estado_temporal)}`}</div>
-            <div>{`Confianza: ${texto(p.confianza)}`}</div>
-            {p.mediciones ? <div>{String(p.mediciones).slice(0, LIMITE_MEDICIONES)}</div> : null}
+          <div className="map-popup">
+            <p className="map-popup-title">{`${texto(p.tipo_fenomeno)} — ${texto(p.tipo_afectacion)}`}</p>
+            <p className="map-popup-row">{`Lugar: ${p.lugar} (${texto(p.departamento)})`}</p>
+            <p className="map-popup-row">{`Ubicación aproximada a nivel de ${p.precisionMostrada}${p.multiLugar ? ' · el evento menciona varios lugares' : ''}`}</p>
+            <hr className="map-popup-rule" />
+            <p className="map-popup-row">{`Inicio: ${formatearFechaLocal(texto(p.inicio_evento))}`}</p>
+            <p className="map-popup-row">{`Última actualización: ${formatearFechaLocal(texto(p.ultima_actualizacion))}`}</p>
+            <p className="map-popup-row">{`Estado: ${texto(p.estado_temporal)}`}</p>
+            <p className="map-popup-row">{`Confianza: ${texto(p.confianza)}`}</p>
+            {p.mediciones ? <p className="map-popup-row">{String(p.mediciones).slice(0, LIMITE_MEDICIONES)}</p> : null}
             {p.fuenteUrl ? (
-              <div>
+              <p className="map-popup-row">
                 <a href={p.fuenteUrl} target="_blank" rel="noopener noreferrer">{`Fuente: ${p.fuenteTitulo ?? 'ver fuente'}`}</a>
-              </div>
+              </p>
             ) : (
-              <div>Fuente sin enlace</div>
+              <p className="map-popup-row">Fuente sin enlace</p>
             )}
-            <small>Registro de eventos reportados (prensa y organismos). No es una medición.</small>
+            <p className="map-popup-muted">
+              <small>Registro de eventos reportados (prensa y organismos). No es una medición.</small>
+            </p>
           </div>
         </Popup>
       )}

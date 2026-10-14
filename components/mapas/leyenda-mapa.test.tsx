@@ -169,3 +169,22 @@ describe('LeyendaMapa · eventos reportados', () => {
     expect(within(container).queryByText('Eventos reportados')).toBeNull()
   })
 })
+
+describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
+  it.each(['actual', 'radar'] as const)('muestra ambos bloques en la pestaña %s cuando las capas están visibles', (pestana) => {
+    const props = pestana === 'radar' ? { pestana, horizonte: 72 as const } : { pestana }
+    const { container } = render(<LeyendaMapa {...props} estacionesRio eventosReportados />)
+
+    const leyenda = within(container)
+    expect(leyenda.getByText('Altura de ríos')).toBeTruthy()
+    expect(leyenda.getByText('Evacuación')).toBeTruthy()
+    expect(leyenda.getByText('Alerta')).toBeTruthy()
+    expect(leyenda.getByText('Normal')).toBeTruthy()
+    expect(leyenda.getByText('Sin dato')).toBeTruthy()
+    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Confianza alta')).toBeTruthy()
+    expect(leyenda.getByText('Confianza media')).toBeTruthy()
+    expect(leyenda.getByText('Confianza baja')).toBeTruthy()
+    expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
+  })
+})
