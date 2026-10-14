@@ -459,6 +459,7 @@ function CapaEventosReportadosActiva({
           longitude={activo.geometry.coordinates[0]}
           latitude={activo.geometry.coordinates[1]}
           anchor="bottom"
+          maxWidth="360px"
           onClose={() => {
             setSeleccionado(null)
             onSeleccionRef.current?.(null)

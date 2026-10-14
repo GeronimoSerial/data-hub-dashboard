@@ -591,6 +591,14 @@ describe('etiquetas legibles', () => {
       .toEqual(['Evacuados: 13 personas', '25 personas', '31 personas'])
   })
 
+  it('keeps parenthesized thresholds together and writes station states in plain words', () => {
+    expect(hechosEvento('Prefectura 9,33 m 13/10 14:00 EVACUACION CRECE, +0,02 (alerta 7,50; evacuación 8,50) (EVD-061); Prefectura 9,31 m 13/10 12:00 EVACUACION ESTAC. (EVD-001)'))
+      .toEqual([
+        'Prefectura 9,33 m 13/10 14:00 evacuación, crece, +0,02 (alerta 7,50; evacuación 8,50)',
+        'Prefectura 9,31 m 13/10 12:00 evacuación, estacionario',
+      ])
+  })
+
   it('truncates long facts to 140 characters with an ellipsis', () => {
     const [hecho] = hechosEvento('a'.repeat(200))
     expect(hecho.length).toBeLessThanOrEqual(140)

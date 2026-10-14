@@ -243,6 +243,7 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
           longitude={activa.lon}
           latitude={activa.lat}
           anchor="bottom"
+          maxWidth="360px"
           onClose={() => setSeleccionada(null)}
           closeOnClick={false}
         >
