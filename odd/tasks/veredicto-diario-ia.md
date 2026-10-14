@@ -75,3 +75,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   coordinador corrigió el fixture (clave única `observado_en` repetida) y el lector de climatología (orden
   descendente + mapeo de percentiles). GREEN 37 tests; tsc y eslint limpios. Unidad IMERG verificada: `mm/30min`
   (`providers/imerg.ts:263`).
+- T3a (delegado): `rios.ts` (clasificación, agregado por estación-día, lector con ventana de 36 h; estación → departamento por coordenadas PNA). RED (import) → GREEN 13 tests; tsc/eslint limpios.
