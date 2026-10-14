@@ -92,7 +92,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T9b1 (delegado, ~82k): `pdf.ts` (pdf-lib, registro no técnico, saneo WinAnsi, `lineasPdf` testeable). Corrección del coordinador: `etiquetaNivel` se movió a `veredicto/niveles.ts` (sin 'use client'), porque el PDF de servidor no puede importar de un módulo de cliente. GREEN 19 tests (PDF + modal); tsc/eslint limpios.
 - T9b2 (delegado, ~101k, levemente sobre el tope): PDF para staff (`/api/infraestructura/veredictos/pdf`), PDF público por token (`/api/veredicto/compartido/[token]/pdf`: 404 inexistente, 410 vencido/revocado sin datos, `X-Robots-Tag: noindex`), página pública `/veredicto/compartido/[token]` (noindex; enlace vencido/revocado sin datos) y `veredicto-publico.tsx`. Ajuste del coordinador: `nombreDepartamento` compartido en `niveles.ts` (el id ya es el nombre normalizado). Desvío registrado: la página Next devuelve 200 con la vista de "Enlace no disponible"; el 410 lo dan las rutas JSON/PDF. Diferidos: rate limit por IP y auditoría de accesos. GREEN 35 tests; tsc/eslint limpios.
 - T9b3 (delegado, ~76k): `veredicto-acciones.tsx` (copiar enlace con fallback manual, descargar PDF, revocar enlaces del día con confirmación), renderizado por defecto en el modal. GREEN 20 tests de componentes; tsc/eslint limpios.
-- T10 (delegado en dos workers; T10a se detuvo correctamente ante un conflicto y retomó con la decisión del coordinador: se conservan `briefing-ia/puertos.ts` y `test-utils/` porque `metricas.ts` los usa). Retirados: job `briefing-ia` (cadencia, timer, `jobs.mjs`), rutas `/api/infraestructura/briefings/*`, `job/generar-briefing-asistido/repositorio/dto`, flag `AI_BRIEFING_ENABLED` (salud ahora reporta `aiVeredictoEnabled`), `BriefingPanel` y su sección en Situación, `scripts/jobs.migracion-legacy.test.ts` (su único caso era el de briefing, ya fallido en la base). Se conservan proveedor, validador, esquema, métricas y presupuesto, y la tabla `infra_briefing` como histórico. tsc limpio; 334 tests verdes en las áreas afectadas.
+- T10 (delegado en dos workers; T10a se detuvo correctamente ante un conflicto y retomó con la decisión del coordinador: se conservan `briefing-ia/puertos.ts` y `test-utils/` porque `metricas.ts` los usa). Retirados: job `briefing-ia` (cadencia, timer, `jobs.mjs`), rutas `/api/infraestructura/briefings/*`, `job/generar-briefing-asistido/repositorio/dto`, flag `AI_BRIEFING_ENABLED` (salud ahora reporta `aiVeredictoEnabled`), `BriefingPanel` y su sección en Situación, `scripts/jobs.migracion-legacy.test.ts` (luego restaurado y portado al veredicto, ver fix post-revisión 1). Se conservan proveedor, validador, esquema, métricas y presupuesto, y la tabla `infra_briefing` como histórico. tsc limpio; 334 tests verdes en las áreas afectadas.
 - T11 (inline, coordinador): Postgres 18 local descartable (`postgres:18-alpine`, puerto 127.0.0.1:55432) con el dump
   `prod-20261013T2313Z-post-imerg.dump` (675.636 gránulos IMERG, 26 lecturas de Prefectura; `hazard_forecast` y
   `hazard_ensemble_prob` vacías). Job real `node scripts/jobs.mjs veredicto-diario` sin clave de OpenRouter:
@@ -105,6 +105,10 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   Correcciones surgidas del E2E: la plantilla ya no repite fecha/nivel (la primera oración es la señal), el río se
   describe con estación, estado, altura y umbral, las fuentes ausentes y la lista de fuentes usan nombres legibles.
   Checks: 256 tests verdes en veredicto/componentes/rutas; tsc y eslint limpios.
+- Fix post-revisión 1 (inline): `scripts/jobs.migracion-legacy.test.ts` restaurado y portado a `veredicto-diario`
+  (PGlite sin migrar, presupuesto 0.001 → plantilla sin red). Protege que `jobs.mjs` migra antes de despachar.
+  GREEN 1 test; prueba de mutante: comentando `await ensureSeeded()` falla con
+  `relation "infra_job_run" does not exist`; `jobs.mjs` restaurado sin diff.
 
 ## Pendientes y diferidos
 
