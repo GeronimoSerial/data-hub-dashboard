@@ -105,6 +105,26 @@ describe('RiesgoEscuela', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el riesgo actual.')
   })
 
+  it('omite el bloque de planificacion cuando todos sus valores son nulos o cero', async () => {
+    fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('bajo'), factores: [] }))
+
+    render(
+      <RiesgoEscuela
+        cueAnexo={CUE}
+        horizonte={72}
+        planificacion={[
+          { etiquetaVista: 'Vista aislamiento', etiquetaNivel: 'Nulo' },
+          { etiquetaVista: 'Vista inundación', etiquetaNivel: 'Nulo' },
+          { etiquetaVista: 'Veces con situaciones', etiquetaNivel: 'Nulo (0)' },
+        ]}
+      />,
+    )
+
+    await screen.findByTestId('riesgo-escuela-actual')
+    expect(screen.queryByTestId('riesgo-escuela-planificacion')).not.toBeInTheDocument()
+    expect(screen.queryByText('Prioridad de planificación (exposición estructural)')).not.toBeInTheDocument()
+  })
+
   it('muestra las etiquetas de planificacion y el aviso cuando no hay dato', async () => {
     fetchMock.mockResolvedValue(jsonOk({ snapshot: snapshot('bajo'), factores: [] }))
 
@@ -119,6 +139,6 @@ describe('RiesgoEscuela', () => {
     unmount()
 
     render(<RiesgoEscuela cueAnexo={CUE} horizonte={72} planificacion={null} />)
-    expect(screen.getByTestId('riesgo-escuela-planificacion')).toHaveTextContent('Sin dato de planificación.')
+    expect(screen.queryByTestId('riesgo-escuela-planificacion')).not.toBeInTheDocument()
   })
 })

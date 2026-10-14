@@ -69,9 +69,9 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
         {estado.fase === 'listo' && <ContenidoRiesgo explicacion={estado.explicacion} />}
       </div>
 
-      <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
-        <h3 className="riesgo-escuela__titulo">Prioridad de planificación (exposición estructural)</h3>
-        {planificacion && planificacion.length > 0 ? (
+      {planificacion && planificacion.some((fila) => !esSinValor(fila.etiquetaNivel)) && (
+        <div className="riesgo-escuela__bloque" data-testid="riesgo-escuela-planificacion">
+          <h3 className="riesgo-escuela__titulo">Prioridad de planificación (exposición estructural)</h3>
           <dl className="riesgo-escuela__planificacion">
             {planificacion.map((fila) => (
               <div key={fila.etiquetaVista}>
@@ -80,13 +80,17 @@ export function RiesgoEscuela({ cueAnexo, horizonte, planificacion }: RiesgoEscu
               </div>
             ))}
           </dl>
-        ) : (
-          <p>Sin dato de planificación.</p>
-        )}
-        <p className="riesgo-escuela__nota">Depende de la ubicación y los antecedentes, no del clima de hoy.</p>
-      </div>
+          <p className="riesgo-escuela__nota">Depende de la ubicación y los antecedentes, no del clima de hoy.</p>
+        </div>
+      )}
     </section>
   )
+}
+
+// Un valor sin dato: vacío, "Nulo" (nivel 0) o "Nulo (0)" (historial sin situaciones).
+function esSinValor(etiqueta: string | null | undefined): boolean {
+  const limpio = (etiqueta ?? '').trim()
+  return limpio === '' || /^Nulo(\s*\(0\))?$/.test(limpio)
 }
 
 function ContenidoRiesgo({ explicacion }: { explicacion: ExplicacionSnapshot }): JSX.Element {
