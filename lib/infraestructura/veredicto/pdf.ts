@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf
 import type { DtoVeredicto } from './dto'
 import { nombreFuente } from './metricas'
 import { etiquetaNivel, nombreDepartamento } from './niveles'
+import { describirAguaArriba } from './traza-texto'
 
 export type EntradaPdfVeredictos = { veredictos: DtoVeredicto[]; generadoEn: Date }
 
@@ -151,6 +152,13 @@ export function lineasPdf({ veredictos, generadoEn }: EntradaPdfVeredictos): Lin
       cuadrado: colorNivel(provincia.nivel),
     })
     if (provincia.texto) lineas.push({ texto: provincia.texto, sangria: 14 })
+    const aguasArriba = provincia.aguasArriba ?? []
+    if (aguasArriba.length > 0) {
+      lineas.push({
+        texto: `Aguas arriba (contexto, no modifica el nivel): ${aguasArriba.map(describirAguaArriba).join('; ')}`,
+        sangria: 14,
+      })
+    }
 
     const departamentos = delDia.filter(
       (v) => v.ambito !== 'provincia' && NIVELES_CON_SENAL.has(v.nivel),

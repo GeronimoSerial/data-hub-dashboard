@@ -3,6 +3,7 @@
 
 import type { MetricaVeredicto } from './metricas'
 import type { FuenteVeredicto, NivelVeredicto, TipoDia, TrazaRegla } from './reglas'
+import { describirTraza } from './traza-texto'
 
 export type ItemPlantilla = {
   fecha: string
@@ -38,8 +39,6 @@ const ROTULO_FUENTE: Record<FuenteVeredicto, string> = {
   smn: 'avisos del SMN',
 }
 
-const ROTULO_ESTADO_RIO: Record<string, string> = { alerta: 'en alerta', evacuacion: 'en evacuación', normal: 'normal' }
-
 function numero(valor: number): string {
   return valor.toLocaleString('es-AR', { maximumFractionDigits: 2 })
 }
@@ -68,19 +67,9 @@ function senalPrincipal(traza: TrazaRegla[], metricas: MetricaVeredicto[]): stri
   return `${etiqueta}: ${numero(principal.valor)}${unidad ? ` ${unidad}` : ''}.`
 }
 
-// 'rio.<id>.estado_max' → "Prefectura Paso de los Libres en evacuación (altura máxima 9,33 m; evacuación 8,5 m)."
+// Mismo texto que el modal: "Prefectura Paso de los Libres (río Uruguay): 9,33 m ≥ evacuación 8,50 m."
 function senalRio(entrada: TrazaRegla, metricas: MetricaVeredicto[]): string {
-  const prefijo = entrada.ref.replace(/\.estado_max$/, '')
-  const altura = metricas.find((m) => m.id === `${prefijo}.altura_max_m`)
-  const evacuacion = metricas.find((m) => m.id === `${prefijo}.evacuacion_m`)
-  const alerta = metricas.find((m) => m.id === `${prefijo}.alerta_m`)
-  const nombre = altura?.etiqueta.replace(/^Altura máxima /, '') ?? 'estación'
-  const estado = typeof entrada.umbral === 'string' ? (ROTULO_ESTADO_RIO[entrada.umbral] ?? entrada.umbral) : ''
-  const detalle: string[] = []
-  if (altura) detalle.push(`altura máxima ${numero(altura.valor)} m`)
-  if (entrada.umbral === 'evacuacion' && evacuacion) detalle.push(`evacuación ${numero(evacuacion.valor)} m`)
-  else if (alerta) detalle.push(`alerta ${numero(alerta.valor)} m`)
-  return `Prefectura ${nombre}${estado ? ` ${estado}` : ''}${detalle.length > 0 ? ` (${detalle.join('; ')})` : ''}.`
+  return `${describirTraza(entrada, metricas)}.`
 }
 
 // Sin encabezado de fecha ni nivel: el modal, la vista pública y el PDF ya los

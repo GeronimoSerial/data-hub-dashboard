@@ -24,7 +24,7 @@ describe('textoPlantilla', () => {
       fuentesAusentes: ['smn', 'glofas'],
     })
     expect(texto).toBe(
-      'Prefectura Paso de los Libres en alerta (altura máxima 7,25 m; alerta 7,1 m). Sin datos de: avisos del SMN, caudal pronosticado (GloFAS).',
+      'Prefectura Paso de los Libres: 7,25 m ≥ alerta 7,10 m. Sin datos de: avisos del SMN, caudal pronosticado (GloFAS).',
     )
   })
 

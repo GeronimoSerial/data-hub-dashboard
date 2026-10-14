@@ -5,6 +5,12 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+import {
+  describirAguaArriba,
+  describirTraza,
+  horaArt,
+  type TrazaLegible,
+} from '@/lib/infraestructura/veredicto/traza-texto'
 import { NivelChip } from './nivel-chip'
 import { VeredictoAcciones } from './veredicto-acciones'
 
@@ -30,10 +36,6 @@ type EstadoCarga = 'cargando' | 'error' | 'ok'
 const PREFIJO_DEPARTAMENTO = 'departamento:'
 const PALABRAS_MINUSCULA = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y'])
 
-function pad(n: number) {
-  return String(n).padStart(2, '0')
-}
-
 function fechaCorta(fecha: string): string {
   const [, m, d] = fecha.split('-')
   return `${d}/${m}`
@@ -42,11 +44,6 @@ function fechaCorta(fecha: string): string {
 function diaSemana(fecha: string): string {
   const [y, m, d] = fecha.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('es', { weekday: 'long' })
-}
-
-function horaGenerado(iso: string): string {
-  const d = new Date(iso)
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 // La etiqueta sale del `tipoDia` persistido (calculado en hora argentina por el
@@ -85,11 +82,9 @@ function textoItem(item: unknown): string {
   return String(item)
 }
 
-function descripcionTraza(item: unknown): string {
+function descripcionTraza(item: unknown, metricas: MetricaDtoVeredicto[]): string {
   if (item === null || typeof item !== 'object') return textoItem(item)
-  const r = item as Record<string, unknown>
-  const umbral = r.umbral !== undefined ? ` (umbral ${String(r.umbral)})` : ''
-  return `${String(r.regla ?? '')}: ${String(r.valor ?? '')}${umbral}`
+  return describirTraza(item as TrazaLegible, metricas)
 }
 
 function extraerVeredictos(body: unknown): DtoVeredicto[] {
@@ -119,7 +114,7 @@ function DetalleVeredicto({
         </h3>
         <NivelChip nivel={veredicto.nivel} />
         {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
-        <span className="veredicto-detalle__meta">generado {horaGenerado(veredicto.generadoEn)}</span>
+        <span className="veredicto-detalle__meta">generado {horaArt(veredicto.generadoEn)}</span>
       </header>
 
       {/* Con frases de IA, `texto` es su concatenación: se muestra una sola vez. */}
@@ -154,7 +149,18 @@ function DetalleVeredicto({
           <h4>Por qué este nivel</h4>
           <ul>
             {veredicto.traza.map((item, i) => (
-              <li key={i}>{descripcionTraza(item)}</li>
+              <li key={i}>{descripcionTraza(item, metricas)}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {veredicto.aguasArriba.length > 0 ? (
+        <div className="veredicto-seccion">
+          <h4>Aguas arriba (contexto, no modifica el nivel)</h4>
+          <ul>
+            {veredicto.aguasArriba.map((a) => (
+              <li key={a.estacionId}>{describirAguaArriba(a)}</li>
             ))}
           </ul>
         </div>

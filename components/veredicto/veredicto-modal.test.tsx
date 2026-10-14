@@ -177,4 +177,32 @@ describe('VeredictoModal', () => {
     render(<VeredictoModal open onOpenChange={() => {}} />)
     expect(await screen.findByText('Sin veredictos todavía para este período.')).toBeInTheDocument()
   })
+
+  it('describe la traza en lenguaje legible y lista las aguas arriba como contexto', async () => {
+    mockFetchVeredictos([
+      veredicto({
+        id: 'p',
+        fecha: hoy,
+        nivel: 'alerta',
+        metricas: [
+          { id: 'rio.pna-paso-de-los-libres.altura_max_m', valor: 7.25, unidad: 'm', etiqueta: 'Altura máxima PASO DE LOS LIBRES', fuenteUrl: 'https://f' },
+          { id: 'rio.pna-paso-de-los-libres.alerta_m', valor: 7.1, unidad: 'm', etiqueta: 'Nivel de alerta PASO DE LOS LIBRES', fuenteUrl: 'https://f' },
+        ],
+        traza: [{ regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' }],
+        aguasArriba: [
+          { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'normal', alturaMaxM: 30.8, umbralM: 31.5 },
+        ],
+      }),
+    ])
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
+    expect(
+      within(detalle).getByText('Prefectura Paso de los Libres (río Uruguay): 7,25 m ≥ alerta 7,10 m'),
+    ).toBeInTheDocument()
+    expect(within(detalle).getByText('Aguas arriba (contexto, no modifica el nivel)')).toBeInTheDocument()
+    expect(
+      within(detalle).getByText('Prefectura Iguazú (río Paraná): 30,80 m, por debajo de alerta 31,50 m'),
+    ).toBeInTheDocument()
+  })
 })

@@ -82,6 +82,22 @@ describe('VeredictoPublico', () => {
     expect(container.textContent ?? '').not.toContain('lluvia.obs')
   })
 
+  it('muestra las aguas arriba como contexto en el día de la provincia', () => {
+    const conAguas = dto({
+      id: 'x',
+      fecha: '2026-10-11',
+      aguasArriba: [
+        { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana', estadoMax: 'alerta', alturaMaxM: 27.5, umbralM: 27.9 },
+      ],
+    })
+    render(<VeredictoPublico veredictos={[conAguas]} />)
+    expect(
+      screen.getByText(
+        'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná): 27,50 m, sobre alerta 27,90 m',
+      ),
+    ).toBeTruthy()
+  })
+
   it('lista las fuentes con enlace, sin duplicar URLs', () => {
     render(<VeredictoPublico veredictos={VERED} />)
     // URL fuera del catálogo: el nombre legible cae a la propia URL.

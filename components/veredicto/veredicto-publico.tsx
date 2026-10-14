@@ -3,6 +3,7 @@
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { nombreFuente } from '@/lib/infraestructura/veredicto/metricas'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
+import { describirAguaArriba } from '@/lib/infraestructura/veredicto/traza-texto'
 
 const ETIQUETA_TIPO_DIA: Record<string, string> = {
   observado: 'Observado',
@@ -64,6 +65,12 @@ export function VeredictoPublico({ veredictos }: { veredictos: DtoVeredicto[] })
                     <strong>Provincia: {etiquetaNivel(provincia.nivel)}</strong>
                   </p>
                   {provincia.texto && <p>{provincia.texto}</p>}
+                  {provincia.aguasArriba?.length > 0 && (
+                    <p>
+                      Aguas arriba (contexto, no modifica el nivel):{' '}
+                      {provincia.aguasArriba.map(describirAguaArriba).join('; ')}
+                    </p>
+                  )}
                 </div>
               )}
               {departamentos.map((d) => (

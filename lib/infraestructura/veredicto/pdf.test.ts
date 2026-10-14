@@ -89,6 +89,22 @@ describe('lineasPdf', () => {
     const texto = lineasPdf({ veredictos: [], generadoEn }).map((l) => l.texto).join('\n')
     expect(texto).toContain('Sin veredictos para el período.')
   })
+
+  it('agrega una línea de aguas arriba como contexto cuando hay datos', () => {
+    const aguasArriba = [
+      { estacionId: 'pna-iguazu', nombre: 'IGUAZU', rio: 'parana' as const, estadoMax: 'evacuacion' as const, alturaMaxM: 30.8, umbralM: 28 },
+      { estacionId: 'pna-posadas', nombre: 'POSADAS', rio: 'parana' as const, estadoMax: 'normal' as const, alturaMaxM: 12.5, umbralM: null },
+    ]
+    const texto = lineasPdf({ veredictos: [veredicto({ aguasArriba })], generadoEn }).map((l) => l.texto).join('\n')
+    expect(texto).toContain(
+      'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná): 30,80 m, sobre evacuación 28,00 m; Prefectura Posadas (río Paraná): 12,50 m',
+    )
+  })
+
+  it('no agrega línea de aguas arriba cuando no hay datos', () => {
+    const texto = lineasPdf({ veredictos: [veredicto()], generadoEn }).map((l) => l.texto).join('\n')
+    expect(texto).not.toContain('Aguas arriba')
+  })
 })
 
 describe('sanitizarWinAnsi', () => {
