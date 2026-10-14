@@ -2955,9 +2955,16 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 
 .map-bloque-acceso__fila {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s-2);
   min-width: 0;
+}
+
+.map-bloque-acceso__fila > .badge {
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .map-bloque-acceso__fila > svg {
