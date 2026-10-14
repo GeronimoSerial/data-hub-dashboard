@@ -93,9 +93,12 @@ function extraerVeredictos(body: unknown): DtoVeredicto[] {
 function DetalleVeredicto({
   veredicto,
   metricas,
+  ahoraMs,
 }: {
   veredicto: DtoVeredicto
   metricas: MetricaDtoVeredicto[]
+  /** Instante de referencia para "hace N h", fijado al abrir el modal. */
+  ahoraMs: number
 }): JSX.Element {
   const frases = (veredicto.frases ?? []) as Array<{
     texto?: string
@@ -110,6 +113,12 @@ function DetalleVeredicto({
         <NivelChip nivel={veredicto.nivel} />
         {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
         <span className="veredicto-detalle__meta">generado {horaArt(veredicto.generadoEn)}</span>
+        {veredicto.tipoDia === 'hoy' && veredicto.imergHasta ? (
+          <span className="veredicto-detalle__meta">
+            Lluvia observada hasta {horaArt(veredicto.imergHasta)} (hace{' '}
+            {Math.round((ahoraMs - Date.parse(veredicto.imergHasta)) / 3600_000)} h)
+          </span>
+        ) : null}
       </header>
 
       {/* Con frases de IA, `texto` es su concatenación: se muestra una sola vez. */}
@@ -185,6 +194,7 @@ export function VeredictoModal({
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
+  const [ahoraMs] = useState(() => Date.now())
 
   useEffect(() => {
     if (!open) return
@@ -297,7 +307,7 @@ export function VeredictoModal({
             </div>
 
             {provincia ? (
-              <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} />
+              <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} ahoraMs={ahoraMs} />
             ) : (
               <p className="veredicto-seccion__vacio">Sin veredicto de provincia para este día.</p>
             )}

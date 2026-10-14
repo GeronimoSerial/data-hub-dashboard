@@ -75,6 +75,7 @@ describe('aDtoVeredicto', () => {
       ],
       fuentesAusentes: ['rios'],
       aguasArriba: [],
+      imergHasta: null,
     })
   })
 
@@ -109,6 +110,18 @@ describe('aDtoVeredicto', () => {
     const dto = aDtoVeredicto(fila({ trazaReglas: {}, metricas: {}, cobertura: {}, textoFinal: null }), 1)
     expect(dto.traza).toEqual([])
     expect(dto.aguasArriba).toEqual([])
+  })
+
+  it('expone imergHasta desde la cobertura cuando el día es hoy', () => {
+    const dto = aDtoVeredicto(
+      fila({ tipoDia: 'hoy', cobertura: { imerg24: 1, imergHasta: '2026-10-13T21:00:00.000Z' } }),
+      1,
+    )
+    expect(dto.imergHasta).toBe('2026-10-13T21:00:00.000Z')
+  })
+
+  it('imergHasta es null si la cobertura no lo trae', () => {
+    expect(aDtoVeredicto(fila({ cobertura: { imerg24: 1 } }), 1).imergHasta).toBeNull()
   })
 
   it('expone las aguas arriba de la traza persistida', () => {

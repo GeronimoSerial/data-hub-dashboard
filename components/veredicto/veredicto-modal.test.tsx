@@ -42,6 +42,7 @@ function veredicto(overrides: Partial<DtoVeredicto>): DtoVeredicto {
     metricas: [],
     fuentesAusentes: [],
     aguasArriba: [],
+    imergHasta: null,
     ...overrides,
   }
 }
@@ -100,6 +101,17 @@ describe('VeredictoModal', () => {
     expect(within(detalle).getByLabelText('Nivel: Vigilancia')).toBeInTheDocument()
     expect(within(detalle).getByText('En calibración')).toBeInTheDocument()
     expect(within(detalle).getByText(/generado \d{2}:\d{2}/)).toBeInTheDocument()
+  })
+
+  it('en HOY muestra hasta qué hora llegó la lluvia IMERG', async () => {
+    const hace3h = new Date(Date.now() - 3 * 3600_000).toISOString()
+    mockFetchVeredictos([veredicto({ id: 'b', fecha: hoy, imergHasta: hace3h })])
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
+    expect(within(detalle).getByText(/Lluvia observada hasta \d{2}:\d{2} \(hace 3 h\)/)).toHaveClass(
+      'veredicto-detalle__meta',
+    )
   })
 
   it('cambia el detalle al elegir otro día', async () => {

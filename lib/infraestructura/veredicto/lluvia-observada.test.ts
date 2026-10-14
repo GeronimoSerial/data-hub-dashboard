@@ -124,6 +124,18 @@ describe('agregarLluviaObservada', () => {
     expect(resultado.some((r) => r.ambito === 'departamento:null')).toBe(false)
   })
 
+  it('usa granulosPorCeldaEsperados como base de cobertura cuando se pasa (día en curso)', () => {
+    const resultado = agregarLluviaObservada({
+      granulos: [granulo(CELDA_CAPITAL, '03:00', 1), granulo(CELDA_CAPITAL, '03:30', 1)],
+      celdas: new Map([[CELDA_CAPITAL, 'CAPITAL']]),
+      dias: 1,
+      granulosPorCeldaEsperados: 4,
+    })
+    const capital = buscar(resultado, 'departamento:CAPITAL')
+    expect(capital.granulosEsperados).toBe(4)
+    expect(capital.cobertura).toBeCloseTo(0.5, 10)
+  })
+
   it('redondea promedio y máximo a 1 decimal', () => {
     const resultado = agregarLluviaObservada({
       granulos: [granulo(CELDA_CAPITAL, '00:00', 0.04), granulo(CELDA_CAPITAL, '00:30', 0.04)],

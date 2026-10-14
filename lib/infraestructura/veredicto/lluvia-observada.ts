@@ -42,6 +42,11 @@ export function agregarLluviaObservada(params: {
   celdas: Map<string, string>
   /** Días civiles cubiertos por `granulos` (1 o 3). Solo afecta a los gránulos esperados. */
   dias: 1 | 3
+  /**
+   * Gránulos esperados por celda, si la ventana no es de días completos (p. ej. hoy,
+   * hasta el último gránulo recibido). Reemplaza a `GRANULOS_POR_DIA × dias`.
+   */
+  granulosPorCeldaEsperados?: number
 }): LluviaObservadaAmbito[] {
   // Suma por celda y conjunto de instantes recibidos (un gránulo repetido cuenta una vez).
   const sumaPorCelda = new Map<string, number>()
@@ -89,7 +94,8 @@ export function agregarLluviaObservada(params: {
       }
       granulosRecibidos += instantesPorCelda.get(celda)?.size ?? 0
     }
-    const granulosEsperados = GRANULOS_POR_DIA * params.dias * celdas.length
+    const granulosPorCelda = params.granulosPorCeldaEsperados ?? GRANULOS_POR_DIA * params.dias
+    const granulosEsperados = granulosPorCelda * celdas.length
     return {
       ambito,
       promMm: redondear1(suma / celdas.length),

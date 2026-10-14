@@ -56,11 +56,24 @@ export type ItemDia = {
     fuentesAusentes: FuenteVeredicto[]
     /** Motivo de salud por fuente, sólo cuando la corrida conoce la salud de las fuentes. */
     saludFuentes?: Record<FuenteVeredicto, MotivoSaludFuente>
+    /** Fin (ISO) del último gránulo IMERG recibido para hoy; sólo en tipoDia 'hoy'. */
+    imergHasta?: string | null
   }
   inputsHash: string
 }
 
 type LluviaObservadaAmbitoId = LluviaObservadaAmbito['ambito']
+
+// Gránulos IMERG de 30 min y gránulos de un día civil completo.
+const MS_GRANULO = 30 * 60_000
+const GRANULOS_DIA_COMPLETO = 48
+
+/** Fin (ISO) del último gránulo recibido: su inicio más 30 min; null sin gránulos. */
+function finUltimoGranulo(granulos: GranuloLluvia[]): string | null {
+  if (granulos.length === 0) return null
+  const ultimoInicio = Math.max(...granulos.map((granulo) => Date.parse(granulo.validoDesde)))
+  return new Date(ultimoInicio + MS_GRANULO).toISOString()
+}
 
 /** Días de la ventana: `diasObservados` previos, hoy y `diasPronostico` siguientes (día civil ART). */
 export function fechasVentana(
@@ -112,6 +125,7 @@ export async function calcularDia(
   const noDisponible = (fuente: keyof SaludFuentes): boolean =>
     salud !== undefined && !salud[fuente].disponible
   const esHoy = tipoDia === 'hoy'
+  let imergHasta: string | null = null
   let lluvia24: EntradaEvaluacion['lluvia24'] = []
   let lluvia72: LluviaObservadaAmbito[] = []
   let rios: RioDia[] = []
@@ -134,13 +148,32 @@ export async function calcularDia(
       if (departamento !== null) celdas.set(geometryRef, departamento)
     }
 
+    // Hoy el día no está completo: la cobertura se mide hasta el último gránulo recibido.
+    imergHasta = esHoy ? finUltimoGranulo(granulos24) : null
+    const granulosHoy =
+      imergHasta === null
+        ? undefined
+        : Math.round((Date.parse(imergHasta) - Date.parse(ventana24.desde)) / MS_GRANULO)
+
     const cachePercentil = new Map<string, Awaited<ReturnType<typeof leerUmbralesLluviaDiaria>>>()
     lluvia24 = await enriquecerConPercentil(
       db,
-      agregarLluviaObservada({ granulos: granulos24, celdas, dias: 1 }),
+      agregarLluviaObservada({
+        granulos: granulos24,
+        celdas,
+        dias: 1,
+        granulosPorCeldaEsperados: granulosHoy,
+      }),
       cachePercentil,
     )
-    lluvia72 = agregarLluviaObservada({ granulos: granulos72, celdas, dias: 3 })
+    lluvia72 = agregarLluviaObservada({
+      granulos: granulos72,
+      celdas,
+      dias: 3,
+      // Dos días completos previos más el tramo transcurrido de hoy.
+      granulosPorCeldaEsperados:
+        granulosHoy === undefined ? undefined : GRANULOS_DIA_COMPLETO * 2 + granulosHoy,
+    })
   }
 
   if (tipoDia !== 'pronostico' && !(esHoy && noDisponible('prefectura'))) {
@@ -200,6 +233,7 @@ export async function calcularDia(
           imerg24: l24?.cobertura ?? null,
           fuentesAusentes: resultado.fuentesAusentes,
           saludFuentes: motivosSalud,
+          ...(esHoy ? { imergHasta } : {}),
         },
         inputsHash: calcularInputsHash({
           metricas,

@@ -3,7 +3,7 @@
 // que rios.test.ts).
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
-import { hidroLectura } from '@/lib/db/schema'
+import { hazardObservation, hidroLectura } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { calcularDia, fechasVentana } from './entradas'
 import type { SaludFuentes } from './salud-fuentes'
@@ -76,11 +76,11 @@ describe('calcularDia', () => {
 
 describe('calcularDia con salud de fuentes', () => {
   const todoDisponible = (): SaludFuentes => ({
-    imerg: { disponible: true, motivo: 'ok', ultimoExitoEn: null },
-    prefectura: { disponible: true, motivo: 'ok', ultimoExitoEn: null },
-    smn: { disponible: true, motivo: 'ok', ultimoExitoEn: null },
-    glofas: { disponible: true, motivo: 'ok', ultimoExitoEn: null },
-    ensamble: { disponible: true, motivo: 'ok', ultimoExitoEn: null },
+    imerg: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
+    prefectura: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
+    smn: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
+    glofas: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
+    ensamble: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
   })
 
   beforeEach(async () => {
@@ -89,7 +89,7 @@ describe('calcularDia con salud de fuentes', () => {
 
   it('SMN no disponible: aparece en fuentesAusentes y un día sólo con SMN queda sin_dato', async () => {
     const salud = todoDisponible()
-    salud.smn = { disponible: false, motivo: 'no_disponible', ultimoExitoEn: null }
+    salud.smn = { disponible: false, motivo: 'no_disponible', ultimoExitoEn: null, ultimoDato: null }
     const items = await calcularDia(getDb(), { fecha: '2026-10-14', tipoDia: 'pronostico' }, salud)
     const provincia = items.find((i) => i.ambito === 'provincia')
     expect(provincia?.fuentesAusentes).toContain('smn')
@@ -105,7 +105,7 @@ describe('calcularDia con salud de fuentes', () => {
 
   it('GloFAS vencido en un día de pronóstico queda ausente y no se lee', async () => {
     const salud = todoDisponible()
-    salud.glofas = { disponible: false, motivo: 'vencida', ultimoExitoEn: '2026-10-01T00:00:00.000Z' }
+    salud.glofas = { disponible: false, motivo: 'vencida', ultimoExitoEn: '2026-10-01T00:00:00.000Z', ultimoDato: null }
     const items = await calcularDia(getDb(), { fecha: '2026-10-14', tipoDia: 'pronostico' }, salud)
     const provincia = items.find((i) => i.ambito === 'provincia')
     expect(provincia?.fuentesAusentes).toContain('glofas')
@@ -114,7 +114,7 @@ describe('calcularDia con salud de fuentes', () => {
 
   it('IMERG no disponible no afecta un día observado (sólo aplica a hoy)', async () => {
     const salud = todoDisponible()
-    salud.imerg = { disponible: false, motivo: 'vencida', ultimoExitoEn: null }
+    salud.imerg = { disponible: false, motivo: 'vencida', ultimoExitoEn: null, ultimoDato: null }
     const conSalud = await calcularDia(getDb(), { fecha: '2026-10-12', tipoDia: 'observado' }, salud)
     const sinSalud = await calcularDia(getDb(), { fecha: '2026-10-12', tipoDia: 'observado' })
     expect(conSalud.find((i) => i.ambito === 'provincia')?.fuentesAusentes).toEqual(
@@ -124,9 +124,52 @@ describe('calcularDia con salud de fuentes', () => {
 
   it('IMERG no disponible en hoy queda ausente', async () => {
     const salud = todoDisponible()
-    salud.imerg = { disponible: false, motivo: 'vencida', ultimoExitoEn: null }
+    salud.imerg = { disponible: false, motivo: 'vencida', ultimoExitoEn: null, ultimoDato: null }
     const items = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' }, salud)
     const provincia = items.find((i) => i.ambito === 'provincia')
     expect(provincia?.fuentesAusentes).toContain('imerg')
+  })
+})
+
+describe('calcularDia hoy con lluvia IMERG parcial', () => {
+  const CELDA_CAPITAL = '-27.5_-58.8'
+
+  beforeEach(async () => {
+    await getDb().delete(hazardObservation)
+  })
+
+  it('cuenta la cobertura hasta el último gránulo y expone imergHasta', async () => {
+    // Día ART 2026-10-13 empieza 03:00Z; los gránulos llegan hasta 20:30Z (fin 21:00Z).
+    const inicio = Date.parse('2026-10-13T03:00:00.000Z')
+    const filas = Array.from({ length: 36 }, (_, i) => {
+      const desde = new Date(inicio + i * 30 * 60_000).toISOString()
+      const hasta = new Date(inicio + (i + 1) * 30 * 60_000).toISOString()
+      return {
+        id: `imerg-hoy-${desde}`,
+        provider: 'nasa-imerg',
+        variable: 'precipitacion_observada_satelital',
+        geometryRef: CELDA_CAPITAL,
+        valor: 1,
+        unidad: 'mm/30min',
+        observadoEn: desde,
+        validoDesde: desde,
+        validoHasta: hasta,
+        ingeridoEn: desde,
+      }
+    })
+    await getDb().insert(hazardObservation).values(filas)
+
+    const items = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' })
+    const provincia = items.find((i) => i.ambito === 'provincia')
+    expect(provincia?.cobertura.imerg24).toBeGreaterThanOrEqual(0.8)
+    expect(provincia?.cobertura.imergHasta).toBe('2026-10-13T21:00:00.000Z')
+    expect(provincia?.metricas.length).toBeGreaterThan(0)
+  })
+
+  it('sin gránulos del día la lluvia de hoy queda ausente y no hay imergHasta', async () => {
+    const items = await calcularDia(getDb(), { fecha: '2026-10-13', tipoDia: 'hoy' })
+    const provincia = items.find((i) => i.ambito === 'provincia')
+    expect(provincia?.cobertura.imerg24).toBeNull()
+    expect(provincia?.cobertura.imergHasta).toBeNull()
   })
 })

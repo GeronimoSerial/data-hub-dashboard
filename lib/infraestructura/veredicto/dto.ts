@@ -38,6 +38,8 @@ export type DtoVeredicto = {
   aguasArriba: AguaArribaDtoVeredicto[]
   metricas: MetricaDtoVeredicto[]
   fuentesAusentes: unknown[]
+  /** Fin (ISO) del último gránulo IMERG recibido; sólo informado para el día de hoy. */
+  imergHasta?: string | null
 }
 
 function lista(valor: unknown): unknown[] {
@@ -74,6 +76,7 @@ function aMetricaDto(item: unknown): MetricaDtoVeredicto {
 // `version` la calcula el llamador (posición en el historial), no la fila.
 export function aDtoVeredicto(fila: FilaVeredicto, version: number | null): DtoVeredicto {
   const salidaIa = registro(fila.salidaIa)
+  const cobertura = registro(fila.cobertura)
   return {
     id: fila.id,
     fecha: fila.fecha,
@@ -90,6 +93,7 @@ export function aDtoVeredicto(fila: FilaVeredicto, version: number | null): DtoV
     traza: lista(registro(fila.trazaReglas).reglas),
     aguasArriba: lista(registro(fila.trazaReglas).aguasArriba).map(aAguaArribaDto),
     metricas: lista(registro(fila.metricas).metricas).map(aMetricaDto),
-    fuentesAusentes: lista(registro(fila.cobertura).fuentesAusentes),
+    fuentesAusentes: lista(cobertura.fuentesAusentes),
+    imergHasta: typeof cobertura.imergHasta === 'string' ? cobertura.imergHasta : null,
   }
 }
