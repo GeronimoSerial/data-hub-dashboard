@@ -41,6 +41,29 @@ vi.mock('@/lib/mapas/insignias-mapa', () => ({
   registrarInsignias: vi.fn(),
 }))
 
+const extra = vi.hoisted(() => ({
+  sinUbicacionPrecisa: [] as Array<{
+    id: string
+    lugar: string
+    titulo: string
+    confianza: unknown
+    confianzaEtiqueta: string
+    medio: string | null
+    fecha: string | null
+  }>,
+}))
+
+vi.mock('@/lib/mapas/eventos-inundaciones', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/mapas/eventos-inundaciones')>()
+  return {
+    ...real,
+    ubicarEventos: (entrada: Parameters<typeof real.ubicarEventos>[0]) => {
+      const resultado = real.ubicarEventos(entrada)
+      return { ...resultado, sinUbicacionPrecisa: [...resultado.sinUbicacionPrecisa, ...extra.sinUbicacionPrecisa] }
+    },
+  }
+})
+
 const EVENTOS = {
   type: 'FeatureCollection',
   features: [
@@ -153,6 +176,7 @@ describe('CapaEventosReportados', () => {
 
   afterEach(() => {
     cleanup()
+    extra.sinUbicacionPrecisa = []
     vi.restoreAllMocks()
   })
 
@@ -249,5 +273,70 @@ describe('CapaEventosReportados', () => {
     await waitFor(() => expect(global.fetch).toHaveBeenCalled())
     expect(propsDe('source').data.features).toHaveLength(0)
     expect(screen.queryByTestId('popup')).toBeNull()
+  })
+
+  it('informa los eventos ordenados por fecha descendente', async () => {
+    const onResumen = vi.fn()
+    render(<CapaEventosReportados visible onResumen={onResumen} />)
+
+    await waitFor(() => expect(onResumen).toHaveBeenCalled())
+    const eventos = onResumen.mock.calls[0][0].eventos as Array<{ id: string; noDeterminada: boolean }>
+    expect(eventos.map((e) => e.id)).toEqual(['EV-2', 'EV-3', 'EV-1'])
+    expect(eventos.every((e) => e.noDeterminada === false)).toBe(true)
+  })
+
+  it('incluye como noDeterminada el evento sin ubicación precisa que no tiene feature dibujada', async () => {
+    extra.sinUbicacionPrecisa = [
+      { id: 'EV-9', lugar: 'Lugar lejano', titulo: 'Crecida del río sin ubicación', confianza: 'media', confianzaEtiqueta: 'Confianza media', medio: 'Diario', fecha: '2026-10-04' },
+    ]
+    const onResumen = vi.fn()
+    render(<CapaEventosReportados visible onResumen={onResumen} />)
+
+    await waitFor(() => expect(onResumen).toHaveBeenCalled())
+    const eventos = onResumen.mock.calls[0][0].eventos as Array<Record<string, unknown>>
+    const sinPunto = eventos.find((e) => e.id === 'EV-9')
+    expect(sinPunto).toMatchObject({
+      titulo: 'Crecida del río sin ubicación',
+      lugar: 'Lugar lejano',
+      confianza: 'media',
+      medio: 'Diario',
+      noDeterminada: true,
+      lon: null,
+      lat: null,
+      fecha: '2026-10-04',
+    })
+    expect(eventos.filter((e) => e.noDeterminada === true)).toHaveLength(1)
+    expect(onResumen.mock.calls[0][0].total).toBe(3)
+  })
+
+  it('abre el popup del evento indicado por seleccionadoId al cambiar la prop', async () => {
+    const onResumen = vi.fn()
+    const { rerender } = render(<CapaEventosReportados visible onResumen={onResumen} />)
+
+    await fuenteCargada()
+    const titulo = (onResumen.mock.calls[0][0].eventos as Array<{ id: string; titulo: string }>).find((e) => e.id === 'EV-1')!.titulo
+    expect(screen.queryByTestId('popup')).toBeNull()
+
+    rerender(<CapaEventosReportados visible onResumen={onResumen} seleccionadoId="EV-1" />)
+    const popup = await waitFor(() => screen.getByTestId('popup'))
+    expect(within(popup).getByText(titulo)).toBeTruthy()
+  })
+
+  it('aplica el realce de resaltadoId en el tamaño del icono de la capa', async () => {
+    render(<CapaEventosReportados visible resaltadoId="EV-2" />)
+
+    await fuenteCargada()
+    expect(propsDe('layer').layout['icon-size']).toEqual(['case', ['==', ['get', 'id_evento'], 'EV-2'], 1.35, 1])
+  })
+
+  it('informa onSeleccion con el id del evento al hacer clic en su marcador', async () => {
+    const onSeleccion = vi.fn()
+    render(<CapaEventosReportados visible onSeleccion={onSeleccion} />)
+
+    const fuente = await fuenteCargada()
+    const indice = indiceDe(fuente.data.features, 'media')
+    act(() => mapa.emitir('click', 'eventos-reportados-simbolos', { features: [{ properties: { indice } }] }))
+
+    expect(onSeleccion).toHaveBeenCalledWith('EV-2')
   })
 })

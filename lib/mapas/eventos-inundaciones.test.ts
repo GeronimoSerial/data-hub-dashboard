@@ -199,14 +199,15 @@ describe('ubicarEventos', () => {
       [...LOCALIDADES, { nombre: 'Isla Calera', lon: -56.74, lat: -27.51, origen: 'escuelas' }],
     )
     expect(geojson.features).toEqual([])
-    expect(sinUbicacionPrecisa).toEqual([{ id: 'EV-1', lugar: 'Isla Calera' }])
+    expect(sinUbicacionPrecisa.map(({ id, lugar }) => ({ id, lugar }))).toEqual([{ id: 'EV-1', lugar: 'Isla Calera' }])
     expect(sinUbicar).toEqual([])
   })
 
   it('does not draw a parenthesised place without a curated match, even when its bare town exists', () => {
     const { geojson, sinUbicacionPrecisa } = ubicar([evento({ localidad: 'Ituzaingó (represa Yacyretá)' })])
     expect(geojson.features).toEqual([])
-    expect(sinUbicacionPrecisa).toEqual([{ id: 'EV-1', lugar: 'Ituzaingó (represa Yacyretá)' }])
+    expect(sinUbicacionPrecisa.map(({ id, lugar }) => ({ id, lugar }))).toEqual([{ id: 'EV-1', lugar: 'Ituzaingó (represa Yacyretá)' }])
+    expect(sinUbicacionPrecisa[0]).toMatchObject({ confianzaEtiqueta: expect.stringMatching(/^Confianza /), titulo: expect.any(String) })
   })
 
   it('falls back to the school median for a plain locality missing from the gazetteer', () => {
@@ -241,7 +242,7 @@ describe('ubicarEventos', () => {
       evento({ localidad: 'Campo X;Campo Y', departamento: 'Paso de los Libres;Paso de los Libres' }),
     ])
     expect(geojson.features).toEqual([])
-    expect(sinUbicacionPrecisa).toEqual([
+    expect(sinUbicacionPrecisa.map(({ id, lugar }) => ({ id, lugar }))).toEqual([
       { id: 'EV-1', lugar: 'Campo X' },
       { id: 'EV-1', lugar: 'Campo Y' },
     ])

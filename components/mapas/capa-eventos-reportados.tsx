@@ -32,12 +32,28 @@ const ETIQUETA_PRECISION: Record<string, string> = {
   departamento: 'departamento',
 }
 
+export type ItemEventoReportado = {
+  id: string
+  titulo: string
+  lugar: string
+  /** YYYY-MM-DD used for sorting and display, or null when the registry has no date. */
+  fecha: string | null
+  confianza: 'alta' | 'media' | 'baja'
+  confianzaEtiqueta: string
+  medio: string | null
+  lon: number | null
+  lat: number | null
+  /** True for events known only from a place name, with no drawn badge. */
+  noDeterminada: boolean
+}
+
 export type ResumenEventosReportados = {
   resumenProvincial: ResumenProvincial[]
   sinUbicacionPrecisa: LugarSinPrecision[]
   total: number
   /** Registry date (YYYY-MM-DD) so the legend can show how old the event list is. */
   actualizadoAl: string | null
+  eventos: ItemEventoReportado[]
 }
 
 type PuntoGeo = { type: 'Feature'; geometry: { coordinates: number[] }; properties: { name?: string; nombre?: string; centroide?: { lon: number; lat: number } } }
@@ -47,6 +63,7 @@ type PuntoEvento = {
   geometry: { type: 'Point'; coordinates: [number, number] }
   properties: {
     indice: number
+    id_evento: string
     titulo: string
     lugar: string
     confianza: string
@@ -198,6 +215,7 @@ function puntosDe(eventos: EventoUbicado[], desplazamientos: [number, number][])
         geometry: evento.geometry,
         properties: {
           indice,
+          id_evento: String(evento.properties.id_evento),
           titulo: String(evento.properties.titulo),
           lugar: String(evento.properties.lugar),
           confianza,
@@ -209,36 +227,124 @@ function puntosDe(eventos: EventoUbicado[], desplazamientos: [number, number][])
   }
 }
 
+const RANGO_CONFIANZA: Record<ItemEventoReportado['confianza'], number> = { alta: 0, media: 1, baja: 2 }
+
+function fechaISO(valor: unknown): string | null {
+  const coincidencia = /^\d{4}-\d{2}-\d{2}/.exec(String(valor ?? ''))
+  return coincidencia ? coincidencia[0] : null
+}
+
+function confianzaNormalizada(valor: string): ItemEventoReportado['confianza'] {
+  return (CONFIANZAS as readonly string[]).includes(valor) ? (valor as ItemEventoReportado['confianza']) : 'baja'
+}
+
+// One item per event id: drawn events first (their first feature), then events known only by place name.
+function itemsDe(features: EventoUbicado[], sinUbicacionPrecisa: LugarSinPrecision[]): ItemEventoReportado[] {
+  const vistos = new Set<string>()
+  const items: ItemEventoReportado[] = []
+  for (const feature of features) {
+    const propiedades = feature.properties
+    const id = String(propiedades.id_evento)
+    if (vistos.has(id)) continue
+    vistos.add(id)
+    items.push({
+      id,
+      titulo: String(propiedades.titulo),
+      lugar: String(propiedades.lugar),
+      fecha: fechaISO(propiedades.inicio_evento) ?? fechaISO(propiedades.ultima_actualizacion),
+      confianza: confianzaNormalizada(String(propiedades.confianza)),
+      confianzaEtiqueta: String(propiedades.confianzaEtiqueta),
+      medio: propiedades.fuentes[0]?.medio ?? null,
+      lon: feature.geometry.coordinates[0],
+      lat: feature.geometry.coordinates[1],
+      noDeterminada: false,
+    })
+  }
+  for (const lugar of sinUbicacionPrecisa) {
+    const id = String(lugar.id)
+    if (vistos.has(id)) continue
+    vistos.add(id)
+    items.push({
+      id,
+      titulo: lugar.titulo,
+      lugar: lugar.lugar,
+      fecha: lugar.fecha,
+      confianza: lugar.confianza as ItemEventoReportado['confianza'],
+      confianzaEtiqueta: lugar.confianzaEtiqueta,
+      medio: lugar.medio,
+      lon: null,
+      lat: null,
+      noDeterminada: true,
+    })
+  }
+  return items.sort((a, b) => {
+    const porFecha = (b.fecha ?? '').localeCompare(a.fecha ?? '')
+    return porFecha !== 0 ? porFecha : RANGO_CONFIANZA[a.confianza] - RANGO_CONFIANZA[b.confianza]
+  })
+}
+
 export function CapaEventosReportados({
   visible,
   beforeId,
   onResumen,
+  seleccionadoId,
+  resaltadoId,
+  onSeleccion,
 }: {
   visible: boolean
   beforeId?: string
   onResumen?: (resumen: ResumenEventosReportados) => void
+  seleccionadoId?: string | null
+  resaltadoId?: string | null
+  onSeleccion?: (id: string | null) => void
 }) {
   if (!visible) return null
-  return <CapaEventosReportadosActiva beforeId={beforeId} onResumen={onResumen} />
+  return (
+    <CapaEventosReportadosActiva
+      beforeId={beforeId}
+      onResumen={onResumen}
+      seleccionadoId={seleccionadoId}
+      resaltadoId={resaltadoId}
+      onSeleccion={onSeleccion}
+    />
+  )
 }
 
 function CapaEventosReportadosActiva({
   beforeId,
   onResumen,
+  seleccionadoId,
+  resaltadoId,
+  onSeleccion,
 }: {
   beforeId?: string
   onResumen?: (resumen: ResumenEventosReportados) => void
+  seleccionadoId?: string | null
+  resaltadoId?: string | null
+  onSeleccion?: (id: string | null) => void
 }) {
   const [eventos, setEventos] = useState<EventoUbicado[]>([])
   const [listo, setListo] = useState(false)
   const [seleccionado, setSeleccionado] = useState<number | null>(null)
   const [enfocado, setEnfocado] = useState<number | null>(null)
+  const [seleccionPedida, setSeleccionPedida] = useState<string | null | undefined>(undefined)
   const { current: mapa } = useMap()
   const onResumenRef = useRef(onResumen)
+  const onSeleccionRef = useRef(onSeleccion)
+  const eventosRef = useRef(eventos)
 
   useEffect(() => {
     onResumenRef.current = onResumen
+    onSeleccionRef.current = onSeleccion
+    eventosRef.current = eventos
   })
+
+  // Applies each new seleccionadoId once (also when it arrives before the events load).
+  const indicePedido = seleccionadoId ? eventos.findIndex((evento) => String(evento.properties.id_evento) === seleccionadoId) : -1
+  if (indicePedido >= 0 && seleccionadoId !== seleccionPedida) {
+    setSeleccionPedida(seleccionadoId)
+    setSeleccionado(indicePedido)
+  }
 
   useEffect(() => {
     const controller = new AbortController()
@@ -251,6 +357,7 @@ function CapaEventosReportadosActiva({
           sinUbicacionPrecisa,
           total: new Set(features.map((f) => f.properties.id_evento)).size,
           actualizadoAl,
+          eventos: itemsDe(features, sinUbicacionPrecisa),
         })
       })
       .catch(() => {
@@ -288,7 +395,10 @@ function CapaEventosReportadosActiva({
     }
     const alHacerClic = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
       const indice = indiceDe(evento)
-      if (indice !== undefined) setSeleccionado(indice)
+      if (indice === undefined) return
+      setSeleccionado(indice)
+      const id = eventosRef.current[indice]?.properties.id_evento
+      onSeleccionRef.current?.(id === undefined ? null : String(id))
     }
     mapa.on('mouseenter', ID_CAPA, alEntrar)
     mapa.on('mouseleave', ID_CAPA, alSalir)
@@ -318,7 +428,13 @@ function CapaEventosReportadosActiva({
               'icon-offset': ['get', 'desplazamiento'],
               'icon-allow-overlap': false,
               'icon-ignore-placement': false,
-              'symbol-sort-key': ['match', ['get', 'confianza'], 'alta', 0, 'media', 1, 2],
+              'icon-size': ['case', ['==', ['get', 'id_evento'], resaltadoId ?? ''], 1.35, 1],
+              'symbol-sort-key': [
+                'case',
+                ['==', ['get', 'id_evento'], resaltadoId ?? ''],
+                -1,
+                ['match', ['get', 'confianza'], 'alta', 0, 'media', 1, 2],
+              ],
             }}
             paint={{ 'icon-opacity': ['case', ['==', ['get', 'confianza'], 'baja'], 0.6, 1] }}
           />
@@ -342,7 +458,10 @@ function CapaEventosReportadosActiva({
           longitude={activo.geometry.coordinates[0]}
           latitude={activo.geometry.coordinates[1]}
           anchor="bottom"
-          onClose={() => setSeleccionado(null)}
+          onClose={() => {
+            setSeleccionado(null)
+            onSeleccionRef.current?.(null)
+          }}
           closeOnClick={false}
         >
           <PopupEvento propiedades={activo.properties} />

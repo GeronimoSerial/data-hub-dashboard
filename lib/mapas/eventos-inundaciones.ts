@@ -80,7 +80,16 @@ export type ResumenProvincial = {
   fuenteUrl: string | null
 }
 
-export type LugarSinPrecision = { id: string; lugar: string }
+export type LugarSinPrecision = {
+  id: string
+  lugar: string
+  /** Presentation fields so a list can show the event without a map point. */
+  titulo: string
+  confianza: unknown
+  confianzaEtiqueta: string
+  medio: string | null
+  fecha: string | null
+}
 
 export type FilaAuditoria = {
   id: string
@@ -592,13 +601,13 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
       if (!ubicado) {
         // A non-plain place with no curated match is named as undetermined, never a point.
         if (plano) faltaAlgunLugar = true
-        else sinUbicacionPrecisa.push({ id: idEvento, lugar })
+        else sinUbicacionPrecisa.push({ id: idEvento, lugar, titulo: base.titulo, confianza: base.confianza, confianzaEtiqueta: base.confianzaEtiqueta, medio: base.fuentes[0]?.medio ?? null, fecha: fechaMasReciente([p.inicio_evento]) ?? fechaMasReciente([p.ultima_actualizacion]) })
         return
       }
       // A department centroid is not a point for one of several places: it would
       // suggest a location the source does not give.
       if (ubicado.precision === 'departamento' && lugares.length > 1) {
-        sinUbicacionPrecisa.push({ id: idEvento, lugar })
+        sinUbicacionPrecisa.push({ id: idEvento, lugar, titulo: base.titulo, confianza: base.confianza, confianzaEtiqueta: base.confianzaEtiqueta, medio: base.fuentes[0]?.medio ?? null, fecha: fechaMasReciente([p.inicio_evento]) ?? fechaMasReciente([p.ultima_actualizacion]) })
         return
       }
       features.push({

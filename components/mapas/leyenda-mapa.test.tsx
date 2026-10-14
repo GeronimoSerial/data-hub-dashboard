@@ -231,8 +231,8 @@ describe('LeyendaMapa · resumen provincial de eventos', () => {
         },
       ],
       sinUbicacionPrecisa: [
-        { id: 'EV-7', lugar: 'Paso de los Libres' },
-        { id: 'EV-8', lugar: 'Santo Tomé' },
+        { id: 'EV-7', lugar: 'Paso de los Libres', titulo: 'Evacuación', confianza: 'media', confianzaEtiqueta: 'Confianza media', medio: null, fecha: null },
+        { id: 'EV-8', lugar: 'Santo Tomé', titulo: 'Crecida', confianza: 'alta', confianzaEtiqueta: 'Confianza alta', medio: null, fecha: null },
       ],
       actualizadoAl: null,
     }
