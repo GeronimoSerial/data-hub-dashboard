@@ -116,7 +116,8 @@ function colorNivel(nivel: string): Color {
 // Parte puramente textual del PDF: sirve para probar el contenido sin dibujar.
 function lineaEvento(e: EventoTerreno): string {
   const fuente = e.fuente.fecha ? `${e.fuente.medio}, ${e.fuente.fecha}` : e.fuente.medio
-  return `• ${e.titulo} — ${e.lugar} (${nombreDepartamento(e.departamento)}), ${e.fechaTexto}. ${e.confianzaTexto}. Fuente: ${fuente} (${e.fuente.url})`
+  // Guion simple (la fuente del PDF no tiene viñeta) y sin la URL cruda: el nombre del medio alcanza.
+  return `- ${e.titulo} - ${e.lugar} (${nombreDepartamento(e.departamento)}), ${e.fechaTexto}. ${e.confianzaTexto}. Fuente: ${fuente}`
 }
 
 export function lineasPdf({ veredictos, generadoEn, eventos = [] }: EntradaPdfVeredictos): LineaPdf[] {

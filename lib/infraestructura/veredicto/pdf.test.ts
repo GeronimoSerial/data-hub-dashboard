@@ -122,7 +122,7 @@ describe('lineasPdf', () => {
     const lineas = lineasPdf({ veredictos: [veredicto()], generadoEn, eventos: [evento] }).map((l) => l.texto)
     expect(lineas).toContain('Confirmado en terreno (no modifica el nivel):')
     expect(lineas).toContain(
-      '• Calles anegadas — Ruta 14 (Paso de los Libres), 12/10. Confianza alta. Fuente: Diario X, 13/10/2026 (https://ex.com/nota)',
+      '- Calles anegadas - Ruta 14 (Paso de los Libres), 12/10. Confianza alta. Fuente: Diario X, 13/10/2026',
     )
     expect(lineas.join('\n')).not.toContain('EV-')
   })
