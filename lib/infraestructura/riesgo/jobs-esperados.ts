@@ -10,8 +10,6 @@
 
 export const TOLERANCIA_ATRASO_JOB = 2
 
-const MINUTOS_MES = 31 * 24 * 60
-
 export type JobEsperado = {
   nombre: string
   tipo: string | null
@@ -27,28 +25,39 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
   { nombre: 'sync-smn-alertas', tipo: 'sync-smn-alertas', intervaloMinutos: 15, habilitado: true },
   // verificar-radar-meteo no llama a adquirirLease: no escribe infra_job_run.
   { nombre: 'verificar-radar-meteo', tipo: null, intervaloMinutos: 1440, habilitado: true },
-  { nombre: 'sync-imerg', tipo: 'sync-hazard-imerg', intervaloMinutos: 60, habilitado: true },
+  // Coolify `*/30 * * * *`.
+  { nombre: 'sync-imerg', tipo: 'sync-hazard-imerg', intervaloMinutos: 30, habilitado: true },
+  // Coolify `41 21-23 * * *` and `43 21-23 * * *`: three resumable attempts every day.
   {
     nombre: 'climatologia-caudal',
     tipo: 'calcular-hazard-climatologia-caudal',
-    intervaloMinutos: MINUTOS_MES,
+    intervaloMinutos: 1440,
     habilitado: true,
   },
   {
     nombre: 'climatologia-precipitacion',
     tipo: 'calculo-climatologia',
-    intervaloMinutos: MINUTOS_MES,
+    intervaloMinutos: 1440,
     habilitado: true,
   },
-  { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: false },
+  // Coolify Scheduled Task `20 4 * * *` (ver runbook-scheduler.md).
+  {
+    nombre: 'climatologia-imerg',
+    tipo: 'calculo-climatologia-imerg',
+    intervaloMinutos: 1440,
+    habilitado: true,
+  },
+  // Running in production every 6 h (calcular-riesgo, sync-pronostico-caudal, sync-ensemble)
+  // and hourly (situacion-corte), the cadences of their deploy/systemd/ops1 timers.
+  { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: true },
   {
     nombre: 'sync-pronostico-caudal',
     tipo: 'sync-hazard-pronostico-caudal',
     intervaloMinutos: 360,
-    habilitado: false,
+    habilitado: true,
   },
-  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: false },
-  { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: false },
+  { nombre: 'sync-ensemble', tipo: 'sync-hazard-ensemble', intervaloMinutos: 360, habilitado: true },
+  { nombre: 'situacion-corte', tipo: 'situacion-corte-v1', intervaloMinutos: 60, habilitado: true },
   { nombre: 'episodios-derivados', tipo: 'episodios-derivados-v0', intervaloMinutos: 60, habilitado: false },
   { nombre: 'sync-seasonal', tipo: 'sync-hazard-seasonal', intervaloMinutos: 1440, habilitado: false },
   // Coolify Scheduled Task `17 * * * *` in production since 2026-10-13.
@@ -56,6 +65,24 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     nombre: 'sync-prefectura-alturas',
     tipo: 'sync-prefectura-alturas',
     intervaloMinutos: 60,
+    habilitado: true,
+  },
+  // Scheduled at this deploy (docs/DEPLOY.md, runbook-scheduler.md):
+  // veredicto `45 0,6,12,18 * * *` and `30 3 * * *`; synop `23 * * * *`;
+  // Prefectura histórico `35 7 * * *`; exposición DEM `50 7 * * *` (daily, no-op per version).
+  { nombre: 'veredicto-diario', tipo: 'veredicto-diario-v0', intervaloMinutos: 360, habilitado: true },
+  { nombre: 'veredicto-cierre', tipo: 'veredicto-cierre-v0', intervaloMinutos: 1440, habilitado: true },
+  { nombre: 'sync-synop-lluvia', tipo: 'sync-synop-lluvia', intervaloMinutos: 60, habilitado: true },
+  {
+    nombre: 'sync-prefectura-historico',
+    tipo: 'sync-prefectura-historico',
+    intervaloMinutos: 1440,
+    habilitado: true,
+  },
+  {
+    nombre: 'importar-exposicion-rio-dem',
+    tipo: 'importar-exposicion-rio-dem',
+    intervaloMinutos: 1440,
     habilitado: true,
   },
 ]

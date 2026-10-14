@@ -103,7 +103,7 @@ export const CONFIG_FUENTES = {
   },
 
   // ---------------------------------------------------------------------
-  // OpenRouter (briefing narrativo asistido por IA, E8)
+  // OpenRouter (veredicto diario asistido por IA; módulos en lib/infraestructura/briefing-ia/)
   // ---------------------------------------------------------------------
   openrouter: {
     url: 'https://openrouter.ai/api/v1/chat/completions', // origen: lib/infraestructura/briefing-ia/proveedor-openrouter.ts:31 (URL_OPENROUTER)

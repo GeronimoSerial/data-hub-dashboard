@@ -6,6 +6,53 @@ import { BASEMAPS, type BasemapId } from '@/lib/map-types'
 import { CAPAS_VISIBLES_DEFAULT, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import { PanelCapas } from './panel-capas'
 
+describe('PanelCapas · Situación actual', () => {
+  it('muestra el grupo "Situación actual" con la capa de estaciones del río activa', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+
+    expect(screen.getByRole('group', { name: 'Situación actual' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Estaciones de Prefectura (altura de ríos)' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('apaga la capa de estaciones del río al desactivar su interruptor', async () => {
+    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Estaciones de Prefectura (altura de ríos)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, estacionesRio: false })
+  })
+})
+
+describe('PanelCapas · lluvia observada', () => {
+  it('muestra el interruptor de lluvia IMERG apagado por defecto y sin selector de horas', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
+
+    expect(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.queryByRole('radio', { name: '24 h' })).toBeNull()
+  })
+
+  it('muestra el selector 24 h / 72 h cuando la lluvia observada está encendida', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: true }} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
+
+    expect(screen.getByRole('radio', { name: '72 h' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: '24 h' })).toBeTruthy()
+  })
+
+  it('apaga la lluvia observada al desactivar su interruptor y cambia la ventana a 24 h', async () => {
+    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
+    const horas = vi.fn()
+    const encendidas = { ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: true }
+    const { rerender } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={encendidas} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={horas} />)
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: false })
+
+    await userEvent.click(screen.getByRole('radio', { name: '24 h' }))
+    expect(horas).toHaveBeenCalledWith(24)
+    rerender(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={encendidas} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={24} onHorasLluviaChange={horas} />)
+  })
+})
+
 afterEach(cleanup)
 
 describe('PanelCapas', () => {
@@ -72,10 +119,36 @@ describe('PanelCapas', () => {
     expect(within(escala).getByText('Bajo')).toBeInTheDocument()
   })
 
+  it('ofrece Escuelas en riesgo hoy sólo con el radar habilitado y la enciende', async () => {
+    const cambios = vi.fn()
+    const { rerender } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible />)
+    expect(screen.queryByRole('switch', { name: 'Escuelas en riesgo hoy (moderado o más)' })).toBeNull()
+    rerender(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible riesgoHoyDisponible />)
+    await userEvent.click(screen.getByRole('switch', { name: 'Escuelas en riesgo hoy (moderado o más)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, escuelasEnRiesgo: true })
+  })
+
   it('deshabilita la capa de riesgo si no hay contexto territorial', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} riesgoDisponible={false} />)
     const riesgo = screen.getByRole('group', { name: 'Riesgo' })
     expect(within(riesgo).getByRole('switch', { name: 'Escuelas aisladas' })).toHaveAttribute('aria-disabled', 'true')
     expect(within(riesgo).getByText('Los datos territoriales no están disponibles.')).toBeInTheDocument()
+  })
+})
+
+describe('PanelCapas · eventos reportados', () => {
+  it('muestra el interruptor de eventos reportados activo dentro de Situación actual', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
+
+    const grupo = screen.getByRole('group', { name: 'Situación actual' })
+    expect(within(grupo).getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('apaga la capa de eventos reportados al desactivar su interruptor', async () => {
+    const cambios = vi.fn<(visibles: CapasVisibles) => void>()
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
+
+    await userEvent.click(screen.getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, eventosReportados: false })
   })
 })

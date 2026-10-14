@@ -22,6 +22,7 @@ import { conReintentoPorBloqueo } from '@/lib/db/reintento'
 import { infraPeriodo, infraRiskFactor, infraRiskRun, infraRiskSnapshot } from '@/lib/db/schema'
 import { crearAdapterAislamiento } from '../motor/adaptadores/aislamiento'
 import { crearAdapterExposicion } from '../motor/adaptadores/exposicion'
+import { crearAdapterRioPrefectura } from '../motor/adaptadores/rio-prefectura'
 import { crearAdapterHistorial } from '../motor/adaptadores/historial'
 import { crearAdapterLluvia } from '../motor/adaptadores/lluvia'
 import { crearAdapterPeligro } from '../motor/adaptadores/peligro'
@@ -38,6 +39,8 @@ import type {
   NivelPeligroCelda,
   PerfilTerritorio,
   PuertosMotor,
+  EvidenciaRioNoDisponible,
+  EvidenciaRioPrefectura,
   ResumenExposicion,
   ResumenHistorial,
 } from '../motor/puertos'
@@ -98,6 +101,7 @@ function construirPuertosReales(): PuertosMotor {
     susceptibilidad: crearAdapterSusceptibilidad(),
     historial: crearAdapterHistorial(),
     exposicion: crearAdapterExposicion(),
+    rioPrefectura: crearAdapterRioPrefectura(),
   }
 }
 
@@ -125,6 +129,7 @@ function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
   const aislamientos = new Map<string, Promise<IndiceAislamiento | null>>()
   const susceptibilidades = new Map<string, Promise<IndicadoresSusceptibilidad | null>>()
   const exposiciones = new Map<string, Promise<ResumenExposicion | null>>()
+  const evidenciasRio = new Map<string, Promise<EvidenciaRioPrefectura | EvidenciaRioNoDisponible | null>>()
 
   function memoizar<K, V>(
     cache: Map<K, Promise<V>>,
@@ -202,6 +207,16 @@ function crearPuertosConCache(puertos: PuertosMotor): PuertosMotor {
         )
       },
     },
+    ...(puertos.rioPrefectura
+      ? {
+          rioPrefectura: {
+            obtenerEvidencia(params: { cueAnexo: string; asOf: string }) {
+              const puerto = puertos.rioPrefectura!
+              return memoizar(evidenciasRio, params.cueAnexo, () => puerto.obtenerEvidencia(params))
+            },
+          },
+        }
+      : {}),
   }
 }
 

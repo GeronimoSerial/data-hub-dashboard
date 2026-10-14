@@ -112,7 +112,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
               </div>
 
               <section aria-labelledby="map-radar-riesgo-titulo">
-                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Escuelas en riesgo</h3>
+                <h3 id="map-radar-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo actual (hoy)</h3>
                 {lista.length > 0 ? (
                   <div className="map-sitact__lista">
                     {lista.map(({ escuela, nivel, amenaza }) => {
@@ -131,7 +131,7 @@ export function PanelRadar(props: PanelRadarProps): JSX.Element {
                             <span className="map-sitact__nombre" title={escuela.nombre}>{escuela.nombre}</span>
                             <span className="map-sitact__meta">{departamento}{niveles}</span>
                             <span className="map-sitact__chips">
-                              <span className="map-sitact__pill map-sitact__pill--neutro">Prioridad: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                              <span className="map-sitact__pill map-sitact__pill--neutro">Riesgo actual: {ETIQUETA_NIVEL_RIESGO[nivel]}</span>
                               {amenaza && (
                                 <span className={`map-sitact__pill ${amenaza === 'alto' || amenaza === 'muy_alto' ? 'map-sitact__pill--aviso' : 'map-sitact__pill--neutro'}`}>
                                   Amenaza: {ETIQUETA_NIVEL_RIESGO[amenaza]}

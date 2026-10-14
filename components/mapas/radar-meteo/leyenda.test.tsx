@@ -8,7 +8,9 @@ describe('leyenda del radar meteorológico', () => {
     const { container } = render(<LeyendaRadar variable="lluvia" minutos={5} paso={1} />)
     expect(container.querySelector('b')).toHaveTextContent('Lluvia')
     expect(container.textContent).toContain('mm/h')
-    expect(container.textContent).toContain('Actualizado')
+    // La frescura va en el tooltip del título, no en el texto.
+    expect(container.textContent).not.toContain('Actualizado')
+    expect(container.querySelector('b')?.getAttribute('title')).toMatch(/^Actualizado /)
     expect(container.textContent).not.toMatch(/no radar observado|fuente|metodología/i)
   })
 

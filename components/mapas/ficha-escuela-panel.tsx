@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, BookMinus, BookX, ChevronDown, Clock, DoorOpen, House } from 'lucide-react'
+import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
 import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
@@ -14,6 +14,9 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
+import { FichaTerritorial, type EstadoVistaPeligro } from '@/components/infraestructura/ficha-territorial'
+import { RiesgoEscuela } from '@/components/infraestructura/riesgo-escuela'
+import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 
@@ -24,6 +27,10 @@ interface FichaEscuelaPanelProps {
   onCerrar: () => void
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
+  /** Mismo horizonte que la lista y los marcadores del Radar. */
+  horizonteRiesgo?: HorizonteMotor
+  /** Mismo nivel que la lista de Planificación para la vista activa. */
+  planificacion?: { etiquetaVista: string; etiquetaNivel: string }[] | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -88,6 +95,8 @@ export function FichaEscuelaPanel({
   onCerrar,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
+  horizonteRiesgo = 72,
+  planificacion = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -118,8 +127,8 @@ export function FichaEscuelaPanel({
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
       <div className="map-ficha-escuela__encabezado-fijo">
-        <button className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
-          <ArrowLeft aria-hidden="true" />Volver a la lista
+        <button className="map-cerrar map-ficha-escuela__cerrar" type="button" aria-label="Cerrar ficha" onClick={onCerrar}>
+          <X aria-hidden="true" />
         </button>
 
         <header className="map-ficha-escuela__head">
@@ -145,6 +154,8 @@ export function FichaEscuelaPanel({
       )}
 
       <FilaEstado escuela={escuela} />
+
+      <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={horizonteRiesgo} planificacion={planificacion} />
 
       <div>
         <Desplegable titulo="Acceso" abierto>
@@ -230,11 +241,27 @@ export function FichaEscuelaPanel({
             </>
           )}
         </Desplegable>
+
+        <SeccionPeligro cueAnexo={escuela.cueAnexo} localidad={escuela.localidad} />
       </div>
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
         {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
+    </section>
+  )
+}
+
+function SeccionPeligro({ cueAnexo, localidad }: { cueAnexo: string; localidad: string }) {
+  const [estadoPeligro, setEstadoPeligro] = useState<EstadoVistaPeligro>('cargando')
+  return (
+    <section className="map-ficha-escuela__situacion">
+      <details open={estadoPeligro !== 'sin_datos'}>
+        <summary>
+          <h3>Lluvia y río: datos de apoyo</h3>
+        </summary>
+        <FichaTerritorial cueAnexo={cueAnexo} localidad={localidad} onEstado={setEstadoPeligro} />
+      </details>
     </section>
   )
 }

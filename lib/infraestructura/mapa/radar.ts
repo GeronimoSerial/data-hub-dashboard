@@ -113,9 +113,9 @@ export function escuelasEnRadar(
 }
 
 /**
- * Color de cada escuela visible en la capa radar: el de su prioridad; si la
- * prioridad es baja (sólo visible por amenaza alta/muy alta), el que esa
- * amenaza tendría como prioridad.
+ * Color de cada escuela visible en la capa radar: siempre el de su riesgo
+ * actual (el mismo nivel que encabeza la ficha), nunca un color que la
+ * contradiga. El mapa colorea sólo riesgo moderado o más; el resto es un punto tenue (`puntosRadarVisibles`).
  */
 export function coloresRadar(
   puntos: ReadonlyArray<PuntoRadar>,
@@ -123,8 +123,5 @@ export function coloresRadar(
   horizonte: HorizonteMotor,
 ): Map<string, string> {
   return new Map(escuelasEnRadar(puntos, escuelas, horizonte)
-    .map(({ escuela, nivel, amenaza }) => [
-      escuela.cueAnexo,
-      colorRiesgo(nivel === 'bajo' && amenaza ? amenaza : nivel),
-    ]))
+    .map(({ escuela, nivel }) => [escuela.cueAnexo, colorRiesgo(nivel)]))
 }

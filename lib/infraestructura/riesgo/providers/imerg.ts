@@ -34,8 +34,10 @@ const cmrRespuestaSchema = z.object({
 // El link de datos real es el único cuyo href apunta al archivo `.HDF5`.
 // Los demás links del payload son credenciales S3, OPeNDAP, documentación y
 // otros servicios. Case-sensitive porque así viene siempre en este producto.
+// Sólo https: el fallback HDF5 descarga por HTTPS con el Bearer token, y un
+// `s3://` no es descargable con ese flujo.
 export function esGranuloDeDatos(link: { rel: string; href: string }): boolean {
-  return link.href.endsWith('.HDF5')
+  return link.href.startsWith('https://') && link.href.endsWith('.HDF5')
 }
 
 export type GranuloImerg = { titulo: string; inicioEn: string; finEn: string; urlDatos: string }
@@ -321,12 +323,15 @@ export function mapearAsciiImergACeldas(params: {
       const lat = params.parseado.lat[columna]
       const tasaMmH = fila.valoresPorLat[columna]
       if (lat === undefined || tasaMmH === undefined) continue
+      // Valores negativos o NaN son relleno del producto: no son lluvia medida.
+      if (!(tasaMmH >= 0)) continue
 
       const geometryRef = celda(lat, lon)
       if (celdasVistas.has(geometryRef)) continue
       celdasVistas.add(geometryRef)
 
-      const calidad = valoresCalidad?.[columna]
+      const calidadCruda = valoresCalidad?.[columna]
+      const calidad = calidadCruda === undefined || !(calidadCruda >= 0) ? null : calidadCruda
 
       puntos.push({
         geometryRef,
@@ -336,7 +341,7 @@ export function mapearAsciiImergACeldas(params: {
         observadoEn: params.observadoEn,
         validoDesde: params.validoDesde,
         validoHasta: params.validoHasta,
-        calidad: calidad === undefined ? null : calidad,
+        calidad,
       })
     }
   }

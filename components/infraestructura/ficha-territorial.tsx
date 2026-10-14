@@ -1,9 +1,23 @@
 'use client'
 
+import { DatoFechado } from '@/components/ui/dato-fechado'
+import { textoActualizado } from '@/lib/infraestructura/presentacion/textos-dato'
 import { useEffect, useState, type JSX } from 'react'
+import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
+import {
+  cantidadLluvia,
+  fechaCorta,
+  resumirSituacionEscuela,
+  type EntradaResumen,
+  type Nivel,
+} from '@/lib/infraestructura/riesgo/resumen-escuela'
+
+export type EstadoVistaPeligro = 'con_datos' | 'sin_datos' | 'cargando'
 
 export interface FichaTerritorialProps {
   cueAnexo: string
+  // Localidad de la escuela: se usa para buscar la estación de río de referencia.
+  localidad?: string
   // Dimensión SEPARADA "acceso territorial" (aislamiento OSM x peligro). No es
   // parte del estado del edificio: son dos estados que pueden coexistir.
   // Opcional para no romper al caller actual: `undefined` = no se renderiza.
@@ -15,6 +29,9 @@ export interface FichaTerritorialProps {
   // del acceso. Mismo vocabulario que EscuelaMapa.estado. Opcional: si no viene,
   // la ficha no inventa un estado de edificio.
   estadoEdificio?: 'afectada' | 'sin_afectacion_reportada'
+  // Avisa al padre si hay datos de peligro para mostrar (para colapsar la
+  // sección cuando no los hay).
+  onEstado?: (estado: EstadoVistaPeligro) => void
 }
 
 // --- Formas de las rutas de infraestructura (ver README de las rutas) ---
@@ -98,9 +115,20 @@ interface ObservadoAcumulado {
   masRecienteEn: string | null
 }
 
+interface ClimatologiaPeligro {
+  geometryRef: string
+  variable: string
+  percentil: 'p90' | 'p95' | 'p99'
+  muestra: number
+  valor: number
+  unidad: string
+  periodoDesde: string
+  periodoHasta: string
+}
+
 interface RespuestaPeligro {
   pronostico?: PuntoPronostico[]
-  climatologia?: unknown[]
+  climatologia?: ClimatologiaPeligro[]
   niveles?: NivelHorizonte[]
   caudal?: CaudalPeligro | null
   observado?: ObservadoPeligro[]
@@ -119,6 +147,17 @@ interface RespuestaFuentes {
   fuentes?: FuenteInfraestructura[]
 }
 
+interface RespuestaHidrometria {
+  tramo: { estacionNombre: string | null } | null
+  lectura: {
+    lecturaM: number | null
+    alertaM: number | null
+    evacuacionM: number | null
+    medidaEn: string | null
+    inconsistente: boolean
+  } | null
+}
+
 type EstadoFichaTerritorial =
   | { fase: 'cargando' }
   | { fase: 'sin-perfil' }
@@ -128,123 +167,172 @@ type EstadoFichaTerritorial =
       perfil: PerfilGeografico
       peligro: RespuestaPeligro
       fuentes: FuenteInfraestructura[]
+      hidrometria: RespuestaHidrometria | null
     }
   | { fase: 'error' }
 
 // El resumen sólo mira el corto plazo: más allá de 72h no es "próximas 72h".
 const HORIZONTE_MAX_HORAS = 72
 
-// Todos los proveedores de pronóstico que alimentan esta ficha comparten el
-// prefijo; la frescura de cualquiera de ellos invalida el dato mostrado.
+// Prefijo de los proveedores de pronóstico (identificadores internos: nunca se
+// muestran tal cual, se traducen a "pronóstico" con su frescura).
 const PREFIJO_PROVIDER_PRONOSTICO = 'open-meteo'
+const VARIABLE_LLUVIA_OBSERVADA = 'precipitacion_observada_satelital'
 
-/**
- * Traduce el `motivoExclusion` que devuelve el perfil a lenguaje claro. Si el
- * backend agrega un motivo nuevo, se muestra tal cual en vez de tragárselo:
- * mejor un identificador crudo visible que un texto vacío.
- */
-function traducirMotivoExclusion(motivo: string): string {
-  if (motivo === 'sin_coordenadas') return 'no tiene coordenadas cargadas'
-  if (motivo === 'coordenada_invalida') return 'coordenada fuera del rango esperado'
-  return motivo
+const VARIABLES_UMBRAL = [
+  { variable: 'precipitacion', etiqueta: 'Lluvia' },
+  { variable: 'rafagas', etiqueta: 'Ráfagas' },
+  { variable: 'caudal', etiqueta: 'Caudal' },
+] as const
+
+const ORDEN_NIVEL: Record<NivelPeligro, number> = {
+  sin_dato: -1,
+  verde: 0,
+  amarillo: 1,
+  naranja: 2,
+  rojo: 3,
+}
+
+const PALABRA_NIVEL: Record<Exclude<NivelPeligro, 'sin_dato'>, string> = {
+  verde: 'bajo',
+  amarillo: 'moderado',
+  naranja: 'alto',
+  rojo: 'muy alto',
+}
+
+const NIVEL_RESUMEN: Record<Exclude<NivelPeligro, 'sin_dato'>, Nivel> = {
+  verde: 'bajo',
+  amarillo: 'moderado',
+  naranja: 'alto',
+  rojo: 'muy_alto',
+}
+
+// Fracción mínima de gránulos satelitales para considerar un acumulado completo.
+const COBERTURA_MINIMA = 0.8
+
+const HORIZONTE_DETALLE: Record<HorizontePeligro, string> = {
+  24: 'Próximas 24 h',
+  72: 'Próximas 72 h',
+  240: 'Próximos 7 a 10 días',
+}
+
+// Traduce el identificador de proveedor a un tipo de dato en palabras.
+function tipoFuente(provider: string): string {
+  if (provider.startsWith(PREFIJO_PROVIDER_PRONOSTICO)) return 'pronóstico'
+  if (provider.includes('imerg')) return 'lluvia observada por satélite'
+  if (/caudal|hidro|rio/.test(provider)) return 'caudal de río'
+  return 'fuente de datos'
 }
 
 function formatearValor(valor: number): string {
   return Number.isInteger(valor) ? String(valor) : String(Math.round(valor * 10) / 10)
 }
 
-function formatearFecha(iso: string | null | undefined): string | null {
-  if (!iso) return null
-  const fecha = new Date(iso)
-  if (Number.isNaN(fecha.getTime())) return null
-  return fecha.toLocaleString('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+// Fuentes relevantes para la ficha cuya frescura excede su TTL. Frescura
+// desconocida no es sinónimo de fresca: se trata como vencida.
+function fuentesVencidas(fuentes: FuenteInfraestructura[]): FuenteInfraestructura[] {
+  return fuentes.filter((fuente) => {
+    if (tipoFuente(fuente.provider) === 'fuente de datos') return false
+    if (fuente.frescuraMinutos == null || fuente.ttlMinutos == null) return true
+    return fuente.frescuraMinutos > fuente.ttlMinutos
   })
 }
 
-/**
- * Texto explícito del nivel: el color es un refuerzo, nunca la única señal.
- * "alerta" y el SMN quedan deliberadamente afuera: esto es una estimación
- * propia, no un aviso oficial.
- */
-function etiquetaNivel(nivel: NivelPeligro): string {
-  if (nivel === 'verde') return 'Verde'
-  if (nivel === 'amarillo') return 'Amarillo'
-  if (nivel === 'naranja') return 'Naranja'
-  if (nivel === 'rojo') return 'Rojo'
-  return 'Sin dato'
+function tieneDatoPeligro(peligro: RespuestaPeligro): boolean {
+  const hayNivel = (peligro.niveles ?? []).some((fila) => fila.nivel !== 'sin_dato')
+  const hayCaudal = peligro.caudal != null && peligro.caudal.nivel !== 'sin_dato'
+  const hayLluviaObservada = (peligro.observado ?? []).some(
+    (fila) => fila.variable === VARIABLE_LLUVIA_OBSERVADA,
+  )
+  const hayAcumulado = (peligro.observadoAcumulado ?? []).some((fila) => fila.acumuladoMm !== null)
+  return hayNivel || hayCaudal || hayLluviaObservada || hayAcumulado
 }
 
-function etiquetaHorizonte(horas: number): string {
-  if (horas === 24) return 'Próximas 24h (riesgo inmediato)'
-  if (horas === 72) return 'Próximas 72h (riesgo probable)'
-  if (horas === 240) return '7-10 días (tendencia)'
-  return `Próximas ${horas}h`
-}
-
-function etiquetaBase(base: BaseNivel): string | null {
-  if (base === 'ensemble') return '(ensemble)'
-  if (base === 'deterministico') return '(determinístico)'
-  return null
-}
-
-// Estado del EDIFICIO, vocabulario separado del acceso. Nunca se colapsa uno
-// en el otro: un edificio sin daño puede tener el acceso en riesgo.
-function etiquetaEstadoEdificio(estado: 'afectada' | 'sin_afectacion_reportada'): string {
-  return estado === 'afectada' ? 'Afectación confirmada' : 'Sin afectación reportada'
-}
-
-// Nivel de acceso como TEXTO; `null` es "sin datos", NUNCA "bajo".
-function etiquetaNivelAcceso(nivel: 'bajo' | 'moderado' | 'alto' | null): string {
-  if (nivel === null) return 'Sin datos de acceso'
-  if (nivel === 'bajo') return 'Bajo'
-  if (nivel === 'moderado') return 'Moderado'
-  return 'Alto'
+function calcularVista(estado: EstadoFichaTerritorial): EstadoVistaPeligro {
+  if (estado.fase === 'cargando') return 'cargando'
+  if (estado.fase === 'listo') return tieneDatoPeligro(estado.peligro) ? 'con_datos' : 'sin_datos'
+  if (estado.fase === 'error') return 'con_datos' // el aviso de error debe quedar visible
+  return 'sin_datos'
 }
 
 /**
- * Texto de un acumulado observado 24h/72h: siempre incluye la cobertura
- * (gránulos encontrados / esperados), y "sin dato" explícito cuando la
- * cobertura no alcanzó el umbral mínimo — nunca se muestra un acumulado
- * numérico sin decir qué tan completo está.
+ * Texto de un acumulado observado 24h/72h en lenguaje llano. Si la cobertura
+ * no alcanzó el mínimo, se marca "datos incompletos" en vez de mostrar el
+ * porcentaje: nunca se presenta un acumulado sin decir que está incompleto.
  */
+function cobertureParcial(fila: { cobertura: number; acumuladoMm: number | null; granulosEncontrados: number }): boolean {
+  return fila.cobertura < COBERTURA_MINIMA || (fila.acumuladoMm === null && fila.granulosEncontrados > 0)
+}
+
 function textoAcumuladoObservado(fila: {
   acumuladoMm: number | null
   granulosEncontrados: number
   granulosEsperados: number
   cobertura: number
 }): string {
-  const coberturaPct = Math.round(fila.cobertura * 100)
-  if (fila.acumuladoMm === null) {
-    return `sin dato (cobertura ${coberturaPct}%, ${fila.granulosEncontrados}/${fila.granulosEsperados} lecturas)`
-  }
-  return `${formatearValor(fila.acumuladoMm)} mm (cobertura ${coberturaPct}%)`
+  const incompleto = cobertureParcial(fila) ? ' (datos incompletos)' : ''
+  if (fila.acumuladoMm === null) return `sin dato${incompleto}`
+  return `${cantidadLluvia(fila.acumuladoMm)}${incompleto}`
+}
+
+// Nivel de peligro por horizonte (sólo corto plazo) a partir de los datos ya
+// calculados: se pasa al resumen en lenguaje llano.
+function nivelMaximoResumen(peligro: RespuestaPeligro): EntradaResumen['nivelMaximo'] {
+  const conNivel = (peligro.niveles ?? []).filter(
+    (fila) => fila.nivel !== 'sin_dato' && fila.horizonteHoras <= HORIZONTE_MAX_HORAS,
+  )
+  const maximo = conNivel.reduce<NivelHorizonte | null>(
+    (mejor, fila) => (mejor === null || ORDEN_NIVEL[fila.nivel] > ORDEN_NIVEL[mejor.nivel] ? fila : mejor),
+    null,
+  )
+  if (maximo === null) return { nivel: 'sin_dato', horizonteHoras: null, motivo: null }
+  const nivel: Nivel = NIVEL_RESUMEN[maximo.nivel as Exclude<NivelPeligro, 'sin_dato'>]
+  const caudal = peligro.caudal && peligro.caudal.nivel !== 'sin_dato' ? peligro.caudal : null
+  let motivo: EntradaResumen['nivelMaximo']['motivo'] = null
+  if (caudal && ORDEN_NIVEL[caudal.nivel] >= ORDEN_NIVEL[maximo.nivel]) motivo = 'caudal'
+  else if (maximo.precipitacionMm !== null) motivo = 'lluvia'
+  return { nivel, horizonteHoras: maximo.horizonteHoras, motivo }
+}
+
+function razonSinDatos(perfil: PerfilGeografico, fuentes: FuenteInfraestructura[]): string {
+  const vencida = fuentesVencidas(fuentes)[0]
+  if (vencida) return 'sin datos disponibles por ahora'
+  if (perfil.lat == null || perfil.lon == null) return 'escuela sin coordenadas'
+  return 'sin cobertura de datos para esta ubicación'
+}
+
+function SinDatosPeligro({ razon }: { razon: string }): JSX.Element {
+  return (
+    <section className="ficha-territorial ficha-territorial--sin-datos" data-testid="ficha-territorial-sin-datos">
+      <p className="ficha-territorial__titulo">
+        <strong>Sin datos de peligro para esta escuela</strong>
+      </p>
+      <p className="ficha-territorial__razon">{razon}</p>
+    </section>
+  )
 }
 
 /**
- * Ficha territorial compacta (E2): contexto del departamento/celda, calidad de
- * la coordenada, resumen de las próximas 72h de lluvia/ráfagas, caudal del
- * punto de río asociado (si lo hay) y frescura de la fuente.
+ * Ficha de peligro hidrometeorológico de la escuela. Primero la conclusión
+ * (nivel más alto y su causa), después los números de respaldo en un detalle
+ * colapsado. Sin datos de peligro muestra una sola línea con el motivo.
  *
  * La pertenencia o no de la escuela a la ficha la decide el PADRE server-side
  * vía un flag; este componente, si se monta, asume que corresponde mostrarla.
- *
- * Los tres estados sin datos se distinguen por TEXTO, no sólo por color:
- * «Sin perfil geográfico registrado», «Sin cobertura geográfica» y «Sin
- * peligro estimado». «Fuente vencida» es un aviso ADICIONAL: nunca oculta el
- * dato viejo, lo muestra rotulado como posiblemente desactualizado.
  */
 export function FichaTerritorial({
   cueAnexo,
+  localidad,
   riesgoAcceso,
   estadoEdificio,
+  onEstado,
 }: FichaTerritorialProps): JSX.Element {
   const [estado, setEstado] = useState<EstadoFichaTerritorial>({ fase: 'cargando' })
+  const vista = calcularVista(estado)
+
+  useEffect(() => {
+    onEstado?.(vista)
+  }, [vista, onEstado])
 
   useEffect(() => {
     let vigente = true
@@ -281,9 +369,17 @@ export function FichaTerritorial({
           perfil.geometryRef,
         )}${puntoRioId ? `&puntoRioId=${encodeURIComponent(puntoRioId)}` : ''}`
 
-        const [respuestaPeligro, respuestaFuentes] = await Promise.all([
+        // Río de referencia por localidad: si falla, la ficha sigue sin estación.
+        const pedidoHidrometria = localidad
+          ? fetch(`/api/infraestructura/hidrometria/estado?localidad=${encodeURIComponent(localidad)}`)
+              .then((r) => (r.ok ? (r.json() as Promise<RespuestaHidrometria>) : null))
+              .catch(() => null)
+          : Promise.resolve(null)
+
+        const [respuestaPeligro, respuestaFuentes, hidrometria] = await Promise.all([
           fetch(urlPeligro),
           fetch('/api/infraestructura/fuentes'),
+          pedidoHidrometria,
         ])
         if (!respuestaPeligro.ok || !respuestaFuentes.ok) {
           throw new Error('no se pudo obtener el contexto territorial')
@@ -292,7 +388,7 @@ export function FichaTerritorial({
         const peligro = (await respuestaPeligro.json()) as RespuestaPeligro
         const fuentes = ((await respuestaFuentes.json()) as RespuestaFuentes).fuentes ?? []
 
-        if (vigente) setEstado({ fase: 'listo', perfil, peligro, fuentes })
+        if (vigente) setEstado({ fase: 'listo', perfil, peligro, fuentes, hidrometria })
       } catch {
         // Un fallo de red/ACL no se reintenta solo: mostrar el aviso una vez
         // es más honesto que quedar reintentando en background.
@@ -304,7 +400,7 @@ export function FichaTerritorial({
     return () => {
       vigente = false
     }
-  }, [cueAnexo])
+  }, [cueAnexo, localidad])
 
   if (estado.fase === 'cargando') {
     return (
@@ -323,34 +419,32 @@ export function FichaTerritorial({
   }
 
   if (estado.fase === 'sin-perfil') {
-    return (
-      <p className="ficha-territorial__estado" data-testid="ficha-territorial-sin-perfil">
-        Sin perfil geográfico registrado para esta escuela.
-      </p>
-    )
+    return <SinDatosPeligro razon="sin cobertura de datos para esta ubicación" />
   }
 
   if (estado.fase === 'sin-cobertura') {
     return (
-      <section
-        className="ficha-territorial ficha-territorial--sin-cobertura"
-        data-testid="ficha-territorial-sin-cobertura"
-      >
-        <p className="ficha-territorial__titulo">
-          <strong>Sin cobertura geográfica</strong>
-        </p>
-        {estado.motivo && <p className="ficha-territorial__motivo">Motivo: {traducirMotivoExclusion(estado.motivo)}</p>}
-      </section>
+      <SinDatosPeligro
+        razon={
+          estado.motivo === 'sin_coordenadas'
+            ? 'escuela sin coordenadas'
+            : 'sin cobertura de datos para esta ubicación'
+        }
+      />
     )
   }
 
-  const { perfil, peligro, fuentes } = estado
+  const { perfil, peligro, fuentes, hidrometria } = estado
+
+  if (!tieneDatoPeligro(peligro)) {
+    return <SinDatosPeligro razon={razonSinDatos(perfil, fuentes)} />
+  }
+
+  const vencidas = fuentesVencidas(fuentes)
 
   const puntos = (peligro.pronostico ?? []).filter(
     (punto) => punto.horizonteHoras <= HORIZONTE_MAX_HORAS,
   )
-  const sinPeligro = puntos.length === 0
-
   const precipitacion = puntos.filter((punto) => punto.variable === 'precipitacion')
   const rafagas = puntos.filter((punto) => punto.variable === 'rafagas')
   const caudales = puntos.filter((punto) => punto.variable === 'caudal')
@@ -364,28 +458,50 @@ export function FichaTerritorial({
         )
       : null
 
-  const proveedores = [...new Set(puntos.map((punto) => punto.provider))]
+  // --- Umbrales climatológicos por variable (referencia, no probabilidad) ---
+  // Una variable sin climatología muestra "Sin dato" por percentil.
+  const umbralesPorVariable = VARIABLES_UMBRAL.flatMap(({ variable, etiqueta }) => {
+    const delVariable = puntos.filter((punto) => punto.variable === variable)
+    if (delVariable.length === 0) return []
+    const actual = delVariable.reduce((proximo, punto) =>
+      punto.horizonteHoras < proximo.horizonteHoras ? punto : proximo,
+    )
+    const climVariable = (peligro.climatologia ?? []).filter((fila) => fila.variable === variable)
+    const umbral = (percentil: ClimatologiaPeligro['percentil']) =>
+      climVariable.find((fila) => fila.percentil === percentil) ?? null
+    const percentiles = [
+      { etiqueta: 'P90', umbral: umbral('p90') },
+      { etiqueta: 'P95', umbral: umbral('p95') },
+      { etiqueta: 'P99', umbral: umbral('p99') },
+    ].filter((p): p is { etiqueta: string; umbral: ClimatologiaPeligro } => p.umbral !== null)
+    // Variable sin ningún umbral: se omite por completo.
+    if (percentiles.length === 0) return []
+    return [{ variable, etiqueta, actual, percentiles }]
+  })
+
+  const valorVariable = (variable: string, valor: number, unidad: string): string =>
+    variable === 'precipitacion' ? cantidadLluvia(valor) : `${formatearValor(valor)} ${unidad}`
+
+  const tiposFuente = [...new Set(puntos.map((punto) => tipoFuente(punto.provider)))]
   const corridaMasReciente = puntos
     .map((punto) => punto.corridaEn ?? punto.validoEn ?? null)
     .filter((valor): valor is string => valor !== null)
     .sort()
     .at(-1)
-  const antiguedad = formatearFecha(corridaMasReciente)
+  const actualizado = corridaMasReciente ? fechaCorta(corridaMasReciente) : null
 
-  // --- Peligro estimado por horizonte (estimación propia, sin color solo) ---
+  // --- Peligro por horizonte (texto explícito, sin color como única señal) ---
   const niveles = peligro.niveles ?? []
-  const nivelesTodosSinDato = niveles.length > 0 && niveles.every((fila) => fila.nivel === 'sin_dato')
 
   // --- Caudal con percentil ---
-  // El bug que esto corrige: la línea vieja buscaba `variable === 'caudal'`
-  // dentro de `pronostico`, que la ruta nunca devuelve. El caudal real llega
-  // ahora en `peligro.caudal`, con su percentil y nivel.
   const caudal: JSX.Element | null = (() => {
     if (peligro.caudal) {
+      const nivelCaudal =
+        peligro.caudal.nivel === 'sin_dato' ? 'sin dato' : PALABRA_NIVEL[peligro.caudal.nivel]
       const percentil = peligro.caudal.percentilActual ?? 'sin dato'
       return (
         <p className="ficha-territorial__dato" data-testid="ficha-territorial-caudal">
-          Caudal del río (percentil {percentil}): nivel {etiquetaNivel(peligro.caudal.nivel)}
+          Caudal del río (percentil {percentil}): {nivelCaudal}
         </p>
       )
     }
@@ -401,192 +517,203 @@ export function FichaTerritorial({
     if (perfil.rioAsociacion === undefined && caudalMasProximo) {
       return (
         <p className="ficha-territorial__dato" data-testid="ficha-territorial-caudal">
-          Caudal del punto de río: {formatearValor(caudalMasProximo.valor)} {caudalMasProximo.unidad}
+          Caudal del río: {formatearValor(caudalMasProximo.valor)} {caudalMasProximo.unidad}
         </p>
       )
     }
     return null
   })()
 
-  // --- Lluvia observada satelital (NASA GPM IMERG, no pluviómetro) ---
-  const lluviaObservada = (peligro.observado ?? []).find(
-    (fila) => fila.variable === 'precipitacion_observada_satelital',
-  )
-  const fechaLluviaObservada = formatearFecha(lluviaObservada?.observadoEn)
-
-  // --- Acumulado observado 24h/72h (MAJOR de la revisión de gate N1) ---
+  // --- Lluvia observada por satélite (acumulados) ---
   const acumulados = peligro.observadoAcumulado ?? []
   const acumulado24h = acumulados.find((fila) => fila.horizonteHoras === 24) ?? null
   const acumulado72h = acumulados.find((fila) => fila.horizonteHoras === 72) ?? null
 
-  // Corrección de revisión (hallazgo H6, docs/ejecucion-enos/E2/registro.md
-  // §5): "vencida" es sobre FRESCURA real (frescuraMinutos > ttlMinutos), no
-  // sobre `estado`. Antes: un provider 'degradado' con dato fresco se
-  // mostraba como vencido igual, y uno 'ok' con dato realmente viejo no se
-  // avisaba. `/api/infraestructura/fuentes` ya expone frescuraMinutos
-  // calculado; si faltara (undefined/null), tratamos esa fuente como vencida
-  // por precaución (frescura desconocida no es sinónimo de fresca).
-  const fuentesVencidas = fuentes.filter((fuente) => {
-    if (!fuente.provider.startsWith(PREFIJO_PROVIDER_PRONOSTICO)) return false
-    if (fuente.frescuraMinutos == null || fuente.ttlMinutos == null) return true
-    return fuente.frescuraMinutos > fuente.ttlMinutos
-  })
+  // --- Resumen en lenguaje llano (datos ya calculados arriba) ---
+  const lluviaPronosticada24h = precipitacion
+    .filter((punto) => punto.horizonteHoras <= 24)
+    .reduce<number | null>((total, punto) => (total ?? 0) + punto.valor, null)
+  const lectura = hidrometria?.lectura ?? null
+  const entrada: EntradaResumen = {
+    nivelMaximo: nivelMaximoResumen(peligro),
+    lluviaObservada72h: acumulado72h
+      ? {
+          mm: acumulado72h.acumuladoMm,
+          parcial: cobertureParcial(acumulado72h),
+          hasta: acumulado72h.masRecienteEn,
+        }
+      : { mm: null, parcial: false, hasta: null },
+    lluviaPronosticada24h: { mm: lluviaPronosticada24h },
+    rio: hidrometria?.tramo
+      ? {
+          estado: estadoAltura(
+            lectura
+              ? {
+                  lecturaM: lectura.lecturaM,
+                  variacionM: null,
+                  alertaM: lectura.alertaM,
+                  evacuacionM: lectura.evacuacionM,
+                  inconsistente: lectura.inconsistente,
+                }
+              : null,
+          ).estado,
+          estacionNombre: hidrometria.tramo.estacionNombre ?? 'sin nombre',
+          alturaM: lectura?.lecturaM ?? null,
+          medidaEn: lectura?.medidaEn ?? null,
+          alertaM: lectura?.alertaM ?? null,
+          evacuacionM: lectura?.evacuacionM ?? null,
+        }
+      : null,
+    pronosticoDesactualizadoDesde:
+      vencidas.find((fuente) => tipoFuente(fuente.provider) === 'pronóstico')?.ultimoExitoEn ?? null,
+  }
+  const resumen = resumirSituacionEscuela(entrada)
 
   return (
     <section className="ficha-territorial" data-testid="ficha-territorial-datos">
-      <p className="ficha-territorial__titulo">
-        <strong>Contexto territorial</strong>
-      </p>
+      {/* La conclusión de la escuela sale del motor de riesgo (RiesgoEscuela); acá sólo los datos de apoyo. */}
+      <ul className="ficha-territorial__puntos" data-testid="ficha-territorial-puntos">
+        {resumen.puntos.map((punto) => (
+          <li key={punto.texto}>
+            {/* Sin avisos de frescura en el texto: la fecha va al tooltip y un dato vencido se ve atenuado. */}
+            <DatoFechado actualizado={textoActualizado(punto.actualizado)} vencido={punto.vencido}>
+              {punto.texto}
+            </DatoFechado>
+            {punto.detalle && <span className="ficha-territorial__detalle-punto">{punto.detalle}</span>}
+          </li>
+        ))}
+      </ul>
 
-      <p className="ficha-territorial__dato">Departamento: {perfil.departamento ?? 'No registrado'}</p>
-      <p className="ficha-territorial__dato">Celda: {perfil.geometryRef}</p>
-      <p className="ficha-territorial__dato">
-        Calidad de coordenada: {perfil.geoCalidad ?? 'no registrada'}
-      </p>
+      <details className="ficha-territorial__detalle" data-testid="ficha-territorial-detalle">
+        <summary>Ver detalle técnico</summary>
 
-      {fuentesVencidas.length > 0 && (
-        <p
-          className="ficha-territorial__aviso-vencida"
-          role="alert"
-          data-testid="ficha-territorial-fuente-vencida"
-        >
-          <strong>Fuente vencida</strong>: {fuentesVencidas.map((fuente) => fuente.provider).join(', ')}.
-          Los datos pueden estar desactualizados.
-        </p>
-      )}
+        <p className="ficha-territorial__dato">Departamento: {perfil.departamento ?? 'No registrado'}</p>
 
-      <div className="ficha-territorial__peligro">
-        <p className="ficha-territorial__subtitulo">
-          <strong>Peligro estimado</strong>
-        </p>
-        {niveles.length === 0 || nivelesTodosSinDato ? (
-          <p className="ficha-territorial__dato" data-testid="ficha-territorial-nivel-peligro">
-            Peligro estimado: sin dato
+        <div className="ficha-territorial__peligro">
+          <p className="ficha-territorial__subtitulo">
+            <strong>Peligro por horizonte</strong>
           </p>
-        ) : (
-          niveles.map((fila) => {
-            const base = etiquetaBase(fila.base)
-            return (
+          {niveles.length === 0 ? (
+            <p className="ficha-territorial__dato">Sin dato</p>
+          ) : (
+            niveles.map((fila) => (
               <p
                 key={fila.horizonteHoras}
                 className="ficha-territorial__dato"
                 data-testid="ficha-territorial-nivel-peligro"
               >
-                {etiquetaHorizonte(fila.horizonteHoras)}:{' '}
-                <span
-                  className={`ficha-territorial__nivel ficha-territorial__nivel--${fila.nivel}`}
-                >
-                  {etiquetaNivel(fila.nivel)}
+                {HORIZONTE_DETALLE[fila.horizonteHoras]}:{' '}
+                <span className={`ficha-territorial__nivel ficha-territorial__nivel--${fila.nivel}`}>
+                  {fila.nivel === 'sin_dato' ? 'sin dato' : PALABRA_NIVEL[fila.nivel]}
                 </span>
-                {base ? ` ${base}` : ''}
               </p>
-            )
-          })
-        )}
-      </div>
-
-      {sinPeligro ? (
-        <p
-          className="ficha-territorial__estado"
-          data-testid="ficha-territorial-sin-peligro"
-        >
-          Sin peligro estimado
-        </p>
-      ) : (
-        <div className="ficha-territorial__resumen">
-          {precipitacion.length > 0 && (
-            <p className="ficha-territorial__dato">
-              Lluvia acumulada próximas 72h: {formatearValor(lluviaAcumulada)}{' '}
-              {precipitacion[0].unidad}
-            </p>
-          )}
-          {rafagas.length > 0 && (
-            <p className="ficha-territorial__dato">
-              Ráfagas máximas próximas 72h: {formatearValor(rafagaMaxima)} {rafagas[0].unidad}
-            </p>
-          )}
-          {proveedores.length > 0 && (
-            <p className="ficha-territorial__fuente">
-              Fuente: {proveedores.join(', ')}
-              {antiguedad ? ` · ${antiguedad}` : ''}
-            </p>
+            ))
           )}
         </div>
-      )}
 
-      {caudal}
-
-      {lluviaObservada && (
-        <p className="ficha-territorial__dato" data-testid="ficha-territorial-lluvia-observada">
-          Lluvia observada estimada por satélite: {formatearValor(lluviaObservada.valor)}{' '}
-          {lluviaObservada.unidad}
-          {fechaLluviaObservada ? ` (${fechaLluviaObservada})` : ''}
-        </p>
-      )}
-
-      {(acumulado24h || acumulado72h) && (
-        <div className="ficha-territorial__observado-acumulado">
-          <p className="ficha-territorial__subtitulo">
-            <strong>Lluvia observada estimada por satélite (últimas 24 h / 72 h)</strong>
+        {precipitacion.length > 0 && (
+          <p className="ficha-territorial__dato">
+            Lluvia pronosticada próximas 72 h: {cantidadLluvia(lluviaAcumulada)}
           </p>
-          {acumulado24h && (
-            <p
-              className="ficha-territorial__dato"
-              data-testid="ficha-territorial-observado-24h"
-            >
-              24 h: {textoAcumuladoObservado(acumulado24h)}
+        )}
+        {rafagas.length > 0 && (
+          <p className="ficha-territorial__dato">
+            Ráfagas máximas próximas 72 h: {formatearValor(rafagaMaxima)} {rafagas[0].unidad}
+          </p>
+        )}
+
+        {umbralesPorVariable.length > 0 && (
+          <div className="ficha-territorial__umbrales" data-testid="ficha-territorial-umbrales">
+            <p className="ficha-territorial__subtitulo">
+              <strong>Umbrales habituales de la zona</strong>
             </p>
-          )}
-          {acumulado72h && (
-            <p
-              className="ficha-territorial__dato"
-              data-testid="ficha-territorial-observado-72h"
-            >
-              72 h: {textoAcumuladoObservado(acumulado72h)}
+            {umbralesPorVariable.map((fila) => (
+              <div
+                key={fila.variable}
+                className="ficha-territorial__umbral"
+                data-testid={`ficha-territorial-umbral-${fila.variable}`}
+              >
+                <p className="ficha-territorial__dato">
+                  {fila.etiqueta}, pronóstico: {valorVariable(fila.variable, fila.actual.valor, fila.actual.unidad)}
+                </p>
+                <dl className="ficha-territorial__umbral-lista">
+                  {fila.percentiles.map(({ etiqueta, umbral }) => (
+                    <div key={etiqueta} className="ficha-territorial__umbral-item">
+                      <dt>{etiqueta}</dt>
+                      <dd>{valorVariable(fila.variable, umbral.valor, umbral.unidad)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ))}
+            <p className="ficha-territorial__fuente">
+              Umbrales de referencia relativos a la climatología local; no son probabilidades.
             </p>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+
+        {caudal}
+
+        {(acumulado24h || acumulado72h) && (
+          <div className="ficha-territorial__observado-acumulado">
+            <p className="ficha-territorial__subtitulo">
+              <strong>Lluvia observada por satélite</strong>
+            </p>
+            {acumulado24h && (
+              <p className="ficha-territorial__dato" data-testid="ficha-territorial-observado-24h">
+                Últimas 24 h: {textoAcumuladoObservado(acumulado24h)}
+              </p>
+            )}
+            {acumulado72h && (
+              <p className="ficha-territorial__dato" data-testid="ficha-territorial-observado-72h">
+                Últimas 72 h: {textoAcumuladoObservado(acumulado72h)}
+              </p>
+            )}
+          </div>
+        )}
+
+        {tiposFuente.length > 0 && (
+          <p className="ficha-territorial__fuente">
+            Fuente: {tiposFuente.join(', ')}
+            {actualizado ? ` · actualizado ${actualizado}` : ''}
+          </p>
+        )}
+      </details>
 
       {/* Estado del edificio y acceso: dos dimensiones SEPARADAS. Se muestran
           a la vez cuando ambos datos existen, nunca una en lugar de la otra. */}
       {estadoEdificio !== undefined && (
-        <div
-          className="ficha-territorial__estado-edificio"
-          data-testid="ficha-territorial-estado-edificio"
-        >
+        <div className="ficha-territorial__estado-edificio" data-testid="ficha-territorial-estado-edificio">
           <p className="ficha-territorial__subtitulo">
             <strong>Estado del edificio</strong>
           </p>
           <p className="ficha-territorial__dato">
-            {etiquetaEstadoEdificio(estadoEdificio)}
+            {estadoEdificio === 'afectada' ? 'Afectación confirmada' : 'Sin afectación reportada'}
           </p>
         </div>
       )}
 
       {riesgoAcceso !== undefined && (
-        <div
-          className="ficha-territorial__acceso"
-          data-testid="ficha-territorial-riesgo-acceso"
-        >
+        <div className="ficha-territorial__acceso" data-testid="ficha-territorial-riesgo-acceso">
           <p className="ficha-territorial__subtitulo">
             <strong>Acceso</strong>
           </p>
           <p className="ficha-territorial__dato" data-testid="ficha-territorial-acceso-nivel">
-            Riesgo de acceso: {etiquetaNivelAcceso(riesgoAcceso?.nivel ?? null)}
+            Riesgo de acceso:{' '}
+            {riesgoAcceso === null || riesgoAcceso.nivel === null
+              ? 'Sin datos de acceso'
+              : riesgoAcceso.nivel === 'bajo'
+                ? 'Bajo'
+                : riesgoAcceso.nivel === 'moderado'
+                  ? 'Moderado'
+                  : 'Alto'}
           </p>
           {riesgoAcceso === null || riesgoAcceso.nivel === null ? (
-            <p
-              className="ficha-territorial__dato"
-              data-testid="ficha-territorial-acceso-sin-dato"
-            >
+            <p className="ficha-territorial__dato" data-testid="ficha-territorial-acceso-sin-dato">
               Sin datos de acceso
             </p>
           ) : (
-            <p
-              className="ficha-territorial__dato"
-              data-testid="ficha-territorial-acceso-explicacion"
-            >
+            <p className="ficha-territorial__dato" data-testid="ficha-territorial-acceso-explicacion">
               {riesgoAcceso.explicacion}
             </p>
           )}

@@ -5,7 +5,7 @@ import { getDb } from '@/lib/db'
 import { hazardPrecipitacionSerie, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
 import { ANIOS_MINIMOS_CLIMATOLOGIA } from './climatologia/umbrales'
-import { aiBriefingEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
+import { aiVeredictoEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
 import { JOBS_ESPERADOS, TOLERANCIA_ATRASO_JOB, type JobEsperado } from './jobs-esperados'
 import { agruparPuntosPorEra5, type PuntoClimatologia } from './providers/climatologia'
 
@@ -40,7 +40,7 @@ export type EstadoOperativo = {
     // Flags de UI (ocultan/muestran pantallas), no de ejecución de jobs.
     riskEngineEnabled: boolean
     riskRadarEnabled: boolean
-    aiBriefingEnabled: boolean
+    aiVeredictoEnabled: boolean
     riskMode: 'shadow' | 'advisory'
     // Flag maestro de ejecución de los jobs batch OPS1 (ver
     // lib/infraestructura/jobs/flags.ts). Encendido por defecto: en false
@@ -237,7 +237,7 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
     flags: {
       riskEngineEnabled: riskEngineEnabled(),
       riskRadarEnabled: riskRadarEnabled(),
-      aiBriefingEnabled: aiBriefingEnabled(),
+      aiVeredictoEnabled: aiVeredictoEnabled(),
       riskMode: riskMode(),
       enosJobsEnabled: enosJobsEnabled(),
     },

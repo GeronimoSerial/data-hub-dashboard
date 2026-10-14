@@ -1,5 +1,6 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { letraViento } from './escalas'
 import type { RespuestaRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-radar-meteo'
 
@@ -40,7 +41,7 @@ export function PopupRadar({
 
   return (
     <div className="radar-meteo-popup" role="dialog" aria-label="Pronóstico en el punto seleccionado">
-      <button type="button" aria-label="Cerrar" onClick={onClose}>×</button>
+      <button type="button" className="map-cerrar" aria-label="Cerrar" onClick={onClose}><X aria-hidden="true" /></button>
       <strong>{cell.lat.toFixed(2)}, {cell.lon.toFixed(2)}</strong>
       <p>Probabilidad {data.valores.precipitation_probability?.[frame]?.[index] ?? '—'}% · Lluvia {amount} {paso === 3 ? 'mm en 3 h' : 'mm/h'}</p>
       <p>

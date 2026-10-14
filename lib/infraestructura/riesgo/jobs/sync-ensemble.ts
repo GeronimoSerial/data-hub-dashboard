@@ -42,6 +42,7 @@ import {
   renovarLease as renovarLeaseReal,
 } from '../job-run'
 import { crearAdaptadorEnsemble } from '../adaptadores-ingesta/ensemble'
+import { elegirUmbralesClimatologia } from '../peligro/fuente-climatologia'
 import { actualizarSaludFuente, resumirErrores } from './salud-fuente'
 import { insertarPorChunks } from './chunks'
 import type { PuertoPronosticoEnsemble, PuntoEnsembleProbabilistico } from '../adaptadores-ingesta/puertos'
@@ -99,7 +100,8 @@ const VARIABLE_CLIMATOLOGIA = 'precipitacion_diaria'
 // Denominador fijado por N1 para el acumulado de 24 h: TODOS los días, no
 // sólo los húmedos.
 const MUESTRA_CLIMATOLOGIA = 'todos_los_dias'
-const PERCENTILES = ['p95', 'p99'] as const
+// Percentiles que se leen de climatología: p90 sólo define la completitud IMERG.
+const PERCENTILES_UMBRAL = ['p90', 'p95', 'p99'] as const
 
 // Tamaño de tanda del job. Alineado con el lote interno de coordenadas del
 // provider (`TAMANO_LOTE_COORDENADAS_ENSEMBLE`): cada invocación al provider
@@ -120,8 +122,11 @@ function coordenadaDeCelda(geometryRef: string): { lat: number; lon: number } {
   return { lat, lon }
 }
 
-// Umbrales de climatología por celda. Se queda con la fila más reciente por
-// (geometryRef, percentil) ordenando por periodoHasta/version descendente.
+// Umbrales de climatología por celda, con la misma regla que nivel.ts: la
+// climatología IMERG se usa cuando está completa para la celda (p90, p95 y p99);
+// si no, se usan las filas de ERA5 u otras versiones. Nunca se mezclan fuentes.
+// Las filas llegan ordenadas por periodoHasta, version y calculadoEn descendente
+// para que `elegirUmbralesClimatologia` tome la más reciente por percentil.
 async function cargarUmbralesPorCelda(
   db: Db,
 ): Promise<{ p95: Map<string, number>; p99: Map<string, number> }> {
@@ -130,25 +135,36 @@ async function cargarUmbralesPorCelda(
       geometryRef: hazardClimatology.geometryRef,
       percentil: hazardClimatology.percentil,
       valor: hazardClimatology.valor,
+      version: hazardClimatology.version,
     })
     .from(hazardClimatology)
     .where(
       and(
         eq(hazardClimatology.variable, VARIABLE_CLIMATOLOGIA),
         eq(hazardClimatology.muestra, MUESTRA_CLIMATOLOGIA),
-        inArray(hazardClimatology.percentil, [...PERCENTILES]),
+        inArray(hazardClimatology.percentil, [...PERCENTILES_UMBRAL]),
       ),
     )
-    .orderBy(desc(hazardClimatology.periodoHasta), desc(hazardClimatology.version))
+    .orderBy(
+      desc(hazardClimatology.periodoHasta),
+      desc(hazardClimatology.version),
+      desc(hazardClimatology.calculadoEn),
+    )
+
+  const filasPorCelda = new Map<string, { percentil: string; valor: number; version: string }[]>()
+  for (const fila of filas) {
+    const grupo = filasPorCelda.get(fila.geometryRef) ?? []
+    grupo.push({ percentil: fila.percentil, valor: fila.valor, version: fila.version })
+    filasPorCelda.set(fila.geometryRef, grupo)
+  }
 
   const p95 = new Map<string, number>()
   const p99 = new Map<string, number>()
-  for (const fila of filas) {
-    const mapa = fila.percentil === 'p95' ? p95 : p99
-    // La primera aparición es la más reciente por el orden desc de arriba.
-    if (!mapa.has(fila.geometryRef)) {
-      mapa.set(fila.geometryRef, fila.valor)
-    }
+  for (const [geometryRef, filasCelda] of filasPorCelda) {
+    const umbrales = elegirUmbralesClimatologia(filasCelda)
+    if (umbrales === null) continue
+    p95.set(geometryRef, umbrales.p95)
+    p99.set(geometryRef, umbrales.p99)
   }
   return { p95, p99 }
 }

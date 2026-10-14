@@ -479,6 +479,7 @@ describe('GET /api/infraestructura/radar', () => {
     expect(body.puntos).toEqual([
       {
         cueAnexo: '1000000-03',
+        departamento: 'BETA',
         horizonteHoras: 24,
         nivelRiesgo: null,
         nivelAmenaza: null,

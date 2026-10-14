@@ -4,7 +4,7 @@ import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, migrarDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import type { LecturaResuelta } from './lecturas-repo'
-import { guardarLecturasPrefectura } from './lecturas-repo'
+import { guardarLecturasPrefectura, ultimaLecturaEstacion } from './lecturas-repo'
 
 // seed: false evita sembrar datos; las migraciones se aplican explícitamente abajo.
 usarDbTemporal('hidro-lecturas-repo-', { seed: false })
@@ -137,5 +137,42 @@ describe('guardarLecturasPrefectura', () => {
     })
     const [repetida] = await db.select().from(hidroLectura)
     expect(repetida?.hashOriginal).toBe(hashPorEstacion.get('corrientes-ciudad'))
+  })
+})
+
+describe('ultimaLecturaEstacion', () => {
+  let db: ReturnType<typeof getDb>
+
+  beforeAll(async () => {
+    await migrarDb()
+    db = getDb()
+  })
+
+  beforeEach(async () => {
+    await db.delete(hidroLectura)
+  })
+
+  it('devuelve null cuando la estación no tiene lecturas', async () => {
+    expect(await ultimaLecturaEstacion(db, 'corrientes-ciudad')).toBeNull()
+  })
+
+  it('devuelve la lectura con medidaEn más reciente de la estación', async () => {
+    await guardarLecturasPrefectura(
+      db,
+      [
+        lectura({ medidaEn: '2026-10-13T12:00:00.000Z', lecturaM: 3.1 }),
+        lectura({ medidaEn: '2026-10-13T15:00:00.000Z', lecturaM: 3.45 }),
+        lectura({ medidaEn: '2026-10-13T13:00:00.000Z', lecturaM: 3.2 }),
+        lectura({ estacionId: 'goya', medidaEn: '2026-10-14T00:00:00.000Z', lecturaM: 1.0 }),
+      ],
+      { capturadaEn: CAPTURADA_EN, catalogoVersion: CATALOGO },
+    )
+
+    const ultima = await ultimaLecturaEstacion(db, 'corrientes-ciudad')
+    expect(ultima).toMatchObject({
+      estacionId: 'corrientes-ciudad',
+      medidaEn: '2026-10-13T15:00:00.000Z',
+      lecturaM: 3.45,
+    })
   })
 })

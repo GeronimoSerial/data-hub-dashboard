@@ -72,7 +72,7 @@ describe('coloresRadar', () => {
     expect(colores.has('bajo')).toBe(false)
   })
 
-  it('colorea por amenaza las escuelas de prioridad baja con amenaza alta o muy alta en el horizonte', () => {
+  it('colorea siempre por riesgo actual, aunque la amenaza sea mayor', () => {
     const padrónAmenaza = [
       ...padrón,
       escuela({ cueAnexo: 'bajo-amenaza-alta', nombre: 'Zeta' }),
@@ -91,8 +91,9 @@ describe('coloresRadar', () => {
 
     const colores = coloresRadar(puntosAmenaza, padrónAmenaza, 24)
 
-    expect(colores.get('bajo-amenaza-alta')).toBe(colorRiesgo('alto'))
-    expect(colores.get('bajo-amenaza-muy-alta')).toBe(colorRiesgo('muy_alto'))
+    // El color nunca contradice el titular de la ficha (riesgo actual bajo).
+    expect(colores.get('bajo-amenaza-alta')).toBe(colorRiesgo('bajo'))
+    expect(colores.get('bajo-amenaza-muy-alta')).toBe(colorRiesgo('bajo'))
     expect(colores.has('bajo-amenaza-moderada')).toBe(false)
     expect(colores.has('bajo-amenaza-otro-horizonte')).toBe(false)
     expect(colores.has('bajo')).toBe(false)

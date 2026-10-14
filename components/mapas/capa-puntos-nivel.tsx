@@ -37,7 +37,32 @@ export function paintAnilloLaguna(): CircleLayerSpecification['paint'] {
   }
 }
 
+/**
+ * Radar: color del riesgo actual y tamaño por nivel (moderado < alto < muy alto).
+ * Peso 0 (bajo o sin dato) es un punto gris tenue, sólo para poder hacer clic.
+ */
+export function paintPuntosRadar(oscuro: boolean): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': ['case', ['==', ['get', 'peso'], 0], COLOR_PUNTO_TENUE, ['get', 'color']],
+    'circle-radius': [
+      'interpolate', ['linear'], ['zoom'],
+      6, ['match', ['get', 'peso'], 3, 6, 2, 5, 1, 4, 1.5],
+      10, ['match', ['get', 'peso'], 3, 9, 2, 7.5, 1, 6, 3],
+      14, ['match', ['get', 'peso'], 3, 12, 2, 10, 1, 8, 4.5],
+    ],
+    'circle-stroke-color': oscuro ? COLOR_BORDE_OSCURO : COLOR_BORDE_CLARO,
+    'circle-stroke-width': ['case', ['==', ['get', 'peso'], 0], 0, 1],
+    'circle-opacity': ['case', ['==', ['get', 'peso'], 0], 0.45, 1],
+  }
+}
+
+/** Radar draws the faint points underneath the coloured risk points. */
+export const ORDEN_PUNTOS_RADAR: CircleLayerSpecification['layout'] = { 'circle-sort-key': ['get', 'peso'] }
+
+const COLOR_PUNTO_TENUE = '#9ca3af'
+
 export function CapaPuntosNivel(props: {
+  radar?: boolean
   idCapa: string
   idFuente: string
   puntos: FeatureCollection<Point, PropiedadesPuntoNivel>
@@ -45,7 +70,12 @@ export function CapaPuntosNivel(props: {
 }) {
   return (
     <Source id={props.idFuente} type="geojson" data={props.puntos}>
-      <Layer id={props.idCapa} type="circle" paint={paintPuntosNivel(props.oscuro)} />
+      <Layer
+        id={props.idCapa}
+        type="circle"
+        layout={props.radar ? ORDEN_PUNTOS_RADAR : undefined}
+        paint={props.radar ? paintPuntosRadar(props.oscuro) : paintPuntosNivel(props.oscuro)}
+      />
       <Layer id={`${props.idCapa}-laguna`} type="circle" filter={filtroAnilloLaguna()} paint={paintAnilloLaguna()} />
     </Source>
   )

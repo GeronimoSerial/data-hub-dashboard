@@ -293,6 +293,7 @@ export async function GET(request: Request) {
       confianza: infraRiskSnapshot.confianza,
       nivelRiesgoAcceso: infraRiskSnapshot.nivelRiesgoAcceso,
       exposicionMatricula: infraRiskSnapshot.exposicionMatricula,
+      departamento: infraGeoProfile.departamento,
     })
     .from(infraRiskSnapshot)
     .innerJoin(
@@ -312,6 +313,8 @@ export async function GET(request: Request) {
     nivelAmenaza: snapshot.nivelAmenaza,
     confianza: snapshot.confianza,
     nivelRiesgoAcceso: snapshot.nivelRiesgoAcceso,
+    // Para contar escuelas por riesgo actual en cada departamento (veredicto diario).
+    departamento: snapshot.departamento,
   }))
 
   const { escuelas: escuelasMapa } = await listarEscuelasMapa()

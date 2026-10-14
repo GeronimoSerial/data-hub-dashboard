@@ -10,10 +10,13 @@ const mocks = vi.hoisted(() => ({
   ejecutarSyncImerg: vi.fn(),
   ejecutarCalculoClimatologia: vi.fn(),
   ejecutarCalculoClimatologiaCaudal: vi.fn(),
+  ejecutarCalculoClimatologiaImerg: vi.fn(),
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
-  correrJobBriefingIA: vi.fn(),
   syncPrefecturaAlturas: vi.fn(),
+  syncSynopLluvia: vi.fn(),
+  syncPrefecturaHistorico: vi.fn(),
+  importarExposicionRioDem: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
@@ -49,6 +52,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/sync-imerg.ts', () => ({
 vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia.ts', () => ({
   ejecutarCalculoClimatologia: mocks.ejecutarCalculoClimatologia,
 }))
+vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia-imerg.ts', () => ({
+  ejecutarCalculoClimatologiaImerg: mocks.ejecutarCalculoClimatologiaImerg,
+}))
 vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia-caudal.ts', () => ({
   ejecutarCalculoClimatologiaCaudal: mocks.ejecutarCalculoClimatologiaCaudal,
 }))
@@ -61,11 +67,17 @@ vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
 vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts', () => ({
   syncPrefecturaAlturas: mocks.syncPrefecturaAlturas,
 }))
+vi.mock('../lib/infraestructura/lluvia-estaciones/sync-synop-lluvia.ts', () => ({
+  syncSynopLluvia: mocks.syncSynopLluvia,
+}))
+vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-historico.ts', () => ({
+  syncPrefecturaHistorico: mocks.syncPrefecturaHistorico,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/importar-exposicion-rio-dem.ts', () => ({
+  importarExposicionRioDem: mocks.importarExposicionRioDem,
+}))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
-}))
-vi.mock('../lib/infraestructura/briefing-ia/job.ts', () => ({
-  correrJobBriefingIA: mocks.correrJobBriefingIA,
 }))
 vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
   enosJobsEnabled: mocks.enosJobsEnabled,
@@ -185,10 +197,14 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['sync-imerg', 'ejecutarSyncImerg'],
     ['climatologia-precipitacion', 'ejecutarCalculoClimatologia'],
     ['climatologia-caudal', 'ejecutarCalculoClimatologiaCaudal'],
+    ['climatologia-imerg', 'ejecutarCalculoClimatologiaImerg'],
     ['calcular-riesgo', 'calcularYPublicarRiesgo'],
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
     ['situacion-corte', 'generarCorte'],
     ['sync-prefectura-alturas', 'syncPrefecturaAlturas'],
+    ['sync-synop-lluvia', 'syncSynopLluvia'],
+    ['sync-prefectura-historico', 'syncPrefecturaHistorico'],
+    ['importar-exposicion-rio-dem', 'importarExposicionRioDem'],
   ]
 
   it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {
@@ -269,35 +285,6 @@ describe('asociacion-rio — lease externo', () => {
     expect(mocks.adquirirLease).not.toHaveBeenCalled()
     expect(mocks.ensureSeeded).not.toHaveBeenCalled()
     expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
-  })
-})
-
-describe('briefing-ia — lease interno (jobs.mjs sólo lo invoca)', () => {
-  it('con el flag activo importa y devuelve lo que devuelve correrJobBriefingIA', async () => {
-    const esperado = {
-      ejecutado: true,
-      corteId: 'corte-1',
-      fuente: 'ia',
-      motivoFallback: null,
-    }
-    mocks.correrJobBriefingIA.mockResolvedValue(esperado)
-    const { correrJob } = await import('./jobs.mjs')
-
-    const resultado = await correrJob('briefing-ia')
-
-    expect(mocks.correrJobBriefingIA).toHaveBeenCalledTimes(1)
-    expect(resultado).toEqual(esperado)
-  })
-
-  it('con enosJobsEnabled=false no importa ni llama al job real', async () => {
-    mocks.enosJobsEnabled.mockReturnValue(false)
-    const { correrJob } = await import('./jobs.mjs')
-
-    const resultado = await correrJob('briefing-ia')
-
-    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
-    expect(mocks.correrJobBriefingIA).not.toHaveBeenCalled()
-    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
   })
 })
 
