@@ -12,7 +12,6 @@
  * Las versiones no IMERG (por ejemplo, climatologías de caudal) se comportan
  * igual que antes: primera fila por percentil.
  */
-import { VERSION_CLIMATOLOGIA_IMERG } from '../providers/climatologia-imerg'
 
 export type FilaUmbralClimatologia = { percentil: string; valor: number; version: string }
 export type UmbralesClimatologia = { p90: number; p95: number; p99: number }
@@ -46,7 +45,7 @@ function completarUmbrales(
 export function elegirUmbralesClimatologia(
   filasOrdenadas: readonly FilaUmbralClimatologia[],
 ): UmbralesClimatologia | null {
-  const filasImerg = filasOrdenadas.filter((fila) => fila.version === VERSION_CLIMATOLOGIA_IMERG || esVersionImerg(fila.version))
+  const filasImerg = filasOrdenadas.filter((fila) => esVersionImerg(fila.version))
   const imerg = completarUmbrales(primerValorPorPercentil(filasImerg))
   if (imerg) return imerg
 
