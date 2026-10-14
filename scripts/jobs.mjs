@@ -48,6 +48,7 @@ const NOMBRES_VALIDOS = [
   'briefing-ia',
   'sync-prefectura-alturas',
   'sync-synop-lluvia',
+  'sync-prefectura-historico',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -301,6 +302,15 @@ async function correrSyncSynopLluvia() {
   return syncSynopLluvia()
 }
 
+// Histórico de Prefectura: lease propio por día UTC, una consulta por estación.
+async function correrSyncPrefecturaHistorico() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-prefectura-historico')
+  const { syncPrefecturaHistorico } = await import(
+    '../lib/infraestructura/hidrometria/sync-prefectura-historico.ts'
+  )
+  return syncPrefecturaHistorico()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -428,6 +438,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncPrefecturaAlturas()
     case 'sync-synop-lluvia':
       return correrSyncSynopLluvia()
+    case 'sync-prefectura-historico':
+      return correrSyncPrefecturaHistorico()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -444,6 +456,7 @@ export function codigoSalida(nombreJob, resultado) {
   // salen con 0 y no se cambian en este cambio.
   if (nombreJob === 'sync-prefectura-alturas' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

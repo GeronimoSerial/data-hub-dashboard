@@ -22,6 +22,8 @@ const CASOS_ATRASO: ReadonlyArray<[string, NombreJob, number | null, boolean]> =
   ['no marca atrasado sync-prefectura-alturas con corrida hace 90 minutos (cadencia horaria)', 'sync-prefectura-alturas', 90, false],
   ['marca atrasado sync-prefectura-alturas con corrida hace 150 minutos', 'sync-prefectura-alturas', 150, true],
   ['marca atrasado sync-synop-lluvia con corrida hace 150 minutos', 'sync-synop-lluvia', 150, true],
+  ['no marca atrasado sync-prefectura-historico con corrida hace 20 horas', 'sync-prefectura-historico', 1200, false],
+  ['marca atrasado sync-prefectura-historico con corrida hace 50 horas', 'sync-prefectura-historico', 3000, true],
 ]
 
 describe('estaAtrasado', () => {
@@ -124,5 +126,6 @@ describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['geo-perfiles']).toBe('geo-perfiles')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-prefectura-alturas']).toBe('sync-prefectura-alturas')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-synop-lluvia']).toBe('sync-synop-lluvia')
+    expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-prefectura-historico']).toBe('sync-prefectura-historico')
   })
 })
