@@ -11,14 +11,6 @@
 // el color es SIEMPRE un refuerzo de un texto, nunca la única señal; "Sin
 // dato" nunca se pinta de verde; el copy no usa "alerta" ni "SMN".
 import { useCallback, useEffect, useState, type JSX } from 'react'
-import { BriefingPanel } from './briefing-panel'
-
-interface BriefingAsistidoCliente {
-  textoFinal: string
-  fuente: 'ia' | 'plantilla'
-  salidaIa: Record<string, unknown> | null
-  creadaEn: string
-}
 
 export interface KpisSituacionCliente {
   escuelasAfectacionConfirmadaVigente: number
@@ -192,7 +184,7 @@ function PanelTimeline(props: { cambios: CambioSituacionCliente[] }): JSX.Elemen
   )
 }
 
-export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente; aiBriefingEnabled?: boolean }): JSX.Element {
+export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente }): JSX.Element {
   const [estado, setEstado] = useState(props.estadoInicial)
   const [modoCambios, setModoCambios] = useState<ModoCambios>('vigencia')
   const [rangoDesde, setRangoDesde] = useState<(typeof OPCIONES_DESDE)[number]['valor']>('24h')
@@ -201,9 +193,6 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente; 
     porVigencia: CambioSituacionCliente[]
   }>({ porRegistro: [], porVigencia: [] })
   const [estadoTexto, setEstadoTexto] = useState('')
-  const [briefingAsistido, setBriefingAsistido] = useState<BriefingAsistidoCliente | null>(null)
-  const [briefingCargado, setBriefingCargado] = useState(false)
-  const [errorBriefing, setErrorBriefing] = useState(false)
 
   const calcularDesdeIso = useCallback((rango: (typeof OPCIONES_DESDE)[number]['valor']) => {
     const opcion = OPCIONES_DESDE.find((o) => o.valor === rango) ?? OPCIONES_DESDE[1]
@@ -232,33 +221,6 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente; 
       cancelado = true
     }
   }, [rangoDesde, calcularDesdeIso])
-
-  useEffect(() => {
-    if (!props.aiBriefingEnabled) return
-    let cancelado = false
-    fetch('/api/infraestructura/briefings/ultimo')
-      .then(async (res) => {
-        if (res.status === 404) return { estado: 'vacio' as const }
-        if (!res.ok) return { estado: 'error' as const }
-        return { estado: 'ok' as const, body: await res.json() }
-      })
-      .then((resultado) => {
-        if (cancelado) return
-        if (resultado.estado === 'ok' && typeof resultado.body.textoFinal === 'string') {
-          setBriefingAsistido(resultado.body)
-        } else if (resultado.estado === 'error') {
-          setErrorBriefing(true)
-        }
-        setBriefingCargado(true)
-      })
-      .catch(() => {
-        if (!cancelado) {
-          setErrorBriefing(true)
-          setBriefingCargado(true)
-        }
-      })
-    return () => { cancelado = true }
-  }, [props.aiBriefingEnabled])
 
   // Refresco automático del estado global (KPIs/briefing/salud/prioridades):
   // NUNCA en la carga inicial (esa ya llegó resuelta del servidor), sólo cada
@@ -342,23 +304,6 @@ export function SituacionClient(props: { estadoInicial: EstadoSituacionCliente; 
               <li key={i}>{linea}</li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {props.aiBriefingEnabled && (
-        <section aria-label="Briefing asistido por IA">
-          <h2>Briefing asistido por IA</h2>
-          {!briefingCargado ? (
-            <p role="status">Cargando briefing…</p>
-          ) : briefingAsistido ? (
-            <BriefingPanel briefing={briefingAsistido} />
-          ) : (
-            <p role="status">
-              {errorBriefing
-                ? 'No se pudo cargar el briefing asistido.'
-                : 'Todavía no hay un briefing generado.'}
-            </p>
-          )}
         </section>
       )}
 

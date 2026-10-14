@@ -41,12 +41,17 @@ const NOMBRES_VALIDOS = [
   'sync-imerg',
   'climatologia-precipitacion',
   'climatologia-caudal',
+  'climatologia-imerg',
   'calcular-riesgo',
   'episodios-derivados',
   'sync-seasonal',
   'situacion-corte',
-  'briefing-ia',
+  'veredicto-diario',
+  'veredicto-cierre',
   'sync-prefectura-alturas',
+  'sync-synop-lluvia',
+  'sync-prefectura-historico',
+  'importar-exposicion-rio-dem',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -293,6 +298,31 @@ async function correrSyncPrefecturaAlturas() {
   return syncPrefecturaAlturas()
 }
 
+// Lluvia SYNOP vía Ogimet: lease propio por hora UTC, una consulta por estación.
+async function correrSyncSynopLluvia() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-synop-lluvia')
+  const { syncSynopLluvia } = await import('../lib/infraestructura/lluvia-estaciones/sync-synop-lluvia.ts')
+  return syncSynopLluvia()
+}
+
+// Histórico de Prefectura: lease propio por día UTC, una consulta por estación.
+async function correrSyncPrefecturaHistorico() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-prefectura-historico')
+  const { syncPrefecturaHistorico } = await import(
+    '../lib/infraestructura/hidrometria/sync-prefectura-historico.ts'
+  )
+  return syncPrefecturaHistorico()
+}
+
+// Capa estática DEM escuela-río (CSV versionado de geo-static): idempotente.
+async function correrImportarExposicionRioDem() {
+  if (!(await jobsActivos())) return flagDeshabilitado('importar-exposicion-rio-dem')
+  const { importarExposicionRioDem } = await import(
+    '../lib/infraestructura/riesgo/jobs/importar-exposicion-rio-dem.ts'
+  )
+  return importarExposicionRioDem()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -332,6 +362,16 @@ async function correrCalculoClimatologia() {
   return ejecutarCalculoClimatologia()
 }
 
+// Climatología IMERG: igual que sync-imerg, el token se pasa explícito desde el
+// entorno del contenedor; el job nunca lee process.env.EARTHDATA_TOKEN.
+async function correrCalculoClimatologiaImerg() {
+  if (!(await jobsActivos())) return flagDeshabilitado('climatologia-imerg')
+  const { ejecutarCalculoClimatologiaImerg } = await import(
+    '../lib/infraestructura/riesgo/jobs/calcular-climatologia-imerg.ts'
+  )
+  return ejecutarCalculoClimatologiaImerg({ earthdataToken: process.env.EARTHDATA_TOKEN })
+}
+
 async function correrCalculoClimatologiaCaudal() {
   if (!(await jobsActivos())) return flagDeshabilitado('climatologia-caudal')
   const { ejecutarCalculoClimatologiaCaudal } = await import(
@@ -356,12 +396,22 @@ async function correrEpisodiosDerivados() {
   return correrJobEpisodiosDerivados()
 }
 
-// briefing-ia gestiona su propio lease internamente (igual que
-// episodios-derivados): jobs.mjs sólo lo invoca.
-async function correrBriefingIA() {
-  if (!(await jobsActivos())) return flagDeshabilitado('briefing-ia')
-  const { correrJobBriefingIA } = await import('../lib/infraestructura/briefing-ia/job.ts')
-  return correrJobBriefingIA()
+// veredicto-diario y veredicto-cierre gestionan su propio lease y su presupuesto
+// de IA: jobs.mjs sólo verifica el flag y los invoca.
+async function correrVeredictoDiario() {
+  if (!(await jobsActivos())) return flagDeshabilitado('veredicto-diario')
+  const { aiVeredictoEnabled } = await import('../lib/infraestructura/riesgo/flags.ts')
+  if (aiVeredictoEnabled() === false) return flagDeshabilitado('veredicto-diario')
+  const { correrJobVeredicto } = await import('../lib/infraestructura/veredicto/job.ts')
+  return correrJobVeredicto()
+}
+
+async function correrVeredictoCierre() {
+  if (!(await jobsActivos())) return flagDeshabilitado('veredicto-cierre')
+  const { aiVeredictoEnabled } = await import('../lib/infraestructura/riesgo/flags.ts')
+  if (aiVeredictoEnabled() === false) return flagDeshabilitado('veredicto-cierre')
+  const { correrJobCierreVeredicto } = await import('../lib/infraestructura/veredicto/job.ts')
+  return correrJobCierreVeredicto()
 }
 
 export async function correrJob(nombre, opts) {
@@ -377,9 +427,6 @@ export async function correrJob(nombre, opts) {
   // scripts/jobs.mjs -> job.ts), así que NO comparte el `seedPromise`
   // memoizado del proceso web: la migración de esquema nunca corrió en este
   // proceso y hay que dispararla acá, una sola vez, antes de tocar la DB.
-  // Sin esto, una base legacy sin la columna `auditoria_fallback` de
-  // infra_briefing hace fallar al job al persistir (ver
-  // docs/ejecucion-enos/E8/revision-3.md, Tarea 3c).
   const { ensureSeeded } = await import('../lib/db/seed.ts')
   await ensureSeeded()
 
@@ -406,6 +453,8 @@ export async function correrJob(nombre, opts) {
       return correrCalculoClimatologia()
     case 'climatologia-caudal':
       return correrCalculoClimatologiaCaudal()
+    case 'climatologia-imerg':
+      return correrCalculoClimatologiaImerg()
     case 'calcular-riesgo':
       return correrCalcularRiesgo()
     case 'episodios-derivados':
@@ -414,10 +463,18 @@ export async function correrJob(nombre, opts) {
       return correrSyncSeasonal()
     case 'situacion-corte':
       return correrSituacionCorte(opts)
-    case 'briefing-ia':
-      return correrBriefingIA()
+    case 'veredicto-diario':
+      return correrVeredictoDiario()
+    case 'veredicto-cierre':
+      return correrVeredictoCierre()
     case 'sync-prefectura-alturas':
       return correrSyncPrefecturaAlturas()
+    case 'sync-synop-lluvia':
+      return correrSyncSynopLluvia()
+    case 'sync-prefectura-historico':
+      return correrSyncPrefecturaHistorico()
+    case 'importar-exposicion-rio-dem':
+      return correrImportarExposicionRioDem()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -433,6 +490,9 @@ export function codigoSalida(nombreJob, resultado) {
   // otros jobs que devuelven `estado: 'fallido'` (p. ej. sync-smn-alertas) hoy
   // salen con 0 y no se cambian en este cambio.
   if (nombreJob === 'sync-prefectura-alturas' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

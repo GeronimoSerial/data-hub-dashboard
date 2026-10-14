@@ -61,10 +61,10 @@ const UNIDAD_OBSERVADA = 'mm/30min'
 const TIPO_JOB = 'sync-hazard-imerg'
 const VERSION_JOB = 'v1'
 const DURACION_LEASE_MS = 5 * 60 * 1000
-// IMERG Early Run publica un gránulo cada 30 min con ~4 h de latencia; el TTL
-// es más chico que el del pronóstico (360 min) porque la cadencia es más fina y
-// queremos detectar rápido si la fuente dejó de actualizarse.
-const TTL_MINUTOS = 60
+// IMERG Early Run publica un gránulo cada 30 min con ~4 h de latencia. El TTL
+// mide el tiempo desde la última corrida exitosa (job horario): 180 min tolera
+// dos corridas demoradas o fallidas antes de marcar la fuente como vencida.
+const TTL_MINUTOS = 180
 const LICENCIA = 'NASA GPM IMERG — GES DISC, cuenta NASA Earthdata requerida'
 
 const PROVIDER = 'nasa-imerg'
@@ -152,7 +152,8 @@ type FalloGranulo = { granuloIso: string; clase: ClaseFalloGranulo; status: numb
 
 function clasificarFalloGranulo(granulo: GranuloSatelital, error: unknown): FalloGranulo {
   const mensaje = error instanceof Error ? error.message : String(error)
-  const coincidencia = /^subset HTTP (\d{3})$/.exec(mensaje)
+  // `subset HTTP <status>` puede venir seguido de `; hdf5 ...` cuando hubo fallback.
+  const coincidencia = /^subset HTTP (\d{3})\b/.exec(mensaje)
   if (coincidencia === null) {
     return { granuloIso: granulo.inicioEn, clase: 'error', status: null }
   }
@@ -313,6 +314,22 @@ async function procesarGranulo(
   return await persistirObservaciones(db, unicos, ingeridoEn)
 }
 
+/**
+ * Elige los gránulos a procesar en una corrida. Primero el más reciente (mantiene
+ * la frescura y la señal de salud), y el resto del presupuesto con los más viejos
+ * faltantes: así un gránulo reciente que falla siempre no bloquea el backfill.
+ */
+export function seleccionarGranulosAProcesar<T extends { inicioEn: string }>(
+  faltantes: readonly T[],
+  presupuesto: number,
+): T[] {
+  if (faltantes.length === 0 || presupuesto <= 0) return []
+  const porInicio = (a: T, b: T) => Date.parse(a.inicioEn) - Date.parse(b.inicioEn)
+  const masReciente = [...faltantes].sort(porInicio).at(-1) as T
+  const resto = faltantes.filter((g) => g !== masReciente).sort(porInicio)
+  return [masReciente, ...resto].slice(0, presupuesto)
+}
+
 export async function ejecutarSyncImerg(params?: {
   ahora?: Date
   fetchImpl?: typeof fetch
@@ -442,8 +459,8 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   }
 
   // 2. Descartar los gránulos ya ingeridos (por `observadoEn`) y acotar el
-  // resto al presupuesto de la corrida, priorizando los más recientes
-  // (`granulos` ya viene ordenado por CMR del más nuevo al más viejo).
+  // resto al presupuesto de la corrida: el más reciente primero y el resto del
+  // presupuesto con los más viejos faltantes (ver `seleccionarGranulosAProcesar`).
   const yaIngeridos = await obtenerObservadosEnExistentes(
     db,
     desdeVentana.toISOString(),
@@ -451,7 +468,7 @@ async function ejecutarCuerpoDelJobImerg(ctx: {
   )
   const faltantes = granulos.filter((g) => !yaIngeridos.has(g.inicioEn))
   const granuloMasReciente = granulos[0]
-  const aProcesar = faltantes.slice(0, MAX_GRANULOS_A_PROCESAR_POR_CORRIDA)
+  const aProcesar = seleccionarGranulosAProcesar(faltantes, MAX_GRANULOS_A_PROCESAR_POR_CORRIDA)
 
   if (aProcesar.length === 0) {
     // Ya está todo al día (incluido el gránulo más reciente): no hay red que

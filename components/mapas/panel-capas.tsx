@@ -5,6 +5,7 @@ import { type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import { RadioGroup, RadioItem } from '@/components/ui/radio'
 import { Switch } from '@/components/ui/switch'
 import { colorNivelPlan, ETIQUETA_NIVEL_PLAN } from '@/lib/infraestructura/mapa/planificacion'
+import { type HorasLluvia } from '@/components/mapas/capa-lluvia-observada'
 
 type Props = {
   value: BasemapId
@@ -13,17 +14,49 @@ type Props = {
   onCapasVisiblesChange: (capas: CapasVisibles) => void
   haySeleccion: boolean
   riesgoDisponible?: boolean
+  /** The engine risk snapshot exists (Radar enabled): offer "Escuelas en riesgo hoy". */
+  riesgoHoyDisponible?: boolean
+  horasLluvia?: HorasLluvia
+  onHorasLluviaChange?: (horas: HorasLluvia) => void
 }
 
 const NIVELES_RIESGO = [3, 2, 1] as const
 
-export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChange, haySeleccion, riesgoDisponible = false }: Props) {
+export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChange, haySeleccion, riesgoDisponible = false, riesgoHoyDisponible = false, horasLluvia = 72, onHorasLluviaChange }: Props) {
   const cambiarCapa = (capa: keyof CapasVisibles, visible: boolean) => {
     onCapasVisiblesChange({ ...capasVisibles, [capa]: visible })
   }
 
   return (
     <section className="map-sitact" aria-label="Capas">
+      <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-situacion-titulo">
+        <h3 id="map-capas-situacion-titulo" className="map-sitact__titulo-seccion">Situación actual</h3>
+        <Switch
+          checked={capasVisibles.estacionesRio}
+          onCheckedChange={(visible) => cambiarCapa('estacionesRio', visible)}
+          label="Estaciones de Prefectura (altura de ríos)"
+        />
+        <Switch
+          checked={capasVisibles.eventosReportados}
+          onCheckedChange={(visible) => cambiarCapa('eventosReportados', visible)}
+          label="Lo que informan los medios (últimos días)"
+        />
+        <Switch
+          checked={capasVisibles.lluviaObservada}
+          onCheckedChange={(visible) => cambiarCapa('lluviaObservada', visible)}
+          label="Lluvia observada (satélite IMERG)"
+        />
+        {capasVisibles.lluviaObservada && (
+          <RadioGroup
+            value={String(horasLluvia)}
+            onValueChange={(next) => onHorasLluviaChange?.(next === '24' ? 24 : 72)}
+            aria-label="Ventana de lluvia observada"
+          >
+            <RadioItem value="24" label="24 h" />
+            <RadioItem value="72" label="72 h" />
+          </RadioGroup>
+        )}
+      </section>
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-mapa-base-titulo">
         <h3 id="map-capas-mapa-base-titulo" className="map-sitact__titulo-seccion">Mapa base</h3>
         <RadioGroup value={value} onValueChange={(next) => onChange(next as BasemapId)}>
@@ -63,6 +96,13 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
       </section>
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-riesgo-titulo">
         <h3 id="map-capas-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo</h3>
+        {riesgoHoyDisponible && (
+          <Switch
+            checked={capasVisibles.escuelasEnRiesgo}
+            onCheckedChange={(visible) => cambiarCapa('escuelasEnRiesgo', visible)}
+            label="Escuelas en riesgo hoy (moderado o más)"
+          />
+        )}
         <Switch
           checked={capasVisibles.escuelasAisladas}
           onCheckedChange={(visible) => cambiarCapa('escuelasAisladas', visible)}

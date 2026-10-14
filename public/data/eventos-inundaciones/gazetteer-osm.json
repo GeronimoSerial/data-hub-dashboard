@@ -1,0 +1,231 @@
+{
+  "fuente": "OpenStreetMap (Nominatim search)",
+  "atribucion": "© OpenStreetMap contributors",
+  "licencia": "ODbL 1.0 (https://opendatacommons.org/licenses/odbl/)",
+  "generadoEn": "2026-10-14T01:16:52.105Z",
+  "lugares": [
+    {
+      "nombre": "Alvear",
+      "consulta": "Alvear",
+      "nombreOsm": "Municipio de Alvear",
+      "osmType": "relation",
+      "osmId": 3138396,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.0989143,
+      "lon": -56.5534621
+    },
+    {
+      "nombre": "Bella Vista",
+      "consulta": "Bella Vista",
+      "nombreOsm": "Municipio de Bella Vista",
+      "osmType": "relation",
+      "osmId": 3125258,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -28.5073653,
+      "lon": -59.0452284
+    },
+    {
+      "nombre": "Bonpland",
+      "consulta": "Bonpland",
+      "nombreOsm": "Municipio de Bonpland",
+      "osmType": "relation",
+      "osmId": 3157194,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.8171938,
+      "lon": -57.4277912
+    },
+    {
+      "nombre": "Corrientes",
+      "consulta": "Corrientes, Capital",
+      "nombreOsm": "Corrientes",
+      "osmType": "relation",
+      "osmId": 3127758,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -27.4687004,
+      "lon": -58.8311982
+    },
+    {
+      "nombre": "Curuzú Cuatiá",
+      "consulta": "Curuzú Cuatiá",
+      "nombreOsm": "Municipio de Curuzú Cuatiá",
+      "osmType": "relation",
+      "osmId": 3134569,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.7913375,
+      "lon": -58.0498307
+    },
+    {
+      "nombre": "Empedrado",
+      "consulta": "Empedrado",
+      "nombreOsm": "Municipio de Empedrado",
+      "osmType": "relation",
+      "osmId": 3134599,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -27.9542622,
+      "lon": -58.8089124
+    },
+    {
+      "nombre": "Esquina",
+      "consulta": "Esquina",
+      "nombreOsm": "Municipio de Esquina",
+      "osmType": "relation",
+      "osmId": 3135965,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -30.0170807,
+      "lon": -59.5340904
+    },
+    {
+      "nombre": "Garruchos",
+      "consulta": "Garruchos",
+      "nombreOsm": "Municipio de Garruchos",
+      "osmType": "relation",
+      "osmId": 3164514,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -28.1737667,
+      "lon": -55.6506167
+    },
+    {
+      "nombre": "Goya",
+      "consulta": "Goya",
+      "nombreOsm": "Municipio de Goya",
+      "osmType": "relation",
+      "osmId": 3144223,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.1444046,
+      "lon": -59.2649825
+    },
+    {
+      "nombre": "Isla Apipé",
+      "consulta": "Isla Apipé Grande",
+      "nombreOsm": "Isla Apipé Grande",
+      "osmType": "relation",
+      "osmId": 6149515,
+      "clase": "place",
+      "tipo": "island",
+      "lat": -27.5091532,
+      "lon": -56.8424093
+    },
+    {
+      "nombre": "Itatí",
+      "consulta": "Itatí",
+      "nombreOsm": "Municipio de Itatí",
+      "osmType": "relation",
+      "osmId": 3147849,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -27.2690228,
+      "lon": -58.242766
+    },
+    {
+      "nombre": "Ituzaingó",
+      "consulta": "Ituzaingó",
+      "nombreOsm": "Municipio de Ituzaingó",
+      "osmType": "relation",
+      "osmId": 3149442,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -27.5896182,
+      "lon": -56.6893413
+    },
+    {
+      "nombre": "Ituzaingó (Isla Apipé)",
+      "consulta": "Isla Apipé Grande",
+      "nombreOsm": "Isla Apipé Grande",
+      "osmType": "relation",
+      "osmId": 6149515,
+      "clase": "place",
+      "tipo": "island",
+      "lat": -27.5091532,
+      "lon": -56.8424093
+    },
+    {
+      "nombre": "La Cruz",
+      "consulta": "La Cruz",
+      "nombreOsm": "Municipio de La Cruz",
+      "osmType": "relation",
+      "osmId": 3164040,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.1761325,
+      "lon": -56.6427403
+    },
+    {
+      "nombre": "Mocoretá",
+      "consulta": "Mocoretá",
+      "nombreOsm": "Municipio de Mocoretá",
+      "osmType": "relation",
+      "osmId": 3156446,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -30.6192351,
+      "lon": -57.9665847
+    },
+    {
+      "nombre": "Monte Caseros",
+      "consulta": "Monte Caseros",
+      "nombreOsm": "Municipio de Monte Caseros",
+      "osmType": "relation",
+      "osmId": 3156447,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -30.2496832,
+      "lon": -57.6294418
+    },
+    {
+      "nombre": "Paso de la Patria",
+      "consulta": "Paso de la Patria",
+      "nombreOsm": "Municipio de Paso de la Patria",
+      "osmType": "relation",
+      "osmId": 3161605,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -27.3173037,
+      "lon": -58.572589
+    },
+    {
+      "nombre": "Paso de los Libres",
+      "consulta": "Paso de los Libres",
+      "nombreOsm": "Municipio de Paso de los Libres",
+      "osmType": "relation",
+      "osmId": 3157189,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.7136574,
+      "lon": -57.0861369
+    },
+    {
+      "nombre": "Santo Tomé",
+      "consulta": "Santo Tomé",
+      "nombreOsm": "Municipio de Santo Tomé",
+      "osmType": "relation",
+      "osmId": 3164517,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -28.5497034,
+      "lon": -56.0351419
+    },
+    {
+      "nombre": "Yapeyú",
+      "consulta": "Yapeyú",
+      "nombreOsm": "Municipio de Yapeyú",
+      "osmType": "relation",
+      "osmId": 3164041,
+      "clase": "boundary",
+      "tipo": "administrative",
+      "lat": -29.4666943,
+      "lon": -56.8164051
+    }
+  ],
+  "sinCoincidencia": [
+    "Ituzaingó (represa Yacyretá)"
+  ]
+}

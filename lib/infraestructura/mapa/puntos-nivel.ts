@@ -8,6 +8,8 @@ export interface PropiedadesPuntoNivel {
   color?: string
   conDato: boolean
   juntoLaguna: boolean
+  /** Radar: 3 muy alto, 2 alto, 1 moderado; define el tamaño. */
+  peso?: number
 }
 
 export function construirPuntosNivel(
@@ -56,4 +58,24 @@ export function puntosRiesgoSobreSituacion(
   territorio: TerritorioMapa | null,
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return soloConDato(construirPuntosNivel(escuelas, coloresPlanificacion(escuelas, 'aisladas', { territorio })))
+}
+
+const PESO_RIESGO: Record<string, number> = { muy_alto: 3, alto: 2, moderado: 1 }
+
+/**
+ * Radar ("Riesgo actual (hoy)"): las escuelas con riesgo moderado o más llevan
+ * color y tamaño por nivel. Riesgo bajo y sin dato quedan como punto tenue
+ * (peso 0), sin color de riesgo, sólo para poder abrir su ficha con un clic.
+ */
+export function puntosRadarVisibles(
+  puntos: FeatureCollection<Point, PropiedadesPuntoNivel>,
+  nivelPorCue: ReadonlyMap<string, string>,
+): FeatureCollection<Point, PropiedadesPuntoNivel> {
+  return {
+    ...puntos,
+    features: puntos.features.map((feature) => {
+      const peso = PESO_RIESGO[nivelPorCue.get(feature.properties.cueAnexo) ?? ''] ?? 0
+      return { ...feature, properties: { ...feature.properties, peso } }
+    }),
+  }
 }

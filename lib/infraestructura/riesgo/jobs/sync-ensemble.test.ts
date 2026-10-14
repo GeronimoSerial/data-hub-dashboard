@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb } from '@/lib/db'
@@ -36,8 +36,12 @@ let ejecutarSyncEnsemble: typeof EjecutarSyncEnsemble
 // job; las dejamos consistentes de todos modos.
 const CELDAS = ['-27.4_-58.8', '-27.5_-58.9', '-28.0_-56.5']
 
+const P90_DEFAULT = 10
 const P95_DEFAULT = 20
 const P99_DEFAULT = 40
+const P90_IMERG = 5
+const P95_IMERG = 8
+const P99_IMERG = 12
 const PUNTOS_POR_CELDA_DEFAULT = 3
 
 type ArgsProvider = Parameters<typeof obtenerProbabilidadesEnsembleReal>[0]
@@ -102,8 +106,28 @@ function filasClimatologia(geometryRef: string) {
     calculadoEn: '2026-09-26T00:00:00.000Z',
   }
   return [
+    { ...base, id: randomUUID(), percentil: 'p90', valor: P90_DEFAULT },
     { ...base, id: randomUUID(), percentil: 'p95', valor: P95_DEFAULT },
     { ...base, id: randomUUID(), percentil: 'p99', valor: P99_DEFAULT },
+  ]
+}
+
+// Filas IMERG completas (p90/p95/p99) para una celda que ya tiene ERA5.
+function filasImergCompletas(geometryRef: string) {
+  const base = {
+    geometryRef,
+    variable: 'precipitacion_diaria',
+    muestra: 'todos_los_dias',
+    unidad: 'mm',
+    periodoDesde: '1991-01-01',
+    periodoHasta: '2020-12-31',
+    version: 'climatologia-imerg-v1',
+    calculadoEn: '2026-09-26T00:00:00.000Z',
+  }
+  return [
+    { ...base, id: randomUUID(), percentil: 'p90', valor: P90_IMERG },
+    { ...base, id: randomUUID(), percentil: 'p95', valor: P95_IMERG },
+    { ...base, id: randomUUID(), percentil: 'p99', valor: P99_IMERG },
   ]
 }
 
@@ -149,6 +173,39 @@ describe('ejecutarSyncEnsemble', () => {
     expect(ensemble?.estado).toBe('ok')
     expect(ensemble?.ultimoExitoEn).toBe(ahora.toISOString())
     expect(ensemble?.ultimoErrorSaneado).toBeNull()
+  })
+
+  it('si una celda tiene IMERG completo, los umbrales usados son los de IMERG y no los de ERA5', async () => {
+    const db = getDb()
+    const celdaImerg = CELDAS[2]
+    const ahora = new Date('2026-09-27T01:00:00.000Z') // bloque 00-06, día distinto
+    let argsCapturados: ArgsProvider | undefined
+
+    await db.insert(hazardClimatology).values(filasImergCompletas(celdaImerg))
+    try {
+      await ejecutarSyncEnsemble({
+        ahora,
+        obtenerProbabilidades: ensembleFake({
+          onLlamada: (args) => {
+            argsCapturados = args
+          },
+        }),
+      })
+    } finally {
+      await db
+        .delete(hazardClimatology)
+        .where(
+          and(
+            eq(hazardClimatology.geometryRef, celdaImerg),
+            eq(hazardClimatology.version, 'climatologia-imerg-v1'),
+          ),
+        )
+    }
+
+    expect(argsCapturados?.umbralP95PorCelda.get(celdaImerg)).toBe(P95_IMERG)
+    expect(argsCapturados?.umbralP99PorCelda.get(celdaImerg)).toBe(P99_IMERG)
+    // Una celda sólo con ERA5 sigue usando sus propios umbrales.
+    expect(argsCapturados?.umbralP95PorCelda.get(CELDAS[0])).toBe(P95_DEFAULT)
   })
 
   it('repetir el sync en la misma ventana de 6h no adquiere lease y no duplica filas', async () => {

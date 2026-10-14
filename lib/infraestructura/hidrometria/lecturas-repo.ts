@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { desc, eq } from 'drizzle-orm'
 import type { getDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
 import type { FilaAlturaPrefectura } from './prefectura-parser'
@@ -104,4 +105,18 @@ export async function guardarLecturasPrefectura(
   }
 
   return { insertadas, duplicadas: conFecha.length - insertadas, sinFecha }
+}
+
+/**
+ * Most recent stored reading of a station, by `medidaEn` (descending), or
+ * `null` when the station has none.
+ */
+export async function ultimaLecturaEstacion(db: Db, estacionId: string) {
+  const [fila] = await db
+    .select()
+    .from(hidroLectura)
+    .where(eq(hidroLectura.estacionId, estacionId))
+    .orderBy(desc(hidroLectura.medidaEn))
+    .limit(1)
+  return fila ?? null
 }

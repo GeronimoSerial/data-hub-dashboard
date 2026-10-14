@@ -10,6 +10,18 @@ import type { EscuelaMapaEnriquecida, GravedadMapa } from '@/lib/infraestructura
 import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 
+vi.mock('@/components/infraestructura/ficha-territorial', () => ({
+  FichaTerritorial: ({ cueAnexo }: { cueAnexo: string; onEstado?: (estado: string) => void }) => (
+    <div data-testid="ficha-territorial-mock">{cueAnexo}</div>
+  ),
+}))
+
+vi.mock('@/components/infraestructura/riesgo-escuela', () => ({
+  RiesgoEscuela: ({ horizonte, planificacion }: { horizonte: number; planificacion: { etiquetaVista: string; etiquetaNivel: string }[] | null }) => (
+    <div data-testid="riesgo-escuela-mock">{`${horizonte}|${planificacion?.[0]?.etiquetaNivel ?? '-'}|${planificacion?.[0]?.etiquetaVista ?? '-'}`}</div>
+  ),
+}))
+
 const escuela: EscuelaMapaEnriquecida = {
   cueAnexo: '180000123-00', nombre: 'Escuela N.º 123', departamento: 'CAPITAL', localidad: 'Corrientes',
   lat: null, lon: null, niveles: ['Inicial', 'Primario'], alumnos: 1234, gravedad: 3,
@@ -84,6 +96,33 @@ describe('FichaEscuelaPanel', () => {
       color: TINTA_POR_SEVERIDAD[severidad],
       backgroundColor: colorSeveridad(severidad),
     })
+  })
+
+  it('muestra la ficha de peligro hidrometeorológico de la escuela seleccionada', async () => {
+    instalarFetch()
+    renderFicha()
+
+    const seccion = screen.getByRole('heading', { name: 'Lluvia y río: datos de apoyo' }).closest('section')
+    expect(seccion).not.toBeNull()
+    expect(seccion).toContainElement(screen.getByTestId('ficha-territorial-mock'))
+    expect(screen.getByTestId('ficha-territorial-mock')).toHaveTextContent(escuela.cueAnexo)
+  })
+
+  it('pasa al bloque de riesgo el mismo horizonte del Radar y el mismo nivel de Planificación', () => {
+    instalarFetch()
+    render(
+      <FichaEscuelaPanel
+        escuela={escuela}
+        acceso={null}
+        mostrarEnlaceNominal={false}
+        onCerrar={vi.fn()}
+        onVerAlumnosAlcanzados={vi.fn()}
+        onVerHistorialCompleto={vi.fn()}
+        horizonteRiesgo={24}
+        planificacion={[{ etiquetaVista: 'Inundación', etiquetaNivel: 'Alto' }]}
+      />,
+    )
+    expect(screen.getByTestId('riesgo-escuela-mock')).toHaveTextContent('24|Alto|Inundación')
   })
 
   it('muestra gravedad, cabecera, chips y los bloques desplegables', async () => {
@@ -331,7 +370,7 @@ describe('FichaEscuelaPanel', () => {
     const onVerHistorialCompleto = vi.fn()
     renderFicha({ onCerrar, onVerHistorialCompleto })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar ficha' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
 
     expect(onCerrar).toHaveBeenCalledOnce()
@@ -344,7 +383,7 @@ describe('FichaEscuelaPanel', () => {
     renderFicha({ onCerrar })
 
     const titulo = screen.getByRole('heading', { name: escuela.nombre })
-    const volver = screen.getByRole('button', { name: 'Volver a la lista' })
+    const volver = screen.getByRole('button', { name: 'Cerrar ficha' })
     expect(titulo).toHaveAttribute('tabindex', '-1')
     expect(titulo).toHaveFocus()
     expect(volver).not.toHaveFocus()

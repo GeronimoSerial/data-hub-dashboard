@@ -279,6 +279,137 @@ describe('obtenerNivelesPeligro', () => {
     })
   })
 
+  // filaClimatologia fija version ERA5 y periodoHasta 2020; estas filas IMERG
+  // los sobrescriben vía spread (el helper compartido no expone esos campos).
+  const CLIMATOLOGIA_IMERG_2025 = { version: 'climatologia-imerg-v1', periodoHasta: '2025-12-31' }
+
+  it('con IMERG completa y ERA5 presente usa los umbrales IMERG, nunca los ERA5', async () => {
+    await db.insert(hazardForecast).values(
+      filaPronostico({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 45,
+      }),
+    )
+    await db.insert(hazardClimatology).values([
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p90',
+        valor: 10,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p95',
+        valor: 20,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p99',
+        valor: 30,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p90',
+        valor: 40,
+        ...CLIMATOLOGIA_IMERG_2025,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p95',
+        valor: 50,
+        ...CLIMATOLOGIA_IMERG_2025,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-completa',
+        variable: 'precipitacion_diaria',
+        percentil: 'p99',
+        valor: 60,
+        ...CLIMATOLOGIA_IMERG_2025,
+      }),
+    ])
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-imerg-completa'],
+      horizontes: [24],
+    })
+
+    // Con umbrales IMERG (40/50/60) 45 mm queda entre P90 y P95; con ERA5
+    // (10/20/30) quedaría por encima de P99.
+    expect(resultado[0]).toMatchObject({
+      base: 'deterministico',
+      metodo: 'percentiles',
+      percentilReferencia: 'P90',
+    })
+  })
+
+  it('con IMERG parcial (sólo p90/p95) usa la climatología ERA5 completa, sin mezclar', async () => {
+    await db.insert(hazardForecast).values(
+      filaPronostico({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion',
+        corridaEn: CORRIDA_NUEVA,
+        validoEn: '2026-09-27T00:00:00.000Z',
+        horizonteHoras: 24,
+        valor: 22,
+      }),
+    )
+    await db.insert(hazardClimatology).values([
+      filaClimatologia({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p90',
+        valor: 10,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p95',
+        valor: 20,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p99',
+        valor: 30,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p90',
+        valor: 15,
+        ...CLIMATOLOGIA_IMERG_2025,
+      }),
+      filaClimatologia({
+        geometryRef: 'celda-imerg-parcial',
+        variable: 'precipitacion_diaria',
+        percentil: 'p95',
+        valor: 25,
+        ...CLIMATOLOGIA_IMERG_2025,
+      }),
+    ])
+
+    const resultado = await obtenerNivelesPeligro({
+      geometryRefs: ['celda-imerg-parcial'],
+      horizontes: [24],
+    })
+
+    // ERA5 completa (10/20/30): 22 mm supera P95. Mezclar P90 IMERG (15) con
+    // P95 IMERG (25) daría P90.
+    expect(resultado[0]).toMatchObject({
+      base: 'deterministico',
+      metodo: 'percentiles',
+      percentilReferencia: 'P95',
+    })
+  })
+
   it('sin pronóstico ni climatología devuelve sin_dato, nunca verde', async () => {
     const ahora = new Date('2026-09-26T12:00:00.000Z')
 

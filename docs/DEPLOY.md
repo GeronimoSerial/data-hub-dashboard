@@ -174,7 +174,6 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `RISK_ENGINE_ENABLED` | `false` | UI `/admin/riesgo` | Consola de riesgo |
 | `RISK_RADAR_ENABLED` | `false` | Radar de riesgo | Radar |
 | `RADAR_ENSEMBLE_ENABLED` | `true` | Piloto Ensemble gratuito; sólo el valor exacto `false` lo pausa | Job `sync-radar-ensemble` |
-| `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
 | `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
 | `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |
 | `SITUACION_ENABLED` | `false` | Centro de situación | Situación |
@@ -182,18 +181,45 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `RISK_MODE` | `shadow` | Modo seguro o advisory | Motor de riesgo |
 | `ENOS_JOBS_ENABLED` | `true` | Pausa global de jobs OPS1 | Scheduler OPS1 |
 | `GEO_STATIC_OUTPUT_DIR` | `services/geo-static/output` | Insumos del importador geo | Import geo-static |
-| `EARTHDATA_TOKEN` | sin default | Autenticación NASA IMERG | Job `sync-imerg` |
+| `EARTHDATA_TOKEN` | sin default | Autenticación NASA IMERG | Jobs `sync-imerg` y `climatologia-imerg` |
+| `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` | `1200` | Días IMERG bajados por corrida (≈ 2 s por día) | Job `climatologia-imerg` |
 | `OPEN_METEO_API_KEY` | ausente | Cuota/plan Open-Meteo | Jobs de pronóstico/clima |
 | `OPEN_METEO_LIMITE_HOURLY`, `OPEN_METEO_LIMITE_DAILY`, `OPEN_METEO_LIMITE_MONTHLY` | techo gratuito de código | Límites de cupo | Jobs Open-Meteo |
 | `OPEN_METEO_LIMITE_HOURLY_PAGO`, `OPEN_METEO_LIMITE_DAILY_PAGO`, `OPEN_METEO_LIMITE_MONTHLY_PAGO` | sin default | Límites de cupo pago | Solo cuota paga Open-Meteo |
 | `OPENROUTER_API_KEY` | sin default | Acceso a proveedor IA | Briefing IA |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | Modelo de briefing | Briefing IA |
-| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Briefing IA |
-| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Briefing IA |
+| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Alias legado de `VEREDICTO_*` |
+| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Alias legado de `VEREDICTO_*` |
+| `AI_VEREDICTO_ENABLED` | `false` | Veredicto diario asistido | Veredicto IA |
+| `VEREDICTO_PRESUPUESTO_USD_MES` | `5` (alias `E8_PRESUPUESTO_USD_MES`) | Presupuesto mensual único de IA | Veredicto IA |
+| `VEREDICTO_COSTO_MAXIMO_USD_LLAMADA` | `0.02` (alias `E8_COSTO_MAXIMO_USD_LLAMADA`) | Reserva por llamada | Veredicto IA |
 | `DATASET_SALT_E7B` | sin default | Seudonimización estable | Exportación dataset |
 | `DEMO_OK` | sin default | Confirmación explícita de seed demo | Seed de demostración |
 | `NODE_ENV` | `production` en despliegue | Cookies seguras por entorno | Runtime |
 | `VITEST` | sin default | Selección de DB en memoria para tests | Solo tests |
+
+### Jobs del veredicto diario
+
+Producción programa los jobs con **Coolify Scheduled Tasks** sobre la aplicación `data-hub-dashboard`; los timers
+systemd de `deploy/systemd/ops1/` corren solo en staging. Las expresiones cron están en UTC (confirmar la zona
+horaria del servidor de Coolify antes de crearlas, ver `docs/ejecucion-enos/OPS1/runbook-scheduler.md`).
+
+| Tarea Coolify (nombre) | Comando | Cron (UTC) | Timeout | Timer systemd (staging) |
+|---|---|---|---|---|
+| `veredicto-diario` | `node scripts/jobs.mjs veredicto-diario` | `45 0,6,12,18 * * *` | 600 s | `enos-ops1-veredicto-diario.timer` (`*-*-* 00,06,12,18:45:00 UTC`) |
+| `veredicto-cierre` | `node scripts/jobs.mjs veredicto-cierre` | `30 3 * * *` | 300 s | `enos-ops1-veredicto-cierre.timer` (`*-*-* 03:30:00 UTC`) |
+
+Requisitos en el contenedor: `ENOS_JOBS_ENABLED` distinto de `false`, `AI_VEREDICTO_ENABLED=true` y
+`OPENROUTER_API_KEY` (sin clave el job corre igual y publica la plantilla determinista). La migración `0015` se
+aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico necesitan además
+`sync-pronostico-caudal` (`0 2,8,14,20 * * *`) y `sync-ensemble` (`5 2,8,14,20 * * *`), seguidos de `calcular-riesgo` (`15 2,8,14,20 * * *`); sin ellos esos días salen "Sin dato".
+
+Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` con `habilitado: true` y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
+`degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
+Una fuente de entrada vencida (sin salud ni datos dentro de su tolerancia: IMERG 12 h, Prefectura 36 h, SMN 6 h, GloFAS y ensamble 48 h) se excluye y el día se publica como "Sin dato" o con
+"Sin datos de: …", nunca como nivel bajo. Los días de pronóstico usan GloFAS (clasificado contra la climatología
+`caudal_diario`), el ensamble y la lluvia ECMWF; un caudal sin climatología de referencia cuenta como fuente
+ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), la tarea reintenta sola a las 22 y 23 h y al día siguiente. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
 
 ### Procedimientos operativos
 
@@ -212,6 +238,27 @@ docker exec <CONTENEDOR> node scripts/jobs.mjs asociacion-rio
 
 Los timers mantienen ambos jobs actualizados diariamente. La asociación de ríos corre a las 03:10 UTC, después de `geo-perfiles` (03:00 UTC).
 
+Tareas de IMERG y climatologías de Open-Meteo (Coolify → Scheduled Tasks de la app de producción; tabla
+completa en `docs/ejecucion-enos/OPS1/runbook-scheduler.md`):
+
+| Nombre | Comando | Cron | Timeout |
+|---|---|---|---|
+| `sync-imerg` | `node scripts/jobs.mjs sync-imerg` | `*/30 * * * *` | 300 s |
+| `climatologia-caudal` | `node scripts/jobs.mjs climatologia-caudal` | `41 21-23 * * *` | 1200 s |
+| `climatologia-precipitacion` | `node scripts/jobs.mjs climatologia-precipitacion` | `43 21-23 * * *` | 1200 s |
+
+Climatología de precipitación NASA IMERG (Coolify → Scheduled Tasks de la app de producción):
+
+| Nombre | Comando | Cron | Timeout |
+|---|---|---|---|
+| `climatologia-imerg` | `node scripts/jobs.mjs climatologia-imerg` | `20 4 * * *` | 3600 s |
+
+La primera vez completa 2001-hoy en unas 8 corridas diarias (~9.100 días, ~2 s por día,
+1.200 días por corrida ≈ 45 min; ~18 KB por día, ~170 MB de red en total). Disco: ~9.700
+filas JSON en `hazard_precipitacion_serie` (~30 MB) y ~2.300 filas en `hazard_climatology`.
+Después es diaria y corta: sólo recalcula, y al publicarse un nuevo año completo lo agrega.
+Se monitorea en `/admin/operacion` (job `climatologia-imerg`, fuente `nasa-imerg-climatologia`).
+
 Exportación bajo demanda de dataset desidentificado:
 
 ```bash
@@ -223,6 +270,25 @@ El archivo queda en `DATA_DIR/dataset-replay-e7b/<version>_<fecha>.csv`. Sin `DA
 El CSV tiene una fila por snapshot de run publicado. `idEscuela` es HMAC-SHA256(sal, CUE), sin CUE en claro. `targetAfectacion24h` y `targetAfectacion72h` salen de `infra_afectacion` (reportes creados en (t, t+h]) y quedan `null` si la ventana aún no llegó a la fecha de corte. `nivelPeligroDepartamento` y `lluviaObservadaMm` quedan siempre `null` por ahora, porque no hay fuente as-of conectada. Sin snapshots publicados el resultado es solo encabezado y el script lo advierte.
 
 Al instalar timers, reemplazar `<CONTENEDOR>` por el nombre/ID real mostrado por `docker ps`, por ejemplo con `sed` sobre el unit antes de `systemctl daemon-reload`, o mediante `systemctl edit enos-ops1@.service` con un drop-in. Consultar `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
+
+### Tareas programadas de la situación hídrica (Coolify)
+
+Las capas "Situación actual" del mapa de infraestructura y la ficha de peligro de
+cada escuela leen sólo tablas que llenan estos jobs. Cada uno es idempotente
+(clave por gránulo o por lectura), escribe `infra_job_run` y su fila en
+`hazard_source_health`, y aparece en el panel de salud (`/admin/operacion`). El
+listado completo de tareas vive en `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
+
+| Tarea Coolify (comando) | Cron | Timeout | Salud (`hazard_source_health`) | Si falla |
+|---|---|---|---|---|
+| `node scripts/jobs.mjs sync-prefectura-alturas` | `17 * * * *` | 300 s | `prefectura-alturas`, TTL 120 min | La estación con lectura de más de 12 h se muestra "Sin dato"; exit 1 si `fallido`. |
+| `node scripts/jobs.mjs sync-imerg` | `5 * * * *` | 300 s | `nasa-imerg`, TTL 180 min | Si OPeNDAP falla se descarga el HDF5 por HTTPS; ventanas incompletas se rotulan "datos incompletos"; datos de más de 6 h se rotulan desactualizados. Requiere `EARTHDATA_TOKEN`. |
+| `node scripts/jobs.mjs climatologia-precipitacion` | `43 6 1 * *` | 1200 s | sin fila propia (cobertura en el panel) | Sin umbrales, la ficha omite la tabla de percentiles (nunca "Bajo"). |
+| `node scripts/jobs.mjs climatologia-caudal` | `41 6 1 * *` | 1200 s | sin fila propia (cobertura en el panel) | Igual que la anterior para el caudal. |
+
+El registro de eventos reportados (`public/data/eventos-inundaciones/`) y el
+nomenclador OSM (`scripts/curar-gazetteer-osm.mjs`) son datos curados, no jobs:
+se reemplazan los archivos y el mapa muestra la fecha del registro.
 
 ## Staging
 

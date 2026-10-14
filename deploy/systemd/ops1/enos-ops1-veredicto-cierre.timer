@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: veredicto-cierre (diario, 03:30 UTC)
+
+[Timer]
+# Veredicto de cierre diario asistido por IA. Requiere AI_VEREDICTO_ENABLED=true
+# para ejecutar.
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=60
+Persistent=true
+Unit=enos-ops1@veredicto-cierre.service
+
+[Install]
+WantedBy=timers.target

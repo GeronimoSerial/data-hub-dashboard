@@ -68,6 +68,15 @@ describe('esGranuloDeDatos', () => {
       }),
     ).toBe(false)
   })
+
+  it('rechaza enlaces .HDF5 que no son https (s3:// o http://)', () => {
+    expect(
+      esGranuloDeDatos({ rel: 'http://esipfed.org/ns/fedsearch/1.1/data#', href: 's3://bucket/x.HDF5' }),
+    ).toBe(false)
+    expect(
+      esGranuloDeDatos({ rel: 'http://esipfed.org/ns/fedsearch/1.1/data#', href: 'http://host/x.HDF5' }),
+    ).toBe(false)
+  })
 })
 
 describe('elegirGranuloMasReciente', () => {
@@ -242,6 +251,21 @@ describe('parsearRespuestaAsciiImerg', () => {
 })
 
 describe('mapearAsciiImergACeldas', () => {
+  it('omite celdas con tasa negativa o NaN (relleno) y calidad inválida queda null', () => {
+    const parseado = {
+      lat: [-30, -30.5, -31],
+      lon: [-60],
+      filas: [{ lonIndiceRelativo: 0, valoresPorLat: [1, -9999, Number.NaN] }],
+      filasCalidad: [{ lonIndiceRelativo: 0, valoresPorLat: [-1, 3, 4] }],
+    }
+
+    const puntos = mapear({ parseado })
+
+    expect(puntos).toHaveLength(1)
+    expect(puntos[0].valor).toBe(0.5)
+    expect(puntos[0].calidad).toBeNull()
+  })
+
   it('genera 37*42 observaciones desde el fixture real usando la celda real', () => {
     const parseado = parsearRespuestaAsciiImerg(fixtureAscii)
 

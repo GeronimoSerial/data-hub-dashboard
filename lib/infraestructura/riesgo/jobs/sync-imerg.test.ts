@@ -6,6 +6,8 @@ import { hazardObservation, hazardSourceHealth, infraJobRun } from '@/lib/db/sch
 import { celdaDeCoordenada } from '../celda'
 import { mapearAsciiImergACeldas, parsearRespuestaAsciiImerg } from '../providers/imerg'
 import type { ejecutarSyncImerg as EjecutarSyncImerg } from './sync-imerg'
+import { seleccionarGranulosAProcesar } from './sync-imerg'
+import { CONFIG_FUENTES } from '../providers/config-fuentes'
 import type { PuertoObservacionSatelital } from '../adaptadores-ingesta/puertos'
 import { cmrConEntradas } from '../adaptadores-ingesta/__fixtures__/contrato'
 
@@ -70,6 +72,8 @@ function fetchConFixtures(
       }
       return new Response(fixtureAscii, { status: 200, headers: { 'content-type': 'text/plain' } })
     }
+    // Fallback HDF5 de un gránulo cuyo subset falla: GES DISC también caído.
+    if (url.endsWith('.HDF5')) return new Response('boom', { status: 500 })
     throw new Error(`URL inesperada en el test: ${url}`)
   })
 }
@@ -95,6 +99,29 @@ async function saludImerg() {
   const filas = await (await db()).select().from(hazardSourceHealth)
   return filas.find((fila) => fila.provider === 'nasa-imerg')
 }
+
+describe('seleccionarGranulosAProcesar', () => {
+  const g = (minutosDesdeBase: number) => {
+    const inicio = new Date(Date.UTC(2026, 8, 26, 16, 0, 0) - minutosDesdeBase * 60 * 1000)
+    return { inicioEn: inicio.toISOString(), finEn: inicio.toISOString() }
+  }
+  // Orden CMR: del más nuevo al más viejo.
+  const diez = Array.from({ length: 10 }, (_, i) => g(i * 30))
+
+  it('presupuesto 3 con 10 faltantes: el más nuevo, luego los dos más viejos', () => {
+    const seleccion = seleccionarGranulosAProcesar(diez, 3)
+    expect(seleccion).toEqual([diez[0], diez[9], diez[8]])
+  })
+
+  it('menos faltantes que presupuesto: devuelve todos, el más nuevo primero y el resto de viejo a nuevo', () => {
+    const pocos = diez.slice(0, 3)
+    expect(seleccionarGranulosAProcesar(pocos, 12)).toEqual([pocos[0], pocos[2], pocos[1]])
+  })
+
+  it('sin faltantes devuelve lista vacía', () => {
+    expect(seleccionarGranulosAProcesar([], 12)).toEqual([])
+  })
+})
 
 describe('ejecutarSyncImerg', () => {
   it.each([
@@ -127,7 +154,7 @@ describe('ejecutarSyncImerg', () => {
     expect(salud?.estado).toBe('no_disponible')
     expect(salud?.ultimoErrorSaneado).toBe('fuente no configurada: falta EARTHDATA_TOKEN')
     expect(salud?.ultimoIntentoEn).toBe(ahora.toISOString())
-    expect(salud?.ttlMinutos).toBe(60)
+    expect(salud?.ttlMinutos).toBe(180)
   })
 
   it('con token busca gránulos en la ventana de backfill, subsetea el faltante, deduplica y persiste', async () => {
@@ -237,7 +264,8 @@ describe('ejecutarSyncImerg', () => {
         granulosFallidos: 1,
       },
     })
-    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    // CMR + subset (500) + descarga HDF5 de fallback (500).
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
     expect(await contarObservaciones()).toBe(antes)
 
     const salud = await saludImerg()
@@ -460,6 +488,45 @@ describe('ejecutarSyncImerg', () => {
     if (resultado.ok) {
       expect(fetchImpl).toHaveBeenCalledTimes(1 + resultado.resultado.granulosProcesados)
     }
+  })
+
+  it('gránulos recientes fallando siempre (503) no dejan sin procesar a los más viejos faltantes', async () => {
+    // Día distinto al de los tests anteriores: la BD temporal es compartida en el
+    // archivo y esos gránulos ya estarían ingeridos.
+    const entradas = Array.from({ length: 20 }, (_, i) => {
+      const inicio = new Date(Date.UTC(2026, 8, 20, 16, 0, 0) - i * 30 * 60 * 1000)
+      const fin = new Date(inicio.getTime() + 29 * 60 * 1000 + 59999)
+      return { inicioEn: inicio.toISOString(), finEn: fin.toISOString() }
+    })
+    const cmr = cmrConEntradas(entradas)
+    // Los 11 más recientes fallan siempre (HTTP 503 en su subset).
+    const fallan = entradas.slice(0, 11).map((e) => e.inicioEn.slice(11).replace(/[-:.]/g, ''))
+    const fetchImpl = fetchConFixtures(cmr, new Set(), (url) =>
+      fallan.some((sello) => url.includes(sello)),
+    )
+
+    const resultado = await sync({
+      ahora: new Date('2026-09-20T16:35:00.000Z'), // bloque 16:30 del día 20
+      fetchImpl: fetchImpl as unknown as FetchImpl,
+    })
+
+    expect(resultado.ok).toBe(true)
+    // Presupuesto completo de subsets: no se desperdicia en los recientes (cada
+    // subset fallido intenta además su descarga HDF5, por eso no se cuenta el total).
+    const subsetsPedidos = fetchImpl.mock.calls
+      .map((llamada) => String(llamada[0]))
+      .filter((url) => url.includes('gesdisc.eosdis.nasa.gov/opendap/'))
+    expect(subsetsPedidos).toHaveLength(CONFIG_FUENTES.imergCmr.maxGranulosPorCorrida)
+    // El más viejo (19) se pidió y persistió.
+    const masViejo = entradas[19].inicioEn.slice(11).replace(/[-:.]/g, '')
+    expect(subsetsPedidos.some((url) => url.includes(masViejo))).toBe(true)
+    const observadosEn = new Set(
+      (await (await db()).select().from(hazardObservation))
+        .filter((fila) => fila.provider === 'nasa-imerg')
+        .map((fila) => fila.observadoEn),
+    )
+    expect(observadosEn.has(entradas[19].inicioEn)).toBe(true)
+    expect(observadosEn.has(entradas[18].inicioEn)).toBe(true)
   })
 
   // Cableado por PUERTO (ABS1, segunda parte): a diferencia de los demás

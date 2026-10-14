@@ -62,6 +62,9 @@ import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
 import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
+import { Button } from '@/components/ui/button'
+// Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+import { VeredictoModal } from '@/components/veredicto/veredicto-modal'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
@@ -76,6 +79,10 @@ import {
   type CapaRadar,
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
+import { CAPA_ESTACIONES_RIO_ID, CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
+import { SeccionEventosReportados } from '@/components/mapas/seccion-eventos-reportados'
+import { CAPA_EVENTOS_REPORTADOS_ID, CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
+import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
   CapasAccesosTerritoriales,
   CAPA_CRUCES_ACCESO_ID,
@@ -87,7 +94,7 @@ import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupa
 import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
-import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
+import { CAPAS_VISIBLES_DEFAULT, guardarCapas, leerCapasGuardadas, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
@@ -148,11 +155,12 @@ export {
   colorEscuelaSinReporte,
   radioEscuelaSinReporte,
 } from '@/lib/infraestructura/mapa/punto'
-import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
-import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
-import { coloresPlanificacion, cuesJuntoLagunaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
+import { construirPuntosNivel, puntosRadarVisibles } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { coloresRadar, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
+import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
+import { mantenerPopupsVisibles } from '@/components/mapas/popups-visibles'
 import { puntosRiesgoSobreSituacion, soloConDatoOJuntoLaguna } from '@/lib/infraestructura/mapa/puntos-nivel'
 import {
   ICONOS_CLUSTER_MAPA,
@@ -244,6 +252,8 @@ const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
 const CAPA_PUNTOS_NIVEL_ID = 'infra-puntos-nivel'
 const FUENTE_PUNTOS_NIVEL_ID = 'infra-puntos-nivel-src'
+const CAPA_RIESGO_HOY_ID = 'infra-riesgo-hoy'
+const FUENTE_RIESGO_HOY_ID = 'infra-riesgo-hoy-src'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
@@ -471,6 +481,7 @@ type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCru
 
 // El departamento no tiene marcador debajo, así que el popup se conforma con
 // un offset vertical mínimo para no tapar el punto clickeado.
+const OFFSET_VUELO_EVENTO: [number, number] = [140, 160]
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
 const PROPS_POPUP_INFO = {
   closeButton: false,
@@ -611,8 +622,33 @@ export default function MapInfraestructuraPage(props: {
   const { mode } = useThemeMode()
   const shellRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapRef>(null)
+  const soltarPopupsVisibles = useRef<(() => void) | null>(null)
+  useEffect(() => () => soltarPopupsVisibles.current?.(), [])
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
+  // Restored after mount (not in the initializer) so server and client render the same first frame.
+  const capasRestauradas = useRef(false)
+  useEffect(() => {
+    if (!capasRestauradas.current) {
+      capasRestauradas.current = true
+      setCapasVisibles(leerCapasGuardadas(almacenLocal()))
+      return
+    }
+    guardarCapas(almacenLocal(), capasVisibles)
+  }, [capasVisibles])
+  const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
+  const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
+  const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
+  const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
+  const [eventoResaltado, setEventoResaltado] = useState<string | null>(null)
+  // Land the event right of the side panel and low enough that its popup (anchored
+  // at the bottom, up to ~320 px tall) fits under the tab bar.
+  const seleccionarEvento = useCallback((id: string) => {
+    const item = resumenEventos?.eventos.find((evento) => evento.id === id)
+    if (!item || item.lon === null || item.lat === null) return
+    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), offset: OFFSET_VUELO_EVENTO, duration: 800 })
+    setEventoSeleccionado(id)
+  }, [resumenEventos])
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -636,6 +672,8 @@ export default function MapInfraestructuraPage(props: {
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
   const [departamentoRadarId, setDepartamentoRadarId] = useState<string | null>(null)
+  // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+  const [veredictoAbierto, setVeredictoAbierto] = useState(false)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
@@ -751,9 +789,11 @@ export default function MapInfraestructuraPage(props: {
     setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
+  // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
+  const riesgoHoyFueraDeRadar = !radarActivo && (props.riskRadarEnabled ?? false) && capasVisibles.escuelasEnRiesgo
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
-    radarActivo,
+    radarActivo || riesgoHoyFueraDeRadar,
   )
 
   // La API devuelve los tres horizontes; la lista lateral y la coropleta
@@ -831,9 +871,23 @@ export default function MapInfraestructuraPage(props: {
       ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
       : new Set<string>()
     const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
+    if (radarActivo) {
+      const nivelPorCue = new Map(escuelasPorRiesgo(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
+        .map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
+      return puntosRadarVisibles(puntos, nivelPorCue)
+    }
     // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
     return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
-  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio])
+  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio, radarActivo, radarData, horizonteEfectivo])
+  const puntosRiesgoHoy = useMemo(() => {
+    if (!riesgoHoyFueraDeRadar) return construirPuntosNivel([], new Map())
+    const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
+    const nivelPorCue = new Map(escuelasPorRiesgo(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
+      .map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
+    const puntos = construirPuntosNivel(escuelasVisibles, coloresRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo))
+    const visibles = puntosRadarVisibles(puntos, nivelPorCue)
+    return { ...visibles, features: visibles.features.filter((feature) => (feature.properties.peso ?? 0) > 0) }
+  }, [riesgoHoyFueraDeRadar, dataEscuelasMapaVisible, radarData, horizonteEfectivo])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo
@@ -847,7 +901,7 @@ export default function MapInfraestructuraPage(props: {
   )
 
   // Cierre con Esc de los popups de cruce y cluster abiertos por clic. Un solo
-  // listener vive mientras alguno está abierto (mismo patrón que `FichaParteModal`).
+  // listener vive mientras alguno está abierto.
   useEffect(() => {
     if (!clusterInfoClic && !cruceInfoClic) return
     const alPresionarTecla = (event: KeyboardEvent) => {
@@ -957,6 +1011,15 @@ export default function MapInfraestructuraPage(props: {
     if (centroide) {
       mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
     }
+  }
+  // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+  const centrarDepartamentoVeredicto = (id: string) => {
+    const feature = departamentosRaw?.features.find((item) => normalizarNombreDepartamento(item.properties.nombre) === id)
+    const centroide = feature?.properties.centroide
+    if (centroide) {
+      mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
+    }
+    setVeredictoAbierto(false)
   }
 
   const departamentosGeojson = useMemo(() => {
@@ -1152,6 +1215,7 @@ export default function MapInfraestructuraPage(props: {
     // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
     ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
     ...(radarActivo || esPlanificacion ? [CAPA_PUNTOS_NIVEL_ID] : []),
+    ...(riesgoHoyFueraDeRadar ? [CAPA_RIESGO_HOY_ID] : []),
     // Los cruces de la ruta seleccionada quedan interactivos sólo cuando la
     // geometría de esa ruta está montada.
     ...(hazardOn && rutaGeojson !== null ? [CAPA_CRUCES_ACCESO_ID] : []),
@@ -1183,6 +1247,21 @@ export default function MapInfraestructuraPage(props: {
 
     setClusterInfoClic(null)
     setCruceInfoClic(null)
+
+    // Station and media symbols open their own popup: a cluster underneath must not open a second one.
+    const mapaGl = mapRef.current?.getMap()
+    const capasConPopupPropio = [CAPA_ESTACIONES_RIO_ID, CAPA_EVENTOS_REPORTADOS_ID].filter((id) => mapaGl?.getLayer?.(id))
+    if (capasConPopupPropio.length > 0 && (mapaGl?.queryRenderedFeatures?.(event.point, { layers: capasConPopupPropio }).length ?? 0) > 0) return
+
+    const puntoRiesgoHoy = features.find((item) => item.layer?.id === CAPA_RIESGO_HOY_ID)
+    const cueRiesgoHoy = puntoRiesgoHoy?.properties?.cueAnexo
+    if (typeof cueRiesgoHoy === 'string') {
+      const escuela = dataEscuelasMapaVisible?.escuelas.find((item) => item.cueAnexo === cueRiesgoHoy)
+      if (escuela) {
+        handleSeleccionarEscuelaBuscada(escuela)
+        return
+      }
+    }
 
     if (radarActivo || esPlanificacion) {
       const puntoNivel = features.find((item) => item.layer?.id === CAPA_PUNTOS_NIVEL_ID)
@@ -1341,6 +1420,8 @@ export default function MapInfraestructuraPage(props: {
     actualizarCuesNoAgrupados()
     const map = mapRef.current?.getMap()
     if (map) {
+      soltarPopupsVisibles.current?.()
+      soltarPopupsVisibles.current = mantenerPopupsVisibles(map)
       ultimoEstiloCargado.current = mapStyleRef.current
       const handleStyleLoad = () => {
         if (!map.isStyleLoaded()) return
@@ -1379,6 +1460,9 @@ export default function MapInfraestructuraPage(props: {
               const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
               if (escuela) handleSeleccionarEscuelaBuscada(escuela)
             }}
+            secciones={capasVisibles.eventosReportados ? (
+              <SeccionEventosReportados resumen={resumenEventos} onSeleccionar={seleccionarEvento} onResaltar={setEventoResaltado} />
+            ) : null}
           />
         </>
       )}
@@ -1761,9 +1845,20 @@ export default function MapInfraestructuraPage(props: {
 
           {(radarActivo || esPlanificacion) && (
             <CapaPuntosNivel
+              radar={radarActivo}
               idCapa={CAPA_PUNTOS_NIVEL_ID}
               idFuente={FUENTE_PUNTOS_NIVEL_ID}
               puntos={puntosNivel}
+              oscuro={mode === 'dark'}
+            />
+          )}
+
+          {riesgoHoyFueraDeRadar && (
+            <CapaPuntosNivel
+              radar
+              idCapa={CAPA_RIESGO_HOY_ID}
+              idFuente={FUENTE_RIESGO_HOY_ID}
+              puntos={puntosRiesgoHoy}
               oscuro={mode === 'dark'}
             />
           )}
@@ -1853,15 +1948,27 @@ export default function MapInfraestructuraPage(props: {
           ))}
 
           </Fragment>
+          {/* Stacking (bottom → top): rain raster below the department areas; events
+              below stations, both below the school layers. DOM popups sit above all GL layers. */}
+          <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} />
+          <CapaEventosReportados
+            visible={capasVisibles.eventosReportados}
+            onResumen={setResumenEventos}
+            beforeId={CAPA_PARTES_ID}
+            seleccionadoId={eventoSeleccionado}
+            resaltadoId={eventoResaltado}
+            onSeleccion={setEventoSeleccionado}
+          />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} beforeId={CAPA_PARTES_ID} />
         </MapGL>
       </div>
 
       {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} />
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal
@@ -1925,26 +2032,6 @@ export default function MapInfraestructuraPage(props: {
               actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
               radar: 'Pronóstico',
             }}
-            ficha={fichaAbierta && escuelaSeleccionada ? (
-              <FichaEscuelaPanel
-                key={seleccionCue}
-                escuela={escuelaSeleccionada}
-                acceso={(
-                  <BloqueAcceso
-                    geometria={geometria}
-                    exposicion={exposicion}
-                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
-                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
-                    cargando={geometriaLoading || exposicionLoading}
-                    error={Boolean(geometriaError)}
-                  />
-                )}
-                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
-                onVerAlumnosAlcanzados={setNominalAfectacionId}
-                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
-                onCerrar={cerrarFicha}
-              />
-            ) : undefined}
             actual={panelActual}
             radar={(
               <PanelRadar
@@ -1995,16 +2082,76 @@ export default function MapInfraestructuraPage(props: {
                 }}
                 capasVisibles={capasVisibles}
                 onCapasVisiblesChange={setCapasVisibles}
+                horasLluvia={horasLluvia}
+                onHorasLluviaChange={setHorasLluvia}
                 haySeleccion={seleccionCue !== null}
                 riesgoDisponible={contextoTerritorial}
+                riesgoHoyDisponible={props.riskRadarEnabled ?? false}
               />
             )}
           />
         </div>
       )}
+      {dataVisible && fichaAbierta && escuelaSeleccionada && (
+        <aside className="map-ficha-flotante" aria-label="Ficha de la escuela" data-testid="ficha-flotante">
+              <FichaEscuelaPanel
+                key={seleccionCue}
+                escuela={escuelaSeleccionada}
+                horizonteRiesgo={horizonteEfectivo}
+                planificacion={VISTAS_PLANIFICACION.map((vista) => ({
+                  etiquetaVista: TITULO_LEYENDA_VISTA[vista],
+                  etiquetaNivel: vista === 'historial'
+                    ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
+                    : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
+                }))}
+                acceso={(
+                  <BloqueAcceso
+                    geometria={geometria}
+                    exposicion={exposicion}
+                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
+                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
+                    cargando={geometriaLoading || exposicionLoading}
+                    error={Boolean(geometriaError)}
+                  />
+                )}
+                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+                onVerAlumnosAlcanzados={setNominalAfectacionId}
+                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+                onCerrar={cerrarFicha}
+              />
+        </aside>
+      )}
+
+      {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
+      {!radarActivo && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="map-veredicto-btn"
+          aria-haspopup="dialog"
+          onClick={() => setVeredictoAbierto(true)}
+        >
+          Veredicto diario
+        </Button>
+      )}
+      {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
+      <VeredictoModal
+        open={veredictoAbierto}
+        onOpenChange={setVeredictoAbierto}
+        onSeleccionarDepartamento={centrarDepartamentoVeredicto}
+      />
 
       {!radarActivo && <FullscreenButton targetRef={props.contenedorPantallaCompleta ?? shellRef} />}
 
     </div>
   )
+}
+
+function almacenLocal(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
+  }
 }

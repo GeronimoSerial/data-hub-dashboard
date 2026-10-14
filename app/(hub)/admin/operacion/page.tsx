@@ -193,7 +193,7 @@ export default async function OperacionSalud() {
           <tbody>
             {(
               [
-                ['Precipitación (ERA5, ~387 celdas)', avanceClimatologia.precipitacion],
+                ['Precipitación (ERA5 respaldo, ~387 celdas)', avanceClimatologia.precipitacion],
                 ['Caudal (GloFAS, 8 puntos fijos)', avanceClimatologia.caudal],
               ] as const
             ).map(([etiqueta, avance]) => {

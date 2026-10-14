@@ -5,10 +5,18 @@ profundidades JRC por periodo de retorno:
 - ground: p10 del DEM dentro de RADIO_SUELO_M (50 m) de la escuela.
 - nivel_rio: p10 del DEM en los pixeles de agua permanente (GSW occ >= 90 y
   <= 100) dentro de RADIO_RIO_M (2 km).
-- subida_rpN: maximo de la profundidad JRC en esos mismos pixeles (nodata y
-  fuera de raster cuentan como 0).
-- margen_rpN = ground - (nivel_rio + subida_rpN). Negativo: el suelo queda por
-  debajo del nivel de inundacion del periodo.
+- nivel_rpN: superficie de agua del periodo, p10 de (DEM + profundidad JRC)
+  en los pixeles de llanura (GSW occ < 90 o nodata, con profundidad > 0) dentro
+  de RADIO_RIO_M, acotada por abajo a nivel_rio. Sin llanura inundada, el
+  periodo queda en el cauce y nivel_rpN = nivel_rio. Se usa p10 y no la mediana porque
+  Copernicus GLO-30 es un DSM: monte y edificios elevan DEM + profundidad (la
+  mediana dio margenes de -9 m en escuelas 17 m sobre el rio).
+- margen_rpN = ground - nivel_rpN. Negativo: el suelo queda por debajo del
+  nivel de inundacion del periodo.
+
+Version anterior: subida_rpN era la profundidad JRC maxima sobre el propio cauce.
+Esa profundidad es la del rio y no una subida sobre las orillas, por lo que los
+margenes salian unos 10 m bajos en el Uruguay.
 
 Sin agua permanente dentro de RADIO_RIO_M, o sin terreno valido, todos los
 margenes son None (sin evidencia).
@@ -56,29 +64,30 @@ def distancia_m(lat: float, lon: float, lats: np.ndarray, lons: np.ndarray) -> n
 def calcular_margenes(
     alturas_suelo: np.ndarray,
     alturas_agua: np.ndarray,
-    profundidades_agua: dict[int, np.ndarray | None],
+    llanura_por_rp: dict[int, tuple[np.ndarray, np.ndarray] | None],
 ) -> dict[int, float | None]:
     """Margen (m) por periodo de retorno a partir de alturas ya muestreadas.
 
     - `alturas_suelo`: alturas DEM del terreno de la escuela (nan = nodata).
-    - `alturas_agua`: alturas DEM de los pixeles de agua permanente, alineadas
-      con `profundidades_agua` (nan = nodata).
-    - `profundidades_agua`: por RP, profundidad JRC en esos mismos pixeles
-      (nan = nodata, cuenta como 0). None si el RP no tiene raster.
+    - `alturas_agua`: alturas DEM de los pixeles de agua permanente (nan = nodata).
+    - `llanura_por_rp`: por RP, (alturas DEM, profundidades JRC) de los pixeles de
+      llanura inundables, alineadas (nan = nodata; profundidad <= 0 o nan = seco).
+      None si el RP no tiene raster.
 
-    Devuelve None para un RP cuando falta terreno, agua valida o profundidad.
+    Devuelve None para un RP cuando falta terreno, agua valida o raster.
     """
     suelo = _p10(alturas_suelo)
     rio = _p10(alturas_agua)
     if suelo is None or rio is None:
-        return {rp: None for rp in profundidades_agua}
+        return {rp: None for rp in llanura_por_rp}
 
     margenes: dict[int, float | None] = {}
-    for rp, profundidades in profundidades_agua.items():
-        if profundidades is None:
+    for rp, llanura in llanura_por_rp.items():
+        if llanura is None:
             margenes[rp] = None
             continue
-        margenes[rp] = suelo - (rio + _subida_m(profundidades))
+        nivel = _nivel_agua_m(*llanura, rio)
+        margenes[rp] = suelo - nivel
     return margenes
 
 
@@ -90,10 +99,15 @@ def _p10(valores: Iterable[float] | np.ndarray) -> float | None:
     return float(np.percentile(arr, 10))
 
 
-def _subida_m(profundidades: np.ndarray) -> float:
-    arr = np.asarray(profundidades, dtype=float).ravel()
-    arr = np.where(np.isfinite(arr), arr, 0.0)
-    return float(arr.max()) if arr.size else 0.0
+def _nivel_agua_m(alturas: np.ndarray, profundidades: np.ndarray, rio: float) -> float:
+    """Superficie de agua (m) del periodo; queda en el cauce si no hay llanura inundada."""
+    alturas_arr = np.asarray(alturas, dtype=float).ravel()
+    prof = np.asarray(profundidades, dtype=float).ravel()
+    valido = np.isfinite(alturas_arr) & np.isfinite(prof) & (prof > 0)
+    if not valido.any():
+        return rio
+    nivel = float(np.percentile(alturas_arr[valido] + prof[valido], 10))
+    return max(nivel, rio)
 
 
 class LectorMargen:
@@ -133,12 +147,18 @@ class LectorMargen:
         if xs_w.size == 0:
             return nulos
 
+        llanura = (ocurrencia < OCURRENCIA_PERMANENTE_MIN_PCT) | np.isnan(ocurrencia)
+        xs_l, ys_l = xs_o[llanura], ys_o[llanura]
+        en_radio_l = distancia_m(lat, lon, ys_l, xs_l) <= RADIO_RIO_M
+        xs_l, ys_l = xs_l[en_radio_l], ys_l[en_radio_l]
+
         alturas_agua = _muestrear_ventana(dem, tr_dem, xs_w, ys_w)
-        profundidades = {
-            rp: self._profundidad_jrc(jrc, lon, lat, xs_w, ys_w)
+        alturas_llanura = _muestrear_ventana(dem, tr_dem, xs_l, ys_l)
+        llanura_por_rp = {
+            rp: self._llanura_jrc(jrc, lon, lat, xs_l, ys_l, alturas_llanura)
             for rp, jrc in self._jrc.items()
         }
-        return calcular_margenes(alturas_suelo, alturas_agua, profundidades)
+        return calcular_margenes(alturas_suelo, alturas_agua, llanura_por_rp)
 
     @staticmethod
     def _profundidad_jrc(
@@ -148,6 +168,23 @@ class LectorMargen:
             return None
         ventana, tr = _ventana(jrc, lon, lat)
         return _muestrear_ventana(_leer(jrc, ventana), tr, xs, ys)
+
+    @classmethod
+    def _llanura_jrc(
+        cls,
+        jrc,
+        lon: float,
+        lat: float,
+        xs: np.ndarray,
+        ys: np.ndarray,
+        alturas: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray] | None:
+        """(DEM, profundidad) de los pixeles de llanura mojados por el periodo."""
+        profundidades = cls._profundidad_jrc(jrc, lon, lat, xs, ys)
+        if profundidades is None:
+            return None
+        mojado = np.nan_to_num(profundidades, nan=0.0) > 0
+        return alturas[mojado], profundidades[mojado]
 
     def cerrar(self) -> None:
         self._dem.close()

@@ -1,5 +1,6 @@
 'use client'
 
+import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { formatearLluviaMm, formatearVientoKmh } from '@/lib/infraestructura/radar-meteo/formato'
 
@@ -51,7 +52,7 @@ export function EscuelaForecastCard({
     <section className="radar-escuela-card" aria-label={`Pronóstico de ${nombre}`}>
       <header>
         <div><span>PRONÓSTICO PUNTUAL</span><h2>{pronostico?.nombre ?? nombre}</h2></div>
-        <button type="button" aria-label="Cerrar pronóstico de escuela" onClick={onClose}>×</button>
+        <button type="button" className="map-cerrar" aria-label="Cerrar pronóstico de escuela" onClick={onClose}><X aria-hidden="true" /></button>
       </header>
       {error && <p role="alert">{error}</p>}
       {!pronostico && !error && <p role="status">Cargando pronóstico puntual…</p>}
@@ -87,11 +88,8 @@ export function EscuelaForecastCard({
               </span>
             ))}
           </div>
-          <p>
+          <p title={pronostico.frescura?.edadMinutos != null ? `Actualizado hace ${pronostico.frescura.edadMinutos} min` : undefined}>
             Ráfaga máxima: {formatearVientoKmh(rafagaMaxima)}
-            {pronostico.frescura?.edadMinutos != null && (
-              <> · Actualizado hace {pronostico.frescura.edadMinutos} min</>
-            )}
           </p>
           {(pronostico.contextoEnsamble?.probabilidad25 == null || pronostico.contextoEnsamble.probabilidad25 >= 0.05) && (
             <p>

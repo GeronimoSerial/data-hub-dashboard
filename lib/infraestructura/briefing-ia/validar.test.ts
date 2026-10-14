@@ -238,6 +238,27 @@ describe('validarTrazabilidadBriefing', () => {
   })
 })
 
+describe('validarTrazabilidadBriefing: verificador de términos inyectado', () => {
+  it('usa el verificador de términos recibido en lugar del de E8', () => {
+    const frasesLimpiasParaE8 = briefing([
+      { texto: 'Hay 9 escuelas en riesgo alto.', refs: ['kpi.escuelas_riesgo_alto_24h'] },
+    ])
+
+    const conVerificadorPropio = validarTrazabilidadBriefing(frasesLimpiasParaE8, METRICAS, {
+      contieneTerminoProhibido: (texto) => texto.includes('escuelas'),
+    })
+    const conVerificadorQueNoBloquea = validarTrazabilidadBriefing(
+      briefing([{ texto: 'Hay una alerta oficial.', refs: [] }]),
+      METRICAS,
+      { contieneTerminoProhibido: () => false },
+    )
+
+    expect(conVerificadorPropio.valida).toBe(false)
+    expect(conVerificadorPropio.motivo).toBe('termino_prohibido')
+    expect(conVerificadorQueNoBloquea.valida).toBe(true)
+  })
+})
+
 describe('contieneTerminoProhibido: resistencia a evasión léxica (B1)', () => {
   it('rechaza el término separado por puntos, guiones o espacios sueltos', () => {
     const casos = [
