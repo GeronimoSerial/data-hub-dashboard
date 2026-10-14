@@ -77,3 +77,26 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
 - Known/left: Radar legend and map keep "Muy alto" (supervisor decision: moderado, alto, muy alto only); station map labels show the bare height;
   water-crossing dots of the selected school's route look like school dots in Radar; admin pages untouched
   (internal, technical by design); stored verdict texts are cleaned at the DTO, new ones by the template.
+
+## Ronda pre-prod
+Decisions (user, 2026-10-14): events section renamed "Lo que informan los medios", collapsed by default, provincial
+summary gets a clear header hierarchy (not a bigger row); tabs Actual, Radar, Planificación, Capas, Estadísticas,
+Metodología; stale/unpublished Prefectura stations stay grey on the map (investigate why first); rain raster uses a
+multi-hue sequential palette; school sheet moves to a floating right panel; chevrons of sheet/events disclosures aligned
+right of title; "Escuelas en riesgo hoy" layer in every tab (on in Radar, off elsewhere, persisted); non-risk schools in
+Radar drawn as faint grey clickable dots.
+- [ ] P1 omit all-null/zero sections (planificación exposure block)
+- [ ] P2 'Junto a laguna' tag never clips
+- [ ] P3 thin side-panel scrollbar
+- [ ] P4 events section rename/collapse/hierarchy
+- [ ] P5 tab order
+- [ ] P6 bare '?' methodology link -> info icon with label
+- [ ] P7 consistent close buttons
+- [ ] P8 Prefectura toggle persisted + disappearance fix
+- [ ] P9 'sin dato' stations evidence + fix
+- [ ] P10 rain palette
+- [ ] P11 floating right school sheet
+- [ ] P12 disclosure chevrons alignment
+- [ ] P13 'Escuelas en riesgo hoy' layer all tabs
+- [ ] P14 faint clickable non-risk schools in Radar
+Route: delegated, one haiku writer per item, parent reviews each diff.
