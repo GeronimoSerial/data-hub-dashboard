@@ -54,7 +54,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 
 - [x] T1 (V-03) Migración `0015` + esquema drizzle `infra_veredicto_dia` y `infra_veredicto_enlace` + repositorio idempotente con `reemplazado_por`.
 - [x] T2 (V-02, V-04) Celda → departamento y agregador de lluvia observada por departamento-día con cobertura.
-- [ ] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
+- [x] T3 (V-05, V-06) Agregadores de ríos y de pronóstico (GloFAS vs climatología, ensamble, SMN).
 - [ ] T4 (V-07) Reglas deterministas `reglas-veredicto-v0.1` con traza.
 - [ ] T5 (V-01, V-08) Prompt, esquema zod, términos prohibidos propios, plantilla de fallback, presupuesto único.
 - [ ] T6 (V-09, V-10) Orquestador por corrida + job `veredicto-diario` (cadencia 6 h + cierre de día, timer, `jobs.mjs`, flag).
@@ -76,3 +76,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   descendente + mapeo de percentiles). GREEN 37 tests; tsc y eslint limpios. Unidad IMERG verificada: `mm/30min`
   (`providers/imerg.ts:263`).
 - T3a (delegado): `rios.ts` (clasificación, agregado por estación-día, lector con ventana de 36 h; estación → departamento por coordenadas PNA). RED (import) → GREEN 13 tests; tsc/eslint limpios.
+- T3b (delegado; el worker cerró en ~107k tokens, por encima del tope): `pronostico.ts` (caudal GloFAS vs climatología, ensamble, avisos SMN). Correcciones del coordinador: el caudal diario GloFAS se ancla a `T00:00Z`, así que se filtra por día calendario UTC (test de regresión agregado); `smn_alerta.nivel_sat` se guarda siempre nulo (`smn-alertas.ts:446`), así que el color sale de la `severity` CAP (Moderate=amarillo, Severe=naranja, Extreme=rojo). GREEN 6 tests; tsc/eslint limpios.
