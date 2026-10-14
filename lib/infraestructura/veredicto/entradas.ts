@@ -26,6 +26,7 @@ import {
 import { construirMetricasAmbito, type MetricaVeredicto } from './metricas'
 import type { Db } from './repositorio'
 import { leerRiosDia, type RioDia } from './rios'
+import type { MotivoSaludFuente, SaludFuentes } from './salud-fuentes'
 import {
   evaluarDia,
   VERSION_REGLAS,
@@ -50,7 +51,12 @@ export type ItemDia = {
   fuentesAusentes: FuenteVeredicto[]
   conSenal: boolean
   metricas: MetricaVeredicto[]
-  cobertura: { imerg24: number | null; fuentesAusentes: FuenteVeredicto[] }
+  cobertura: {
+    imerg24: number | null
+    fuentesAusentes: FuenteVeredicto[]
+    /** Motivo de salud por fuente, sólo cuando la corrida conoce la salud de las fuentes. */
+    saludFuentes?: Record<FuenteVeredicto, MotivoSaludFuente>
+  }
   inputsHash: string
 }
 
@@ -92,11 +98,20 @@ async function enriquecerConPercentil(
   return resultado
 }
 
-/** Ítems del día `fecha` para la provincia y los departamentos con señal. */
+/**
+ * Ítems del día `fecha` para la provincia y los departamentos con señal.
+ * Con `salud`, una fuente no disponible se trata como ausente (nunca como "sin señal"):
+ * GloFAS y ensamble no se leen en observado/hoy/pronóstico según corresponda, IMERG y
+ * prefectura sólo se descartan para hoy, y el SMN se pasa como `smnDisponible`.
+ */
 export async function calcularDia(
   db: Db,
   { fecha, tipoDia }: VentanaDia,
+  salud?: SaludFuentes,
 ): Promise<ItemDia[]> {
+  const noDisponible = (fuente: keyof SaludFuentes): boolean =>
+    salud !== undefined && !salud[fuente].disponible
+  const esHoy = tipoDia === 'hoy'
   let lluvia24: EntradaEvaluacion['lluvia24'] = []
   let lluvia72: LluviaObservadaAmbito[] = []
   let rios: RioDia[] = []
@@ -104,7 +119,7 @@ export async function calcularDia(
   let ensamble: EnsambleDia[] = []
   let smn: AvisoSmnDia[] = []
 
-  if (tipoDia !== 'pronostico') {
+  if (tipoDia !== 'pronostico' && !(esHoy && noDisponible('imerg'))) {
     const ventana24 = rangoUtcDeDiaArt(fecha)
     const ventana72Desde = rangoUtcDeDiaArt(sumarDias(fecha, -2)).desde
     const granulos24 = await leerGranulosImerg(db, ventana24.desde, ventana24.hasta)
@@ -126,12 +141,15 @@ export async function calcularDia(
       cachePercentil,
     )
     lluvia72 = agregarLluviaObservada({ granulos: granulos72, celdas, dias: 3 })
+  }
+
+  if (tipoDia !== 'pronostico' && !(esHoy && noDisponible('prefectura'))) {
     rios = await leerRiosDia(db, fecha)
   }
 
   if (tipoDia !== 'observado') {
-    caudal = await leerCaudalDia(db, fecha)
-    ensamble = await leerEnsambleDia(db, fecha)
+    caudal = noDisponible('glofas') ? [] : await leerCaudalDia(db, fecha)
+    ensamble = noDisponible('ensamble') ? [] : await leerEnsambleDia(db, fecha)
     smn = await leerAvisosSmnDia(db, fecha)
   }
 
@@ -144,7 +162,15 @@ export async function calcularDia(
     ensamble,
     smn,
     departamentos: listarDepartamentos(),
+    smnDisponible: salud?.smn.disponible,
   })
+
+  const motivosSalud =
+    salud === undefined
+      ? undefined
+      : (Object.fromEntries(
+          Object.entries(salud).map(([fuente, estado]) => [fuente, estado.motivo]),
+        ) as Record<FuenteVeredicto, MotivoSaludFuente>)
 
   return resultados
     .filter((resultado) => resultado.ambito === 'provincia' || resultado.conSenal)
@@ -173,6 +199,7 @@ export async function calcularDia(
         cobertura: {
           imerg24: l24?.cobertura ?? null,
           fuentesAusentes: resultado.fuentesAusentes,
+          saludFuentes: motivosSalud,
         },
         inputsHash: calcularInputsHash({
           metricas,

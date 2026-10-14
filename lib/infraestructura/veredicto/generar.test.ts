@@ -2,7 +2,7 @@
 // tmpdir; el proveedor de IA y el presupuesto son mocks: ningún test toca red.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDb } from '@/lib/db'
-import { hidroLectura, infraVeredictoDia } from '@/lib/db/schema'
+import { hazardSourceHealth, hidroLectura, infraVeredictoDia } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { cerrarDiaAnterior, generarVeredictos } from './generar'
 import { fechasVentana } from './entradas'
@@ -53,6 +53,38 @@ describe('generarVeredictos', () => {
   beforeEach(async () => {
     await getDb().delete(infraVeredictoDia)
     await getDb().delete(hidroLectura)
+    await getDb().delete(hazardSourceHealth)
+  })
+
+  it('sin registro de salud informa todas las fuentes como no disponibles', async () => {
+    const resultado = await generarVeredictos(getDb(), {
+      ahora: AHORA,
+      generarConIA: mockIa(),
+      ...mockPresupuesto(),
+    })
+    expect([...resultado.fuentesNoDisponibles].sort()).toEqual(
+      ['ensamble', 'glofas', 'imerg', 'prefectura', 'smn'],
+    )
+  })
+
+  it('una fuente con éxito dentro de tolerancia no figura como no disponible', async () => {
+    await getDb().insert(hazardSourceHealth).values({
+      provider: 'open-meteo-flood',
+      ultimoExitoEn: AHORA.toISOString(),
+      ultimoIntentoEn: AHORA.toISOString(),
+      estado: 'ok',
+      ultimoErrorSaneado: null,
+      ttlMinutos: 360,
+      licencia: 'prueba',
+      actualizadaEn: AHORA.toISOString(),
+    })
+    const resultado = await generarVeredictos(getDb(), {
+      ahora: AHORA,
+      generarConIA: mockIa(),
+      ...mockPresupuesto(),
+    })
+    expect(resultado.fuentesNoDisponibles).not.toContain('glofas')
+    expect(resultado.fuentesNoDisponibles).toContain('smn')
   })
 
   it('sin cambios en las entradas no llama a la IA ni reserva presupuesto', async () => {

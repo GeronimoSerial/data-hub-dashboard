@@ -122,6 +122,62 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   los reporta como `no_programado`, no como alarma). Hallazgo: `sync-pronostico-caudal` y `sync-ensemble` tampoco
   están programados en producción, así que los días de pronóstico saldrán "Sin dato" hasta programarlos.
 
+## Operación permanente
+
+Requisito: el veredicto funciona en producción de forma continua, sin pasos manuales ni fechas o valores fijos de un
+evento. Cada camino de datos es un job programado, idempotente y monitoreado.
+
+### Jobs del veredicto
+
+| Job (`jobs.mjs`) | Cadencia (`cadencias.ts`) | Coolify (UTC) | `infra_job_run.tipo` | Idempotencia | `jobs-esperados.ts` |
+|---|---|---|---|---|---|
+| `veredicto-diario` | 360 min | `45 0,6,12,18 * * *`, 600 s | `veredicto-diario-v0` | lease por slot de 6 h; por ámbito-día solo escribe si cambia `inputs_hash` | `habilitado: false` hasta crear la tarea |
+| `veredicto-cierre` | 1440 min | `30 3 * * *`, 300 s | `veredicto-cierre-v0` | lease por día ART; `marcarCerrado` es idempotente | `habilitado: false` hasta crear la tarea |
+
+Comando de ambas tareas: `node scripts/jobs.mjs <nombre>`. `jobs.mjs` migra la base antes de despachar
+(cubierto por `scripts/jobs.migracion-legacy.test.ts`). Al crear las tareas en Coolify, pasar ambos a
+`habilitado: true`.
+
+### Fuentes que consume y su salud
+
+| Fuente | Job que la alimenta | Programado en prod | `hazard_source_health.provider` (TTL) |
+|---|---|---|---|
+| Lluvia IMERG | `sync-imerg` (60 min) | sí | `nasa-imerg` (60 min) |
+| Alturas Prefectura | `sync-prefectura-alturas` (60 min) | sí | `prefectura-alturas` (120 min) |
+| Avisos SMN | `sync-smn-alertas` (15 min) | sí | `smn-alertas` (60 min) |
+| Climatología lluvia / caudal | `climatologia-precipitacion` / `climatologia-caudal` (mensual) | sí | — (tabla versionada) |
+| Caudal GloFAS | `sync-pronostico-caudal` (360 min) | **no** (decisión P-5) | `open-meteo-flood` (360 min) |
+| Ensamble de lluvia | `sync-ensemble` (360 min) | **no** (decisión P-5) | `open-meteo-ensemble` (360 min) |
+| Registro de eventos en terreno | registro manual (`public/data/eventos-inundaciones/`) | n/a | `registro-eventos-inundaciones` (7 días), lo reporta el job del veredicto |
+
+El propio veredicto reporta `veredicto-diario` (TTL 360 min) en `hazard_source_health`. Queda `degradado` si una
+fuente no está disponible o la IA cayó a plantilla, y `no_disponible` si la corrida falla. Así aparece en el panel
+de salud junto con el estado del job (`infra_job_run`, `jobs-esperados.ts`).
+
+### Comportamiento ante fallas (degradación explícita)
+
+- Una fuente cuenta como no disponible si no tiene registro de salud, está `no_disponible`, no tiene éxito o su
+  último éxito supera `TTL × 2` (`TOLERANCIA_ATRASO_JOB`). Sus datos no se usan para hoy ni para el pronóstico, y
+  figura en "Sin datos de: …".
+- Sin ninguna fuente cuantitativa disponible, el nivel es **Sin dato**, nunca "Sin señal". SMN caído no se lee como
+  "sin avisos".
+- IMERG con cobertura < 80 % no cuenta como dato. Las lecturas de Prefectura de más de 36 h no cuentan como lectura
+  previa. Las inconsistentes se descartan.
+- Si la IA falla (sin clave, timeout, HTTP, JSON inválido, presupuesto agotado o validación), se publica la
+  plantilla determinista. El motivo queda en `motivo_fallback` y en la salud del veredicto.
+- Si el registro de eventos no existe o tiene más de 7 días, la sección "Confirmado en terreno" queda vacía o
+  desactualizada y la salud lo marca. Nunca altera el nivel.
+- Todo se calcula relativo al reloj (`fechasVentana(ahora)`). No hay fechas ni valores de un evento en el código
+  (los únicos literales son umbrales de reglas versionados en `reglas-veredicto-v0.1`, "en calibración").
+
+### Bloqueantes para operación completa
+
+- Programar `sync-pronostico-caudal` y `sync-ensemble` en Coolify (hoy fuera por P-5). Sin ellos, los días de
+  pronóstico salen "Sin dato" (degradación explícita, no silenciosa).
+- Crear las tareas `veredicto-diario` y `veredicto-cierre` en Coolify y configurar `AI_VEREDICTO_ENABLED=true` y
+  `OPENROUTER_API_KEY`.
+- El registro de eventos sigue siendo manual (I-4 lo automatiza). Su salud hace visible el atraso.
+
 ## Pendientes y diferidos
 
 - La IA real no se probó (sin credenciales en el E2E, por regla). Primer despliegue: setear `OPENROUTER_API_KEY`,

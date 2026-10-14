@@ -10,7 +10,8 @@ import { fechaArt, sumarDias } from './dia'
 import { marcarCerrado, guardarVeredicto, listarVigentes, type Db, type EntradaVeredicto } from './repositorio'
 import { PROMPT_SISTEMA_VEREDICTO, VERSION_PROMPT_VEREDICTO, construirMensajeUsuario } from './prompt'
 import { textoPlantilla } from './plantilla'
-import { VERSION_REGLAS } from './reglas'
+import { VERSION_REGLAS, type FuenteVeredicto } from './reglas'
+import { leerSaludFuentes } from './salud-fuentes'
 import { validarVeredictoAmbito } from './terminos'
 
 type OpcionesGenerar = {
@@ -32,6 +33,8 @@ export type ResultadoGenerar = {
   fuenteIa: number
   fuentePlantilla: number
   motivoFallback: string | null
+  /** Fuentes sin datos confiables en esta corrida (no disponibles o vencidas). */
+  fuentesNoDisponibles: FuenteVeredicto[]
 }
 
 type Clave = string
@@ -81,8 +84,12 @@ export async function generarVeredictos(
   const montoReservaUsd = opciones.montoReservaUsd ?? entorno.montoReservaUsd
 
   const ventana = fechasVentana(ahora)
+  const salud = await leerSaludFuentes(db, ahora)
+  const fuentesNoDisponibles = (Object.keys(salud) as FuenteVeredicto[]).filter(
+    (fuente) => !salud[fuente].disponible,
+  )
   const items: ItemDia[] = []
-  for (const dia of ventana) items.push(...(await calcularDia(db, dia)))
+  for (const dia of ventana) items.push(...(await calcularDia(db, dia, salud)))
 
   const desde = ventana[0]?.fecha ?? ''
   const hasta = ventana[ventana.length - 1]?.fecha ?? ''
@@ -101,6 +108,7 @@ export async function generarVeredictos(
       fuenteIa: 0,
       fuentePlantilla: 0,
       motivoFallback: null,
+      fuentesNoDisponibles,
     }
   }
 
@@ -221,6 +229,7 @@ export async function generarVeredictos(
     fuenteIa,
     fuentePlantilla,
     motivoFallback,
+    fuentesNoDisponibles,
   }
 }
 

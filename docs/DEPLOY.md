@@ -214,6 +214,12 @@ aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico neces
 `sync-pronostico-caudal` y `sync-ensemble`, que hoy no están programados en producción; sin ellos esos días salen
 "Sin dato".
 
+Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` (pasar a `habilitado: true` al
+crear las tareas) y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
+`degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
+Una fuente de entrada vencida (último éxito > 2 × TTL) se excluye y el día se publica como "Sin dato" o con
+"Sin datos de: …", nunca como nivel bajo. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
+
 ### Procedimientos operativos
 
 Después del primer despliegue y cada vez que se versionen nuevos resultados, importar las capas geo estáticas. El importador lee todos los archivos reconocidos de `GEO_STATIC_OUTPUT_DIR` (por defecto `services/geo-static/output`); admite además `--aislamiento PATH --susceptibilidad PATH --geometria PATH --exposicion-ruta PATH`:
