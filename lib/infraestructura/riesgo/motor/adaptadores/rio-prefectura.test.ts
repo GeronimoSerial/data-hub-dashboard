@@ -184,27 +184,27 @@ describe('crearAdapterRioPrefectura', () => {
   })
 })
 
-describe('resolverEvidenciaRio — proximidad a la estación', () => {
-  const sinExposicion = new Map([[CUE, SIN_EXPOSICION]])
+describe('resolverEvidenciaRio — relación propia con el río y fallback de estación', () => {
+  const coordsCercaPuerto = new Map([[CUE, { lat: -29.7085, lon: -57.0858 }]])
 
-  it('escuela a ~1.4 km de la estación de Paso de los Libres queda expuesta', () => {
+  it('escuela ribereña a 4 km del puerto con cota bajo RP100 queda expuesta', () => {
     const ev = resolverEvidenciaRio(
       datos({
-        susceptibilidadPorCue: sinExposicion,
-        coordenadasPorCue: new Map([[CUE, { lat: -29.7085, lon: -57.0858 }]]),
+        susceptibilidadPorCue: new Map([[CUE, { ...SIN_EXPOSICION, margenRp100M: -3.4 }]]),
+        coordenadasPorCue: new Map([[CUE, { lat: -29.685, lon: -57.075 }]]),
       }),
       CUE,
       ASOF,
     )
     expect(ev?.estado).toBe('evacuacion')
-    expect(ev?.criterioExposicion).toMatch(/^estacion_a_1\.\dkm$/)
+    expect(ev?.criterioExposicion).toBe('margen_rp100=-3.4m')
   })
 
-  it('escuela del mismo pueblo a ~2.5 km no queda expuesta', () => {
+  it('escuela en altura a ~1.4 km del puerto (margen 4 m) no queda expuesta', () => {
     const ev = resolverEvidenciaRio(
       datos({
-        susceptibilidadPorCue: sinExposicion,
-        coordenadasPorCue: new Map([[CUE, { lat: -29.7063, lon: -57.1035 }]]),
+        susceptibilidadPorCue: new Map([[CUE, { ...SIN_EXPOSICION, margenRp100M: 4 }]]),
+        coordenadasPorCue: coordsCercaPuerto,
       }),
       CUE,
       ASOF,
@@ -212,11 +212,32 @@ describe('resolverEvidenciaRio — proximidad a la estación', () => {
     expect(ev).toBeNull()
   })
 
-  it('estación con coordenada de baja precisión (Itatí, 2 decimales) no habilita el proxy', () => {
+  it('ruta de acceso inundable RP100 cuenta', () => {
+    const ev = resolverEvidenciaRio(
+      datos({
+        susceptibilidadPorCue: new Map([[CUE, { ...SIN_EXPOSICION, margenRp100M: 4 }]]),
+        rutaProfundidadMaxMPorCue: new Map([[CUE, '3.58']]),
+      }),
+      CUE,
+      ASOF,
+    )
+    expect(ev?.criterioExposicion).toBe('ruta_rp100=3.6m')
+  })
+
+  it('sin fila de susceptibilidad: fallback por cercanía a la estación', () => {
+    const ev = resolverEvidenciaRio(
+      datos({ susceptibilidadPorCue: new Map(), coordenadasPorCue: coordsCercaPuerto }),
+      CUE,
+      ASOF,
+    )
+    expect(ev?.criterioExposicion).toMatch(/^estacion_a_1\.\dkm\(fallback\)$/)
+  })
+
+  it('fallback no aplica con estación de baja precisión (Itatí, 2 decimales)', () => {
     const ev = resolverEvidenciaRio(
       datos({
         localidadPorCue: new Map([[CUE, 'ITATI']]),
-        susceptibilidadPorCue: sinExposicion,
+        susceptibilidadPorCue: new Map(),
         coordenadasPorCue: new Map([[CUE, { lat: -27.27, lon: -58.24 }]]),
         lecturas: [lectura({ estacionId: 'pna-itati', lecturaM: 7.6, alertaM: 6.8, evacuacionM: 7.5 })],
       }),

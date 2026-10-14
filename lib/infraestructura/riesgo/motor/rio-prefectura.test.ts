@@ -231,24 +231,41 @@ describe('PISO_NIVEL_POR_ESTADO_RIO', () => {
   })
 })
 
-describe('evaluarExposicionRio — proximidad a la estación de Prefectura', () => {
-  const sinDatos = {
+describe('evaluarExposicionRio — relación propia de la escuela con el río', () => {
+  const base = {
     claseRio: 'sin_riesgo',
     peligroInundacionFluvial: 0,
     distanciaAguaM: null,
     alturaSobreAguaM: null,
     juntoLaguna: false,
     distanciaPuntoRioKm: 24.5,
+    tieneDatosSusceptibilidad: true,
   }
 
-  it('escuela a <= 1.5 km de la estación (puerto, ribera) queda expuesta', () => {
-    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.2 })).toBe('estacion_a_1.2km')
-    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.5 })).toBe('estacion_a_1.5km')
+  it('escuela ribereña lejos del puerto (cota bajo el nivel RP100, 4 km de la estación) queda expuesta', () => {
+    expect(evaluarExposicionRio({ ...base, margenRp100M: -0.5, distanciaEstacionKm: 4 })).toBe('margen_rp100=-0.5m')
   })
 
-  it('más lejos, o sin coordenada de estación, no', () => {
+  it('escuela en altura junto al puerto (margen 5 m, 0.6 km de la estación) NO queda expuesta', () => {
+    expect(evaluarExposicionRio({ ...base, margenRp100M: 5, distanciaEstacionKm: 0.6 })).toBeNull()
+  })
+
+  it('margen en el borde (1 m) cuenta; 1.1 m no', () => {
+    expect(evaluarExposicionRio({ ...base, margenRp100M: 1 })).toBe('margen_rp100=1.0m')
+    expect(evaluarExposicionRio({ ...base, margenRp100M: 1.1 })).toBeNull()
+  })
+
+  it('ruta de acceso inundable (RP100) cuenta como exposición', () => {
+    expect(evaluarExposicionRio({ ...base, margenRp100M: 3, rutaProfundidadMaxM: 0.8 })).toBe('ruta_rp100=0.8m')
+  })
+
+  it('fallback: sin datos de susceptibilidad, cerca de la estación (<= 1.5 km) cuenta', () => {
+    const sinDatos = { ...base, claseRio: null, peligroInundacionFluvial: null, tieneDatosSusceptibilidad: false }
+    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.2 })).toBe('estacion_a_1.2km(fallback)')
     expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: 1.6 })).toBeNull()
-    expect(evaluarExposicionRio({ ...sinDatos, distanciaEstacionKm: null })).toBeNull()
-    expect(evaluarExposicionRio(sinDatos)).toBeNull()
+  })
+
+  it('con datos de susceptibilidad la cercanía a la estación sola no alcanza', () => {
+    expect(evaluarExposicionRio({ ...base, distanciaEstacionKm: 0.3 })).toBeNull()
   })
 })

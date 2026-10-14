@@ -34,12 +34,20 @@ station rain (SYNOP via Ogimet) preferred over IMERG near stations.
 Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 
 ## Decisions (autonomous defaults)
-- **Exposure rule** (do not flag every school in a town): school is exposed to
-  its tramo river when its locality maps to an approved tramo
-  (`estacionParaLocalidad`) AND any of: `infra_susceptibilidad_estatica.clase_rio`
-  in (alto, medio, bajo); `peligro_inundacion_fluvial > 0`;
-  `distancia_agua_m <= 1000 AND altura_sobre_agua_m <= 10 AND NOT junto_laguna`;
-  `infra_geo_rio.distancia_km <= 3`.
+- **Exposure rule** (revised after supervisor review of a0da947; do not flag every
+  school in a town): school must map to an approved tramo (`estacionParaLocalidad`)
+  AND match the first of, from its own relation to the river:
+  1. `clase_rio` in (alto, medio, bajo) (JRC v2.1 90 m);
+  2. `peligro_inundacion_fluvial > 0`;
+  3. `margen_rp100_m <= 1` (school DEM height minus JRC RP100 flood level; 141 schools);
+  4. `distancia_agua_m <= 1000 AND altura_sobre_agua_m <= 10 AND NOT junto_laguna`;
+  5. `infra_geo_rio.distancia_km <= 3`;
+  6. access route floods at RP100 (`infra_exposicion_ruta_inundacion.profundidad_max_m > 0`);
+  7. FALLBACK only when the school has no susceptibility row: <= 1.5 km from the
+     tramo's Prefectura station (declared PNA coords with >= 4 decimals).
+  Evidence on the dump: G1 `clase_rio` is `sin_riesgo` and `distancia_agua_m` null for
+  all 45 Paso de los Libres schools, and their GloFAS river point is 24 km away; the
+  margin and route criteria are what tie riverside schools to the river.
 - **River hazard value**: normal = lectura/alerta*33 (capped 33); alerta = 66;
   evacuación = 100; +10 (cap 100) when rising (`variacion_m > 0`) in alerta.
   Readings older than 24 h at asOf, or `inconsistente`, do not count.

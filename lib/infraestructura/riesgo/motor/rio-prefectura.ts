@@ -6,14 +6,14 @@ export const MAX_ANTIGUEDAD_LECTURA_HORAS = 24
 export const DISTANCIA_AGUA_MAX_M = 1000
 export const ALTURA_SOBRE_AGUA_MAX_M = 10
 export const DISTANCIA_PUNTO_RIO_MAX_KM = 3
-// Proxy de ribera: las estaciones de Prefectura están en el puerto, sobre la
-// costa. Sin geometría de río en el repo, una escuela a <= 1.5 km de la
-// estación de su tramo se considera expuesta. Medido contra la realidad local
-// (dump 2026-10-13): los indicadores G1 dan `sin_riesgo` y distancia al agua
-// nula para las 45 escuelas de Paso de los Libres, y su punto GloFAS queda a
-// 24 km. Coordenadas PNA declaradas, sin verificar (mismo proxy aprobado en
-// G-1 para tramos dudosos). Follow-up: reemplazar por distancia a la línea de
-// ribera cuando exista la geometría.
+// Margen = cota de la escuela (DEM Copernicus GLO-30) menos el nivel de agua
+// del mapa JRC de inundación fluvial a 100 años: <= 1 m significa que la
+// escuela está bajo, o a menos de 1 m sobre, la planicie de inundación del río.
+export const MARGEN_RP100_MAX_M = 1
+// FALLBACK, no criterio principal: las estaciones de Prefectura son un punto en
+// el puerto. Sólo se usa la cercanía (<= 1.5 km) cuando la escuela NO tiene
+// fila de susceptibilidad (sin margen ni clase de río propios). Coordenadas PNA
+// declaradas, sin verificar (mismo proxy aprobado en G-1).
 export const DISTANCIA_ESTACION_MAX_KM = 1.5
 
 const MS_POR_HORA = 60 * 60 * 1000
@@ -52,6 +52,12 @@ export type DatosExposicionRio = {
   alturaSobreAguaM: number | null
   juntoLaguna: boolean | null
   distanciaPuntoRioKm: number | null
+  // Margen sobre el nivel RP100 (m); negativo = bajo el nivel de inundación.
+  margenRp100M?: number | null
+  // Profundidad máxima de inundación RP100 sobre la ruta de acceso (m).
+  rutaProfundidadMaxM?: number | null
+  // false = la escuela no tiene fila de susceptibilidad (habilita el fallback).
+  tieneDatosSusceptibilidad?: boolean
   // Distancia escuela -> estación de Prefectura del tramo (null si la estación
   // no tiene coordenada con precisión suficiente).
   distanciaEstacionKm?: number | null
@@ -64,6 +70,9 @@ export function evaluarExposicionRio(d: DatosExposicionRio): string | null {
   }
   if (d.peligroInundacionFluvial !== null && d.peligroInundacionFluvial > 0) {
     return `peligro_fluvial=${d.peligroInundacionFluvial}`
+  }
+  if (d.margenRp100M !== undefined && d.margenRp100M !== null && d.margenRp100M <= MARGEN_RP100_MAX_M) {
+    return `margen_rp100=${d.margenRp100M.toFixed(1)}m`
   }
   if (
     d.distanciaAguaM !== null &&
@@ -78,11 +87,19 @@ export function evaluarExposicionRio(d: DatosExposicionRio): string | null {
     return `punto_rio_a_${d.distanciaPuntoRioKm.toFixed(1)}km`
   }
   if (
+    d.rutaProfundidadMaxM !== undefined &&
+    d.rutaProfundidadMaxM !== null &&
+    d.rutaProfundidadMaxM > 0
+  ) {
+    return `ruta_rp100=${d.rutaProfundidadMaxM.toFixed(1)}m`
+  }
+  if (
+    d.tieneDatosSusceptibilidad === false &&
     d.distanciaEstacionKm !== undefined &&
     d.distanciaEstacionKm !== null &&
     d.distanciaEstacionKm <= DISTANCIA_ESTACION_MAX_KM
   ) {
-    return `estacion_a_${d.distanciaEstacionKm.toFixed(1)}km`
+    return `estacion_a_${d.distanciaEstacionKm.toFixed(1)}km(fallback)`
   }
   return null
 }

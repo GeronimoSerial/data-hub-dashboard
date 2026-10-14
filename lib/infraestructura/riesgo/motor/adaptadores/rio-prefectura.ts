@@ -12,7 +12,13 @@
 // tramo aprobado, exposición, lectura vigente o estado oficial.
 import { sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { hidroLectura, infraGeoProfile, infraGeoRio, infraSusceptibilidadEstatica } from '@/lib/db/schema'
+import {
+  hidroLectura,
+  infraExposicionRutaInundacion,
+  infraGeoProfile,
+  infraGeoRio,
+  infraSusceptibilidadEstatica,
+} from '@/lib/db/schema'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { estacionParaLocalidad } from '@/lib/infraestructura/hidrometria/tramos-prefectura'
 import {
@@ -32,6 +38,7 @@ export interface FilaSusceptibilidadRio {
   distanciaAguaM: Numerico
   alturaSobreAguaM: Numerico
   juntoLaguna: boolean | null
+  margenRp100M?: Numerico
 }
 
 export interface FilaLecturaRio {
@@ -51,6 +58,8 @@ export interface DatosRio {
   lecturas: FilaLecturaRio[]
   // Coordenadas de la escuela (infra_geo_profile), para el proxy de ribera.
   coordenadasPorCue?: Map<string, { lat: number; lon: number }>
+  // Profundidad máxima RP100 sobre la ruta de acceso (infra_exposicion_ruta_inundacion).
+  rutaProfundidadMaxMPorCue?: Map<string, Numerico>
 }
 
 // Una coordenada PNA con menos de 4 decimales (~11 m) puede errar ~1 km: no
@@ -111,6 +120,9 @@ export function resolverEvidenciaRio(
     alturaSobreAguaM: num(susceptibilidad?.alturaSobreAguaM),
     juntoLaguna: susceptibilidad?.juntoLaguna ?? null,
     distanciaPuntoRioKm: num(datos.distanciaRioKmPorCue.get(cueAnexo)),
+    margenRp100M: num(susceptibilidad?.margenRp100M),
+    rutaProfundidadMaxM: num(datos.rutaProfundidadMaxMPorCue?.get(cueAnexo)),
+    tieneDatosSusceptibilidad: susceptibilidad !== undefined,
     distanciaEstacionKm: distanciaAEstacionKm(datos, cueAnexo, tramo.estacionId),
   })
   if (criterio === null) return null
@@ -155,7 +167,7 @@ export function resolverEvidenciaRio(
 // Carga única de todas las fuentes necesarias. Cada tabla se lee en batch.
 export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
   const db = getDb()
-  const [resLocalidad, filasSusceptibilidad, filasGeo, filasLectura, filasPerfil] = await Promise.all([
+  const [resLocalidad, filasSusceptibilidad, filasGeo, filasLectura, filasPerfil, filasRuta] = await Promise.all([
     db.execute(sql`select cue_anexo, localidad from ge.ge_localizacion`),
     db.select().from(infraSusceptibilidadEstatica),
     db.select().from(infraGeoRio),
@@ -173,6 +185,12 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
     db
       .select({ cueAnexo: infraGeoProfile.cueAnexo, lat: infraGeoProfile.lat, lon: infraGeoProfile.lon })
       .from(infraGeoProfile),
+    db
+      .select({
+        cueAnexo: infraExposicionRutaInundacion.cueAnexo,
+        profundidadMaxM: infraExposicionRutaInundacion.profundidadMaxM,
+      })
+      .from(infraExposicionRutaInundacion),
   ])
 
   // El driver puede devolver { rows } o directamente el array.
@@ -193,6 +211,7 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
       distanciaAguaM: fila.distanciaAguaM,
       alturaSobreAguaM: fila.alturaSobreAguaM,
       juntoLaguna: fila.juntoLaguna,
+      margenRp100M: fila.margenRp100M,
     })
   }
 
@@ -208,8 +227,17 @@ export async function cargarDatosRioDesdeDb(): Promise<DatosRio> {
     if (lat !== null && lon !== null) coordenadasPorCue.set(fila.cueAnexo, { lat, lon })
   }
 
+  // Varias versiones por escuela: se toma la mayor profundidad (conservador).
+  const rutaProfundidadMaxMPorCue = new Map<string, Numerico>()
+  for (const fila of filasRuta) {
+    const actual = num(rutaProfundidadMaxMPorCue.get(fila.cueAnexo))
+    const nueva = num(fila.profundidadMaxM)
+    if (nueva !== null && (actual === null || nueva > actual)) rutaProfundidadMaxMPorCue.set(fila.cueAnexo, nueva)
+  }
+
   return {
     coordenadasPorCue,
+    rutaProfundidadMaxMPorCue,
     localidadPorCue,
     susceptibilidadPorCue,
     distanciaRioKmPorCue,
