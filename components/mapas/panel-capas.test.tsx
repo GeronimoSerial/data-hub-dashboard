@@ -24,8 +24,14 @@ describe('PanelCapas · Situación actual', () => {
 })
 
 describe('PanelCapas · lluvia observada', () => {
-  it('muestra el interruptor de lluvia IMERG apagado por defecto y sin selector de horas', () => {
+  it('muestra el interruptor de lluvia IMERG encendido por defecto', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
+
+    expect(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('oculta el selector de horas cuando la lluvia observada está apagada', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: false }} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
 
     expect(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }).getAttribute('aria-checked')).toBe('false')
     expect(screen.queryByRole('radio', { name: '24 h' })).toBeNull()
