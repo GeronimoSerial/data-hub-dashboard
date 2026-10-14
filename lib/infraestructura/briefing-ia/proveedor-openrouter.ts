@@ -169,6 +169,9 @@ export async function generarConOpenRouter(
         model: modelo,
         messages: mensajes,
         usage: { include: true },
+        // deepseek-v4.1-flash razona por defecto: ~1.000 tokens ocultos que
+        // superan el timeout de 15 s y multiplican el costo por ocho.
+        reasoning: { enabled: false },
       }),
       signal: controlador.signal,
     })

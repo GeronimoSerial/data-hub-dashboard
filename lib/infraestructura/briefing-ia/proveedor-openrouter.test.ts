@@ -59,6 +59,7 @@ describe('generarConOpenRouter', () => {
       model: 'deepseek/deepseek-v4.1-flash',
       messages: MENSAJES,
       usage: { include: true },
+      reasoning: { enabled: false },
     })
   })
 
