@@ -68,7 +68,7 @@ Unidades en `deploy/systemd/ops1/`. Estado en staging al 2026-10-13:
 | `enos-ops1-sync-prefectura-alturas.timer` | no habilitado (no instalado en el host) | `*:17` | sync-prefectura-alturas; el archivo está en el repo, pendiente de decisión |
 
 Los demás timers del repo (`calcular-riesgo`, `situacion-corte`,
-`briefing-ia`, `episodios-derivados`, `geo-perfiles`, `asociacion-rio`,
+`episodios-derivados`, `geo-perfiles`, `asociacion-rio`,
 `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`) no figuran como
 activos en staging al 2026-10-13; su estado de instalación no está verificado.
 
@@ -207,13 +207,12 @@ La de precipitación requiere unas ~48.500 llamadas contra `archive-api`; puede 
 No hay Redis ni colas en este repo. La única garantía de orden entre jobs distintos
 es el offset fijo de las unidades y el lease de `job-run.ts` (impide que un mismo
 job se pise a sí mismo, no ordena jobs distintos). Los offsets de `calcular-riesgo`
-(`:15` tras los syncs de 6 h), `situacion-corte` (`*:20`) y `briefing-ia` (`*:30`) están
+(`:15` tras los syncs de 6 h), `situacion-corte` (`*:20`) están
 definidos en las unidades del repo, que hoy no están activas en staging ni
 programadas en producción: al habilitarlos, la secuencia se revalida en el mismo cambio.
 
 - `calcular-riesgo` no espera a `sync-imerg` (cadencia horaria independiente): puede usar IMERG de hasta ~1 h de antigüedad.
 - `episodios-derivados` y `sync-imerg` comparten `:00` sin offset: `episodios-derivados` puede usar IMERG de la hora anterior. Bajo riesgo: se corrige en la corrida siguiente.
-- `briefing-ia` lee el corte de `situacion-corte`; si ese timer se atrasa, puede leer un corte de la hora previa o devolver `sin_corte_disponible`.
 
 La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 `estaAtrasado`/`estadoAtrasoJob` de `lib/infraestructura/riesgo/cadencias.ts`.
@@ -223,7 +222,6 @@ La UI del Centro de Situación (E5) marca el corte como "desactualizado" con
 - `sync-imerg` requiere `EARTHDATA_TOKEN`; sin esa variable se registra como fuente no disponible.
 - `sync-pronostico-caudal`, `sync-ensemble`, `sync-seasonal`, `sync-radar-meteo`, `sync-radar-ensemble` y ambas climatologías consultan Open-Meteo; `OPEN_METEO_API_KEY` habilita cuota paga si corresponde.
 - `sync-smn-alertas` consulta el feed CAP oficial del SMN; no consume cupo Open-Meteo.
-- `briefing-ia` requiere `OPENROUTER_API_KEY`.
 - `geo-perfiles`, `asociacion-rio`, `calcular-riesgo`, `episodios-derivados` y `situacion-corte` son derivados locales; no requieren credenciales de red.
 
 Procedimiento de rotación de credenciales expuestas (octubre 2026): ver [rotacion-credenciales-2026-10.md](../../rotacion-credenciales-2026-10.md).
@@ -312,7 +310,6 @@ Referencia de `OnCalendar` en UTC de las unidades de `deploy/systemd/ops1/`. Par
 | episodios-derivados | 1h | `*-*-* *:00:00` | `enos-ops1-episodios-derivados.timer` |
 | geo-perfiles | diario | `*-*-* 03:00:00` | `enos-ops1-geo-perfiles.timer` |
 | asociacion-rio | diario | `*-*-* 03:10:00` | `enos-ops1-asociacion-rio.timer` |
-| briefing-ia | cada hora | `*-*-* *:30:00` | `enos-ops1-briefing-ia.timer` |
 | veredicto-diario | 4 veces al día | `*-*-* 00,06,12,18:45:00` | `enos-ops1-veredicto-diario.timer` |
 | veredicto-cierre | diario | `*-*-* 03:30:00` | `enos-ops1-veredicto-cierre.timer` |
 | situacion-corte | 1h | `*-*-* *:20:00` | `enos-ops1-situacion-corte.timer` |

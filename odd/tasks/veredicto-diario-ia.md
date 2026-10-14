@@ -63,7 +63,7 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - [x] T7 (V-11) API de lectura (vigentes por rango, historial).
 - [x] T8 (V-12, V-13, V-14) Modal autocontenido + punto de entrada en el mapa.
 - [x] T9 (V-15, V-15b) Enlaces con token (crear/revocar, vencimiento 23:59 ART, 410) + vista pública + PDF.
-- [ ] T10 (V-18) Retiro de E8 (job, timer, panel, rutas, flag).
+- [x] T10 (V-18) Retiro de E8 (job, timer, panel, rutas, flag).
 - [ ] T11 E2E local con el dump.
 
 ## Progreso y evidencia
@@ -92,3 +92,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
 - T9b1 (delegado, ~82k): `pdf.ts` (pdf-lib, registro no técnico, saneo WinAnsi, `lineasPdf` testeable). Corrección del coordinador: `etiquetaNivel` se movió a `veredicto/niveles.ts` (sin 'use client'), porque el PDF de servidor no puede importar de un módulo de cliente. GREEN 19 tests (PDF + modal); tsc/eslint limpios.
 - T9b2 (delegado, ~101k, levemente sobre el tope): PDF para staff (`/api/infraestructura/veredictos/pdf`), PDF público por token (`/api/veredicto/compartido/[token]/pdf`: 404 inexistente, 410 vencido/revocado sin datos, `X-Robots-Tag: noindex`), página pública `/veredicto/compartido/[token]` (noindex; enlace vencido/revocado sin datos) y `veredicto-publico.tsx`. Ajuste del coordinador: `nombreDepartamento` compartido en `niveles.ts` (el id ya es el nombre normalizado). Desvío registrado: la página Next devuelve 200 con la vista de "Enlace no disponible"; el 410 lo dan las rutas JSON/PDF. Diferidos: rate limit por IP y auditoría de accesos. GREEN 35 tests; tsc/eslint limpios.
 - T9b3 (delegado, ~76k): `veredicto-acciones.tsx` (copiar enlace con fallback manual, descargar PDF, revocar enlaces del día con confirmación), renderizado por defecto en el modal. GREEN 20 tests de componentes; tsc/eslint limpios.
+- T10 (delegado en dos workers; T10a se detuvo correctamente ante un conflicto y retomó con la decisión del coordinador: se conservan `briefing-ia/puertos.ts` y `test-utils/` porque `metricas.ts` los usa). Retirados: job `briefing-ia` (cadencia, timer, `jobs.mjs`), rutas `/api/infraestructura/briefings/*`, `job/generar-briefing-asistido/repositorio/dto`, flag `AI_BRIEFING_ENABLED` (salud ahora reporta `aiVeredictoEnabled`), `BriefingPanel` y su sección en Situación, `scripts/jobs.migracion-legacy.test.ts` (su único caso era el de briefing, ya fallido en la base). Se conservan proveedor, validador, esquema, métricas y presupuesto, y la tabla `infra_briefing` como histórico. tsc limpio; 334 tests verdes en las áreas afectadas.

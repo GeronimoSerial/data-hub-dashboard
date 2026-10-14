@@ -174,7 +174,6 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `RISK_ENGINE_ENABLED` | `false` | UI `/admin/riesgo` | Consola de riesgo |
 | `RISK_RADAR_ENABLED` | `false` | Radar de riesgo | Radar |
 | `RADAR_ENSEMBLE_ENABLED` | `true` | Piloto Ensemble gratuito; sólo el valor exacto `false` lo pausa | Job `sync-radar-ensemble` |
-| `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
 | `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
 | `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |
 | `SITUACION_ENABLED` | `false` | Centro de situación | Situación |
@@ -188,8 +187,8 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `OPEN_METEO_LIMITE_HOURLY_PAGO`, `OPEN_METEO_LIMITE_DAILY_PAGO`, `OPEN_METEO_LIMITE_MONTHLY_PAGO` | sin default | Límites de cupo pago | Solo cuota paga Open-Meteo |
 | `OPENROUTER_API_KEY` | sin default | Acceso a proveedor IA | Briefing IA |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | Modelo de briefing | Briefing IA |
-| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Briefing IA |
-| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Briefing IA |
+| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Alias legado de `VEREDICTO_*` |
+| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Alias legado de `VEREDICTO_*` |
 | `AI_VEREDICTO_ENABLED` | `false` | Veredicto diario asistido | Veredicto IA |
 | `VEREDICTO_PRESUPUESTO_USD_MES` | `5` (alias `E8_PRESUPUESTO_USD_MES`) | Presupuesto mensual único de IA | Veredicto IA |
 | `VEREDICTO_COSTO_MAXIMO_USD_LLAMADA` | `0.02` (alias `E8_COSTO_MAXIMO_USD_LLAMADA`) | Reserva por llamada | Veredicto IA |

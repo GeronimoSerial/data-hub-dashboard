@@ -1,6 +1,6 @@
 // Única fuente de lectura de flags de feature del motor de riesgo: ninguna
 // otra parte del repo debe leer RISK_ENGINE_ENABLED, RISK_RADAR_ENABLED,
-// AI_BRIEFING_ENABLED ni RISK_MODE; SITUACION_, HAZARD_ y SEASONAL_
+// ni RISK_MODE; SITUACION_, HAZARD_ y SEASONAL_
 // también viven aquí. listarFlagsOperativas() enumera los flags de /admin/operacion.
 import { episodiosDerivadosEnabled } from '@/lib/infraestructura/episodios-derivados/flags'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
@@ -18,10 +18,6 @@ export function riskEngineEnabled(): boolean {
 
 export function riskRadarEnabled(): boolean {
   return esTrue(process.env.RISK_RADAR_ENABLED)
-}
-
-export function aiBriefingEnabled(): boolean {
-  return esTrue(process.env.AI_BRIEFING_ENABLED)
 }
 
 // Apagado por defecto: habilita el job de veredicto diario asistido por IA.
@@ -65,7 +61,6 @@ export function listarFlagsOperativas(): Array<{ nombre: string; valor: string }
   return [
     { nombre: 'RISK_ENGINE_ENABLED', valor: String(riskEngineEnabled()) },
     { nombre: 'RISK_RADAR_ENABLED', valor: String(riskRadarEnabled()) },
-    { nombre: 'AI_BRIEFING_ENABLED', valor: String(aiBriefingEnabled()) },
     { nombre: 'AI_VEREDICTO_ENABLED', valor: String(aiVeredictoEnabled()) },
     { nombre: 'HAZARD_CONTEXT_ENABLED', valor: String(hazardContextEnabled()) },
     { nombre: 'SEASONAL_ENABLED', valor: String(seasonalEnabled()) },
