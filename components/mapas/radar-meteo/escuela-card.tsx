@@ -87,11 +87,8 @@ export function EscuelaForecastCard({
               </span>
             ))}
           </div>
-          <p>
+          <p title={pronostico.frescura?.edadMinutos != null ? `Actualizado hace ${pronostico.frescura.edadMinutos} min` : undefined}>
             Ráfaga máxima: {formatearVientoKmh(rafagaMaxima)}
-            {pronostico.frescura?.edadMinutos != null && (
-              <> · Actualizado hace {pronostico.frescura.edadMinutos} min</>
-            )}
           </p>
           {(pronostico.contextoEnsamble?.probabilidad25 == null || pronostico.contextoEnsamble.probabilidad25 >= 0.05) && (
             <p>
