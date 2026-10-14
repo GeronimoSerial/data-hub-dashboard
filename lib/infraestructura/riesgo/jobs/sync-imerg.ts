@@ -61,10 +61,10 @@ const UNIDAD_OBSERVADA = 'mm/30min'
 const TIPO_JOB = 'sync-hazard-imerg'
 const VERSION_JOB = 'v1'
 const DURACION_LEASE_MS = 5 * 60 * 1000
-// IMERG Early Run publica un gránulo cada 30 min con ~4 h de latencia; el TTL
-// es más chico que el del pronóstico (360 min) porque la cadencia es más fina y
-// queremos detectar rápido si la fuente dejó de actualizarse.
-const TTL_MINUTOS = 60
+// IMERG Early Run publica un gránulo cada 30 min con ~4 h de latencia. El TTL
+// mide el tiempo desde la última corrida exitosa (job horario): 180 min tolera
+// dos corridas demoradas o fallidas antes de marcar la fuente como vencida.
+const TTL_MINUTOS = 180
 const LICENCIA = 'NASA GPM IMERG — GES DISC, cuenta NASA Earthdata requerida'
 
 const PROVIDER = 'nasa-imerg'

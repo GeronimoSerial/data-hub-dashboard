@@ -37,7 +37,7 @@ export async function GET() {
             capturadaEn: fila.capturadaEn,
           }
         : null
-      const { estado, tendencia } = estadoAltura(lectura)
+      const { estado, tendencia, vencida } = estadoAltura(lectura)
 
       return {
         estacionId: estacion.estacionId,
@@ -50,6 +50,8 @@ export async function GET() {
         lectura,
         estado,
         tendencia,
+        // Lectura de más de EDAD_MAXIMA_LECTURA_HORAS: se informa como sin dato.
+        lecturaVencida: vencida,
       }
     }),
   )

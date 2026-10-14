@@ -98,6 +98,7 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
       coordenadasVerificadas: false,
       lectura: null,
       estado: 'sin_dato',
+      lecturaVencida: false,
       tendencia: 'sin_dato',
     })
   })

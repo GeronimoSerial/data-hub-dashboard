@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { estadoAltura, type LecturaParaEstado } from './estado-altura'
+import {
+  EDAD_MAXIMA_LECTURA_HORAS,
+  estadoAltura,
+  type LecturaParaEstado,
+} from './estado-altura'
+
+const AHORA = new Date('2026-10-13T12:00:00Z')
 
 function lectura(overrides: Partial<LecturaParaEstado> = {}): LecturaParaEstado {
   return {
@@ -12,9 +18,17 @@ function lectura(overrides: Partial<LecturaParaEstado> = {}): LecturaParaEstado 
   }
 }
 
+function horasAtras(horas: number): string {
+  return new Date(AHORA.getTime() - horas * 3_600_000).toISOString()
+}
+
 describe('estadoAltura', () => {
+  it('expone la edad máxima de lectura en 12 horas', () => {
+    expect(EDAD_MAXIMA_LECTURA_HORAS).toBe(12)
+  })
+
   it('devuelve sin_dato cuando no hay lectura', () => {
-    expect(estadoAltura(null)).toEqual({ estado: 'sin_dato', tendencia: 'sin_dato' })
+    expect(estadoAltura(null)).toEqual({ estado: 'sin_dato', tendencia: 'sin_dato', vencida: false })
   })
 
   it('devuelve sin_dato cuando lecturaM es nula', () => {
@@ -68,5 +82,47 @@ describe('estadoAltura', () => {
 
   it('devuelve tendencia sin_dato cuando variacionM es nula', () => {
     expect(estadoAltura(lectura({ variacionM: null })).tendencia).toBe('sin_dato')
+  })
+
+  describe('vigencia de la lectura', () => {
+    it('clasifica una lectura reciente por encima de evacuación como evacuacion, no vencida', () => {
+      expect(
+        estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(1) }), { ahora: AHORA }),
+      ).toEqual({ estado: 'evacuacion', tendencia: 'estable', vencida: false })
+    })
+
+    it('no clasifica una lectura de 13 horas: sin_dato y vencida', () => {
+      expect(
+        estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(13) }), { ahora: AHORA }),
+      ).toEqual({ estado: 'sin_dato', tendencia: 'sin_dato', vencida: true })
+    })
+
+    it('acepta una lectura exactamente de 12 horas', () => {
+      const resultado = estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(12) }), {
+        ahora: AHORA,
+      })
+      expect(resultado.estado).toBe('evacuacion')
+      expect(resultado.vencida).toBe(false)
+    })
+
+    it('respeta una edad máxima personalizada', () => {
+      expect(
+        estadoAltura(lectura({ medidaEn: horasAtras(3) }), { ahora: AHORA, edadMaximaHoras: 2 }),
+      ).toMatchObject({ estado: 'sin_dato', vencida: true })
+    })
+
+    it('trata una fecha no interpretable como vencida', () => {
+      expect(
+        estadoAltura(lectura({ lecturaM: 7, medidaEn: 'no-es-fecha' }), { ahora: AHORA }),
+      ).toEqual({ estado: 'sin_dato', tendencia: 'sin_dato', vencida: true })
+    })
+
+    it('sin medidaEn conserva el comportamiento previo y no marca vencida', () => {
+      expect(estadoAltura(lectura({ lecturaM: 7 }), { ahora: AHORA })).toEqual({
+        estado: 'evacuacion',
+        tendencia: 'estable',
+        vencida: false,
+      })
+    })
   })
 })

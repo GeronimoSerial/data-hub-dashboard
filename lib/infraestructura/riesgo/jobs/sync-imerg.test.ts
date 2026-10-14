@@ -154,7 +154,7 @@ describe('ejecutarSyncImerg', () => {
     expect(salud?.estado).toBe('no_disponible')
     expect(salud?.ultimoErrorSaneado).toBe('fuente no configurada: falta EARTHDATA_TOKEN')
     expect(salud?.ultimoIntentoEn).toBe(ahora.toISOString())
-    expect(salud?.ttlMinutos).toBe(60)
+    expect(salud?.ttlMinutos).toBe(180)
   })
 
   it('con token busca gránulos en la ventana de backfill, subsetea el faltante, deduplica y persiste', async () => {
