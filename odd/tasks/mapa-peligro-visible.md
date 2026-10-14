@@ -62,7 +62,7 @@ Focused vitest per task; at end `npx tsc --noEmit`, `npm run lint`, relevant vit
 - `npx tsc --noEmit -p .`: clean. `npm run lint`: 0 errors, 14 pre-existing warnings.
 - Focused vitest batches (timeout 280 s each): 59 files, 776 passed, 19 skipped, 0 failed.
 - Known environmental limitation: the full vitest suite (and large multi-folder batches) hangs on this machine (workers pegged ~97 % CPU, hook timeouts under load). Only change-related files were run, in small batches; the full suite runs in CI.
-- IMERG HDF5 fallback verified with synthetic HDF5 fixtures only; not exercised against a real GES DISC granule (needs the Earthdata token; not authorized here).
+- IMERG HDF5 fallback validated against one real granule (2026-10-13T09:00Z, supervisor-authorized, read-only, subset forced to 503): via=hdf5, 4331/4331 cells identical to the reference `t0900.csv` within 1e-4 (value and quality). No DB writes; temporary script not committed.
 
 ## Next step
 User: review the branch, run the app with a real session to eyeball the "Situación actual" layers, decide on push/PR. Pending: T3b, T4 (as time allows), T5 follow-up.
