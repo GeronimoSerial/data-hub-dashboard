@@ -146,7 +146,8 @@ Comando de ambas tareas: `node scripts/jobs.mjs <nombre>`. `jobs.mjs` migra la b
 | Alturas Prefectura | `sync-prefectura-alturas` (60 min) | sí | `prefectura-alturas` (120 min) |
 | Avisos SMN | `sync-smn-alertas` (15 min) | sí | `smn-alertas` (60 min) |
 | Climatología lluvia / caudal | `climatologia-precipitacion` / `climatologia-caudal` (mensual) | sí | — (tabla versionada) |
-| Caudal GloFAS | `sync-pronostico-caudal` (360 min) | **no** (decisión P-5) | `open-meteo-flood` (360 min) |
+| Caudal GloFAS | `sync-pronostico-caudal` (360 min) | **no** (decisión P-5) | `open-meteo-flood` (360 min); se clasifica solo con climatología `caudal_diario` |
+| Lluvia pronosticada ECMWF | `sync-pronostico-caudal` (mismo job) | **no** (decisión P-5) | `open-meteo-ecmwf` (tolerancia 48 h) |
 | Ensamble de lluvia | `sync-ensemble` (360 min) | **no** (decisión P-5) | `open-meteo-ensemble` (360 min) |
 | Registro de eventos en terreno | registro manual (`public/data/eventos-inundaciones/`) | n/a | `registro-eventos-inundaciones` (7 días), lo reporta el job del veredicto |
 
@@ -172,6 +173,12 @@ de salud junto con el estado del job (`infra_job_run`, `jobs-esperados.ts`).
 
 ### Bloqueantes para operación completa
 
+- **Climatología de caudal vacía en prod:** `climatologia-caudal` falló el 2026-10-13 22:41Z por `cupo_agotado`
+  de Open-Meteo en los 8 puntos, y su cron es mensual (`41 6 1 * *`): sin reintento, recién vuelve a intentar el
+  1/11. Mientras falte, GloFAS figura como "Sin datos de: caudal pronosticado" (no se puede clasificar). Acción
+  recomendada: reintento diario de la tarea hasta completar el cursor (p. ej. `41 6 * * *`; el cursor es
+  resumable) o una corrida manual única con cupo disponible.
+
 - Programar `sync-pronostico-caudal` y `sync-ensemble` en Coolify (hoy fuera por P-5). Sin ellos, los días de
   pronóstico salen "Sin dato" (degradación explícita, no silenciosa).
 - Crear las tareas `veredicto-diario` y `veredicto-cierre` en Coolify y configurar `AI_VEREDICTO_ENABLED=true` y
@@ -196,3 +203,9 @@ de salud junto con el estado del job (`infra_job_run`, `jobs-esperados.ts`).
 - Fix 6b eventos en la UI (worker ~126k, sobre el tope): "Confirmado en terreno (no modifica el nivel)" en el modal (fetch a la API con el rango de los veredictos), la vista pública (carga en servidor) y ambos PDF; cada evento con título, lugar (departamento) · fecha, "Confianza …" y enlace "medio, fecha". Imports de tipo únicamente en componentes cliente. Pendiente menor: el bloque de eventos está duplicado entre modal y vista pública. 310 tests verdes; tsc/eslint limpios; RED no observado (implementación y tests juntos).
 - Salud de fuentes (worker ~117k, sobre el tope): `salud-fuentes.ts` + gating en `calcularDia` + salud propia del veredicto y del registro de eventos (commit 94f1d06). 313 tests verdes. Pendiente menor: el test "IMERG no disponible en hoy" no siembra lluvia, así que no distingue la rama; reforzarlo.
 - Bug de la base integrada (14/10 01:57Z): GloFAS/ensamble sin fila de salud pese a datos frescos; IMERG/SMN marcados vencidos con TTL×2 = 2 h. Fix (worker ~142k): disponibilidad = salud fresca **o** datos frescos, con tolerancia por fuente (IMERG 12 h, Prefectura 36 h, SMN 6 h solo por salud, GloFAS y ensamble 48 h). "Hoy" mide la cobertura IMERG hasta el último gránulo y muestra "Lluvia observada hasta HH:MM (hace N h)". Sin problema de buckets UTC/ART ni de nombres de proveedor. 302 tests verdes.
+- Bug de la base integrada, parte 2 (worker detenido en ~149k; cierre inline): ECMWF como señal (`lluvia.pron_24h`,
+  umbrales de 24 h de `umbrales-provisorios`, tope alerta en pronóstico; reglas v0.2); `Math.max(...)` sobre ~100k
+  gránulos desbordaba la pila en `finUltimoGranulo` (bucle + test de 200k); caudal sin climatología no cuenta como
+  dato. Verificación de solo lectura contra la base integrada (14/10 01:57Z): todas las fuentes disponibles; 13/10
+  severo (IMERG hasta 21:00Z); 14–16/10 "sin señal" con ensamble y ECMWF bajo umbral y GloFAS "sin datos" por
+  climatología vacía. 315 tests verdes; tsc/eslint limpios.

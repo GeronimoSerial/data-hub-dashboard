@@ -218,7 +218,9 @@ Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` 
 crear las tareas) y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
 `degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
 Una fuente de entrada vencida (sin salud ni datos dentro de su tolerancia: IMERG 12 h, Prefectura 36 h, SMN 6 h, GloFAS y ensamble 48 h) se excluye y el día se publica como "Sin dato" o con
-"Sin datos de: …", nunca como nivel bajo. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
+"Sin datos de: …", nunca como nivel bajo. Los días de pronóstico usan GloFAS (clasificado contra la climatología
+`caudal_diario`), el ensamble y la lluvia ECMWF; un caudal sin climatología de referencia cuenta como fuente
+ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), reintentarla: su cron mensual no reintenta solo. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
 
 ### Procedimientos operativos
 
