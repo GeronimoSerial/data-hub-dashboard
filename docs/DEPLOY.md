@@ -174,7 +174,6 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `RISK_ENGINE_ENABLED` | `false` | UI `/admin/riesgo` | Consola de riesgo |
 | `RISK_RADAR_ENABLED` | `false` | Radar de riesgo | Radar |
 | `RADAR_ENSEMBLE_ENABLED` | `true` | Piloto Ensemble gratuito; sólo el valor exacto `false` lo pausa | Job `sync-radar-ensemble` |
-| `AI_BRIEFING_ENABLED` | `false` | Briefing asistido | Briefing IA |
 | `HAZARD_CONTEXT_ENABLED` | `false` | Contexto de amenazas | Contexto hazard |
 | `SEASONAL_ENABLED` | `false` | Capa estacional | Seasonal |
 | `SITUACION_ENABLED` | `false` | Centro de situación | Situación |
@@ -188,12 +187,40 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `OPEN_METEO_LIMITE_HOURLY_PAGO`, `OPEN_METEO_LIMITE_DAILY_PAGO`, `OPEN_METEO_LIMITE_MONTHLY_PAGO` | sin default | Límites de cupo pago | Solo cuota paga Open-Meteo |
 | `OPENROUTER_API_KEY` | sin default | Acceso a proveedor IA | Briefing IA |
 | `OPENROUTER_MODEL` | `deepseek/deepseek-v4.1-flash` | Modelo de briefing | Briefing IA |
-| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Briefing IA |
-| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Briefing IA |
+| `E8_PRESUPUESTO_USD_MES` | `5` | Presupuesto mensual máximo | Alias legado de `VEREDICTO_*` |
+| `E8_COSTO_MAXIMO_USD_LLAMADA` | `0.01` | Reserva/tope por llamada | Alias legado de `VEREDICTO_*` |
+| `AI_VEREDICTO_ENABLED` | `false` | Veredicto diario asistido | Veredicto IA |
+| `VEREDICTO_PRESUPUESTO_USD_MES` | `5` (alias `E8_PRESUPUESTO_USD_MES`) | Presupuesto mensual único de IA | Veredicto IA |
+| `VEREDICTO_COSTO_MAXIMO_USD_LLAMADA` | `0.02` (alias `E8_COSTO_MAXIMO_USD_LLAMADA`) | Reserva por llamada | Veredicto IA |
 | `DATASET_SALT_E7B` | sin default | Seudonimización estable | Exportación dataset |
 | `DEMO_OK` | sin default | Confirmación explícita de seed demo | Seed de demostración |
 | `NODE_ENV` | `production` en despliegue | Cookies seguras por entorno | Runtime |
 | `VITEST` | sin default | Selección de DB en memoria para tests | Solo tests |
+
+### Jobs del veredicto diario
+
+Producción programa los jobs con **Coolify Scheduled Tasks** sobre la aplicación `data-hub-dashboard`; los timers
+systemd de `deploy/systemd/ops1/` corren solo en staging. Las expresiones cron están en UTC (confirmar la zona
+horaria del servidor de Coolify antes de crearlas, ver `docs/ejecucion-enos/OPS1/runbook-scheduler.md`).
+
+| Tarea Coolify (nombre) | Comando | Cron (UTC) | Timeout | Timer systemd (staging) |
+|---|---|---|---|---|
+| `veredicto-diario` | `node scripts/jobs.mjs veredicto-diario` | `45 0,6,12,18 * * *` | 600 s | `enos-ops1-veredicto-diario.timer` (`*-*-* 00,06,12,18:45:00 UTC`) |
+| `veredicto-cierre` | `node scripts/jobs.mjs veredicto-cierre` | `30 3 * * *` | 300 s | `enos-ops1-veredicto-cierre.timer` (`*-*-* 03:30:00 UTC`) |
+
+Requisitos en el contenedor: `ENOS_JOBS_ENABLED` distinto de `false`, `AI_VEREDICTO_ENABLED=true` y
+`OPENROUTER_API_KEY` (sin clave el job corre igual y publica la plantilla determinista). La migración `0015` se
+aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico necesitan además
+`sync-pronostico-caudal` y `sync-ensemble`, que hoy no están programados en producción; sin ellos esos días salen
+"Sin dato".
+
+Monitoreo: ambos jobs figuran en `lib/infraestructura/riesgo/jobs-esperados.ts` (pasar a `habilitado: true` al
+crear las tareas) y el job publica en `hazard_source_health` los proveedores `veredicto-diario` (TTL 360 min;
+`degradado` si una fuente no está disponible o la IA cayó a plantilla) y `registro-eventos-inundaciones` (TTL 7 días).
+Una fuente de entrada vencida (sin salud ni datos dentro de su tolerancia: IMERG 12 h, Prefectura 36 h, SMN 6 h, GloFAS y ensamble 48 h) se excluye y el día se publica como "Sin dato" o con
+"Sin datos de: …", nunca como nivel bajo. Los días de pronóstico usan GloFAS (clasificado contra la climatología
+`caudal_diario`), el ensamble y la lluvia ECMWF; un caudal sin climatología de referencia cuenta como fuente
+ausente. Si `climatologia-caudal` falla (p. ej. `cupo_agotado`), reintentarla: su cron mensual no reintenta solo. Detalle en `odd/tasks/veredicto-diario-ia.md`, "Operación permanente".
 
 ### Procedimientos operativos
 

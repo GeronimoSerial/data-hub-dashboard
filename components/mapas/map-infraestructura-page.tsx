@@ -62,6 +62,9 @@ import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
 import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
+import { Button } from '@/components/ui/button'
+// Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+import { VeredictoModal } from '@/components/veredicto/veredicto-modal'
 import { useThemeMode } from '@/app/providers'
 import { useOverlayStyles } from '@/components/mapas/overlay-styles'
 import { horaActualizacion, PanelSituacionActual } from '@/components/mapas/panel-situacion-actual'
@@ -651,6 +654,8 @@ export default function MapInfraestructuraPage(props: {
   const [historialCue, setHistorialCue] = useState<string | null>(null)
   const [departamentoSeleccionado, setDepartamentoSeleccionado] = useState<string | null>(null)
   const [departamentoRadarId, setDepartamentoRadarId] = useState<string | null>(null)
+  // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+  const [veredictoAbierto, setVeredictoAbierto] = useState(false)
   const cerrarFicha = useCallback(() => {
     setFichaCerradaCue(seleccionCue)
   }, [seleccionCue])
@@ -972,6 +977,15 @@ export default function MapInfraestructuraPage(props: {
     if (centroide) {
       mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
     }
+  }
+  // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
+  const centrarDepartamentoVeredicto = (id: string) => {
+    const feature = departamentosRaw?.features.find((item) => normalizarNombreDepartamento(item.properties.nombre) === id)
+    const centroide = feature?.properties.centroide
+    if (centroide) {
+      mapRef.current?.getMap()?.flyTo({ center: [centroide.lon, centroide.lat], zoom: 8, duration: 800 })
+    }
+    setVeredictoAbierto(false)
   }
 
   const departamentosGeojson = useMemo(() => {
@@ -2034,6 +2048,26 @@ export default function MapInfraestructuraPage(props: {
           />
         </div>
       )}
+
+      {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
+      {!radarActivo && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="map-veredicto-btn"
+          aria-haspopup="dialog"
+          onClick={() => setVeredictoAbierto(true)}
+        >
+          Veredicto diario
+        </Button>
+      )}
+      {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
+      <VeredictoModal
+        open={veredictoAbierto}
+        onOpenChange={setVeredictoAbierto}
+        onSeleccionarDepartamento={centrarDepartamentoVeredicto}
+      />
 
       {!radarActivo && <FullscreenButton targetRef={props.contenedorPantallaCompleta ?? shellRef} />}
 

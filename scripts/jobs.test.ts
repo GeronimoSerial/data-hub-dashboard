@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   ejecutarCalculoClimatologiaCaudal: vi.fn(),
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
-  correrJobBriefingIA: vi.fn(),
   syncPrefecturaAlturas: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
@@ -63,9 +62,6 @@ vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts', () => (
 }))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
-}))
-vi.mock('../lib/infraestructura/briefing-ia/job.ts', () => ({
-  correrJobBriefingIA: mocks.correrJobBriefingIA,
 }))
 vi.mock('../lib/infraestructura/jobs/flags.ts', () => ({
   enosJobsEnabled: mocks.enosJobsEnabled,
@@ -269,35 +265,6 @@ describe('asociacion-rio — lease externo', () => {
     expect(mocks.adquirirLease).not.toHaveBeenCalled()
     expect(mocks.ensureSeeded).not.toHaveBeenCalled()
     expect(codigoSalida('asociacion-rio', resultado)).toBe(0)
-  })
-})
-
-describe('briefing-ia — lease interno (jobs.mjs sólo lo invoca)', () => {
-  it('con el flag activo importa y devuelve lo que devuelve correrJobBriefingIA', async () => {
-    const esperado = {
-      ejecutado: true,
-      corteId: 'corte-1',
-      fuente: 'ia',
-      motivoFallback: null,
-    }
-    mocks.correrJobBriefingIA.mockResolvedValue(esperado)
-    const { correrJob } = await import('./jobs.mjs')
-
-    const resultado = await correrJob('briefing-ia')
-
-    expect(mocks.correrJobBriefingIA).toHaveBeenCalledTimes(1)
-    expect(resultado).toEqual(esperado)
-  })
-
-  it('con enosJobsEnabled=false no importa ni llama al job real', async () => {
-    mocks.enosJobsEnabled.mockReturnValue(false)
-    const { correrJob } = await import('./jobs.mjs')
-
-    const resultado = await correrJob('briefing-ia')
-
-    expect(resultado).toEqual({ ejecutado: false, motivo: 'flag_deshabilitado' })
-    expect(mocks.correrJobBriefingIA).not.toHaveBeenCalled()
-    expect(mocks.ensureSeeded).not.toHaveBeenCalled()
   })
 })
 

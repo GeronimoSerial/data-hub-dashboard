@@ -6108,3 +6108,69 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 @media (prefers-reduced-motion: reduce) {
   .metodologia .bar i, .metodologia .wf .seg, .metodologia-seccion--destacada { transition: none; animation: none; }
 }
+
+/* ── Veredicto diario ──────────────────────────────────────────────
+   Modal del mapa, acciones de exportación y vista pública del enlace.
+   Solo tokens existentes: superficie `--card` (opaca en ambos temas),
+   chips de nivel sobre `.badge` con la barra en `--nivel-peligro-*`. */
+.ui-dialog-popup.veredicto-modal { width: min(56rem, 100%); max-height: calc(100dvh - 2rem); }
+.veredicto-modal__cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-3); padding-right: var(--s-6); }
+.veredicto-modal__cabecera h2 { margin: 0; }
+.veredicto-modal__cuerpo { display: grid; gap: var(--s-5); margin-top: var(--s-4); }
+.veredicto-modal__estado { margin: var(--s-4) 0 0; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-modal__estado--error { color: var(--danger-ink); }
+
+.veredicto-timeline { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.veredicto-timeline__dia { flex-direction: column; align-items: flex-start; gap: var(--s-1); padding: var(--s-2) var(--s-3); cursor: pointer; color: var(--ink); font-family: var(--font-body); }
+.veredicto-timeline__dia[aria-pressed='true'] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--marker); }
+.veredicto-timeline__fecha { font-weight: 700; }
+.veredicto-timeline__tipo { color: var(--ink-faint); font-size: var(--t-micro); font-weight: 400; }
+
+.veredicto-detalle { display: grid; gap: var(--s-3); }
+.veredicto-detalle__encabezado { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.veredicto-detalle__encabezado h3 { margin: 0; font-size: 1.1rem; }
+.veredicto-detalle__meta { color: var(--ink-faint); font-size: var(--t-micro); }
+.veredicto-detalle p { margin: 0; }
+.veredicto-detalle__frases { margin: 0; padding-left: var(--s-4); display: grid; gap: var(--s-2); }
+.veredicto-detalle__refs { color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-detalle__refs a { color: var(--accent); }
+.veredicto-detalle__nota { color: var(--ink-soft); font-size: var(--t-micro); }
+
+.veredicto-seccion { display: grid; gap: var(--s-2); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.veredicto-seccion h3, .veredicto-seccion h4 { margin: 0; font-size: var(--t-body); }
+.veredicto-seccion ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-2); }
+.veredicto-seccion__vacio { margin: 0; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-depto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); background: var(--fill); border-radius: var(--r-sm); }
+.veredicto-depto__nombre { font-weight: 700; }
+.veredicto-depto__resumen { flex: 1 1 16rem; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-evento { display: grid; gap: var(--s-1); padding: var(--s-2) var(--s-3); border-left: 3px solid var(--line); font-size: var(--t-small); }
+.veredicto-evento a { color: var(--accent); }
+
+.badge.veredicto-nivel { background: var(--fill); color: var(--ink); border-left-color: var(--nivel-peligro-sin-dato); }
+.badge.veredicto-nivel--sin_senal { border-left-color: var(--line); color: var(--ink-soft); }
+.badge.veredicto-nivel--vigilancia { border-left-color: var(--nivel-peligro-amarillo); }
+.badge.veredicto-nivel--alerta { border-left-color: var(--nivel-peligro-naranja); }
+.badge.veredicto-nivel--severo { border-left-color: var(--nivel-peligro-rojo); background: var(--danger-tint); color: var(--danger-ink); }
+.badge.veredicto-calibracion { background: var(--warn-tint); color: var(--warn); }
+
+.veredicto-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.veredicto-acciones__estado { flex-basis: 100%; margin: 0; color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-acciones__url { flex-basis: 100%; }
+
+/* Mismo botón que .map-fullscreen-btn, apilado encima de él. */
+.map-veredicto-btn { position: absolute; right: 12px; bottom: 69px; z-index: 3; }
+
+.veredicto-publico { min-height: 100dvh; background: var(--page); color: var(--ink); }
+.veredicto-publico__contenido { max-width: 52rem; margin: 0 auto; padding: var(--s-6) var(--s-4); display: grid; gap: var(--s-5); }
+.veredicto-publico__contenido h1 { margin: 0; font-size: 1.6rem; }
+.veredicto-publico__aviso { margin: 0; padding: var(--s-3) var(--s-4); background: var(--band); border-left: 3px solid var(--ink); font-size: var(--t-small); }
+.veredicto-publico__dia { display: grid; gap: var(--s-3); padding: var(--s-4) var(--s-5); background: var(--card); border: 1px solid var(--line); border-radius: var(--r-md); }
+.veredicto-publico__dia h2 { margin: 0; font-size: 1.15rem; }
+.veredicto-publico__fuentes { margin: 0; padding-left: var(--s-4); font-size: var(--t-small); }
+.veredicto-publico__fuentes a, .veredicto-publico a { color: var(--accent); }
+
+@media (max-width: 719px) {
+  .map-veredicto-btn { bottom: 90px; }
+  .map-shell[data-ficha-abierta="true"] .map-veredicto-btn { bottom: calc(60vh + 56px); }
+  .veredicto-publico__contenido { padding: var(--s-5) var(--s-4); }
+}
