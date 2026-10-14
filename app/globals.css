@@ -6174,3 +6174,24 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-shell[data-ficha-abierta="true"] .map-veredicto-btn { bottom: calc(60vh + 56px); }
   .veredicto-publico__contenido { padding: var(--s-5) var(--s-4); }
 }
+
+/* Riesgo de la escuela en la ficha: "Riesgo actual (hoy)" (motor) y "Prioridad de planificación". */
+.riesgo-escuela { display: grid; gap: var(--s-3); margin: var(--s-3) 0; }
+.riesgo-escuela__bloque { display: grid; gap: var(--s-1); padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--fill); }
+.riesgo-escuela__bloque p, .riesgo-escuela__bloque ul { margin: 0; }
+.riesgo-escuela__bloque ul { padding-left: 1.1rem; font-size: var(--t-small); line-height: 1.4; }
+.riesgo-escuela__titulo { margin: 0; font-family: var(--font-display); font-size: var(--t-small); font-weight: 600; }
+.riesgo-escuela__subtitulo, .riesgo-escuela__nota { color: var(--ink-soft); font-size: var(--t-micro); }
+.riesgo-escuela__subtitulo-seccion { margin: var(--s-2) 0 0; font-size: var(--t-micro); font-weight: 600; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.03em; }
+.riesgo-escuela__conclusion { font-weight: 600; line-height: 1.35; }
+.riesgo-escuela__nivel { justify-self: start; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: var(--t-micro); font-weight: 700; color: #fff; background: var(--nivel-peligro-sin-dato); }
+.riesgo-escuela__nivel--bajo { background: var(--nivel-peligro-verde); }
+.riesgo-escuela__nivel--moderado { background: var(--nivel-peligro-amarillo); color: #1f1f1f; }
+.riesgo-escuela__nivel--alto { background: var(--nivel-peligro-naranja); color: #1f1f1f; }
+.riesgo-escuela__nivel--muy_alto { background: var(--nivel-peligro-rojo); }
+.riesgo-escuela__tecnico { margin-top: var(--s-2); font-size: var(--t-micro); color: var(--ink-soft); }
+.riesgo-escuela__tecnico > summary { cursor: pointer; font-weight: 600; }
+.riesgo-escuela__tecnico > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.riesgo-escuela__tecnico dl { display: grid; gap: var(--s-1); margin: var(--s-2) 0 0; }
+.riesgo-escuela__tecnico dt { font-weight: 600; }
+.riesgo-escuela__tecnico dd { margin: 0; overflow-wrap: anywhere; }

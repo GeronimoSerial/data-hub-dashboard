@@ -15,6 +15,8 @@ import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
 import { FichaTerritorial, type EstadoVistaPeligro } from '@/components/infraestructura/ficha-territorial'
+import { RiesgoEscuela } from '@/components/infraestructura/riesgo-escuela'
+import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 
@@ -25,6 +27,10 @@ interface FichaEscuelaPanelProps {
   onCerrar: () => void
   onVerAlumnosAlcanzados: (afectacionId: string) => void
   onVerHistorialCompleto: () => void
+  /** Mismo horizonte que la lista y los marcadores del Radar. */
+  horizonteRiesgo?: HorizonteMotor
+  /** Mismo nivel que la lista de Planificación para la vista activa. */
+  planificacion?: { etiquetaVista: string; etiquetaNivel: string } | null
 }
 
 const FORMATO_NUMERO = new Intl.NumberFormat('es-AR')
@@ -89,6 +95,8 @@ export function FichaEscuelaPanel({
   onCerrar,
   onVerAlumnosAlcanzados,
   onVerHistorialCompleto,
+  horizonteRiesgo = 72,
+  planificacion = null,
 }: FichaEscuelaPanelProps) {
   const { estado, historial } = useFichaParte(escuela.cueAnexo)
   const tituloRef = useRef<HTMLHeadingElement>(null)
@@ -146,6 +154,8 @@ export function FichaEscuelaPanel({
       )}
 
       <FilaEstado escuela={escuela} />
+
+      <RiesgoEscuela cueAnexo={escuela.cueAnexo} horizonte={horizonteRiesgo} planificacion={planificacion} />
 
       <div>
         <Desplegable titulo="Acceso" abierto>
@@ -248,7 +258,7 @@ function SeccionPeligro({ cueAnexo, localidad }: { cueAnexo: string; localidad: 
     <section className="map-ficha-escuela__situacion">
       <details open={estadoPeligro !== 'sin_datos'}>
         <summary>
-          <h3>Peligro hidrometeorológico</h3>
+          <h3>Lluvia y río: datos de apoyo</h3>
         </summary>
         <FichaTerritorial cueAnexo={cueAnexo} localidad={localidad} onEstado={setEstadoPeligro} />
       </details>

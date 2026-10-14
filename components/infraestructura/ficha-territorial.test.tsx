@@ -209,10 +209,9 @@ describe('FichaTerritorial', () => {
     const { container } = render(<FichaTerritorial cueAnexo={CUE} />)
 
     const datos = await screen.findByTestId('ficha-territorial-datos')
-    const conclusion = within(datos).getByTestId('ficha-territorial-conclusion')
-    expect(conclusion).toHaveTextContent('Riesgo alto por lluvia en las próximas 24 h.')
-    expect(datos.firstElementChild).toHaveTextContent('Situación de la escuela')
-    expect(datos.children[1]).toBe(conclusion)
+    // La conclusión vive en RiesgoEscuela (motor); esta ficha sólo muestra datos de apoyo.
+    expect(within(datos).queryByTestId('ficha-territorial-conclusion')).toBeNull()
+    expect(within(datos).getByTestId('ficha-territorial-puntos')).toBeInTheDocument()
 
     const detalle = container.querySelector('details')
     expect(detalle).not.toBeNull()
@@ -530,9 +529,7 @@ describe('FichaTerritorial', () => {
 
     render(<FichaTerritorial cueAnexo={CUE} localidad="Corrientes" />)
 
-    const conclusion = await screen.findByTestId('ficha-territorial-conclusion')
-    expect(conclusion).toHaveTextContent('Río en nivel de evacuación en la estación de referencia.')
-    const puntos = screen.getByTestId('ficha-territorial-puntos')
+    const puntos = await screen.findByTestId('ficha-territorial-puntos')
     expect(puntos).toHaveTextContent('Río (Río Paraná - Corrientes): 9,50 m, evacuación')
   })
 

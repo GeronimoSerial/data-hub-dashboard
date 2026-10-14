@@ -577,10 +577,7 @@ export function FichaTerritorial({
 
   return (
     <section className="ficha-territorial" data-testid="ficha-territorial-datos">
-      <h4 className="ficha-territorial__titulo">{resumen.titulo}</h4>
-      <p className="ficha-territorial__conclusion" data-testid="ficha-territorial-conclusion">
-        {resumen.conclusion}
-      </p>
+      {/* La conclusión de la escuela sale del motor de riesgo (RiesgoEscuela); acá sólo los datos de apoyo. */}
       <ul className="ficha-territorial__puntos" data-testid="ficha-territorial-puntos">
         {resumen.puntos.map((punto) => (
           <li key={punto}>{punto}</li>
