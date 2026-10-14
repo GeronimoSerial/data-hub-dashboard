@@ -3,7 +3,7 @@
 // subir MOTOR_VERSION: un snapshot persiste la versión que lo produjo
 // (infra_risk_run.modeloVersion) para que "mismos inputs/misma versión →
 // mismo score" sea verificable después de que la configuración cambie.
-export const MOTOR_VERSION = 'motor-v0.2'
+export const MOTOR_VERSION = 'motor-v0.3'
 
 // Escala de nivel de riesgo (documento base §5.1). Límites inclusivos por el
 // borde inferior de cada tramo: score < 25 → bajo, etc.
@@ -17,10 +17,28 @@ export const UMBRAL_MUY_ALTO = 75
 // componentes presentes (nunca se imputa 0 en su lugar) — ver
 // motor/calculo.ts, normalizarPesos().
 export const PESOS_AMENAZA = {
-  peligroCelda: 0.5,
-  caudal: 0.3,
-  lluviaAntecedente: 0.2,
+  peligroCelda: 0.4,
+  caudal: 0.2,
+  rioPrefectura: 0.25,
+  lluviaAntecedente: 0.15,
 } as const
+// CAMBIO (motor-v0.2 -> motor-v0.3, odd/tasks/evidencia-riesgo-escuelas.md):
+// entra `rioPrefectura`, el estado oficial (normal/alerta/evacuación) de la
+// estación de Prefectura del tramo de la escuela, SÓLO para escuelas
+// físicamente expuestas a ese río (ver motor/rio-prefectura.ts). Es la única
+// señal OBSERVADA del río: el caudal GloFAS es pronóstico y queda nulo cuando
+// falta la climatología de caudal. Los pesos previos se reescalan
+// (0.5/0.3/0.2 -> 0.4/0.2/0.15). Para escuelas sin evidencia de río el
+// componente no existe (no cuenta como faltante) y la redistribución deja los
+// tres restantes en la misma proporción relativa de antes.
+
+// Piso de score por estado oficial del río en escuela expuesta. La amenaza
+// observada en el propio río de la escuela es evidencia directa: ni el resto
+// de los componentes (pronóstico "verde") ni la vulnerabilidad multiplicativa
+// (historial vacío) pueden borrarla. Evacuación => amenaza muy_alto y riesgo
+// >= alto; alerta => amenaza >= alto y riesgo >= moderado.
+export const PISO_AMENAZA_POR_ESTADO_RIO = { normal: null, alerta: 50, evacuacion: 75 } as const
+export const PISO_RIESGO_POR_ESTADO_RIO = { normal: null, alerta: 25, evacuacion: 50 } as const
 
 // Vulnerabilidad = combinación ponderada de historial de partes confirmados y
 // susceptibilidad estática (physrisk). Misma regla de redistribución de pesos

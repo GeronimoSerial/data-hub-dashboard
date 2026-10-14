@@ -13,6 +13,8 @@ import {
   NIVEL_PELIGRO_A_NUMERO,
   PESOS_AMENAZA,
   PESOS_VULNERABILIDAD,
+  PISO_AMENAZA_POR_ESTADO_RIO,
+  PISO_RIESGO_POR_ESTADO_RIO,
   UMBRAL_ALTO,
   UMBRAL_MODERADO,
   UMBRAL_MUY_ALTO,
@@ -20,6 +22,7 @@ import {
 } from './config'
 import type { Confianza, FactorRiesgo, NivelRiesgo, ResultadoRiesgoEscuela } from './tipos'
 import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
+import { valorAmenazaRio } from './rio-prefectura'
 
 const clamp0a100 = (valor: number): number => Math.min(100, Math.max(0, valor))
 const redondear2 = (valor: number): number => Math.round(valor * 100) / 100
@@ -271,7 +274,38 @@ export async function calcularRiesgoEscuela(params: {
   }
   if (!lluviaPresente) cantidadFaltantes += 1
 
-  const scoreAmenaza = cerrarDimension(componentesAmenaza)
+  // PASO 2d - Río observado (Prefectura). El adapter ya filtró tramo,
+  // exposición física y vigencia (<= 24 h): `null` significa "no aplica" y NO
+  // cuenta como faltante (la mayoría de las escuelas no está junto a un río).
+  const rio = puertos.rioPrefectura
+    ? await puertos.rioPrefectura.obtenerEvidencia({ cueAnexo, asOf })
+    : null
+  if (rio !== null) {
+    const valorNumerico = valorAmenazaRio(rio)
+    const tendencia =
+      rio.variacionM === null ? 's/d' : rio.variacionM > 0 ? 'crece' : rio.variacionM < 0 ? 'baja' : 'estac'
+    const factor: FactorRiesgo = {
+      tipo: 'amenaza',
+      fuente: 'rio-prefectura',
+      variable: 'altura_rio',
+      valor: rio.lecturaM,
+      unidad: 'm',
+      contribucion: 0,
+      peso: 0,
+      explicacion: `Rio ${rio.rio} en ${rio.estacionId}: ${rio.lecturaM}m, estado ${rio.estado} (alerta ${rio.alertaM ?? 's/d'}m, evacuacion ${rio.evacuacionM ?? 's/d'}m), tendencia ${tendencia}; escuela expuesta por ${rio.criterioExposicion}`,
+      observadoEn: rio.medidaEn,
+    }
+    factores.push(factor)
+    componentesAmenaza.push({ factor, valorNumerico, pesoBase: PESOS_AMENAZA.rioPrefectura })
+  }
+  const pisoAmenazaRio = rio === null ? null : PISO_AMENAZA_POR_ESTADO_RIO[rio.estado]
+  const pisoRiesgoRio = rio === null ? null : PISO_RIESGO_POR_ESTADO_RIO[rio.estado]
+
+  const scoreAmenazaPonderado = cerrarDimension(componentesAmenaza)
+  const scoreAmenaza =
+    scoreAmenazaPonderado !== null && pisoAmenazaRio !== null
+      ? Math.max(scoreAmenazaPonderado, pisoAmenazaRio)
+      : scoreAmenazaPonderado
 
   // PASO 3a - Historial (SIEMPRE presente: un resumen con 0 confirmadas es un
   // dato real, nunca una ausencia).
@@ -381,6 +415,7 @@ export async function calcularRiesgoEscuela(params: {
   let nivelRiesgo: NivelRiesgo | null = null
   if (evidenciaValida && scoreVulnerabilidad !== null) {
     scoreRiesgo = clamp0a100(Math.round((scoreAmenaza * scoreVulnerabilidad) / 100))
+    if (pisoRiesgoRio !== null) scoreRiesgo = Math.max(scoreRiesgo, pisoRiesgoRio)
     nivelRiesgo = clasificarNivel(scoreRiesgo)
   }
 

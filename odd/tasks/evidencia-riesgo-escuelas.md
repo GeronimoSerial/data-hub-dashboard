@@ -46,8 +46,8 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
   Not counted as missing for non-exposed schools (no confidence penalty).
 - **Weights** (`PESOS_AMENAZA`, motor-v0.3): peligroCelda .40, caudal .20,
   rioPrefectura .25, lluviaAntecedente .15 (redistribution rule unchanged).
-- **Observed-hazard floor**: exposed + evacuación ⇒ nivelRiesgo ≥ alto
-  (score ≥ 50); exposed + alerta ⇒ ≥ moderado (score ≥ 25). Rationale: an
+- **Observed-hazard floor**: exposed + evacuación ⇒ scoreAmenaza ≥ 75 and scoreRiesgo ≥ 50
+  (alto); exposed + alerta ⇒ scoreAmenaza ≥ 50 and scoreRiesgo ≥ 25 (moderado). Rationale: an
   official evacuation state on the school's own river is direct evidence; the
   multiplicative vulnerability must not erase it.
 - **SYNOP stations** (verified on Ogimet 2026-10-14): 87155 Resistencia Aero,
@@ -62,7 +62,7 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 ## Tasks
 - [x] T1 SYNOP 6RRRt decoder (pure) + real fixtures + tests
 - [x] T2 Persistence + Ogimet client + job `sync-synop-lluvia` (+cadence, jobs.mjs, DEPLOY notes)
-- [ ] T3 River evidence port/adapter + engine integration + floor + tests
+- [x] T3 River evidence port/adapter + engine integration + floor + tests
 - [ ] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
 - [ ] T5 Local recompute against dump (before/after per department, examples)
 
