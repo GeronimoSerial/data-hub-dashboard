@@ -94,7 +94,7 @@ import { agruparAlertas } from '@/lib/infraestructura/radar-meteo/alertas-agrupa
 import { useResumenRadarMeteo } from '@/lib/infraestructura/radar-meteo/use-resumen-radar-meteo'
 import { useRadar } from '@/lib/infraestructura/use-radar'
 import { colapsarAtribucion } from '@/lib/infraestructura/mapa/atribucion'
-import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
+import { CAPAS_VISIBLES_DEFAULT, guardarCapas, leerCapasGuardadas, visibilidadCapa, type CapasVisibles } from '@/lib/infraestructura/mapa/capas'
 import type { HorizonteMotor } from '@/lib/infraestructura/mapa/radar'
 import { useTerritorioMapa } from '@/lib/infraestructura/use-territorio-mapa'
 import { useGeometriaAcceso } from '@/lib/infraestructura/use-geometria-acceso'
@@ -621,6 +621,16 @@ export default function MapInfraestructuraPage(props: {
   const mapRef = useRef<MapRef>(null)
   const [basemap, setBasemap] = useState<BasemapId>('voyager')
   const [capasVisibles, setCapasVisibles] = useState<CapasVisibles>(CAPAS_VISIBLES_DEFAULT)
+  // Restored after mount (not in the initializer) so server and client render the same first frame.
+  const capasRestauradas = useRef(false)
+  useEffect(() => {
+    if (!capasRestauradas.current) {
+      capasRestauradas.current = true
+      setCapasVisibles(leerCapasGuardadas(almacenLocal()))
+      return
+    }
+    guardarCapas(almacenLocal(), capasVisibles)
+  }, [capasVisibles])
   const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
   const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
   const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
@@ -2089,4 +2099,12 @@ export default function MapInfraestructuraPage(props: {
 
     </div>
   )
+}
+
+function almacenLocal(): Storage | null {
+  try {
+    return typeof window === 'undefined' ? null : window.localStorage
+  } catch {
+    return null
+  }
 }

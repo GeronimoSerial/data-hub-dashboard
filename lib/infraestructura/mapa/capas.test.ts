@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { CAPAS_VISIBLES_DEFAULT, visibilidadCapa } from './capas'
+import { CAPAS_VISIBLES_DEFAULT, CLAVE_CAPAS_VISIBLES, guardarCapas, leerCapasGuardadas, visibilidadCapa } from './capas'
 
 describe('capas opcionales del mapa', () => {
   it('activa referencias, estaciones del río y eventos reportados por defecto y deja apagadas la lluvia observada y las escuelas aisladas', () => {
@@ -42,5 +42,37 @@ describe('capas opcionales del mapa', () => {
     expect(inicioRiesgo).toBeGreaterThanOrEqual(0)
     expect(inicioRiesgo).toBeGreaterThan(inicioPartes)
     expect(interactivas).not.toContain('infra-riesgo-situacion')
+  })
+})
+
+
+function almacenEnMemoria(inicial: Record<string, string> = {}) {
+  const datos = new Map(Object.entries(inicial))
+  return {
+    getItem: (clave: string) => datos.get(clave) ?? null,
+    setItem: (clave: string, valor: string) => void datos.set(clave, valor),
+  }
+}
+
+describe('capas visibles guardadas', () => {
+  it('sin almacén ni dato devuelve los valores por defecto', () => {
+    expect(leerCapasGuardadas(null)).toEqual(CAPAS_VISIBLES_DEFAULT)
+    expect(leerCapasGuardadas(almacenEnMemoria())).toEqual(CAPAS_VISIBLES_DEFAULT)
+  })
+
+  it('recupera lo guardado y completa las capas faltantes con el defecto', () => {
+    const almacen = almacenEnMemoria({ [CLAVE_CAPAS_VISIBLES]: JSON.stringify({ estacionesRio: false, otra: true }) })
+    expect(leerCapasGuardadas(almacen)).toEqual({ ...CAPAS_VISIBLES_DEFAULT, estacionesRio: false })
+  })
+
+  it('ignora un valor corrupto', () => {
+    expect(leerCapasGuardadas(almacenEnMemoria({ [CLAVE_CAPAS_VISIBLES]: '{no-json' }))).toEqual(CAPAS_VISIBLES_DEFAULT)
+  })
+
+  it('guarda y vuelve a leer, sin romper si el almacén falla', () => {
+    const almacen = almacenEnMemoria()
+    guardarCapas(almacen, { ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: true })
+    expect(leerCapasGuardadas(almacen).lluviaObservada).toBe(true)
+    expect(() => guardarCapas({ getItem: () => null, setItem: () => { throw new Error('lleno') } }, CAPAS_VISIBLES_DEFAULT)).not.toThrow()
   })
 })
