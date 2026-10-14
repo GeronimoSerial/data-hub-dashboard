@@ -197,6 +197,23 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `NODE_ENV` | `production` en despliegue | Cookies seguras por entorno | Runtime |
 | `VITEST` | sin default | Selección de DB en memoria para tests | Solo tests |
 
+### Jobs del veredicto diario
+
+Producción programa los jobs con **Coolify Scheduled Tasks** sobre la aplicación `data-hub-dashboard`; los timers
+systemd de `deploy/systemd/ops1/` corren solo en staging. Las expresiones cron están en UTC (confirmar la zona
+horaria del servidor de Coolify antes de crearlas, ver `docs/ejecucion-enos/OPS1/runbook-scheduler.md`).
+
+| Tarea Coolify (nombre) | Comando | Cron (UTC) | Timeout | Timer systemd (staging) |
+|---|---|---|---|---|
+| `veredicto-diario` | `node scripts/jobs.mjs veredicto-diario` | `45 0,6,12,18 * * *` | 600 s | `enos-ops1-veredicto-diario.timer` (`*-*-* 00,06,12,18:45:00 UTC`) |
+| `veredicto-cierre` | `node scripts/jobs.mjs veredicto-cierre` | `30 3 * * *` | 300 s | `enos-ops1-veredicto-cierre.timer` (`*-*-* 03:30:00 UTC`) |
+
+Requisitos en el contenedor: `ENOS_JOBS_ENABLED` distinto de `false`, `AI_VEREDICTO_ENABLED=true` y
+`OPENROUTER_API_KEY` (sin clave el job corre igual y publica la plantilla determinista). La migración `0015` se
+aplica sola: `jobs.mjs` migra antes de despachar. Los días de pronóstico necesitan además
+`sync-pronostico-caudal` y `sync-ensemble`, que hoy no están programados en producción; sin ellos esos días salen
+"Sin dato".
+
 ### Procedimientos operativos
 
 Después del primer despliegue y cada vez que se versionen nuevos resultados, importar las capas geo estáticas. El importador lee todos los archivos reconocidos de `GEO_STATIC_OUTPUT_DIR` (por defecto `services/geo-static/output`); admite además `--aislamiento PATH --susceptibilidad PATH --geometria PATH --exposicion-ruta PATH`:

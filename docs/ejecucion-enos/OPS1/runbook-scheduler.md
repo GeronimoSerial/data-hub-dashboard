@@ -43,6 +43,8 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | climatologia-caudal | `41 6 1 * *` | 1200 s | `calcular-hazard-climatologia-caudal` | mensual, cursor resumable; creado 2026-10-13 |
 | climatologia-precipitacion | `43 6 1 * *` | 1200 s | `calculo-climatologia` | mensual, cursor resumable; creado 2026-10-13 |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
+| veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
+| veredicto-cierre | `30 3 * * *` | 300 s | `veredicto-cierre-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-cierre`. Cierra el día ART anterior. |
 
 La zona horaria de las expresiones cron no está registrada en este runbook;
 confirmarla en la configuración de Coolify antes de comparar con los horarios UTC

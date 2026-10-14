@@ -109,6 +109,18 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   (PGlite sin migrar, presupuesto 0.001 → plantilla sin red). Protege que `jobs.mjs` migra antes de despachar.
   GREEN 1 test; prueba de mutante: comentando `await ensureSeeded()` falla con
   `relation "infra_job_run" does not exist`; `jobs.mjs` restaurado sin diff.
+- Fix post-revisión 2 (inline): producción programa con Coolify Scheduled Tasks, no con systemd (los timers solo
+  corren staging). Documentado en `docs/DEPLOY.md` ("Jobs del veredicto diario") y en la tabla de producción del
+  runbook, junto a los timers:
+
+  | Tarea Coolify | Comando | Cron (UTC) | Timeout |
+  |---|---|---|---|
+  | `veredicto-diario` | `node scripts/jobs.mjs veredicto-diario` | `45 0,6,12,18 * * *` | 600 s |
+  | `veredicto-cierre` | `node scripts/jobs.mjs veredicto-cierre` | `30 3 * * *` | 300 s |
+
+  Ambos jobs se registran en `jobs-esperados.ts` con `habilitado: false` hasta crear las tareas (el panel de salud
+  los reporta como `no_programado`, no como alarma). Hallazgo: `sync-pronostico-caudal` y `sync-ensemble` tampoco
+  están programados en producción, así que los días de pronóstico saldrán "Sin dato" hasta programarlos.
 
 ## Pendientes y diferidos
 
