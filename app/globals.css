@@ -6316,3 +6316,31 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   .map-sitact__eventos > summary::after,
   .riesgo-escuela__tecnico > summary::after { transition: none; }
 }
+
+/* One close button for every map popup and card: 32px hit area, centred 16px X. */
+.map-cerrar,
+.radar-escuela-card header button.map-cerrar,
+.radar-meteo-popup button.map-cerrar,
+.maplibregl-popup-close-button {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.map-cerrar > svg { width: 16px; height: 16px; }
+.map-cerrar:hover,
+.maplibregl-popup-close-button:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.map-cerrar:focus-visible,
+.maplibregl-popup-close-button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; opacity: 1; }
+.radar-meteo-popup button.map-cerrar { position: absolute; top: 4px; right: 4px; }
+.maplibregl-popup-close-button { position: absolute; top: 2px; right: 2px; }
+.radar-meteo-popup > strong { display: block; padding-right: 32px; }
