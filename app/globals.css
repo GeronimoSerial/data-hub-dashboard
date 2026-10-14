@@ -2241,6 +2241,7 @@ time {
   overflow-wrap: anywhere;
 }
 .map-leyenda__subtitulo { font-weight: 600; }
+.map-leyenda__credito { display: block; margin-top: var(--s-1); color: var(--ink-soft); font-size: var(--t-small); }
 .map-leyenda__icono { width: 14px; height: 14px; flex: 0 0 auto; color: var(--ink); }
 .map-shell[data-radar-activo='true'] .map-leyenda {
   z-index: 13;
