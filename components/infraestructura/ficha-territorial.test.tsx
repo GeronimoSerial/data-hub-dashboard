@@ -582,4 +582,39 @@ describe('FichaTerritorial', () => {
     expect(screen.queryByTestId('ficha-territorial-observado-24h')).not.toBeInTheDocument()
     expect(screen.queryByTestId('ficha-territorial-observado-72h')).not.toBeInTheDocument()
   })
+
+  it('un pronóstico al día lleva en el tooltip la fecha de su última corrida', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          niveles: [nivel(24, 'verde', 0)],
+          pronostico: [punto('precipitacion', 24, 0, 'mm')],
+          observado: [],
+        }),
+    })
+
+    const { container } = render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const dato = [...container.querySelectorAll('.dato-fechado')].find((n) => n.textContent?.startsWith('Pronóstico próximas 24 h'))
+    expect(dato?.getAttribute('title')).toBe('Actualizado 13/10 03:00')
+    expect(container.textContent).not.toMatch(/Sin fecha de actualización/)
+  })
+
+  it('un dato sin fecha conocida no muestra "Sin fecha de actualización"', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          niveles: [nivel(24, 'verde', 0)],
+          pronostico: [{ ...punto('precipitacion', 24, 0, 'mm'), corridaEn: null, validoEn: null }],
+          observado: [],
+        }),
+    })
+
+    const { container } = render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    expect(screen.getByText(/Pronóstico próximas 24 h/)).toBeInTheDocument()
+    expect(container.innerHTML).not.toMatch(/Sin fecha de actualización/)
+  })
 })
