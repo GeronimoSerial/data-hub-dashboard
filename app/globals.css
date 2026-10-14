@@ -2165,12 +2165,14 @@ time {
 .map-leyenda {
   position: absolute;
   z-index: 2;
-  left: calc(55px + var(--map-sidebar-ancho) + var(--s-3));
-  bottom: var(--s-3);
+  /* Bottom-right, above the attribution line and the fullscreen button, so it
+     never covers the province or a popup opened near the center. */
+  right: var(--s-3);
+  bottom: 4.25rem;
   display: grid;
   min-width: 0;
-  max-width: calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4));
-  max-height: min(60vh, 32rem);
+  width: min(20rem, calc(100% - 55px - var(--map-sidebar-ancho) - var(--s-4)));
+  max-height: min(45vh, 26rem);
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0 var(--s-3);
@@ -2273,7 +2275,15 @@ time {
   overscroll-behavior: contain;
   min-width: 0;
 }
-.map-sitact__eventos > summary { cursor: pointer; list-style-position: inside; }
+/* Event rows carry an 18 px badge instead of the 4 px severity stripe; the
+   provincial row has no badge and spans the full width. */
+.map-sitact__fila.map-eventos__fila { grid-template-columns: 18px minmax(0, 1fr); }
+.map-sitact__fila.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); cursor: pointer; list-style: none; }
+.map-sitact__eventos > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before { content: '▸'; color: var(--ink-faint); }
+.map-sitact__eventos[open] > summary::before { content: '▾'; }
+.map-sitact__eventos .map-sitact__titulo-seccion { flex: 1 1 auto; flex-wrap: wrap; row-gap: 2px; }
 .map-leyenda__aviso {
   margin-top: var(--s-1);
   padding: var(--s-1) var(--s-2);
@@ -2289,8 +2299,9 @@ time {
 }
 @media (max-width: 720px) {
   .map-leyenda {
+    right: auto;
     left: 50%;
-    max-width: calc(100% - var(--s-4));
+    width: calc(100% - var(--s-4));
     transform: translateX(-50%);
   }
 }
@@ -2914,6 +2925,10 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   line-height: 1;
   margin: 0 0 var(--s-2);
 }
+.map-popup-cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-2); }
+.map-popup-cabecera .map-popup-title { flex: 1 1 auto; min-width: 0; line-height: 1.15; overflow-wrap: break-word; }
+.map-popup-badge { flex: 0 0 auto; white-space: nowrap; }
+.map-popup-hechos { margin: var(--s-1) 0; padding-left: 1.1rem; }
 .map-popup-row { margin: 2px 0; }
 .map-popup-muted { color: var(--ink-soft); }
 .map-popup-rule { margin: var(--s-2) 0; border: 0; border-top: 1px solid var(--line-soft); }

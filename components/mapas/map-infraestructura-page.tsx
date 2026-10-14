@@ -475,6 +475,7 @@ type InfoCruceClic = { lng: number; lat: number; clasificacion: ClasificacionCru
 
 // El departamento no tiene marcador debajo, así que el popup se conforma con
 // un offset vertical mínimo para no tapar el punto clickeado.
+const OFFSET_VUELO_EVENTO: [number, number] = [140, 160]
 const OFFSET_POPUP_DEPARTAMENTO: [number, number] = [0, -12]
 const PROPS_POPUP_INFO = {
   closeButton: false,
@@ -622,10 +623,12 @@ export default function MapInfraestructuraPage(props: {
   const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
   const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
   const [eventoResaltado, setEventoResaltado] = useState<string | null>(null)
+  // Land the event right of the side panel and low enough that its popup (anchored
+  // at the bottom, up to ~320 px tall) fits under the tab bar.
   const seleccionarEvento = useCallback((id: string) => {
     const item = resumenEventos?.eventos.find((evento) => evento.id === id)
     if (!item || item.lon === null || item.lat === null) return
-    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), duration: 800 })
+    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), offset: OFFSET_VUELO_EVENTO, duration: 800 })
     setEventoSeleccionado(id)
   }, [resumenEventos])
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)

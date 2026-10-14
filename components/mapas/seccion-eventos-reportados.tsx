@@ -60,7 +60,7 @@ function FilaEvento({
   return (
     <button
       type="button"
-      className="map-sitact__fila"
+      className="map-sitact__fila map-eventos__fila"
       aria-disabled={bloqueado ? 'true' : undefined}
       aria-label={`${evento.titulo}, ${evento.lugar}`}
       onClick={() => {

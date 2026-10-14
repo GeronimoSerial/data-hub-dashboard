@@ -239,13 +239,14 @@ describe('LeyendaMapa · eventos reportados', () => {
 })
 
 describe('LeyendaMapa · posición', () => {
-  it('ancla la leyenda al lado del sidebar en escritorio', async () => {
+  it('ancla la leyenda abajo a la derecha, sobre la atribución, en escritorio', async () => {
     const fs = await import('node:fs')
     const css = fs.readFileSync('app/globals.css', 'utf8')
     const regla = css.match(/\.map-leyenda\s*\{([^}]+)\}/)?.[1]
-    expect(regla).toMatch(/left:\s*calc\(55px\s*\+\s*var\(--map-sidebar-ancho\)\s*\+\s*var\(--s-3\)\)/)
+    expect(regla).toMatch(/right:\s*var\(--s-3\)/)
+    expect(regla).toMatch(/bottom:\s*4\.25rem/)
     expect(regla).not.toMatch(/transform:\s*translateX\(-50%\)/)
-    expect(regla).toMatch(/max-height:\s*min\(60vh,\s*32rem\)/)
+    expect(regla).toMatch(/max-height:\s*min\(45vh,\s*26rem\)/)
     expect(regla).toMatch(/overscroll-behavior:\s*contain/)
   })
 })
