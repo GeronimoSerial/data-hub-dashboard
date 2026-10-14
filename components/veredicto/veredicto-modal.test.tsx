@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, afterEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { VeredictoModal, type EventoTerreno } from './veredicto-modal'
 import type { DtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 
 afterEach(() => {
+  cleanup()
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
 })
@@ -70,10 +71,17 @@ function evento(overrides: Partial<EventoTerreno>): EventoTerreno {
   }
 }
 
-function mockFetchVeredictos(veredictos: DtoVeredicto[]) {
-  const fetchMock = vi.fn(async () => jsonResponse({ veredictos }, 200))
+function mockFetchVeredictos(veredictos: DtoVeredicto[], puntosRadar: unknown[] = []) {
+  const fetchMock = vi.fn(async (url: string) => {
+    if (url.includes('/radar')) return jsonResponse({ puntos: puntosRadar }, 200)
+    return jsonResponse({ veredictos }, 200)
+  })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
+}
+
+function punto(overrides: { departamento: string | null; horizonteHoras: number; nivelRiesgo: string | null }) {
+  return { id: 'p', nombre: 'Escuela', ...overrides }
 }
 
 const ayer = fechaLocal(-1)
@@ -151,6 +159,24 @@ describe('VeredictoModal', () => {
 
     fireEvent.click(within(seccion).getByRole('button', { name: 'Ver en el mapa' }))
     expect(onSeleccionarDepartamento).toHaveBeenCalledWith('PASO DE LOS LIBRES')
+  })
+
+  it('cuenta escuelas por riesgo actual (72 h) por departamento y muestra la nota', async () => {
+    mockFetchVeredictos(
+      [veredicto({ id: 'd', fecha: hoy, ambito: 'departamento:ITUZAINGÓ', nivel: 'alerta', texto: 'Señal en Ituzaingó.' })],
+      [
+        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'alto' }),
+        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'alto' }),
+        punto({ departamento: 'ITUZAINGO', horizonteHoras: 72, nivelRiesgo: 'bajo' }),
+        punto({ departamento: 'ITUZAINGO', horizonteHoras: 24, nivelRiesgo: 'alto' }),
+      ],
+    )
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const seccion = await screen.findByRole('region', { name: 'Departamentos con señal' })
+    expect(within(seccion).getByText('Nivel del día según reglas del veredicto: lluvia, ríos y pronóstico por departamento.')).toBeVisible()
+    const escuelas = await within(seccion).findByTestId('veredicto-depto-escuelas')
+    expect(escuelas).toHaveTextContent('Escuelas por riesgo actual (hoy): 2 alto · 1 bajo')
   })
 
   it('muestra la nota de generación por reglas cuando la fuente es plantilla', async () => {

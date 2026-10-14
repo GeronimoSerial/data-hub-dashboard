@@ -6143,6 +6143,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .veredicto-depto { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); padding: var(--s-2) var(--s-3); background: var(--fill); border-radius: var(--r-sm); }
 .veredicto-depto__nombre { font-weight: 700; }
 .veredicto-depto__resumen { flex: 1 1 16rem; color: var(--ink-soft); font-size: var(--t-small); }
+.veredicto-depto__escuelas { flex: 1 1 100%; color: var(--ink-soft); font-size: var(--t-micro); }
+.veredicto-seccion__nota { margin: 0 0 var(--s-2); color: var(--ink-soft); font-size: var(--t-micro); }
 .veredicto-evento { display: grid; gap: var(--s-1); padding: var(--s-2) var(--s-3); border-left: 3px solid var(--line); font-size: var(--t-small); }
 .veredicto-evento a { color: var(--accent); }
 

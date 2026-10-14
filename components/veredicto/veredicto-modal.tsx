@@ -63,6 +63,49 @@ function primeraOracion(texto: string | null): string {
   return texto.split(/(?<=[.!?])\s/)[0] ?? ''
 }
 
+type NivelRadar = 'bajo' | 'moderado' | 'alto' | 'muy_alto'
+type PuntoRadar = {
+  departamento: string | null
+  horizonteHoras: number
+  nivelRiesgo: NivelRadar | null
+}
+type ConteoNiveles = Partial<Record<NivelRadar, number>>
+
+const ORDEN_NIVELES_RADAR: NivelRadar[] = ['muy_alto', 'alto', 'moderado', 'bajo']
+const ETIQUETA_NIVEL_RADAR: Record<NivelRadar, string> = {
+  muy_alto: 'muy alto',
+  alto: 'alto',
+  moderado: 'moderado',
+  bajo: 'bajo',
+}
+
+function claveDepartamento(nombre: string): string {
+  return nombre
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim()
+}
+
+function contarNivelesPorDepartamento(puntos: PuntoRadar[]): Record<string, ConteoNiveles> {
+  const mapa: Record<string, ConteoNiveles> = {}
+  for (const p of puntos) {
+    if (p.horizonteHoras !== 72 || !p.nivelRiesgo || !p.departamento) continue
+    const clave = claveDepartamento(p.departamento)
+    const conteo = mapa[clave] ?? {}
+    conteo[p.nivelRiesgo] = (conteo[p.nivelRiesgo] ?? 0) + 1
+    mapa[clave] = conteo
+  }
+  return mapa
+}
+
+function textoEscuelasPorRiesgo(conteo: ConteoNiveles | undefined): string {
+  if (!conteo) return ''
+  return ORDEN_NIVELES_RADAR.filter((nivel) => (conteo[nivel] ?? 0) > 0)
+    .map((nivel) => `${conteo[nivel]} ${ETIQUETA_NIVEL_RADAR[nivel]}`)
+    .join(' · ')
+}
+
 function etiquetaMetrica(metrica: MetricaDtoVeredicto): string {
   const unidad = metrica.unidad ? ` ${metrica.unidad}` : ''
   return `${metrica.etiqueta} ${String(metrica.valor)}${unidad}`
@@ -194,7 +237,30 @@ export function VeredictoModal({
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
+  const [conteoRadar, setConteoRadar] = useState<Record<string, ConteoNiveles>>({})
   const [ahoraMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    if (!open) return
+    let cancelado = false
+    fetch('/api/infraestructura/radar?horizonte=72&pageSize=1', {
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = (await res.json()) as { puntos?: PuntoRadar[] }
+        return contarNivelesPorDepartamento(Array.isArray(body.puntos) ? body.puntos : [])
+      })
+      .then((conteo) => {
+        if (!cancelado) setConteoRadar(conteo)
+      })
+      .catch(() => {
+        // Fallo silencioso: sin conteos, la lista de departamentos sigue igual.
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -314,6 +380,9 @@ export function VeredictoModal({
 
             <section aria-label="Departamentos con señal" className="veredicto-seccion">
               <h3>Departamentos con señal</h3>
+              <p className="veredicto-seccion__nota">
+                Nivel del día según reglas del veredicto: lluvia, ríos y pronóstico por departamento.
+              </p>
               {departamentos.length === 0 ? (
                 <p className="veredicto-seccion__vacio">Sin departamentos con señal para este día.</p>
               ) : (
@@ -327,6 +396,12 @@ export function VeredictoModal({
                         <NivelChip nivel={d.nivel} />
                         <span className="veredicto-depto__nombre">{prettifyDepartamento(id)}</span>
                         <span className="veredicto-depto__resumen">{primeraOracion(d.texto)}</span>
+                        {textoEscuelasPorRiesgo(conteoRadar[claveDepartamento(id)]) ? (
+                          <span className="veredicto-depto__escuelas" data-testid="veredicto-depto-escuelas">
+                            Escuelas por riesgo actual (hoy):{' '}
+                            {textoEscuelasPorRiesgo(conteoRadar[claveDepartamento(id)])}
+                          </span>
+                        ) : null}
                         <Button type="button" variant="ghost" size="sm" onClick={() => onSeleccionarDepartamento?.(id)}>
                           Ver en el mapa
                         </Button>
