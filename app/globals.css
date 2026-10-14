@@ -6291,7 +6291,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .ayuda-leyenda > summary::-webkit-details-marker,
 .ficha-territorial__detalle > summary::-webkit-details-marker,
 .riesgo-escuela__tecnico > summary::-webkit-details-marker { display: none; }
-.map-sitact__eventos > summary::before { content: none; }
+.map-sitact__eventos > summary::before,
+.map-sitact__eventos[open] > summary::before { content: none; }
 .ficha-territorial__ayuda > summary::after,
 .ayuda-leyenda > summary::after,
 .ficha-territorial__detalle > summary::after,
