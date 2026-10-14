@@ -139,21 +139,22 @@ function esRioExpuesto(factor: FactorMotor): boolean {
 
 function textoRio(factor: FactorMotor): string {
   const valor = factor.valor ?? 0
-  const fallback = `Río: ${numero(valor, 2)} m.`
+  const fallback = `Altura del río: ${numero(valor, 2)} m.`
   const partes = REGEX_RIO.exec(factor.explicacion ?? '')
   if (partes === null) return fallback
 
   const [, rio, estacion, estado, alerta, evacuacion, tendencia] = partes
-  const nivelEstado = estado.toLowerCase() === 'evacuacion' ? evacuacion : alerta
+  const clave = estado.toLowerCase()
+  // Altura explícita, estado al lado y umbrales como dato secundario.
   const textoEstado =
-    estado.toLowerCase() === 'evacuacion'
-      ? `por encima del nivel de evacuación (${numero(Number(nivelEstado), 2)} m)`
-      : estado.toLowerCase() === 'alerta'
-        ? `por encima del nivel de alerta (${numero(Number(nivelEstado), 2)} m)`
-        : `por debajo del nivel de alerta (${numero(Number(nivelEstado), 2)} m)`
+    clave === 'evacuacion'
+      ? `Evacuación (evacuación ${numero(Number(evacuacion), 2)} m)`
+      : clave === 'alerta'
+        ? `Alerta (alerta ${numero(Number(alerta), 2)} m)`
+        : `Normal (alerta ${numero(Number(alerta), 2)} m)`
   const clausulaTendencia = TENDENCIA[tendencia.toLowerCase()] ?? ''
 
-  return `Río ${nombreRio(rio)} en ${nombreEstacion(estacion)}: ${numero(valor, 2)} m${clausulaTendencia}, ${textoEstado}.`
+  return `Río ${nombreRio(rio)} en ${nombreEstacion(estacion)} — Altura del río: ${numero(valor, 2)} m${clausulaTendencia} · ${textoEstado}.`
 }
 
 const TENDENCIA: Record<string, string> = {

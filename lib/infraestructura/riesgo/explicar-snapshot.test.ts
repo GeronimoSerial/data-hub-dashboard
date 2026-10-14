@@ -90,11 +90,11 @@ describe('explicarSnapshot', () => {
     expect(resultado.nivel).toBe('alto')
     expect(resultado.etiquetaNivel).toBe('Alto')
     expect(resultado.conclusion).toBe(
-      'Riesgo actual alto. Río Paraná en Ituzaingó: 4,03 m y creciendo, por encima del nivel de evacuación (4,00 m).',
+      'Riesgo actual alto. Río Paraná en Ituzaingó — Altura del río: 4,03 m y creciendo · Evacuación (evacuación 4,00 m).',
     )
     expect(resultado.situacionActual).toHaveLength(2)
     expect(resultado.situacionActual[0]).toBe(
-      'Río Paraná en Ituzaingó: 4,03 m y creciendo, por encima del nivel de evacuación (4,00 m).',
+      'Río Paraná en Ituzaingó — Altura del río: 4,03 m y creciendo · Evacuación (evacuación 4,00 m).',
     )
     expect(resultado.situacionActual[1]).toBe('Lluvia de las últimas 72 h: 20 mm.')
     expect(resultado.zonaExpuesta).toBe('La escuela está en zona expuesta a crecidas del río.')
@@ -170,7 +170,7 @@ describe('explicarSnapshot', () => {
     )
 
     expect(resultado.conclusion).toBe(
-      'Riesgo actual moderado: conviene seguir la evolución. Río Uruguay en Paso de la Patria: 3,60 m y bajando, por encima del nivel de alerta (3,50 m).',
+      'Riesgo actual moderado: conviene seguir la evolución. Río Uruguay en Paso de la Patria — Altura del río: 3,60 m y bajando · Alerta (alerta 3,50 m).',
     )
     expect(resultado.zonaExpuesta).toBeNull()
   })
