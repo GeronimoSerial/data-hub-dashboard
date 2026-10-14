@@ -49,6 +49,7 @@ const NOMBRES_VALIDOS = [
   'sync-prefectura-alturas',
   'sync-synop-lluvia',
   'sync-prefectura-historico',
+  'importar-exposicion-rio-dem',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -311,6 +312,15 @@ async function correrSyncPrefecturaHistorico() {
   return syncPrefecturaHistorico()
 }
 
+// Capa estática DEM escuela-río (CSV versionado de geo-static): idempotente.
+async function correrImportarExposicionRioDem() {
+  if (!(await jobsActivos())) return flagDeshabilitado('importar-exposicion-rio-dem')
+  const { importarExposicionRioDem } = await import(
+    '../lib/infraestructura/riesgo/jobs/importar-exposicion-rio-dem.ts'
+  )
+  return importarExposicionRioDem()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -440,6 +450,8 @@ export async function correrJob(nombre, opts) {
       return correrSyncSynopLluvia()
     case 'sync-prefectura-historico':
       return correrSyncPrefecturaHistorico()
+    case 'importar-exposicion-rio-dem':
+      return correrImportarExposicionRioDem()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -457,6 +469,7 @@ export function codigoSalida(nombreJob, resultado) {
   if (nombreJob === 'sync-prefectura-alturas' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
   if (nombreJob === 'sync-prefectura-historico' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'importar-exposicion-rio-dem' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3

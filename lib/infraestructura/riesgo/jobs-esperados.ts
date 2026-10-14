@@ -66,4 +66,10 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 1440,
     habilitado: false,
   },
+  {
+    nombre: 'importar-exposicion-rio-dem',
+    tipo: 'importar-exposicion-rio-dem',
+    intervaloMinutos: 1440,
+    habilitado: false,
+  },
 ]

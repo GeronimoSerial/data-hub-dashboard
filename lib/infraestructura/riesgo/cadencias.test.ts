@@ -127,5 +127,6 @@ describe('TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB', () => {
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-prefectura-alturas']).toBe('sync-prefectura-alturas')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-synop-lluvia']).toBe('sync-synop-lluvia')
     expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['sync-prefectura-historico']).toBe('sync-prefectura-historico')
+    expect(TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB['importar-exposicion-rio-dem']).toBe('importar-exposicion-rio-dem')
   })
 })

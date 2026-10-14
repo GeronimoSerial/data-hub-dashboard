@@ -17,6 +17,7 @@ export type NombreJob =
   | 'sync-prefectura-alturas'
   | 'sync-synop-lluvia'
   | 'sync-prefectura-historico'
+  | 'importar-exposicion-rio-dem'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -84,6 +85,11 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Recalcula el nivel de referencia (365 días) de cada estación de Prefectura (diario)',
   },
+  // Capa estática versionada (geo-static): idempotente, no-op si ya está importada.
+  'importar-exposicion-rio-dem': {
+    minutos: 1440,
+    descripcion: 'Importa la exposición estática escuela-río del DEM (geo-static, diario e idempotente)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -107,6 +113,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-prefectura-alturas': 'sync-prefectura-alturas',
   'sync-synop-lluvia': 'sync-synop-lluvia',
   'sync-prefectura-historico': 'sync-prefectura-historico',
+  'importar-exposicion-rio-dem': 'importar-exposicion-rio-dem',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su
