@@ -6,6 +6,17 @@
 // confundirlos con un período sin datos. Los mensajes son fijos: nunca incluyen
 // el cuerpo de la respuesta.
 
+import { getDefaultAutoSelectFamilyAttemptTimeout, setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net'
+
+// Happy Eyeballs de Node espera 250 ms por familia de direcciones. El handshake
+// IPv4 con Ogimet tarda más desde Argentina y, sin IPv6 en el host, fetch
+// aborta con ETIMEDOUT aunque curl conecte en < 1 s (diagnóstico 2026-10-14).
+// Subir el umbral sólo agrega paciencia; nunca lo baja si ya es mayor.
+const ESPERA_POR_FAMILIA_MS = 2000
+if (getDefaultAutoSelectFamilyAttemptTimeout() < ESPERA_POR_FAMILIA_MS) {
+  setDefaultAutoSelectFamilyAttemptTimeout(ESPERA_POR_FAMILIA_MS)
+}
+
 export const URL_OGIMET_SYNOP = 'https://www.ogimet.com/cgi-bin/getsynop'
 
 export const USER_AGENT_OGIMET = 'data-hub-dashboard/1.0 (+riesgo escuelas Corrientes)'

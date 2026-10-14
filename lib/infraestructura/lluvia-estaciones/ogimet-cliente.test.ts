@@ -1,3 +1,4 @@
+import { getDefaultAutoSelectFamilyAttemptTimeout } from 'node:net'
 import { describe, expect, it, vi } from 'vitest'
 import { ErrorOgimet, descargarSynopOgimet, URL_OGIMET_SYNOP } from './ogimet-cliente'
 
@@ -92,5 +93,11 @@ describe('descargarSynopOgimet', () => {
     await expect(
       descargarSynopOgimet({ wmo: '87166', desde: DESDE, hasta: HASTA, fetchImpl, timeoutMs: 20 }),
     ).rejects.toBeInstanceOf(ErrorOgimet)
+  })
+})
+
+describe('conexión a Ogimet', () => {
+  it('sube el timeout de Happy Eyeballs a >= 2 s (con 250 ms Node aborta la conexión IPv4 lenta)', () => {
+    expect(getDefaultAutoSelectFamilyAttemptTimeout()).toBeGreaterThanOrEqual(2000)
   })
 })
