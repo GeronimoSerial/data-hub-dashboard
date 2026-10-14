@@ -941,6 +941,47 @@ export const lluviaEstacion = pgTable(
   ],
 )
 
+// Nivel de referencia por estación de Prefectura: estadísticas de las lecturas
+// de los últimos `ventana_dias` días (página histórica de PNA). El motor usa la
+// mediana como el nivel "típico" al que corresponde la superficie de agua del
+// DEM (anomalía = lectura actual - mediana). Una fila por estación y ventana.
+export const hidroReferencia = pgTable(
+  'hidro_referencia',
+  {
+    estacionId: text('estacion_id').notNull(),
+    ventanaDias: integer('ventana_dias').notNull(),
+    n: integer('n').notNull(),
+    medianaM: doublePrecision('mediana_m').notNull(),
+    p10M: doublePrecision('p10_m').notNull(),
+    p90M: doublePrecision('p90_m').notNull(),
+    desde: text('desde').notNull(),
+    hasta: text('hasta').notNull(),
+    fuente: text('fuente').notNull().default('prefectura-historico'),
+    calculadoEn: text('calculado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.estacionId, t.ventanaDias] })],
+)
+
+// Exposición física estática de la escuela al río según el DEM (geo-static,
+// job calcular_exposicion_rio_dem): cota del suelo (p10 DEM a 50 m), cota DEM
+// del agua permanente más cercana (p10 de píxeles GSW >= 90 a <= 2 km) y
+// distancia horizontal a ese agua. El motor la combina con el nivel actual del
+// río (anomalía de la estación) para la exposición dinámica "estimada".
+export const infraExposicionRioDem = pgTable(
+  'infra_exposicion_rio_dem',
+  {
+    cueAnexo: text('cue_anexo').notNull(),
+    versionJob: text('version_job').notNull(),
+    sueloM: real('suelo_m'),
+    nivelRioDemM: real('nivel_rio_dem_m'),
+    distanciaRioM: real('distancia_rio_m'),
+    fuente: text('fuente').notNull(),
+    fechaCorrida: text('fecha_corrida').notNull(),
+    importadoEn: text('importado_en').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cueAnexo, t.versionJob] })],
+)
+
 // E7a: episodios derivados (calculados automáticamente)
 // Episodio por unidad territorial (hoy sólo 'departamento'; el tipo queda
 // parametrizado para poder pasar a 'cuenca' en una versión futura de la
