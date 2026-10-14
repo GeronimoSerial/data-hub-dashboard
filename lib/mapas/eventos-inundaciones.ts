@@ -172,6 +172,15 @@ export function centroidesLocalidadesEscuelas(filas: readonly EscuelaLocalizada[
 }
 
 /**
+ * Locality reference points in lookup order: school medians first (town-level,
+ * built from real school positions), then `localities.geojson`, whose points
+ * are area centroids and can sit tens of km from the town (e.g. Goya, La Cruz).
+ */
+export function puntosDeLocalidades(localidadesGeojson: Punto[], escuelas: readonly EscuelaLocalizada[]): Punto[] {
+  return [...centroidesLocalidadesEscuelas(escuelas), ...localidadesGeojson]
+}
+
+/**
  * Minimal RFC 4180 parser: quoted fields, escaped quotes (""), commas and
  * newlines inside quotes, CRLF or LF line endings. Returns one object per
  * data row keyed by the header row.

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { auditarUbicaciones,
   centroidesLocalidadesEscuelas,
+  puntosDeLocalidades,
   etiquetaConfianza,
   etiquetaEstado,
   EVENTOS_INUNDACIONES_URLS,
@@ -290,11 +291,11 @@ describe('eventos-inundaciones real data', () => {
     const resultado = ubicarEventos({
       eventos,
       evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
-      localidades: locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
+      localidades: puntosDeLocalidades(locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
         nombre: f.properties.name,
         lon: f.geometry.coordinates[0],
         lat: f.geometry.coordinates[1],
-      })).concat(centroidesLocalidadesEscuelas(JSON.parse(leer('data/localizaciones.json')))),
+      })), JSON.parse(leer('data/localizaciones.json'))),
       departamentos: deps.features.map((f: { properties: { nombre: string; centroide: { lon: number; lat: number } } }) => ({
         nombre: f.properties.nombre,
         lon: f.properties.centroide.lon,
@@ -342,11 +343,11 @@ describe('eventos-inundaciones real data', () => {
     const resultado = ubicarEventos({
       eventos,
       evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
-      localidades: locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
+      localidades: puntosDeLocalidades(locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
         nombre: f.properties.name,
         lon: f.geometry.coordinates[0],
         lat: f.geometry.coordinates[1],
-      })).concat(centroidesLocalidadesEscuelas(JSON.parse(leer('data/localizaciones.json')))),
+      })), JSON.parse(leer('data/localizaciones.json'))),
       departamentos: deps.features.map((f: { properties: { nombre: string; centroide: { lon: number; lat: number } } }) => ({
         nombre: f.properties.nombre,
         lon: f.properties.centroide.lon,
@@ -400,11 +401,11 @@ function ubicarDatosReales() {
   return ubicarEventos({
     eventos,
     evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
-    localidades: locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
+    localidades: puntosDeLocalidades(locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
       nombre: f.properties.name,
       lon: f.geometry.coordinates[0],
       lat: f.geometry.coordinates[1],
-    })).concat(centroidesLocalidadesEscuelas(JSON.parse(leer('data/localizaciones.json')))),
+    })), JSON.parse(leer('data/localizaciones.json'))),
     departamentos: deps.features.map((f: { properties: { nombre: string; centroide: { lon: number; lat: number } } }) => ({
       nombre: f.properties.nombre,
       lon: f.properties.centroide.lon,
@@ -519,5 +520,15 @@ describe('centroidesLocalidadesEscuelas', () => {
       { localidad: 'SIN COORDENADAS', lat: null, lon: null, geoCalidad: null },
     ])
     expect(puntos).toEqual([{ nombre: 'PASO DE LOS LIBRES', origen: 'escuelas', lat: -29.72, lon: -57.09 }])
+  })
+})
+
+describe('puntosDeLocalidades', () => {
+  it('prefers school medians over area centroids from localities.geojson', () => {
+    const puntos = puntosDeLocalidades(
+      [{ nombre: 'GOYA', lat: -29.4155, lon: -59.246 }],
+      [{ localidad: 'GOYA', lat: -29.1487, lon: -59.2611, geoCalidad: null }],
+    )
+    expect(puntos[0]).toMatchObject({ nombre: 'GOYA', lat: -29.1487 })
   })
 })

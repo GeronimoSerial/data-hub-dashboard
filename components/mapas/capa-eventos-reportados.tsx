@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Marker, Popup } from 'react-map-gl/maplibre'
 import {
-  centroidesLocalidadesEscuelas,
+  puntosDeLocalidades,
   EVENTOS_INUNDACIONES_URLS,
   LOCALIZACIONES_ESCUELAS_URL,
   type EscuelaLocalizada,
@@ -65,7 +65,7 @@ async function cargarEventos(): Promise<EventoUbicado[]> {
   const resultado = ubicarEventos({
     eventos: eventos as EntradaUbicacion['eventos'],
     evidenciasCsv: evidenciasRespuesta,
-    localidades: puntosDeGeojson(localidades).concat(centroidesLocalidadesEscuelas(localizaciones as EscuelaLocalizada[])),
+    localidades: puntosDeLocalidades(puntosDeGeojson(localidades), localizaciones as EscuelaLocalizada[]),
     departamentos: centroidesDepartamentos(departamentos),
     estaciones: CATALOGO_ESTACIONES_PREFECTURA,
   })
