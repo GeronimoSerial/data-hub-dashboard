@@ -561,6 +561,7 @@ vi.mock('react-map-gl/maplibre', () => {
       // pertenece a `infra-partes-escuela-icono`.
       ['mock-click-escuela-icono', feature('infra-partes-escuela-icono', { cueAnexo: CUE_SIN_AFECTACION })],
       ['mock-click-punto-nivel', feature('infra-puntos-nivel', { cueAnexo: CUE })],
+      ['mock-click-riesgo-hoy', feature('infra-riesgo-hoy', { cueAnexo: CUE })],
       ['mock-click-vacio-radar', [], { lng: -58.82, lat: -27.48 }],
       ['mock-click-departamento', feature('infra-departamentos-relleno', { nombre: 'Capital' }), { lng: -58.8, lat: -27.5 }],
       ['mock-click-departamento-empedrado', feature('infra-departamentos-relleno', { nombre: 'Empedrado' }), { lng: -58.8, lat: -27.5 }],
@@ -1155,6 +1156,36 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     await userEvent.click(screen.getByTestId('mock-click-vacio-radar'))
     expect(clicksMeteorologicos).toEqual([{ lat: -27.48, lng: -58.82 }])
     window.removeEventListener('radar-meteo-map-click', escucharClickMeteorologico)
+  })
+
+  it('fuera de Radar, la capa Escuelas en riesgo hoy encendida dibuja sólo moderado o más y el clic abre la ficha', async () => {
+    window.localStorage.setItem('mapa-infraestructura:capas-visibles', JSON.stringify({ escuelasEnRiesgo: true }))
+    try {
+      const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+
+      const fuente = await screen.findByTestId('mock-source-infra-riesgo-hoy-src')
+      const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
+      const pesos = new Map(geojson.features.map((f: { properties: { cueAnexo: string; peso: number; color: string } }) => [f.properties.cueAnexo, [f.properties.peso, f.properties.color]]))
+      expect(pesos.get(CUE)).toEqual([2, colorRiesgo('alto')])
+      expect(pesos.has(CUE_SIN_AFECTACION)).toBe(false)
+      expect(llamadasRadar.activos).toContain(true)
+
+      await userEvent.click(screen.getByTestId('mock-click-riesgo-hoy'))
+      expect(screen.getByTestId('mock-ficha-escuela')).toHaveAttribute('data-cue', CUE)
+
+      // In Radar the main risk layer already draws it: the extra layer is not mounted.
+      vista.rerender({ pestana: 'radar' })
+      expect(screen.queryByTestId('mock-source-infra-riesgo-hoy-src')).not.toBeInTheDocument()
+    } finally {
+      window.localStorage.removeItem('mapa-infraestructura:capas-visibles')
+    }
+  })
+
+  it('fuera de Radar, con la capa apagada no consulta el radar ni monta Escuelas en riesgo hoy', async () => {
+    llamadasRadar.activos.length = 0
+    await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'actual' })
+    expect(screen.queryByTestId('mock-source-infra-riesgo-hoy-src')).not.toBeInTheDocument()
+    expect(llamadasRadar.activos).not.toContain(true)
   })
 
   it('al cambiar el horizonte vuelve a consultar el radar con el valor elegido', async () => {
