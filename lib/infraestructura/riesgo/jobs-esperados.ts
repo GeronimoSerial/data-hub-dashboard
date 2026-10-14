@@ -58,4 +58,8 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 60,
     habilitado: true,
   },
+  // Veredicto diario: Coolify Scheduled Tasks `45 0,6,12,18 * * *` y `30 3 * * *`
+  // (docs/DEPLOY.md). Pendientes de crear en producción.
+  { nombre: 'veredicto-diario', tipo: 'veredicto-diario-v0', intervaloMinutos: 360, habilitado: false },
+  { nombre: 'veredicto-cierre', tipo: 'veredicto-cierre-v0', intervaloMinutos: 1440, habilitado: false },
 ]
