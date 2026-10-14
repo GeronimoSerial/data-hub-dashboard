@@ -4,13 +4,22 @@ import pytest
 from geo_static.margen_inundacion import calcular_margenes, distancia_m
 
 
-def test_margen_usa_mediana_del_nivel_de_la_llanura_inundada():
+def test_margen_usa_p10_del_nivel_de_la_llanura_inundada():
     suelo = np.full(10, 10.0)
     agua = np.full(5, 5.0)
     llanura = {10: (np.array([5.0, 5.0, 5.0]), np.array([1.0, 2.0, 3.0]))}
 
-    # niveles 6, 7 y 8 -> mediana 7
-    assert calcular_margenes(suelo, agua, llanura) == {10: pytest.approx(3.0)}
+    # niveles 6, 7 y 8 -> p10 6.2 (suprime copa/edificios del DSM)
+    assert calcular_margenes(suelo, agua, llanura) == {10: pytest.approx(3.8)}
+
+
+def test_copa_del_dsm_no_infla_el_nivel_de_la_llanura():
+    suelo = np.full(10, 10.0)
+    agua = np.full(5, 5.0)
+    # 9 pixeles de llanura a nivel 6 y uno bajo monte (DSM +12 m)
+    llanura = {10: (np.array([5.0] * 9 + [17.0]), np.array([1.0] * 10))}
+
+    assert calcular_margenes(suelo, agua, llanura)[10] == pytest.approx(4.0)
 
 
 def test_margen_negativo_cuando_el_nivel_de_la_llanura_supera_el_suelo():

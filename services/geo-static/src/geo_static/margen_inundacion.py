@@ -5,10 +5,12 @@ profundidades JRC por periodo de retorno:
 - ground: p10 del DEM dentro de RADIO_SUELO_M (50 m) de la escuela.
 - nivel_rio: p10 del DEM en los pixeles de agua permanente (GSW occ >= 90 y
   <= 100) dentro de RADIO_RIO_M (2 km).
-- nivel_rpN: superficie de agua del periodo, mediana de (DEM + profundidad JRC)
+- nivel_rpN: superficie de agua del periodo, p10 de (DEM + profundidad JRC)
   en los pixeles de llanura (GSW occ < 90 o nodata, con profundidad > 0) dentro
   de RADIO_RIO_M, acotada por abajo a nivel_rio. Sin llanura inundada, el
-  periodo queda en el cauce y nivel_rpN = nivel_rio.
+  periodo queda en el cauce y nivel_rpN = nivel_rio. Se usa p10 y no la mediana porque
+  Copernicus GLO-30 es un DSM: monte y edificios elevan DEM + profundidad (la
+  mediana dio margenes de -9 m en escuelas 17 m sobre el rio).
 - margen_rpN = ground - nivel_rpN. Negativo: el suelo queda por debajo del
   nivel de inundacion del periodo.
 
@@ -104,7 +106,7 @@ def _nivel_agua_m(alturas: np.ndarray, profundidades: np.ndarray, rio: float) ->
     valido = np.isfinite(alturas_arr) & np.isfinite(prof) & (prof > 0)
     if not valido.any():
         return rio
-    nivel = float(np.median(alturas_arr[valido] + prof[valido]))
+    nivel = float(np.percentile(alturas_arr[valido] + prof[valido], 10))
     return max(nivel, rio)
 
 
