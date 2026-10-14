@@ -1031,7 +1031,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     const panelLateral = await screen.findByTestId('panel-lateral')
     expect(within(panelLateral).getByTestId('panel-radar')).toBeInTheDocument()
     expect(panelLateral).not.toBeEmptyDOMElement()
-    expect(screen.getByText('Riesgo de afectación · 72 h')).toBeInTheDocument()
+    expect(screen.getByText('Riesgo actual (hoy) · 72 h')).toBeInTheDocument()
   })
 
   it('con Radar activo muestra el panel de riesgo y consulta el horizonte inicial', async () => {

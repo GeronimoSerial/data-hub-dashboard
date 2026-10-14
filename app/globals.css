@@ -6195,3 +6195,4 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .riesgo-escuela__tecnico dl { display: grid; gap: var(--s-1); margin: var(--s-2) 0 0; }
 .riesgo-escuela__tecnico dt { font-weight: 600; }
 .riesgo-escuela__tecnico dd { margin: 0; overflow-wrap: anywhere; }
+.map-leyenda__muestra--anillo { background: transparent; border: 2px solid; box-sizing: border-box; }

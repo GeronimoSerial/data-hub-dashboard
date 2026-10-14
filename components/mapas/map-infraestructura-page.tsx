@@ -156,7 +156,7 @@ export {
   radioEscuelaSinReporte,
 } from '@/lib/infraestructura/mapa/punto'
 import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
-import { coloresRadar } from '@/lib/infraestructura/mapa/radar'
+import { coloresRadar, cuesAmenazaAltaRadar } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, ETIQUETA_VISTA, nivelPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
@@ -850,10 +850,13 @@ export default function MapInfraestructuraPage(props: {
     const cuesLaguna = esPlanificacion
       ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
       : new Set<string>()
-    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
+    const cuesAmenaza = radarActivo
+      ? cuesAmenazaAltaRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
+      : new Set<string>()
+    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna, cuesAmenaza)
     // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
     return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
-  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio])
+  }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio, radarActivo, radarData, horizonteEfectivo])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo

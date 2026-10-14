@@ -157,17 +157,17 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
   it('muestra título y escala de riesgo para el horizonte del Radar', () => {
     const { container, rerender } = render(<LeyendaMapa pestana="radar" horizonte={72} />)
 
-    expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo de afectación · 72 h')
+    expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo actual (hoy) · 72 h')
     expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual([
-      'Muy alto', 'Alto', 'Moderado', 'Bajo',
+      'Muy alto', 'Alto', 'Moderado', 'Bajo', 'Anillo: amenaza alta hoy (lluvia o río) aunque el riesgo de la escuela sea menor',
     ])
     expect(container.querySelector('p')).toBeNull()
 
     rerender(<LeyendaMapa pestana="radar" horizonte={240} />)
-    expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo de afectación · 10 días')
+    expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo actual (hoy) · 10 días')
     expect(Array.from(container.querySelectorAll('.map-leyenda__muestra')).map((muestra) => (muestra as HTMLElement).style.backgroundColor)).toEqual([
       colorCss(colorRiesgo('muy_alto')), colorCss(colorRiesgo('alto')),
-      colorCss(colorRiesgo('moderado')), '',
+      colorCss(colorRiesgo('moderado')), '', '',
     ])
     expect(container.querySelectorAll('.map-leyenda__muestra--neutra')).toHaveLength(1)
   })

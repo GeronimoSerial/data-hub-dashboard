@@ -8,12 +8,15 @@ export interface PropiedadesPuntoNivel {
   color?: string
   conDato: boolean
   juntoLaguna: boolean
+  /** Radar: amenaza alta hoy por encima del riesgo actual (anillo). */
+  amenazaAlta?: boolean
 }
 
 export function construirPuntosNivel(
   escuelas: ReadonlyArray<{ cueAnexo: string; lat: number | null; lon: number | null }>,
   colorPorCue: ReadonlyMap<string, string>,
   juntoLagunaPorCue: ReadonlySet<string> = new Set(),
+  amenazaAltaPorCue: ReadonlySet<string> = new Set(),
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return {
     type: 'FeatureCollection',
@@ -28,6 +31,7 @@ export function construirPuntosNivel(
           ...(color !== undefined ? { color } : {}),
           conDato: color !== undefined,
           juntoLaguna: juntoLagunaPorCue.has(escuela.cueAnexo),
+          ...(amenazaAltaPorCue.has(escuela.cueAnexo) ? { amenazaAlta: true } : {}),
         },
       }]
     }),

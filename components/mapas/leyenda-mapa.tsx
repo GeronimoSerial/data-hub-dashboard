@@ -1,5 +1,7 @@
 'use client'
 
+import { COLOR_AMENAZA_ALTA } from '@/components/mapas/capa-puntos-nivel'
+
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { COLOR_JUNTO_LAGUNA, colorNivelPlan, ETIQUETA_JUNTO_LAGUNA, ETIQUETA_NIVEL_PLAN, nivelesLeyendaPlanificacion, TITULO_LEYENDA_VISTA, type VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
@@ -136,7 +138,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
     return (
       <>
         <b className="map-leyenda__titulo">
-          Riesgo de afectación · {ETIQUETA_HORIZONTE_MOTOR[props.horizonte]}
+          Riesgo actual (hoy) · {ETIQUETA_HORIZONTE_MOTOR[props.horizonte]}
         </b>
         <ul className="map-leyenda__fila">
           {niveles.map(([nivel, etiqueta]) => (
@@ -149,6 +151,10 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
               <span>{etiqueta}</span>
             </li>
           ))}
+          <li className="map-leyenda__elemento" key="amenaza-alta">
+            <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--anillo" style={{ borderColor: COLOR_AMENAZA_ALTA }} />
+            <span>Anillo: amenaza alta hoy (lluvia o río) aunque el riesgo de la escuela sea menor</span>
+          </li>
         </ul>
       </>
     )

@@ -8,6 +8,9 @@ import { colorBordeSinReporte, colorEscuelaSinReporte, radioPunto, radioPuntoNiv
 export const CAPA_RIESGO_SITUACION_ID = 'infra-riesgo-situacion'
 export const FUENTE_RIESGO_SITUACION_ID = 'infra-riesgo-situacion-src'
 
+/** Anillo violeta: amenaza alta hoy (no es un nivel de riesgo, por eso no usa la escala de colores). */
+export const COLOR_AMENAZA_ALTA = '#7c3aed'
+
 const COLOR_BORDE_CLARO = '#1c1c1c'
 const COLOR_BORDE_OSCURO = '#f4f1ec'
 
@@ -47,6 +50,7 @@ export function CapaPuntosNivel(props: {
     <Source id={props.idFuente} type="geojson" data={props.puntos}>
       <Layer id={props.idCapa} type="circle" paint={paintPuntosNivel(props.oscuro)} />
       <Layer id={`${props.idCapa}-laguna`} type="circle" filter={filtroAnilloLaguna()} paint={paintAnilloLaguna()} />
+      <Layer id={`${props.idCapa}-amenaza`} type="circle" filter={['==', ['get', 'amenazaAlta'], true]} paint={{ ...paintAnilloLaguna(), 'circle-stroke-color': COLOR_AMENAZA_ALTA }} />
     </Source>
   )
 }
