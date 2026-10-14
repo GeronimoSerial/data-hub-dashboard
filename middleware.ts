@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { gatedStaticPath, legacyRecursoRedirect } from '@/lib/nav'
+import { publicOrigin } from '@/lib/public-origin'
 
 export function middleware(request: NextRequest) {
   const legacy = legacyRecursoRedirect(request.nextUrl.pathname)
   if (legacy) {
-    // Relative Location: the internal request URL may not be the public origin
-    // behind the reverse proxy.
-    return new NextResponse(null, { status: 307, headers: { Location: legacy } })
+    // Absolute Location on the public origin: Next rejects a relative one, and
+    // request.url is the internal bind address behind the reverse proxy.
+    return NextResponse.redirect(new URL(legacy, publicOrigin(request)), 307)
   }
   const gated = gatedStaticPath(request.nextUrl.pathname)
   if (!gated) return NextResponse.next()
