@@ -53,6 +53,22 @@ function jsonResponse(body: unknown, status: number) {
   })
 }
 
+function evento(overrides: Partial<EventoTerreno>): EventoTerreno {
+  return {
+    id: 'EV-1',
+    fecha: hoy,
+    fechaTexto: ddMm(hoy),
+    departamento: 'PASO DE LOS LIBRES',
+    lugar: 'Centro',
+    titulo: 'Evento',
+    tipo: 'Evento reportado',
+    confianza: 'alta',
+    confianzaTexto: 'Confianza alta',
+    fuente: { medio: 'Medio', fecha: '13/10/2026', url: 'https://example.com/nota' },
+    ...overrides,
+  }
+}
+
 function mockFetchVeredictos(veredictos: DtoVeredicto[]) {
   const fetchMock = vi.fn(async () => jsonResponse({ veredictos }, 200))
   vi.stubGlobal('fetch', fetchMock)
@@ -139,27 +155,62 @@ describe('VeredictoModal', () => {
       veredicto({ id: 'b', fecha: hoy }),
     ])
     const eventos: EventoTerreno[] = [
-      {
+      evento({
         id: 'e1',
         fecha: hoy,
+        fechaTexto: ddMm(hoy),
+        titulo: 'Torre caída en ruta 14',
+        lugar: 'Ruta 14',
         departamento: 'PASO DE LOS LIBRES',
-        descripcion: 'Torre caída en ruta 14.',
-        confianza: 'alta',
-        fuenteUrl: 'https://example.com/nota',
-      },
-      { id: 'e2', fecha: ayer, departamento: 'CONCORDIA', descripcion: 'Otro evento.', confianza: 'baja' },
+        confianzaTexto: 'Confianza alta',
+        fuente: { medio: 'Diario X', fecha: '13/10/2026', url: 'https://example.com/nota' },
+      }),
+      evento({ id: 'e2', fecha: ayer, titulo: 'Otro evento', departamento: 'CONCORDIA' }),
     ]
 
     render(<VeredictoModal open onOpenChange={() => {}} eventos={eventos} />)
     const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
-    expect(within(seccion).getByText('Torre caída en ruta 14.')).toBeInTheDocument()
-    expect(within(seccion).getByText('confianza alta')).toBeInTheDocument()
-    expect(within(seccion).getByRole('link', { name: 'fuente' })).toHaveAttribute('href', 'https://example.com/nota')
-    expect(within(seccion).queryByText('Otro evento.')).not.toBeInTheDocument()
+    expect(within(seccion).getByText('Torre caída en ruta 14')).toBeInTheDocument()
+    expect(within(seccion).getByText('Confianza alta')).toBeInTheDocument()
+    expect(within(seccion).getByRole('link', { name: 'Diario X, 13/10/2026' })).toHaveAttribute(
+      'href',
+      'https://example.com/nota',
+    )
+    expect(within(seccion).queryByText('Otro evento')).not.toBeInTheDocument()
 
     fireEvent.click(within(screen.getByRole('group', { name: 'Línea de tiempo' })).getByRole('button', { name: new RegExp(ddMm(ayer)) }))
-    expect(within(seccion).getByText('Otro evento.')).toBeInTheDocument()
-    expect(within(seccion).queryByText('Torre caída en ruta 14.')).not.toBeInTheDocument()
+    expect(within(seccion).getByText('Otro evento')).toBeInTheDocument()
+    expect(within(seccion).queryByText('Torre caída en ruta 14')).not.toBeInTheDocument()
+  })
+
+  it('carga los eventos desde la API con el rango de los veredictos cuando no se pasan por prop', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/eventos')) return jsonResponse({ eventos: [evento({ id: 'api', fecha: hoy, titulo: 'Evento desde API', fechaTexto: ddMm(hoy) })] }, 200)
+      return jsonResponse({ veredictos: [veredicto({ id: 'a', fecha: ayer, tipoDia: 'observado' }), veredicto({ id: 'b', fecha: hoy })] }, 200)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
+    expect(await within(seccion).findByText('Evento desde API')).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/infraestructura/veredictos/eventos?desde=${ayer}&hasta=${hoy}`,
+      expect.anything(),
+    )
+  })
+
+  it('muestra el mensaje vacío si la API de eventos falla', async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes('/eventos')) return jsonResponse({ error: 'boom' }, 500)
+      return jsonResponse({ veredictos: [veredicto({ id: 'b', fecha: hoy })] }, 200)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<VeredictoModal open onOpenChange={() => {}} />)
+    const seccion = await screen.findByRole('region', { name: 'Confirmado en terreno (no modifica el nivel)' })
+    expect(
+      await within(seccion).findByText('Sin eventos confirmados con fuente verificable para este día.'),
+    ).toBeInTheDocument()
   })
 
   it('muestra el mensaje de error si la carga falla', async () => {

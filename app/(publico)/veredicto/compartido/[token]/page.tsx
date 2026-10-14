@@ -3,6 +3,7 @@ import { VeredictoPublico } from '@/components/veredicto/veredicto-publico'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
+import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { fechaArt } from '@/lib/infraestructura/veredicto/dia'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 
@@ -57,10 +58,11 @@ export default async function PaginaVeredictoCompartido({ params }: { params: Pr
     hasta: enlace.hasta,
   })
   const veredictos = filas.map((fila) => aDtoVeredicto(fila, null))
+  const eventos = await cargarEventosTerreno({ desde: enlace.desde, hasta: enlace.hasta })
 
   return (
     <>
-      <VeredictoPublico veredictos={veredictos} />
+      <VeredictoPublico veredictos={veredictos} eventos={eventos} />
       <p>
         <a href={`/api/veredicto/compartido/${token}/pdf`} className="ui-button ui-button--secondary">
           Descargar PDF

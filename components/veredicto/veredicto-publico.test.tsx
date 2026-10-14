@@ -98,6 +98,28 @@ describe('VeredictoPublico', () => {
     ).toBeTruthy()
   })
 
+  it('muestra los eventos confirmados de cada día como contexto', () => {
+    const eventos = [
+      {
+        id: 'EV-1',
+        fecha: '2026-10-13',
+        fechaTexto: '13/10',
+        departamento: 'PASO DE LOS LIBRES',
+        lugar: 'Ruta 14',
+        titulo: 'Calles anegadas',
+        tipo: 'Evento reportado' as const,
+        confianza: 'alta' as const,
+        confianzaTexto: 'Confianza alta' as const,
+        fuente: { medio: 'Diario X', fecha: '13/10/2026', url: 'https://ex.com/nota' },
+      },
+    ]
+    render(<VeredictoPublico veredictos={VERED} eventos={eventos} />)
+    expect(screen.getAllByText('Confirmado en terreno (no modifica el nivel)')).toHaveLength(2)
+    expect(screen.getByText('Calles anegadas')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Diario X, 13/10/2026' })).toHaveAttribute('href', 'https://ex.com/nota')
+    expect(screen.getAllByText('Sin eventos confirmados con fuente verificable para este día.')).toHaveLength(1)
+  })
+
   it('lista las fuentes con enlace, sin duplicar URLs', () => {
     render(<VeredictoPublico veredictos={VERED} />)
     // URL fuera del catálogo: el nombre legible cae a la propia URL.

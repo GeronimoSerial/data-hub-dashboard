@@ -2,6 +2,7 @@ import { ensureSeeded } from '@/lib/db/seed'
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { fechasVentana } from '@/lib/infraestructura/veredicto/entradas'
+import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 import { jsonError } from '@/lib/infraestructura/respuesta-error'
@@ -46,9 +47,11 @@ export async function GET(request: Request) {
   }
 
   const filas = await listarVigentes(getDb(), { desde, hasta })
+  const eventos = await cargarEventosTerreno({ desde, hasta })
   const bytes = await generarPdfVeredictos({
     veredictos: filas.map((fila) => aDtoVeredicto(fila, null)),
     generadoEn: new Date(),
+    eventos,
   })
   return new Response(bytes.slice(), {
     headers: {

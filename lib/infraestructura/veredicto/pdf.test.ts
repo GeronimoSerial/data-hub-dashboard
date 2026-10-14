@@ -105,6 +105,32 @@ describe('lineasPdf', () => {
     const texto = lineasPdf({ veredictos: [veredicto()], generadoEn }).map((l) => l.texto).join('\n')
     expect(texto).not.toContain('Aguas arriba')
   })
+
+  it('agrega los eventos confirmados del día sin identificadores técnicos', () => {
+    const evento = {
+      id: 'EV-7',
+      fecha: '2026-10-12',
+      fechaTexto: '12/10',
+      departamento: 'PASO DE LOS LIBRES',
+      lugar: 'Ruta 14',
+      titulo: 'Calles anegadas',
+      tipo: 'Evento reportado' as const,
+      confianza: 'alta' as const,
+      confianzaTexto: 'Confianza alta' as const,
+      fuente: { medio: 'Diario X', fecha: '13/10/2026', url: 'https://ex.com/nota' },
+    }
+    const lineas = lineasPdf({ veredictos: [veredicto()], generadoEn, eventos: [evento] }).map((l) => l.texto)
+    expect(lineas).toContain('Confirmado en terreno (no modifica el nivel):')
+    expect(lineas).toContain(
+      '• Calles anegadas — Ruta 14 (Paso de los Libres), 12/10. Confianza alta. Fuente: Diario X, 13/10/2026 (https://ex.com/nota)',
+    )
+    expect(lineas.join('\n')).not.toContain('EV-')
+  })
+
+  it('indica la ausencia de eventos confirmados con fuente verificable', () => {
+    const texto = lineasPdf({ veredictos: [veredicto()], generadoEn }).map((l) => l.texto).join('\n')
+    expect(texto).toContain('Sin eventos confirmados con fuente verificable.')
+  })
 })
 
 describe('sanitizarWinAnsi', () => {

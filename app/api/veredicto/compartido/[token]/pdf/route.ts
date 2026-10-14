@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db'
 import { aDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { resolverEnlace } from '@/lib/infraestructura/veredicto/enlaces'
+import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 
@@ -23,9 +24,11 @@ export async function GET(
   }
 
   const filas = await listarVigentes(getDb(), { desde: enlace.desde, hasta: enlace.hasta })
+  const eventos = await cargarEventosTerreno({ desde: enlace.desde, hasta: enlace.hasta })
   const bytes = await generarPdfVeredictos({
     veredictos: filas.map((fila) => aDtoVeredicto(fila, null)),
     generadoEn: new Date(),
+    eventos,
   })
   return new Response(bytes.slice(), {
     headers: {

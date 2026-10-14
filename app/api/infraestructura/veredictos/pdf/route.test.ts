@@ -3,6 +3,7 @@ import type * as Ruta from './route'
 import type { FilaVeredicto } from '@/lib/infraestructura/veredicto/repositorio'
 import { listarVigentes } from '@/lib/infraestructura/veredicto/repositorio'
 import { generarPdfVeredictos } from '@/lib/infraestructura/veredicto/pdf'
+import { cargarEventosTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { getSessionUser } from '@/lib/session'
 
 // Factory puro para no arrastrar @/lib/session -> @/lib/db antes de fijar DATA_DIR.
@@ -29,6 +30,9 @@ vi.mock('@/lib/infraestructura/veredicto/repositorio', () => ({
   listarVigentes: vi.fn(),
 }))
 
+vi.mock('@/lib/infraestructura/veredicto/eventos-terreno', () => ({
+  cargarEventosTerreno: vi.fn(),
+}))
 vi.mock('@/lib/infraestructura/veredicto/pdf', () => ({
   generarPdfVeredictos: vi.fn(),
 }))
@@ -82,6 +86,8 @@ beforeEach(() => {
   vi.mocked(listarVigentes).mockResolvedValue([FILA])
   vi.mocked(generarPdfVeredictos).mockReset()
   vi.mocked(generarPdfVeredictos).mockResolvedValue(BYTES)
+  vi.mocked(cargarEventosTerreno).mockReset()
+  vi.mocked(cargarEventosTerreno).mockResolvedValue([])
 })
 
 describe('GET /api/infraestructura/veredictos/pdf', () => {

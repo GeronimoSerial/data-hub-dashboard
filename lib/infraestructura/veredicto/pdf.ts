@@ -3,11 +3,16 @@
 // WinAnsi, por eso todo texto pasa por sanitizarWinAnsi antes de dibujarse.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import type { DtoVeredicto } from './dto'
+import type { EventoTerreno } from './eventos-terreno'
 import { nombreFuente } from './metricas'
 import { etiquetaNivel, nombreDepartamento } from './niveles'
 import { describirAguaArriba } from './traza-texto'
 
-export type EntradaPdfVeredictos = { veredictos: DtoVeredicto[]; generadoEn: Date }
+export type EntradaPdfVeredictos = {
+  veredictos: DtoVeredicto[]
+  generadoEn: Date
+  eventos?: EventoTerreno[]
+}
 
 type Color = [number, number, number]
 
@@ -109,7 +114,12 @@ function colorNivel(nivel: string): Color {
 }
 
 // Parte puramente textual del PDF: sirve para probar el contenido sin dibujar.
-export function lineasPdf({ veredictos, generadoEn }: EntradaPdfVeredictos): LineaPdf[] {
+function lineaEvento(e: EventoTerreno): string {
+  const fuente = e.fuente.fecha ? `${e.fuente.medio}, ${e.fuente.fecha}` : e.fuente.medio
+  return `• ${e.titulo} — ${e.lugar} (${nombreDepartamento(e.departamento)}), ${e.fechaTexto}. ${e.confianzaTexto}. Fuente: ${fuente} (${e.fuente.url})`
+}
+
+export function lineasPdf({ veredictos, generadoEn, eventos = [] }: EntradaPdfVeredictos): LineaPdf[] {
   const lineas: LineaPdf[] = [
     { texto: 'Veredicto diario de inundaciones — Provincia de Corrientes', negrita: true, tamano: 16 },
   ]
@@ -174,6 +184,16 @@ export function lineasPdf({ veredictos, generadoEn }: EntradaPdfVeredictos): Lin
         sangria: 28,
         cuadrado: colorNivel(d.nivel),
       })
+    }
+
+    // Los eventos confirmados son contexto: no modifican el nivel.
+    const eventosDelDia = eventos.filter((e) => e.fecha === fecha)
+    lineas.push({ texto: 'Confirmado en terreno (no modifica el nivel):', negrita: true, espacioAntes: 6, sangria: 14 })
+    if (eventosDelDia.length === 0) {
+      lineas.push({ texto: 'Sin eventos confirmados con fuente verificable.', sangria: 28 })
+    }
+    for (const e of eventosDelDia) {
+      lineas.push({ texto: lineaEvento(e), sangria: 28 })
     }
   }
 

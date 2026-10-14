@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
+import { nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
 import {
   describirAguaArriba,
   describirTraza,
@@ -14,14 +16,7 @@ import {
 import { NivelChip } from './nivel-chip'
 import { VeredictoAcciones } from './veredicto-acciones'
 
-export type EventoTerreno = {
-  id: string
-  fecha: string
-  departamento: string
-  descripcion: string
-  confianza: 'alta' | 'media' | 'baja' | 'muy baja'
-  fuenteUrl?: string
-}
+export type { EventoTerreno }
 
 type Props = {
   open: boolean
@@ -183,12 +178,13 @@ export function VeredictoModal({
   open,
   onOpenChange,
   onSeleccionarDepartamento,
-  eventos = [],
+  eventos,
   acciones = <VeredictoAcciones />,
 }: Props): JSX.Element {
   const [estado, setEstado] = useState<EstadoCarga>('cargando')
   const [veredictos, setVeredictos] = useState<DtoVeredicto[]>([])
   const [seleccion, setSeleccion] = useState<string | null>(null)
+  const [eventosCargados, setEventosCargados] = useState<EventoTerreno[]>([])
 
   useEffect(() => {
     if (!open) return
@@ -230,7 +226,33 @@ export function VeredictoModal({
   const delDia = fechaActiva ? (porFecha.get(fechaActiva) ?? []) : []
   const provincia = delDia.find((v) => v.ambito === 'provincia') ?? null
   const departamentos = delDia.filter((v) => v.ambito !== 'provincia')
-  const eventosDelDia = fechaActiva ? eventos.filter((e) => e.fecha === fechaActiva) : []
+  const eventosVisibles = eventos ?? eventosCargados
+  const eventosDelDia = fechaActiva ? eventosVisibles.filter((e) => e.fecha === fechaActiva) : []
+
+  useEffect(() => {
+    if (!open || eventos !== undefined || estado !== 'ok' || veredictos.length === 0) return
+    const fechasOrdenadas = veredictos.map((v) => v.fecha).sort()
+    const desde = fechasOrdenadas[0]
+    const hasta = fechasOrdenadas[fechasOrdenadas.length - 1]
+    let cancelado = false
+    fetch(`/api/infraestructura/veredictos/eventos?desde=${desde}&hasta=${hasta}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = (await res.json()) as { eventos?: EventoTerreno[] }
+        return Array.isArray(body.eventos) ? body.eventos : []
+      })
+      .then((lista) => {
+        if (!cancelado) setEventosCargados(lista)
+      })
+      .catch(() => {
+        if (!cancelado) setEventosCargados([])
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [open, eventos, estado, veredictos])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -308,19 +330,20 @@ export function VeredictoModal({
             <section aria-label="Confirmado en terreno (no modifica el nivel)" className="veredicto-seccion">
               <h3>Confirmado en terreno (no modifica el nivel)</h3>
               {eventosDelDia.length === 0 ? (
-                <p className="veredicto-seccion__vacio">Sin eventos confirmados para este día.</p>
+                <p className="veredicto-seccion__vacio">Sin eventos confirmados con fuente verificable para este día.</p>
               ) : (
                 <ul>
                   {eventosDelDia.map((e) => (
                     <li key={e.id} className="veredicto-evento">
-                      <span className="veredicto-depto__nombre">{prettifyDepartamento(e.departamento)}</span>{' '}
-                      <span>{e.descripcion}</span>{' '}
-                      <span className="veredicto-detalle__meta">confianza {e.confianza}</span>{' '}
-                      {e.fuenteUrl ? (
-                        <a href={e.fuenteUrl} target="_blank" rel="noreferrer">
-                          fuente
-                        </a>
-                      ) : null}
+                      <strong>{e.titulo}</strong>
+                      <span>
+                        {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto}
+                      </span>
+                      <span className="badge veredicto-nivel">{e.confianzaTexto}</span>
+                      <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
+                        {e.fuente.medio}
+                        {e.fuente.fecha ? `, ${e.fuente.fecha}` : ''}
+                      </a>
                     </li>
                   ))}
                 </ul>

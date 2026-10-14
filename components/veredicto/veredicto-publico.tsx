@@ -1,6 +1,7 @@
 // Vista pública del veredicto diario, pensada para lectura no técnica.
 // Sin 'use client': es segura para renderizar en servidor.
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
+import type { EventoTerreno } from '@/lib/infraestructura/veredicto/eventos-terreno'
 import { nombreFuente } from '@/lib/infraestructura/veredicto/metricas'
 import { etiquetaNivel, nombreDepartamento } from '@/lib/infraestructura/veredicto/niveles'
 import { describirAguaArriba } from '@/lib/infraestructura/veredicto/traza-texto'
@@ -28,7 +29,13 @@ function fuentesUnicas(veredictos: DtoVeredicto[]): { etiqueta: string; url: str
   return [...vistas].map(([url, etiqueta]) => ({ etiqueta, url }))
 }
 
-export function VeredictoPublico({ veredictos }: { veredictos: DtoVeredicto[] }) {
+export function VeredictoPublico({
+  veredictos,
+  eventos = [],
+}: {
+  veredictos: DtoVeredicto[]
+  eventos?: EventoTerreno[]
+}) {
   const porFecha = new Map<string, DtoVeredicto[]>()
   for (const v of veredictos) {
     porFecha.set(v.fecha, [...(porFecha.get(v.fecha) ?? []), v])
@@ -83,6 +90,30 @@ export function VeredictoPublico({ veredictos }: { veredictos: DtoVeredicto[] })
                   {d.texto && <p>{d.texto}</p>}
                 </div>
               ))}
+              <div className="veredicto-seccion">
+                <h3>Confirmado en terreno (no modifica el nivel)</h3>
+                {eventos.filter((e) => e.fecha === fecha).length === 0 ? (
+                  <p className="veredicto-seccion__vacio">Sin eventos confirmados con fuente verificable para este día.</p>
+                ) : (
+                  <ul>
+                    {eventos
+                      .filter((e) => e.fecha === fecha)
+                      .map((e) => (
+                        <li key={e.id} className="veredicto-evento">
+                          <strong>{e.titulo}</strong>
+                          <span>
+                            {e.lugar} ({nombreDepartamento(e.departamento)}) · {e.fechaTexto}
+                          </span>
+                          <span className="badge veredicto-nivel">{e.confianzaTexto}</span>
+                          <a href={e.fuente.url} target="_blank" rel="noopener noreferrer">
+                            {e.fuente.medio}
+                            {e.fuente.fecha ? `, ${e.fuente.fecha}` : ''}
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
             </section>
           )
         })}
