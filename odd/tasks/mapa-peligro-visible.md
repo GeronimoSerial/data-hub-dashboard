@@ -110,3 +110,18 @@ Lookup order: Prefectura station (precision 'estación') → OpenStreetMap gazet
 
 Provincial summary: EV-20261013-007. Not determined: EV-20261011-002 (Ituzaingó (represa Yacyretá)). Discarded: EV-20261012-003 (confianza_muy_baja), EV-20261013-006 (confianza_muy_baja).
 History: Goya/La Cruz were first placed from `localities.geojson` area centroids (≈30/45 km off); Isla Apipé was first placed from school coordinates; both superseded by OSM per user decision 2026-10-14.
+
+## Operación permanente
+
+Every map layer and the school hazard sheet read only tables filled by scheduled jobs; nothing in the app depends on a one-off calculation, a hard-coded date or an event-specific value. Coolify tasks are listed in `docs/DEPLOY.md` ("Tareas programadas de la situación hídrica") and `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
+
+| Data path | Job (`scripts/jobs.mjs`) | Cadence (`cadencias.ts` / `jobs-esperados.ts`) | Coolify cron | Health (`hazard_source_health`) | Failure behaviour in the UI |
+|---|---|---|---|---|---|
+| Prefectura river heights (`hidro_lectura`) → stations layer, river line in the school sheet | `sync-prefectura-alturas` (idempotent upsert on `estacion_id, medida_en`) | 60 min | `17 * * * *` | `prefectura-alturas`, TTL 120 min | Reading older than 12 h (`EDAD_MAXIMA_LECTURA_HORAS`) or inconsistent → "Sin dato" + "Lectura desactualizada"; never classified normal without a threshold. |
+| IMERG observed rain (`hazard_observation`) → rain layer, 72 h rain in the school sheet | `sync-imerg` (idempotent per granule; newest + oldest-missing selection; OPeNDAP → HTTPS HDF5 fallback) | 60 min | `5 * * * *` | `nasa-imerg`, TTL 180 min (two late runs of slack) | Grid older than 6 h → `vencida`, legend warning "Datos desactualizados"; partial windows → "datos incompletos"; missing → "Sin dato". |
+| Precipitation / flow climatology (`hazard_climatology`) → threshold table in the technical detail | `climatologia-precipitacion`, `climatologia-caudal` (resumable cursor) | monthly | `43 6 1 * *`, `41 6 1 * *` | coverage in the health panel (no own row; pre-existing) | Missing thresholds → table omitted; never "Bajo". |
+| Forecast / engine levels → hazard sheet conclusion | existing engine jobs (unchanged) | existing | existing | existing rows | Stale forecast → "Pronóstico desactualizado desde dd/MM HH:mm"; no data → single "Sin datos de peligro" line. |
+| Reported events registry (`public/data/eventos-inundaciones/`) | none: curated research data, not a source (new sources are frozen) | — | — | — | Legend shows "Registro actualizado al dd/MM"; replacing the files refreshes the layer without code changes. |
+| OSM gazetteer (`gazetteer-osm.json`) | `node scripts/curar-gazetteer-osm.mjs` at curation time only (Nominatim, 1 req/s) | when the registry changes | — | — | Places without an OSM match are listed as "ubicación no determinada", not drawn. |
+
+Known gaps (pre-existing, not introduced here): climatology cadence is 1440 min in `cadencias.ts` but monthly in `jobs-esperados.ts` and the runbook; climatology has no `hazard_source_health` row. The events registry needs a decision if it must refresh without curation.

@@ -224,6 +224,25 @@ El CSV tiene una fila por snapshot de run publicado. `idEscuela` es HMAC-SHA256(
 
 Al instalar timers, reemplazar `<CONTENEDOR>` por el nombre/ID real mostrado por `docker ps`, por ejemplo con `sed` sobre el unit antes de `systemctl daemon-reload`, o mediante `systemctl edit enos-ops1@.service` con un drop-in. Consultar `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
 
+### Tareas programadas de la situación hídrica (Coolify)
+
+Las capas "Situación actual" del mapa de infraestructura y la ficha de peligro de
+cada escuela leen sólo tablas que llenan estos jobs. Cada uno es idempotente
+(clave por gránulo o por lectura), escribe `infra_job_run` y su fila en
+`hazard_source_health`, y aparece en el panel de salud (`/admin/operacion`). El
+listado completo de tareas vive en `docs/ejecucion-enos/OPS1/runbook-scheduler.md`.
+
+| Tarea Coolify (comando) | Cron | Timeout | Salud (`hazard_source_health`) | Si falla |
+|---|---|---|---|---|
+| `node scripts/jobs.mjs sync-prefectura-alturas` | `17 * * * *` | 300 s | `prefectura-alturas`, TTL 120 min | La estación con lectura de más de 12 h se muestra "Sin dato"; exit 1 si `fallido`. |
+| `node scripts/jobs.mjs sync-imerg` | `5 * * * *` | 300 s | `nasa-imerg`, TTL 180 min | Si OPeNDAP falla se descarga el HDF5 por HTTPS; ventanas incompletas se rotulan "datos incompletos"; datos de más de 6 h se rotulan desactualizados. Requiere `EARTHDATA_TOKEN`. |
+| `node scripts/jobs.mjs climatologia-precipitacion` | `43 6 1 * *` | 1200 s | sin fila propia (cobertura en el panel) | Sin umbrales, la ficha omite la tabla de percentiles (nunca "Bajo"). |
+| `node scripts/jobs.mjs climatologia-caudal` | `41 6 1 * *` | 1200 s | sin fila propia (cobertura en el panel) | Igual que la anterior para el caudal. |
+
+El registro de eventos reportados (`public/data/eventos-inundaciones/`) y el
+nomenclador OSM (`scripts/curar-gazetteer-osm.mjs`) son datos curados, no jobs:
+se reemplazan los archivos y el mapa muestra la fecha del registro.
+
 ## Staging
 
 `staging` es el escalón previo a producción. Tiene su propio volumen `/data`, sus propios secretos
