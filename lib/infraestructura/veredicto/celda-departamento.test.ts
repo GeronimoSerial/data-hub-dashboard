@@ -3,6 +3,7 @@ import {
   departamentoDeCelda,
   departamentoDeCeldaEn,
   departamentoDeCoordenada,
+  listarDepartamentos,
   departamentoDeCoordenadaEn,
   type FeatureCollectionDepartamentos,
 } from './celda-departamento'
@@ -95,6 +96,15 @@ describe('departamentoDeCelda (puro, sobre la colección)', () => {
 
   it('devuelve null para una clave mal formada', () => {
     expect(departamentoDeCeldaEn(sintetico, 'no-es-celda')).toBeNull()
+  })
+})
+
+describe('listarDepartamentos (GeoJSON real de Corrientes)', () => {
+  it('devuelve los ids normalizados, únicos y ordenados, incluido CAPITAL', () => {
+    const ids = listarDepartamentos()
+    expect(ids).toContain('CAPITAL')
+    expect(new Set(ids).size).toBe(ids.length)
+    expect([...ids].sort()).toEqual(ids)
   })
 })
 

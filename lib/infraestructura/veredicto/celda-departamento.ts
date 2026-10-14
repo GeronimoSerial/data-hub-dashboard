@@ -115,6 +115,11 @@ export function departamentoDeCeldaEn(
   return departamentoDeCoordenadaEn(coleccion, punto.lat, punto.lon)
 }
 
+/** Ids normalizados de todos los departamentos del GeoJSON de `public/data`, únicos y ordenados. */
+export function listarDepartamentos(): string[] {
+  return [...new Set(cargarDepartamentos().map((departamento) => departamento.id))].sort()
+}
+
 /** Departamento (id normalizado) que contiene el punto, usando el GeoJSON de `public/data`. */
 export function departamentoDeCoordenada(lat: number, lon: number): string | null {
   return departamentoEnIndice(cargarDepartamentos(), lat, lon)
