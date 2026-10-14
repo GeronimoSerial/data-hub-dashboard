@@ -10,6 +10,7 @@ import {
   hazardForecast,
   infraGeoProfile,
 } from '@/lib/db/schema'
+import { elegirUmbralesClimatologia } from './fuente-climatologia'
 import { nivelDesdeUmbralProvisorio } from './umbrales-provisorios'
 
 export type NivelPeligro = 'verde' | 'amarillo' | 'naranja' | 'rojo' | 'sin_dato'
@@ -221,13 +222,14 @@ async function cargarPronostico(
 
 /**
  * Los tres percentiles de la climatología más reciente de una celda/punto.
- * "Más reciente" se resuelve por periodoHasta, version y calculadoEn descendentes
- * (el desempate por calculadoEn elige la climatología progresiva más nueva),
- * quedándose con la primera fila de cada percentil (mismo criterio que
- * sync-ensemble.ts). Con `ahora` sólo cuentan las filas con `calculadoEn <=
- * ahora`, así la climatología vigente es la que existía en ese momento. Si
- * falta cualquier percentil devuelve null: una climatología parcial no alcanza
- * para decidir un nivel.
+ * Los umbrales salen de la climatología IMERG cuando está completa para la
+ * celda; si no, de la climatología más reciente de otra versión (ERA5). Nunca
+ * se mezclan percentiles de fuentes distintas (ver elegirUmbralesClimatologia).
+ * El orden (periodoHasta, version, calculadoEn descendentes) fija la recencia.
+ * Con `ahora` sólo cuentan las filas con `calculadoEn <= ahora`, así la
+ * climatología vigente es la que existía en ese momento. Si ninguna fuente tiene
+ * los tres percentiles devuelve null: una climatología parcial no alcanza para
+ * decidir un nivel.
  */
 async function cargarUmbralesClimatologia(
   db: Db,
@@ -240,6 +242,7 @@ async function cargarUmbralesClimatologia(
       percentil: hazardClimatology.percentil,
       valor: hazardClimatology.valor,
       calculadoEn: hazardClimatology.calculadoEn,
+      version: hazardClimatology.version,
     })
     .from(hazardClimatology)
     .where(
@@ -256,16 +259,8 @@ async function cargarUmbralesClimatologia(
       desc(hazardClimatology.calculadoEn),
     )
 
-  const porPercentil = new Map<string, number>()
-  for (const fila of filas) {
-    if (!emitidoHastaAhora(fila.calculadoEn, ahora)) continue
-    if (!porPercentil.has(fila.percentil)) porPercentil.set(fila.percentil, fila.valor)
-  }
-  const p90 = porPercentil.get('p90')
-  const p95 = porPercentil.get('p95')
-  const p99 = porPercentil.get('p99')
-  if (p90 === undefined || p95 === undefined || p99 === undefined) return null
-  return { p90, p95, p99 }
+  const filasVigentes = filas.filter((fila) => emitidoHastaAhora(fila.calculadoEn, ahora))
+  return elegirUmbralesClimatologia(filasVigentes)
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +361,7 @@ async function cargarUmbralesPorLote(
       percentil: hazardClimatology.percentil,
       valor: hazardClimatology.valor,
       calculadoEn: hazardClimatology.calculadoEn,
+      version: hazardClimatology.version,
     })
     .from(hazardClimatology)
     .where(
@@ -382,33 +378,18 @@ async function cargarUmbralesPorLote(
       desc(hazardClimatology.calculadoEn),
     )
 
-  // El orderBy global ordena TODAS las filas del lote; dentro de cada celda la
-  // primera aparición por percentil es la más reciente, igual que la consulta
-  // celda por celda.
-  const porPercentilPorCelda = new Map<string, Map<string, number>>()
+  // El orderBy global ordena TODAS las filas del lote; el orden se conserva al
+  // agrupar por celda, así cada celda recibe sus filas ya ordenadas por recencia.
+  const filasPorCelda = new Map<string, Array<(typeof filas)[number]>>()
   for (const fila of filas) {
     if (!emitidoHastaAhora(fila.calculadoEn, ahora)) continue
-    let porPercentil = porPercentilPorCelda.get(fila.geometryRef)
-    if (porPercentil === undefined) {
-      porPercentil = new Map<string, number>()
-      porPercentilPorCelda.set(fila.geometryRef, porPercentil)
-    }
-    if (!porPercentil.has(fila.percentil)) porPercentil.set(fila.percentil, fila.valor)
+    const lista = filasPorCelda.get(fila.geometryRef)
+    if (lista === undefined) filasPorCelda.set(fila.geometryRef, [fila])
+    else lista.push(fila)
   }
 
   for (const geometryRef of geometryRefs) {
-    const porPercentil = porPercentilPorCelda.get(geometryRef)
-    if (porPercentil === undefined) {
-      porCelda.set(geometryRef, null)
-      continue
-    }
-    const p90 = porPercentil.get('p90')
-    const p95 = porPercentil.get('p95')
-    const p99 = porPercentil.get('p99')
-    porCelda.set(
-      geometryRef,
-      p90 === undefined || p95 === undefined || p99 === undefined ? null : { p90, p95, p99 },
-    )
+    porCelda.set(geometryRef, elegirUmbralesClimatologia(filasPorCelda.get(geometryRef) ?? []))
   }
   return porCelda
 }
