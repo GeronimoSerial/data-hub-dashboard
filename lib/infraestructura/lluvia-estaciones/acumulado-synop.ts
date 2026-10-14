@@ -43,6 +43,24 @@ function indexarPeriodos6h(
       porFin.set(finMs, registro)
     }
   }
+  // Muchas estaciones SMN informan a las 12Z sólo el total de 24 h (t=4), sin el
+  // de 6 h. Si están los tres períodos de 6 h previos dentro de esas 24 h, el
+  // faltante es exacto: 24h(X) - (X-6 + X-12 + X-18). Una diferencia negativa
+  // (redondeo de la fuente) queda en 0.
+  for (const registro of registros) {
+    if (registro.periodoHoras !== 24) continue
+    const finMs = Date.parse(registro.observadoEn)
+    if (finMs > asOfMs || porFin.has(finMs)) continue
+    const previos = [1, 2, 3].map((i) => porFin.get(finMs - i * PERIODO_MS))
+    if (previos.some((p) => p === undefined)) continue
+    const sumaPrevios = previos.reduce((suma, p) => suma + (p?.precipitacionMm ?? 0), 0)
+    porFin.set(finMs, {
+      ...registro,
+      periodoHoras: 6,
+      precipitacionMm: redondear(Math.max(0, registro.precipitacionMm - sumaPrevios)),
+      traza: false,
+    })
+  }
   return porFin
 }
 

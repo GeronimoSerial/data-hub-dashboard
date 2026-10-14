@@ -141,3 +141,51 @@ describe('acumularSynop', () => {
     })
   })
 })
+
+describe('acumularSynop — período 06-12Z derivado del total de 24 h', () => {
+  // Estaciones que a las 12Z informan sólo el total de 24 h (sin 6 h en sección 3).
+  const r = (iso: string, mm: number, periodoHoras = 6) => ({
+    estacionWmo: '87155',
+    observadoEn: iso,
+    periodoHoras,
+    precipitacionMm: mm,
+    traza: false,
+    seccion: 1 as const,
+  })
+
+  it('deriva 12Z = 24h(12Z) - (18Z + 00Z + 06Z) y completa la ventana', () => {
+    const registros = [
+      r('2026-10-12T18:00:00.000Z', 2),
+      r('2026-10-13T00:00:00.000Z', 1),
+      r('2026-10-13T06:00:00.000Z', 3),
+      r('2026-10-13T12:00:00.000Z', 10, 24),
+      r('2026-10-13T18:00:00.000Z', 0.5),
+      r('2026-10-14T00:00:00.000Z', 0.6),
+    ]
+    // 0.6 + 0.5 + (10 - 6 = 4) + 3 = 8.1
+    expect(acumularSynop(registros, '2026-10-14T00:30:00.000Z', 24)?.acumuladoMm).toBe(8.1)
+  })
+
+  it('no deriva si falta alguno de los tres períodos previos', () => {
+    const registros = [
+      r('2026-10-13T00:00:00.000Z', 1),
+      r('2026-10-13T06:00:00.000Z', 3),
+      r('2026-10-13T12:00:00.000Z', 10, 24),
+      r('2026-10-13T18:00:00.000Z', 0.5),
+      r('2026-10-14T00:00:00.000Z', 0.6),
+    ]
+    expect(acumularSynop(registros, '2026-10-14T00:30:00.000Z', 24)).toBeNull()
+  })
+
+  it('una diferencia negativa (redondeo de la fuente) queda en 0', () => {
+    const registros = [
+      r('2026-10-12T18:00:00.000Z', 4),
+      r('2026-10-13T00:00:00.000Z', 4),
+      r('2026-10-13T06:00:00.000Z', 3),
+      r('2026-10-13T12:00:00.000Z', 10, 24),
+      r('2026-10-13T18:00:00.000Z', 0),
+      r('2026-10-14T00:00:00.000Z', 0),
+    ]
+    expect(acumularSynop(registros, '2026-10-14T00:30:00.000Z', 24)?.acumuladoMm).toBe(3)
+  })
+})
