@@ -1,5 +1,7 @@
 'use client'
 
+import { DatoFechado } from '@/components/ui/dato-fechado'
+import { textoActualizado } from '@/lib/infraestructura/presentacion/textos-dato'
 import { useEffect, useState, type JSX } from 'react'
 import { estadoAltura } from '@/lib/infraestructura/hidrometria/estado-altura'
 import {
@@ -226,10 +228,6 @@ function formatearValor(valor: number): string {
   return Number.isInteger(valor) ? String(valor) : String(Math.round(valor * 10) / 10)
 }
 
-function capitalizar(texto: string): string {
-  return texto.charAt(0).toUpperCase() + texto.slice(1)
-}
-
 // Fuentes relevantes para la ficha cuya frescura excede su TTL. Frescura
 // desconocida no es sinónimo de fresca: se trata como vencida.
 function fuentesVencidas(fuentes: FuenteInfraestructura[]): FuenteInfraestructura[] {
@@ -238,12 +236,6 @@ function fuentesVencidas(fuentes: FuenteInfraestructura[]): FuenteInfraestructur
     if (fuente.frescuraMinutos == null || fuente.ttlMinutos == null) return true
     return fuente.frescuraMinutos > fuente.ttlMinutos
   })
-}
-
-function textoVencida(fuente: FuenteInfraestructura): string {
-  const tipo = capitalizar(tipoFuente(fuente.provider))
-  const cuando = fuente.ultimoExitoEn ? fechaCorta(fuente.ultimoExitoEn) : null
-  return cuando ? `${tipo} desactualizado desde ${cuando}` : `${tipo} desactualizado`
 }
 
 function tieneDatoPeligro(peligro: RespuestaPeligro): boolean {
@@ -304,7 +296,7 @@ function nivelMaximoResumen(peligro: RespuestaPeligro): EntradaResumen['nivelMax
 
 function razonSinDatos(perfil: PerfilGeografico, fuentes: FuenteInfraestructura[]): string {
   const vencida = fuentesVencidas(fuentes)[0]
-  if (vencida) return textoVencida(vencida)
+  if (vencida) return 'sin datos disponibles por ahora'
   if (perfil.lat == null || perfil.lon == null) return 'escuela sin coordenadas'
   return 'sin cobertura de datos para esta ubicación'
 }
@@ -568,6 +560,8 @@ export function FichaTerritorial({
           estacionNombre: hidrometria.tramo.estacionNombre ?? 'sin nombre',
           alturaM: lectura?.lecturaM ?? null,
           medidaEn: lectura?.medidaEn ?? null,
+          alertaM: lectura?.alertaM ?? null,
+          evacuacionM: lectura?.evacuacionM ?? null,
         }
       : null,
     pronosticoDesactualizadoDesde:
@@ -580,20 +574,15 @@ export function FichaTerritorial({
       {/* La conclusión de la escuela sale del motor de riesgo (RiesgoEscuela); acá sólo los datos de apoyo. */}
       <ul className="ficha-territorial__puntos" data-testid="ficha-territorial-puntos">
         {resumen.puntos.map((punto) => (
-          <li key={punto}>{punto}</li>
+          <li key={punto.texto}>
+            {/* Sin avisos de frescura en el texto: la fecha va al tooltip y un dato vencido se ve atenuado. */}
+            <DatoFechado actualizado={textoActualizado(punto.actualizado)} vencido={punto.vencido}>
+              {punto.texto}
+            </DatoFechado>
+            {punto.detalle && <span className="ficha-territorial__detalle-punto">{punto.detalle}</span>}
+          </li>
         ))}
       </ul>
-
-      {vencidas.map((fuente) => (
-        <p
-          key={fuente.provider}
-          className="ficha-territorial__aviso-vencida"
-          role="alert"
-          data-testid="ficha-territorial-fuente-vencida"
-        >
-          {textoVencida(fuente)}. Los datos pueden estar desactualizados.
-        </p>
-      ))}
 
       <details className="ficha-territorial__detalle" data-testid="ficha-territorial-detalle">
         <summary>Ver detalle técnico</summary>

@@ -1,3 +1,5 @@
+import { textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
+
 export type Nivel = 'bajo' | 'moderado' | 'alto' | 'muy_alto' | 'sin_dato'
 
 export type EntradaResumen = {
@@ -13,14 +15,28 @@ export type EntradaResumen = {
     estacionNombre: string
     alturaM: number | null
     medidaEn: string | null
+    alertaM?: number | null
+    evacuacionM?: number | null
+    vencido?: boolean
   } | null
+  /** Última actualización del pronóstico cuando la fuente superó su umbral de frescura. */
   pronosticoDesactualizadoDesde: string | null
+}
+
+/** Un dato de apoyo: el texto va limpio; la fecha y la frescura van al tooltip / estilo atenuado. */
+export type PuntoResumen = {
+  texto: string
+  /** Texto secundario (p. ej. umbrales del río). */
+  detalle?: string
+  /** ISO de la última actualización conocida, para el tooltip. */
+  actualizado: string | null
+  vencido: boolean
 }
 
 export type ResumenEscuela = {
   titulo: 'Situación de la escuela'
   conclusion: string
-  puntos: string[]
+  puntos: PuntoResumen[]
 }
 
 const ZONA_HORARIA = 'America/Argentina/Buenos_Aires'
@@ -54,39 +70,40 @@ export function cantidadLluvia(mm: number): string {
   return `${numero} mm (${categoria})`
 }
 
-const TEXTO_ESTADO_RIO = {
-  evacuacion: 'evacuación',
-  alerta: 'alerta',
-  normal: 'normal',
-  sin_dato: 'sin dato',
-} as const
-
 const TEXTO_MOTIVO = {
   lluvia: 'lluvia',
   rafagas: 'ráfagas',
   caudal: 'crecida del río',
 } as const
 
-function puntoLluvia(entrada: EntradaResumen): string {
-  const { mm, parcial } = entrada.lluviaObservada72h
+function puntoLluvia(entrada: EntradaResumen): PuntoResumen {
+  const { mm, hasta } = entrada.lluviaObservada72h
   const valor = mm === null ? 'sin dato' : cantidadLluvia(mm)
-  const incompleto = parcial ? ' — datos incompletos' : ''
-  return `Lluvia últimos 3 días: ${valor}${incompleto}`
+  return { texto: `Lluvia últimos 3 días: ${valor}`, actualizado: hasta, vencido: false }
 }
 
-function puntoPronostico(entrada: EntradaResumen): string {
+function puntoPronostico(entrada: EntradaResumen): PuntoResumen {
   const { mm } = entrada.lluviaPronosticada24h
   const valor = mm === null ? 'sin dato' : cantidadLluvia(mm)
-  const base = `Pronóstico próximas 24 h: ${valor}`
   const desde = entrada.pronosticoDesactualizadoDesde
-  return desde ? `${base} (desactualizado desde ${fechaCorta(desde)})` : base
+  return { texto: `Pronóstico próximas 24 h: ${valor}`, actualizado: desde, vencido: desde !== null }
 }
 
-function puntoRio(entrada: EntradaResumen): string {
+function puntoRio(entrada: EntradaResumen): PuntoResumen {
   const rio = entrada.rio
-  if (rio === null) return 'Río: sin estación de referencia cercana'
-  const altura = rio.alturaM === null ? '' : `${formatoNumero(rio.alturaM, 2)} m, `
-  return `Río (${rio.estacionNombre}): ${altura}${TEXTO_ESTADO_RIO[rio.estado]}`
+  if (rio === null) return { texto: 'Río: sin estación de referencia cercana', actualizado: null, vencido: false }
+  const altura = textoAlturaRio({
+    alturaM: rio.alturaM,
+    estado: rio.estado,
+    alertaM: rio.alertaM ?? null,
+    evacuacionM: rio.evacuacionM ?? null,
+  })
+  return {
+    texto: `${altura.altura} · ${altura.estado} (${rio.estacionNombre})`,
+    ...(altura.umbrales ? { detalle: altura.umbrales } : {}),
+    actualizado: rio.medidaEn,
+    vencido: rio.vencido ?? false,
+  }
 }
 
 function conclusion(entrada: EntradaResumen): string {

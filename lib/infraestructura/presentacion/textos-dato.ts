@@ -1,4 +1,16 @@
-import { fechaCorta } from '@/lib/infraestructura/riesgo/resumen-escuela'
+const FORMATO_FECHA = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  day: '2-digit',
+  month: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+function fechaCorta(iso: string): string {
+  const partes = Object.fromEntries(FORMATO_FECHA.formatToParts(new Date(iso)).map((p) => [p.type, p.value]))
+  return `${partes.day}/${partes.month} ${partes.hour}:${partes.minute}`
+}
 
 export type EstadoRio = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 

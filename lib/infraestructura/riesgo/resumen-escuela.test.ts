@@ -33,19 +33,27 @@ describe('resumirSituacionEscuela', () => {
       titulo: 'Situación de la escuela',
       conclusion: 'Sin señales de riesgo por lluvia ni por río.',
       puntos: [
-        'Lluvia últimos 3 días: 5 mm (poca)',
-        'Pronóstico próximas 24 h: sin lluvia',
-        'Río: sin estación de referencia cercana',
+        {
+          texto: 'Lluvia últimos 3 días: 5 mm (poca)',
+          actualizado: '2026-10-13T12:00:00Z',
+          vencido: false,
+        },
+        { texto: 'Pronóstico próximas 24 h: sin lluvia', actualizado: null, vencido: false },
+        { texto: 'Río: sin estación de referencia cercana', actualizado: null, vencido: false },
       ],
     })
   })
 
-  it('marca lluvia observada parcial con datos incompletos', () => {
+  it('no agrega sufijo de datos incompletos a la lluvia observada parcial', () => {
     const r = resumirSituacionEscuela({
       ...base,
       lluviaObservada72h: { mm: 5, parcial: true, hasta: null },
     })
-    expect(r.puntos[0]).toBe('Lluvia últimos 3 días: 5 mm (poca) — datos incompletos')
+    expect(r.puntos[0]).toEqual({
+      texto: 'Lluvia últimos 3 días: 5 mm (poca)',
+      actualizado: null,
+      vencido: false,
+    })
   })
 
   it('muestra sin dato cuando no hay lluvia observada', () => {
@@ -53,7 +61,7 @@ describe('resumirSituacionEscuela', () => {
       ...base,
       lluviaObservada72h: { mm: null, parcial: false, hasta: null },
     })
-    expect(r.puntos[0]).toBe('Lluvia últimos 3 días: sin dato')
+    expect(r.puntos[0].texto).toBe('Lluvia últimos 3 días: sin dato')
   })
 
   it('describe el pronóstico con cantidad y categoría', () => {
@@ -61,37 +69,55 @@ describe('resumirSituacionEscuela', () => {
       ...base,
       lluviaPronosticada24h: { mm: 30 },
     })
-    expect(r.puntos[1]).toBe('Pronóstico próximas 24 h: 30 mm (moderada)')
+    expect(r.puntos[1].texto).toBe('Pronóstico próximas 24 h: 30 mm (moderada)')
   })
 
-  it('indica cuándo el pronóstico quedó desactualizado', () => {
+  it('marca el pronóstico vencido sin cambiar el texto y deja la fecha para el tooltip', () => {
     const r = resumirSituacionEscuela({
       ...base,
       pronosticoDesactualizadoDesde: '2026-10-13T21:00:00Z',
     })
-    expect(r.puntos[1]).toBe(
-      'Pronóstico próximas 24 h: sin lluvia (desactualizado desde 13/10 18:00)',
+    expect(r.puntos[1]).toEqual({
+      texto: 'Pronóstico próximas 24 h: sin lluvia',
+      actualizado: '2026-10-13T21:00:00Z',
+      vencido: true,
+    })
+  })
+
+  it('formatea altura del río con coma decimal y nombre de la estación', () => {
+    expect(resumirSituacionEscuela(conRio('evacuacion', 9.33)).puntos[2]).toEqual({
+      texto: 'Altura del río: 9,33 m · Evacuación (Paso de los Libres)',
+      actualizado: '2026-10-13T12:00:00Z',
+      vencido: false,
+    })
+  })
+
+  it('muestra "sin dato" en la altura del río cuando es null', () => {
+    expect(resumirSituacionEscuela(conRio('alerta', null)).puntos[2].texto).toBe(
+      'Altura del río: sin dato · Alerta (Paso de los Libres)',
     )
   })
 
-  it('formatea altura del río con coma decimal', () => {
-    expect(resumirSituacionEscuela(conRio('evacuacion', 9.33)).puntos[2]).toBe(
-      'Río (Paso de los Libres): 9,33 m, evacuación',
-    )
-  })
-
-  it('omite la altura del río cuando es null', () => {
-    expect(resumirSituacionEscuela(conRio('alerta', null)).puntos[2]).toBe(
-      'Río (Paso de los Libres): alerta',
-    )
+  it('agrega los umbrales como detalle cuando se conocen', () => {
+    const entrada = conRio('alerta', 7.6)
+    const r = resumirSituacionEscuela({
+      ...entrada,
+      rio: { ...entrada.rio!, alertaM: 7.5, evacuacionM: 8.5 },
+    })
+    expect(r.puntos[2]).toEqual({
+      texto: 'Altura del río: 7,60 m · Alerta (Paso de los Libres)',
+      detalle: 'alerta 7,50 m · evacuación 8,50 m',
+      actualizado: '2026-10-13T12:00:00Z',
+      vencido: false,
+    })
   })
 
   it.each([
-    ['normal', 'normal'],
-    ['sin_dato', 'sin dato'],
-  ] as const)('describe el estado del río %s', (estado, texto) => {
-    expect(resumirSituacionEscuela(conRio(estado, 2)).puntos[2]).toBe(
-      `Río (Paso de los Libres): 2,00 m, ${texto}`,
+    ['normal', 'Normal'],
+    ['sin_dato', 'Sin dato'],
+  ] as const)('describe el estado del río %s', (estado, etiqueta) => {
+    expect(resumirSituacionEscuela(conRio(estado, 2)).puntos[2].texto).toBe(
+      `Altura del río: 2,00 m · ${etiqueta} (Paso de los Libres)`,
     )
   })
 
@@ -172,7 +198,7 @@ describe('resumirSituacionEscuela', () => {
     ]
     for (const caso of casos) {
       const r = resumirSituacionEscuela(caso)
-      const textos = [r.titulo, r.conclusion, ...r.puntos]
+      const textos = [r.titulo, r.conclusion, ...r.puntos.flatMap((p) => [p.texto, p.detalle ?? ''])]
       for (const texto of textos) {
         for (const prohibido of ['%', 'mm/30', 'cobertura', 'P9', '_']) {
           expect(texto).not.toContain(prohibido)

@@ -164,18 +164,43 @@ describe('FichaTerritorial', () => {
     expect(container.querySelector('details')).toBeNull()
   })
 
-  it('con pronóstico desactualizado el motivo incluye la fecha de la última actualización', async () => {
+  it('con fuente vencida y sin datos, el motivo es genérico y no menciona frescura', async () => {
     stubFetch({
       peligro: () => jsonOk({ niveles: [nivel(24, 'sin_dato')] }),
       fuentes: () =>
         jsonOk({ fuentes: [fuente('open-meteo-radar', 90, 60, '2026-10-13T18:00:00Z')] }),
     })
 
-    render(<FichaTerritorial cueAnexo={CUE} />)
+    const { container } = render(<FichaTerritorial cueAnexo={CUE} />)
 
     await screen.findByTestId('ficha-territorial-sin-datos')
-    expect(screen.getByText(/Pronóstico desactualizado desde \d{2}\/\d{2} \d{2}:\d{2}/)).toBeInTheDocument()
+    expect(screen.getByText('sin datos disponibles por ahora')).toBeInTheDocument()
+    expect(screen.queryByTestId('ficha-territorial-fuente-vencida')).not.toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/desactualiz/i)
     expect(screen.getAllByText(/Sin datos de peligro para esta escuela/)).toHaveLength(1)
+  })
+
+  it('un pronóstico vencido se muestra atenuado con la fecha en el tooltip, sin texto de desactualización', async () => {
+    stubFetch({
+      peligro: () =>
+        jsonOk({
+          niveles: [nivel(24, 'naranja', 85)],
+          pronostico: [punto('precipitacion', 24, 85, 'mm')],
+          observado: [],
+        }),
+      fuentes: () =>
+        jsonOk({ fuentes: [fuente('open-meteo', 120, 60, '2026-10-13T18:00:00Z')] }),
+    })
+
+    const { container } = render(<FichaTerritorial cueAnexo={CUE} />)
+
+    await screen.findByTestId('ficha-territorial-datos')
+    const vencido = container.querySelector('.dato-fechado--vencido')
+    expect(vencido).not.toBeNull()
+    expect(vencido).toHaveTextContent('Pronóstico próximas 24 h')
+    expect(vencido?.getAttribute('title')).toMatch(/^Actualizado \d{2}\/\d{2} \d{2}:\d{2}$/)
+    expect(screen.queryByTestId('ficha-territorial-fuente-vencida')).not.toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/desactualiz/i)
   })
 
   it('escuela sin coordenadas se explica con texto plano', async () => {
@@ -256,7 +281,8 @@ describe('FichaTerritorial', () => {
 
     await screen.findByTestId('ficha-territorial-datos')
     expect(container.textContent).not.toMatch(IDS_INTERNOS)
-    expect(screen.getByText(/Pronóstico desactualizado desde/)).toBeInTheDocument()
+    expect(container.querySelector('.dato-fechado--vencido')).not.toBeNull()
+    expect(container.textContent).not.toMatch(/desactualiz/i)
   })
 
   it('pasa el estado de la vista al padre (con datos, sin datos, cargando)', async () => {
@@ -530,7 +556,8 @@ describe('FichaTerritorial', () => {
     render(<FichaTerritorial cueAnexo={CUE} localidad="Corrientes" />)
 
     const puntos = await screen.findByTestId('ficha-territorial-puntos')
-    expect(puntos).toHaveTextContent('Río (Río Paraná - Corrientes): 9,50 m, evacuación')
+    expect(puntos).toHaveTextContent('Altura del río: 9,50 m · Evacuación (Río Paraná - Corrientes)')
+    expect(puntos).toHaveTextContent('alerta 8,00 m · evacuación 9,00 m')
   })
 
   it('con localidad sin estación de referencia, el río dice que no hay estación cercana', async () => {
