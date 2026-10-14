@@ -1,5 +1,6 @@
 'use client'
 
+import { NotaInfo } from '@/components/ui/dato-fechado'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
@@ -144,7 +145,12 @@ function PopupEvento({ propiedades }: { propiedades: EventoUbicado['properties']
         <p className="map-popup-title">{propiedades.titulo}</p>
         <span className={`map-popup-badge map-popup-badge--${propiedades.confianza}`}>{propiedades.confianzaEtiqueta}</span>
       </div>
-      <p className="map-popup-subtitle">{propiedades.subtitulo}</p>
+      <p className="map-popup-subtitle">
+        {propiedades.subtitulo}
+        {ubicacion && (
+          <NotaInfo texto={`Ubicación aproximada: ${ubicacion}${propiedades.agregado ? ' · forma parte de una cifra provincial' : ''}`} />
+        )}
+      </p>
       {propiedades.hechos.length > 0 && (
         <ul className="map-popup-hechos">
           {propiedades.hechos.slice(0, MAX_HECHOS).map((hecho) => (
@@ -169,11 +175,6 @@ function PopupEvento({ propiedades }: { propiedades: EventoUbicado['properties']
             ))}
           </ul>
         </details>
-      )}
-      {ubicacion && (
-        <p className="map-popup-muted">
-          <small>{`Ubicación aproximada: ${ubicacion}${propiedades.agregado ? ' · forma parte de una cifra provincial' : ''}`}</small>
-        </p>
       )}
     </div>
   )
