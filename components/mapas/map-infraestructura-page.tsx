@@ -77,6 +77,7 @@ import {
 } from '@/components/mapas/layer-control'
 import { LeyendaMapa } from '@/components/mapas/leyenda-mapa'
 import { CapaEstacionesRio } from '@/components/mapas/capa-estaciones-rio'
+import { SeccionEventosReportados } from '@/components/mapas/seccion-eventos-reportados'
 import { CapaEventosReportados, type ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
 import { CapaLluviaObservada, type HorasLluvia, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
 import {
@@ -619,6 +620,14 @@ export default function MapInfraestructuraPage(props: {
   const [horasLluvia, setHorasLluvia] = useState<HorasLluvia>(72)
   const [metaLluvia, setMetaLluvia] = useState<MetaLluviaObservada | null>(null)
   const [resumenEventos, setResumenEventos] = useState<ResumenEventosReportados | null>(null)
+  const [eventoSeleccionado, setEventoSeleccionado] = useState<string | null>(null)
+  const [eventoResaltado, setEventoResaltado] = useState<string | null>(null)
+  const seleccionarEvento = useCallback((id: string) => {
+    const item = resumenEventos?.eventos.find((evento) => evento.id === id)
+    if (!item || item.lon === null || item.lat === null) return
+    mapRef.current?.getMap()?.flyTo({ center: [item.lon, item.lat], zoom: Math.max(mapRef.current.getZoom(), 9), duration: 800 })
+    setEventoSeleccionado(id)
+  }, [resumenEventos])
   const vistaPreviaRadar = useRef<{ center: [number, number]; zoom: number; bearing: number; pitch: number } | null>(null)
   const [seleccionCue, setSeleccionCue] = useState<string | null>(null)
   // Abrir/cerrar la ficha es un estado DISTINTO del de selección. Antes cerrar
@@ -1385,6 +1394,9 @@ export default function MapInfraestructuraPage(props: {
               const escuela = dataEscuelasMapa?.escuelas.find((item) => item.cueAnexo === cueAnexo)
               if (escuela) handleSeleccionarEscuelaBuscada(escuela)
             }}
+            secciones={capasVisibles.eventosReportados ? (
+              <SeccionEventosReportados resumen={resumenEventos} onSeleccionar={seleccionarEvento} onResaltar={setEventoResaltado} />
+            ) : null}
           />
         </>
       )}
@@ -1862,17 +1874,24 @@ export default function MapInfraestructuraPage(props: {
           {/* Stacking (bottom → top): rain raster below the department areas; events
               below stations, both below the school layers. DOM popups sit above all GL layers. */}
           <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} />
-          <CapaEventosReportados visible={capasVisibles.eventosReportados} onResumen={setResumenEventos} beforeId={CAPA_PARTES_ID} />
+          <CapaEventosReportados
+            visible={capasVisibles.eventosReportados}
+            onResumen={setResumenEventos}
+            beforeId={CAPA_PARTES_ID}
+            seleccionadoId={eventoSeleccionado}
+            resaltadoId={eventoResaltado}
+            onSeleccion={setEventoSeleccionado}
+          />
           <CapaEstacionesRio visible={capasVisibles.estacionesRio} beforeId={CAPA_PARTES_ID} />
         </MapGL>
       </div>
 
       {radarActivo ? (
-        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} resumenEventos={resumenEventos} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} resumenEventos={resumenEventos} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} resumenEventos={resumenEventos} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { BookMinus, BookX, Check, Clock, DoorOpen, House } from 'lucide-react'
 import { colorSeveridad } from '@/lib/infraestructura/severidad'
 import { etiquetaDepartamento, ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
@@ -14,6 +14,8 @@ interface PanelSituacionActualProps {
   escuelas: EscuelaMapaEnriquecida[]
   actualizadoEn: string | null
   onSeleccionar: (cueAnexo: string) => void
+  /** Extra sections rendered at the end of the panel (e.g. reported events). */
+  secciones?: ReactNode
 }
 
 const FORMATO_HORA = new Intl.DateTimeFormat('es-AR', {
@@ -74,7 +76,7 @@ function chipsEscuela(escuela: EscuelaMapaEnriquecida) {
   )
 }
 
-export function PanelSituacionActual({ escuelas, onSeleccionar }: PanelSituacionActualProps) {
+export function PanelSituacionActual({ escuelas, onSeleccionar, secciones }: PanelSituacionActualProps) {
   const [ahoraMs] = useState(() => Date.now())
   const resumen = resumir(escuelas)
   const reportes = ordenarReportes(escuelas).filter((escuela) => escuela.gravedad > 0)
@@ -198,6 +200,8 @@ export function PanelSituacionActual({ escuelas, onSeleccionar }: PanelSituacion
           </div>
         </section>
       )}
+
+      {secciones}
     </section>
   )
 }
