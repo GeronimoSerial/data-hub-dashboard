@@ -63,7 +63,7 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - [x] T1 SYNOP 6RRRt decoder (pure) + real fixtures + tests
 - [x] T2 Persistence + Ogimet client + job `sync-synop-lluvia` (+cadence, jobs.mjs, DEPLOY notes)
 - [x] T3 River evidence port/adapter + engine integration + floor + tests
-- [ ] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
+- [x] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
 - [ ] T5 Local recompute against dump (before/after per department, examples)
 
 ## Merge note

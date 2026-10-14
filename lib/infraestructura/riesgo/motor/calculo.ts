@@ -261,7 +261,7 @@ export async function calcularRiesgoEscuela(params: {
       unidad: 'mm',
       contribucion: 0,
       peso: 0,
-      explicacion: `Lluvia observada estimada ${mm}mm en la ventana`,
+      explicacion: `Lluvia observada ${mm}mm en la ventana (fuente ${(horizonte === 24 ? observado.fuente24h : observado.fuente72h) ?? 's/d'})`,
       observadoEn: observado.observadoEn,
     }
     factores.push(factor)

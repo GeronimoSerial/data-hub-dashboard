@@ -43,6 +43,10 @@ export interface LluviaObservadaCelda {
   acumuladoMm24h: number | null
   acumuladoMm72h: number | null
   observadoEn: string | null
+  // Fuente de cada acumulado cuando hay valor: 'nasa-imerg' o
+  // 'synop:<wmo>:<nombre>:<km>km' (estación SMN medida, preferida sobre IMERG).
+  fuente24h?: string
+  fuente72h?: string
 }
 
 export interface PuertoLluviaObservada {
