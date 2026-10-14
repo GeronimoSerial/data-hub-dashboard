@@ -242,3 +242,74 @@ describe('evaluarJobsEsperados — jobs declarados vs. corridas registradas', ()
     }
   })
 })
+
+describe('evaluarFrescuraFuente — IMERG mide la edad del dato, no la del job', () => {
+  const ahora = new Date('2026-10-14T12:00:00.000Z')
+
+  it('nasa-imerg con job reciente pero dato de 5,5 h: frescura 330 min, al día (límite 6 h)', async () => {
+    const { evaluarFrescuraFuente } = await import('./salud')
+    expect(
+      evaluarFrescuraFuente({
+        provider: 'nasa-imerg',
+        ultimoExitoEn: '2026-10-14T11:59:00.000Z',
+        ttlMinutos: 180,
+        datoMasRecienteEn: '2026-10-14T06:30:00.000Z',
+        ahora,
+      }),
+    ).toEqual({ frescuraMinutos: 330, limiteMinutos: 360, vencida: false, base: 'dato' })
+  })
+
+  it('nasa-imerg con dato de más de 6 h: vencida aunque el job haya corrido bien', async () => {
+    const { evaluarFrescuraFuente } = await import('./salud')
+    expect(
+      evaluarFrescuraFuente({
+        provider: 'nasa-imerg',
+        ultimoExitoEn: '2026-10-14T11:59:00.000Z',
+        ttlMinutos: 180,
+        datoMasRecienteEn: '2026-10-14T05:30:00.000Z',
+        ahora,
+      }),
+    ).toMatchObject({ frescuraMinutos: 390, vencida: true, base: 'dato' })
+  })
+
+  it('nasa-imerg sin ningún dato ingerido: sin frescura y vencida', async () => {
+    const { evaluarFrescuraFuente } = await import('./salud')
+    expect(
+      evaluarFrescuraFuente({ provider: 'nasa-imerg', ultimoExitoEn: '2026-10-14T11:59:00.000Z', ttlMinutos: 180, datoMasRecienteEn: null, ahora }),
+    ).toMatchObject({ frescuraMinutos: null, vencida: true, base: 'dato' })
+  })
+
+  it('otras fuentes siguen midiendo la última corrida exitosa contra su TTL', async () => {
+    const { evaluarFrescuraFuente } = await import('./salud')
+    expect(
+      evaluarFrescuraFuente({ provider: 'open-meteo', ultimoExitoEn: '2026-10-14T11:00:00.000Z', ttlMinutos: 30, datoMasRecienteEn: null, ahora }),
+    ).toEqual({ frescuraMinutos: 60, limiteMinutos: 30, vencida: true, base: 'corrida' })
+  })
+})
+
+describe('obtenerDatoMasRecienteImerg', () => {
+  it('devuelve el observadoEn más reciente de la lluvia satelital IMERG', async () => {
+    const { obtenerDatoMasRecienteImerg } = await import('./salud')
+    const { hazardObservation } = await import('@/lib/db/schema')
+    const { PROVIDER_OBSERVADO, VARIABLE_OBSERVADA } = await import('./peligro/observado')
+    expect(await obtenerDatoMasRecienteImerg()).toBeNull()
+    const obs = (id: string, observadoEn: string, provider = PROVIDER_OBSERVADO) => ({
+      id,
+      provider,
+      variable: VARIABLE_OBSERVADA,
+      geometryRef: 'celda-1',
+      valor: 1,
+      unidad: 'mm/30min',
+      observadoEn,
+      validoDesde: observadoEn,
+      validoHasta: observadoEn,
+      ingeridoEn: observadoEn,
+    })
+    await getDb().insert(hazardObservation).values([
+      obs('o1', '2026-10-14T05:30:00.000Z'),
+      obs('o2', '2026-10-14T06:30:00.000Z'),
+      obs('o3', '2026-10-14T09:00:00.000Z', 'otro-proveedor'),
+    ])
+    expect(await obtenerDatoMasRecienteImerg()).toBe('2026-10-14T06:30:00.000Z')
+  })
+})

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/session'
 import { adminPageGate } from '@/lib/acl'
-import { obtenerEstadoOperativo } from '@/lib/infraestructura/riesgo/salud'
+import { evaluarFrescuraFuente, obtenerDatoMasRecienteImerg, obtenerEstadoOperativo, type FrescuraFuente } from '@/lib/infraestructura/riesgo/salud'
 import {
   estadoAtrasoJob,
   proximaCorridaEsperada,
@@ -34,9 +34,13 @@ const alerta: React.CSSProperties = { ...celda, color: 'var(--danger)' }
 // llamado directamente en el cuerpo de un componente, aun siendo un Server
 // Component async — mismo patrón que ya usa `obtenerEstadoOperativo()`
 // (calcula `generadoEn` puertas adentro, no en el JSX).
-function calcularFrescuraMinutos(ultimoExitoEn: string | null): number | null {
-  if (ultimoExitoEn === null) return null
-  return Math.round((Date.now() - new Date(ultimoExitoEn).getTime()) / 60000)
+// IMERG mide la edad del gránulo más reciente (no la de la última corrida del
+// job); el resto de las fuentes, la última corrida exitosa contra su TTL.
+function calcularFrescura(
+  fuente: { provider: string; ultimoExitoEn: string | null; ttlMinutos: number },
+  datoMasRecienteImerg: string | null,
+): FrescuraFuente {
+  return evaluarFrescuraFuente({ ...fuente, datoMasRecienteEn: datoMasRecienteImerg, ahora: new Date() })
 }
 
 export default async function OperacionSalud() {
@@ -49,6 +53,7 @@ export default async function OperacionSalud() {
 
   const estado = await obtenerEstadoOperativo()
   const fuentes = await getDb().select().from(hazardSourceHealth)
+  const datoMasRecienteImerg = await obtenerDatoMasRecienteImerg()
   const cupo = await obtenerResumenCupo({ apiKeyPresente: Boolean(apiKeyDesdeEntorno()) })
   const avanceClimatologia = await obtenerAvanceClimatologia()
   const flagsOperativas = listarFlagsOperativas()
@@ -140,8 +145,7 @@ export default async function OperacionSalud() {
             </thead>
             <tbody>
               {fuentes.map((fuente) => {
-                const frescura = calcularFrescuraMinutos(fuente.ultimoExitoEn)
-                const vencida = frescura !== null && frescura > fuente.ttlMinutos
+                const { frescuraMinutos: frescura, limiteMinutos, vencida, base } = calcularFrescura(fuente, datoMasRecienteImerg)
                 const resaltado = fuente.estado !== 'ok' || vencida
                 const estilo = resaltado ? alerta : celda
                 return (
@@ -149,8 +153,8 @@ export default async function OperacionSalud() {
                     <td style={estilo}>{fuente.provider}</td>
                     <td style={estilo}>{fuente.estado}</td>
                     <td style={estilo}>{fuente.ultimoExitoEn ?? '—'}</td>
-                    <td style={estilo}>{frescura === null ? '—' : `${frescura} min`}</td>
-                    <td style={estilo}>{fuente.ttlMinutos}</td>
+                    <td style={estilo}>{frescura === null ? '—' : `${frescura} min`}{base === 'dato' ? ' (edad del dato)' : ''}</td>
+                    <td style={estilo}>{base === 'dato' ? `${limiteMinutos} (dato)` : fuente.ttlMinutos}</td>
                     <td style={estilo}>{fuente.licencia}</td>
                     <td style={estilo}>{vencida ? 'vencida' : '—'}</td>
                   </tr>

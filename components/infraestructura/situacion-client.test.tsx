@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SituacionClient, type EstadoSituacionCliente } from './situacion-client'
+import { formatearFecha, SituacionClient, type EstadoSituacionCliente } from './situacion-client'
 
 const ESTADO_CON_CORTE: EstadoSituacionCliente = {
   corte: {
@@ -156,5 +156,22 @@ describe('SituacionClient', () => {
     render(<SituacionClient estadoInicial={estadoVacio} />)
     expect(screen.getByText('Todavía no se generó ningún corte.')).toBeInTheDocument()
     expect(document.querySelectorAll('.situacion-kpi')).toHaveLength(0)
+  })
+})
+
+describe('formatearFecha — igual en servidor y navegador (sin error de hidratación)', () => {
+  it('formatea un instante fijo en hora de Buenos Aires, 24 h, sin depender del ICU del runtime', () => {
+    expect(formatearFecha('2026-10-14T12:05:00.000Z')).toBe('14/10/2026, 09:05')
+    expect(formatearFecha('2026-10-14T03:00:00.000Z')).toBe('14/10/2026, 00:00')
+    expect(formatearFecha('2026-10-14T20:30:00.000Z')).toBe('14/10/2026, 17:30')
+  })
+
+  it('el encabezado del corte usa ese mismo texto', () => {
+    render(<SituacionClient estadoInicial={ESTADO_CON_CORTE} />)
+    expect(document.querySelector('.situacion-page__generado')?.textContent).toBe('Corte generado el 27/09/2026, 09:00')
+  })
+
+  it('devuelve el texto tal cual si no es una fecha válida', () => {
+    expect(formatearFecha('no-es-fecha')).toBe('no-es-fecha')
   })
 })

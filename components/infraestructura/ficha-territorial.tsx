@@ -533,6 +533,13 @@ export function FichaTerritorial({
   const lluviaPronosticada24h = precipitacion
     .filter((punto) => punto.horizonteHoras <= 24)
     .reduce<number | null>((total, punto) => (total ?? 0) + punto.valor, null)
+  const corridaPronostico24h =
+    precipitacion
+      .filter((punto) => punto.horizonteHoras <= 24)
+      .map((punto) => punto.corridaEn ?? null)
+      .filter((valor): valor is string => valor !== null)
+      .sort()
+      .at(-1) ?? null
   const lectura = hidrometria?.lectura ?? null
   const entrada: EntradaResumen = {
     nivelMaximo: nivelMaximoResumen(peligro),
@@ -543,7 +550,7 @@ export function FichaTerritorial({
           hasta: acumulado72h.masRecienteEn,
         }
       : { mm: null, parcial: false, hasta: null },
-    lluviaPronosticada24h: { mm: lluviaPronosticada24h },
+    lluviaPronosticada24h: { mm: lluviaPronosticada24h, corridaEn: corridaPronostico24h },
     rio: hidrometria?.tramo
       ? {
           estado: estadoAltura(
@@ -576,9 +583,14 @@ export function FichaTerritorial({
         {resumen.puntos.map((punto) => (
           <li key={punto.texto}>
             {/* Sin avisos de frescura en el texto: la fecha va al tooltip y un dato vencido se ve atenuado. */}
-            <DatoFechado actualizado={textoActualizado(punto.actualizado)} vencido={punto.vencido}>
-              {punto.texto}
-            </DatoFechado>
+            {/* Sin fecha conocida no hay tooltip: nunca un "Sin fecha de actualización" técnico. */}
+            {punto.actualizado ? (
+              <DatoFechado actualizado={textoActualizado(punto.actualizado)} vencido={punto.vencido}>
+                {punto.texto}
+              </DatoFechado>
+            ) : (
+              <span className={punto.vencido ? 'dato-fechado--vencido' : undefined}>{punto.texto}</span>
+            )}
             {punto.detalle && <span className="ficha-territorial__detalle-punto">{punto.detalle}</span>}
           </li>
         ))}

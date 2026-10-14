@@ -238,3 +238,22 @@ describe('fechaCorta', () => {
     expect(fechaCorta('2026-10-14T01:15:00Z')).toBe('13/10 22:15')
   })
 })
+
+describe('resumirSituacionEscuela — fecha del pronóstico', () => {
+  const pronostico = (entrada: EntradaResumen) =>
+    resumirSituacionEscuela(entrada).puntos.find((p) => p.texto.startsWith('Pronóstico próximas 24 h'))
+
+  it('con el pronóstico al día usa la fecha de la última corrida, sin atenuarlo', () => {
+    const p = pronostico({ ...base, lluviaPronosticada24h: { mm: 0, corridaEn: '2026-10-14T06:00:00Z' } })
+    expect(p).toMatchObject({ actualizado: '2026-10-14T06:00:00Z', vencido: false })
+  })
+
+  it('con el pronóstico vencido manda la fecha del último éxito de la fuente', () => {
+    const p = pronostico({
+      ...base,
+      lluviaPronosticada24h: { mm: 0, corridaEn: '2026-10-14T06:00:00Z' },
+      pronosticoDesactualizadoDesde: '2026-10-13T21:00:00Z',
+    })
+    expect(p).toMatchObject({ actualizado: '2026-10-13T21:00:00Z', vencido: true })
+  })
+})

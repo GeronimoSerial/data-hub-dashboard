@@ -694,6 +694,8 @@ export function RadarMeteo({ activo, variable, escuelas = [], resumen, alertasRe
             type="symbol"
             layout={{
               'text-field': '↑',
+              // MapLibre defaults to Open Sans, which the OpenFreeMap glyph server does not serve.
+              'text-font': ['Noto Sans Regular'],
               'text-size': ['interpolate', ['linear'], ['get', 'speed'], 0, 18, 60, 26],
               'text-rotate': ['get', 'rotation'],
               'text-rotation-alignment': 'map',

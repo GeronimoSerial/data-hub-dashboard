@@ -1949,7 +1949,8 @@ export default function MapInfraestructuraPage(props: {
 
           </Fragment>
           {/* Stacking (bottom → top): rain raster below the department areas; events
-              below stations, both below the school layers. DOM popups sit above all GL layers. */}
+              below the school layers; river stations on top of everything (school
+              clusters must not cover them). DOM popups sit above all GL layers. */}
           <CapaLluviaObservada visible={capasVisibles.lluviaObservada} horas={horasLluvia} onMeta={setMetaLluvia} beforeId={CAPA_DEPARTAMENTOS_RELLENO_ID} />
           <CapaEventosReportados
             visible={capasVisibles.eventosReportados}
@@ -1959,7 +1960,7 @@ export default function MapInfraestructuraPage(props: {
             resaltadoId={eventoResaltado}
             onSeleccion={setEventoSeleccionado}
           />
-          <CapaEstacionesRio visible={capasVisibles.estacionesRio} beforeId={CAPA_PARTES_ID} />
+          <CapaEstacionesRio visible={capasVisibles.estacionesRio} />
         </MapGL>
       </div>
 

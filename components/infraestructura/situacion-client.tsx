@@ -96,17 +96,24 @@ function etiquetaNivelRiesgo(nivel: string | null): string {
   return ETIQUETA_NIVEL_RIESGO[nivel] ?? nivel
 }
 
-function formatearFecha(iso: string): string {
+// Built from formatToParts with an explicit 24 h cycle: `toLocaleString` output
+// depends on the runtime's ICU data (Node renders "09:05 a. m.", browsers
+// "09:05"), which broke hydration of the server-rendered page (React #418).
+const FORMATO_FECHA = new Intl.DateTimeFormat('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires',
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+export function formatearFecha(iso: string): string {
   const fecha = new Date(iso)
   if (Number.isNaN(fecha.getTime())) return iso
-  return fecha.toLocaleString('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const p = Object.fromEntries(FORMATO_FECHA.formatToParts(fecha).map((parte) => [parte.type, parte.value]))
+  return `${p.day}/${p.month}/${p.year}, ${p.hour}:${p.minute}`
 }
 
 function kpiTile(props: {

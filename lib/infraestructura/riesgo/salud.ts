@@ -1,13 +1,14 @@
 // Estado operativo mínimo para el panel interno de E0: flags de feature y
 // último run conocido por tipo de job. Sólo lectura — nunca dispara jobs.
-import { isNotNull, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, max, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { hazardPrecipitacionSerie, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
+import { hazardObservation, hazardPrecipitacionSerie, infraGeoProfile, infraJobRun } from '@/lib/db/schema'
 import { enosJobsEnabled } from '@/lib/infraestructura/jobs/flags'
 import { ANIOS_MINIMOS_CLIMATOLOGIA } from './climatologia/umbrales'
 import { aiVeredictoEnabled, riskEngineEnabled, riskMode, riskRadarEnabled } from './flags'
 import { JOBS_ESPERADOS, TOLERANCIA_ATRASO_JOB, type JobEsperado } from './jobs-esperados'
 import { agruparPuntosPorEra5, type PuntoClimatologia } from './providers/climatologia'
+import { PROVIDER_OBSERVADO, VARIABLE_OBSERVADA } from './peligro/observado'
 
 const ANIOS_OBJETIVO_CLIMATOLOGIA = 30
 
@@ -254,4 +255,56 @@ export async function obtenerEstadoOperativo(): Promise<EstadoOperativo> {
     climatologiaPrecipitacion: await obtenerCoberturaClimatologia(),
     generadoEn: ahora.toISOString(),
   }
+}
+
+// IMERG: the job can succeed every hour while NASA publishes nothing new, so its
+// freshness is the age of the newest ingested granule, not of the last run. Same
+// 6 h limit as the observed-rain layer (EDAD_MAXIMA_OBSERVACION_HORAS in
+// app/api/infraestructura/peligro/observado-grilla/route.ts).
+export const EDAD_MAXIMA_DATO_IMERG_MINUTOS = 6 * 60
+
+export type FrescuraFuente = {
+  frescuraMinutos: number | null
+  limiteMinutos: number
+  vencida: boolean
+  // 'dato': age of the newest data; 'corrida': time since the last successful run.
+  base: 'dato' | 'corrida'
+}
+
+export function evaluarFrescuraFuente(params: {
+  provider: string
+  ultimoExitoEn: string | null
+  ttlMinutos: number
+  datoMasRecienteEn: string | null
+  ahora: Date
+}): FrescuraFuente {
+  const minutosDesde = (iso: string | null) => {
+    const ms = iso === null ? NaN : Date.parse(iso)
+    return Number.isNaN(ms) ? null : Math.round((params.ahora.getTime() - ms) / 60_000)
+  }
+  if (params.provider === PROVIDER_OBSERVADO) {
+    const frescuraMinutos = minutosDesde(params.datoMasRecienteEn)
+    return {
+      frescuraMinutos,
+      limiteMinutos: EDAD_MAXIMA_DATO_IMERG_MINUTOS,
+      vencida: frescuraMinutos === null || frescuraMinutos > EDAD_MAXIMA_DATO_IMERG_MINUTOS,
+      base: 'dato',
+    }
+  }
+  const frescuraMinutos = minutosDesde(params.ultimoExitoEn)
+  return {
+    frescuraMinutos,
+    limiteMinutos: params.ttlMinutos,
+    vencida: frescuraMinutos !== null && frescuraMinutos > params.ttlMinutos,
+    base: 'corrida',
+  }
+}
+
+/** `observadoEn` of the newest IMERG granule stored (null when nothing was ingested). */
+export async function obtenerDatoMasRecienteImerg(): Promise<string | null> {
+  const [fila] = await getDb()
+    .select({ hasta: max(hazardObservation.observadoEn) })
+    .from(hazardObservation)
+    .where(and(eq(hazardObservation.provider, PROVIDER_OBSERVADO), eq(hazardObservation.variable, VARIABLE_OBSERVADA)))
+  return fila?.hasta ?? null
 }

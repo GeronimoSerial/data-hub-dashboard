@@ -4,6 +4,7 @@ import {
   gatedStaticPath,
   isBleedViewerPath,
   isRestoreSettled,
+  legacyRecursoRedirect,
   scrollRestorationKey,
 } from './nav'
 
@@ -115,5 +116,23 @@ describe('isRestoreSettled', () => {
 
   it('settles once the time budget is exceeded, even short of the target', () => {
     expect(isRestoreSettled(0, 500, 1001, 1000)).toBe(true)
+  })
+})
+
+describe('legacyRecursoRedirect', () => {
+  it('sends legacy static dashboards to their migrated /recursos/[id] viewer', () => {
+    expect(legacyRecursoRedirect('/tablero')).toBe('/recursos/r2')
+    expect(legacyRecursoRedirect('/tablero/')).toBe('/recursos/r2')
+    expect(legacyRecursoRedirect('/tablero/index.html')).toBe('/recursos/r2')
+    expect(legacyRecursoRedirect('/mapa_interactivo')).toBe('/recursos/r3')
+    expect(legacyRecursoRedirect('/mapa_sobreedad/')).toBe('/recursos/r13')
+    expect(legacyRecursoRedirect('/mapa_notas/index.html')).toBe('/recursos/r14')
+  })
+
+  it('leaves nested assets and unrelated paths to the gate', () => {
+    expect(legacyRecursoRedirect('/tablero/datos.json')).toBeNull()
+    expect(legacyRecursoRedirect('/tableros')).toBeNull()
+    expect(legacyRecursoRedirect('/recursos/r2')).toBeNull()
+    expect(legacyRecursoRedirect('/')).toBeNull()
   })
 })
