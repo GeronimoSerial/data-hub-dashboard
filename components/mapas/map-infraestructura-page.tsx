@@ -155,8 +155,8 @@ export {
   colorEscuelaSinReporte,
   radioEscuelaSinReporte,
 } from '@/lib/infraestructura/mapa/punto'
-import { construirPuntosNivel } from '@/lib/infraestructura/mapa/puntos-nivel'
-import { coloresRadar, cuesAmenazaAltaRadar } from '@/lib/infraestructura/mapa/radar'
+import { construirPuntosNivel, puntosRadarVisibles } from '@/lib/infraestructura/mapa/puntos-nivel'
+import { coloresRadar, escuelasPorRiesgo } from '@/lib/infraestructura/mapa/radar'
 import { coloresPlanificacion, cuesJuntoLagunaPlanificacion, ETIQUETA_NIVEL_PLAN, nivelPlanificacion, TITULO_LEYENDA_VISTA, VISTAS_PLANIFICACION } from '@/lib/infraestructura/mapa/planificacion'
 import type { VistaPlanificacion } from '@/lib/infraestructura/mapa/planificacion'
 import { CapaPuntosNivel, CapaRiesgoSituacion } from '@/components/mapas/capa-puntos-nivel'
@@ -850,10 +850,12 @@ export default function MapInfraestructuraPage(props: {
     const cuesLaguna = esPlanificacion
       ? cuesJuntoLagunaPlanificacion(escuelasVisibles, vistaPlanificacion, { territorio })
       : new Set<string>()
-    const cuesAmenaza = radarActivo
-      ? cuesAmenazaAltaRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
-      : new Set<string>()
-    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna, cuesAmenaza)
+    const puntos = construirPuntosNivel(escuelasVisibles, colorPorCue, cuesLaguna)
+    if (radarActivo) {
+      const nivelPorCue = new Map(escuelasPorRiesgo(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
+        .map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
+      return puntosRadarVisibles(puntos, nivelPorCue)
+    }
     // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
     return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
   }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio, radarActivo, radarData, horizonteEfectivo])
@@ -1796,6 +1798,7 @@ export default function MapInfraestructuraPage(props: {
 
           {(radarActivo || esPlanificacion) && (
             <CapaPuntosNivel
+              radar={radarActivo}
               idCapa={CAPA_PUNTOS_NIVEL_ID}
               idFuente={FUENTE_PUNTOS_NIVEL_ID}
               puntos={puntosNivel}

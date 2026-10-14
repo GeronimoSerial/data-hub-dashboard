@@ -8,15 +8,14 @@ export interface PropiedadesPuntoNivel {
   color?: string
   conDato: boolean
   juntoLaguna: boolean
-  /** Radar: amenaza alta hoy por encima del riesgo actual (anillo). */
-  amenazaAlta?: boolean
+  /** Radar: 3 muy alto, 2 alto, 1 moderado; define el tamaño. */
+  peso?: number
 }
 
 export function construirPuntosNivel(
   escuelas: ReadonlyArray<{ cueAnexo: string; lat: number | null; lon: number | null }>,
   colorPorCue: ReadonlyMap<string, string>,
   juntoLagunaPorCue: ReadonlySet<string> = new Set(),
-  amenazaAltaPorCue: ReadonlySet<string> = new Set(),
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return {
     type: 'FeatureCollection',
@@ -31,7 +30,6 @@ export function construirPuntosNivel(
           ...(color !== undefined ? { color } : {}),
           conDato: color !== undefined,
           juntoLaguna: juntoLagunaPorCue.has(escuela.cueAnexo),
-          ...(amenazaAltaPorCue.has(escuela.cueAnexo) ? { amenazaAlta: true } : {}),
         },
       }]
     }),
@@ -60,4 +58,24 @@ export function puntosRiesgoSobreSituacion(
   territorio: TerritorioMapa | null,
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return soloConDato(construirPuntosNivel(escuelas, coloresPlanificacion(escuelas, 'aisladas', { territorio })))
+}
+
+const PESO_RIESGO: Record<string, number> = { muy_alto: 3, alto: 2, moderado: 1 }
+
+/**
+ * Radar ("Riesgo actual (hoy)"): sólo se dibujan las escuelas con riesgo
+ * moderado o más, con tamaño por nivel. Riesgo bajo y sin dato no se dibujan
+ * (las listas y los KPI conservan sus cuentas).
+ */
+export function puntosRadarVisibles(
+  puntos: FeatureCollection<Point, PropiedadesPuntoNivel>,
+  nivelPorCue: ReadonlyMap<string, string>,
+): FeatureCollection<Point, PropiedadesPuntoNivel> {
+  return {
+    ...puntos,
+    features: puntos.features.flatMap((feature) => {
+      const peso = PESO_RIESGO[nivelPorCue.get(feature.properties.cueAnexo) ?? '']
+      return peso === undefined ? [] : [{ ...feature, properties: { ...feature.properties, peso } }]
+    }),
+  }
 }

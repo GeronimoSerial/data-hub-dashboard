@@ -1112,7 +1112,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
 
-  it('dibuja el padrón completo con el color del riesgo y sólo monta la capa en Radar', async () => {
+  it('dibuja sólo escuelas con riesgo moderado o más, con el color del riesgo, y sólo monta la capa en Radar', async () => {
     const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
@@ -1122,7 +1122,7 @@ describe('MapInfraestructuraPage — modo Radar', () => {
       [feature.properties.color, feature.properties.conDato],
     ]))
     expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true])
-    expect(colores.get(CUE_SIN_AFECTACION)).toEqual([undefined, false])
+    expect(colores.has(CUE_SIN_AFECTACION)).toBe(false)
     expect(screen.getByTestId('mock-layer-infra-puntos-nivel')).toBeInTheDocument()
 
     vista.rerender({ pestana: 'actual' })

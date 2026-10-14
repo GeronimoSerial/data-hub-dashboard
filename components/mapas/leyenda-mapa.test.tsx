@@ -159,7 +159,7 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
 
     expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo actual (hoy) · 72 h')
     expect(Array.from(container.querySelectorAll('.map-leyenda__fila li')).map((item) => item.textContent)).toEqual([
-      'Muy alto', 'Alto', 'Moderado', 'Bajo', 'Anillo: amenaza alta hoy (lluvia o río) aunque el riesgo de la escuela sea menor',
+      'Muy alto', 'Alto', 'Moderado',
     ])
     expect(container.querySelector('p')).toBeNull()
 
@@ -167,9 +167,10 @@ describe('LeyendaMapa · Riesgo / gravedad y Símbolos', () => {
     expect(container.querySelector('.map-leyenda__titulo')).toHaveTextContent('Riesgo actual (hoy) · 10 días')
     expect(Array.from(container.querySelectorAll('.map-leyenda__muestra')).map((muestra) => (muestra as HTMLElement).style.backgroundColor)).toEqual([
       colorCss(colorRiesgo('muy_alto')), colorCss(colorRiesgo('alto')),
-      colorCss(colorRiesgo('moderado')), '', '',
+      colorCss(colorRiesgo('moderado')),
     ])
-    expect(container.querySelectorAll('.map-leyenda__muestra--neutra')).toHaveLength(1)
+    // El mapa del Radar no dibuja riesgo bajo ni escuelas sin dato.
+    expect(container.querySelectorAll('.map-leyenda__muestra--neutra')).toHaveLength(0)
   })
 
   it('muestra título y escala de cada vista de Planificación', () => {

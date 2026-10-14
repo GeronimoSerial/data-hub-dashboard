@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { EscuelaMapaEnriquecida } from './tipos'
-import { colorRiesgo, coloresRadar, cuesAmenazaAltaRadar, escuelasEnRadar, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
+import { colorRiesgo, coloresRadar, escuelasEnRadar, escuelasPorRiesgo, nivelRiesgo, resumirRiesgo } from './radar'
 import type { NivelRiesgo } from './radar'
 
 function escuela(parcial: Partial<EscuelaMapaEnriquecida> = {}): EscuelaMapaEnriquecida {
@@ -72,7 +72,7 @@ describe('coloresRadar', () => {
     expect(colores.has('bajo')).toBe(false)
   })
 
-  it('colorea siempre por riesgo actual y marca con anillo la amenaza alta que lo supera', () => {
+  it('colorea siempre por riesgo actual, aunque la amenaza sea mayor', () => {
     const padrónAmenaza = [
       ...padrón,
       escuela({ cueAnexo: 'bajo-amenaza-alta', nombre: 'Zeta' }),
@@ -94,8 +94,6 @@ describe('coloresRadar', () => {
     // El color nunca contradice el titular de la ficha (riesgo actual bajo).
     expect(colores.get('bajo-amenaza-alta')).toBe(colorRiesgo('bajo'))
     expect(colores.get('bajo-amenaza-muy-alta')).toBe(colorRiesgo('bajo'))
-    expect([...cuesAmenazaAltaRadar(puntosAmenaza, padrónAmenaza, 24)].sort())
-      .toEqual(['bajo-amenaza-alta', 'bajo-amenaza-muy-alta'])
     expect(colores.has('bajo-amenaza-moderada')).toBe(false)
     expect(colores.has('bajo-amenaza-otro-horizonte')).toBe(false)
     expect(colores.has('bajo')).toBe(false)

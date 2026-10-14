@@ -8,9 +8,6 @@ import { colorBordeSinReporte, colorEscuelaSinReporte, radioPunto, radioPuntoNiv
 export const CAPA_RIESGO_SITUACION_ID = 'infra-riesgo-situacion'
 export const FUENTE_RIESGO_SITUACION_ID = 'infra-riesgo-situacion-src'
 
-/** Anillo violeta: amenaza alta hoy (no es un nivel de riesgo, por eso no usa la escala de colores). */
-export const COLOR_AMENAZA_ALTA = '#7c3aed'
-
 const COLOR_BORDE_CLARO = '#1c1c1c'
 const COLOR_BORDE_OSCURO = '#f4f1ec'
 
@@ -40,7 +37,24 @@ export function paintAnilloLaguna(): CircleLayerSpecification['paint'] {
   }
 }
 
+/** Radar: color del riesgo actual y tamaño por nivel (moderado < alto < muy alto). */
+export function paintPuntosRadar(oscuro: boolean): CircleLayerSpecification['paint'] {
+  return {
+    'circle-color': ['get', 'color'],
+    'circle-radius': [
+      'interpolate', ['linear'], ['zoom'],
+      6, ['match', ['get', 'peso'], 3, 6, 2, 5, 4],
+      10, ['match', ['get', 'peso'], 3, 9, 2, 7.5, 6],
+      14, ['match', ['get', 'peso'], 3, 12, 2, 10, 8],
+    ],
+    'circle-stroke-color': oscuro ? COLOR_BORDE_OSCURO : COLOR_BORDE_CLARO,
+    'circle-stroke-width': 1,
+    'circle-opacity': 1,
+  }
+}
+
 export function CapaPuntosNivel(props: {
+  radar?: boolean
   idCapa: string
   idFuente: string
   puntos: FeatureCollection<Point, PropiedadesPuntoNivel>
@@ -48,9 +62,8 @@ export function CapaPuntosNivel(props: {
 }) {
   return (
     <Source id={props.idFuente} type="geojson" data={props.puntos}>
-      <Layer id={props.idCapa} type="circle" paint={paintPuntosNivel(props.oscuro)} />
+      <Layer id={props.idCapa} type="circle" paint={props.radar ? paintPuntosRadar(props.oscuro) : paintPuntosNivel(props.oscuro)} />
       <Layer id={`${props.idCapa}-laguna`} type="circle" filter={filtroAnilloLaguna()} paint={paintAnilloLaguna()} />
-      <Layer id={`${props.idCapa}-amenaza`} type="circle" filter={['==', ['get', 'amenazaAlta'], true]} paint={{ ...paintAnilloLaguna(), 'circle-stroke-color': COLOR_AMENAZA_ALTA }} />
     </Source>
   )
 }
