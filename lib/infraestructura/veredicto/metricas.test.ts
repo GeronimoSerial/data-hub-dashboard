@@ -146,3 +146,20 @@ describe('construirMetricasAmbito', () => {
     for (const ref of refs) expect(ids.has(ref), `falta la métrica ${ref}`).toBe(true)
   })
 })
+
+describe('métrica de lluvia pronosticada ECMWF', () => {
+  it('emite lluvia.pron_24h.max_mm con unidad mm y fuente ECMWF', () => {
+    const metricas = construirMetricasAmbito({
+      ambito: 'departamento:Concordia',
+      lluviaPronosticada: [{ ambito: 'departamento:Concordia', maxMm: 85.04, celdaMax: 'c1', horas: 24 }],
+    })
+    expect(metricas).toContainEqual({
+      id: 'lluvia.pron_24h.max_mm',
+      valor: 85,
+      unidad: 'mm',
+      etiqueta: 'Lluvia pronosticada máxima 24 h (ECMWF)',
+      fuenteUrl: FUENTES_URL.ecmwf,
+    })
+    expect(FUENTES_URL.ecmwf).toBe('https://open-meteo.com/en/docs/ecmwf-api')
+  })
+})

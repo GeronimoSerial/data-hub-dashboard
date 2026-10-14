@@ -47,7 +47,7 @@ function caudal(over: Partial<CaudalDia> = {}): CaudalDia {
     picoM3s: 100,
     picoEn: '2026-10-13T00:00:00Z',
     corridaEn: '2026-10-12T00:00:00Z',
-    percentil: null,
+    percentil: 'bajo_p90',
     ...over,
   }
 }
@@ -99,7 +99,7 @@ function provincia(resultados: ResultadoAmbito[]): ResultadoAmbito {
 
 describe('reglas de veredicto', () => {
   it('expone la versión de reglas y los umbrales en calibración', () => {
-    expect(VERSION_REGLAS).toBe('reglas-veredicto-v0.1')
+    expect(VERSION_REGLAS).toBe('reglas-veredicto-v0.2')
     expect(UMBRALES.lluvia72Mm).toEqual({ vigilancia: 80, alerta: 120, severo: 180 })
   })
 
@@ -351,7 +351,7 @@ describe('reglas de veredicto', () => {
       )
       expect(r.nivel).toBe('sin_dato')
       expect(r.traza).toEqual([])
-      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble'])
+      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble', 'ecmwf'])
     })
 
     it('hoy combina observado y pronóstico', () => {
@@ -381,30 +381,30 @@ describe('reglas de veredicto', () => {
     it('pronóstico sin fuentes y con SMN no disponible es sin_dato', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'], smnDisponible: false })), 'd1')
       expect(r.nivel).toBe('sin_dato')
-      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble', 'smn'])
+      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble', 'ecmwf', 'smn'])
     })
 
     it('hoy sin datos de lluvia, río ni pronóstico es sin_dato aunque SMN esté disponible', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'hoy', departamentos: ['d1'] })), 'd1')
       expect(r.nivel).toBe('sin_dato')
-      expect(r.fuentesAusentes).toEqual(['imerg', 'prefectura', 'glofas', 'ensamble'])
+      expect(r.fuentesAusentes).toEqual(['imerg', 'prefectura', 'glofas', 'ensamble', 'ecmwf'])
     })
 
     it('con datos y sin disparos es sin_senal', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'], caudal: [caudal()] })), 'd1')
       expect(r.nivel).toBe('sin_senal')
-      expect(r.fuentesAusentes).toEqual(['ensamble'])
+      expect(r.fuentesAusentes).toEqual(['ensamble', 'ecmwf'])
     })
 
     it('SMN sin avisos no aparece como ausente pero no alcanza para sin_senal', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'] })), 'd1')
       expect(r.nivel).toBe('sin_dato')
-      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble'])
+      expect(r.fuentesAusentes).toEqual(['glofas', 'ensamble', 'ecmwf'])
     })
 
     it('smnDisponible false lista smn como ausente', () => {
       const r = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'], caudal: [caudal()], smnDisponible: false })), 'd1')
-      expect(r.fuentesAusentes).toEqual(['ensamble', 'smn'])
+      expect(r.fuentesAusentes).toEqual(['ensamble', 'ecmwf', 'smn'])
     })
   })
 
@@ -471,7 +471,77 @@ describe('reglas de veredicto', () => {
           caudal: [caudal({ departamento: 'd2' })],
         }),
       )
-      expect(provincia(resultados).fuentesAusentes).toEqual(['ensamble'])
+      expect(provincia(resultados).fuentesAusentes).toEqual(['ensamble', 'ecmwf'])
     })
+  })
+})
+
+describe('lluvia pronosticada (ECMWF, 24 h)', () => {
+  const pron = (id: string, maxMm: number) => ({
+    ambito: `departamento:${id}` as const,
+    maxMm,
+    celdaMax: 'c1',
+    horas: 24,
+  })
+
+  it('usa los umbrales provisorios de 24 h y expone la referencia del máximo', () => {
+    const r = ambito(evaluarDia(entrada({ tipoDia: 'hoy', departamentos: ['d1'], lluviaPronosticada: [pron('d1', 120)] })), 'd1')
+    expect(r.nivel).toBe('severo')
+    expect(r.traza).toContainEqual({
+      regla: 'lluvia.pron_24h',
+      ref: 'lluvia.pron_24h.max_mm',
+      valor: 120,
+      umbral: 120,
+      nivel: 'severo',
+    })
+    const nivelPorMm = (mm: number) =>
+      ambito(evaluarDia(entrada({ tipoDia: 'hoy', departamentos: ['d1'], lluviaPronosticada: [pron('d1', mm)] })), 'd1').nivel
+    expect(nivelPorMm(49.9)).toBe('sin_senal')
+    expect(nivelPorMm(50)).toBe('vigilancia')
+    expect(nivelPorMm(80)).toBe('alerta')
+  })
+
+  it('en pronóstico futuro se limita a alerta', () => {
+    const r = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'], lluviaPronosticada: [pron('d1', 150)] })), 'd1')
+    expect(r.nivel).toBe('alerta')
+    expect(r.traza[0]?.nivel).toBe('alerta')
+  })
+
+  it('ECMWF solo cuenta como fuente cuantitativa: sin_senal si hay dato, sin_dato si no', () => {
+    const conDato = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'], lluviaPronosticada: [pron('d1', 10)] })), 'd1')
+    expect(conDato.nivel).toBe('sin_senal')
+    expect(conDato.fuentesAusentes).not.toContain('ecmwf')
+    const sinDato = ambito(evaluarDia(entrada({ tipoDia: 'pronostico', departamentos: ['d1'] })), 'd1')
+    expect(sinDato.nivel).toBe('sin_dato')
+    expect(sinDato.fuentesAusentes).toContain('ecmwf')
+  })
+
+  it('no aplica a días observados', () => {
+    const r = ambito(evaluarDia(entrada({ tipoDia: 'observado', departamentos: ['d1'], lluviaPronosticada: [pron('d1', 150)] })), 'd1')
+    expect(r.traza.some((t) => t.regla === 'lluvia.pron_24h')).toBe(false)
+  })
+
+  it('la versión de reglas es v0.2', () => {
+    expect(VERSION_REGLAS).toBe('reglas-veredicto-v0.2')
+  })
+})
+
+describe('caudal sin climatología de referencia', () => {
+  it('no cuenta como dato: el día de pronóstico queda sin_dato con glofas ausente', () => {
+    const resultado = evaluarDia({
+      tipoDia: 'pronostico',
+      lluvia24: [],
+      lluvia72: [],
+      rios: [],
+      caudal: [
+        { puntoId: 'p1', nombre: 'Punto', departamento: 'd1', picoM3s: 15000, picoEn: '2026-10-15T00:00:00Z', corridaEn: '2026-10-14T00:00:00Z', percentil: null },
+      ],
+      ensamble: [],
+      smn: [],
+      departamentos: ['d1'],
+    })
+    const d1 = resultado.find((r) => r.ambito === 'departamento:d1')
+    expect(d1?.nivel).toBe('sin_dato')
+    expect(d1?.fuentesAusentes).toContain('glofas')
   })
 })

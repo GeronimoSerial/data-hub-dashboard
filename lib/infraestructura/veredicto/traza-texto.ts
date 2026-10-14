@@ -167,6 +167,10 @@ function describirSenalConocida(entrada: TrazaLegible, metricas: MetricaLegible[
       const umbral = typeof entrada.umbral === 'number' ? ` ≥ ${numeroEs(entrada.umbral, 0)} mm` : ''
       return `Lluvia máxima en 72 h: ${valorMm(entrada.valor, 1)}${umbral}`
     }
+    case 'lluvia.pron_24h': {
+      const umbral = typeof entrada.umbral === 'number' ? ` ≥ ${numeroEs(entrada.umbral, 0)} mm` : ''
+      return `Lluvia pronosticada en 24 h (ECMWF): ${valorMm(entrada.valor, 1)}${umbral}`
+    }
     case 'caudal.percentil':
       return describirCaudal(entrada, metricas)
     case 'ensamble.prob': {

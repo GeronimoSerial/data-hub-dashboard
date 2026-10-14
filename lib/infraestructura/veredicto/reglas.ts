@@ -1,15 +1,16 @@
 // Reglas deterministas de nivel del veredicto diario (spec §7).
 // Funciones puras: sin base de datos ni red. Las entradas llegan ya agregadas.
 
+import { UMBRALES_PROVISORIOS_MM } from '@/lib/infraestructura/riesgo/peligro/umbrales-provisorios'
 import type { AmbitoLluvia, LluviaObservadaAmbito, PercentilLluvia } from './lluvia-observada'
-import type { AvisoSmnDia, CaudalDia, EnsambleDia, NivelAvisoSmn } from './pronostico'
+import type { AvisoSmnDia, CaudalDia, EnsambleDia, LluviaPronosticadaDia, NivelAvisoSmn } from './pronostico'
 import type { EstadoAltura, RioDia } from './rios'
 
-export const VERSION_REGLAS = 'reglas-veredicto-v0.1'
+export const VERSION_REGLAS = 'reglas-veredicto-v0.2'
 
 export type NivelVeredicto = 'sin_dato' | 'sin_senal' | 'vigilancia' | 'alerta' | 'severo'
 export type TipoDia = 'observado' | 'hoy' | 'pronostico'
-export type FuenteVeredicto = 'imerg' | 'prefectura' | 'glofas' | 'ensamble' | 'smn'
+export type FuenteVeredicto = 'imerg' | 'prefectura' | 'glofas' | 'ensamble' | 'ecmwf' | 'smn'
 
 export type EntradaEvaluacion = {
   tipoDia: TipoDia
@@ -18,6 +19,8 @@ export type EntradaEvaluacion = {
   rios: RioDia[]
   caudal: CaudalDia[]
   ensamble: EnsambleDia[]
+  /** Lluvia pronosticada en 24 h (ECMWF) por ámbito. Vacía si la fuente no está disponible. */
+  lluviaPronosticada?: LluviaPronosticadaDia[]
   smn: AvisoSmnDia[]
   departamentos: string[]
   /** Falso solo si la consulta al SMN falló; no emitir avisos no es un fallo. */
@@ -87,11 +90,11 @@ const NIVEL_SMN: Record<NivelAvisoSmn, NivelVeredicto> = {
 // Fuentes que aplican a cada tipo de día. Pronóstico pasado no entra (se guarda aparte).
 const FUENTES_POR_TIPO: Record<TipoDia, readonly FuenteVeredicto[]> = {
   observado: ['imerg', 'prefectura'],
-  pronostico: ['glofas', 'ensamble', 'smn'],
-  hoy: ['imerg', 'prefectura', 'glofas', 'ensamble', 'smn'],
+  pronostico: ['glofas', 'ensamble', 'ecmwf', 'smn'],
+  hoy: ['imerg', 'prefectura', 'glofas', 'ensamble', 'ecmwf', 'smn'],
 }
 
-const ORDEN_FUENTES: readonly FuenteVeredicto[] = ['imerg', 'prefectura', 'glofas', 'ensamble', 'smn']
+const ORDEN_FUENTES: readonly FuenteVeredicto[] = ['imerg', 'prefectura', 'glofas', 'ensamble', 'ecmwf', 'smn']
 
 const RANGO: Record<NivelVeredicto, number> = {
   sin_dato: 0,
@@ -110,7 +113,7 @@ type Evaluacion = {
 }
 
 function presenciaVacia(): Presencia {
-  return { imerg: false, prefectura: false, glofas: false, ensamble: false, smn: false }
+  return { imerg: false, prefectura: false, glofas: false, ensamble: false, ecmwf: false, smn: false }
 }
 
 function nivelMayor(a: NivelVeredicto, b: NivelVeredicto): NivelVeredicto {
@@ -223,6 +226,22 @@ function trazaEnsamble(en: EnsambleDia, tipoDia: TipoDia): TrazaRegla | null {
   return t
 }
 
+/**
+ * Lluvia pronosticada en 24 h con los umbrales provisorios de 24 h. En pronóstico
+ * futuro se limita a `alerta`, igual que el ensamble.
+ */
+function trazaLluviaPronosticada(l: LluviaPronosticadaDia, tipoDia: TipoDia): TrazaRegla | null {
+  const u = UMBRALES_PROVISORIOS_MM[24]
+  let umbral: number
+  let nivel: NivelVeredicto
+  if (l.maxMm >= u.rojo) [umbral, nivel] = [u.rojo, 'severo']
+  else if (l.maxMm >= u.naranja) [umbral, nivel] = [u.naranja, 'alerta']
+  else if (l.maxMm >= u.amarillo) [umbral, nivel] = [u.amarillo, 'vigilancia']
+  else return null
+  if (tipoDia === 'pronostico' && nivel === 'severo') nivel = 'alerta'
+  return { regla: 'lluvia.pron_24h', ref: 'lluvia.pron_24h.max_mm', valor: l.maxMm, umbral, nivel }
+}
+
 function trazaSmn(a: AvisoSmnDia): TrazaRegla {
   return { regla: 'smn.aviso', ref: `smn.${a.avisoId}.nivel`, valor: null, umbral: a.nivel, nivel: NIVEL_SMN[a.nivel] }
 }
@@ -249,7 +268,9 @@ function evaluarDepartamento(id: string, e: EntradaEvaluacion): Evaluacion {
 
   if (fuentes.includes('glofas')) {
     const caudales = e.caudal.filter((c) => c.departamento === id)
-    presencia.glofas = caudales.length > 0
+    // Un caudal sin climatología de referencia no se puede clasificar: no cuenta como
+    // dato (si no, se leería como "sin señal" cuando en realidad no hay con qué medir).
+    presencia.glofas = caudales.some((c) => c.percentil !== null)
     for (const c of caudales) {
       const t = trazaCaudal(c)
       if (t) disparos.push(t)
@@ -260,6 +281,13 @@ function evaluarDepartamento(id: string, e: EntradaEvaluacion): Evaluacion {
     const en = e.ensamble.find((x) => x.departamento === id)
     presencia.ensamble = en !== undefined
     const t = en ? trazaEnsamble(en, e.tipoDia) : null
+    if (t) disparos.push(t)
+  }
+
+  if (fuentes.includes('ecmwf')) {
+    const lluvia = (e.lluviaPronosticada ?? []).find((x) => x.ambito === ambito)
+    presencia.ecmwf = lluvia !== undefined
+    const t = lluvia ? trazaLluviaPronosticada(lluvia, e.tipoDia) : null
     if (t) disparos.push(t)
   }
 

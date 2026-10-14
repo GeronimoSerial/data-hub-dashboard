@@ -7,7 +7,12 @@ import { hazardClimatology, hazardEnsembleProb, hazardForecast, smnAlerta } from
 import { PUNTOS_RIO, puntoRioPorId } from '@/lib/infraestructura/riesgo/puntos-rio'
 import { departamentoDeCelda, departamentoDeCoordenada } from './celda-departamento'
 import { rangoUtcDeDiaArt, sumarDias } from './dia'
-import { percentilClimatologico, type PercentilLluvia, type UmbralesLluvia } from './lluvia-observada'
+import {
+  percentilClimatologico,
+  type AmbitoLluvia,
+  type PercentilLluvia,
+  type UmbralesLluvia,
+} from './lluvia-observada'
 import type { Db } from './repositorio'
 
 // Muestra de la climatología de caudal: siempre todos los días (a diferencia de
@@ -173,6 +178,86 @@ export async function leerEnsambleDia(db: Db, fecha: string): Promise<EnsambleDi
     })
   }
   return [...porDepartamento.values()]
+}
+
+export const PROVEEDOR_LLUVIA_ECMWF = 'open-meteo-ecmwf'
+const VARIABLE_LLUVIA_ECMWF = 'precipitacion'
+// Una celda con menos horas que esto tiene horizonte parcial: no cuenta para el día.
+const MIN_HORAS_LLUVIA_PRONOSTICO = 20
+
+export type LluviaPronosticadaDia = {
+  ambito: AmbitoLluvia
+  maxMm: number
+  celdaMax: string
+  horas: number
+}
+
+function acumularMaximo(
+  mapa: Map<AmbitoLluvia, LluviaPronosticadaDia>,
+  ambito: AmbitoLluvia,
+  celda: string,
+  mm: number,
+  horas: number,
+): void {
+  const previo = mapa.get(ambito)
+  if (!previo) {
+    mapa.set(ambito, { ambito, maxMm: mm, celdaMax: celda, horas })
+    return
+  }
+  const gana = mm > previo.maxMm
+  mapa.set(ambito, {
+    ambito,
+    maxMm: gana ? mm : previo.maxMm,
+    celdaMax: gana ? celda : previo.celdaMax,
+    horas: Math.min(previo.horas, horas),
+  })
+}
+
+/**
+ * Lluvia pronosticada (ECMWF vía Open-Meteo, horaria en mm) para el día ART `fecha`.
+ * Usa la corrida más reciente por celda, suma sus horas dentro del día ART y
+ * descarta celdas con menos de 20 h. Devuelve la provincia (máximo de todas las
+ * celdas con departamento) y el máximo por departamento.
+ */
+export async function leerLluviaPronosticadaDia(db: Db, fecha: string): Promise<LluviaPronosticadaDia[]> {
+  const { desde, hasta } = rangoUtcDeDiaArt(fecha)
+  const filas = await db
+    .select()
+    .from(hazardForecast)
+    .where(
+      and(
+        eq(hazardForecast.provider, PROVEEDOR_LLUVIA_ECMWF),
+        eq(hazardForecast.variable, VARIABLE_LLUVIA_ECMWF),
+        gte(hazardForecast.validoEn, desde),
+        lt(hazardForecast.validoEn, hasta),
+      ),
+    )
+
+  const ultimaCorrida = new Map<string, string>()
+  for (const fila of filas) {
+    const actual = ultimaCorrida.get(fila.geometryRef)
+    if (actual === undefined || fila.corridaEn > actual) ultimaCorrida.set(fila.geometryRef, fila.corridaEn)
+  }
+
+  const porCelda = new Map<string, { suma: number; horas: number }>()
+  for (const fila of filas) {
+    if (fila.corridaEn !== ultimaCorrida.get(fila.geometryRef)) continue
+    const acum = porCelda.get(fila.geometryRef) ?? { suma: 0, horas: 0 }
+    acum.suma += fila.valor
+    acum.horas += 1
+    porCelda.set(fila.geometryRef, acum)
+  }
+
+  const salida = new Map<AmbitoLluvia, LluviaPronosticadaDia>()
+  for (const [celda, { suma, horas }] of porCelda) {
+    if (horas < MIN_HORAS_LLUVIA_PRONOSTICO) continue
+    const departamento = departamentoDeCelda(celda)
+    if (departamento === null) continue
+    const mm = Math.round(suma * 10) / 10
+    acumularMaximo(salida, 'provincia', celda, mm, horas)
+    acumularMaximo(salida, `departamento:${departamento}`, celda, mm, horas)
+  }
+  return [...salida.values()]
 }
 
 /**

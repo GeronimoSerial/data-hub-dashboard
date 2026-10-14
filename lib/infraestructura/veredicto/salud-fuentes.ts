@@ -13,6 +13,7 @@ import {
   hidroLectura,
 } from '@/lib/db/schema'
 import { PROVIDER_OBSERVADO, VARIABLE_OBSERVADA } from '@/lib/infraestructura/riesgo/peligro/observado'
+import { PROVEEDOR_LLUVIA_ECMWF } from './pronostico'
 import type { Db } from './repositorio'
 import type { FuenteVeredicto } from './reglas'
 
@@ -23,6 +24,7 @@ export const PROVEEDOR_SALUD_FUENTE: Record<FuenteVeredicto, string> = {
   smn: 'smn-alertas',
   glofas: 'open-meteo-flood',
   ensamble: 'open-meteo-ensemble',
+  ecmwf: PROVEEDOR_LLUVIA_ECMWF,
 }
 
 /**
@@ -37,6 +39,7 @@ export const TOLERANCIA_SALUD_HORAS: Record<FuenteVeredicto, number> = {
   smn: 6,
   glofas: 48,
   ensamble: 48,
+  ecmwf: 48,
 }
 
 export type MotivoSaludFuente = 'ok' | 'vencida' | 'no_disponible' | 'sin_registro'
@@ -140,6 +143,20 @@ async function leerUltimoDato(db: Db, fuente: FuenteVeredicto): Promise<string |
         .select({ corridaEn: hazardEnsembleProb.corridaEn })
         .from(hazardEnsembleProb)
         .orderBy(desc(hazardEnsembleProb.corridaEn))
+        .limit(1)
+      return fila?.corridaEn ?? null
+    }
+    case 'ecmwf': {
+      const [fila] = await db
+        .select({ corridaEn: hazardForecast.corridaEn })
+        .from(hazardForecast)
+        .where(
+          and(
+            eq(hazardForecast.provider, PROVEEDOR_LLUVIA_ECMWF),
+            eq(hazardForecast.variable, 'precipitacion'),
+          ),
+        )
+        .orderBy(desc(hazardForecast.corridaEn))
         .limit(1)
       return fila?.corridaEn ?? null
     }

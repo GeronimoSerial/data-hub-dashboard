@@ -5,7 +5,7 @@
 
 import type { MetricaAutorizada } from '../briefing-ia/metricas'
 import type { AmbitoLluvia, LluviaObservadaAmbito } from './lluvia-observada'
-import type { AvisoSmnDia, CaudalDia, EnsambleDia } from './pronostico'
+import type { AvisoSmnDia, CaudalDia, EnsambleDia, LluviaPronosticadaDia } from './pronostico'
 import type { RioDia } from './rios'
 
 export type MetricaVeredicto = MetricaAutorizada & { unidad: string; fuenteUrl: string }
@@ -15,6 +15,7 @@ export const FUENTES_URL = {
   prefectura: 'https://contenidosweb.prefecturanaval.gob.ar/alturas/index.php',
   glofas: 'https://open-meteo.com/en/docs/flood-api',
   ensamble: 'https://open-meteo.com/en/docs/ensemble-api',
+  ecmwf: 'https://open-meteo.com/en/docs/ecmwf-api',
   smn: 'https://ssl.smn.gob.ar/CAP/AR.php',
 } as const
 
@@ -23,6 +24,7 @@ const NOMBRE_FUENTE_POR_URL: Record<string, string> = {
   [FUENTES_URL.prefectura]: 'Prefectura Naval Argentina (alturas de ríos)',
   [FUENTES_URL.glofas]: 'GloFAS vía Open-Meteo (caudal pronosticado)',
   [FUENTES_URL.ensamble]: 'ECMWF ensamble vía Open-Meteo (lluvia pronosticada)',
+  [FUENTES_URL.ecmwf]: 'ECMWF vía Open-Meteo (lluvia pronosticada)',
   [FUENTES_URL.smn]: 'Servicio Meteorológico Nacional (avisos)',
 }
 
@@ -38,6 +40,7 @@ export type EntradaMetricasAmbito = {
   rios?: RioDia[]
   caudal?: CaudalDia[]
   ensamble?: EnsambleDia[]
+  lluviaPronosticada?: LluviaPronosticadaDia[]
   smn?: AvisoSmnDia[]
 }
 
@@ -96,6 +99,16 @@ function metricasCaudal(caudal: CaudalDia): MetricaVeredicto {
   return { id: `caudal.${caudal.puntoId}.pico_m3s`, valor: redondear(caudal.picoM3s, 1), unidad: 'm3/s', etiqueta: `Caudal pico ${caudal.nombre}`, fuenteUrl: FUENTES_URL.glofas }
 }
 
+function metricaLluviaPronosticada(lluvia: LluviaPronosticadaDia): MetricaVeredicto {
+  return {
+    id: 'lluvia.pron_24h.max_mm',
+    valor: redondear(lluvia.maxMm, 1),
+    unidad: 'mm',
+    etiqueta: 'Lluvia pronosticada máxima 24 h (ECMWF)',
+    fuenteUrl: FUENTES_URL.ecmwf,
+  }
+}
+
 function metricasEnsamble(filas: EnsambleDia[]): MetricaVeredicto[] {
   if (filas.length === 0) return []
   const p95 = Math.max(...filas.map((f) => f.probP95Max))
@@ -118,6 +131,8 @@ export function construirMetricasAmbito(entrada: EntradaMetricasAmbito): Metrica
   for (const rio of delAmbito(entrada.rios ?? [], ambito)) metricas.push(...metricasRio(rio))
   for (const caudal of delAmbito(entrada.caudal ?? [], ambito)) metricas.push(metricasCaudal(caudal))
   metricas.push(...metricasEnsamble(delAmbito(entrada.ensamble ?? [], ambito)))
+  const lluvia = (entrada.lluviaPronosticada ?? []).find((x) => x.ambito === ambito)
+  if (lluvia) metricas.push(metricaLluviaPronosticada(lluvia))
   for (const aviso of delAmbito(entrada.smn ?? [], ambito)) metricas.push(metricaSmn(aviso))
   return metricas
 }

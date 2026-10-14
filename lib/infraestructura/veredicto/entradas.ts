@@ -19,9 +19,11 @@ import {
   leerAvisosSmnDia,
   leerCaudalDia,
   leerEnsambleDia,
+  leerLluviaPronosticadaDia,
   type AvisoSmnDia,
   type CaudalDia,
   type EnsambleDia,
+  type LluviaPronosticadaDia,
 } from './pronostico'
 import { construirMetricasAmbito, type MetricaVeredicto } from './metricas'
 import type { Db } from './repositorio'
@@ -69,9 +71,14 @@ const MS_GRANULO = 30 * 60_000
 const GRANULOS_DIA_COMPLETO = 48
 
 /** Fin (ISO) del último gránulo recibido: su inicio más 30 min; null sin gránulos. */
-function finUltimoGranulo(granulos: GranuloLluvia[]): string | null {
+export function finUltimoGranulo(granulos: GranuloLluvia[]): string | null {
   if (granulos.length === 0) return null
-  const ultimoInicio = Math.max(...granulos.map((granulo) => Date.parse(granulo.validoDesde)))
+  // Bucle y no Math.max(...): un día real trae ~100k gránulos y el spread desborda la pila.
+  let ultimoInicio = -Infinity
+  for (const granulo of granulos) {
+    const inicio = Date.parse(granulo.validoDesde)
+    if (inicio > ultimoInicio) ultimoInicio = inicio
+  }
   return new Date(ultimoInicio + MS_GRANULO).toISOString()
 }
 
@@ -131,6 +138,7 @@ export async function calcularDia(
   let rios: RioDia[] = []
   let caudal: CaudalDia[] = []
   let ensamble: EnsambleDia[] = []
+  let lluviaPronosticada: LluviaPronosticadaDia[] = []
   let smn: AvisoSmnDia[] = []
 
   if (tipoDia !== 'pronostico' && !(esHoy && noDisponible('imerg'))) {
@@ -183,6 +191,7 @@ export async function calcularDia(
   if (tipoDia !== 'observado') {
     caudal = noDisponible('glofas') ? [] : await leerCaudalDia(db, fecha)
     ensamble = noDisponible('ensamble') ? [] : await leerEnsambleDia(db, fecha)
+    lluviaPronosticada = noDisponible('ecmwf') ? [] : await leerLluviaPronosticadaDia(db, fecha)
     smn = await leerAvisosSmnDia(db, fecha)
   }
 
@@ -193,6 +202,7 @@ export async function calcularDia(
     rios,
     caudal,
     ensamble,
+    lluviaPronosticada,
     smn,
     departamentos: listarDepartamentos(),
     smnDisponible: salud?.smn.disponible,
@@ -217,6 +227,7 @@ export async function calcularDia(
         rios,
         caudal,
         ensamble,
+        lluviaPronosticada,
         smn,
       })
       return {

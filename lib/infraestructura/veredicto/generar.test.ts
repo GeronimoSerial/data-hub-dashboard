@@ -63,7 +63,7 @@ describe('generarVeredictos', () => {
       ...mockPresupuesto(),
     })
     expect([...resultado.fuentesNoDisponibles].sort()).toEqual(
-      ['ensamble', 'glofas', 'imerg', 'prefectura', 'smn'],
+      ['ecmwf', 'ensamble', 'glofas', 'imerg', 'prefectura', 'smn'],
     )
   })
 

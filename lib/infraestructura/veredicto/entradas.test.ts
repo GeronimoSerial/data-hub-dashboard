@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '@/lib/db'
 import { hazardObservation, hidroLectura } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
-import { calcularDia, fechasVentana } from './entradas'
+import { calcularDia, fechasVentana, finUltimoGranulo } from './entradas'
 import type { SaludFuentes } from './salud-fuentes'
 
 usarDbTemporal('veredicto-entradas')
@@ -81,6 +81,7 @@ describe('calcularDia con salud de fuentes', () => {
     smn: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
     glofas: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
     ensamble: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
+    ecmwf: { disponible: true, motivo: 'ok', ultimoExitoEn: null, ultimoDato: null },
   })
 
   beforeEach(async () => {
@@ -171,5 +172,16 @@ describe('calcularDia hoy con lluvia IMERG parcial', () => {
     const provincia = items.find((i) => i.ambito === 'provincia')
     expect(provincia?.cobertura.imerg24).toBeNull()
     expect(provincia?.cobertura.imergHasta).toBeNull()
+  })
+})
+
+describe('finUltimoGranulo', () => {
+  it('soporta un volumen real de gránulos sin desbordar la pila', () => {
+    const granulos = Array.from({ length: 200_000 }, (_, i) => ({
+      geometryRef: `c${i % 500}`,
+      validoDesde: new Date(Date.UTC(2026, 9, 13, 3) + (i % 36) * 30 * 60 * 1000).toISOString(),
+      valor: 0,
+    }))
+    expect(finUltimoGranulo(granulos)).toBe('2026-10-13T21:00:00.000Z')
   })
 })

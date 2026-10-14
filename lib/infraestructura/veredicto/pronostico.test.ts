@@ -6,7 +6,7 @@ import { getDb } from '@/lib/db'
 import { hazardClimatology, hazardEnsembleProb, hazardForecast, smnAlerta } from '@/lib/db/schema'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { departamentoDeCelda } from './celda-departamento'
-import { leerAvisosSmnDia, leerCaudalDia, leerEnsambleDia } from './pronostico'
+import { leerAvisosSmnDia, leerCaudalDia, leerEnsambleDia, leerLluviaPronosticadaDia } from './pronostico'
 
 usarDbTemporal('veredicto-pronostico')
 
@@ -146,5 +146,61 @@ describe('leerAvisosSmnDia', () => {
     const db = getDb()
     await db.insert(smnAlerta).values({ ...base, id: 'otro', event: 'Niebla', onset: '2026-10-12T00:00:00Z', expires: '2026-10-12T23:00:00Z', nivelSat: null, severity: 'Minor', departamentos: capital, cancelada: false })
     expect(await leerAvisosSmnDia(db, FECHA)).toEqual([])
+  })
+})
+
+describe('leerLluviaPronosticadaDia', () => {
+  const PROVIDER_ECMWF = 'open-meteo-ecmwf'
+
+  // Filas horarias de una corrida, desde 03:00Z (inicio del día ART 2026-10-12).
+  function horasEcmwf(geometryRef: string, corridaEn: string, valor: number, cantidad: number) {
+    const inicio = Date.parse('2026-10-12T03:00:00Z')
+    return Array.from({ length: cantidad }, (_, i) => ({
+      id: `${geometryRef}|${corridaEn}|${i}`,
+      provider: PROVIDER_ECMWF,
+      variable: 'precipitacion',
+      geometryRef,
+      corridaEn,
+      validoEn: new Date(inicio + i * 3_600_000).toISOString().replace('.000Z', 'Z'),
+      horizonteHoras: 24,
+      unidad: 'mm',
+      pasoHoras: 1,
+      valor,
+      ingeridoEn: corridaEn,
+    }))
+  }
+
+  it('usa la corrida más reciente, suma la hora ART y descarta celdas con menos de 20 horas', async () => {
+    const db = getDb()
+    const vieja = '2026-10-11T12:00:00.000Z'
+    const nueva = '2026-10-12T06:00:00.000Z'
+    await db.insert(hazardForecast).values([
+      // Corrida vieja: 24 h de 10 mm (240 mm) no debe contar.
+      ...horasEcmwf(CELDA_A, vieja, 10, 24),
+      // Corrida nueva: 24 h de 85/24 mm (85 mm en el día ART) más una hora del día siguiente.
+      ...horasEcmwf(CELDA_A, nueva, 85 / 24, 24),
+      {
+        ...horasEcmwf(CELDA_A, nueva, 1000, 1)[0]!,
+        id: 'fuera-del-dia',
+        validoEn: '2026-10-13T03:00:00Z',
+      },
+      // Celda con horizonte parcial (10 h): se ignora aunque sume más.
+      ...horasEcmwf(CELDA_B, nueva, 100, 10),
+    ])
+
+    const filas = await leerLluviaPronosticadaDia(db, FECHA)
+
+    expect(filas.every((f) => f.horas >= 20)).toBe(true)
+    expect(filas.find((f) => f.ambito === 'provincia')).toMatchObject({
+      maxMm: 85,
+      celdaMax: CELDA_A,
+      horas: 24,
+    })
+    const depto = `departamento:${departamentoDeCelda(CELDA_A)}`
+    expect(filas.find((f) => f.ambito === depto)).toMatchObject({ maxMm: 85, horas: 24 })
+  })
+
+  it('devuelve lista vacía sin corridas ECMWF para el día', async () => {
+    expect(await leerLluviaPronosticadaDia(getDb(), FECHA)).toEqual([])
   })
 })

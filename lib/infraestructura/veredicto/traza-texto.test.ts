@@ -187,3 +187,13 @@ describe('describirAguaArriba', () => {
     ).toBe('Prefectura Iguazú (río Paraná): 27,50 m')
   })
 })
+
+describe('describirTraza lluvia pronosticada', () => {
+  it('describe el máximo de 24 h pronosticado frente al umbral', () => {
+    const texto = describirTraza(
+      { regla: 'lluvia.pron_24h', ref: 'lluvia.pron_24h.max_mm', valor: 85, umbral: 80, nivel: 'alerta' },
+      [],
+    )
+    expect(texto).toBe('Lluvia pronosticada en 24 h (ECMWF): 85,0 mm ≥ 80 mm')
+  })
+})

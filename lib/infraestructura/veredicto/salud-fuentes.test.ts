@@ -241,6 +241,35 @@ describe('leerSaludFuentes', () => {
 
   it('devuelve una entrada por cada fuente del veredicto con su proveedor', async () => {
     const salud = await leerSaludFuentes(getDb(), AHORA)
-    expect(Object.keys(salud).sort()).toEqual(['ensamble', 'glofas', 'imerg', 'prefectura', 'smn'])
+    expect(Object.keys(salud).sort()).toEqual(['ecmwf', 'ensamble', 'glofas', 'imerg', 'prefectura', 'smn'])
+  })
+})
+
+describe('leerSaludFuentes ecmwf', () => {
+  it('ECMWF está disponible con un dato reciente aunque falte el registro de salud', async () => {
+    await getDb()
+      .insert(hazardForecast)
+      .values({
+        id: 'ecmwf-reciente',
+        provider: 'open-meteo-ecmwf',
+        variable: 'precipitacion',
+        geometryRef: '-27.5_-58.8',
+        corridaEn: '2026-10-13T06:00:00.000Z',
+        validoEn: '2026-10-13T12:00:00Z',
+        horizonteHoras: 6,
+        unidad: 'mm',
+        pasoHoras: 1,
+        valor: 1,
+        ingeridoEn: '2026-10-13T06:00:00.000Z',
+      })
+
+    const salud = await leerSaludFuentes(getDb(), AHORA)
+
+    expect(salud.ecmwf).toEqual({
+      disponible: true,
+      motivo: 'ok',
+      ultimoExitoEn: null,
+      ultimoDato: '2026-10-13T06:00:00.000Z',
+    })
   })
 })

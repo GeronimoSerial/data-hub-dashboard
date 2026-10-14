@@ -36,6 +36,7 @@ const ROTULO_FUENTE: Record<FuenteVeredicto, string> = {
   prefectura: 'alturas de Prefectura',
   glofas: 'caudal pronosticado (GloFAS)',
   ensamble: 'ensamble de lluvia',
+  ecmwf: 'lluvia pronosticada (ECMWF)',
   smn: 'avisos del SMN',
 }
 
@@ -46,6 +47,7 @@ function numero(valor: number): string {
 function rotuloSenal(ref: string): string {
   if (ref.startsWith('lluvia.obs_24h')) return 'Lluvia máxima 24 h'
   if (ref.startsWith('lluvia.obs_72h')) return 'Lluvia máxima 72 h'
+  if (ref.startsWith('lluvia.pron_24h')) return 'Lluvia pronosticada 24 h'
   if (ref.startsWith('lluvia.ens')) return 'Probabilidad del ensamble'
   if (ref.startsWith('rio.')) return 'Nivel del río'
   if (ref.startsWith('caudal.')) return 'Caudal pico'
