@@ -14,6 +14,7 @@ describe('capas opcionales del mapa', () => {
       rutaAcceso: true,
       crucesAgua: true,
       escuelasAisladas: false,
+      escuelasEnRiesgo: false,
     })
   })
 

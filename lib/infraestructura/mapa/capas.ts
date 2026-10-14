@@ -7,6 +7,8 @@ export type CapasVisibles = {
   rutaAcceso: boolean
   crucesAgua: boolean
   escuelasAisladas: boolean
+  /** Engine "Riesgo actual" (moderado or higher) outside Radar, where it is always drawn. */
+  escuelasEnRiesgo: boolean
 }
 
 export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
@@ -18,6 +20,7 @@ export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
   rutaAcceso: true,
   crucesAgua: true,
   escuelasAisladas: false,
+  escuelasEnRiesgo: false,
 }
 
 export function visibilidadCapa(visible: boolean): 'visible' | 'none' {

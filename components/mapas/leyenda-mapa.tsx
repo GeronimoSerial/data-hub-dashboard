@@ -100,8 +100,9 @@ function usePantallaEstrecha(): boolean {
   )
 }
 
-function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada, abierta }: {
+function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObservada, riesgoHoy, abierta }: {
   abierta: boolean
+  riesgoHoy: boolean
   estacionesRio: boolean
   eventosReportados: boolean
   registro: RegistroEventosLeyenda | null | undefined
@@ -141,6 +142,19 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
           </div>
         )}
         {lluviaObservada && <LeyendaLluviaObservada meta={lluviaObservada} />}
+        {riesgoHoy && (
+          <div className="map-leyenda__bloque">
+            <b className="map-leyenda__subtitulo">Escuelas en riesgo hoy</b>
+            <ul className="map-leyenda__fila">
+              {(['muy_alto', 'alto', 'moderado'] as const).map((nivel) => (
+                <li className="map-leyenda__elemento" key={nivel}>
+                  <span aria-hidden="true" className="map-leyenda__muestra" style={{ backgroundColor: colorRiesgo(nivel) }} />
+                  <span>{ETIQUETA_NIVEL_RIESGO[nivel]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </details>
   )
@@ -158,6 +172,7 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
       <>
         <b className="map-leyenda__titulo">
           Riesgo actual (hoy) · {ETIQUETA_HORIZONTE_MOTOR[props.horizonte]}
+          <NotaInfo texto="Las demás escuelas se ven como puntos grises tenues al acercar el mapa (zoom 9 o más); con un clic se abre su ficha." />
         </b>
         <ul className="map-leyenda__fila">
           {niveles.map(([nivel, etiqueta]) => (
@@ -227,12 +242,13 @@ function ReferenciasRiesgo({ props }: { props: PropsLeyendaMapa }) {
   return null
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: RegistroEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null }) {
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: RegistroEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null; riesgoHoy?: boolean }) {
   const estrecha = usePantallaEstrecha()
   const estacionesRio = Boolean(props.estacionesRio)
   const eventosReportados = Boolean(props.eventosReportados)
   const lluviaObservada = props.lluviaObservada ?? null
-  const hayCapas = estacionesRio || eventosReportados || lluviaObservada !== null
+  const riesgoHoy = Boolean(props.riesgoHoy)
+  const hayCapas = estacionesRio || eventosReportados || lluviaObservada !== null || riesgoHoy
 
   if (props.pestana === 'estadisticas' && !hayCapas) return null
 
@@ -246,6 +262,7 @@ export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean;
           eventosReportados={eventosReportados}
           registro={props.resumenEventos}
           lluviaObservada={lluviaObservada}
+          riesgoHoy={riesgoHoy}
         />
       )}
       {props.pestana !== 'estadisticas' && (

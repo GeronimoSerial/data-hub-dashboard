@@ -251,6 +251,8 @@ const CAPA_PELIGRO_FILL_ID = 'infra-peligro-fill'
 const CAPA_RIESGO_ACCESO_CIRCLE_ID = 'infra-riesgo-acceso-circle'
 const CAPA_PUNTOS_NIVEL_ID = 'infra-puntos-nivel'
 const FUENTE_PUNTOS_NIVEL_ID = 'infra-puntos-nivel-src'
+const CAPA_RIESGO_HOY_ID = 'infra-riesgo-hoy'
+const FUENTE_RIESGO_HOY_ID = 'infra-riesgo-hoy-src'
 
 const CAPAS_RADAR_VISIBLES_DEFECTO: Record<CapaRadar, boolean> = {
   peligro: true,
@@ -784,9 +786,11 @@ export default function MapInfraestructuraPage(props: {
     setClusterInfoClic(null)
     setCruceInfoClic(null)
   }, [modoRadar, props.pestana, props.riskRadarEnabled])
+  // "Escuelas en riesgo hoy" outside Radar reuses the same engine snapshot.
+  const riesgoHoyFueraDeRadar = !radarActivo && (props.riskRadarEnabled ?? false) && capasVisibles.escuelasEnRiesgo
   const { data: radarData, loading: radarLoading, error: radarError } = useRadar(
     filtrosRadar,
-    radarActivo,
+    radarActivo || riesgoHoyFueraDeRadar,
   )
 
   // La API devuelve los tres horizontes; la lista lateral y la coropleta
@@ -872,6 +876,15 @@ export default function MapInfraestructuraPage(props: {
     // Exposición a inundación dibuja Alto/Medio/Bajo y las escuelas junto a laguna; el resto queda fuera.
     return esPlanificacion && vistaPlanificacion === 'inundacion' ? soloConDatoOJuntoLaguna(puntos) : puntos
   }, [dataEscuelasMapaVisible, colorPorCue, esPlanificacion, vistaPlanificacion, territorio, radarActivo, radarData, horizonteEfectivo])
+  const puntosRiesgoHoy = useMemo(() => {
+    if (!riesgoHoyFueraDeRadar) return construirPuntosNivel([], new Map())
+    const escuelasVisibles = dataEscuelasMapaVisible?.escuelas ?? []
+    const nivelPorCue = new Map(escuelasPorRiesgo(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo)
+      .map(({ escuela, nivel }) => [escuela.cueAnexo, nivel]))
+    const puntos = construirPuntosNivel(escuelasVisibles, coloresRadar(radarData?.puntos ?? [], escuelasVisibles, horizonteEfectivo))
+    const visibles = puntosRadarVisibles(puntos, nivelPorCue)
+    return { ...visibles, features: visibles.features.filter((feature) => (feature.properties.peso ?? 0) > 0) }
+  }, [riesgoHoyFueraDeRadar, dataEscuelasMapaVisible, radarData, horizonteEfectivo])
   // Estos selectores sólo agregan riesgo cuando el mapa representa la situación actual.
   const mostrarRiesgoSituacion = props.pestana === 'actual'
     && !radarActivo
@@ -1199,6 +1212,7 @@ export default function MapInfraestructuraPage(props: {
     // capture clicks sobre capas no montadas (no pasa nada, pero es ruido).
     ...(radarActivo && capasRadarVisibles.peligro ? [CAPA_PELIGRO_FILL_ID] : []),
     ...(radarActivo || esPlanificacion ? [CAPA_PUNTOS_NIVEL_ID] : []),
+    ...(riesgoHoyFueraDeRadar ? [CAPA_RIESGO_HOY_ID] : []),
     // Los cruces de la ruta seleccionada quedan interactivos sólo cuando la
     // geometría de esa ruta está montada.
     ...(hazardOn && rutaGeojson !== null ? [CAPA_CRUCES_ACCESO_ID] : []),
@@ -1230,6 +1244,16 @@ export default function MapInfraestructuraPage(props: {
 
     setClusterInfoClic(null)
     setCruceInfoClic(null)
+
+    const puntoRiesgoHoy = features.find((item) => item.layer?.id === CAPA_RIESGO_HOY_ID)
+    const cueRiesgoHoy = puntoRiesgoHoy?.properties?.cueAnexo
+    if (typeof cueRiesgoHoy === 'string') {
+      const escuela = dataEscuelasMapaVisible?.escuelas.find((item) => item.cueAnexo === cueRiesgoHoy)
+      if (escuela) {
+        handleSeleccionarEscuelaBuscada(escuela)
+        return
+      }
+    }
 
     if (radarActivo || esPlanificacion) {
       const puntoNivel = features.find((item) => item.layer?.id === CAPA_PUNTOS_NIVEL_ID)
@@ -1819,6 +1843,16 @@ export default function MapInfraestructuraPage(props: {
             />
           )}
 
+          {riesgoHoyFueraDeRadar && (
+            <CapaPuntosNivel
+              radar
+              idCapa={CAPA_RIESGO_HOY_ID}
+              idFuente={FUENTE_RIESGO_HOY_ID}
+              puntos={puntosRiesgoHoy}
+              oscuro={mode === 'dark'}
+            />
+          )}
+
           <RadarMeteo
             activo={radarActivo}
             variable={variableRadar}
@@ -1922,9 +1956,9 @@ export default function MapInfraestructuraPage(props: {
       {radarActivo ? (
         <LeyendaMapa pestana="radar" horizonte={horizonteEfectivo} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'planificacion' ? (
-        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="planificacion" vista={vistaPlanificacion} estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : props.pestana === 'actual' ? (
-        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
+        <LeyendaMapa pestana="actual" estacionesRio={capasVisibles.estacionesRio} riesgoHoy={riesgoHoyFueraDeRadar} eventosReportados={capasVisibles.eventosReportados} lluviaObservada={capasVisibles.lluviaObservada ? metaLluvia : null} />
       ) : null}
 
       <AlcanceNominalModal
@@ -2042,6 +2076,7 @@ export default function MapInfraestructuraPage(props: {
                 onHorasLluviaChange={setHorasLluvia}
                 haySeleccion={seleccionCue !== null}
                 riesgoDisponible={contextoTerritorial}
+                riesgoHoyDisponible={props.riskRadarEnabled ?? false}
               />
             )}
           />

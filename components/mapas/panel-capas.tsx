@@ -14,13 +14,15 @@ type Props = {
   onCapasVisiblesChange: (capas: CapasVisibles) => void
   haySeleccion: boolean
   riesgoDisponible?: boolean
+  /** The engine risk snapshot exists (Radar enabled): offer "Escuelas en riesgo hoy". */
+  riesgoHoyDisponible?: boolean
   horasLluvia?: HorasLluvia
   onHorasLluviaChange?: (horas: HorasLluvia) => void
 }
 
 const NIVELES_RIESGO = [3, 2, 1] as const
 
-export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChange, haySeleccion, riesgoDisponible = false, horasLluvia = 72, onHorasLluviaChange }: Props) {
+export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChange, haySeleccion, riesgoDisponible = false, riesgoHoyDisponible = false, horasLluvia = 72, onHorasLluviaChange }: Props) {
   const cambiarCapa = (capa: keyof CapasVisibles, visible: boolean) => {
     onCapasVisiblesChange({ ...capasVisibles, [capa]: visible })
   }
@@ -94,6 +96,13 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
       </section>
       <section className="map-capas__grupo" role="group" aria-labelledby="map-capas-riesgo-titulo">
         <h3 id="map-capas-riesgo-titulo" className="map-sitact__titulo-seccion">Riesgo</h3>
+        {riesgoHoyDisponible && (
+          <Switch
+            checked={capasVisibles.escuelasEnRiesgo}
+            onCheckedChange={(visible) => cambiarCapa('escuelasEnRiesgo', visible)}
+            label="Escuelas en riesgo hoy (moderado o más)"
+          />
+        )}
         <Switch
           checked={capasVisibles.escuelasAisladas}
           onCheckedChange={(visible) => cambiarCapa('escuelasAisladas', visible)}

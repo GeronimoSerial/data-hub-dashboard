@@ -119,6 +119,15 @@ describe('PanelCapas', () => {
     expect(within(escala).getByText('Bajo')).toBeInTheDocument()
   })
 
+  it('ofrece Escuelas en riesgo hoy sólo con el radar habilitado y la enciende', async () => {
+    const cambios = vi.fn()
+    const { rerender } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible />)
+    expect(screen.queryByRole('switch', { name: 'Escuelas en riesgo hoy (moderado o más)' })).toBeNull()
+    rerender(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} riesgoDisponible riesgoHoyDisponible />)
+    await userEvent.click(screen.getByRole('switch', { name: 'Escuelas en riesgo hoy (moderado o más)' }))
+    expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, escuelasEnRiesgo: true })
+  })
+
   it('deshabilita la capa de riesgo si no hay contexto territorial', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} riesgoDisponible={false} />)
     const riesgo = screen.getByRole('group', { name: 'Riesgo' })
