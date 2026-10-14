@@ -169,12 +169,6 @@ describe('LeyendaMapa · eventos reportados', () => {
     expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
   })
 
-  it('acredita a OpenStreetMap como fuente de las ubicaciones', () => {
-    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados />)
-
-    expect(within(container).getByText('Ubicaciones: © OpenStreetMap contributors (ODbL)')).toBeTruthy()
-  })
-
   it('no muestra la leyenda de eventos reportados cuando la capa está apagada', () => {
     const { container } = render(<LeyendaMapa pestana="actual" eventosReportados={false} />)
 

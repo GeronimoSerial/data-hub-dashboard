@@ -599,6 +599,8 @@ vi.mock('react-map-gl/maplibre', () => {
   return {
     __esModule: true,
     default: MapGL,
+    // Situation layers subscribe to layer events through useMap(); the double has no map instance.
+    useMap: () => ({ current: undefined }),
     Layer: (props: { id?: string; beforeId?: string; filter?: unknown; paint?: unknown; layout?: { visibility?: string } }) => {
       useEffect(() => {
         const id = props.id

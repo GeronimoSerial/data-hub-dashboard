@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Marker, Popup } from 'react-map-gl/maplibre'
+import { useEffect, useMemo, useState } from 'react'
+import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
+import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -26,9 +27,25 @@ type EstacionRio = {
   lon: number
   coordenadasVerificadas: boolean
   lectura: LecturaEstacion | null
+  lecturaVencida: boolean
   estado: EstadoAltura
   tendencia: Tendencia
 }
+
+type PuntoEstacion = {
+  type: 'Feature'
+  geometry: { type: 'Point'; coordinates: [number, number] }
+  properties: { estacionId: string; nombre: string; estado: EstadoAltura; insignia: string; altura: string }
+}
+
+const ID_CAPA = 'estaciones-rio-simbolos'
+const ID_FUENTE = 'estaciones-rio-src'
+const INSIGNIAS_ESTACIONES = [
+  'estacion-evacuacion',
+  'estacion-alerta',
+  'estacion-normal',
+  'estacion-sin-dato',
+] as const
 
 export const COLOR_ESTADO_ALTURA: Record<EstadoAltura, string> = {
   evacuacion: '#b91c1c',
@@ -85,47 +102,134 @@ function formatoMetros(valor: number | null | undefined): string {
   return valor == null ? 'Sin dato' : `${valor.toFixed(2).replace('.', ',')} m`
 }
 
-export function CapaEstacionesRio({ visible }: { visible: boolean }) {
-  const [estaciones, setEstaciones] = useState<EstacionRio[]>([])
-  const [seleccionada, setSeleccionada] = useState<string | null>(null)
+function insigniaDe(estado: EstadoAltura): string {
+  return `estacion-${estado === 'sin_dato' ? 'sin-dato' : estado}`
+}
 
-  const pedidaRef = useRef(false)
-  const controladorRef = useRef<AbortController | null>(null)
+function puntosDe(estaciones: EstacionRio[]): { type: 'FeatureCollection'; features: PuntoEstacion[] } {
+  return {
+    type: 'FeatureCollection',
+    features: estaciones.map((estacion) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [estacion.lon, estacion.lat] },
+      properties: {
+        estacionId: estacion.estacionId,
+        nombre: estacion.nombre,
+        estado: estacion.estado,
+        insignia: insigniaDe(estacion.estado),
+        altura: estacion.lectura ? formatoMetros(estacion.lectura.lecturaM) : '',
+      },
+    })),
+  }
+}
+
+export function CapaEstacionesRio({ visible, beforeId }: { visible: boolean; beforeId?: string }) {
+  if (!visible) return null
+  return <CapaEstacionesRioActiva beforeId={beforeId} />
+}
+
+function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
+  const [estaciones, setEstaciones] = useState<EstacionRio[]>([])
+  const [listo, setListo] = useState(false)
+  const [seleccionada, setSeleccionada] = useState<string | null>(null)
+  const [enfocada, setEnfocada] = useState<string | null>(null)
+  const { current: mapa } = useMap()
 
   useEffect(() => {
-    if (!visible || pedidaRef.current) return
-    pedidaRef.current = true
     const controller = new AbortController()
-    controladorRef.current = controller
     fetch('/api/infraestructura/hidrometria/estaciones', { signal: controller.signal })
       .then((respuesta) => (respuesta.ok ? respuesta.json() : Promise.reject(new Error('estaciones'))))
       .then((cuerpo: { estaciones?: unknown }) =>
         setEstaciones(Array.isArray(cuerpo?.estaciones) ? (cuerpo.estaciones as EstacionRio[]) : []),
       )
-      .catch(() => setEstaciones([]))
-  }, [visible])
+      .catch(() => {
+        if (!controller.signal.aborted) setEstaciones([])
+      })
+    return () => controller.abort()
+  }, [])
 
-  useEffect(() => () => controladorRef.current?.abort(), [])
+  useEffect(() => {
+    let vigente = true
+    if (!mapa) return
+    registrarInsignias(mapa.getMap(), INSIGNIAS_ESTACIONES).then(() => {
+      if (vigente) setListo(true)
+    })
+    return () => {
+      vigente = false
+    }
+  }, [mapa])
 
-  if (!visible) return null
+  useEffect(() => {
+    if (!mapa || !listo) return
+    const idDe = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const id = evento.features?.[0]?.properties.estacionId
+      return typeof id === 'string' ? id : undefined
+    }
+    const alEntrar = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const id = idDe(evento)
+      if (!id) return
+      mapa.getCanvas().style.cursor = 'pointer'
+      setEnfocada(id)
+    }
+    const alSalir = () => {
+      mapa.getCanvas().style.cursor = ''
+      setEnfocada(null)
+    }
+    const alHacerClic = (evento: { features?: Array<{ properties: Record<string, unknown> }> }) => {
+      const id = idDe(evento)
+      if (id) setSeleccionada(id)
+    }
+    mapa.on('mouseenter', ID_CAPA, alEntrar)
+    mapa.on('mouseleave', ID_CAPA, alSalir)
+    mapa.on('click', ID_CAPA, alHacerClic)
+    return () => {
+      mapa.off('mouseenter', ID_CAPA, alEntrar)
+      mapa.off('mouseleave', ID_CAPA, alSalir)
+      mapa.off('click', ID_CAPA, alHacerClic)
+    }
+  }, [mapa, listo])
+
+  const datos = useMemo(() => puntosDe(estaciones), [estaciones])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
+  const enfoque = estaciones.find((estacion) => estacion.estacionId === enfocada) ?? null
 
   return (
     <>
-      {estaciones.map((estacion) => {
-        const etiqueta = etiquetaEstadoAltura(estacion.estado)
-        return (
-          <Marker key={estacion.estacionId} className="map-marker-estacion" longitude={estacion.lon} latitude={estacion.lat} anchor="center">
-            <button
-              type="button"
-              aria-label={`Estación ${estacion.nombre}: ${etiqueta}`}
-              onClick={() => setSeleccionada(estacion.estacionId)}
-              className={`map-marcador-estacion${estacion.estado === 'sin_dato' ? ' map-marcador-estacion--sin-dato' : ''}`}
-              style={{ background: COLOR_ESTADO_ALTURA[estacion.estado] }}
-            />
-          </Marker>
-        )
-      })}
+      {listo && (
+        <Source id={ID_FUENTE} type="geojson" data={datos}>
+          <Layer
+            id={ID_CAPA}
+            type="symbol"
+            beforeId={beforeId}
+            layout={{
+              'icon-image': ['get', 'insignia'],
+              'icon-size': 1,
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': false,
+              'symbol-sort-key': ['match', ['get', 'estado'], 'evacuacion', 0, 'alerta', 1, 'normal', 2, 3],
+              'text-field': ['step', ['zoom'], '', 8, ['get', 'altura']],
+              'text-size': 11,
+              'text-offset': [0, 1.6],
+              'text-anchor': 'top',
+              'text-optional': true,
+            }}
+            paint={{ 'text-color': '#111827', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }}
+          />
+        </Source>
+      )}
+      {enfoque && !activa && (
+        <Popup
+          longitude={enfoque.lon}
+          latitude={enfoque.lat}
+          anchor="bottom"
+          closeButton={false}
+          closeOnClick={false}
+          className="mapa-tooltip"
+          offset={18}
+        >
+          {`Estación Prefectura ${enfoque.nombre} · ${enfoque.lectura ? formatoMetros(enfoque.lectura.lecturaM) : 'sin dato'} · ${etiquetaEstadoAltura(enfoque.estado)} — clic para ver detalle`}
+        </Popup>
+      )}
       {activa && (
         <Popup
           longitude={activa.lon}
@@ -144,6 +248,9 @@ export function CapaEstacionesRio({ visible }: { visible: boolean }) {
               Alerta: {formatoMetros(activa.lectura?.alertaM)} · Evacuación: {formatoMetros(activa.lectura?.evacuacionM)}
             </p>
             {activa.lectura && <p className="map-popup-row">Medida: {formatearFechaLocal(activa.lectura.medidaEn)}</p>}
+            {activa.lecturaVencida && (
+              <p className="map-popup-row">Lectura desactualizada: se muestra como sin dato.</p>
+            )}
             {activa.lectura?.inconsistente && <p className="map-popup-row">Lectura marcada como inconsistente</p>}
             <p className="map-popup-muted">
               <small>Fuente: Prefectura Naval Argentina. Ubicación declarada por el publicador (no verificada).</small>
