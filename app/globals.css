@@ -6273,3 +6273,44 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
   background: color-mix(in srgb, var(--ink-soft) 35%, transparent);
   border-radius: 999px;
 }
+
+/* Disclosure summaries: one chevron, centred, to the right of the title, never over it. */
+.ficha-territorial__ayuda > summary,
+.ayuda-leyenda > summary,
+.ficha-territorial__detalle > summary,
+.riesgo-escuela__tecnico > summary,
+.map-sitact__eventos > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  list-style: none;
+}
+.ficha-territorial__ayuda > summary::-webkit-details-marker,
+.ayuda-leyenda > summary::-webkit-details-marker,
+.ficha-territorial__detalle > summary::-webkit-details-marker,
+.riesgo-escuela__tecnico > summary::-webkit-details-marker { display: none; }
+.map-sitact__eventos > summary::before { content: none; }
+.ficha-territorial__ayuda > summary::after,
+.ayuda-leyenda > summary::after,
+.ficha-territorial__detalle > summary::after,
+.riesgo-escuela__tecnico > summary::after,
+.map-sitact__eventos > summary::after {
+  content: '';
+  flex: none;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-left: auto;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: translateY(-25%) rotate(45deg);
+  transition: transform 0.15s;
+}
+.ficha-territorial__ayuda[open] > summary::after,
+.ayuda-leyenda[open] > summary::after,
+.ficha-territorial__detalle[open] > summary::after,
+.riesgo-escuela__tecnico[open] > summary::after,
+.map-sitact__eventos[open] > summary::after { transform: translateY(25%) rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) {
+  .map-sitact__eventos > summary::after,
+  .riesgo-escuela__tecnico > summary::after { transition: none; }
+}
