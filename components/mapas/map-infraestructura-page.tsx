@@ -62,6 +62,7 @@ import { PanelCapas } from '@/components/mapas/panel-capas'
 import { ResumenDepartamento } from '@/components/mapas/resumen-departamento'
 import { SeleccionEscuela } from '@/components/mapas/seleccion-escuela'
 import { FullscreenButton } from '@/components/mapas/fullscreen-button'
+import { Button } from '@/components/ui/button'
 // Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración)
 import { VeredictoModal } from '@/components/veredicto/veredicto-modal'
 import { useThemeMode } from '@/app/providers'
@@ -2018,14 +2019,16 @@ export default function MapInfraestructuraPage(props: {
 
       {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
       {!radarActivo && (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
+          className="map-veredicto-btn"
           aria-haspopup="dialog"
           onClick={() => setVeredictoAbierto(true)}
-          className="absolute bottom-24 right-3 z-[3] rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium shadow-sm hover:bg-muted"
         >
           Veredicto diario
-        </button>
+        </Button>
       )}
       {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
       <VeredictoModal

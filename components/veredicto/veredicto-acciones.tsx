@@ -1,12 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 const RUTA_ENLACES = '/api/infraestructura/veredictos/enlaces'
 const RUTA_PDF = '/api/infraestructura/veredictos/pdf'
-
-const claseBoton =
-  'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50'
 
 export function VeredictoAcciones() {
   const [estado, setEstado] = useState('')
@@ -49,26 +48,26 @@ export function VeredictoAcciones() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <button type="button" className={claseBoton} onClick={copiarEnlace}>
+    <div className="veredicto-acciones">
+      <Button type="button" variant="secondary" size="sm" onClick={copiarEnlace}>
         Copiar enlace para autoridades
-      </button>
-      <a href={RUTA_PDF} download className={claseBoton}>
+      </Button>
+      <a href={RUTA_PDF} download className="ui-button ui-button--secondary ui-button--sm">
         Descargar PDF
       </a>
-      <button type="button" className={claseBoton} onClick={revocarEnlaces}>
+      <Button type="button" variant="secondary" size="sm" onClick={revocarEnlaces}>
         Revocar enlaces de hoy
-      </button>
-      <p aria-live="polite" className="text-sm text-slate-600">
+      </Button>
+      <p aria-live="polite" className="veredicto-acciones__estado">
         {estado}
       </p>
       {urlManual ? (
-        <input
+        <Input
           readOnly
           aria-label="Enlace para autoridades"
           value={urlManual}
           onFocus={(e) => e.currentTarget.select()}
-          className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm"
+          className="veredicto-acciones__url"
         />
       ) : null}
     </div>

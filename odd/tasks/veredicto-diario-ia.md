@@ -133,3 +133,4 @@ Ruta por tarea: delegado (writer Haiku) salvo indicación. Disparador: escritura
   (rama hermana), sincronizar la capa IMERG con el día elegido, rate limit y auditoría del enlace público,
   V-16/V-17 (calibración formal), V-19 (IMERG Late/Final).
 - La suite completa de vitest no se corrió (se cuelga en esta máquina); corre en CI.
+- Fix UI 1–3 (CSS inline del coordinador + worker para las clases, ~112k): el repo no usa Tailwind (solo `tailwind-merge`), así que las clases utilitarias no aplicaban nada. Bloque "Veredicto diario" en `app/globals.css` con tokens existentes (`--card`, `--line`, `--fill`, `--s-*`, `--r-*`, `--nivel-peligro-*`, `.badge`, `.chip`, `.ui-button`); el modal usa `.ui-dialog-popup` opaco con backdrop y scroll interno; botón de entrada = `Button secondary sm` como "Pantalla completa", apilado encima; vista pública con layout propio. Sin clases Tailwind ni `style` inline en los componentes del veredicto. 44 tests verdes; tsc/eslint limpios.

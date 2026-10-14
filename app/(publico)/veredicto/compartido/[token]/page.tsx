@@ -14,50 +14,57 @@ function ddMm(venceEn: string): string {
   return `${dia}/${mes}`
 }
 
-export default async function PaginaVeredictoCompartido({
-  params,
-}: {
-  params: Promise<{ token: string }>
-}) {
+export default async function PaginaVeredictoCompartido({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const enlace = await resolverEnlace(getDb(), token)
 
   if (enlace.estado === 'inexistente') {
     return (
-      <section>
-        <h1>Enlace no disponible</h1>
-        <p>Este enlace no existe.</p>
+      <section className="veredicto-publico">
+        <div className="veredicto-publico__contenido">
+          <h1>Enlace no disponible</h1>
+          <p>Este enlace no existe.</p>
+        </div>
       </section>
     )
   }
   if (enlace.estado === 'vencido') {
     return (
-      <section>
-        <h1>Enlace no disponible</h1>
-        <p>
-          Este enlace venció el {ddMm(enlace.venceEn)} a las 23:59 o fue revocado. Solicite un enlace
-          nuevo al equipo operativo.
-        </p>
+      <section className="veredicto-publico">
+        <div className="veredicto-publico__contenido">
+          <h1>Enlace no disponible</h1>
+          <p>
+            Este enlace venció el {ddMm(enlace.venceEn)} a las 23:59 o fue revocado. Solicite un enlace nuevo al equipo
+            operativo.
+          </p>
+        </div>
       </section>
     )
   }
   if (enlace.estado === 'revocado') {
     return (
-      <section>
-        <h1>Enlace no disponible</h1>
-        <p>Este enlace fue revocado. Solicite un enlace nuevo al equipo operativo.</p>
+      <section className="veredicto-publico">
+        <div className="veredicto-publico__contenido">
+          <h1>Enlace no disponible</h1>
+          <p>Este enlace fue revocado. Solicite un enlace nuevo al equipo operativo.</p>
+        </div>
       </section>
     )
   }
 
-  const filas = await listarVigentes(getDb(), { desde: enlace.desde, hasta: enlace.hasta })
+  const filas = await listarVigentes(getDb(), {
+    desde: enlace.desde,
+    hasta: enlace.hasta,
+  })
   const veredictos = filas.map((fila) => aDtoVeredicto(fila, null))
 
   return (
     <>
       <VeredictoPublico veredictos={veredictos} />
       <p>
-        <a href={`/api/veredicto/compartido/${token}/pdf`}>Descargar PDF</a>
+        <a href={`/api/veredicto/compartido/${token}/pdf`} className="ui-button ui-button--secondary">
+          Descargar PDF
+        </a>
       </p>
     </>
   )

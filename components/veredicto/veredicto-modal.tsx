@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { useEffect, useMemo, useState, type JSX } from 'react'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import type { DtoVeredicto, MetricaDtoVeredicto } from '@/lib/infraestructura/veredicto/dto'
 import { NivelChip } from './nivel-chip'
@@ -59,7 +60,9 @@ function prettifyDepartamento(id: string): string {
   return id
     .toLowerCase()
     .split(' ')
-    .map((palabra, i) => (i > 0 && PALABRAS_MINUSCULA.has(palabra) ? palabra : palabra.charAt(0).toUpperCase() + palabra.slice(1)))
+    .map((palabra, i) =>
+      i > 0 && PALABRAS_MINUSCULA.has(palabra) ? palabra : palabra.charAt(0).toUpperCase() + palabra.slice(1),
+    )
     .join(' ')
 }
 
@@ -104,57 +107,52 @@ function DetalleVeredicto({
   veredicto: DtoVeredicto
   metricas: MetricaDtoVeredicto[]
 }): JSX.Element {
-  const frases = (veredicto.frases ?? []) as Array<{ texto?: string; refs?: string[] }>
+  const frases = (veredicto.frases ?? []) as Array<{
+    texto?: string
+    refs?: string[]
+  }>
   return (
-    <section aria-label="Detalle del veredicto" className="space-y-4">
-      <header className="flex flex-wrap items-center gap-2">
-        <h3 className="text-base font-semibold capitalize">
+    <section aria-label="Detalle del veredicto" className="veredicto-detalle">
+      <header className="veredicto-detalle__encabezado">
+        <h3>
           {diaSemana(veredicto.fecha)} {fechaCorta(veredicto.fecha)} · {etiquetaTemporal(veredicto.tipoDia)}
         </h3>
         <NivelChip nivel={veredicto.nivel} />
-        {veredicto.enCalibracion ? (
-          <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">En calibración</span>
-        ) : null}
-        <span className="text-xs text-muted-foreground">generado {horaGenerado(veredicto.generadoEn)}</span>
+        {veredicto.enCalibracion ? <span className="badge veredicto-calibracion">En calibración</span> : null}
+        <span className="veredicto-detalle__meta">generado {horaGenerado(veredicto.generadoEn)}</span>
       </header>
 
       {/* Con frases de IA, `texto` es su concatenación: se muestra una sola vez. */}
-      {veredicto.texto && frases.length === 0 ? <p className="text-sm">{veredicto.texto}</p> : null}
+      {veredicto.texto && frases.length === 0 ? <p>{veredicto.texto}</p> : null}
 
       {frases.length > 0 ? (
-        <ul className="space-y-2 text-sm">
+        <ul className="veredicto-detalle__frases">
           {frases.map((frase, i) => (
             <li key={i}>
               <span>{frase.texto}</span>{' '}
-              {(frase.refs ?? []).map((refId) => {
-                const metrica = metricas.find((m) => m.id === refId)
-                if (!metrica) return null
-                const etiqueta = etiquetaMetrica(metrica)
-                return metrica.fuenteUrl ? (
-                  <a
-                    key={refId}
-                    href={metrica.fuenteUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mx-1 text-blue-700 underline"
-                  >
-                    {etiqueta}
-                  </a>
-                ) : (
-                  <span key={refId} className="mx-1">
-                    {etiqueta}
-                  </span>
-                )
-              })}
+              <span className="veredicto-detalle__refs">
+                {(frase.refs ?? []).map((refId) => {
+                  const metrica = metricas.find((m) => m.id === refId)
+                  if (!metrica) return null
+                  const etiqueta = etiquetaMetrica(metrica)
+                  return metrica.fuenteUrl ? (
+                    <a key={refId} href={metrica.fuenteUrl} target="_blank" rel="noreferrer">
+                      {etiqueta}
+                    </a>
+                  ) : (
+                    <span key={refId}>{etiqueta}</span>
+                  )
+                })}
+              </span>
             </li>
           ))}
         </ul>
       ) : null}
 
       {veredicto.traza.length > 0 ? (
-        <div>
-          <h4 className="text-sm font-medium">Por qué este nivel</h4>
-          <ul className="list-disc pl-5 text-sm">
+        <div className="veredicto-seccion">
+          <h4>Por qué este nivel</h4>
+          <ul>
             {veredicto.traza.map((item, i) => (
               <li key={i}>{descripcionTraza(item)}</li>
             ))}
@@ -163,13 +161,13 @@ function DetalleVeredicto({
       ) : null}
 
       {veredicto.fuentesAusentes.length > 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="veredicto-detalle__nota">
           Fuentes ausentes: {veredicto.fuentesAusentes.map(textoItem).join(', ')}
         </p>
       ) : null}
 
       {veredicto.fuente === 'plantilla' ? (
-        <p className="text-xs text-muted-foreground">Generado por reglas (IA no disponible)</p>
+        <p className="veredicto-detalle__nota">Generado por reglas (IA no disponible)</p>
       ) : null}
     </section>
   )
@@ -189,7 +187,9 @@ export function VeredictoModal({
   useEffect(() => {
     if (!open) return
     let cancelado = false
-    fetch('/api/infraestructura/veredictos', { headers: { Accept: 'application/json' } })
+    fetch('/api/infraestructura/veredictos', {
+      headers: { Accept: 'application/json' },
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return extraerVeredictos(await res.json())
@@ -228,25 +228,25 @@ export function VeredictoModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <DialogContent className="veredicto-modal">
+        <div className="veredicto-modal__cabecera">
           <DialogTitle>Veredicto diario</DialogTitle>
-          {acciones ? <div className="flex flex-wrap gap-2">{acciones}</div> : null}
+          {acciones ? <div>{acciones}</div> : null}
         </div>
 
-        {estado === 'cargando' ? <p className="text-sm text-muted-foreground">Cargando veredictos…</p> : null}
+        {estado === 'cargando' ? <p className="veredicto-modal__estado">Cargando veredictos…</p> : null}
         {estado === 'error' ? (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="veredicto-modal__estado veredicto-modal__estado--error">
             No se pudieron cargar los veredictos.
           </p>
         ) : null}
         {estado === 'ok' && fechas.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sin veredictos todavía para este período.</p>
+          <p className="veredicto-modal__estado">Sin veredictos todavía para este período.</p>
         ) : null}
 
         {estado === 'ok' && fechas.length > 0 ? (
-          <div className="space-y-6">
-            <div role="group" aria-label="Línea de tiempo" className="flex flex-wrap gap-2">
+          <div className="veredicto-modal__cuerpo">
+            <div role="group" aria-label="Línea de tiempo" className="veredicto-timeline">
               {fechas.map((fecha) => {
                 const prov = (porFecha.get(fecha) ?? []).find((v) => v.ambito === 'provincia')
                 const activa = fecha === fechaActiva
@@ -256,14 +256,12 @@ export function VeredictoModal({
                     type="button"
                     aria-pressed={activa}
                     onClick={() => setSeleccion(fecha)}
-                    className={`flex flex-col items-start rounded border px-3 py-1 text-left text-xs ${
-                      activa ? 'border-foreground' : 'border-border'
-                    }`}
+                    className="chip veredicto-timeline__dia"
                   >
-                    <span className="font-medium">{fechaCorta(fecha)}</span>
+                    <span className="veredicto-timeline__fecha">{fechaCorta(fecha)}</span>
                     {prov ? <NivelChip nivel={prov.nivel} /> : null}
                     {prov ? (
-                      <span className="text-muted-foreground">{etiquetaTemporal(prov.tipoDia).toLowerCase()}</span>
+                      <span className="veredicto-timeline__tipo">{etiquetaTemporal(prov.tipoDia).toLowerCase()}</span>
                     ) : null}
                   </button>
                 )
@@ -273,31 +271,27 @@ export function VeredictoModal({
             {provincia ? (
               <DetalleVeredicto veredicto={provincia} metricas={provincia.metricas} />
             ) : (
-              <p className="text-sm text-muted-foreground">Sin veredicto de provincia para este día.</p>
+              <p className="veredicto-seccion__vacio">Sin veredicto de provincia para este día.</p>
             )}
 
-            <section aria-label="Departamentos con señal" className="space-y-2">
-              <h3 className="text-sm font-semibold">Departamentos con señal</h3>
+            <section aria-label="Departamentos con señal" className="veredicto-seccion">
+              <h3>Departamentos con señal</h3>
               {departamentos.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sin departamentos con señal para este día.</p>
+                <p className="veredicto-seccion__vacio">Sin departamentos con señal para este día.</p>
               ) : (
-                <ul className="space-y-2">
+                <ul>
                   {departamentos.map((d) => {
                     const id = d.ambito.startsWith(PREFIJO_DEPARTAMENTO)
                       ? d.ambito.slice(PREFIJO_DEPARTAMENTO.length)
                       : d.ambito
                     return (
-                      <li key={d.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <li key={d.id} className="veredicto-depto">
                         <NivelChip nivel={d.nivel} />
-                        <span className="font-medium">{prettifyDepartamento(id)}</span>
-                        <span className="text-muted-foreground">{primeraOracion(d.texto)}</span>
-                        <button
-                          type="button"
-                          className="text-blue-700 underline"
-                          onClick={() => onSeleccionarDepartamento?.(id)}
-                        >
+                        <span className="veredicto-depto__nombre">{prettifyDepartamento(id)}</span>
+                        <span className="veredicto-depto__resumen">{primeraOracion(d.texto)}</span>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => onSeleccionarDepartamento?.(id)}>
                           Ver en el mapa
-                        </button>
+                        </Button>
                       </li>
                     )
                   })}
@@ -305,19 +299,19 @@ export function VeredictoModal({
               )}
             </section>
 
-            <section aria-label="Confirmado en terreno (no modifica el nivel)" className="space-y-2">
-              <h3 className="text-sm font-semibold">Confirmado en terreno (no modifica el nivel)</h3>
+            <section aria-label="Confirmado en terreno (no modifica el nivel)" className="veredicto-seccion">
+              <h3>Confirmado en terreno (no modifica el nivel)</h3>
               {eventosDelDia.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Sin eventos confirmados para este día.</p>
+                <p className="veredicto-seccion__vacio">Sin eventos confirmados para este día.</p>
               ) : (
-                <ul className="space-y-2 text-sm">
+                <ul>
                   {eventosDelDia.map((e) => (
-                    <li key={e.id}>
-                      <span className="font-medium">{prettifyDepartamento(e.departamento)}</span>{' '}
+                    <li key={e.id} className="veredicto-evento">
+                      <span className="veredicto-depto__nombre">{prettifyDepartamento(e.departamento)}</span>{' '}
                       <span>{e.descripcion}</span>{' '}
-                      <span className="text-xs text-muted-foreground">confianza {e.confianza}</span>{' '}
+                      <span className="veredicto-detalle__meta">confianza {e.confianza}</span>{' '}
                       {e.fuenteUrl ? (
-                        <a href={e.fuenteUrl} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+                        <a href={e.fuenteUrl} target="_blank" rel="noreferrer">
                           fuente
                         </a>
                       ) : null}
