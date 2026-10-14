@@ -12,7 +12,7 @@ function respuesta(cuerpo: string, status = 200): Response {
 
 describe('descargarSynopOgimet', () => {
   it('pide el bloque con begin/end en UTC y devuelve el texto', async () => {
-    const fetchImpl = vi.fn(async () => respuesta(textoOk))
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => respuesta(textoOk))
 
     const texto = await descargarSynopOgimet({ wmo: '87166', desde: DESDE, hasta: HASTA, fetchImpl })
 
@@ -26,7 +26,7 @@ describe('descargarSynopOgimet', () => {
   })
 
   it('envía User-Agent identificado y un signal de abort', async () => {
-    const fetchImpl = vi.fn(async () => respuesta(textoOk))
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => respuesta(textoOk))
 
     await descargarSynopOgimet({ wmo: '87166', desde: DESDE, hasta: HASTA, fetchImpl })
 
@@ -83,9 +83,9 @@ describe('descargarSynopOgimet', () => {
 
   it('un timeout aborta la petición y lanza ErrorOgimet', async () => {
     const fetchImpl = vi.fn(
-      (_url: string, init: RequestInit) =>
+      (_url: RequestInfo | URL, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
         }),
     )
 
