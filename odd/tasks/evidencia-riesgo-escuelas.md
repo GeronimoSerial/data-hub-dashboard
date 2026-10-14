@@ -72,7 +72,7 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 - [x] T2 Persistence + Ogimet client + job `sync-synop-lluvia` (+cadence, jobs.mjs, DEPLOY notes)
 - [x] T3 River evidence port/adapter + engine integration + floor + tests
 - [x] T4 Observed-rain adapter: SYNOP over IMERG + source recorded
-- [ ] T5 Local recompute against dump (before/after per department, examples)
+- [x] T5 Local recompute against dump (before/after per department, examples)
 
 ## Merge note
 - Migration is `drizzle/0016_lluvia_estacion.sql` (journal idx 15, snapshot `0016_snapshot.json`) because
@@ -84,4 +84,42 @@ Out of scope: map UI, push, PR, deploy, fixing the climatology quota.
 `timeout 300 npx vitest run <related files>`, `npx tsc --noEmit -p .`, `pnpm lint`.
 
 ## Progress / evidence
-(updated per task)
+Commits: 4250a4e (T1), c8202f6 + 1493d56 + fc98e24 + 6d7bf00 (T2), c4e7db4 + 3a4a703 + ad41a7a (T3),
+50d3f87 + e427e29 (T4), a0da947 -> aee8b75 (exposure revised after review), cbfde7e (SYNOP 06-12Z derivation).
+Route per task: T1/T2 parts/T3a/T3b/T4a delegated to Haiku writers; T3 integration, T4 adapter, wiring and
+exposure revision inline (core design, already mapped).
+
+### T5 local recompute (dump prod-20261013T2313Z-post-imerg, Postgres 18 throwaway, ahora=2026-10-14T00:30Z)
+- Before = main c749d77 (motor-v0.2), after = this branch (motor-v0.3) + SYNOP loaded from Ogimet
+  (9 stations, 123 records). Both: 6003 snapshots (2001 schools x 3 horizons), conEvidencia 6003.
+- Before: 2001/2001 `bajo` on every horizon (reproduces prod run 931a9bbe).
+- After: 15 schools `bajo -> alto`, 10 `bajo -> moderado`, 1976 unchanged (same on 24/72/240 h).
+
+| Departamento | Schools | Change | Alto | Moderado |
+|---|---|---|---|---|
+| Ituzaingó | 78 | 9 | 9 | 0 |
+| San Martín (La Cruz, Yapeyú) | 51 | 7 | 0 | 7 |
+| Paso de los Libres | 70 | 6 | 6 | 0 |
+| General Alvear | 25 | 3 | 0 | 3 |
+| Capital | 363 | 0 | 0 | 0 |
+| Empedrado | 59 | 0 | 0 | 0 |
+| Itatí | 26 | 0 | 0 | 0 |
+
+- Paso de los Libres (9.33 m, evac 8.50): exposed via `margen_rp100` (4) and `ruta_rp100` (2) -> alto
+  (amenaza muy_alto); the other 39 town schools are above the RP100 level and stay bajo.
+- Ituzaingó (4.03 m, evac 4.00): Ituzaingó + Apipé Grande schools via `ruta_rp100`/`peligro_fluvial` -> alto.
+- Itatí (6.07 / alerta 6.8), Empedrado (4.94 / 6.5), Capital (5.43 / 6.5): river normal -> river factor
+  present for exposed schools but no floor; no level change (correct for the observed state).
+- Capital rain: SYNOP 87166 now used for 323 Capital schools (24 h 4.8 mm, 72 h 19.3 mm) instead of
+  IMERG (1.1 mm / ~5 mm); 461 of 2001 schools use station rain on 24 h. Too little rain to move levels.
+- Ituzaingó (87173) and Paso de los Libres (87289) stations have gaps in 6 h groups -> IMERG kept.
+
+## Pending / follow-ups
+- Rerun `calcular-hazard-climatologia-caudal` when the Open-Meteo quota resets (caudal is null for all).
+- Schedule `sync-synop-lluvia` in Coolify (`habilitado: false` until then) and apply migration 0016.
+- Node `fetch` to Ogimet timed out intermittently from this host (curl worked): 7/9 stations failed in
+  one local run; watch `ogimet-synop` source health after deploy.
+- Replace the station-distance fallback with distance to a river-bank geometry when one exists.
+- Floors dominate the score of affected schools (score lands exactly on 50/25): expected while forecast
+  cells are verde and vulnerability is multiplicative; revisit with the engine-defect work in
+  `mejoras-deteccion-inundaciones.md`.
