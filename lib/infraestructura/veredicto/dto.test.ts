@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aDtoVeredicto } from './dto'
+import { aDtoVeredicto, sinFuentesAusentes } from './dto'
 import type { FilaVeredicto } from './repositorio'
 
 function fila(overrides: Partial<FilaVeredicto> = {}): FilaVeredicto {
@@ -133,5 +133,14 @@ describe('aDtoVeredicto', () => {
     expect(dto.metricas).toEqual([])
     expect(dto.fuentesAusentes).toEqual([])
     expect(dto.texto).toBeNull()
+  })
+})
+
+describe('sinFuentesAusentes', () => {
+  it('quita la oración de fuentes ausentes de textos guardados con la plantilla anterior', () => {
+    expect(sinFuentesAusentes('Sin datos suficientes para evaluar el día. Sin datos de: lluvia satelital (IMERG), alturas de Prefectura.'))
+      .toBe('Sin datos suficientes para evaluar el día.')
+    expect(sinFuentesAusentes('Prefectura Ituzaingó (río Paraná) — Altura del río: 4,03 m · Evacuación.')).toBe('Prefectura Ituzaingó (río Paraná) — Altura del río: 4,03 m · Evacuación.')
+    expect(sinFuentesAusentes(null)).toBeNull()
   })
 })

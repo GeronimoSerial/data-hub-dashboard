@@ -83,7 +83,7 @@ export function aDtoVeredicto(fila: FilaVeredicto, version: number | null): DtoV
     ambito: fila.ambito,
     tipoDia: fila.tipoDia,
     nivel: fila.nivel,
-    texto: fila.textoFinal ?? null,
+    texto: sinFuentesAusentes(fila.textoFinal ?? null),
     fuente: fila.fuente,
     enCalibracion: fila.enCalibracion,
     cerrado: fila.cerrado,
@@ -96,4 +96,14 @@ export function aDtoVeredicto(fila: FilaVeredicto, version: number | null): DtoV
     fuentesAusentes: lista(cobertura.fuentesAusentes),
     imergHasta: typeof cobertura.imergHasta === 'string' ? cobertura.imergHasta : null,
   }
+}
+
+/**
+ * Los veredictos guardados antes de este cambio traen "Sin datos de: …." al
+ * final del texto. Las fuentes ausentes ya no van en el texto del operador
+ * (quedan en `fuentesAusentes`, como detalle técnico), así que se quitan acá.
+ */
+export function sinFuentesAusentes(texto: string | null): string | null {
+  if (texto === null) return null
+  return texto.replace(/\s*Sin datos de: [^.]*\.\s*$/, '').trim()
 }
