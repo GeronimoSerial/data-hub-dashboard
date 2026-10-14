@@ -1,6 +1,6 @@
 {
   "id": "0914bdb6-dcc6-497e-8c1e-2061daef437a",
-  "prevId": "0288c0e1-5300-4102-926a-81f7542f70ba",
+  "prevId": "00cac4fd-fb4b-4f21-abc3-e9e297d2860d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3772,6 +3772,311 @@
         }
       },
       "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.infra_veredicto_dia": {
+      "name": "infra_veredicto_dia",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "fecha": {
+          "name": "fecha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ambito": {
+          "name": "ambito",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo_dia": {
+          "name": "tipo_dia",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nivel": {
+          "name": "nivel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "traza_reglas": {
+          "name": "traza_reglas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_reglas": {
+          "name": "version_reglas",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metricas": {
+          "name": "metricas",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "inputs_hash": {
+          "name": "inputs_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cobertura": {
+          "name": "cobertura",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "texto_final": {
+          "name": "texto_final",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "salida_ia": {
+          "name": "salida_ia",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fuente": {
+          "name": "fuente",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motivo_fallback": {
+          "name": "motivo_fallback",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "modelo": {
+          "name": "modelo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version_prompt": {
+          "name": "version_prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_entrada": {
+          "name": "tokens_entrada",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tokens_salida": {
+          "name": "tokens_salida",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "costo_usd": {
+          "name": "costo_usd",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latencia_ms": {
+          "name": "latencia_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "en_calibracion": {
+          "name": "en_calibracion",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "generado_en": {
+          "name": "generado_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "job_run_id": {
+          "name": "job_run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reemplazado_por": {
+          "name": "reemplazado_por",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cerrado": {
+          "name": "cerrado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "infra_veredicto_dia_hash_idx": {
+          "name": "infra_veredicto_dia_hash_idx",
+          "columns": [
+            {
+              "expression": "fecha",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ambito",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "inputs_hash",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "infra_veredicto_dia_vigente_uidx": {
+          "name": "infra_veredicto_dia_vigente_uidx",
+          "columns": [
+            {
+              "expression": "fecha",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ambito",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"infra_veredicto_dia\".\"reemplazado_por\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "infra_veredicto_dia_generado_en_idx": {
+          "name": "infra_veredicto_dia_generado_en_idx",
+          "columns": [
+            {
+              "expression": "generado_en",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.infra_veredicto_enlace": {
+      "name": "infra_veredicto_enlace",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fecha_desde": {
+          "name": "fecha_desde",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fecha_hasta": {
+          "name": "fecha_hasta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "creado_por": {
+          "name": "creado_por",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creado_en": {
+          "name": "creado_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vence_en": {
+          "name": "vence_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocado_en": {
+          "name": "revocado_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revocado_por": {
+          "name": "revocado_por",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "infra_veredicto_enlace_token_hash_unique": {
+          "name": "infra_veredicto_enlace_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
