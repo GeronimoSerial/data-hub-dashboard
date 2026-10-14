@@ -370,7 +370,7 @@ describe('FichaEscuelaPanel', () => {
     const onVerHistorialCompleto = vi.fn()
     renderFicha({ onCerrar, onVerHistorialCompleto })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Volver a la lista' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar ficha' }))
     fireEvent.click(screen.getByRole('button', { name: 'Ver historial' }))
 
     expect(onCerrar).toHaveBeenCalledOnce()
@@ -383,7 +383,7 @@ describe('FichaEscuelaPanel', () => {
     renderFicha({ onCerrar })
 
     const titulo = screen.getByRole('heading', { name: escuela.nombre })
-    const volver = screen.getByRole('button', { name: 'Volver a la lista' })
+    const volver = screen.getByRole('button', { name: 'Cerrar ficha' })
     expect(titulo).toHaveAttribute('tabindex', '-1')
     expect(titulo).toHaveFocus()
     expect(volver).not.toHaveFocus()

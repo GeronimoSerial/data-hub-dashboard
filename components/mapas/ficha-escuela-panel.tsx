@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, BookMinus, BookX, ChevronDown, Clock, DoorOpen, House } from 'lucide-react'
+import { BookMinus, BookX, ChevronDown, Clock, DoorOpen, House, X } from 'lucide-react'
 import { EstadoActualSeveridad, TINTA_POR_SEVERIDAD } from '@/components/infraestructura/estado-actual-severidad'
 import { ETIQUETA_ESTABLECIMIENTO, resumirAlcance } from '@/components/infraestructura/estado-actual-textos'
 import { formatearMomentoHistorial } from '@/components/infraestructura/historial-formato'
@@ -127,8 +127,8 @@ export function FichaEscuelaPanel({
   return (
     <section className="map-ficha-escuela" aria-label={`Ficha de ${escuela.nombre}`}>
       <div className="map-ficha-escuela__encabezado-fijo">
-        <button className="map-ficha-escuela__back" type="button" onClick={onCerrar}>
-          <ArrowLeft aria-hidden="true" />Volver a la lista
+        <button className="map-cerrar map-ficha-escuela__cerrar" type="button" aria-label="Cerrar ficha" onClick={onCerrar}>
+          <X aria-hidden="true" />
         </button>
 
         <header className="map-ficha-escuela__head">

@@ -1988,33 +1988,6 @@ export default function MapInfraestructuraPage(props: {
               actual: actualizadoEn && ahoraMs !== null ? horaActualizacion(actualizadoEn, ahoraMs) : undefined,
               radar: 'Pronóstico',
             }}
-            ficha={fichaAbierta && escuelaSeleccionada ? (
-              <FichaEscuelaPanel
-                key={seleccionCue}
-                escuela={escuelaSeleccionada}
-                horizonteRiesgo={horizonteEfectivo}
-                planificacion={VISTAS_PLANIFICACION.map((vista) => ({
-                  etiquetaVista: TITULO_LEYENDA_VISTA[vista],
-                  etiquetaNivel: vista === 'historial'
-                    ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
-                    : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
-                }))}
-                acceso={(
-                  <BloqueAcceso
-                    geometria={geometria}
-                    exposicion={exposicion}
-                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
-                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
-                    cargando={geometriaLoading || exposicionLoading}
-                    error={Boolean(geometriaError)}
-                  />
-                )}
-                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
-                onVerAlumnosAlcanzados={setNominalAfectacionId}
-                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
-                onCerrar={cerrarFicha}
-              />
-            ) : undefined}
             actual={panelActual}
             radar={(
               <PanelRadar
@@ -2073,6 +2046,35 @@ export default function MapInfraestructuraPage(props: {
             )}
           />
         </div>
+      )}
+      {dataVisible && fichaAbierta && escuelaSeleccionada && (
+        <aside className="map-ficha-flotante" aria-label="Ficha de la escuela" data-testid="ficha-flotante">
+              <FichaEscuelaPanel
+                key={seleccionCue}
+                escuela={escuelaSeleccionada}
+                horizonteRiesgo={horizonteEfectivo}
+                planificacion={VISTAS_PLANIFICACION.map((vista) => ({
+                  etiquetaVista: TITULO_LEYENDA_VISTA[vista],
+                  etiquetaNivel: vista === 'historial'
+                    ? `${ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })]} (${escuelaSeleccionada.situacionesHistoricas})`
+                    : ETIQUETA_NIVEL_PLAN[nivelPlanificacion(escuelaSeleccionada, vista, { territorio })],
+                }))}
+                acceso={(
+                  <BloqueAcceso
+                    geometria={geometria}
+                    exposicion={exposicion}
+                    claseEscuela={claseInundacion(territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.claseRio)}
+                    juntoLaguna={territorio?.susceptibilidad?.escuelas[escuelaSeleccionada.cueAnexo]?.juntoLaguna === true}
+                    cargando={geometriaLoading || exposicionLoading}
+                    error={Boolean(geometriaError)}
+                  />
+                )}
+                mostrarEnlaceNominal={props.mostrarEnlaceNominal}
+                onVerAlumnosAlcanzados={setNominalAfectacionId}
+                onVerHistorialCompleto={() => setHistorialCue(seleccionCue)}
+                onCerrar={cerrarFicha}
+              />
+        </aside>
       )}
 
       {/* Veredicto diario: punto de entrada mínimo (ver odd/tasks/veredicto-diario-ia.md, Integración) */}
