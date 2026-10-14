@@ -2279,6 +2279,7 @@ time {
    provincial row has no badge and spans the full width. */
 .map-sitact__fila.map-eventos__fila { grid-template-columns: 18px minmax(0, 1fr); }
 .map-sitact__fila.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.map-eventos__etiqueta { margin: var(--s-2) 0 var(--s-1); font-size: var(--t-micro); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
 .map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); cursor: pointer; list-style: none; }
 .map-sitact__eventos > summary::-webkit-details-marker { display: none; }
 .map-sitact__eventos > summary::before { content: '▸'; color: var(--ink-faint); }
@@ -6229,7 +6230,8 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 .map-shell[data-radar-activo='true'] .map-leyenda--radar { bottom: calc(122px + 6.5rem); width: 224px; }
 .map-leyenda__fila { flex-wrap: wrap; }
 /* Resumen provincial de eventos: no lleva barra de color, ocupa todo el ancho de la fila. */
-.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; }
+.map-eventos__provincial { grid-template-columns: minmax(0, 1fr); cursor: default; border-left: 2px solid var(--ink-faint); border-bottom: 0; padding: var(--s-1) 0 var(--s-1) var(--s-2); }
+.map-eventos__provincial .map-sitact__nombre { font-size: var(--t-small); }
 .map-sitact__eventos > summary { display: flex; align-items: baseline; gap: var(--s-2); list-style: none; padding: var(--s-1) 0; }
 .map-sitact__eventos > summary::-webkit-details-marker { display: none; }
 .map-sitact__eventos > summary::before { content: ''; flex: none; width: 0.45rem; height: 0.45rem; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(-45deg); transition: transform 0.15s; }

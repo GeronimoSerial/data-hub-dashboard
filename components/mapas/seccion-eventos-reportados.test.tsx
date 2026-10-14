@@ -47,8 +47,50 @@ describe('SeccionEventosReportados', () => {
 
   it('muestra los conteos por confianza en el encabezado', () => {
     render(<SeccionEventosReportados resumen={resumen()} onSeleccionar={vi.fn()} onResaltar={vi.fn()} />)
-    expect(screen.getByText('Eventos reportados')).toBeInTheDocument()
+    expect(screen.getByText('Lo que informan los medios')).toBeInTheDocument()
+    expect(screen.queryByText('Eventos reportados')).toBeNull()
     expect(screen.getByText(/1 alta · 1 media · 1 baja/)).toBeInTheDocument()
+  })
+
+  it('arranca colapsada por defecto', () => {
+    const { container } = render(
+      <SeccionEventosReportados resumen={resumen()} onSeleccionar={vi.fn()} onResaltar={vi.fn()} />,
+    )
+    const seccion = container.querySelector('details')
+    expect(seccion).not.toHaveAttribute('open')
+    expect(seccion?.open).toBe(false)
+  })
+
+  it('muestra la etiqueta Resumen provincial solo cuando hay resumen', () => {
+    const { unmount } = render(
+      <SeccionEventosReportados resumen={resumen()} onSeleccionar={vi.fn()} onResaltar={vi.fn()} />,
+    )
+    expect(screen.queryByText('Resumen provincial')).toBeNull()
+    expect(screen.getByText('Eventos')).toBeInTheDocument()
+    unmount()
+
+    render(
+      <SeccionEventosReportados
+        resumen={resumen({
+          resumenProvincial: [
+            {
+              id_evento: 'prov-1',
+              tipo_afectacion: null,
+              mediciones: null,
+              lugares: [],
+              titulo: 'Inundación provincial',
+              subtitulo: '',
+              hechos: [],
+              estadoEtiqueta: '',
+              fuentes: [],
+            } as unknown as ResumenEventosReportados['resumenProvincial'][number],
+          ],
+        })}
+        onSeleccionar={vi.fn()}
+        onResaltar={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('Resumen provincial')).toHaveClass('map-eventos__etiqueta')
   })
 
   it('muestra la fecha de registro en dd/MM', () => {

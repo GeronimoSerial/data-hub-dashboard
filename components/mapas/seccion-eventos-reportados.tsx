@@ -94,20 +94,25 @@ export function SeccionEventosReportados({ resumen, onSeleccionar, onResaltar }:
   const registro = diaMes(resumen.actualizadoAl)
 
   return (
-    <details className="map-sitact__reportes map-sitact__eventos" open>
+    <details className="map-sitact__reportes map-sitact__eventos">
       <summary>
         <h3 className="map-sitact__titulo-seccion">
-          <span>Eventos reportados</span>
+          <span>Lo que informan los medios</span>
           <span className="map-sitact__atenuado">
             {`${conteo.alta} alta · ${conteo.media} media · ${conteo.baja} baja`}
             {registro && ` · registro al ${registro}`}
           </span>
         </h3>
       </summary>
-      {resumen.resumenProvincial.length > 0 &&
-        resumen.resumenProvincial.map((entrada) => (
-          <ResumenProvincialBloque key={entrada.id_evento} entrada={entrada} />
-        ))}
+      {resumen.resumenProvincial.length > 0 && (
+        <>
+          <p className="map-eventos__etiqueta">Resumen provincial</p>
+          {resumen.resumenProvincial.map((entrada) => (
+            <ResumenProvincialBloque key={entrada.id_evento} entrada={entrada} />
+          ))}
+        </>
+      )}
+      <p className="map-eventos__etiqueta">Eventos</p>
       <div className="map-sitact__lista map-eventos__lista">
         {resumen.eventos.map((evento) => (
           <FilaEvento
