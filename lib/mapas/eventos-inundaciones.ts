@@ -35,7 +35,19 @@ export type PropiedadesUbicacion = {
   fuenteTitulo: string | null
   fuenteUrl: string | null
   multiLugar: boolean
+  titulo: string
+  subtitulo: string
+  hechos: string[]
+  estadoEtiqueta: string
+  confianzaEtiqueta: string
+  fuentes: FuenteEvento[]
 }
+
+export type FuenteEvento = { medio: string; fecha: string | null; url: string }
+
+export type MotivoDescarte = 'confianza_muy_baja' | 'sin_fuente_verificable'
+
+export type EventoDescartado = { id: string; motivo: MotivoDescarte }
 
 export type EventoUbicado = {
   type: 'Feature'
@@ -46,6 +58,7 @@ export type EventoUbicado = {
 export type ResultadoUbicacion = {
   geojson: { type: 'FeatureCollection'; features: EventoUbicado[] }
   sinUbicar: string[]
+  descartados: EventoDescartado[]
 }
 
 export type EntradaUbicacion = {
@@ -201,32 +214,155 @@ function ubicarEnDepartamento(
   return { coordenadas: [departamento.lon, departamento.lat], precision: 'departamento' }
 }
 
-function indexarEvidencias(csv: string): Map<string, { titulo: string | null; url: string | null }> {
-  const mapa = new Map<string, { titulo: string | null; url: string | null }>()
+type FilaEvidencia = { titulo: string | null; url: string | null; medio: string; fecha: string | null }
+
+const ID_EVIDENCIA = /\bEVD?-\d[\w-]*/g
+
+function esUrlHttp(url: string | null): url is string {
+  return url !== null && /^https?:\/\//i.test(url)
+}
+
+function indexarEvidencias(csv: string): Map<string, FilaEvidencia> {
+  const mapa = new Map<string, FilaEvidencia>()
   for (const fila of parsearCsv(csv)) {
     const id = fila.id_evidencia?.trim()
     if (!id) continue
+    const fecha = /^(\d{4})-(\d{2})-(\d{2})/.exec(fila.fecha_publicacion?.trim() ?? '')
     mapa.set(id, {
       titulo: fila.titulo?.trim() || null,
       url: fila.url?.trim() || null,
+      medio: fila.fuente?.trim() || fila.titulo?.trim() || 'Fuente sin nombre',
+      fecha: fecha ? `${Number(fecha[3])}/${Number(fecha[2])}` : null,
     })
   }
   return mapa
+}
+
+function capitalizar(texto: string): string {
+  return texto.length === 0 ? texto : texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+
+function primeraClausula(valor: unknown): string {
+  if (typeof valor !== 'string') return ''
+  return sinParentesis(valor.split(';')[0] ?? '')
+}
+
+/** Plain-Spanish headline: what happened, plus the cause when it is known. */
+export function tituloEvento(p: { tipo_fenomeno: unknown; tipo_afectacion: unknown; curso_agua: unknown }): string {
+  const fenomeno = typeof p.tipo_fenomeno === 'string' ? sinParentesis(p.tipo_fenomeno).toLowerCase() : ''
+  const cursoAgua = typeof p.curso_agua === 'string' ? p.curso_agua.trim() : ''
+  const afectacion = primeraClausula(p.tipo_afectacion)
+
+  if (/^ninguna/i.test(afectacion) || afectacion === '') {
+    return fenomeno ? `${capitalizar(fenomeno)} sin daños informados` : 'Evento sin daños informados'
+  }
+  let titulo = capitalizar(afectacion)
+  if (fenomeno.includes('crecida') && cursoAgua.startsWith('río')) {
+    titulo += ` por crecida del ${cursoAgua}`
+  } else if (/lluvia|tormenta/.test(fenomeno)) {
+    titulo += ` por ${fenomeno}`
+  }
+  return titulo
+}
+
+const MESES_FECHA = /^(\d{4})-(\d{2})-(\d{2})/
+
+function fechaCorta(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null
+  const m = MESES_FECHA.exec(valor.trim())
+  return m ? `${Number(m[3])}/${Number(m[2])}` : null
+}
+
+/** "lugar · desde 6/10", "lugar · 6/10 – 8/10"; the range is omitted when the start is unknown. */
+export function subtituloEvento(lugar: string, inicio: unknown, fin: unknown): string {
+  const inicioCorto = fechaCorta(inicio)
+  if (!inicioCorto) return lugar
+  const aprox = (valor: unknown) => (typeof valor === 'string' && /aprox\./.test(valor) ? ' (aprox.)' : '')
+  const finCorto = fechaCorta(fin)
+  const rango = finCorto
+    ? `${inicioCorto}${aprox(inicio)} – ${finCorto}${aprox(fin)}`
+    : `desde ${inicioCorto}${aprox(inicio)}`
+  return lugar ? `${lugar} · ${rango}` : rango
+}
+
+const MAX_HECHOS = 3
+const MAX_LARGO_HECHO = 140
+
+/** Up to three short facts from the measurements text, with evidence references removed. */
+export function hechosEvento(mediciones: unknown): string[] {
+  if (typeof mediciones !== 'string') return []
+  const hechos: string[] = []
+  for (const clausula of mediciones.split(/;|\.\s+/)) {
+    const limpia = clausula
+      .replace(/\s*\([^()]*\bEVD?-\d[^()]*\)/g, ' ')
+      .replace(ID_EVIDENCIA, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s,:]+|[\s,:]+$/g, '')
+    if (limpia.length < 3 || /^ver\b/i.test(limpia)) continue
+    const capitalizado = capitalizar(limpia)
+    hechos.push(
+      capitalizado.length > MAX_LARGO_HECHO ? `${capitalizado.slice(0, MAX_LARGO_HECHO - 1).trimEnd()}…` : capitalizado,
+    )
+    if (hechos.length === MAX_HECHOS) break
+  }
+  return hechos
+}
+
+export function etiquetaEstado(estado: unknown): string {
+  switch (estado) {
+    case 'vigente_segun_ultimo_reporte':
+      return 'Vigente según el último reporte'
+    case 'ocurrido':
+      return 'Finalizado'
+    case 'evolucion_desconocida':
+      return 'Evolución desconocida'
+    default:
+      return 'Estado sin informar'
+  }
+}
+
+export function etiquetaConfianza(confianza: unknown): string {
+  switch (confianza) {
+    case 'alta':
+      return 'Confianza alta'
+    case 'media':
+      return 'Confianza media'
+    case 'baja':
+      return 'Confianza baja'
+    default:
+      return 'Confianza sin informar'
+  }
 }
 
 export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
   const evidencias = indexarEvidencias(datos.evidenciasCsv)
   const features: EventoUbicado[] = []
   const sinUbicar = new Set<string>()
+  const descartados: EventoDescartado[] = []
 
   for (const evento of datos.eventos.features) {
     const p = evento.properties
     const idEvento = String(p.id_evento ?? '')
     const lugares = dividirLista(p.localidad)
     const departamentos = dividirLista(p.departamento)
+    const idsFuente = [...new Set([...dividirLista(p.fuente_principal), ...dividirLista(p.evidencias)])]
     const fuenteId = dividirLista(p.fuente_principal)[0]
     const fuente = fuenteId ? evidencias.get(fuenteId) : undefined
     const precisionFuente = p.geometria_precision
+
+    const fuentes: FuenteEvento[] = idsFuente.flatMap((id) => {
+      const fila = evidencias.get(id)
+      return fila && esUrlHttp(fila.url) ? [{ medio: fila.medio, fecha: fila.fecha, url: fila.url }] : []
+    })
+
+    if (p.confianza === 'muy baja') {
+      descartados.push({ id: idEvento, motivo: 'confianza_muy_baja' })
+      continue
+    }
+    if (fuentes.length === 0) {
+      descartados.push({ id: idEvento, motivo: 'sin_fuente_verificable' })
+      continue
+    }
 
     const base = {
       id_evento: idEvento,
@@ -242,6 +378,11 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
       fuenteTitulo: fuente?.titulo ?? null,
       fuenteUrl: fuente?.url ?? null,
       multiLugar: lugares.length > 1,
+      titulo: tituloEvento({ tipo_fenomeno: p.tipo_fenomeno, tipo_afectacion: p.tipo_afectacion, curso_agua: p.curso_agua }),
+      hechos: hechosEvento(p.mediciones),
+      estadoEtiqueta: etiquetaEstado(p.estado_temporal),
+      confianzaEtiqueta: etiquetaConfianza(p.confianza),
+      fuentes,
     }
 
     if (evento.geometry?.type === 'Point' && Array.isArray(evento.geometry.coordinates)) {
@@ -253,6 +394,7 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
           ...base,
           lugar: lugares.join('; ') || String(p.localidad ?? ''),
           precisionMostrada: String(precisionFuente ?? ''),
+          subtitulo: subtituloEvento(lugares.join('; ') || String(p.localidad ?? ''), p.inicio_evento, p.fin_evento),
         },
       })
       continue
@@ -272,7 +414,12 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
       features.push({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: ubicado.coordenadas },
-        properties: { ...base, lugar, precisionMostrada: ubicado.precision },
+        properties: {
+          ...base,
+          lugar,
+          precisionMostrada: ubicado.precision,
+          subtitulo: subtituloEvento(lugar, p.inicio_evento, p.fin_evento),
+        },
       })
     })
 
@@ -282,5 +429,6 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
   return {
     geojson: { type: 'FeatureCollection', features },
     sinUbicar: [...sinUbicar],
+    descartados,
   }
 }

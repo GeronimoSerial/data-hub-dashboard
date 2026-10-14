@@ -3,8 +3,13 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
 import { centroidesLocalidadesEscuelas,
+  etiquetaConfianza,
+  etiquetaEstado,
   EVENTOS_INUNDACIONES_URLS,
+  hechosEvento,
   parsearCsv,
+  subtituloEvento,
+  tituloEvento,
   ubicarEventos,
 } from './eventos-inundaciones'
 
@@ -192,13 +197,158 @@ describe('eventos-inundaciones real data', () => {
 
     const idsSalida = new Set(resultado.geojson.features.map((f) => f.properties.id_evento))
     const idsSinUbicar = new Set(resultado.sinUbicar)
+    const idsDescartados = new Set(resultado.descartados.map((d) => d.id))
     const enDepartamento = resultado.geojson.features.filter((f) => f.properties.precisionMostrada === 'departamento')
     expect(enDepartamento.map((f) => f.properties.lugar)).not.toContain('Paso de los Libres')
     for (const f of eventos.features) {
       const id = f.properties.id_evento
-      expect(idsSalida.has(id) || idsSinUbicar.has(id)).toBe(true)
+      expect(idsSalida.has(id) || idsSinUbicar.has(id) || idsDescartados.has(id)).toBe(true)
     }
     expect(EVENTOS_INUNDACIONES_URLS.eventos).toBe('/data/eventos-inundaciones/eventos.geojson')
+  })
+
+  it('reports the real events without a URL source in descartados', () => {
+    const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+    const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
+    const resultado = ubicarEventos({
+      eventos,
+      evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
+      localidades: [],
+      departamentos: [],
+      estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    })
+    const descartados = new Map(resultado.descartados.map((d) => [d.id, d.motivo]))
+    expect(descartados.has('EV-20261012-003')).toBe(true)
+    expect(descartados.has('EV-20261013-006')).toBe(true)
+  })
+
+  it('exposes human-readable labels without snake_case or evidence ids for every real feature', () => {
+    const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+    const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
+    const locs = JSON.parse(leer('data/localities.geojson'))
+    const deps = JSON.parse(leer('data/departamentos-corrientes-georef-2026-09-27.geojson'))
+    const resultado = ubicarEventos({
+      eventos,
+      evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
+      localidades: locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
+        nombre: f.properties.name,
+        lon: f.geometry.coordinates[0],
+        lat: f.geometry.coordinates[1],
+      })).concat(centroidesLocalidadesEscuelas(JSON.parse(leer('data/localizaciones.json')))),
+      departamentos: deps.features.map((f: { properties: { nombre: string; centroide: { lon: number; lat: number } } }) => ({
+        nombre: f.properties.nombre,
+        lon: f.properties.centroide.lon,
+        lat: f.properties.centroide.lat,
+      })),
+      estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+    })
+    expect(resultado.geojson.features.length).toBeGreaterThan(0)
+
+    const textos: string[] = []
+    for (const f of resultado.geojson.features) {
+      const p = f.properties
+      textos.push(p.titulo, p.subtitulo, p.estadoEtiqueta, p.confianzaEtiqueta, ...p.hechos)
+      textos.push(...p.fuentes.map((s) => s.medio))
+    }
+    for (const texto of textos) {
+      expect(texto).not.toMatch(/[a-z]+_[a-z]+/)
+      expect(texto).not.toMatch(/\bEVD?-\d/)
+    }
+  })
+})
+
+describe('filtro de calidad', () => {
+  it('drops events with confianza muy baja', () => {
+    const resultado = ubicar([evento({ confianza: 'muy baja' })])
+    expect(resultado.geojson.features).toEqual([])
+    expect(resultado.sinUbicar).toEqual([])
+    expect(resultado.descartados).toEqual([{ id: 'EV-1', motivo: 'confianza_muy_baja' }])
+  })
+
+  it('drops baja events without any http(s) source', () => {
+    const resultado = ubicar([evento({ confianza: 'baja', evidencias: 'EVD-999', fuente_principal: 'EVD-999' })])
+    expect(resultado.geojson.features).toEqual([])
+    expect(resultado.descartados).toEqual([{ id: 'EV-1', motivo: 'sin_fuente_verificable' }])
+  })
+
+  it('keeps baja events with at least one source', () => {
+    const resultado = ubicar([evento({ confianza: 'baja' })])
+    expect(resultado.geojson.features).toHaveLength(1)
+    expect(resultado.descartados).toEqual([])
+  })
+
+  it('drops media events without any http(s) source', () => {
+    const resultado = ubicar([evento({ confianza: 'media', evidencias: 'EVD-999', fuente_principal: 'EVD-999' })])
+    expect(resultado.geojson.features).toEqual([])
+    expect(resultado.descartados).toEqual([{ id: 'EV-1', motivo: 'sin_fuente_verificable' }])
+  })
+
+  it('lists sources main first, deduplicated, with only http(s) urls', () => {
+    const resultado = ubicar([
+      evento({ evidencias: 'EVD-002;EVD-048;EVD-002;EVD-777', fuente_principal: 'EVD-048' }),
+    ])
+    expect(resultado.geojson.features[0].properties.fuentes).toEqual([
+      { medio: 'Diario Local', fecha: '1/10', url: 'https://example.test/nota' },
+      { medio: 'Prefectura', fecha: '2/10', url: 'https://example.test/alturas' },
+    ])
+  })
+})
+
+describe('etiquetas legibles', () => {
+  it('builds the title from the affectation, adding the river for floods', () => {
+    expect(tituloEvento({
+      tipo_fenomeno: 'crecida fluvial',
+      tipo_afectacion: 'evacuación preventiva de familias; playas bajo agua',
+      curso_agua: 'río Uruguay',
+    })).toBe('Evacuación preventiva de familias por crecida del río Uruguay')
+  })
+
+  it('appends the rain or storm phenomenon and strips parentheticals', () => {
+    expect(tituloEvento({
+      tipo_fenomeno: 'tormenta con lluvia intensa y viento',
+      tipo_afectacion: 'árboles y postes caídos (EVD-009)',
+      curso_agua: 'no aplica',
+    })).toBe('Árboles y postes caídos por tormenta con lluvia intensa y viento')
+  })
+
+  it('states when no damage was reported', () => {
+    expect(tituloEvento({
+      tipo_fenomeno: 'lluvia',
+      tipo_afectacion: 'ninguna informada (sin anegamientos)',
+      curso_agua: 'no aplica',
+    })).toBe('Lluvia sin daños informados')
+  })
+
+  it('builds the subtitle with a day/month range and keeps aprox.', () => {
+    expect(subtituloEvento('Ituzaingó', '2026-10-06', null)).toBe('Ituzaingó · desde 6/10')
+    expect(subtituloEvento('Ituzaingó', '2026-10-06', '2026-10-08 12:00')).toBe('Ituzaingó · 6/10 – 8/10')
+    expect(subtituloEvento('X', '2026-10-07 noche (aprox.)', null)).toBe('X · desde 7/10 (aprox.)')
+    expect(subtituloEvento('X', 'no sé', null)).toBe('X')
+  })
+
+  it('extracts up to three facts without evidence references', () => {
+    expect(hechosEvento('evacuados: 13 personas (EVD-002, 7/10); 25 personas; ver EV-20261011-001; 31 personas; 40 personas'))
+      .toEqual(['Evacuados: 13 personas', '25 personas', '31 personas'])
+  })
+
+  it('truncates long facts to 140 characters with an ellipsis', () => {
+    const [hecho] = hechosEvento('a'.repeat(200))
+    expect(hecho.length).toBeLessThanOrEqual(140)
+    expect(hecho.endsWith('…')).toBe(true)
+  })
+
+  it('returns no facts for non-text measurements', () => {
+    expect(hechosEvento(null)).toEqual([])
+  })
+
+  it('maps the estado and confianza labels', () => {
+    expect(etiquetaEstado('vigente_segun_ultimo_reporte')).toBe('Vigente según el último reporte')
+    expect(etiquetaEstado('ocurrido')).toBe('Finalizado')
+    expect(etiquetaEstado('evolucion_desconocida')).toBe('Evolución desconocida')
+    expect(etiquetaEstado('otro')).toBe('Estado sin informar')
+    expect(etiquetaConfianza('alta')).toBe('Confianza alta')
+    expect(etiquetaConfianza('media')).toBe('Confianza media')
+    expect(etiquetaConfianza('baja')).toBe('Confianza baja')
   })
 })
 
