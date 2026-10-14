@@ -8,12 +8,15 @@ export type DatosRadar = {
 }
 const ZONA = 'America/Argentina/Buenos_Aires'
 export const UMBRALES_RESALTADO = { lluvia24h: { atencion: 25, importante: 50 }, rafagaKmh: { atencion: 60, importante: 80 } } as const
+// Building an Intl.DateTimeFormat is expensive; calcularResumen formats every
+// forecast hour, so the formatters are created once per module.
+const FORMATO_DIA = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' })
+const FORMATO_HORA = new Intl.DateTimeFormat('sv-SE', { timeZone: ZONA, dateStyle: 'short', timeStyle: 'short' })
 function diaLocal(iso: string): string {
-  const p = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(iso))
-  const v = Object.fromEntries(p.map((x) => [x.type, x.value]))
+  const v = Object.fromEntries(FORMATO_DIA.formatToParts(new Date(iso)).map((x) => [x.type, x.value]))
   return `${v.year}-${v.month}-${v.day}`
 }
-function horaLocal(iso: string): string { return new Intl.DateTimeFormat('sv-SE', { timeZone: ZONA, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso)) }
+function horaLocal(iso: string): string { return FORMATO_HORA.format(new Date(iso)) }
 function valor(datos: DatosRadar, campo: string, celda: number, hora: number): number | null {
   const n = datos.values[campo]?.[celda]?.[hora]
   return typeof n === 'number' && Number.isFinite(n) ? n : null
@@ -28,10 +31,18 @@ export function calcularResumen(datos: DatosRadar, ahora = new Date()) {
   const indicesPorDepto = new Map<string, number[]>()
   asignaciones.forEach((a, i) => indicesPorDepto.set(a.departamentoId, [...(indicesPorDepto.get(a.departamentoId) ?? []), i]))
   const hoyLocal = diaLocal(ahora.toISOString())
-  const diasDisponibles = [...new Set(datos.times.map(diaLocal))].filter((dia) => dia >= hoyLocal)
+  // Local day of every forecast hour, computed once and grouped by day.
+  const horasPorDia = new Map<string, Array<{ t: string; i: number }>>()
+  datos.times.forEach((t, i) => {
+    const dia = diaLocal(t)
+    const horas = horasPorDia.get(dia)
+    if (horas) horas.push({ t, i })
+    else horasPorDia.set(dia, [{ t, i }])
+  })
+  const diasDisponibles = [...horasPorDia.keys()].filter((dia) => dia >= hoyLocal)
   const dias = diasDisponibles.filter((dia, index) => {
     if (index !== diasDisponibles.length - 1) return true
-    const horasDia = datos.times.map((time, i) => ({ time, i })).filter(({ time }) => diaLocal(time) === dia)
+    const horasDia = horasPorDia.get(dia) ?? []
     const esperadas = datos.cells.length * horasDia.length
     const presentes = datos.cells.reduce((total, _, celda) => total + horasDia.filter(({ i }) => valor(datos, 'precipitation', celda, i) !== null).length, 0)
     return !esperadas || presentes / esperadas >= 0.5
@@ -40,7 +51,7 @@ export function calcularResumen(datos: DatosRadar, ahora = new Date()) {
   const salida = departamentos.map((depto) => {
     const celdas = indicesPorDepto.get(depto.id) ?? []
     const diasDepto = dias.map((dia) => {
-      const hs = datos.times.map((t, i) => ({ t, i })).filter((x) => diaLocal(x.t) === dia)
+      const hs = horasPorDia.get(dia) ?? []
       const sumas = celdas.map((c) => hs.map((h) => valor(datos, 'precipitation', c, h.i)).filter((n): n is number => n !== null))
       const presentes = sumas.flat().length
       const esperadas = celdas.length * hs.length
@@ -54,7 +65,7 @@ export function calcularResumen(datos: DatosRadar, ahora = new Date()) {
       for (const h of hs) {
         const vals = celdas.map((c) => valor(datos, 'precipitation', c, h.i)).filter((n): n is number => n !== null)
         const media = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null
-        if (media !== null && (pico === null || media > pico.mm)) pico = { mm: media, hora: horaLocal(h.t) }
+        if (media !== null && (pico === null || media > pico.mm)) pico = { mm: media, hora: h.t }
       }
       let tormenta = false, granizoMax: number | null = null
       for (const h of hs) for (const c of celdas) {
@@ -67,7 +78,7 @@ export function calcularResumen(datos: DatosRadar, ahora = new Date()) {
         }
       }
       const maxRafaga = rafagas.length ? Math.max(...rafagas) : null
-      return { fecha: dia, lluvia24h: redondear(area), lluviaLocalMax: redondear(max), rafagaMaxKmh: redondear(maxRafaga, 0), picoHora: pico?.hora ?? null, tormenta, granizoMax, cobertura: redondear(cobertura * 100, 0), resaltado: { lluvia: nivelLluvia(area), rafaga: nivelRafaga(maxRafaga) } }
+      return { fecha: dia, lluvia24h: redondear(area), lluviaLocalMax: redondear(max), rafagaMaxKmh: redondear(maxRafaga, 0), picoHora: pico ? horaLocal(pico.hora) : null, tormenta, granizoMax, cobertura: redondear(cobertura * 100, 0), resaltado: { lluvia: nivelLluvia(area), rafaga: nivelRafaga(maxRafaga) } }
     })
     const proximas48h = horas48.map(({ t, i }) => {
       const rain = celdas.map((c) => valor(datos, 'precipitation', c, i)).filter((n): n is number => n !== null)

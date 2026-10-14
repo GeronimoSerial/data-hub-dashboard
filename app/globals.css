@@ -6259,6 +6259,17 @@ details.map-legend-panel[open] .map-legend-summary { margin-bottom: 0.4rem; }
 }
 /* La esquina inferior derecha también tiene "Veredicto diario" sobre "Pantalla completa": la leyenda va arriba de ambos. */
 .map-shell:not([data-radar-activo='true']) .map-leyenda { bottom: 7.25rem; }
+/* Desktop: the top-right corner of the map is free (layers live in the sidebar), so the
+   legend may grow up to the top margin instead of a fixed 45vh; its last section
+   ("Símbolos") no longer ends up hidden below the fold on 1366×768. Thin visible scrollbar
+   as an affordance when it still does not fit. */
+@media (min-width: 721px) {
+  .map-shell:not([data-radar-activo='true']) .map-leyenda {
+    max-height: calc(100% - 7.25rem - var(--s-3));
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--ink-soft) 35%, transparent) transparent;
+  }
+}
 
 /* Thin, subtle scrollbar for the left panel: never wider than the gutter it reserves. */
 .map-panel-lateral__cuerpo {

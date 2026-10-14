@@ -9,7 +9,8 @@ export type EntradaResumen = {
     motivo: 'lluvia' | 'rafagas' | 'caudal' | null
   }
   lluviaObservada72h: { mm: number | null; parcial: boolean; hasta: string | null }
-  lluviaPronosticada24h: { mm: number | null }
+  /** `corridaEn`: ISO de la corrida de pronóstico más reciente usada, si se conoce. */
+  lluviaPronosticada24h: { mm: number | null; corridaEn?: string | null }
   rio: {
     estado: 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
     estacionNombre: string
@@ -86,7 +87,9 @@ function puntoPronostico(entrada: EntradaResumen): PuntoResumen {
   const { mm } = entrada.lluviaPronosticada24h
   const valor = mm === null ? 'sin dato' : cantidadLluvia(mm)
   const desde = entrada.pronosticoDesactualizadoDesde
-  return { texto: `Pronóstico próximas 24 h: ${valor}`, actualizado: desde, vencido: desde !== null }
+  // Vencido: la fecha del último éxito de la fuente; al día: la de la corrida usada.
+  const actualizado = desde ?? entrada.lluviaPronosticada24h.corridaEn ?? null
+  return { texto: `Pronóstico próximas 24 h: ${valor}`, actualizado, vencido: desde !== null }
 }
 
 function puntoRio(entrada: EntradaResumen): PuntoResumen {
