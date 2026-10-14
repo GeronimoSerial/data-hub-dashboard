@@ -75,6 +75,21 @@ describe('registrarInsignias', () => {
     });
   });
 
+  it('no duplica una imagen cuando dos registros concurrentes compiten', async () => {
+    const existentes = new Set<string>();
+    const addImage = vi.fn((id: string) => {
+      existentes.add(id);
+    });
+    const map = { hasImage: (id: string) => existentes.has(id), addImage };
+
+    await Promise.all([
+      registrarInsignias(map, ['evento-alta']),
+      registrarInsignias(map, ['evento-alta']),
+    ]);
+
+    expect(addImage).toHaveBeenCalledTimes(1);
+  });
+
   it('omite una imagen que falla sin lanzar', async () => {
     vi.stubGlobal(
       'Image',
