@@ -14,7 +14,7 @@ import type { EscuelaMapaEnriquecida } from '@/lib/infraestructura/mapa/tipos'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { useFichaParte } from '@/lib/infraestructura/use-ficha-parte'
 import { LineaDeTiempo } from '@/components/infraestructura/linea-de-tiempo'
-import { FichaTerritorial } from '@/components/infraestructura/ficha-territorial'
+import { FichaTerritorial, type EstadoVistaPeligro } from '@/components/infraestructura/ficha-territorial'
 import { situacionPrincipal } from '@/lib/infraestructura/relevancia'
 import { desde } from '@/components/infraestructura/actualizar/entrada-actualizar'
 
@@ -232,15 +232,26 @@ export function FichaEscuelaPanel({
           )}
         </Desplegable>
 
-        <section className="map-ficha-escuela__situacion">
-          <h3>Peligro hidrometeorológico</h3>
-          <FichaTerritorial cueAnexo={escuela.cueAnexo} />
-        </section>
+        <SeccionPeligro cueAnexo={escuela.cueAnexo} />
       </div>
 
       <a className="ui-button ui-button--secondary ui-button--sm" href={`/infraestructura/cargar?cue=${encodeURIComponent(escuela.cueAnexo)}`}>
         {escuela.gravedad > 0 ? 'Actualizar el parte' : 'Cargar una situación'}
       </a>
+    </section>
+  )
+}
+
+function SeccionPeligro({ cueAnexo }: { cueAnexo: string }) {
+  const [estadoPeligro, setEstadoPeligro] = useState<EstadoVistaPeligro>('cargando')
+  return (
+    <section className="map-ficha-escuela__situacion">
+      <details open={estadoPeligro !== 'sin_datos'}>
+        <summary>
+          <h3>Peligro hidrometeorológico</h3>
+        </summary>
+        <FichaTerritorial cueAnexo={cueAnexo} onEstado={setEstadoPeligro} />
+      </details>
     </section>
   )
 }

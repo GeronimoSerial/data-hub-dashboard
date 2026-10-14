@@ -2338,6 +2338,32 @@ time {
 .ayuda-leyenda p,
 .ayuda-leyenda li { font-size: var(--t-small); margin: 0.25rem 0; }
 
+.ficha-territorial__conclusion {
+  margin: 0.25rem 0 0.15rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.ficha-territorial__razon {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.ficha-territorial--sin-datos .ficha-territorial__titulo {
+  margin: 0;
+}
+
+.ficha-territorial__detalle {
+  margin: 0.5rem 0;
+}
+
+.ficha-territorial__detalle > summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
 .ficha-territorial__umbrales {
   display: grid;
   gap: var(--s-2);

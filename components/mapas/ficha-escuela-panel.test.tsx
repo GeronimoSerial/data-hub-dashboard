@@ -11,7 +11,7 @@ import type { Severidad } from '@/lib/infraestructura/validacion'
 import type { MovimientoHistorial } from '@/components/infraestructura/historial-movimiento'
 
 vi.mock('@/components/infraestructura/ficha-territorial', () => ({
-  FichaTerritorial: ({ cueAnexo }: { cueAnexo: string }) => (
+  FichaTerritorial: ({ cueAnexo }: { cueAnexo: string; onEstado?: (estado: string) => void }) => (
     <div data-testid="ficha-territorial-mock">{cueAnexo}</div>
   ),
 }))
