@@ -95,13 +95,13 @@ describe('construirPuntosNivel', () => {
 })
 
 describe('puntosRadarVisibles', () => {
-  it('sólo dibuja riesgo moderado o más, con tamaño por nivel; bajo y sin dato no se dibujan', () => {
+  it('dibuja riesgo moderado o más con tamaño por nivel; bajo y sin dato quedan como punto tenue (peso 0) clickeable', () => {
     const fc = construirPuntosNivel(
       ['muy', 'alto', 'mod', 'bajo', 'sin'].map((cueAnexo) => ({ cueAnexo, lat: 1, lon: 1 })),
       new Map([['muy', '#1'], ['alto', '#2'], ['mod', '#3'], ['bajo', '#4']]),
     )
     const niveles = new Map([['muy', 'muy_alto'], ['alto', 'alto'], ['mod', 'moderado'], ['bajo', 'bajo']])
     const visibles = puntosRadarVisibles(fc, niveles).features.map((f) => [f.properties.cueAnexo, f.properties.peso])
-    expect(visibles).toEqual([['muy', 3], ['alto', 2], ['mod', 1]])
+    expect(visibles).toEqual([['muy', 3], ['alto', 2], ['mod', 1], ['bajo', 0], ['sin', 0]])
   })
 })

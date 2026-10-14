@@ -63,9 +63,9 @@ export function puntosRiesgoSobreSituacion(
 const PESO_RIESGO: Record<string, number> = { muy_alto: 3, alto: 2, moderado: 1 }
 
 /**
- * Radar ("Riesgo actual (hoy)"): sólo se dibujan las escuelas con riesgo
- * moderado o más, con tamaño por nivel. Riesgo bajo y sin dato no se dibujan
- * (las listas y los KPI conservan sus cuentas).
+ * Radar ("Riesgo actual (hoy)"): las escuelas con riesgo moderado o más llevan
+ * color y tamaño por nivel. Riesgo bajo y sin dato quedan como punto tenue
+ * (peso 0), sin color de riesgo, sólo para poder abrir su ficha con un clic.
  */
 export function puntosRadarVisibles(
   puntos: FeatureCollection<Point, PropiedadesPuntoNivel>,
@@ -73,9 +73,9 @@ export function puntosRadarVisibles(
 ): FeatureCollection<Point, PropiedadesPuntoNivel> {
   return {
     ...puntos,
-    features: puntos.features.flatMap((feature) => {
-      const peso = PESO_RIESGO[nivelPorCue.get(feature.properties.cueAnexo) ?? '']
-      return peso === undefined ? [] : [{ ...feature, properties: { ...feature.properties, peso } }]
+    features: puntos.features.map((feature) => {
+      const peso = PESO_RIESGO[nivelPorCue.get(feature.properties.cueAnexo) ?? ''] ?? 0
+      return { ...feature, properties: { ...feature.properties, peso } }
     }),
   }
 }

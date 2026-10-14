@@ -1112,17 +1112,17 @@ describe('MapInfraestructuraPage — modo Radar', () => {
     expect(screen.queryByText('Pronóstico por departamento')).not.toBeInTheDocument()
   })
 
-  it('dibuja sólo escuelas con riesgo moderado o más, con el color del riesgo, y sólo monta la capa en Radar', async () => {
+  it('dibuja con color las escuelas con riesgo moderado o más, el resto como punto tenue (peso 0), y sólo monta la capa en Radar', async () => {
     const vista = await renderMapa({ mostrarEnlaceNominal: true, riskRadarEnabled: true, pestana: 'radar' })
 
     const fuente = screen.getByTestId('mock-source-infra-puntos-nivel-src')
     const geojson = JSON.parse(fuente.getAttribute('data-geojson') ?? '{}')
-    const colores = new Map(geojson.features.map((feature: { properties: { cueAnexo: string; color: string; conDato: boolean } }) => [
+    const colores = new Map(geojson.features.map((feature: { properties: { cueAnexo: string; color: string; conDato: boolean; peso: number } }) => [
       feature.properties.cueAnexo,
-      [feature.properties.color, feature.properties.conDato],
+      [feature.properties.color, feature.properties.conDato, feature.properties.peso],
     ]))
-    expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true])
-    expect(colores.has(CUE_SIN_AFECTACION)).toBe(false)
+    expect(colores.get(CUE)).toEqual([colorRiesgo('alto'), true, 2])
+    expect((colores.get(CUE_SIN_AFECTACION) as unknown[] | undefined)?.[2]).toBe(0)
     expect(screen.getByTestId('mock-layer-infra-puntos-nivel')).toBeInTheDocument()
 
     vista.rerender({ pestana: 'actual' })
