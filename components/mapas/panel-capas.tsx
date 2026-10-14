@@ -37,7 +37,7 @@ export function PanelCapas({ value, onChange, capasVisibles, onCapasVisiblesChan
         <Switch
           checked={capasVisibles.eventosReportados}
           onCheckedChange={(visible) => cambiarCapa('eventosReportados', visible)}
-          label="Eventos reportados (últimos días)"
+          label="Lo que informan los medios (últimos días)"
         />
         <Switch
           checked={capasVisibles.lluviaObservada}

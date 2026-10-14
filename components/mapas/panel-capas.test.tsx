@@ -132,14 +132,14 @@ describe('PanelCapas · eventos reportados', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} />)
 
     const grupo = screen.getByRole('group', { name: 'Situación actual' })
-    expect(within(grupo).getByRole('switch', { name: 'Eventos reportados (últimos días)' }).getAttribute('aria-checked')).toBe('true')
+    expect(within(grupo).getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }).getAttribute('aria-checked')).toBe('true')
   })
 
   it('apaga la capa de eventos reportados al desactivar su interruptor', async () => {
     const cambios = vi.fn<(visibles: CapasVisibles) => void>()
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} />)
 
-    await userEvent.click(screen.getByRole('switch', { name: 'Eventos reportados (últimos días)' }))
+    await userEvent.click(screen.getByRole('switch', { name: 'Lo que informan los medios (últimos días)' }))
     expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, eventosReportados: false })
   })
 })

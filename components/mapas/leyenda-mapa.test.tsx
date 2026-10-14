@@ -32,7 +32,7 @@ describe('LeyendaMapa · contenedor único', () => {
     expect(container.querySelectorAll('aside')).toHaveLength(1)
     const leyenda = within(container.querySelector('aside.map-leyenda') as HTMLElement)
     expect(leyenda.getByText('Estaciones de Prefectura')).toBeTruthy()
-    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
     expect(leyenda.getByText('Lluvia observada 24 h')).toBeTruthy()
   })
 
@@ -197,7 +197,7 @@ describe('LeyendaMapa · eventos reportados', () => {
     const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados />)
 
     const leyenda = within(container)
-    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
     expect(leyenda.getByText('Confianza alta')).toBeTruthy()
     expect(leyenda.getByText('Confianza media')).toBeTruthy()
     expect(leyenda.getByText('Confianza baja')).toBeTruthy()
@@ -214,7 +214,7 @@ describe('LeyendaMapa · eventos reportados', () => {
   it('no muestra la leyenda de eventos reportados cuando la capa está apagada', () => {
     const { container } = render(<LeyendaMapa pestana="actual" eventosReportados={false} />)
 
-    expect(within(container).queryByText('Eventos reportados')).toBeNull()
+    expect(within(container).queryByText('Lo que informan los medios')).toBeNull()
   })
 
   it.each(['actual', 'radar'] as const)('muestra ambos bloques en la pestaña %s cuando las capas están visibles', (pestana) => {
@@ -227,7 +227,7 @@ describe('LeyendaMapa · eventos reportados', () => {
     expect(leyenda.getByText('Alerta')).toBeTruthy()
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
-    expect(leyenda.getByText('Eventos reportados')).toBeTruthy()
+    expect(leyenda.getByText('Lo que informan los medios')).toBeTruthy()
     expect(leyenda.getByText('Confianza alta')).toBeTruthy()
     expect(leyenda.getByText('Confianza media')).toBeTruthy()
     expect(leyenda.getByText('Confianza baja')).toBeTruthy()

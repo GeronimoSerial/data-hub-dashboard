@@ -128,7 +128,7 @@ function SituacionActual({ estacionesRio, eventosReportados, registro, lluviaObs
         )}
         {eventosReportados && (
           <div className="map-leyenda__bloque">
-            <b className="map-leyenda__subtitulo">Eventos reportados</b>
+            <b className="map-leyenda__subtitulo">Lo que informan los medios</b>
             <ul className="map-leyenda__situacion">
               {CONFIANZA_EVENTOS.map(({ id, etiqueta }) => (
                 <li className="map-leyenda__elemento" key={id}>
