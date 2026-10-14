@@ -40,6 +40,13 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: MINUTOS_MES,
     habilitado: true,
   },
+  // Coolify Scheduled Task `20 4 * * *` (ver runbook-scheduler.md).
+  {
+    nombre: 'climatologia-imerg',
+    tipo: 'calculo-climatologia-imerg',
+    intervaloMinutos: 1440,
+    habilitado: true,
+  },
   { nombre: 'calcular-riesgo', tipo: 'calcular-riesgo-v0', intervaloMinutos: 360, habilitado: false },
   {
     nombre: 'sync-pronostico-caudal',

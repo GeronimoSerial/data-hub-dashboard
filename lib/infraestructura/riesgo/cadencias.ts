@@ -9,6 +9,7 @@ export type NombreJob =
   | 'sync-imerg'
   | 'climatologia-precipitacion'
   | 'climatologia-caudal'
+  | 'climatologia-imerg'
   | 'calcular-riesgo'
   | 'episodios-derivados'
   | 'sync-seasonal'
@@ -72,6 +73,13 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 1440,
     descripcion: 'Climatología de caudal (diario, avanza por cursor resumable de cupo)',
   },
+  // NASA IMERG Final diario: corrida diaria con presupuesto de días por corrida
+  // (cursor resumable por mes en hazard_precipitacion_serie). Al completar el
+  // período cada corrida sólo recalcula; al cambiar el año extiende la serie.
+  'climatologia-imerg': {
+    minutos: 1440,
+    descripcion: 'Climatología de precipitación NASA IMERG Final (diario, cursor resumable por mes)',
+  },
   // Alturas horarias de Prefectura (PNA); la fuente publica una tabla por hora.
   'sync-prefectura-alturas': {
     minutos: 60,
@@ -107,6 +115,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'sync-hazard-imerg': 'sync-imerg',
   'calculo-climatologia': 'climatologia-precipitacion',
   'calcular-hazard-climatologia-caudal': 'climatologia-caudal',
+  'calculo-climatologia-imerg': 'climatologia-imerg',
   'calcular-riesgo-v0': 'calcular-riesgo',
   'episodios-derivados-v0': 'episodios-derivados',
   'sync-hazard-seasonal': 'sync-seasonal',

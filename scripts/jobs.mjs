@@ -41,6 +41,7 @@ const NOMBRES_VALIDOS = [
   'sync-imerg',
   'climatologia-precipitacion',
   'climatologia-caudal',
+  'climatologia-imerg',
   'calcular-riesgo',
   'episodios-derivados',
   'sync-seasonal',
@@ -361,6 +362,16 @@ async function correrCalculoClimatologia() {
   return ejecutarCalculoClimatologia()
 }
 
+// Climatología IMERG: igual que sync-imerg, el token se pasa explícito desde el
+// entorno del contenedor; el job nunca lee process.env.EARTHDATA_TOKEN.
+async function correrCalculoClimatologiaImerg() {
+  if (!(await jobsActivos())) return flagDeshabilitado('climatologia-imerg')
+  const { ejecutarCalculoClimatologiaImerg } = await import(
+    '../lib/infraestructura/riesgo/jobs/calcular-climatologia-imerg.ts'
+  )
+  return ejecutarCalculoClimatologiaImerg({ earthdataToken: process.env.EARTHDATA_TOKEN })
+}
+
 async function correrCalculoClimatologiaCaudal() {
   if (!(await jobsActivos())) return flagDeshabilitado('climatologia-caudal')
   const { ejecutarCalculoClimatologiaCaudal } = await import(
@@ -442,6 +453,8 @@ export async function correrJob(nombre, opts) {
       return correrCalculoClimatologia()
     case 'climatologia-caudal':
       return correrCalculoClimatologiaCaudal()
+    case 'climatologia-imerg':
+      return correrCalculoClimatologiaImerg()
     case 'calcular-riesgo':
       return correrCalcularRiesgo()
     case 'episodios-derivados':

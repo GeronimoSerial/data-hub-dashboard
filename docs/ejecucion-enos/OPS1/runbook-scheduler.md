@@ -59,6 +59,7 @@ Tareas configuradas en Coolify sobre la aplicación de producción:
 | sync-imerg | `5 * * * *` | 300 s | `sync-hazard-imerg` | creado 2026-10-13 |
 | climatologia-caudal | `41 6 1 * *` | 1200 s | `calcular-hazard-climatologia-caudal` | mensual, cursor resumable; creado 2026-10-13 |
 | climatologia-precipitacion | `43 6 1 * *` | 1200 s | `calculo-climatologia` | mensual, cursor resumable; creado 2026-10-13 |
+| climatologia-imerg | `20 4 * * *` | 3600 s | `calculo-climatologia-imerg` | diario; cursor resumable por mes, presupuesto `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` (default 1200 días ≈ 45 min). Requiere `EARTHDATA_TOKEN`. Salud: `hazard_source_health` `nasa-imerg-climatologia` (TTL 2 días). |
 | sync-prefectura-alturas | `17 * * * *` | 300 s | `sync-prefectura-alturas` | cada hora; creado 2026-10-13. Requiere `ENOS_JOBS_ENABLED` distinto de `false` en el contenedor. Exit `1` si devuelve `estado: fallido`. |
 | veredicto-diario | `45 0,6,12,18 * * *` | 600 s | `veredicto-diario-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-diario`. Requiere `AI_VEREDICTO_ENABLED=true` (y `OPENROUTER_API_KEY` para texto IA). |
 | veredicto-cierre | `30 3 * * *` | 300 s | `veredicto-cierre-v0` | **pendiente de crear**. Comando `node scripts/jobs.mjs veredicto-cierre`. Cierra el día ART anterior. |
@@ -204,6 +205,17 @@ entorno del contenedor o deshabilitando la tarea en Coolify.
 - **`1`** — excepción no manejada, o resultado `fallido` de `sync-prefectura-alturas` (fallo real). Revisar el log del scheduler (Coolify o `journalctl -u enos-ops1@<nombre>.service` en staging).
 - **`2`** — nombre de job desconocido. Error de la tarea o unidad (nombre mal escrito), no del job.
 - **`3`** — el job perdió el lease antes de publicar: otro proceso lo recuperó por vencimiento. Tratarlo como problema de **scheduling/solapamiento**. Causa típica: intervalo menor a la duración del lease o del job.
+
+## Climatología IMERG (NASA, diaria)
+
+`climatologia-imerg` baja el subset diario de NASA GPM IMERG Final (`GPM_3IMERGDF` v07)
+del bbox de la app por el OPeNDAP cloud de Earthdata (~18 KB y ~2 s por día, secuencial),
+guarda la serie por celda de 0.1° en `hazard_precipitacion_serie` (clave `imerg:<celda>`)
+y recalcula `hazard_climatology` versión `climatologia-imerg-v1` para cada celda con >= 10
+años completos. El período va de 2001 al último año completo con Final publicado (desde
+mayo, el año anterior); no hay fechas fijas. Un día que falla descarta su mes, deja la
+corrida `fallido` y la salud `degradado`; la próxima corrida retoma el mes. Completado el
+período, cada corrida sólo recalcula (minutos). Las celdas sin IMERG completo usan ERA5.
 
 ## Climatologías: timers mensuales con cursor resumable (OM-cupo)
 

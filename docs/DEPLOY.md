@@ -181,7 +181,8 @@ Los flags booleanos de riesgo y producto solo se activan con el valor exacto `tr
 | `RISK_MODE` | `shadow` | Modo seguro o advisory | Motor de riesgo |
 | `ENOS_JOBS_ENABLED` | `true` | Pausa global de jobs OPS1 | Scheduler OPS1 |
 | `GEO_STATIC_OUTPUT_DIR` | `services/geo-static/output` | Insumos del importador geo | Import geo-static |
-| `EARTHDATA_TOKEN` | sin default | Autenticación NASA IMERG | Job `sync-imerg` |
+| `EARTHDATA_TOKEN` | sin default | Autenticación NASA IMERG | Jobs `sync-imerg` y `climatologia-imerg` |
+| `IMERG_CLIMATOLOGIA_DIAS_POR_CORRIDA` | `1200` | Días IMERG bajados por corrida (≈ 2 s por día) | Job `climatologia-imerg` |
 | `OPEN_METEO_API_KEY` | ausente | Cuota/plan Open-Meteo | Jobs de pronóstico/clima |
 | `OPEN_METEO_LIMITE_HOURLY`, `OPEN_METEO_LIMITE_DAILY`, `OPEN_METEO_LIMITE_MONTHLY` | techo gratuito de código | Límites de cupo | Jobs Open-Meteo |
 | `OPEN_METEO_LIMITE_HOURLY_PAGO`, `OPEN_METEO_LIMITE_DAILY_PAGO`, `OPEN_METEO_LIMITE_MONTHLY_PAGO` | sin default | Límites de cupo pago | Solo cuota paga Open-Meteo |
@@ -238,6 +239,18 @@ docker exec <CONTENEDOR> node scripts/jobs.mjs asociacion-rio
 ```
 
 Los timers mantienen ambos jobs actualizados diariamente. La asociación de ríos corre a las 03:10 UTC, después de `geo-perfiles` (03:00 UTC).
+
+Climatología de precipitación NASA IMERG (Coolify → Scheduled Tasks de la app de producción):
+
+| Nombre | Comando | Cron | Timeout |
+|---|---|---|---|
+| `climatologia-imerg` | `node scripts/jobs.mjs climatologia-imerg` | `20 4 * * *` | 3600 s |
+
+La primera vez completa 2001-hoy en unas 8 corridas diarias (~9.100 días, ~2 s por día,
+1.200 días por corrida ≈ 45 min; ~18 KB por día, ~170 MB de red en total). Disco: ~9.700
+filas JSON en `hazard_precipitacion_serie` (~30 MB) y ~2.300 filas en `hazard_climatology`.
+Después es diaria y corta: sólo recalcula, y al publicarse un nuevo año completo lo agrega.
+Se monitorea en `/admin/operacion` (job `climatologia-imerg`, fuente `nasa-imerg-climatologia`).
 
 Exportación bajo demanda de dataset desidentificado:
 
