@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { etiquetaDepartamento } from '@/lib/infraestructura/mapa/etiquetas'
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
@@ -29,7 +30,6 @@ type Props = {
 type EstadoCarga = 'cargando' | 'error' | 'ok'
 
 const PREFIJO_DEPARTAMENTO = 'departamento:'
-const PALABRAS_MINUSCULA = new Set(['de', 'del', 'la', 'las', 'los', 'el', 'y'])
 
 function fechaCorta(fecha: string): string {
   const [, m, d] = fecha.split('-')
@@ -49,13 +49,8 @@ function etiquetaTemporal(tipoDia: DtoVeredicto['tipoDia']): 'OBSERVADO' | 'HOY'
 }
 
 function prettifyDepartamento(id: string): string {
-  return id
-    .toLowerCase()
-    .split(' ')
-    .map((palabra, i) =>
-      i > 0 && PALABRAS_MINUSCULA.has(palabra) ? palabra : palabra.charAt(0).toUpperCase() + palabra.slice(1),
-    )
-    .join(' ')
+  // Mismo nombre (con tildes) que el resto del mapa.
+  return etiquetaDepartamento(id.toUpperCase())
 }
 
 function primeraOracion(texto: string | null): string {
@@ -111,8 +106,17 @@ function etiquetaMetrica(metrica: MetricaDtoVeredicto): string {
   return `${metrica.etiqueta} ${String(metrica.valor)}${unidad}`
 }
 
+const NOMBRE_FUENTE: Record<string, string> = {
+  glofas: 'caudal pronosticado (GloFAS)',
+  ensamble: 'ensamble de lluvia',
+  ecmwf: 'lluvia pronosticada (ECMWF)',
+  imerg: 'lluvia observada (NASA IMERG)',
+  prefectura: 'alturas de Prefectura',
+  smn: 'alertas del SMN',
+}
+
 function textoItem(item: unknown): string {
-  if (typeof item === 'string') return item
+  if (typeof item === 'string') return NOMBRE_FUENTE[item] ?? item
   if (item !== null && typeof item === 'object') {
     const r = item as Record<string, unknown>
     return String(r.etiqueta ?? r.id ?? r.fuente ?? JSON.stringify(item))
