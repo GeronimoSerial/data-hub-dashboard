@@ -4,10 +4,10 @@ import { resolve } from 'node:path'
 import { CAPAS_VISIBLES_DEFAULT, CLAVE_CAPAS_VISIBLES, guardarCapas, leerCapasGuardadas, visibilidadCapa } from './capas'
 
 describe('capas opcionales del mapa', () => {
-  it('activa referencias, estaciones del río y eventos reportados por defecto y deja apagadas la lluvia observada y las escuelas aisladas', () => {
+  it('activa referencias, estaciones del río, eventos reportados y lluvia observada por defecto y deja apagadas las escuelas aisladas', () => {
     expect(CAPAS_VISIBLES_DEFAULT).toEqual({
       estacionesRio: true,
-      lluviaObservada: false,
+      lluviaObservada: true,
       eventosReportados: true,
       limitesDepartamentos: true,
       nombresDepartamentos: true,
@@ -16,6 +16,12 @@ describe('capas opcionales del mapa', () => {
       escuelasAisladas: false,
       escuelasEnRiesgo: false,
     })
+  })
+
+  it('ignora las preferencias guardadas con la clave anterior para que la lluvia observada arranque encendida', () => {
+    expect(CLAVE_CAPAS_VISIBLES).not.toBe('mapa-infraestructura:capas-visibles')
+    const almacen = almacenEnMemoria({ 'mapa-infraestructura:capas-visibles': JSON.stringify({ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: false }) })
+    expect(leerCapasGuardadas(almacen).lluviaObservada).toBe(true)
   })
 
   it('traduce el estado de visibilidad al layout de MapLibre', () => {

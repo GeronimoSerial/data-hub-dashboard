@@ -14,7 +14,7 @@ export type CapasVisibles = {
 export const CAPAS_VISIBLES_DEFAULT: CapasVisibles = {
   estacionesRio: true,
   eventosReportados: true,
-  lluviaObservada: false,
+  lluviaObservada: true,
   limitesDepartamentos: true,
   nombresDepartamentos: true,
   rutaAcceso: true,
@@ -27,7 +27,9 @@ export function visibilidadCapa(visible: boolean): 'visible' | 'none' {
   return visible ? 'visible' : 'none'
 }
 
-export const CLAVE_CAPAS_VISIBLES = 'mapa-infraestructura:capas-visibles'
+// v2: observed rain became a default layer; preferences saved under the previous key
+// stored it as off for every earlier visitor, so they are discarded.
+export const CLAVE_CAPAS_VISIBLES = 'mapa-infraestructura:capas-visibles:v2'
 
 type Almacen = Pick<Storage, 'getItem' | 'setItem'>
 

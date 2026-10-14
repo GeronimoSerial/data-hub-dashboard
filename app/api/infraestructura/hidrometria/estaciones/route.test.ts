@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { usarDbTemporal } from '@/lib/test-utils/db-temporal'
 import { getDb, migrarDb } from '@/lib/db'
 import { hidroLectura } from '@/lib/db/schema'
@@ -104,6 +104,12 @@ describe('GET /api/infraestructura/hidrometria/estaciones', () => {
   })
 
   it('clasifica como evacuacion una estación con lectura sobre evacuación', async () => {
+    // Reloj fijo: la lectura de las 15:00 debe seguir vigente (menos de 12 h).
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-13T16:00:00.000Z'))
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
     await getDb()
       .insert(hidroLectura)
       .values([filaLectura('l-evac', ESTACION, 6.4, '2026-10-13T15:00:00.000Z')])
