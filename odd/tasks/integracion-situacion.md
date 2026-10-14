@@ -74,6 +74,6 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
   legend moved bottom-right by that branch, so `bbacae3` stacks it above the Radar rain scale and above the
   "Veredicto diario"/"Pantalla completa" buttons. Last polish: verdict technical notes and station 12 h rule behind
   NotaInfo (`a9b5c05`, `7cb4326`). Final screenshots (s-/d-/w-, publico, pdf-pagina-N) reviewed.
-- Known/left: Radar legend keeps "Muy alto" (awaiting user decision); station map labels show the bare height;
+- Known/left: Radar legend and map keep "Muy alto" (supervisor decision: moderado, alto, muy alto only); station map labels show the bare height;
   water-crossing dots of the selected school's route look like school dots in Radar; admin pages untouched
   (internal, technical by design); stored verdict texts are cleaned at the DTO, new ones by the template.
