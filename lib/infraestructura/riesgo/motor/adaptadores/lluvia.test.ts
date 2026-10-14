@@ -43,6 +43,8 @@ describe('crearAdapterLluvia.obtenerAcumulado', () => {
       observadoEn: AS_OF,
       fuente24h: 'nasa-imerg',
       fuente72h: 'nasa-imerg',
+      climatologia24h: null,
+      climatologia72h: null,
     }
     expect(celda).toEqual(esperada)
   })
@@ -55,6 +57,8 @@ describe('crearAdapterLluvia.obtenerAcumulado', () => {
       acumuladoMm24h: null,
       acumuladoMm72h: null,
       observadoEn: null,
+      climatologia24h: null,
+      climatologia72h: null,
     })
   })
 
@@ -123,5 +127,33 @@ describe('crearAdapterLluvia — preferencia por estación SYNOP', () => {
     await adapter.obtenerAcumulado({ geometryRef: CELDA_CAPITAL, asOf: AS_OF_SYNOP })
     await adapter.obtenerAcumulado({ geometryRef: '-27.4_-58.8', asOf: AS_OF_SYNOP })
     expect(llamadas).toBe(1)
+  })
+})
+
+describe('crearAdapterLluvia — climatología observada de la celda', () => {
+  it('adjunta la climatología por ventana cuando existe y null cuando no', async () => {
+    const adapter = crearAdapterLluvia({
+      cargarSynop: async () => [],
+      cargarClimatologia: async () =>
+        new Map([
+          ['geom-con-clima', { 72: { p90: 20, p95: 30, p99: 50, version: 'imerg-clim-v1' } }],
+        ]),
+    })
+    const con = await adapter.obtenerAcumulado({ geometryRef: 'geom-con-clima', asOf: AS_OF })
+    const sin = await adapter.obtenerAcumulado({ geometryRef: 'geom-sin-clima', asOf: AS_OF })
+    expect(con.climatologia72h).toEqual({ p90: 20, p95: 30, p99: 50, version: 'imerg-clim-v1' })
+    expect(con.climatologia24h).toBeNull()
+    expect(sin.climatologia72h).toBeNull()
+  })
+
+  it('si la carga de climatología falla, sigue con null (umbral absoluto), nunca lanza', async () => {
+    const adapter = crearAdapterLluvia({
+      cargarSynop: async () => [],
+      cargarClimatologia: async () => {
+        throw new Error('db caída')
+      },
+    })
+    const celda = await adapter.obtenerAcumulado({ geometryRef: 'geom-x', asOf: AS_OF })
+    expect(celda.climatologia24h).toBeNull()
   })
 })

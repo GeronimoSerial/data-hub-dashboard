@@ -19,6 +19,7 @@ import type {
   NivelPeligro,
   NivelPeligroCelda,
 } from '../peligro/nivel'
+import type { ClimatologiaObservada } from './lluvia-observada'
 
 export type { HorizontePeligro, NivelCaudalPunto, NivelPeligro, NivelPeligroCelda }
 
@@ -47,6 +48,10 @@ export interface LluviaObservadaCelda {
   // 'synop:<wmo>:<nombre>:<km>km' (estación SMN medida, preferida sobre IMERG).
   fuente24h?: string
   fuente72h?: string
+  // Climatología IMERG de la celda por ventana (P90/P95/P99), si existe; sin
+  // ella el motor puntúa con umbrales absolutos documentados (lluvia-observada.ts).
+  climatologia24h?: ClimatologiaObservada | null
+  climatologia72h?: ClimatologiaObservada | null
 }
 
 export interface PuertoLluviaObservada {

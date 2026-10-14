@@ -71,6 +71,9 @@ export const NIVEL_PELIGRO_A_NUMERO: Record<string, number | null> = {
 // considera saturación relevante del terreno; escala lineal hasta el tope
 // (documento base §5.2, componente A). Valor inicial de aceptación, no una
 // calibración estadística.
+// motor-v0.3: el motor ya no la usa; la lluvia observada se puntúa con
+// climatología de la celda o umbrales absolutos por ventana (lluvia-observada.ts).
+// Se conserva como valor de referencia "al máximo" en tests.
 export const LLUVIA_72H_SATURACION_MM = 150
 
 // Ventana de historial confirmado que entra en el cálculo de vulnerabilidad.

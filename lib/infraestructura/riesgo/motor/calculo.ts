@@ -8,7 +8,6 @@ import {
   HISTORIAL_TOPE_ACCESO_INTERRUMPIDO,
   HISTORIAL_TOPE_CANTIDAD,
   HISTORIAL_TOPE_DURACION_HORAS,
-  LLUVIA_72H_SATURACION_MM,
   MOTOR_VERSION,
   NIVEL_PELIGRO_A_NUMERO,
   PESOS_AMENAZA,
@@ -23,6 +22,7 @@ import {
 import type { Confianza, FactorRiesgo, NivelRiesgo, ResultadoRiesgoEscuela } from './tipos'
 import { calcularRiesgoAcceso, type ResultadoRiesgoAcceso } from './riesgo-acceso'
 import { valorAmenazaRio } from './rio-prefectura'
+import { valorLluviaObservada } from './lluvia-observada'
 
 const clamp0a100 = (valor: number): number => Math.min(100, Math.max(0, valor))
 const redondear2 = (valor: number): number => Math.round(valor * 100) / 100
@@ -252,7 +252,13 @@ export async function calcularRiesgoEscuela(params: {
   const mm = horizonte === 24 ? observado.acumuladoMm24h : observado.acumuladoMm72h
   let lluviaPresente = false
   if (mm !== null) {
-    const valorNumerico = clamp0a100((mm / LLUVIA_72H_SATURACION_MM) * 100)
+    const ventana = horizonte === 24 ? 24 : 72
+    const puntaje = valorLluviaObservada(
+      mm,
+      ventana,
+      (ventana === 24 ? observado.climatologia24h : observado.climatologia72h) ?? null,
+    )
+    const valorNumerico = puntaje.valor
     const factor: FactorRiesgo = {
       tipo: 'amenaza',
       fuente: 'lluvia-observada',
@@ -261,7 +267,7 @@ export async function calcularRiesgoEscuela(params: {
       unidad: 'mm',
       contribucion: 0,
       peso: 0,
-      explicacion: `Lluvia observada ${mm}mm en la ventana (fuente ${(horizonte === 24 ? observado.fuente24h : observado.fuente72h) ?? 's/d'})`,
+      explicacion: `Lluvia observada ${mm}mm en la ventana (fuente ${(horizonte === 24 ? observado.fuente24h : observado.fuente72h) ?? 's/d'}; puntaje ${puntaje.valor}/100 por ${puntaje.referencia})`,
       observadoEn: observado.observadoEn,
     }
     factores.push(factor)
