@@ -10,6 +10,9 @@ import { ETIQUETA_ESTADO_CLASES } from '@/lib/infraestructura/mapa/etiquetas'
 import { SEVERIDADES } from '@/lib/infraestructura/validacion'
 import { COLOR_ESTADO_ALTURA, etiquetaEstadoAltura } from '@/components/mapas/capa-estaciones-rio'
 import { CLASES_LLUVIA, type MetaLluviaObservada } from '@/components/mapas/capa-lluvia-observada'
+import type { ResumenEventosReportados } from '@/components/mapas/capa-eventos-reportados'
+
+type ResumenEventosLeyenda = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa'>
 
 type PropsLeyendaMapa =
   | { pestana: 'actual' }
@@ -50,7 +53,10 @@ const CONFIANZA_EVENTOS = [
   { confianza: 'baja', etiqueta: 'Confianza baja', color: '#fdba74' },
 ] as const
 
-function LeyendaEventosReportados() {
+function LeyendaEventosReportados({ resumen }: { resumen?: ResumenEventosLeyenda | null }) {
+  const resumenProvincial = resumen?.resumenProvincial ?? []
+  const sinUbicacionPrecisa = resumen?.sinUbicacionPrecisa ?? []
+
   return (
     <aside className="map-leyenda" aria-label="Eventos reportados">
       <b className="map-leyenda__titulo">Eventos reportados</b>
@@ -66,6 +72,30 @@ function LeyendaEventosReportados() {
           <span>Ubicado sólo a nivel de departamento</span>
         </li>
       </ul>
+      {resumenProvincial.length > 0 && (
+        <section className="map-leyenda__resumen">
+          <b className="map-leyenda__subtitulo">Resumen provincial</b>
+          <ul>
+            {resumenProvincial.map((evento) => {
+              const fuente = evento.fuentes[0]
+              return (
+                <li key={evento.id_evento}>
+                  <span>{evento.titulo}</span>
+                  {evento.hechos[0] && <small>{evento.hechos[0]}</small>}
+                  {fuente && (
+                    <small>
+                      <a href={fuente.url} target="_blank" rel="noopener noreferrer">{fuente.medio}</a>
+                    </small>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
+      {sinUbicacionPrecisa.length > 0 && (
+        <small>{`Sin ubicación precisa: ${sinUbicacionPrecisa.map((lugar) => lugar.lugar).join(', ')}`}</small>
+      )}
     </aside>
   )
 }
@@ -99,11 +129,11 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   )
 }
 
-export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; lluviaObservada?: MetaLluviaObservada | null }) {
+export function LeyendaMapa(props: PropsLeyendaMapa & { estacionesRio?: boolean; eventosReportados?: boolean; resumenEventos?: ResumenEventosLeyenda | null; lluviaObservada?: MetaLluviaObservada | null }) {
   return (
     <>
       {props.estacionesRio && <LeyendaAlturaRios />}
-      {props.eventosReportados && <LeyendaEventosReportados />}
+      {props.eventosReportados && <LeyendaEventosReportados resumen={props.resumenEventos} />}
       {props.lluviaObservada && <LeyendaLluviaObservada meta={props.lluviaObservada} />}
       <LeyendaPestana {...props} />
     </>

@@ -194,3 +194,44 @@ describe('LeyendaMapa · altura de ríos y eventos según pestaña', () => {
     expect(leyenda.getByText('Ubicado sólo a nivel de departamento')).toBeTruthy()
   })
 })
+
+describe('LeyendaMapa · resumen provincial de eventos', () => {
+  it('muestra el resumen provincial, los lugares sin ubicación precisa y el enlace de fuente', () => {
+    const resumen = {
+      resumenProvincial: [
+        {
+          id_evento: 'EV-9',
+          tipo_afectacion: 'Evacuados',
+          mediciones: '',
+          lugares: ['Corrientes'],
+          titulo: 'Inundación — Evacuados',
+          subtitulo: 'Cifra provincial',
+          hechos: ['120 familias evacuadas'],
+          estadoEtiqueta: 'Activo',
+          confianzaEtiqueta: 'Confianza media',
+          fuentes: [{ medio: 'Prefectura', fecha: '2026-10-02', url: 'https://example.test/alturas' }],
+          fuenteTitulo: 'Prefectura',
+          fuenteUrl: 'https://example.test/alturas',
+        },
+      ],
+      sinUbicacionPrecisa: [
+        { id: 'EV-7', lugar: 'Paso de los Libres' },
+        { id: 'EV-8', lugar: 'Santo Tomé' },
+      ],
+    }
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={resumen} />)
+
+    const leyenda = within(container)
+    expect(leyenda.getByText('Resumen provincial')).toBeTruthy()
+    expect(leyenda.getByText('Inundación — Evacuados')).toBeTruthy()
+    expect(leyenda.getByText('120 familias evacuadas')).toBeTruthy()
+    expect(leyenda.getByRole('link', { name: 'Prefectura' }).getAttribute('href')).toBe('https://example.test/alturas')
+    expect(leyenda.getByText('Sin ubicación precisa: Paso de los Libres, Santo Tomé')).toBeTruthy()
+  })
+
+  it('no muestra el resumen cuando no hay eventos resumidos', () => {
+    const { container } = render(<LeyendaMapa pestana="estadisticas" eventosReportados resumenEventos={{ resumenProvincial: [], sinUbicacionPrecisa: [] }} />)
+
+    expect(within(container).queryByText('Resumen provincial')).toBeNull()
+  })
+})

@@ -23,6 +23,7 @@ const EVENTOS = {
         localidad: 'Bonpland',
         departamento: 'Ituzaingó',
         fuente_principal: 'EVD-048',
+        evidencias: 'EVD-002',
         inicio_evento: '2026-10-01',
         ultima_actualizacion: '2026-10-10',
         estado_temporal: 'activo',
@@ -106,7 +107,7 @@ describe('CapaEventosReportados', () => {
 
     expect(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Evento Cortes de ruta en Bonpland' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Evento Daños en Paso de los Libres' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })).toBeTruthy()
   })
 
   it('desplaza los marcadores que comparten coordenadas para que todos sean clicables', async () => {
@@ -124,31 +125,57 @@ describe('CapaEventosReportados', () => {
   it('marca con borde punteado los eventos ubicados sólo a nivel de departamento', async () => {
     render(<CapaEventosReportados visible />)
 
-    const departamento = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres' })
+    const departamento = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })
     expect(departamento.className).toContain('map-marcador-evento--departamento')
     const localidad = screen.getByRole('button', { name: 'Evento Evacuados en Bonpland' })
     expect(localidad.className).not.toContain('map-marcador-evento--departamento')
   })
 
-  it('muestra el popup del evento seleccionado con fuente, fechas y estado', async () => {
+  it('muestra el popup en lenguaje de lectura con fuente, estado y badge de confianza', async () => {
     render(<CapaEventosReportados visible />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' }))
 
     const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Inundación — Evacuados')).toBeTruthy()
-    expect(within(popup).getByText('Lugar: Bonpland (Ituzaingó)')).toBeTruthy()
-    expect(within(popup).getByText('Ubicación aproximada a nivel de localidad')).toBeTruthy()
-    expect(within(popup).getByText('Inicio: 2026-10-01')).toBeTruthy()
-    expect(within(popup).getByText('Última actualización: 2026-10-10')).toBeTruthy()
-    expect(within(popup).getByText('Estado: activo')).toBeTruthy()
-    expect(within(popup).getByText('Confianza: alta')).toBeTruthy()
-    expect(within(popup).getByText('Cota 4,2 m')).toBeTruthy()
-    expect(within(popup).getByText('Registro de eventos reportados (prensa y organismos). No es una medición.')).toBeTruthy()
-    const enlace = within(popup).getByRole('link', { name: 'Fuente: Crecida y cortes' })
+    expect(within(popup).getByText('Evacuados')).toBeTruthy()
+    expect(within(popup).getByText('Estado sin informar')).toBeTruthy()
+    expect(within(popup).getByText('Confianza alta')).toBeTruthy()
+    expect(within(popup).getByText('Ubicación aproximada: localidad')).toBeTruthy()
+    const enlace = within(popup).getByRole('link', { name: 'Diario Local, 1/10' })
     expect(enlace.getAttribute('href')).toBe('https://example.test/nota')
     expect(enlace.getAttribute('target')).toBe('_blank')
     expect(enlace.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(within(popup).getByText('ver 1 fuentes más')).toBeTruthy()
+    expect(within(popup).getByRole('link', { name: 'Prefectura, 2/10' })).toBeTruthy()
+  })
+
+  it('no imprime texto con formato de identificador en el popup', async () => {
+    render(<CapaEventosReportados visible />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Evento Evacuados en Bonpland' }))
+
+    const popup = await waitFor(() => screen.getByTestId('popup'))
+    expect(popup.textContent ?? '').not.toMatch(/[a-z]+_[a-z]+/)
+  })
+
+  it('marca con opacidad reducida y nombra la confianza baja en los marcadores de baja confianza', async () => {
+    render(<CapaEventosReportados visible />)
+
+    const baja = await screen.findByRole('button', { name: 'Evento Daños en Paso de los Libres, confianza baja' })
+    expect(baja.className).toContain('map-marcador-evento--baja')
+    const alta = screen.getByRole('button', { name: 'Evento Evacuados en Bonpland' })
+    expect(alta.className).not.toContain('map-marcador-evento--baja')
+  })
+
+  it('informa el resumen provincial y el total de eventos dibujados tras cargar', async () => {
+    const onResumen = vi.fn()
+    render(<CapaEventosReportados visible onResumen={onResumen} />)
+
+    await waitFor(() => expect(onResumen).toHaveBeenCalled())
+    const resumen = onResumen.mock.calls[0][0]
+    expect(resumen.total).toBe(3)
+    expect(Array.isArray(resumen.resumenProvincial)).toBe(true)
+    expect(Array.isArray(resumen.sinUbicacionPrecisa)).toBe(true)
   })
 
   it('no renderiza nada cuando la capa está oculta', () => {

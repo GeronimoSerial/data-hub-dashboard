@@ -8,22 +8,36 @@ import {
   LOCALIZACIONES_ESCUELAS_URL,
   type EscuelaLocalizada,
   type EventoUbicado,
+  type FuenteEvento,
+  type LugarSinPrecision,
+  type ResumenProvincial,
   ubicarEventos,
   type EntradaUbicacion,
 } from '@/lib/mapas/eventos-inundaciones'
 import { DEPARTAMENTOS_URL } from '@/lib/mapas/departamentos'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
-import { formatearFechaLocal } from '@/components/mapas/capa-estaciones-rio'
 
 const LOCALIDADES_URL = '/data/localities.geojson'
 const DESPLAZAMIENTO_PX = 8
-const LIMITE_MEDICIONES = 240
+const MAX_HECHOS = 3
 const COLOR_SIN_CONFIANZA = '#9ca3af'
 
 const COLOR_CONFIANZA: Record<string, string> = {
   alta: '#7c2d12',
   media: '#c2410c',
   baja: '#fdba74',
+}
+
+const ETIQUETA_PRECISION: Record<string, string> = {
+  localidad: 'localidad',
+  estación: 'estación',
+  departamento: 'departamento',
+}
+
+export type ResumenEventosReportados = {
+  resumenProvincial: ResumenProvincial[]
+  sinUbicacionPrecisa: LugarSinPrecision[]
+  total: number
 }
 
 type PuntoGeo = { type: 'Feature'; geometry: { coordinates: number[] }; properties: { name?: string; nombre?: string; centroide?: { lon: number; lat: number } } }
@@ -54,7 +68,9 @@ async function cargarJson(url: string): Promise<unknown> {
   return respuesta.json()
 }
 
-async function cargarEventos(): Promise<EventoUbicado[]> {
+type ResultadoCarga = Pick<ResumenEventosReportados, 'resumenProvincial' | 'sinUbicacionPrecisa'> & { features: EventoUbicado[] }
+
+async function cargarEventos(): Promise<ResultadoCarga> {
   const [eventos, evidenciasRespuesta, localidades, localizaciones, departamentos] = await Promise.all([
     cargarJson(EVENTOS_INUNDACIONES_URLS.eventos),
     fetch(EVENTOS_INUNDACIONES_URLS.evidencias).then((r) => (r.ok ? r.text() : Promise.reject(new Error('evidencias')))),
@@ -69,15 +85,82 @@ async function cargarEventos(): Promise<EventoUbicado[]> {
     departamentos: centroidesDepartamentos(departamentos),
     estaciones: CATALOGO_ESTACIONES_PREFECTURA,
   })
-  return resultado.geojson.features
+  return {
+    features: resultado.geojson.features,
+    resumenProvincial: resultado.resumenProvincial,
+    sinUbicacionPrecisa: resultado.sinUbicacionPrecisa,
+  }
 }
 
-export function CapaEventosReportados({ visible }: { visible: boolean }) {
+function etiquetaUbicacion(precision: string): string | null {
+  return ETIQUETA_PRECISION[precision] ?? null
+}
+
+function EnlaceFuente({ fuente }: { fuente: FuenteEvento }) {
+  const etiqueta = `${fuente.medio}${fuente.fecha ? `, ${fuente.fecha}` : ''}`
+  return (
+    <a href={fuente.url} target="_blank" rel="noopener noreferrer">
+      {etiqueta}
+    </a>
+  )
+}
+
+function PopupEvento({ propiedades }: { propiedades: EventoUbicado['properties'] }) {
+  const [primera, ...resto] = propiedades.fuentes
+  const ubicacion = etiquetaUbicacion(propiedades.precisionMostrada)
+
+  return (
+    <div className="map-popup">
+      <div className="map-popup-cabecera">
+        <p className="map-popup-title">{propiedades.titulo}</p>
+        <span className={`map-popup-badge map-popup-badge--${propiedades.confianza}`}>{propiedades.confianzaEtiqueta}</span>
+      </div>
+      <p className="map-popup-subtitle">{propiedades.subtitulo}</p>
+      {propiedades.hechos.length > 0 && (
+        <ul className="map-popup-hechos">
+          {propiedades.hechos.slice(0, MAX_HECHOS).map((hecho) => (
+            <li key={hecho}>{hecho}</li>
+          ))}
+        </ul>
+      )}
+      <p className="map-popup-row">{propiedades.estadoEtiqueta}</p>
+      {primera && (
+        <p className="map-popup-row">
+          Fuente: <EnlaceFuente fuente={primera} />
+        </p>
+      )}
+      {resto.length > 0 && (
+        <details className="map-popup-fuentes">
+          <summary>{`ver ${resto.length} fuentes más`}</summary>
+          <ul>
+            {resto.map((fuente) => (
+              <li key={`${fuente.url}-${fuente.medio}`}>
+                <EnlaceFuente fuente={fuente} />
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {ubicacion && (
+        <p className="map-popup-muted">
+          <small>{`Ubicación aproximada: ${ubicacion}${propiedades.agregado ? ' · forma parte de una cifra provincial' : ''}`}</small>
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function CapaEventosReportados({ visible, onResumen }: { visible: boolean; onResumen?: (resumen: ResumenEventosReportados) => void }) {
   const [eventos, setEventos] = useState<EventoUbicado[]>([])
   const [seleccionado, setSeleccionado] = useState<number | null>(null)
 
   const pedidaRef = useRef(false)
   const controladorRef = useRef<AbortController | null>(null)
+  const onResumenRef = useRef(onResumen)
+
+  useEffect(() => {
+    onResumenRef.current = onResumen
+  })
 
   useEffect(() => {
     if (!visible || pedidaRef.current) return
@@ -85,8 +168,14 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
     const controller = new AbortController()
     controladorRef.current = controller
     cargarEventos()
-      .then((features) => {
-        if (!controller.signal.aborted) setEventos(features)
+      .then(({ features, resumenProvincial, sinUbicacionPrecisa }) => {
+        if (controller.signal.aborted) return
+        setEventos(features)
+        onResumenRef.current?.({
+          resumenProvincial,
+          sinUbicacionPrecisa,
+          total: new Set(features.map((f) => f.properties.id_evento)).size,
+        })
       })
       .catch(() => setEventos([]))
   }, [visible])
@@ -108,28 +197,32 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
 
   if (!visible) return null
   const activo = seleccionado === null ? null : eventos[seleccionado] ?? null
-  const p = activo?.properties
 
   return (
     <>
       {eventos.map((evento, indice) => {
         const { properties: propiedades, geometry } = evento
         const [lon, lat] = geometry.coordinates
-        const color = COLOR_CONFIANZA[String(propiedades.confianza)] ?? COLOR_SIN_CONFIANZA
+        const confianza = String(propiedades.confianza)
+        const color = COLOR_CONFIANZA[confianza] ?? COLOR_SIN_CONFIANZA
         const soloDepartamento = propiedades.precisionMostrada === 'departamento'
+        const baja = confianza === 'baja'
+        const clases = ['map-marcador-evento']
+        if (soloDepartamento) clases.push('map-marcador-evento--departamento')
+        if (baja) clases.push('map-marcador-evento--baja')
         return (
           <Marker key={`${propiedades.id_evento}-${indice}`} className="map-marker-evento" longitude={lon} latitude={lat} anchor="center" offset={[desplazamientos[indice], 0]}>
             <button
               type="button"
-              aria-label={`Evento ${texto(propiedades.tipo_afectacion)} en ${propiedades.lugar}`}
+              aria-label={`Evento ${texto(propiedades.tipo_afectacion)} en ${propiedades.lugar}${baja ? ', confianza baja' : ''}`}
               onClick={() => setSeleccionado(indice)}
-              className={`map-marcador-evento${soloDepartamento ? ' map-marcador-evento--departamento' : ''}`}
+              className={clases.join(' ')}
               style={{ background: color }}
             />
           </Marker>
         )
       })}
-      {activo && p && (
+      {activo && (
         <Popup
           longitude={activo.geometry.coordinates[0]}
           latitude={activo.geometry.coordinates[1]}
@@ -137,27 +230,7 @@ export function CapaEventosReportados({ visible }: { visible: boolean }) {
           onClose={() => setSeleccionado(null)}
           closeOnClick={false}
         >
-          <div className="map-popup">
-            <p className="map-popup-title">{`${texto(p.tipo_fenomeno)} — ${texto(p.tipo_afectacion)}`}</p>
-            <p className="map-popup-row">{`Lugar: ${p.lugar} (${texto(p.departamento)})`}</p>
-            <p className="map-popup-row">{`Ubicación aproximada a nivel de ${p.precisionMostrada}${p.multiLugar ? ' · el evento menciona varios lugares' : ''}`}</p>
-            <hr className="map-popup-rule" />
-            <p className="map-popup-row">{`Inicio: ${formatearFechaLocal(texto(p.inicio_evento))}`}</p>
-            <p className="map-popup-row">{`Última actualización: ${formatearFechaLocal(texto(p.ultima_actualizacion))}`}</p>
-            <p className="map-popup-row">{`Estado: ${texto(p.estado_temporal)}`}</p>
-            <p className="map-popup-row">{`Confianza: ${texto(p.confianza)}`}</p>
-            {p.mediciones ? <p className="map-popup-row">{String(p.mediciones).slice(0, LIMITE_MEDICIONES)}</p> : null}
-            {p.fuenteUrl ? (
-              <p className="map-popup-row">
-                <a href={p.fuenteUrl} target="_blank" rel="noopener noreferrer">{`Fuente: ${p.fuenteTitulo ?? 'ver fuente'}`}</a>
-              </p>
-            ) : (
-              <p className="map-popup-row">Fuente sin enlace</p>
-            )}
-            <p className="map-popup-muted">
-              <small>Registro de eventos reportados (prensa y organismos). No es una medición.</small>
-            </p>
-          </div>
+          <PopupEvento propiedades={activo.properties} />
         </Popup>
       )}
     </>
