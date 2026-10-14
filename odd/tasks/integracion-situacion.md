@@ -15,12 +15,12 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
   Re-chained 0016.prevId = 0015.id and added `infra_veredicto_dia` / `infra_veredicto_enlace` table snapshots
   to 0016 and 0017. SQL untouched. `drizzle-kit check`: "Everything's fine"; `drizzle-kit generate`:
   "No schema changes".
-- [ ] T0b Inventory of the four risk/priority views (Planificación list, Radar list, school sheet, markers/popups
+- [x] T0b Inventory of the four risk/priority views (Planificación list, Radar list, school sheet, markers/popups
   + verdict departments): API route, query, ordering criterion, source tables (file:line). Then one canonical model:
   'Prioridad de planificación (exposición estructural)' vs 'Riesgo actual (hoy)', both shown in the sheet with the
   same labels/numbers as each list; tests asserting list rank criterion == sheet headline for the same school.
-- [ ] T1 Engine snapshot humanizer (pure lib + tests): level, conclusion, operator reasons, technical detail.
-- [ ] T2 School sheet uses the engine snapshot as conclusion; hazard numbers become supporting detail;
+- [x] T1 Engine snapshot humanizer (pure lib + tests): level, conclusion, operator reasons, technical detail.
+- [x] T2 School sheet uses the engine snapshot as conclusion; hazard numbers become supporting detail;
   "Zona expuesta a crecidas" vs "Situación actual" separated.
 - [ ] T3 Audit other risk surfaces (list, marker, popups, verdict, radar card) for agreement.
 - [ ] T4 Visual polish pass with screenshots.
@@ -50,4 +50,14 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
 - `npx tsc --noEmit -p .`, `pnpm lint`, related vitest files with `timeout 300`.
 
 ## Progress / evidence
+- T1 `cf4e329` (delegated, haiku): `lib/infraestructura/riesgo/explicar-snapshot.ts`, 10 tests.
+- API `f1a4aca` (delegated, haiku): `GET /api/infraestructura/riesgo/escuela/[cueAnexo]?horizonte=`, 7 tests.
+- List titles `d48cd05` (inline): Radar 'Riesgo actual (hoy)', Planificación 'Prioridad de planificación (exposición estructural)'.
+- T2 `b57e5d6`: `RiesgoEscuela` (delegated, haiku) + panel wiring (inline). Sheet gets `horizonteEfectivo` and
+  `nivelPlanificacion(escuela, vistaPlanificacion)` from the map page, i.e. the same inputs as each list. Old
+  peligro-based conclusion removed from `FichaTerritorial` (kept as 'Lluvia y río: datos de apoyo'). 67 tests green.
+- Pending/known: Radar marker paints `nivelAmenaza` colour when engine level is bajo (`radar.ts:119-129`) — kept,
+  the list shows the same school with its threat pill; verdict modal remains an independent daily verdict.
+- BLOCKED: visual verification. Copying `.env.local` from `verificacion-integrada` was denied by the permission
+  layer, so `pnpm dev -p 3330` against dhd-verif and the Playwright screenshots were not run. T4 not started.
 - T0 commit: see git log (`chore(db): ...`).
