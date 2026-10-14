@@ -73,7 +73,7 @@ export function CapaPuntosNivel(props: {
       <Layer
         id={props.idCapa}
         type="circle"
-        layout={props.radar ? ORDEN_PUNTOS_RADAR : undefined}
+        layout={props.radar ? ORDEN_PUNTOS_RADAR : {}}
         paint={props.radar ? paintPuntosRadar(props.oscuro) : paintPuntosNivel(props.oscuro)}
       />
       <Layer id={`${props.idCapa}-laguna`} type="circle" filter={filtroAnilloLaguna()} paint={paintAnilloLaguna()} />

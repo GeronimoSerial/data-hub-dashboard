@@ -134,6 +134,8 @@ export async function registrarInsignias(
         const definicion = INSIGNIAS[id as IdInsignia];
         if (!definicion || map.hasImage(id)) return;
         const img = await cargarImagen(svgInsignia({ ...definicion, tamano: 64 }));
+        // A concurrent call may have registered it while the image loaded.
+        if (map.hasImage(id)) return;
         map.addImage(id, img, { pixelRatio: 2 });
       } catch {
         // Skip the marker; the map keeps working without it.
