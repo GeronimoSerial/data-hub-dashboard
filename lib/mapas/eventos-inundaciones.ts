@@ -7,7 +7,41 @@ export const EVENTOS_INUNDACIONES_URLS = {
 
 export type PrecisionMostrada = 'estación' | 'localidad' | 'departamento' | string
 
-type Punto = { nombre: string; lon: number; lat: number }
+type Punto = { nombre: string; lon: number; lat: number; origen?: 'localidad' | 'escuelas' }
+
+export type MetodoUbicacion = 'estación' | 'gazetteer' | 'localidad' | 'escuelas' | 'departamento'
+
+type EntradaGazetteer = {
+  nombre: string
+  alias: string[]
+  lat: number
+  lon: number
+  precision: 'localidad'
+  fuente: string
+}
+
+/**
+ * Curated places whose coordinates come from a documented source rather than
+ * from the generic locality list. Matched before localities.
+ */
+export const GAZETTEER_LUGARES: readonly EntradaGazetteer[] = [
+  {
+    nombre: 'Isla Apipé',
+    alias: ['Apipé', 'Isla Apipé Grande', 'San Antonio de Apipé', 'Ituzaingó (Isla Apipé)'],
+    lat: -27.511299,
+    lon: -56.741868,
+    precision: 'localidad',
+    fuente: 'Mediana de escuelas de la isla (APIPE GRANDE / ISLA APIPE CHICO, public/data/localizaciones.json)',
+  },
+  {
+    nombre: 'Represa Yacyretá',
+    alias: ['Ituzaingó (represa Yacyretá)', 'Yacyretá'],
+    lat: -27.4823,
+    lon: -56.7286,
+    precision: 'localidad',
+    fuente: 'Ubicación de la represa (Entidad Binacional Yacyretá)',
+  },
+]
 
 type EstacionEntrada = {
   nombrePna: string
@@ -35,12 +69,39 @@ export type PropiedadesUbicacion = {
   fuenteTitulo: string | null
   fuenteUrl: string | null
   multiLugar: boolean
+  metodoUbicacion: MetodoUbicacion | null
+  agregado: boolean
   titulo: string
   subtitulo: string
   hechos: string[]
   estadoEtiqueta: string
   confianzaEtiqueta: string
   fuentes: FuenteEvento[]
+}
+
+export type ResumenProvincial = {
+  id_evento: string
+  tipo_afectacion: unknown
+  mediciones: unknown
+  lugares: string[]
+  titulo: string
+  subtitulo: string
+  hechos: string[]
+  estadoEtiqueta: string
+  confianzaEtiqueta: string
+  fuentes: FuenteEvento[]
+  fuenteTitulo: string | null
+  fuenteUrl: string | null
+}
+
+export type LugarSinPrecision = { id: string; lugar: string }
+
+export type FilaAuditoria = {
+  id: string
+  lugar: string
+  metodo: MetodoUbicacion | 'resumen' | 'no determinada'
+  lat: number | null
+  lon: number | null
 }
 
 export type FuenteEvento = { medio: string; fecha: string | null; url: string }
@@ -58,6 +119,8 @@ export type EventoUbicado = {
 export type ResultadoUbicacion = {
   geojson: { type: 'FeatureCollection'; features: EventoUbicado[] }
   sinUbicar: string[]
+  sinUbicacionPrecisa: LugarSinPrecision[]
+  resumenProvincial: ResumenProvincial[]
   descartados: EventoDescartado[]
 }
 
@@ -104,6 +167,7 @@ export function centroidesLocalidadesEscuelas(filas: readonly EscuelaLocalizada[
     nombre: grupo.nombre,
     lat: mediana(grupo.lats),
     lon: mediana(grupo.lons),
+    origen: 'escuelas',
   }))
 }
 
@@ -183,36 +247,91 @@ function buscarPorNombre<T extends Punto>(lista: readonly T[], nombre: string): 
   return lista.find((p) => clave(p.nombre) === buscada)
 }
 
+type UbicacionResuelta = {
+  coordenadas: [number, number]
+  precision: PrecisionMostrada
+  metodo: MetodoUbicacion
+}
+
+/** Gazetteer match on the full text first, then on the name without parentheses. */
+function buscarGazetteer(texto: string): EntradaGazetteer | undefined {
+  const completo = normalizarNombreDepartamento(texto)
+  const porTextoCompleto = GAZETTEER_LUGARES.find((g) =>
+    [g.nombre, ...g.alias].some((n) => normalizarNombreDepartamento(n) === completo),
+  )
+  if (porTextoCompleto) return porTextoCompleto
+  const sinParentesisTexto = clave(texto)
+  if (sinParentesisTexto === '') return undefined
+  // Only parenthesis-free names: a parenthesised alias must not capture its bare town.
+  return GAZETTEER_LUGARES.find((g) =>
+    [g.nombre, ...g.alias].some((n) => !n.includes('(') && clave(n) === sinParentesisTexto),
+  )
+}
+
 function ubicarLugar(
   lugar: string,
   datos: EntradaUbicacion,
   precisionFuente: unknown,
-): { coordenadas: [number, number]; precision: PrecisionMostrada } | null {
+): UbicacionResuelta | null {
+  const gazetteer = buscarGazetteer(lugar)
+  if (gazetteer) {
+    return { coordenadas: [gazetteer.lon, gazetteer.lat], precision: gazetteer.precision, metodo: 'gazetteer' }
+  }
+
   if (precisionFuente === 'estación') {
     const buscada = clave(lugar)
     const estacion = datos.estaciones.find(
       (e) => e.coordenadas !== null && normalizarNombreDepartamento(e.nombrePna) === buscada,
     )
     if (estacion?.coordenadas) {
-      return { coordenadas: [estacion.coordenadas.lon, estacion.coordenadas.lat], precision: 'estación' }
+      return { coordenadas: [estacion.coordenadas.lon, estacion.coordenadas.lat], precision: 'estación', metodo: 'estación' }
     }
   }
 
   const localidad = buscarPorNombre(datos.localidades, lugar)
   if (localidad) {
-    return { coordenadas: [localidad.lon, localidad.lat], precision: 'localidad' }
+    return {
+      coordenadas: [localidad.lon, localidad.lat],
+      precision: 'localidad',
+      metodo: localidad.origen === 'escuelas' ? 'escuelas' : 'localidad',
+    }
   }
   return null
 }
 
-function ubicarEnDepartamento(
-  nombreDepartamento: string,
-  datos: EntradaUbicacion,
-): { coordenadas: [number, number]; precision: PrecisionMostrada } | null {
+function ubicarEnDepartamento(nombreDepartamento: string, datos: EntradaUbicacion): UbicacionResuelta | null {
   const departamento = buscarPorNombre(datos.departamentos, nombreDepartamento)
   if (!departamento) return null
-  return { coordenadas: [departamento.lon, departamento.lat], precision: 'departamento' }
+  return { coordenadas: [departamento.lon, departamento.lat], precision: 'departamento', metodo: 'departamento' }
 }
+
+function esNombreDeLocalidad(nombre: string, datos: EntradaUbicacion): boolean {
+  return buscarPorNombre(datos.localidades, nombre) !== undefined || buscarGazetteer(nombre) !== undefined
+}
+
+/**
+ * Department fallback for the place at `indice`. A multi-place event only pairs
+ * lists of equal length, and never with a department named like a locality.
+ * A single-place event may use its only department (or the place name itself
+ * when no department is given).
+ */
+function ubicarDepartamentoPara(
+  indice: number,
+  lugares: readonly string[],
+  departamentos: readonly string[],
+  datos: EntradaUbicacion,
+): UbicacionResuelta | null {
+  if (lugares.length === 1) {
+    if (departamentos.length > 1) return null
+    return ubicarEnDepartamento(departamentos[0] ?? lugares[0], datos)
+  }
+  if (departamentos.length !== lugares.length) return null
+  const departamento = departamentos[indice]
+  if (esNombreDeLocalidad(departamento, datos)) return null
+  return ubicarEnDepartamento(departamento, datos)
+}
+
+const RE_AGREGADO = /provincial|consolidad/i
 
 type FilaEvidencia = { titulo: string | null; url: string | null; medio: string; fecha: string | null }
 
@@ -338,6 +457,8 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
   const evidencias = indexarEvidencias(datos.evidenciasCsv)
   const features: EventoUbicado[] = []
   const sinUbicar = new Set<string>()
+  const sinUbicacionPrecisa: LugarSinPrecision[] = []
+  const resumenProvincial: ResumenProvincial[] = []
   const descartados: EventoDescartado[] = []
 
   for (const evento of datos.eventos.features) {
@@ -378,11 +499,51 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
       fuenteTitulo: fuente?.titulo ?? null,
       fuenteUrl: fuente?.url ?? null,
       multiLugar: lugares.length > 1,
+      metodoUbicacion: null as MetodoUbicacion | null,
+      agregado: false,
       titulo: tituloEvento({ tipo_fenomeno: p.tipo_fenomeno, tipo_afectacion: p.tipo_afectacion, curso_agua: p.curso_agua }),
       hechos: hechosEvento(p.mediciones),
       estadoEtiqueta: etiquetaEstado(p.estado_temporal),
       confianzaEtiqueta: etiquetaConfianza(p.confianza),
       fuentes,
+    }
+    const lugarCompleto = lugares.join('; ') || String(p.localidad ?? '')
+    const esAgregado = [p.tipo_afectacion, p.mediciones].some((v) => typeof v === 'string' && RE_AGREGADO.test(v))
+
+    if (esAgregado) {
+      // A provincial figure is not a point: it is listed as a summary, and only
+      // its named places that resolve to a real place precision get a marker.
+      resumenProvincial.push({
+        id_evento: idEvento,
+        tipo_afectacion: p.tipo_afectacion,
+        mediciones: p.mediciones,
+        lugares,
+        titulo: base.titulo,
+        subtitulo: subtituloEvento(lugarCompleto, p.inicio_evento, p.fin_evento),
+        hechos: base.hechos,
+        estadoEtiqueta: base.estadoEtiqueta,
+        confianzaEtiqueta: base.confianzaEtiqueta,
+        fuentes,
+        fuenteTitulo: base.fuenteTitulo,
+        fuenteUrl: base.fuenteUrl,
+      })
+      for (const lugar of lugares) {
+        const ubicado = ubicarLugar(lugar, datos, precisionFuente)
+        if (!ubicado) continue
+        features.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: ubicado.coordenadas },
+          properties: {
+            ...base,
+            lugar,
+            precisionMostrada: ubicado.precision,
+            metodoUbicacion: ubicado.metodo,
+            agregado: true,
+            subtitulo: subtituloEvento(lugar, p.inicio_evento, p.fin_evento),
+          },
+        })
+      }
+      continue
     }
 
     if (evento.geometry?.type === 'Point' && Array.isArray(evento.geometry.coordinates)) {
@@ -392,9 +553,9 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
         geometry: { type: 'Point', coordinates: [lon, lat] },
         properties: {
           ...base,
-          lugar: lugares.join('; ') || String(p.localidad ?? ''),
+          lugar: lugarCompleto,
           precisionMostrada: String(precisionFuente ?? ''),
-          subtitulo: subtituloEvento(lugares.join('; ') || String(p.localidad ?? ''), p.inicio_evento, p.fin_evento),
+          subtitulo: subtituloEvento(lugarCompleto, p.inicio_evento, p.fin_evento),
         },
       })
       continue
@@ -403,12 +564,15 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
     let faltaAlgunLugar = lugares.length === 0
     lugares.forEach((lugar, indice) => {
       const ubicado =
-        ubicarLugar(lugar, datos, precisionFuente) ??
-        // Department list is index-aligned with the locality list when present;
-        // otherwise the locality name itself is looked up as a department.
-        ubicarEnDepartamento(departamentos[indice] ?? lugar, datos)
+        ubicarLugar(lugar, datos, precisionFuente) ?? ubicarDepartamentoPara(indice, lugares, departamentos, datos)
       if (!ubicado) {
         faltaAlgunLugar = true
+        return
+      }
+      // A department centroid is not a point for one of several places: it would
+      // suggest a location the source does not give.
+      if (ubicado.precision === 'departamento' && lugares.length > 1) {
+        sinUbicacionPrecisa.push({ id: idEvento, lugar })
         return
       }
       features.push({
@@ -418,6 +582,7 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
           ...base,
           lugar,
           precisionMostrada: ubicado.precision,
+          metodoUbicacion: ubicado.metodo,
           subtitulo: subtituloEvento(lugar, p.inicio_evento, p.fin_evento),
         },
       })
@@ -429,6 +594,40 @@ export function ubicarEventos(datos: EntradaUbicacion): ResultadoUbicacion {
   return {
     geojson: { type: 'FeatureCollection', features },
     sinUbicar: [...sinUbicar],
+    sinUbicacionPrecisa,
+    resumenProvincial,
     descartados,
   }
+}
+
+/**
+ * One audit row per place and event, for every kept event id: drawn places
+ * with their method and coordinates, summary-only places, places left without
+ * a precise location, and events with no resolvable place at all.
+ */
+export function auditarUbicaciones(resultado: ResultadoUbicacion): FilaAuditoria[] {
+  const filas: FilaAuditoria[] = resultado.geojson.features.map((f) => ({
+    id: f.properties.id_evento,
+    lugar: f.properties.lugar,
+    metodo: f.properties.metodoUbicacion ?? 'localidad',
+    lat: f.geometry.coordinates[1],
+    lon: f.geometry.coordinates[0],
+  }))
+  const conFila = new Set(filas.map((f) => f.id))
+  for (const r of resultado.resumenProvincial) {
+    const sinPuntos = r.lugares.filter((lugar) => !filas.some((f) => f.id === r.id_evento && f.lugar === lugar))
+    if (sinPuntos.length === 0 && !conFila.has(r.id_evento)) {
+      filas.push({ id: r.id_evento, lugar: '', metodo: 'resumen', lat: null, lon: null })
+    }
+    for (const lugar of sinPuntos) {
+      filas.push({ id: r.id_evento, lugar, metodo: 'resumen', lat: null, lon: null })
+    }
+  }
+  for (const s of resultado.sinUbicacionPrecisa) {
+    filas.push({ id: s.id, lugar: s.lugar, metodo: 'no determinada', lat: null, lon: null })
+  }
+  for (const id of resultado.sinUbicar) {
+    filas.push({ id, lugar: '', metodo: 'no determinada', lat: null, lon: null })
+  }
+  return filas
 }

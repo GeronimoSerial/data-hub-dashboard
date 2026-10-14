@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CATALOGO_ESTACIONES_PREFECTURA } from '@/lib/infraestructura/hidrometria/estaciones-prefectura'
-import { centroidesLocalidadesEscuelas,
+import { auditarUbicaciones,
+  centroidesLocalidadesEscuelas,
   etiquetaConfianza,
   etiquetaEstado,
   EVENTOS_INUNDACIONES_URLS,
@@ -72,11 +73,11 @@ function evento(over: Overrides = {}): EventoFixture {
   }
 }
 
-function ubicar(eventos: EventoFixture[]) {
+function ubicar(eventos: EventoFixture[], localidades: typeof LOCALIDADES = LOCALIDADES) {
   return ubicarEventos({
     eventos: { features: eventos },
     evidenciasCsv: CSV_EVIDENCIAS,
-    localidades: LOCALIDADES,
+    localidades,
     departamentos: DEPARTAMENTOS,
     estaciones: ESTACIONES,
   })
@@ -118,11 +119,118 @@ describe('ubicarEventos', () => {
     expect(geojson.features.every((f) => f.properties.multiLugar === true)).toBe(true)
   })
 
-  it('matches a locality ignoring its parenthetical but keeps the original for display', () => {
+  it('matches the gazetteer on the full place text before stripping the parenthetical', () => {
     const { geojson } = ubicar([evento({ localidad: 'Ituzaingó (Isla Apipé)' })])
     expect(geojson.features).toHaveLength(1)
-    expect(geojson.features[0].geometry.coordinates).toEqual([-56.7, -27.6])
+    expect(geojson.features[0].geometry.coordinates).toEqual([-56.741868, -27.511299])
+    expect(geojson.features[0].properties.metodoUbicacion).toBe('gazetteer')
     expect(geojson.features[0].properties.lugar).toBe('Ituzaingó (Isla Apipé)')
+  })
+
+  it('matches a locality ignoring its parenthetical when the full text is not in the gazetteer', () => {
+    const { geojson } = ubicar([evento({ localidad: 'Ituzaingó (Campo)' })])
+    expect(geojson.features[0].geometry.coordinates).toEqual([-56.7, -27.6])
+    expect(geojson.features[0].properties.metodoUbicacion).toBe('localidad')
+  })
+
+  it('resolves gazetteer aliases such as Apipé and Yacyretá', () => {
+    const { geojson } = ubicar([
+      evento({ localidad: 'Apipé' }),
+      evento({ id_evento: 'EV-2', localidad: 'Yacyretá' }),
+    ])
+    expect(geojson.features[0].geometry.coordinates).toEqual([-56.741868, -27.511299])
+    expect(geojson.features[1].geometry.coordinates).toEqual([-56.7286, -27.4823])
+  })
+
+  it('never pairs a locality with a department by index when the lists differ in length', () => {
+    const { geojson, sinUbicar, sinUbicacionPrecisa } = ubicar([
+      evento({ localidad: 'Campo X;Campo Y', departamento: 'Ituzaingó' }),
+    ])
+    expect(geojson.features).toEqual([])
+    expect(sinUbicar).toEqual(['EV-1'])
+    expect(sinUbicacionPrecisa).toEqual([])
+  })
+
+  it('does not use a department fallback whose name is itself a locality', () => {
+    const { geojson, sinUbicar, sinUbicacionPrecisa } = ubicar([
+      evento({ localidad: 'Campo X;Campo Y', departamento: 'Bonpland;Ituzaingó' }),
+    ])
+    expect(geojson.features).toEqual([])
+    expect(sinUbicar).toEqual(['EV-1'])
+    expect(sinUbicacionPrecisa).toEqual([])
+  })
+
+  it('does not draw a multi-place department-only place and lists it in sinUbicacionPrecisa', () => {
+    const { geojson, sinUbicacionPrecisa } = ubicar([
+      evento({ localidad: 'Campo X;Campo Y', departamento: 'Paso de los Libres;Paso de los Libres' }),
+    ])
+    expect(geojson.features).toEqual([])
+    expect(sinUbicacionPrecisa).toEqual([
+      { id: 'EV-1', lugar: 'Campo X' },
+      { id: 'EV-1', lugar: 'Campo Y' },
+    ])
+  })
+
+  it('keeps the single-place department fallback drawn as departamento', () => {
+    const { geojson, sinUbicacionPrecisa } = ubicar([
+      evento({ localidad: 'Campo Inexistente', departamento: 'Ituzaingó' }),
+    ])
+    expect(sinUbicacionPrecisa).toEqual([])
+    expect(geojson.features[0].properties.precisionMostrada).toBe('departamento')
+  })
+
+  it('moves an aggregate provincial figure to resumenProvincial and marks its named places as agregado', () => {
+    const { geojson, sinUbicar, resumenProvincial } = ubicar(
+      [
+        evento({
+          id_evento: 'EV-20261013-007',
+          tipo_afectacion: 'evacuados y autoevacuados (cifra provincial consolidada)',
+          mediciones: '67 personas',
+          localidad: 'Isla Apipé;Paso de los Libres',
+          departamento: 'Ituzaingó;Paso de los Libres',
+          geometria_precision: 'localidad',
+        }),
+      ],
+      [...LOCALIDADES, { nombre: 'Paso de los Libres', lon: -57.09, lat: -29.68 }],
+    )
+    expect(sinUbicar).toEqual([])
+    expect(resumenProvincial).toHaveLength(1)
+    expect(resumenProvincial[0]).toMatchObject({
+      id_evento: 'EV-20261013-007',
+      lugares: ['Isla Apipé', 'Paso de los Libres'],
+      estadoEtiqueta: expect.any(String),
+      confianzaEtiqueta: expect.any(String),
+    })
+    expect(geojson.features).toHaveLength(2)
+    expect(geojson.features.every((f) => f.properties.agregado === true)).toBe(true)
+    expect(geojson.features.every((f) => f.properties.id_evento === 'EV-20261013-007')).toBe(true)
+    expect(geojson.features.map((f) => f.geometry.coordinates)).toEqual([
+      [-56.741868, -27.511299],
+      [-57.09, -29.68],
+    ])
+    expect(geojson.features.some((f) => f.properties.precisionMostrada === 'departamento')).toBe(false)
+  })
+
+  it('keeps a single-place aggregate in resumenProvincial without a department point', () => {
+    const { geojson, resumenProvincial } = ubicar([
+      evento({ tipo_afectacion: 'cifra provincial', localidad: 'Ituzaingó', departamento: 'Ituzaingó' }),
+    ])
+    expect(resumenProvincial).toHaveLength(1)
+    expect(geojson.features.every((f) => f.properties.precisionMostrada !== 'departamento')).toBe(true)
+  })
+
+  it('audits every placed, aggregated, undetermined and unlocated event with its method', () => {
+    const { geojson, sinUbicar, sinUbicacionPrecisa, resumenProvincial } = ubicar([
+      evento({ localidad: 'Bonpland' }),
+      evento({ id_evento: 'EV-2', localidad: 'Campo X;Campo Y', departamento: 'Paso de los Libres;Paso de los Libres' }),
+      evento({ id_evento: 'EV-3', localidad: 'Campo Z', departamento: 'Nadie', tipo_afectacion: 'provincial' }),
+      evento({ id_evento: 'EV-4', localidad: 'Nada', departamento: 'Nadie' }),
+    ])
+    const filas = auditarUbicaciones({ geojson, sinUbicar, sinUbicacionPrecisa, resumenProvincial, descartados: [] })
+    expect(filas).toContainEqual({ id: 'EV-1', lugar: 'Bonpland', metodo: 'localidad', lat: -28.4, lon: -58.1 })
+    expect(filas).toContainEqual({ id: 'EV-2', lugar: 'Campo X', metodo: 'no determinada', lat: null, lon: null })
+    expect(filas).toContainEqual({ id: 'EV-3', lugar: 'Campo Z', metodo: 'resumen', lat: null, lon: null })
+    expect(filas).toContainEqual({ id: 'EV-4', lugar: '', metodo: 'no determinada', lat: null, lon: null })
   })
 
   it('falls back to the department centroid with precisionMostrada departamento', () => {
@@ -200,9 +308,13 @@ describe('eventos-inundaciones real data', () => {
     const idsDescartados = new Set(resultado.descartados.map((d) => d.id))
     const enDepartamento = resultado.geojson.features.filter((f) => f.properties.precisionMostrada === 'departamento')
     expect(enDepartamento.map((f) => f.properties.lugar)).not.toContain('Paso de los Libres')
+    const idsResumen = new Set(resultado.resumenProvincial.map((r) => r.id_evento))
+    const idsPrecision = new Set(resultado.sinUbicacionPrecisa.map((s) => s.id))
     for (const f of eventos.features) {
       const id = f.properties.id_evento
-      expect(idsSalida.has(id) || idsSinUbicar.has(id) || idsDescartados.has(id)).toBe(true)
+      expect(
+        idsSalida.has(id) || idsSinUbicar.has(id) || idsDescartados.has(id) || idsResumen.has(id) || idsPrecision.has(id),
+      ).toBe(true)
     }
     expect(EVENTOS_INUNDACIONES_URLS.eventos).toBe('/data/eventos-inundaciones/eventos.geojson')
   })
@@ -255,7 +367,52 @@ describe('eventos-inundaciones real data', () => {
       expect(texto).not.toMatch(/\bEVD?-\d/)
     }
   })
+
+  it('keeps EV-20261013-007 as a provincial aggregate with no department-centroid point', () => {
+    const resultado = ubicarDatosReales()
+    const agregado = resultado.resumenProvincial.find((r) => r.id_evento === 'EV-20261013-007')
+    expect(agregado).toBeDefined()
+    const puntos = resultado.geojson.features.filter((f) => f.properties.id_evento === 'EV-20261013-007')
+    expect(puntos.every((f) => f.properties.precisionMostrada !== 'departamento')).toBe(true)
+    expect(puntos.every((f) => f.properties.agregado === true)).toBe(true)
+  })
+
+  it('audits every kept event id from public/data at least once', () => {
+    const resultado = ubicarDatosReales()
+    const filas = auditarUbicaciones(resultado)
+    const ids = new Set(filas.map((f) => f.id))
+    const mantenidos = [
+      ...resultado.geojson.features.map((f) => f.properties.id_evento),
+      ...resultado.resumenProvincial.map((r) => r.id_evento),
+      ...resultado.sinUbicacionPrecisa.map((s) => s.id),
+      ...resultado.sinUbicar,
+    ]
+    expect(mantenidos.length).toBeGreaterThan(0)
+    for (const id of mantenidos) expect(ids.has(id)).toBe(true)
+  })
 })
+
+function ubicarDatosReales() {
+  const leer = (ruta: string) => readFileSync(resolve(process.cwd(), 'public', ruta), 'utf8')
+  const eventos = JSON.parse(leer('data/eventos-inundaciones/eventos.geojson'))
+  const locs = JSON.parse(leer('data/localities.geojson'))
+  const deps = JSON.parse(leer('data/departamentos-corrientes-georef-2026-09-27.geojson'))
+  return ubicarEventos({
+    eventos,
+    evidenciasCsv: leer('data/eventos-inundaciones/evidencias.csv'),
+    localidades: locs.features.map((f: { properties: { name: string }; geometry: { coordinates: number[] } }) => ({
+      nombre: f.properties.name,
+      lon: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1],
+    })).concat(centroidesLocalidadesEscuelas(JSON.parse(leer('data/localizaciones.json')))),
+    departamentos: deps.features.map((f: { properties: { nombre: string; centroide: { lon: number; lat: number } } }) => ({
+      nombre: f.properties.nombre,
+      lon: f.properties.centroide.lon,
+      lat: f.properties.centroide.lat,
+    })),
+    estaciones: CATALOGO_ESTACIONES_PREFECTURA,
+  })
+}
 
 describe('filtro de calidad', () => {
   it('drops events with confianza muy baja', () => {
@@ -361,6 +518,6 @@ describe('centroidesLocalidadesEscuelas', () => {
       { localidad: 'PASO DE LOS LIBRES', lat: -29.73, lon: -57.1, geoCalidad: null },
       { localidad: 'SIN COORDENADAS', lat: null, lon: null, geoCalidad: null },
     ])
-    expect(puntos).toEqual([{ nombre: 'PASO DE LOS LIBRES', lat: -29.72, lon: -57.09 }])
+    expect(puntos).toEqual([{ nombre: 'PASO DE LOS LIBRES', origen: 'escuelas', lat: -29.72, lon: -57.09 }])
   })
 })
