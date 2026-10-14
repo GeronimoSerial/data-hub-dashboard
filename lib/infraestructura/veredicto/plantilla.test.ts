@@ -24,7 +24,7 @@ describe('textoPlantilla', () => {
       fuentesAusentes: ['smn', 'glofas'],
     })
     expect(texto).toBe(
-      'Prefectura Paso de los Libres: 7,25 m ≥ alerta 7,10 m. Sin datos de: avisos del SMN, caudal pronosticado (GloFAS).',
+      'Prefectura Paso de los Libres — Altura del río: 7,25 m · Alerta (alerta 7,10 m).',
     )
   })
 
@@ -45,9 +45,9 @@ describe('textoPlantilla', () => {
     expect(texto).toBe('Caudal pico: 1.523,6 m3/s.')
   })
 
-  it('nivel sin_dato se rotula Sin dato', () => {
+  it('nivel sin_dato se rotula Sin dato sin agregar Sin datos de al texto', () => {
     expect(textoPlantilla({ ...base, nivel: 'sin_dato', traza: [], fuentesAusentes: ['imerg'] })).toBe(
-      'Sin datos suficientes para evaluar el día. Sin datos de: lluvia satelital (IMERG).',
+      'Sin datos suficientes para evaluar el día.',
     )
   })
 })

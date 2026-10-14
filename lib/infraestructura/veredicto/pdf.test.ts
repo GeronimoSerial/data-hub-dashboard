@@ -97,7 +97,7 @@ describe('lineasPdf', () => {
     ]
     const texto = lineasPdf({ veredictos: [veredicto({ aguasArriba })], generadoEn }).map((l) => l.texto).join('\n')
     expect(texto).toContain(
-      'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná): 30,80 m, sobre evacuación 28,00 m; Prefectura Posadas (río Paraná): 12,50 m',
+      'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná) — Altura del río: 30,80 m · Evacuación (evacuación 28,00 m); Prefectura Posadas (río Paraná) — Altura del río: 12,50 m',
     )
   })
 

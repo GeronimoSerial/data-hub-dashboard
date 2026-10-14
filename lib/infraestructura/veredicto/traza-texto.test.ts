@@ -56,7 +56,9 @@ describe('describirTraza', () => {
       { regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 9.33, umbral: 'evacuacion', nivel: 'severo' },
       METRICAS_RIO,
     )
-    expect(texto).toBe('Prefectura Paso de los Libres (río Uruguay): 9,33 m ≥ evacuación 8,50 m')
+    expect(texto).toBe(
+      'Prefectura Paso de los Libres (río Uruguay) — Altura del río: 9,33 m · Evacuación (evacuación 8,50 m)',
+    )
   })
 
   it('describe el estado de alerta de un río con su cota', () => {
@@ -64,7 +66,7 @@ describe('describirTraza', () => {
       { regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 7.25, umbral: 'alerta', nivel: 'alerta' },
       METRICAS_RIO,
     )
-    expect(texto).toBe('Prefectura Paso de los Libres (río Uruguay): 7,25 m ≥ alerta 7,10 m')
+    expect(texto).toBe('Prefectura Paso de los Libres (río Uruguay) — Altura del río: 7,25 m · Alerta (alerta 7,10 m)')
   })
 
   it('omite el umbral cuando su métrica no está', () => {
@@ -72,7 +74,7 @@ describe('describirTraza', () => {
       { regla: 'rio.estado', ref: 'rio.pna-paso-de-los-libres.estado_max', valor: 9.33, umbral: 'evacuacion', nivel: 'severo' },
       METRICAS_RIO.filter((m) => !m.id.endsWith('evacuacion_m')),
     )
-    expect(texto).toBe('Prefectura Paso de los Libres (río Uruguay): 9,33 m')
+    expect(texto).toBe('Prefectura Paso de los Libres (río Uruguay) — Altura del río: 9,33 m · Evacuación')
   })
 
   it('describe la subida de 24 h de un río en alerta', () => {
@@ -162,16 +164,16 @@ describe('describirAguaArriba', () => {
         alturaMaxM: 30.8,
         umbralM: 28,
       }),
-    ).toBe('Prefectura Iguazú (río Paraná): 30,80 m, sobre evacuación 28,00 m')
+    ).toBe('Prefectura Iguazú (río Paraná) — Altura del río: 30,80 m · Evacuación (evacuación 28,00 m)')
   })
 
   it('describe una estación en alerta y una normal con su cota de alerta', () => {
     const base = { nombre: 'IGUAZU', rio: 'parana' as const, alturaMaxM: 27.5, umbralM: 27.9 }
     expect(describirAguaArriba({ ...base, estadoMax: 'alerta' })).toBe(
-      'Prefectura Iguazú (río Paraná): 27,50 m, sobre alerta 27,90 m',
+      'Prefectura Iguazú (río Paraná) — Altura del río: 27,50 m · Alerta (alerta 27,90 m)',
     )
     expect(describirAguaArriba({ ...base, estadoMax: 'normal' })).toBe(
-      'Prefectura Iguazú (río Paraná): 27,50 m, por debajo de alerta 27,90 m',
+      'Prefectura Iguazú (río Paraná) — Altura del río: 27,50 m · Normal (alerta 27,90 m)',
     )
   })
 
@@ -184,7 +186,7 @@ describe('describirAguaArriba', () => {
         alturaMaxM: 27.5,
         umbralM: null,
       }),
-    ).toBe('Prefectura Iguazú (río Paraná): 27,50 m')
+    ).toBe('Prefectura Iguazú (río Paraná) — Altura del río: 27,50 m')
   })
 })
 

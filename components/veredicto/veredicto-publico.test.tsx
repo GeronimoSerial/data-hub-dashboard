@@ -93,7 +93,7 @@ describe('VeredictoPublico', () => {
     render(<VeredictoPublico veredictos={[conAguas]} />)
     expect(
       screen.getByText(
-        'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná): 27,50 m, sobre alerta 27,90 m',
+        'Aguas arriba (contexto, no modifica el nivel): Prefectura Iguazú (río Paraná) — Altura del río: 27,50 m · Alerta (alerta 27,90 m)',
       ),
     ).toBeTruthy()
   })

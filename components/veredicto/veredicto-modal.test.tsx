@@ -111,15 +111,15 @@ describe('VeredictoModal', () => {
     expect(within(detalle).getByText(/generado \d{2}:\d{2}/)).toBeInTheDocument()
   })
 
-  it('en HOY muestra hasta qué hora llegó la lluvia IMERG', async () => {
+  it('en HOY muestra hasta qué hora llegó la lluvia IMERG en el tooltip del generado', async () => {
     const hace3h = new Date(Date.now() - 3 * 3600_000).toISOString()
     mockFetchVeredictos([veredicto({ id: 'b', fecha: hoy, imergHasta: hace3h })])
 
     render(<VeredictoModal open onOpenChange={() => {}} />)
     const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
-    expect(within(detalle).getByText(/Lluvia observada hasta \d{2}:\d{2} \(hace 3 h\)/)).toHaveClass(
-      'veredicto-detalle__meta',
-    )
+    const generado = within(detalle).getByText(/generado \d{2}:\d{2}/)
+    expect(generado).toHaveAttribute('title', expect.stringMatching(/^Lluvia observada hasta \d{2}:\d{2}$/))
+    expect(within(detalle).queryByText(/Lluvia observada hasta/)).toBeNull()
   })
 
   it('cambia el detalle al elegir otro día', async () => {
@@ -287,11 +287,11 @@ describe('VeredictoModal', () => {
     render(<VeredictoModal open onOpenChange={() => {}} />)
     const detalle = await screen.findByRole('region', { name: 'Detalle del veredicto' })
     expect(
-      within(detalle).getByText('Prefectura Paso de los Libres (río Uruguay): 7,25 m ≥ alerta 7,10 m'),
+      within(detalle).getByText('Prefectura Paso de los Libres (río Uruguay) — Altura del río: 7,25 m · Alerta (alerta 7,10 m)'),
     ).toBeInTheDocument()
     expect(within(detalle).getByText('Aguas arriba (contexto, no modifica el nivel)')).toBeInTheDocument()
     expect(
-      within(detalle).getByText('Prefectura Iguazú (río Paraná): 30,80 m, por debajo de alerta 31,50 m'),
+      within(detalle).getByText('Prefectura Iguazú (río Paraná) — Altura del río: 30,80 m · Normal (alerta 31,50 m)'),
     ).toBeInTheDocument()
   })
 })
