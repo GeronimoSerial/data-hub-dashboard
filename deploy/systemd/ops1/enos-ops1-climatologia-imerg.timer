@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer OPS1 ENOS: climatologia-imerg (diario, cursor resumable por mes)
+
+[Timer]
+# Corrida diaria: avanza el cursor de la serie IMERG Final con presupuesto de
+# días por corrida y, completado el período, sólo recalcula los umbrales.
+OnCalendar=*-*-* 04:20:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=enos-ops1@climatologia-imerg.service
+
+[Install]
+WantedBy=timers.target

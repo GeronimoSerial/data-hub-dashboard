@@ -53,7 +53,7 @@ export function MetodologiaMapa() {
           <a href="#metodologia/nasa"><b>NASA</b><span>Lluvia observada por satélite cada 30 minutos (misión GPM, junto a JAXA)</span></a>
           <a href="#metodologia/inundacion"><b>Comisión Europea · JRC</b><span>Mapas globales de crecidas de río y de agua superficial</span></a>
           <a href="#metodologia/inundacion"><b>Copernicus</b><span>Modelo de elevación del terreno a 30 m</span></a>
-          <a href="#metodologia/lluvia"><b>ECMWF · ERA5</b><span>Climatología histórica de lluvia</span></a>
+          <a href="#metodologia/lluvia"><b>NASA IMERG · ERA5</b><span>Climatología histórica de lluvia (IMERG Final 2001 en adelante; ERA5 como respaldo)</span></a>
           <a href="#metodologia/lluvia"><b>Open-Meteo</b><span>Pronóstico de lluvia a 24, 72 y 240 horas</span></a>
           <a href="#metodologia/aislamiento"><b>OpenStreetMap</b><span>Red vial, puentes y vados</span></a>
           <a href="#metodologia/afectacion"><b>Gestión Educativa</b><span>Padrón de escuelas, secciones y matrícula</span></a>
@@ -177,7 +177,7 @@ export function MetodologiaMapa() {
         <h2>2 · Peligro por lluvia</h2>
         <p className="question">¿La lluvia pronosticada es excepcional para ese lugar?</p>
         <h3>Fuente</h3>
-        <p>Pronóstico de precipitación de Open-Meteo, actualizado cada 6 horas, por celda de grilla y para tres horizontes: 24, 72 y 240 horas. La referencia de “normal” es la <span className="term" tabIndex={0} data-def="Distribución histórica de la lluvia en un lugar. Aquí se usan los percentiles 90, 95 y 99 de la serie ERA5.">climatología</span> de cada celda.</p>
+        <p>Pronóstico de precipitación de Open-Meteo, actualizado cada 6 horas, por celda de grilla y para tres horizontes: 24, 72 y 240 horas. La referencia de “normal” es la <span className="term" tabIndex={0} data-def="Distribución histórica de la lluvia en un lugar. Aquí se usan los percentiles 90, 95 y 99 de la lluvia diaria.">climatología</span> de cada celda: la serie diaria NASA IMERG Final (0,1°) desde 2001 hasta el último año completo publicado (hoy 2001-2025, no el período OMM 1991-2020). Si una celda todavía no la tiene completa se usa la climatología ERA5; nunca se mezclan percentiles de las dos fuentes.</p>
         <h3>Método</h3>
         <p>Se compara la lluvia acumulada con los percentiles históricos de la celda. La comparación es estricta: igualar un percentil no lo supera.</p>
         <Formula tex={String.raw`\text{nivel}(mm)=\begin{cases}\text{rojo} & mm>P_{99}\\ \text{naranja} & mm>P_{95}\\ \text{amarillo} & mm>P_{90}\\ \text{verde} & \text{en otro caso}\end{cases}`} />

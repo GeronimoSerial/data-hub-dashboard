@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   ejecutarSyncImerg: vi.fn(),
   ejecutarCalculoClimatologia: vi.fn(),
   ejecutarCalculoClimatologiaCaudal: vi.fn(),
+  ejecutarCalculoClimatologiaImerg: vi.fn(),
   calcularYPublicarRiesgo: vi.fn(),
   correrJobEpisodiosDerivados: vi.fn(),
   correrJobBriefingIA: vi.fn(),
@@ -48,6 +49,9 @@ vi.mock('../lib/infraestructura/riesgo/jobs/sync-imerg.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia.ts', () => ({
   ejecutarCalculoClimatologia: mocks.ejecutarCalculoClimatologia,
+}))
+vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia-imerg.ts', () => ({
+  ejecutarCalculoClimatologiaImerg: mocks.ejecutarCalculoClimatologiaImerg,
 }))
 vi.mock('../lib/infraestructura/riesgo/jobs/calcular-climatologia-caudal.ts', () => ({
   ejecutarCalculoClimatologiaCaudal: mocks.ejecutarCalculoClimatologiaCaudal,
@@ -185,6 +189,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['sync-imerg', 'ejecutarSyncImerg'],
     ['climatologia-precipitacion', 'ejecutarCalculoClimatologia'],
     ['climatologia-caudal', 'ejecutarCalculoClimatologiaCaudal'],
+    ['climatologia-imerg', 'ejecutarCalculoClimatologiaImerg'],
     ['calcular-riesgo', 'calcularYPublicarRiesgo'],
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
     ['situacion-corte', 'generarCorte'],
