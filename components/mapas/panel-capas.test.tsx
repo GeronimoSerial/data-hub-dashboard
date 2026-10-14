@@ -24,31 +24,32 @@ describe('PanelCapas · Situación actual', () => {
 })
 
 describe('PanelCapas · lluvia observada', () => {
-  it('muestra el interruptor de lluvia IMERG activo y, encendido, el selector 24 h / 72 h', () => {
+  it('muestra el interruptor de lluvia IMERG apagado por defecto y sin selector de horas', () => {
     render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
 
-    expect(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }).getAttribute('aria-checked')).toBe('true')
-    expect(screen.getByRole('radio', { name: '72 h' })).toBeChecked()
-    expect(screen.getByRole('radio', { name: '24 h' })).toBeTruthy()
+    expect(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.queryByRole('radio', { name: '24 h' })).toBeNull()
   })
 
-  it('oculta el selector de horas cuando la lluvia observada está apagada', () => {
-    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: false }} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
+  it('muestra el selector 24 h / 72 h cuando la lluvia observada está encendida', () => {
+    render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={{ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: true }} onCapasVisiblesChange={() => {}} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={() => {}} />)
 
-    expect(screen.queryByRole('radio', { name: '24 h' })).toBeNull()
+    expect(screen.getByRole('radio', { name: '72 h' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: '24 h' })).toBeTruthy()
   })
 
   it('apaga la lluvia observada al desactivar su interruptor y cambia la ventana a 24 h', async () => {
     const cambios = vi.fn<(visibles: CapasVisibles) => void>()
     const horas = vi.fn()
-    const { rerender } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={horas} />)
+    const encendidas = { ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: true }
+    const { rerender } = render(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={encendidas} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={72} onHorasLluviaChange={horas} />)
 
     await userEvent.click(screen.getByRole('switch', { name: 'Lluvia observada (satélite IMERG)' }))
     expect(cambios).toHaveBeenCalledWith({ ...CAPAS_VISIBLES_DEFAULT, lluviaObservada: false })
 
     await userEvent.click(screen.getByRole('radio', { name: '24 h' }))
     expect(horas).toHaveBeenCalledWith(24)
-    rerender(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={CAPAS_VISIBLES_DEFAULT} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={24} onHorasLluviaChange={horas} />)
+    rerender(<PanelCapas value="voyager" onChange={() => {}} capasVisibles={encendidas} onCapasVisiblesChange={cambios} haySeleccion={false} horasLluvia={24} onHorasLluviaChange={horas} />)
   })
 })
 

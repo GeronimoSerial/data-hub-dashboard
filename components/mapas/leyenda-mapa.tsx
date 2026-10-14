@@ -83,7 +83,7 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
   const hasta = meta.hasta && !Number.isNaN(Date.parse(meta.hasta)) ? FORMATO_CORTE_LLUVIA.format(new Date(meta.hasta)) : null
   return (
     <aside className="map-leyenda" aria-label="Lluvia observada">
-      <b className="map-leyenda__titulo">Lluvia observada {meta.horas} h</b>
+      <b className="map-leyenda__titulo">Lluvia observada {meta.horas} h (satélite IMERG)</b>
       <ul className="map-leyenda__fila">
         {CLASES_LLUVIA.map((clase) => (
           <li className="map-leyenda__elemento" key={clase.desde}>
@@ -91,13 +91,10 @@ function LeyendaLluviaObservada({ meta }: { meta: MetaLluviaObservada }) {
             <span>{clase.etiqueta}</span>
           </li>
         ))}
-        <li className="map-leyenda__elemento">
-          <span aria-hidden="true" className="map-leyenda__muestra map-leyenda__muestra--punteada" />
-          <span>Ventana incompleta (cobertura &lt; 80 %)</span>
-        </li>
       </ul>
       <small>Hasta: {hasta ?? 'Sin dato'}</small>
-      <small>Satélite: estimación, no medición en tierra</small>
+      <small>Estimación satelital, no medición en tierra. Hacé clic en el mapa para ver el valor.</small>
+      {meta.parciales > 0 && <small>{meta.parciales} celdas con ventana incompleta (ver detalle al hacer clic)</small>}
     </aside>
   )
 }

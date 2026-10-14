@@ -31,23 +31,29 @@ function colorCss(color: string): string {
 }
 
 describe('LeyendaMapa · lluvia observada', () => {
-  it('muestra la escala IMERG, la ventana incompleta y la fecha de corte en hora argentina', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72 }} />)
+  it('muestra la escala IMERG, la nota de estimación satelital y la fecha de corte en hora argentina', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: '2026-10-13T12:00:00Z', horas: 72, parciales: 0 }} />)
 
     const leyenda = within(container)
-    expect(leyenda.getByText('Lluvia observada 72 h')).toBeTruthy()
-    expect(leyenda.getByText('10–25 mm')).toBeTruthy()
-    expect(leyenda.getByText('200 mm o más')).toBeTruthy()
-    expect(leyenda.getByText('Ventana incompleta (cobertura < 80 %)')).toBeTruthy()
+    expect(leyenda.getByText('Lluvia observada 72 h (satélite IMERG)')).toBeTruthy()
+    expect(leyenda.getByText('1–10 mm')).toBeTruthy()
+    expect(leyenda.getByText('150 mm o más')).toBeTruthy()
     expect(leyenda.getByText(/Hasta: 13\/10\/2026/)).toBeTruthy()
-    expect(leyenda.getByText(/Satélite: estimación, no medición en tierra/)).toBeTruthy()
+    expect(leyenda.getByText(/Estimación satelital, no medición en tierra\. Hacé clic en el mapa para ver el valor\./)).toBeTruthy()
+    expect(leyenda.queryByText(/celdas con ventana incompleta/)).toBeNull()
   })
 
   it('indica sin dato cuando no hay fecha de corte', () => {
-    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24 }} />)
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 24, parciales: 0 }} />)
 
-    expect(within(container).getByText('Lluvia observada 24 h')).toBeTruthy()
+    expect(within(container).getByText('Lluvia observada 24 h (satélite IMERG)')).toBeTruthy()
     expect(within(container).getByText(/Sin dato/)).toBeTruthy()
+  })
+
+  it('avisa las celdas con ventana incompleta solo cuando las hay', () => {
+    const { container } = render(<LeyendaMapa pestana="actual" lluviaObservada={{ hasta: null, horas: 72, parciales: 3 }} />)
+
+    expect(within(container).getByText('3 celdas con ventana incompleta (ver detalle al hacer clic)')).toBeTruthy()
   })
 
   it('no muestra la leyenda de lluvia cuando la capa está apagada', () => {
