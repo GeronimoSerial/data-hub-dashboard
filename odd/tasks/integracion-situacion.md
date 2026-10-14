@@ -22,8 +22,16 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
 - [x] T1 Engine snapshot humanizer (pure lib + tests): level, conclusion, operator reasons, technical detail.
 - [x] T2 School sheet uses the engine snapshot as conclusion; hazard numbers become supporting detail;
   "Zona expuesta a crecidas" vs "Situación actual" separated.
-- [ ] T3 Audit other risk surfaces (list, marker, popups, verdict, radar card) for agreement.
-- [ ] T4 Visual polish pass with screenshots.
+- [x] T3 Risk surfaces agree (`9104d67`, `36b54c2`, `7155dd7`, `4527662`): Radar markers coloured by engine
+  'Riesgo actual' level only; Radar map draws only moderado+ (muy alto kept: hiding it would drop the most urgent
+  schools — flagged to the user); verdict labelled as rule-based and each department row shows school counts by
+  engine level (72 h).
+- [x] T4 Visual polish + user feedback rounds (commits `a4c7f53`..`1350330`): level chip = legend colours, all
+  planning views in the sheet, legend never over the rain scale, folded legend + 20rem panel at 1024-1279 px,
+  events block layout, accented department names; no staleness text in operator views (DatoFechado tooltip,
+  muted when stale); explicit 'Altura del río: X m · Estado (umbrales)' everywhere; provenance notes behind an
+  info icon (NotaInfo); PDF dash bullets without raw URLs; stored verdict texts lose 'Sin datos de: …' at the DTO.
+  Desktop only (1024x720, 1366x768, 1600x1000) per user; phones out of scope.
 
 ## Inventory (before the fix)
 
@@ -58,6 +66,7 @@ Scope: presentation and coherence only; no new data sources. No push/PR/deploy.
   peligro-based conclusion removed from `FichaTerritorial` (kept as 'Lluvia y río: datos de apoyo'). 67 tests green.
 - Pending/known: Radar marker paints `nivelAmenaza` colour when engine level is bajo (`radar.ts:119-129`) — kept,
   the list shows the same school with its threat pill; verdict modal remains an independent daily verdict.
-- BLOCKED: visual verification. Copying `.env.local` from `verificacion-integrada` was denied by the permission
-  layer, so `pnpm dev -p 3330` against dhd-verif and the Playwright screenshots were not run. T4 not started.
+- Visual verification: `.env.local` provided by the supervisor; dev on :3330 against dhd-verif; screenshots in
+  `/home/gero/capturas/pulido-final/` (prefix s-=1024, d-=1366, w-=1600; publico, pdf-pagina-N).
+- Checks: `tsc` clean; `pnpm lint` 0 errors (15 pre-existing warnings); related vitest suites green.
 - T0 commit: see git log (`chore(db): ...`).
