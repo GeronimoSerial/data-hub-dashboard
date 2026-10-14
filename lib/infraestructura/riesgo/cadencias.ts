@@ -15,6 +15,7 @@ export type NombreJob =
   | 'situacion-corte'
   | 'briefing-ia'
   | 'sync-prefectura-alturas'
+  | 'sync-synop-lluvia'
 
 export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string }> = {
   // Cada 6h para alinearse con las corridas ECMWF 00/06/12/18 UTC.
@@ -72,6 +73,11 @@ export const CADENCIAS: Record<NombreJob, { minutos: number; descripcion: string
     minutos: 60,
     descripcion: 'Sincroniza alturas hidrométricas de Prefectura Naval Argentina (cada hora)',
   },
+  // Lluvia medida en estaciones SMN (SYNOP vía Ogimet): una consulta por estación por hora.
+  'sync-synop-lluvia': {
+    minutos: 60,
+    descripcion: 'Sincroniza lluvia medida (SYNOP 6RRRt) de estaciones SMN vía Ogimet (cada hora)',
+  },
 }
 
 // El `tipo` que cada job persiste en infra_job_run (TIPO_JOB interno) no es el
@@ -93,6 +99,7 @@ export const TIPO_INFRA_JOB_RUN_A_NOMBRE_JOB: Record<string, NombreJob> = {
   'situacion-corte-v1': 'situacion-corte',
   'briefing-ia-v0': 'briefing-ia',
   'sync-prefectura-alturas': 'sync-prefectura-alturas',
+  'sync-synop-lluvia': 'sync-synop-lluvia',
 }
 
 // Un job está atrasado cuando pasaron más de dos cadencias completas desde su

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   correrJobEpisodiosDerivados: vi.fn(),
   correrJobBriefingIA: vi.fn(),
   syncPrefecturaAlturas: vi.fn(),
+  syncSynopLluvia: vi.fn(),
   generarCorte: vi.fn(),
   enosJobsEnabled: vi.fn(),
   adquirirLease: vi.fn(),
@@ -60,6 +61,9 @@ vi.mock('../lib/infraestructura/episodios-derivados/job.ts', () => ({
 }))
 vi.mock('../lib/infraestructura/hidrometria/sync-prefectura-alturas.ts', () => ({
   syncPrefecturaAlturas: mocks.syncPrefecturaAlturas,
+}))
+vi.mock('../lib/infraestructura/lluvia-estaciones/sync-synop-lluvia.ts', () => ({
+  syncSynopLluvia: mocks.syncSynopLluvia,
 }))
 vi.mock('../lib/infraestructura/riesgo/situacion/corte.ts', () => ({
   generarCorte: mocks.generarCorte,
@@ -189,6 +193,7 @@ describe('gating por ENOS_JOBS_ENABLED', () => {
     ['episodios-derivados', 'correrJobEpisodiosDerivados'],
     ['situacion-corte', 'generarCorte'],
     ['sync-prefectura-alturas', 'syncPrefecturaAlturas'],
+    ['sync-synop-lluvia', 'syncSynopLluvia'],
   ]
 
   it.each(casos)('%s con enosJobsEnabled=false no importa ni llama al job real', async (nombre, mockKey) => {

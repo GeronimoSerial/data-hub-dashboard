@@ -29,6 +29,13 @@ decisión hasta cerrar P-5 (I-6, I-7, G-3 e I-2). Figuran en
 `sync-prefectura-alturas` está programado en Coolify desde el 2026-10-13 y
 figura con `habilitado: true`.
 
+## Pendiente: `sync-synop-lluvia` (lluvia medida SYNOP vía Ogimet)
+
+- Job nuevo, **no programado aún** (`habilitado: false` en `jobs-esperados.ts`). Propuesta: Coolify `23 * * * *`, timeout 300 s, `node scripts/jobs.mjs sync-synop-lluvia`. Exit `1` si devuelve `estado: fallido` (todas las estaciones fallaron).
+- Requiere la migración `drizzle/0016_lluvia_estacion.sql` (tabla `lluvia_estacion`).
+- Estaciones: 87155, 87166, 87173, 87178, 87187, 87270, 87281, 87289, 87393 (catálogo en `lib/infraestructura/lluvia-estaciones/estaciones-synop.ts`). Ventana de 30 h por corrida.
+- **Términos de Ogimet:** servicio gratuito de un particular; uso no comercial con atribución ("Ogimet, ogimet.com"; datos OMM/SMN) y baja tasa de consultas. El job hace **una consulta por estación por corrida**, secuencial con 2 s de pausa y `User-Agent` identificado. No bajar la cadencia por debajo de 60 min ni paralelizar. Si Ogimet responde 429 o un mensaje de cupo, el job lo registra como estación con error y la salud de fuente `ogimet-synop` queda `degradado`.
+
 ## Producción (Coolify)
 
 Tareas configuradas en Coolify sobre la aplicación de producción:

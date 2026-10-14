@@ -58,4 +58,6 @@ export const JOBS_ESPERADOS: readonly JobEsperado[] = [
     intervaloMinutos: 60,
     habilitado: true,
   },
+  // Not scheduled in production yet: enable once the Coolify task exists.
+  { nombre: 'sync-synop-lluvia', tipo: 'sync-synop-lluvia', intervaloMinutos: 60, habilitado: false },
 ]

@@ -47,6 +47,7 @@ const NOMBRES_VALIDOS = [
   'situacion-corte',
   'briefing-ia',
   'sync-prefectura-alturas',
+  'sync-synop-lluvia',
 ]
 
 export class JobDesconocidoError extends Error {
@@ -293,6 +294,13 @@ async function correrSyncPrefecturaAlturas() {
   return syncPrefecturaAlturas()
 }
 
+// Lluvia SYNOP vía Ogimet: lease propio por hora UTC, una consulta por estación.
+async function correrSyncSynopLluvia() {
+  if (!(await jobsActivos())) return flagDeshabilitado('sync-synop-lluvia')
+  const { syncSynopLluvia } = await import('../lib/infraestructura/lluvia-estaciones/sync-synop-lluvia.ts')
+  return syncSynopLluvia()
+}
+
 async function correrSyncRadarEnsemble(opts) {
   if (!(await jobsActivos())) return flagDeshabilitado('sync-radar-ensemble')
   const { ejecutarSyncRadarEnsemble } = await import('../lib/infraestructura/radar-meteo/ensemble.ts')
@@ -418,6 +426,8 @@ export async function correrJob(nombre, opts) {
       return correrBriefingIA()
     case 'sync-prefectura-alturas':
       return correrSyncPrefecturaAlturas()
+    case 'sync-synop-lluvia':
+      return correrSyncSynopLluvia()
     default:
       throw new JobDesconocidoError(nombre)
   }
@@ -433,6 +443,7 @@ export function codigoSalida(nombreJob, resultado) {
   // otros jobs que devuelven `estado: 'fallido'` (p. ej. sync-smn-alertas) hoy
   // salen con 0 y no se cambian en este cambio.
   if (nombreJob === 'sync-prefectura-alturas' && resultado?.estado === 'fallido') return 1
+  if (nombreJob === 'sync-synop-lluvia' && resultado?.estado === 'fallido') return 1
 
   // El job corrió pero perdió el lease antes de publicar.
   if (motivo === 'lease_perdido_durante_ejecucion') return 3
