@@ -145,7 +145,7 @@ describe('CapaEstacionesRio', () => {
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('muestra "Sin dato" y la fila de lectura desactualizada al hacer clic', async () => {
+  it('con lectura vencida no muestra un aviso: atenúa el valor y deja la fecha en el tooltip', async () => {
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
@@ -155,11 +155,15 @@ describe('CapaEstacionesRio', () => {
 
     const popup = await waitFor(() => screen.getByTestId('popup'))
     expect(within(popup).getByText('Corrientes')).toBeTruthy()
-    expect(within(popup).getByText('Altura: Sin dato')).toBeTruthy()
-    expect(within(popup).getByText('Lectura desactualizada: se muestra como sin dato.')).toBeTruthy()
+    expect(within(popup).getByText('Altura del río: sin dato')).toBeTruthy()
+    expect(popup.textContent).not.toMatch(/desactualizad/i)
+    expect(popup.querySelector('.dato-fechado--vencido')).not.toBeNull()
+    // La procedencia no va en el texto: queda detrás del ícono de info.
+    expect(popup.textContent).not.toContain('no verificada')
+    expect(within(popup).getByRole('note')).toHaveAttribute('title', 'Ubicación declarada por el publicador (no verificada).')
   })
 
-  it('no muestra la fila de lectura desactualizada si la lectura está vigente', async () => {
+  it('con lectura vigente dice la altura del río explícita, el estado y los umbrales', async () => {
     render(<CapaEstacionesRio visible />)
 
     await screen.findByTestId('source')
@@ -168,8 +172,9 @@ describe('CapaEstacionesRio', () => {
     })
 
     const popup = await waitFor(() => screen.getByTestId('popup'))
-    expect(within(popup).getByText('Altura: 4,12 m')).toBeTruthy()
-    expect(within(popup).queryByText('Lectura desactualizada: se muestra como sin dato.')).toBeNull()
+    expect(within(popup).getByText('Altura del río: 4,12 m')).toBeTruthy()
+    expect(popup.querySelector('.dato-fechado--vencido')).toBeNull()
+    expect(popup.querySelector('.dato-fechado')?.getAttribute('title')).toMatch(/^Actualizado \d{2}\/\d{2} \d{2}:\d{2}$/)
   })
 
   it('muestra el tooltip de una línea al entrar y lo oculta al salir', async () => {
@@ -181,7 +186,7 @@ describe('CapaEstacionesRio', () => {
     })
     expect(
       (await screen.findByTestId('tooltip')).textContent,
-    ).toBe('Estación Prefectura Corrientes · sin dato · Sin dato — clic para ver detalle')
+    ).toBe('Estación Prefectura Corrientes · Altura del río: sin dato · Sin dato — clic para ver detalle')
 
     act(() => {
       mapa.emitir('mouseleave', 'estaciones-rio-simbolos', {})

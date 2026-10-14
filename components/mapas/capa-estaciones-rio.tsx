@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Layer, Popup, Source, useMap } from 'react-map-gl/maplibre'
 import { registrarInsignias } from '@/lib/mapas/insignias-mapa'
+import { DatoFechado, NotaInfo } from '@/components/ui/dato-fechado'
+import { textoActualizado, textoAlturaRio } from '@/lib/infraestructura/presentacion/textos-dato'
 
 type EstadoAltura = 'evacuacion' | 'alerta' | 'normal' | 'sin_dato'
 type Tendencia = 'crece' | 'baja' | 'estable' | 'sin_dato'
@@ -191,6 +193,12 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
 
   const datos = useMemo(() => puntosDe(estaciones), [estaciones])
   const activa = estaciones.find((estacion) => estacion.estacionId === seleccionada) ?? null
+  const alturaActiva = textoAlturaRio({
+    alturaM: activa?.lectura?.lecturaM ?? null,
+    estado: activa?.estado ?? 'sin_dato',
+    alertaM: activa?.lectura?.alertaM ?? null,
+    evacuacionM: activa?.lectura?.evacuacionM ?? null,
+  })
   const enfoque = estaciones.find((estacion) => estacion.estacionId === enfocada) ?? null
 
   return (
@@ -227,7 +235,7 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
           className="mapa-tooltip"
           offset={18}
         >
-          {`Estación Prefectura ${enfoque.nombre} · ${enfoque.lectura ? formatoMetros(enfoque.lectura.lecturaM) : 'sin dato'} · ${etiquetaEstadoAltura(enfoque.estado)} — clic para ver detalle`}
+          {`Estación Prefectura ${enfoque.nombre} · Altura del río: ${enfoque.lectura ? formatoMetros(enfoque.lectura.lecturaM) : 'sin dato'} · ${etiquetaEstadoAltura(enfoque.estado)} — clic para ver detalle`}
         </Popup>
       )}
       {activa && (
@@ -240,20 +248,23 @@ function CapaEstacionesRioActiva({ beforeId }: { beforeId?: string }) {
         >
           <div className="map-popup">
             <p className="map-popup-title">{activa.nombre}</p>
-            <p className="map-popup-row">{ETIQUETA_RIO[activa.rio]}</p>
+            <p className="map-popup-muted">{ETIQUETA_RIO[activa.rio]}</p>
             <hr className="map-popup-rule" />
-            <p className="map-popup-row">Altura: {activa.lectura ? formatoMetros(activa.lectura.lecturaM) : 'Sin dato'}</p>
-            <p className="map-popup-row">Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</p>
             <p className="map-popup-row">
-              Alerta: {formatoMetros(activa.lectura?.alertaM)} · Evacuación: {formatoMetros(activa.lectura?.evacuacionM)}
+              <DatoFechado
+                actualizado={textoActualizado(activa.lectura?.medidaEn)}
+                vencido={activa.lecturaVencida}
+              >
+                <strong>{alturaActiva.altura}</strong>
+              </DatoFechado>
+              {' · '}{alturaActiva.estado}
+              {activa.lectura?.inconsistente && <NotaInfo texto="Lectura marcada como inconsistente por la fuente." />}
             </p>
-            {activa.lectura && <p className="map-popup-row">Medida: {formatearFechaLocal(activa.lectura.medidaEn)}</p>}
-            {activa.lecturaVencida && (
-              <p className="map-popup-row">Lectura desactualizada: se muestra como sin dato.</p>
-            )}
-            {activa.lectura?.inconsistente && <p className="map-popup-row">Lectura marcada como inconsistente</p>}
+            {alturaActiva.umbrales && <p className="map-popup-muted">{alturaActiva.umbrales}</p>}
+            <p className="map-popup-row">Tendencia: {ETIQUETA_TENDENCIA[activa.tendencia]}</p>
             <p className="map-popup-muted">
-              <small>Fuente: Prefectura Naval Argentina. Ubicación declarada por el publicador (no verificada).</small>
+              <small>Fuente: Prefectura Naval Argentina</small>
+              <NotaInfo texto="Ubicación declarada por el publicador (no verificada)." />
             </p>
           </div>
         </Popup>
