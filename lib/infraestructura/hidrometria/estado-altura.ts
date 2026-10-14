@@ -15,9 +15,9 @@ export type LecturaParaEstado = {
   medidaEn?: string | null
 }
 
-// Prefectura publishes several readings a day and the sync job runs hourly,
-// so a reading older than this is stale rather than current.
-export const EDAD_MAXIMA_LECTURA_HORAS = 12
+// Many Prefectura stations publish only twice a day (00:00 and 12:00 ART) and the
+// sync job runs hourly, so the cutoff covers a 12 h cadence plus sync lag.
+export const EDAD_MAXIMA_LECTURA_HORAS = 18
 
 const UMBRAL_ESTABLE_M = 0.005
 const MILISEGUNDOS_POR_HORA = 3_600_000

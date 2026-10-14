@@ -23,8 +23,8 @@ function horasAtras(horas: number): string {
 }
 
 describe('estadoAltura', () => {
-  it('expone la edad máxima de lectura en 12 horas', () => {
-    expect(EDAD_MAXIMA_LECTURA_HORAS).toBe(12)
+  it('expone la edad máxima de lectura en 18 horas', () => {
+    expect(EDAD_MAXIMA_LECTURA_HORAS).toBe(18)
   })
 
   it('devuelve sin_dato cuando no hay lectura', () => {
@@ -91,14 +91,14 @@ describe('estadoAltura', () => {
       ).toEqual({ estado: 'evacuacion', tendencia: 'estable', vencida: false })
     })
 
-    it('no clasifica una lectura de 13 horas: sin_dato y vencida', () => {
+    it('no clasifica una lectura de 19 horas: sin_dato y vencida', () => {
       expect(
-        estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(13) }), { ahora: AHORA }),
+        estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(19) }), { ahora: AHORA }),
       ).toEqual({ estado: 'sin_dato', tendencia: 'sin_dato', vencida: true })
     })
 
-    it('acepta una lectura exactamente de 12 horas', () => {
-      const resultado = estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(12) }), {
+    it('acepta una lectura exactamente de 18 horas', () => {
+      const resultado = estadoAltura(lectura({ lecturaM: 7, medidaEn: horasAtras(18) }), {
         ahora: AHORA,
       })
       expect(resultado.estado).toBe('evacuacion')

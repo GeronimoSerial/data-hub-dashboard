@@ -83,7 +83,7 @@ describe('LeyendaMapa · altura de ríos', () => {
     expect(leyenda.getByText('Normal')).toBeTruthy()
     expect(leyenda.getByText('Sin dato')).toBeTruthy()
     expect(container.querySelectorAll('.map-insignia')).toHaveLength(4)
-    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Sin dato también cuando la última lectura tiene más de 12 h.')).toBe(true)
+    expect(leyenda.getAllByRole('note').some((nota) => nota.getAttribute('title') === 'Sin dato también cuando la última lectura tiene más de 18 h.')).toBe(true)
   })
 
   it('no muestra la escala de altura de ríos cuando la capa está apagada', () => {
